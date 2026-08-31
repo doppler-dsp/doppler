@@ -92,7 +92,11 @@ def _ready_queue(sender, receiver, probe) -> None:
             if not sent:
                 sender.send(probe)
                 sent = True  # enqueued exactly once
-            receiver.recv(timeout_ms=250)
+            got, _ = receiver.recv(timeout_ms=250)
+            # Ack it: a work queue drops a frame only when one is acked, so
+            # an un-acked probe is residue this helper would leave behind on
+            # every fixture it readies (doppler#1136).
+            receiver.ack(got)
             return
         except Exception as exc:
             last = exc
@@ -193,6 +197,10 @@ def push_pull_cf64():
     pull = Pull(ep)
     _ready_queue(push, pull, np.zeros(1, dtype=np.complex128))
     yield push, pull
+    # A work queue keeps every frame no consumer ACKED, in a file-backed
+    # stream nothing else deletes -- 40 GB of it, from repeated runs
+    # (doppler#1136). The subject was made up here, so ending it is ours.
+    push.delete_stream()
     push.__exit__(None, None, None)
     pull.__exit__(None, None, None)
 
@@ -899,3 +907,89 @@ def test_pub_tlm16_rejects_wrong_itemsize():
     with pytest.raises(TypeError):
         pub.send(np.zeros(4, dtype=np.complex64))  # 8-byte items, not 16
     pub.__exit__(None, None, None)
+
+
+# ------------------------------------------------------------------ #
+# Work-queue residue (doppler#1136)                                   #
+# ------------------------------------------------------------------ #
+
+
+def test_delete_stream_removes_frames_nobody_consumed():
+    """A work queue keeps un-acked frames forever; delete_stream ends it.
+
+    This is the 40 GB mechanism: retention drops a frame when a consumer
+    ACKS it, so frames nobody takes are kept, in a FILE-backed stream that
+    nothing deleted. Sending ten and deleting must leave nothing for a
+    later consumer.
+    """
+    ep = _unique_endpoint()
+    push = Push(ep, CF64)
+    payload = np.ones(64, dtype=np.complex128)
+    for _ in range(10):
+        push.send(payload)
+    push.delete_stream()
+
+    # Only a Push provisions the stream, so re-create it before consuming.
+    push2 = Push(ep, CF64)
+    pull = Pull(ep)
+    drained = 0
+    while True:
+        try:
+            pull.recv(timeout_ms=300)
+            drained += 1
+        except Exception:
+            break
+    assert drained == 0, f"{drained} frame(s) survived delete_stream"
+
+    push2.delete_stream()
+    for obj in (push, push2, pull):
+        obj.__exit__(None, None, None)
+
+
+def test_send_after_delete_says_what_the_broker_said():
+    """A failed send names the transport's own error, not just "Send error".
+
+    Six CI occurrences of doppler#1131 produced no diagnosis because every
+    non-OK NATS status collapsed into one opaque code. Deleting the stream
+    out from under a producer is the deterministic way to make a send fail.
+    """
+    ep = _unique_endpoint()
+    push = Push(ep, CF64)
+    push.send(np.ones(4, dtype=np.complex128))
+    push.delete_stream()
+
+    with pytest.raises(RuntimeError) as excinfo:
+        push.send(np.ones(4, dtype=np.complex128))
+    msg = str(excinfo.value)
+    assert "send failed" in msg
+    # The part that was missing: what the backend actually said.
+    assert " -- " in msg, f"no transport detail in {msg!r}"
+    push.__exit__(None, None, None)
+
+
+def test_deleting_a_stream_twice_reports_the_brokers_refusal():
+    """The second delete fails, and names what the broker said.
+
+    Covers the failure path of the delete itself: without it, a caller
+    who deletes a queue someone else already removed gets a bare code
+    and no way to tell that apart from a broker being unreachable.
+    """
+    ep = _unique_endpoint()
+    push = Push(ep, CF64)
+    push.delete_stream()
+    with pytest.raises(RuntimeError) as excinfo:
+        push.delete_stream()
+    msg = str(excinfo.value)
+    assert "delete_stream failed" in msg
+    assert " -- " in msg, f"no transport detail in {msg!r}"
+    push.__exit__(None, None, None)
+
+
+def test_delete_stream_on_a_closed_push_is_refused():
+    """The error a caller gets for using a closed handle, not a crash."""
+    ep = _unique_endpoint()
+    push = Push(ep, CF64)
+    push.delete_stream()
+    push.__exit__(None, None, None)
+    with pytest.raises(ValueError, match="closed"):
+        push.delete_stream()

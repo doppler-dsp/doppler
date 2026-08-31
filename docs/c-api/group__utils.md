@@ -56,6 +56,8 @@
 
 | Type | Name |
 | ---: | :--- |
+|  int | [**dp\_ctx\_delete\_stream**](#function-dp_ctx_delete_stream) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx) <br>_Delete the work-queue stream backing_ `ctx's` _subject._ |
+|  const char \* | [**dp\_ctx\_last\_error**](#function-dp_ctx_last_error) (const [**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx) <br>_The backend's own account of the last failure on_ `ctx` _._ |
 |  void | [**dp\_ctx\_set\_timestamp\_ns**](#function-dp_ctx_set_timestamp_ns) ([**dp\_pub\_t**](group__types.md#typedef-dp_pub_t) \* ctx, uint64\_t timestamp\_ns) <br>_Override the_ `timestamp_ns` _the NEXT send on_`ctx` _will stamp, instead of a fresh_[_**dp\_get\_timestamp\_ns()**_](group__utils.md#function-dp_get_timestamp_ns) _read._ |
 |  size\_t | [**dp\_element\_size**](#function-dp_element_size) ([**dp\_frame\_kind\_t**](group__types.md#enum-dp_frame_kind_t) kind, [**dp\_sample\_type\_t**](dp__format_8h.md#enum-dp_sample_type_t) format) <br>_Bytes per payload element for a frame of this kind._  |
 |  uint64\_t | [**dp\_get\_timestamp\_ns**](#function-dp_get_timestamp_ns) (void) <br>_Return the current wall-clock time as nanoseconds since the UNIX epoch._  |
@@ -91,9 +93,91 @@
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**DP\_WORK\_QUEUE\_MAX\_AGE\_NS**](group__utils.md#define-dp_work_queue_max_age_ns)  `(3600LL \* 1000000000LL)`<br>_Retention bound doppler gives a work queue it creates itself._  |
 
 ## Public Functions Documentation
 
+
+
+
+### function dp\_ctx\_delete\_stream 
+
+_Delete the work-queue stream backing_ `ctx's` _subject._
+```
+int dp_ctx_delete_stream (
+    dp_pub_t * ctx
+) 
+```
+
+
+
+Administrative, and deliberately never automatic: a work queue is shared infrastructure, and outliving any one producer is the feature, so closing a context must not end it. Call this only when the caller owns the queue's lifetime  a test that made the subject up, or a tool tearing down what it provisioned.
+
+
+Every frame still in the queue is destroyed with it, acked or not.
+
+
+
+
+**Parameters:**
+
+
+* `ctx` A context whose endpoint names the queue. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID (see [**dp\_ctx\_last\_error()**](group__utils.md#function-dp_ctx_last_error)). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_ctx\_last\_error 
+
+_The backend's own account of the last failure on_ `ctx` _._
+```
+const char * dp_ctx_last_error (
+    const dp_pub_t * ctx
+) 
+```
+
+
+
+`dp_strerror()` names the CLASS of error doppler returned; this names what the transport said, which is the part that distinguishes a slow broker from an absent one. Every non-OK publish status collapses into DP\_ERR\_SEND, so without this a caller sees "Send error" and has nothing to act on.
+
+
+
+
+**Parameters:**
+
+
+* `ctx` Any send-capable context. 
+
+
+
+**Returns:**
+
+A NUL-terminated detail string, or "" when the last call succeeded or the backend offered nothing. Owned by `ctx` and valid until the next send on it; copy to keep. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -349,6 +433,30 @@ Statically allocated, null-terminated string.
 
 
 
+
+
+        
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define DP\_WORK\_QUEUE\_MAX\_AGE\_NS 
+
+_Retention bound doppler gives a work queue it creates itself._ 
+```
+#define DP_WORK_QUEUE_MAX_AGE_NS `(3600LL * 1000000000LL)`
+```
+
+
+
+A work queue drops a frame when a consumer ACKS it, so a frame nobody consumes is kept forever  and the stream is file-backed. Created with no limits, a producer with no consumer is an unbounded disk sink (doppler#1136: 40 GB of residue from repeated test runs). An AGE bound is the one limit that cannot silently drop a frame a live consumer was about to take, unlike MaxBytes or MaxMsgs.
+
+
+One hour, in nanoseconds. To choose differently, PRE-PROVISION the stream: doppler adopts an existing one as-is rather than reconfiguring it, which is how a Helm-created R=3 stream already works. 
 
 
         

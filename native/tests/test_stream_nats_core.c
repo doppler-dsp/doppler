@@ -583,6 +583,67 @@ test_unparseable_frame_does_not_wedge_the_queue (void)
   dp_pub_destroy (push);
 }
 
+/* doppler#1136: the work queue doppler creates itself must carry an age
+ * bound, and the units must be the ones NATS means. A work queue drops a
+ * frame only when a consumer ACKS it, so without a bound a producer with
+ * no consumer is an unbounded FILE-backed disk sink -- 40 GB of it, from
+ * repeated test runs. Asserting the VALUE and not merely "nonzero" is the
+ * point: MaxAge is nanoseconds, and a seconds-vs-nanoseconds slip would
+ * leave a bound a billion times too small, expiring live traffic. */
+static void
+test_work_queue_is_age_bounded (void)
+{
+  char ep[128];
+  (void)snprintf (ep, sizeof (ep), "nats://127.0.0.1:4222/agecap%d", rand ());
+  dp_push_t *push = dp_push_create (ep, CF64);
+  DP_CHECK (push != NULL);
+  if (!push)
+    return;
+
+  /* Read the config back from the broker, not from our own struct. */
+  natsConnection *conn = NULL;
+  jsCtx          *js   = NULL;
+  DP_CHECK (natsConnection_ConnectTo (&conn, "nats://127.0.0.1:4222")
+            == NATS_OK);
+  DP_CHECK (natsConnection_JetStream (&js, conn, NULL) == NATS_OK);
+
+  char name[256];
+  (void)snprintf (name, sizeof (name), "DP_WORK_%s", strrchr (ep, '/') + 1);
+  jsStreamInfo *si = NULL;
+  natsStatus    s  = js_GetStreamInfo (&si, js, name, NULL, NULL);
+  DP_CHECK (s == NATS_OK);
+  if (si)
+    {
+      DP_CHECK (si->Config->MaxAge == DP_WORK_QUEUE_MAX_AGE_NS);
+      jsStreamInfo_Destroy (si);
+    }
+
+  /* A fan-out publisher has no work queue at all, so asking to delete
+     one is a caller error rather than a broker round trip. */
+  char pubep[128];
+  (void)snprintf (pubep, sizeof (pubep), "nats://127.0.0.1:4222/nojs%d",
+                  rand ());
+  dp_pub_t *fanout = dp_pub_create (pubep, CF64);
+  DP_CHECK (fanout != NULL);
+  if (fanout)
+    {
+      DP_CHECK (dp_ctx_delete_stream (fanout) == DP_ERR_INVALID);
+      dp_pub_destroy (fanout);
+    }
+
+  /* And the delete entry point actually removes it. */
+  DP_CHECK (dp_ctx_delete_stream (push) == DP_OK);
+  si = NULL;
+  DP_CHECK (js_GetStreamInfo (&si, js, name, NULL, NULL) != NATS_OK);
+  if (si)
+    jsStreamInfo_Destroy (si);
+
+  jsCtx_Destroy (js);
+  natsConnection_Destroy (conn);
+  dp_push_destroy (push);
+  printf ("  work queue is age-bounded and deletable\n");
+}
+
 int
 main (void)
 {
@@ -602,6 +663,7 @@ main (void)
   test_interrupt_unblocks_recv ();
   test_flush_after_send ();
   test_drain_then_send ();
+  test_work_queue_is_age_bounded ();
 
   printf ("\n");
   DP_TEST_END ("test_stream_nats_core");

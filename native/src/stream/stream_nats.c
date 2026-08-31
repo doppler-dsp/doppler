@@ -103,6 +103,19 @@ nats_js_name (char *out, size_t n, const char *prefix, const char *base)
       *p = '_';
 }
 
+/* Record the backend's own account of a failure, so DP_ERR_SEND stops
+ * being the whole story. natsStatus_GetText() names the class ("Timeout");
+ * nats_GetLastError() adds the detail the client last recorded. */
+static void
+nats_note_error (struct dp_ctx *ctx, natsStatus s)
+{
+  natsStatus  last   = NATS_OK;
+  const char *detail = nats_GetLastError (&last);
+  (void)snprintf (ctx->last_error, sizeof (ctx->last_error), "%s%s%s",
+                  natsStatus_GetText (s), (detail && *detail) ? " -- " : "",
+                  (detail && *detail) ? detail : "");
+}
+
 /* Idempotently create the durable work-queue stream for `base`.  Tolerates a
  * pre-provisioned stream (e.g. a Helm-created R=3 one): if AddStream fails but
  * the stream already exists, succeed and use it as-is. */
@@ -122,6 +135,18 @@ nats_ensure_stream (jsCtx *js, const char *base)
   cfg.Retention           = js_WorkQueuePolicy;
   cfg.Storage             = js_FileStorage; /* survives a broker restart */
   cfg.Replicas            = 1; /* dev default; prod pre-provisions R=3 */
+  /* A work queue drops a frame when a consumer ACKS it -- so a frame
+     nobody consumes is kept forever, and this stream is FILE-backed and
+     was created with jsStreamConfig_Init's defaults, i.e. no MaxMsgs, no
+     MaxBytes and no MaxAge. A producer with no consumer was therefore an
+     unbounded disk sink: doppler#1136, 40 GB of residue observed from
+     repeated test runs. An age bound is the one limit that cannot silently
+     drop a frame a live consumer was about to take.
+
+     An operator who wants different retention PRE-PROVISIONS the stream;
+     the AddStream-then-GetStreamInfo path below adopts it as-is, which is
+     the override mechanism this already had. */
+  cfg.MaxAge = DP_WORK_QUEUE_MAX_AGE_NS;
 
   natsStatus s = js_AddStream (NULL, js, &cfg, NULL, NULL);
   if (s == NATS_OK)
@@ -132,6 +157,26 @@ nats_ensure_stream (jsCtx *js, const char *base)
   if (si)
     jsStreamInfo_Destroy (si);
   return (s == NATS_OK) ? DP_OK : DP_ERR_INIT;
+}
+
+/* Delete the work-queue stream backing this context's subject.
+ * Deliberately NOT called from the close path: a work queue is shared
+ * infrastructure and outliving one producer is the feature, so ending it
+ * has to be something a caller asks for. */
+int
+nats_delete_stream (struct dp_ctx *ctx)
+{
+  if (!ctx || !ctx->nats.js)
+    return DP_ERR_INVALID;
+  char name[256];
+  nats_js_name (name, sizeof (name), "DP_WORK_", ctx->nats.base);
+  natsStatus s = js_DeleteStream ((jsCtx *)ctx->nats.js, name, NULL, NULL);
+  if (s != NATS_OK)
+    {
+      nats_note_error (ctx, s);
+      return DP_ERR_INVALID;
+    }
+  return DP_OK;
 }
 
 /* Create/attach the shared durable pull consumer for `base` (explicit ack,
@@ -277,6 +322,8 @@ nats_publish (struct dp_ctx *ctx, const char *typestr, const void *buf,
   natsConnection *conn = (natsConnection *)ctx->nats.conn;
   natsStatus      s;
 
+  ctx->last_error[0] = '\0'; /* a stale detail must not read as this one */
+
   switch (ctx->nats.role)
     {
     case DP_ROLE_PUB:
@@ -321,7 +368,10 @@ nats_publish (struct dp_ctx *ctx, const char *typestr, const void *buf,
 
   if (s == NATS_DRAINING || s == NATS_CONNECTION_CLOSED)
     return DP_ERR_CLOSED; /* a state the caller chose, not a failure */
-  return (s == NATS_OK) ? DP_OK : DP_ERR_SEND;
+  if (s == NATS_OK)
+    return DP_OK;
+  nats_note_error (ctx, s);
+  return DP_ERR_SEND;
 }
 
 /* The subject's trailing token: the frame's own format, so a consumer can

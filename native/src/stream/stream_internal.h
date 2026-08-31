@@ -54,7 +54,12 @@ struct dp_ctx
   uint64_t         timestamp_override_ns; /* one-shot; consumed by the next
                                               send_signal() call (dp_ctx_set_
                                               timestamp_ns()). */
-  int                  timestamp_override_set;
+  int timestamp_override_set;
+  /* Backend detail for the last failed call, for dp_ctx_last_error().
+     A transport status ("Timeout", "No responders") is what distinguishes
+     a broker that is slow from one that is absent, and collapsing every
+     natsStatus into DP_ERR_SEND threw that away at the point of failure. */
+  char                 last_error[192];
   struct dp_nats_state nats;
 };
 
@@ -95,6 +100,7 @@ int dp_frame_parse (const void *buf, size_t len, dp_header_t *hdr,
 struct dp_ctx *nats_ctx_create (dp_role_t role, const char *endpoint,
                                 dp_frame_kind_t kind, dp_sample_type_t format);
 void           nats_ctx_destroy (struct dp_ctx *ctx);
+int            nats_delete_stream (struct dp_ctx *ctx);
 int            nats_send_signal (struct dp_ctx *ctx, const dp_header_t *header,
                                  const void *samples, size_t data_size);
 int            nats_recv_signal (struct dp_ctx *ctx, dp_msg_t **out_msg,

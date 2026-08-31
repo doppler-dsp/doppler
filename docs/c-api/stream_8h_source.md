@@ -312,6 +312,12 @@ extern "C"
 
   const char *dp_strerror (int err);
 
+#define DP_WORK_QUEUE_MAX_AGE_NS (3600LL * 1000000000LL)
+
+  const char *dp_ctx_last_error (const dp_pub_t *ctx);
+
+  int dp_ctx_delete_stream (dp_pub_t *ctx);
+
 
 #ifdef __cplusplus
 }

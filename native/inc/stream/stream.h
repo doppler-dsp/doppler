@@ -1139,6 +1139,54 @@ extern "C"
    */
   const char *dp_strerror (int err);
 
+  /**
+   * @brief Retention bound doppler gives a work queue it creates itself.
+   *
+   * A work queue drops a frame when a consumer ACKS it, so a frame nobody
+   * consumes is kept forever -- and the stream is file-backed. Created with
+   * no limits, a producer with no consumer is an unbounded disk sink
+   * (doppler#1136: 40 GB of residue from repeated test runs). An AGE bound
+   * is the one limit that cannot silently drop a frame a live consumer was
+   * about to take, unlike MaxBytes or MaxMsgs.
+   *
+   * One hour, in nanoseconds. To choose differently, PRE-PROVISION the
+   * stream: doppler adopts an existing one as-is rather than reconfiguring
+   * it, which is how a Helm-created R=3 stream already works.
+   */
+#define DP_WORK_QUEUE_MAX_AGE_NS (3600LL * 1000000000LL)
+
+  /**
+   * @brief The backend's own account of the last failure on @p ctx.
+   *
+   * `dp_strerror()` names the CLASS of error doppler returned; this names
+   * what the transport said, which is the part that distinguishes a slow
+   * broker from an absent one. Every non-OK publish status collapses into
+   * DP_ERR_SEND, so without this a caller sees "Send error" and has
+   * nothing to act on.
+   *
+   * @param ctx  Any send-capable context.
+   * @return A NUL-terminated detail string, or "" when the last call
+   *         succeeded or the backend offered nothing. Owned by @p ctx and
+   *         valid until the next send on it; copy to keep.
+   */
+  const char *dp_ctx_last_error (const dp_pub_t *ctx);
+
+  /**
+   * @brief Delete the work-queue stream backing @p ctx's subject.
+   *
+   * Administrative, and deliberately never automatic: a work queue is
+   * shared infrastructure, and outliving any one producer is the feature,
+   * so closing a context must not end it. Call this only when the caller
+   * owns the queue's lifetime -- a test that made the subject up, or a
+   * tool tearing down what it provisioned.
+   *
+   * Every frame still in the queue is destroyed with it, acked or not.
+   *
+   * @param ctx  A context whose endpoint names the queue.
+   * @return DP_OK, or DP_ERR_INVALID (see dp_ctx_last_error()).
+   */
+  int dp_ctx_delete_stream (dp_pub_t *ctx);
+
   /** @} */ /* end group utils */
 
 #ifdef __cplusplus

@@ -124,6 +124,20 @@ def wfmgen_command_lines(text: str):
                     yield seg
 
 
+def exercise_violations(
+    unexercised: set[str], allowed: set[str]
+) -> tuple[list[str], list[str]]:
+    """(newly unwaived, stale waivers) for the exercise ratchet.
+
+    Pure on purpose: the gate's own meta-tests drive synthetic trees through
+    the CLI, and this rule is about THIS repository's docs rather than about
+    any tree's shape, so it is scoped to the real root below and tested here
+    directly. Both directions matter -- a waiver that outlives its defect
+    silently covers the next one.
+    """
+    return sorted(unexercised - allowed), sorted(allowed - unexercised)
+
+
 def reverse_check(root: Path, flags: set[str]) -> int:
     """Every flag a `wfmgen` fence USES must be one the parser accepts."""
     pages = sorted((root / "docs").rglob("*.md"))
@@ -174,23 +188,40 @@ def reverse_check(root: Path, flags: set[str]) -> int:
     # was written and read by nobody; doppler#1143 turns it into a number that
     # may not get worse. Checked both ways, because a waiver that outlives its
     # defect silently covers the next one.
-    ratchet_path = root / RATCHET
-    if not ratchet_path.is_file():
+    # An ABSENT ratchet is the empty waiver list, not a special case. It
+    # needs no guard of its own: with nothing waived, every unexercised flag
+    # reports as new, so deleting the file fails the gate LOUDLY and names
+    # all fourteen. An explicit "missing file" branch was redundant against
+    # the real tree and actively wrong against a synthetic one -- this gate's
+    # own meta-test (`test_wfmgen_flag_docs_gate.py`) builds a temp root with
+    # a handful of flags and no scripts/ directory, and the guard failed it.
+    # SCOPED to the real repository. The rule says "doppler's docs may not
+    # exercise fewer flags than they do today"; a synthetic tree seeded by
+    # this gate's own meta-tests is not doppler's docs, and running it there
+    # reported every fixture's unused flag as a regression. The comparison
+    # itself is `exercise_violations`, unit-tested directly, so scoping it
+    # here costs no coverage of the logic.
+    if root != ROOT:
         print(
-            f"wfmgen flag docs: FAIL -- {RATCHET} is missing.\n"
-            "  Without it every unexercised flag is vacuously allowed, which\n"
-            "  is the gate reporting OK over nothing.",
-            file=sys.stderr,
+            f"wfmgen flag docs: OK — {n_cmds} `wfmgen` command line(s) across "
+            f"{len(pages)} page(s) cite only flags that exist "
+            f"({len(seen)} of {len(flags)} flags exercised; exercise ratchet "
+            "skipped for a non-repository root)"
         )
-        return 1
-    allowed = {
-        ln.strip()
-        for ln in ratchet_path.read_text(encoding="utf-8").splitlines()
-        if ln.strip() and not ln.lstrip().startswith("#")
-    }
+        return 0
+
+    ratchet_path = root / RATCHET
+    allowed = (
+        {
+            ln.strip()
+            for ln in ratchet_path.read_text(encoding="utf-8").splitlines()
+            if ln.strip() and not ln.lstrip().startswith("#")
+        }
+        if ratchet_path.is_file()
+        else set()
+    )
     unexercised = flags - seen
-    new = sorted(unexercised - allowed)
-    stale = sorted(allowed - unexercised)
+    new, stale = exercise_violations(unexercised, allowed)
 
     if new or stale:
         print(

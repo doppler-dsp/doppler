@@ -26,7 +26,20 @@ burst_capture_pow2_ceil (size_t n)
 /**
  * @brief Both constructors, differing only in where the ring's pages live.
  *
- * @param path NULL for an anonymous ring; a file to back it with otherwise.
+ * @param path          NULL for an anonymous ring; a file to back it with
+ *                      otherwise.
+ * @param acq_code      Preamble PN chips (0/1), length @p acq_code_len.
+ * @param acq_code_len  Preamble code length, chips.
+ * @param burst_len     Samples in one burst -- what gets captured.
+ * @param reps          Preamble code repetitions.
+ * @param spc           Samples per chip.
+ * @param chip_rate     Chip rate, Hz.
+ * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz.
+ * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
+ * @param pfa           Target false-alarm probability, in (0, 1).
+ * @param pd            Target detection probability, in (0, 1).
+ * @return Heap state, or NULL on an out-of-range parameter or a file the
+ *         ring could not be backed with.
  */
 static burst_capture_state_t *
 burst_capture_create_impl (const char *path, const uint8_t *acq_code,

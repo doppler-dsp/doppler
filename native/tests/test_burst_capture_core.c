@@ -527,8 +527,13 @@ test_backed_finds_the_same_burst_with_a_smaller_blob (void)
 
   size_t cb_ram = burst_capture_state_bytes (ram);
   size_t cb_dsk = burst_capture_state_bytes (dsk);
+  /* The EXACT difference, not a ratio: the ring's capacity rounds up to a
+     whole page, so a "backed is 4x smaller" assertion measures the host's
+     page size as much as the feature -- it passed on 4 kB pages and failed on
+     macOS's 16 kB. What the feature actually claims is that the blob stops
+     carrying the retained span, and that is exact everywhere. */
   DP_CHECK (cb_ram - cb_dsk == ram->retain_span * sizeof (float _Complex));
-  DP_CHECK (cb_dsk < cb_ram / 4u);
+  DP_CHECK (cb_dsk < cb_ram);
 
   burst_capture_destroy (ram);
   burst_capture_destroy (dsk);

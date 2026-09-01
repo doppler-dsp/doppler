@@ -118,6 +118,8 @@ ______________________________________________________________________
 
 ## 5. The surface, and the two faces of one mechanism
 
+<!-- docs-snippet: skip=declarations quoted from burst_capture_core.h, not a compilable program -->
+
 ```c
 burst_capture_state_t *burst_capture_create (
     const uint8_t *acq_code, size_t acq_code_len, size_t burst_len,

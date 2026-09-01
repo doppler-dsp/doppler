@@ -279,7 +279,7 @@ reach a start that has already gone past, and emits the burst's **samples**.
 
 It stops there. Demodulating is
 [`BurstDemod`](#burstdemod-feedforward-dsss-frame-demodulator)'s job, and
-[`DsssBurstReceiver`](#dsssburstreceiver-the-composed-burst-chain) is this
+[`DsssBurstReceiver`](../gallery/dsss-burst-receiver.md) is this
 plus that. Reach for `BurstCapture` directly when you want the bursts
 themselves: a recorder, an offline corpus, or a second consumer fanned out
 from one stream.

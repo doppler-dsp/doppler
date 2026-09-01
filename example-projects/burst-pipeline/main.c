@@ -25,7 +25,13 @@
  *   4. PREPARE ONCE, SWEEP MANY. A sweep over SNR re-renders the same bursts
  *      at every point. `wfm_plan_prepare` caches the clean signal and
  *      `wfm_plan_at` re-weights it, which is the difference between doing the
- *      DSP once and doing it per point.
+ *      DSP once and doing it per point. Both times are printed, and NEITHER
+ *      is asserted: a Plan caches the signal but redraws the noise, so what
+ *      it saves is the signal's share of the work — measure it for your own
+ *      scene rather than taking a ratio on trust. What IS asserted is that
+ *      the cached render is byte-identical to composing the scene. A cache
+ *      that is fast because it quietly does less is exactly the failure this
+ *      example found (doppler#1158), and no stopwatch can see it.
  *
  * Then it writes the result to a BLUE file and reads it back the way a
  * consumer would — in blocks, as fast as the reader will produce them —
@@ -316,24 +322,65 @@ main (void)
   const double t_prepare = now_s () - t0;
   check (plan != NULL, "the scene is in scope for a Plan");
 
-  double t_sweep = 0.0;
+  double t_sweep  = 0.0;
+  int    all_full = 1;
   if (plan)
     {
       t0 = now_s ();
       for (unsigned k = 0; k < N_SWEEP; k++)
-        (void)wfm_plan_at (plan, 4.0 + (double)k, 1234u + k, swept);
+        /* The return is the length of THIS draw. Discarding it is how a Plan
+           that renders nothing still looks like a fast sweep. */
+        if (wfm_plan_at (plan, 4.0 + (double)k, 1234u + k, swept) != TOTAL)
+          all_full = 0;
       t_sweep = now_s () - t0;
     }
+  check (plan != NULL && all_full,
+         "every point of the sweep rendered the whole train");
+
+  /* THE CHECK THAT MATTERS, and it is not the clock. A cache is worth having
+     only if it renders what compose would have: at the scene's own SNR and
+     anchor seed, `wfm_plan_at` is documented to reproduce `wfm_compose` to
+     the bit (wfm_plan.h). Pinning that here rather than a speed ratio is
+     deliberate — the ratio is a property of the machine, and asserting one
+     made this example fail on macOS while passing on Linux. Worse, the
+     speedup it was celebrating was partly a Plan that dropped the noise
+     floor entirely (doppler#1158); a timing gate cannot tell "faster" from
+     "did less". Byte-identity can. */
+  int exact = 0;
+  if (plan)
+    {
+      float complex *ref = calloc (TOTAL, sizeof *ref);
+      if (!ref)
+        {
+          fprintf (stderr, "out of memory\n");
+          return 1;
+        }
+      wfm_compose_state_t *ref_c = wfm_compose_create (&one, 1u, 0, 0);
+      const size_t         n_ref = ref_c ? drain (ref_c, ref, TOTAL) : 0;
+      wfm_compose_destroy (ref_c);
+      const size_t n_plan
+          = wfm_plan_at (plan, SNR_DB, wfm_plan_anchor_seed (plan), swept);
+      exact = n_ref == TOTAL && n_plan == TOTAL
+              && memcmp (ref, swept, TOTAL * sizeof *swept) == 0;
+      free (ref);
+    }
+  check (exact, "a cached render is byte-identical to composing the scene");
+
   free (spec);
 
   printf ("  re-composing each point : %7.1f ms\n", t_recompose * 1e3);
   printf ("  prepare once            : %7.1f ms\n", t_prepare * 1e3);
   printf ("  then %2u cached renders  : %7.1f ms\n", N_SWEEP, t_sweep * 1e3);
   if (t_sweep > 0.0)
-    printf ("  -> the sweep itself is %.1fx faster once prepared\n",
+    printf ("  -> %.1fx on the sweep itself, on this machine\n",
             t_recompose / t_sweep);
-  check (plan == NULL || t_sweep < t_recompose,
-         "the cached sweep beats re-composing every point");
+  printf ("  a Plan caches the SIGNAL, not the noise: the AWGN is redrawn\n"
+          "  every point either way. So the saving is the signal's share of\n"
+          "  the work — modest for a low-duty burst train like this one\n"
+          "  (%u on, %u off), and larger as the on-time fraction or the\n"
+          "  per-sample signal cost (RRC, spreading, long codes) grows.\n"
+          "  Measure it for YOUR scene; that is why both numbers are here.\n",
+          BURST_ON, BURST_OFF);
   printf ("\n");
 
   /* ── 5. write it to a BLUE file ─────────────────────────────────────── */

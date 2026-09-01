@@ -550,3 +550,9 @@ self-validates and exits non-zero if any of them stops holding.
 make build
 ./build/native/examples/wfmgen_demo
 ```
+
+For the frame side of the same API — building a `wfm_frame_desc_t` and
+pointing `wfm_source_t.frame` at it, so a layout no flag spells reaches the
+samples — see
+[A Frame You Built, Generated](../gallery/wfmgen-carried-frame.md) and its
+demo, `native/examples/wfmgen_frame_demo.c`.

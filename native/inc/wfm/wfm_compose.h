@@ -98,6 +98,37 @@ typedef enum
 } wfm_doppler_lifetime_t;
 
 /**
+ * @brief What a source's `snr` is measured against.
+ *
+ * The scale a number in dB is quoted on is not a detail a caller can infer,
+ * and it changes the noise by 10log10(sps) between `fs` and `esno`. Naming
+ * the modes is what lets a downstream write the mode it means instead of a
+ * literal whose meaning lives in a comment. Order IS the wire value — the
+ * `[[enum]] snr_mode` manifest and `MODE_NAMES[]` in wfm_names.h are held to
+ * this by `make lint-wfm-enum-tables`.
+ */
+typedef enum
+{
+  WFM_SNR_AUTO = 0, /* the type's own convention (esno for modulated) */
+  WFM_SNR_FS   = 1, /* against the noise in the WHOLE sampled band    */
+  WFM_SNR_EBNO = 2, /* per information bit                           */
+  WFM_SNR_ESNO = 3, /* per transmitted symbol                        */
+} wfm_snr_mode_t;
+
+/**
+ * @brief How a `WFM_SYNTH_BITS` source maps its payload to symbols.
+ *
+ * Order IS the wire value; `BITMOD_NAMES[]` and the `[[enum]] bitmod`
+ * manifest are held to this by `make lint-wfm-enum-tables`.
+ */
+typedef enum
+{
+  WFM_BITMOD_NONE = 0, /* the payload is not modulated */
+  WFM_BITMOD_BPSK = 1,
+  WFM_BITMOD_QPSK = 2,
+} wfm_bitmod_t;
+
+/**
  * @brief One additive source within a segment: a `synth` config + its level.
  *
  * The nine synth fields mirror `wfm_synth_create()` (minus `fs`, which is the
@@ -113,7 +144,7 @@ typedef struct {
     int type;          /* WFM_SYNTH_TONE … WFM_SYNTH_BITS */
     double freq;       /* freq offset (Hz); chirp: start frequency f_start */
     double snr;        /* dB, per snr_mode */
-    int snr_mode;      /* 0 auto, 1 fs, 2 ebno, 3 esno */
+    int snr_mode;      /* a wfm_snr_mode_t */
     uint32_t seed;     /* PRNG / LFSR seed */
     int sps;           /* samples per symbol / chip */
     int pn_length;     /* LFSR register length */
@@ -133,7 +164,7 @@ typedef struct {
        WFM_SEQ_LITERAL on the way to the descriptor -- the same copy that
        made the preamble's generated kinds unreachable (gh-762). */
     wfm_seq_t payload; /* type=bits: pattern; type=dsss: frame payload */
-    int modulation;    /* type=bits: 0 none, 1 bpsk, 2 qpsk */
+    int modulation;    /* type=bits: a wfm_bitmod_t */
     float _Complex *symbols; /* type=symbols: stream, owned; NULL otherwise */
     size_t n_symbols;        /* type=symbols: stream length */
     int pulse;         /* pn/bpsk/qpsk pulse shape: 0 rect, 1 rrc */

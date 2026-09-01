@@ -116,10 +116,12 @@
 ## w
 
 * **wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_bitmod\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_compose\_state\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_doppler\_lifetime\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_render\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_seed\_advance\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
+* **wfm\_snr\_mode\_t** ([**wfm\_compose.h**](wfm__compose_8h.md))
 * **wfm\_\_frame\_8h\_1a385c44f6fb256e5716a2302a5b940388** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **wfm\_seq\_kind\_t** ([**wfm\_frame.h**](wfm__frame_8h.md))
 * **wfm\_stage\_kind\_t** ([**wfm\_frame.h**](wfm__frame_8h.md))

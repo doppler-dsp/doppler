@@ -26,7 +26,7 @@ static const char *const TYPE_NAMES[]
         "chirp", "bits",  "symbols", "dsss" };
 #define N_TYPES 9
 
-/* SSOT: enum=snr_mode */
+/* SSOT: enum=snr_mode, cenum=wfm/wfm_compose.h:wfm_snr_mode_t */
 static const char *const MODE_NAMES[] = { "auto", "fs", "ebno", "esno" };
 
 /* Wire sample types, wavegen order. The complex five first, then the same
@@ -43,7 +43,7 @@ static const char *const STYPE_NAMES[]
 /* SSOT: enum=crc */
 static const char *const CRC_NAMES[] = { "none", "crc16" };
 
-/* SSOT: enum=bitmod */
+/* SSOT: enum=bitmod, cenum=wfm/wfm_compose.h:wfm_bitmod_t */
 static const char *const BITMOD_NAMES[] = { "none", "bpsk", "qpsk" };
 
 /* SSOT: enum=ftype, cenum=wfm_writer/wfm_writer_core.h:wfm_filetype_t */

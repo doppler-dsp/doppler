@@ -44,10 +44,12 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 | enum  | [**wfm\_\_compose\_8h\_1ab04a0655cd1e3bcac5e8f48c18df1a57**](#enum-wfm__compose_8h_1ab04a0655cd1e3bcac5e8f48c18df1a57)  <br>_Per-field "draw uniformly each repeat" flags (_ `ranged` _bitmask)._ |
+| enum  | [**wfm\_bitmod\_t**](#enum-wfm_bitmod_t)  <br>_How a_ `WFM_SYNTH_BITS` _source maps its payload to symbols._ |
 | typedef struct wfm\_compose\_state | [**wfm\_compose\_state\_t**](#typedef-wfm_compose_state_t)  <br> |
 | enum  | [**wfm\_doppler\_lifetime\_t**](#enum-wfm_doppler_lifetime_t)  <br>_When a source's Doppler channel restarts._  |
 | typedef struct wfm\_render | [**wfm\_render\_t**](#typedef-wfm_render_t)  <br>_One source's renderer: its synth, plus its Doppler channel._  |
 | enum  | [**wfm\_seed\_advance\_t**](#enum-wfm_seed_advance_t)  <br>_Per-repeat seed policy for a looped/continuous stream._  |
+| enum  | [**wfm\_snr\_mode\_t**](#enum-wfm_snr_mode_t)  <br>_What a source's_ `snr` _is measured against._ |
 
 
 
@@ -191,6 +193,28 @@ A scalar field is a constant; a _ranged_ field carries a `[lo, hi]` span (the sc
 
 
 
+### enum wfm\_bitmod\_t 
+
+_How a_ `WFM_SYNTH_BITS` _source maps its payload to symbols._
+```C++
+enum wfm_bitmod_t {
+    WFM_BITMOD_NONE = 0,
+    WFM_BITMOD_BPSK = 1,
+    WFM_BITMOD_QPSK = 2
+};
+```
+
+
+
+Order IS the wire value; `BITMOD_NAMES[]` and the `[[enum]] bitmod` manifest are held to this by `make lint-wfm-enum-tables`. 
+
+
+        
+
+<hr>
+
+
+
 ### typedef wfm\_compose\_state\_t 
 
 ```C++
@@ -268,6 +292,29 @@ enum wfm_seed_advance_t {
 
 
 A source's single `seed` feeds two RNGs: the PN LFSR (spreading code _and_ data bits — one register) and the AWGN generator. The clean cut is therefore signal (code+data) vs. noise, exposed as an ordered, cumulative level. 
+
+
+        
+
+<hr>
+
+
+
+### enum wfm\_snr\_mode\_t 
+
+_What a source's_ `snr` _is measured against._
+```C++
+enum wfm_snr_mode_t {
+    WFM_SNR_AUTO = 0,
+    WFM_SNR_FS = 1,
+    WFM_SNR_EBNO = 2,
+    WFM_SNR_ESNO = 3
+};
+```
+
+
+
+The scale a number in dB is quoted on is not a detail a caller can infer, and it changes the noise by 10log10(sps) between `fs` and `esno`. Naming the modes is what lets a downstream write the mode it means instead of a literal whose meaning lives in a comment. Order IS the wire value — the `[[enum]] snr_mode` manifest and `MODE_NAMES[]` in [**wfm\_names.h**](wfm__names_8h.md) are held to this by `make lint-wfm-enum-tables`. 
 
 
         

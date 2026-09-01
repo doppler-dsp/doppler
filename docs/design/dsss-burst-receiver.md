@@ -495,18 +495,28 @@ envelope.
     rather than a requirement — and the honest default is not to build it
     until a measurement asks for it.
 
-- **Whether refine is a separate object.** It composes `Corr` against a
-    reference the receiver already holds, so it may be a private function
-    rather than a new public type. That decision should follow the phase-3
-    implementation, not precede it.
+- **Whether refine is a separate object — SETTLED, private** (2026-09-01).
+    It is `dsss_br_refine()`, a static function in
+    `dsss_burst_receiver_core.c`. It does not compose `Corr` as this bullet
+    guessed: the candidates are `anchor + k·P` and nothing between, so the
+    stage correlates one code period at each preamble position against a
+    sign reference the receiver holds, and sums magnitudes (§3.4). The
+    decision followed phase 3, as this bullet asked — the wording stayed
+    open long after the code closed it. Where refine LIVES is a separate
+    question, and §11 answers it: out of this object, into `BurstCapture`,
+    still a private function of the object that owns the ring.
 
-- **Whether the history ring should be acq's.** §7.1 has the receiver keep
-    its own, costing one `memcpy` of the stream, because `acq_push()`
-    consumes eagerly. The alternative is a retention policy on `acq`'s
-    existing ring so there is one copy instead of two. That is a change to a
-    certified object, so it needs a measurement showing the copy matters
-    before it is worth the blast radius — and at cf32 rates the copy may well
-    disappear against the FFT.
+- **Whether the history ring should be acq's — SETTLED for now, the
+    receiver's.** §7.1 has the receiver keep its own, costing one `memcpy` of
+    the stream, because `acq_push()` consumes eagerly. The alternative is a
+    retention policy on `acq`'s existing ring so there is one copy instead of
+    two. That is a change to a certified object, so it needs a measurement
+    showing the copy matters before it is worth the blast radius — and at
+    cf32 rates the copy may well disappear against the FFT. **That
+    measurement has not been made**, so the second copy stands — and §11
+    moves it rather than removing it: the ring becomes `BurstCapture`'s, one
+    layer out, and the acq-retention question is untouched and still gated on
+    the same measurement.
 
 ### 6.2 Smaller unknowns
 
@@ -519,11 +529,17 @@ envelope.
 - **Which consumer is the default** — `BurstDespreader` (tracked) or
     `BurstDemod` (feedforward)? They have different burst-length regimes and
     the object should probably expose both rather than choose.
-- **Serialization asymmetry.** `BurstAcquisition` is serializable;
-    `BurstDemod` deliberately is not, and its report certifies that as correct
-    (a burst completes within one `demod()` call or is lost). The composition
-    must carry that asymmetry rather than paper over it — likely meaning the
-    receiver's state is the acquisition's plus the in-flight burst window.
+- **Serialization asymmetry — SETTLED, and it cost nothing.**
+    `BurstAcquisition` is serializable; `BurstDemod` deliberately is not, and
+    its report certifies that as correct (a burst completes within one
+    `demod()` call or is lost). The composition carries the asymmetry by
+    serializing the acquisition child, the retained look-back and the
+    detection queue, and **nothing of the demodulator** — which is what the
+    guess above predicted. `dsss_burst_receiver_state_bytes()` stays a pure
+    function of configuration because both variable regions are fixed-size
+    with a length prefix. The blob is already the capture half alone, which is
+    why §11's split does not simplify serialization — the same bytes are
+    written one envelope deeper.
 - **`cn0_dbhz_est` is a lower bound**, saturating at the code's
     autocorrelation-sidelobe floor and under-reporting true C/N0 by up to
     38 dB at the top of the measured range. It cannot seed `set_prior` — that
@@ -883,3 +899,123 @@ would have to run after the Viterbi. The soft bits that needs exist now
 (`llrs()`, [#1018](https://github.com/doppler-dsp/doppler/issues/1018));
 the ordering does not. `deframe()` reports such a stage as **not checked**,
 never as passed.
+
+## 11. `BurstCapture` — the look-back and the refine get a home (2026-09-01)
+
+[gh-1166](https://github.com/doppler-dsp/doppler/issues/1166) named a third
+option §6.1 does not list: an object **between** acquisition and
+demodulation, owning the history ring and the refine, and emitting aligned
+burst windows. `DsssBurstReceiver` composes it and stops owning a ring.
+
+**Accepted.** It was first declined here, on the count that no caller wants
+the windows, and that count was wrong — established by grepping for this
+object's own vocabulary (`look-back`, `history`, `retain`), which is not how
+a caller spells it. Recorded rather than quietly fixed, because the search
+that produced it is the reusable mistake: **look for the CAPABILITY under
+the caller's name for it, not the implementation's.**
+
+### 11.1 What a different composition costs today
+
+`doppler.dsss.orchestrator.Acquirer` is already a second composition over
+`BurstAcquisition` — K coarse-Doppler channels, each `DDC → BurstAcquisition`,
+fanned across a thread pool, `get_state`/`set_state` per channel so the bank
+ships to other pods. It feeds acquisition **continuously**, which is the
+right way to drive it, and its output is `Detection` records. It stops there.
+
+A user of that bank who wants the burst has two routes, and both are bad.
+
+- **Feed acquisition continuously**, as the bank already does. Anchors are
+    stream-absolute and there is no sweep — and §3.1 bites in full:
+    `code_phase` is `burst_start mod code_bins`, so the caller must write
+    refine themselves (one code-period correlation at each preamble position
+    across ±`REPS·P` candidates, non-coherently summed), plus the ring to
+    reach back into, plus a retention rule, plus a claim rule keyed on
+    `refine_span`. §3.2 says getting it wrong is a cliff: a burst one period
+    out decodes as noise, not as a degraded frame.
+- **Sweep acquisition in dwells**, as
+    `src/doppler/examples/dsss_burst_pipeline_demo.py` does. `reset()` per
+    dwell makes `pos + code_phase` a real position, so refine is not needed —
+    paid for with `PRE_LEN/ACQ_HOP` overlapping FFT dwells over the whole
+    stream, two window constants nothing derives, a hand-rolled
+    cluster-and-keep-strongest rule with a different window than
+    `refine_span`, a `configure_search_raw` pin without which the auto-sizer
+    makes a decision impossible, and the entire capture held in RAM to slice
+    from. That last one means it does not stream.
+
+So the ring, the refine and the claim rule exist exactly once, inside an
+object that also demodulates. That is the reuse case, and it is present.
+
+### 11.2 The input face: it owns the engine
+
+`push(samples) → windows + events`. The capture composes its own
+`burst_acq` and exposes it as a child, the way this receiver already does.
+
+The alternative gh-1166 draws — `push(samples, acq_results)`, so a caller
+brings their own detector — was rejected on one invariant.
+`acq_result_t::samples_consumed` is stream-absolute **only** for an engine
+fed continuously and never `reset()`, in the caller's own sample
+coordinates. An object taking foreign results has to require that and cannot
+check it, and a violation is not a degraded window: refine searches the wrong
+period and §3.2's cliff returns noise. Owning the engine makes `push()`
+itself define the coordinate system, so the invariant is internal and
+unbreakable rather than documented and hoped for.
+
+What a caller loses is a foreign detector, and the loss is smaller than it
+looks: the engine stays reachable as a child for read-backs and
+`configure_search_raw()`, and a consumer receiving detections over a
+transport (§2's second row) needs the WINDOW as well, which is what §1.1
+already requires the event to be sufficient for.
+
+### 11.3 What moves, and what the split does not buy
+
+Out of `dsss_burst_receiver_core.c` and into the capture: the history ring
+and its sizing, `dsss_br_refine()`, `dsss_br_trim()`, the CLAIM bookkeeping
+and the detection queue. What stays: driving the demodulator, the suppression
+window armed on a burst having demodulated (§10.3), and the payload/event
+list `push()` returns. `DsssBurstReceiver` becomes capture + demod;
+`CoarseChannel` becomes `DDC → BurstCapture`.
+
+Two arguments made for the split do **not** hold, and are recorded so they
+are not re-made:
+
+- **It does not simplify serialization.** The receiver's blob is already the
+    acquisition child, the look-back and the queue, with nothing of the
+    demodulator (§6.2). The buffer is necessarily in the blob — a resume has
+    to reach back to a burst start already gone past — and after the split
+    the same fixed `retain_span` region is written, one envelope deeper,
+    behind the capture's own `state_bytes()`.
+- **It needs no new accessor.** `acq_state_t::doppler_res_hz` is a public
+    field and `BurstAcquisition.doppler_res_hz` is a published property
+    (`objects/burst_acq.toml`), so nothing re-derives the bin width.
+
+### 11.4 The look-back IS the blob
+
+Measured 2026-09-01 by constructing
+`DsssBurstReceiver(acq_code, data_code, sync13, reps, spc=4, chip_rate=1e6, frame_syms=13+payload+16)` and reading its own `retain_span`
+and `state_bytes()`:
+
+| geometry                | `retain_span` | `state_bytes()` |
+| ----------------------- | ------------- | --------------- |
+| SF31×4, 61-sym frame    | 4 928         | 0.05 MB         |
+| SF511×5, 1029-sym frame | 318 584       | 2.57 MB         |
+| SF511×5, 8029-sym frame | 2 082 584     | 16.68 MB        |
+
+`retain_span · 8 B` is all but ~20 kB of each, so a checkpoint is the history
+and little else. In a microservices deployment that is plausibly fine — a
+blob is written on migration, not per `push()`. Where it is not, the answer
+is a different **retention backend**: a circular file the blob references by
+offset instead of carrying, or a ring shared out of the object's address
+space. That is a policy about where retained samples live, and it is
+precisely what the capture is the right owner of — today's ring is RAM the
+object owns and no knob changes that. **Not built now**: no deployment has
+asked, and the object earns its certification on the reuse case above
+without it.
+
+### 11.5 The name
+
+`BurstCapture`, matching `BurstAcquisition` / `BurstDemod` /
+`BurstDespreader`, which carry no `Dsss` infix — that appears only on the
+composed `DsssBurstReceiver`. `doppler.telemetry`'s `Capture` and
+`MemoryCapture` are a different domain, module-qualified at every use, and "a
+capture is a recording of samples" is the DSP reading of the word; the
+collision is not disqualifying. Decided rather than defaulted into.

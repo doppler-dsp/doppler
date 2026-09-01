@@ -13,6 +13,7 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 * `#include <fcntl.h>`
 * `#include <stdio.h>`
 * `#include <sys/mman.h>`
+* `#include <sys/stat.h>`
 * `#include <unistd.h>`
 * `#include "dp_interrupt.h"`
 * `#include <stdbool.h>`
@@ -65,7 +66,9 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 | Type | Name |
 | ---: | :--- |
 |  void \* | [**dp\_\_buf\_alloc**](#function-dp__buf_alloc) (size\_t bytes, void \*\* handle\_out) <br>_Allocates a double-mapped ring-buffer region of_ `bytes` _._ |
+|  void \* | [**dp\_\_buf\_alloc\_file**](#function-dp__buf_alloc_file) (size\_t bytes, void \*\* handle\_out, const char \* path, int \* existed) <br>_As dp\_\_buf\_alloc(), but the pages are backed by a FILE._  |
 |  void | [**dp\_\_buf\_free**](#function-dp__buf_free) (void \* addr, size\_t bytes, void \* handle) <br>_Releases a double-mapped region created by dp\_\_buf\_alloc()._  |
+|  void | [**dp\_\_buf\_sync**](#function-dp__buf_sync) (void \* addr, size\_t bytes) <br>_Flush a file-backed region to disk._  |
 |  size\_t | [**dp\_\_page\_size**](#function-dp__page_size) (void) <br>_Returns the granularity the double-mapped views must align to._  |
 
 
@@ -189,6 +192,59 @@ Base address of the double-mapped region, or NULL on failure.
 
 
 
+### function dp\_\_buf\_alloc\_file 
+
+_As dp\_\_buf\_alloc(), but the pages are backed by a FILE._ 
+```C++
+static inline void * dp__buf_alloc_file (
+    size_t bytes,
+    void ** handle_out,
+    const char * path,
+    int * existed
+) 
+```
+
+
+
+The mirror trick is indifferent to where the fd came from, so a persistent ring is the same double mapping over an `open()`ed path instead of an anonymous one. Because the mapping is `MAP_SHARED`, the ring's samples ARE the file's contents: there is no separate write path to disk, no copy, and no way for the two to disagree. The kernel writes the pages back on its own schedule; dp\_\_buf\_sync() forces the point.
+
+
+The file is created if absent and truncated to `bytes`. An EXISTING file of the right size is mapped as it stands, which is what lets a ring survive the process that filled it: the caller restores the head/tail positions and the samples are simply there.
+
+
+
+
+**Parameters:**
+
+
+* `bytes` Size of ONE mapping (the mirror unit is 2x this). 
+* `handle_out` Set to NULL on POSIX (as dp\_\_buf\_alloc). 
+* `path` File to back the ring with. 
+* `existed` If non-NULL, set to 1 when the file was already the right size (so its contents are the ring's), 0 when it was created or resized. 
+
+
+
+**Returns:**
+
+Base address of the double-mapped region, or NULL on failure.
+
+
+
+
+**Note:**
+
+POSIX only. Windows returns NULL — the platform is not one doppler builds for ([project] platforms), and a file mapping there needs the CreateFileMapping path rather than this one. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dp\_\_buf\_free 
 
 _Releases a double-mapped region created by dp\_\_buf\_alloc()._ 
@@ -210,6 +266,38 @@ static inline void dp__buf_free (
 * `addr` Base address returned by dp\_\_buf\_alloc(). 
 * `bytes` Size of ONE mapping (same value passed to dp\_\_buf\_alloc). 
 * `handle` Platform handle returned via handle\_out (Win32: HANDLE, else NULL). 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_\_buf\_sync 
+
+_Flush a file-backed region to disk._ 
+```C++
+static inline void dp__buf_sync (
+    void * addr,
+    size_t bytes
+) 
+```
+
+
+
+A no-op for an anonymous ring, and harmless there. Call it where a checkpoint is TAKEN: the samples are in the page cache until the kernel decides otherwise, so a blob written without this names a history that a crash can still lose.
+
+
+
+
+**Parameters:**
+
+
+* `addr` Base address (the first view). 
+* `bytes` Size of ONE mapping. 
 
 
 

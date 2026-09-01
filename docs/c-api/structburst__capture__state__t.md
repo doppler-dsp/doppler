@@ -40,6 +40,7 @@ _BurstCapture state._ [More...](#detailed-description)
 |  size\_t | [**acq\_blob\_max**](#variable-acq_blob_max)  <br> |
 |  uint8\_t \* | [**acq\_code**](#variable-acq_code)  <br> |
 |  size\_t | [**acq\_code\_len**](#variable-acq_code_len)  <br> |
+|  int | [**backed**](#variable-backed)  <br> |
 |  size\_t | [**burst\_len**](#variable-burst_len)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  size\_t | [**chunk\_max**](#variable-chunk_max)  <br> |
@@ -62,6 +63,7 @@ _BurstCapture state._ [More...](#detailed-description)
 |  [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md) \* | [**q**](#variable-q)  <br> |
 |  size\_t | [**q\_cap**](#variable-q_cap)  <br> |
 |  size\_t | [**q\_head**](#variable-q_head)  <br> |
+|  int | [**recovered**](#variable-recovered)  <br> |
 |  float \* | [**ref\_sign**](#variable-ref_sign)  <br> |
 |  double | [**refine\_margin**](#variable-refine_margin)  <br> |
 |  size\_t | [**refine\_span**](#variable-refine_span)  <br> |
@@ -191,6 +193,24 @@ size_t burst_capture_state_t::acq_code_len;
 
 
 Preamble code length, chips. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable backed 
+
+```C++
+int burst_capture_state_t::backed;
+```
+
+
+
+Non-zero when the ring's pages are a FILE's. Fixed at create(), so state\_bytes() stays a pure function of configuration  a backed blob and an in-RAM one are different sizes on purpose, and neither restores into the other. 
  
 
 
@@ -587,6 +607,24 @@ size_t burst_capture_state_t::q_head;
 
 
 Index of the oldest entry. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable recovered 
+
+```C++
+int burst_capture_state_t::recovered;
+```
+
+
+
+Non-zero when create() found the backing file already holding a ring of exactly this geometry, so its samples ARE the look-back. Zero when the file was created or resized, which zeroes it  and then a blob claiming retained history has nothing to reach back into, which set\_state() refuses rather than resuming into silence. 
  
 
 

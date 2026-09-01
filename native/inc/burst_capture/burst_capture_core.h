@@ -268,6 +268,20 @@ typedef struct
                                 are therefore written into fixed-size regions
                                 with a length prefix.                      */
 
+  /* ── Persistence (docs/design/burst-capture.md §9) ───────────────────── */
+  int backed;   /**< Non-zero when the ring's pages are a FILE's. Fixed at
+                     create(), so state_bytes() stays a pure function of
+                     configuration -- a backed blob and an in-RAM one are
+                     different sizes on purpose, and neither restores into
+                     the other.                                            */
+  int recovered; /**< Non-zero when create() found the backing file already
+                      holding a ring of exactly this geometry, so its
+                      samples ARE the look-back. Zero when the file was
+                      created or resized, which zeroes it -- and then a blob
+                      claiming retained history has nothing to reach back
+                      into, which set_state() refuses rather than resuming
+                      into silence.                                        */
+
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
   uint64_t dropped;  /**< Samples the ring refused. A LOST BURST each, not
                           a statistic -- lifetime, survives reset().       */
@@ -318,6 +332,64 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
                                              double cn0_dbhz,
                                              double doppler_uncertainty,
                                              double pfa, double pd);
+
+/**
+ * @brief Create a capture whose look-back lives in a FILE.
+ *
+ * Same object, same behaviour, one difference in where the history ring's
+ * pages come from: they are a `MAP_SHARED` mapping of @p path, so the ring's
+ * samples ARE the file's contents. There is no copy and no separate flush
+ * path — the kernel writes the pages back, and `get_state()` forces the point
+ * so a checkpoint and its history agree.
+ *
+ * Two things follow, and they are the reason to reach for this constructor:
+ *
+ * - **The blob stops carrying the look-back.** For an in-RAM capture the
+ *   retained history IS the blob (measured: 2.57 MB at a 1029-symbol frame,
+ *   16.68 MB at 8029). Backed, `state_bytes()` is a few hundred bytes plus
+ *   the acquisition child, because the samples are already durable and the
+ *   blob only has to name where in the ring they sit.
+ * - **The history outlives the process.** Point a new capture at the same
+ *   path and the samples are there; restore the blob and it reaches back
+ *   across the restart into a burst that began before it.
+ *
+ * The file is created if absent and truncated to the ring's byte size, which
+ * zeroes it. An existing file of exactly that size is adopted as it stands.
+ * Because the capacity rounds up to a page, that size is
+ * `capacity * sizeof(float complex)` — do not compute it from `burst_len`.
+ *
+ * A blob from a backed capture does NOT restore into an in-RAM one, or the
+ * reverse: `state_bytes()` differs, so jm's length check rejects it. That is
+ * the intent — they are different configurations, and silently accepting one
+ * for the other would resume a capture whose history was somewhere else.
+ *
+ * @param path  File to back the ring with. Must not be NULL or empty.
+ * @param ...   As burst_capture_create().
+ * @return Heap state, or NULL if a parameter is out of range or the file
+ *         could not be opened, sized or mapped.
+ *
+ * @code
+ * >>> import numpy as np, tempfile, os
+ * >>> from doppler.dsss import BurstCapture, PersistentBurstCapture
+ * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+ * >>> path = os.path.join(tempfile.mkdtemp(), "ring.cf32")
+ * >>> cap = PersistentBurstCapture(path, code, burst_len=512,
+ * ...                             reps=4, spc=2)
+ * >>> ram = BurstCapture(code, burst_len=512, reps=4, spc=2)
+ * >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
+ * >>> # the look-back is in the file, so the blob stops carrying it
+ * >>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8
+ * True
+ * >>> os.path.getsize(path) > 0
+ * True
+ * @endcode
+ */
+burst_capture_state_t *
+burst_capture_create_backed (const char *path, const uint8_t *acq_code,
+                             size_t acq_code_len, size_t burst_len,
+                             size_t reps, size_t spc, double chip_rate,
+                             double cn0_dbhz, double doppler_uncertainty,
+                             double pfa, double pd);
 
 /** @brief Release a capture and everything it owns. NULL-safe. */
 void burst_capture_destroy (burst_capture_state_t *state);

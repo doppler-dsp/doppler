@@ -21,7 +21,9 @@
 #include "dp_test.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #define ACQ_SF 31u
 #define DATA_SF 8u
@@ -475,6 +477,197 @@ test_state_resumes_mid_burst (void)
   return 0;
 }
 
+/* ── Persistence: the ring in a file ─────────────────────────────────── */
+
+static void
+scratch_path (char *buf, size_t n, const char *tag)
+{
+  snprintf (buf, n, "/tmp/dp_burst_capture_%s_%d.cf32", tag, (int)getpid ());
+}
+
+/**
+ * A backed capture behaves exactly like an in-RAM one, and its blob does not
+ * carry the look-back.
+ *
+ * The size claim is the point of the feature: the retained history IS the
+ * blob for an in-RAM capture, so a backed one has to be smaller by very
+ * nearly `retain_span` complex samples, not by a rounding.
+ */
+static int
+test_backed_finds_the_same_burst_with_a_smaller_blob (void)
+{
+  char path[256];
+  scratch_path (path, sizeof path, "same");
+  remove (path);
+
+  static float complex cap[80000];
+  const size_t         at = 9000u;
+  build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
+
+  burst_capture_state_t *ram = make ();
+  burst_capture_state_t *dsk
+      = burst_capture_create_backed (path, acq_code (), ACQ_SF, BURST_LEN,
+                                     REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+  DP_REQUIRE (ram != NULL && dsk != NULL);
+  DP_CHECK (dsk->backed == 1);
+  DP_CHECK (ram->backed == 0);
+
+  static float complex out_a[4 * BURST_LEN];
+  static float complex out_b[4 * BURST_LEN];
+  size_t na = burst_capture_push (ram, cap, sizeof cap / sizeof *cap, out_a,
+                                  sizeof out_a / sizeof *out_a);
+  size_t nb = burst_capture_push (dsk, cap, sizeof cap / sizeof *cap, out_b,
+                                  sizeof out_b / sizeof *out_b);
+
+  /* Bit-identical: where the pages live is not a DSP parameter. */
+  DP_CHECK (na == BURST_LEN);
+  DP_CHECK (na == nb);
+  DP_CHECK (memcmp (out_a, out_b, na * sizeof *out_a) == 0);
+  DP_CHECK (ram->preamble_start == dsk->preamble_start);
+
+  size_t cb_ram = burst_capture_state_bytes (ram);
+  size_t cb_dsk = burst_capture_state_bytes (dsk);
+  DP_CHECK (cb_ram - cb_dsk == ram->retain_span * sizeof (float _Complex));
+  DP_CHECK (cb_dsk < cb_ram / 4u);
+
+  burst_capture_destroy (ram);
+  burst_capture_destroy (dsk);
+  remove (path);
+  return 0;
+}
+
+/**
+ * The history outlives the object that wrote it.
+ *
+ * A capture is destroyed mid-preamble and a FRESH one is built over the same
+ * file; restoring the blob into it finds the burst whose start is behind the
+ * split. This is the claim the feature exists for, and it fails for both of
+ * the obvious wrong implementations -- a ring that does not actually share
+ * the file's pages, and a set_state() that restores positions without the
+ * samples being there.
+ */
+static int
+test_history_survives_destroying_the_capture (void)
+{
+  char path[256];
+  scratch_path (path, sizeof path, "survive");
+  remove (path);
+
+  static float complex cap[200000];
+  const size_t         at    = 60000u;
+  const size_t         n_cap = sizeof cap / sizeof *cap;
+  build_capture (cap, n_cap, &at, 1u, 0.02, 3u);
+  const size_t cut = at + 2u * ACQ_SF * SPC; /* inside the preamble */
+
+  static float complex out[4 * BURST_LEN];
+  void                *blob = NULL;
+  size_t               cb   = 0;
+  {
+    burst_capture_state_t *a
+        = burst_capture_create_backed (path, acq_code (), ACQ_SF, BURST_LEN,
+                                       REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+    DP_REQUIRE (a != NULL);
+    DP_CHECK (a->recovered == 0); /* the file did not exist yet */
+    DP_CHECK (burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out)
+              == 0);
+    cb   = burst_capture_state_bytes (a);
+    blob = malloc (cb);
+    DP_REQUIRE (blob != NULL);
+    burst_capture_get_state (a, blob);
+    burst_capture_destroy (a); /* the ring's memory is gone with it */
+  }
+
+  burst_capture_state_t *b
+      = burst_capture_create_backed (path, acq_code (), ACQ_SF, BURST_LEN,
+                                     REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+  DP_REQUIRE (b != NULL);
+  /* The file was adopted rather than re-made, which is what carries the
+     samples across. */
+  DP_CHECK (b->recovered == 1);
+  DP_CHECK (burst_capture_set_state (b, blob) == DP_OK);
+
+  size_t n = burst_capture_push (b, cap + cut, n_cap - cut, out,
+                                 sizeof out / sizeof *out);
+  DP_CHECK (n == BURST_LEN);
+  DP_CHECK (b->preamble_start == at);
+
+  free (blob);
+  burst_capture_destroy (b);
+  remove (path);
+  return 0;
+}
+
+/**
+ * A blob claiming retained history, restored against a file that has none, is
+ * REFUSED rather than resumed into silence.
+ *
+ * The positions would be perfectly valid and the samples would be zeros, so
+ * the capture would simply never find another burst -- indistinguishable from
+ * a quiet stream, which is the failure mode this object exists to prevent.
+ */
+static int
+test_a_blob_without_its_file_is_refused (void)
+{
+  char src[256], dst[256];
+  scratch_path (src, sizeof src, "have");
+  scratch_path (dst, sizeof dst, "empty");
+  remove (src);
+  remove (dst);
+
+  static float complex cap[200000];
+  const size_t         at = 60000u;
+  build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 3u);
+
+  burst_capture_state_t *a
+      = burst_capture_create_backed (src, acq_code (), ACQ_SF, BURST_LEN, REPS,
+                                     SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+  DP_REQUIRE (a != NULL);
+  static float complex out[4 * BURST_LEN];
+  burst_capture_push (a, cap, at + 2u * ACQ_SF * SPC, out,
+                      sizeof out / sizeof *out);
+  /* What makes the blob refusable is that it CLAIMS retained history, which
+     any push leaves behind -- not that a detection happened to fire yet. */
+  DP_REQUIRE (a->samples_fed > 0);
+
+  size_t cb   = burst_capture_state_bytes (a);
+  void  *blob = malloc (cb);
+  DP_REQUIRE (blob != NULL);
+  burst_capture_get_state (a, blob);
+
+  burst_capture_state_t *b
+      = burst_capture_create_backed (dst, acq_code (), ACQ_SF, BURST_LEN, REPS,
+                                     SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+  DP_REQUIRE (b != NULL);
+  DP_CHECK (b->recovered == 0);
+  DP_CHECK (burst_capture_set_state (b, blob) == DP_ERR_INVALID);
+
+  free (blob);
+  burst_capture_destroy (a);
+  burst_capture_destroy (b);
+  remove (src);
+  remove (dst);
+  return 0;
+}
+
+/** A backed constructor with no usable path fails as an argument error. */
+static int
+test_backed_rejects_a_bad_path (void)
+{
+  DP_CHECK (burst_capture_create_backed (NULL, acq_code (), ACQ_SF, BURST_LEN,
+                                         REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
+                                         0.9)
+            == NULL);
+  DP_CHECK (burst_capture_create_backed ("", acq_code (), ACQ_SF, BURST_LEN,
+                                         REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
+                                         0.9)
+            == NULL);
+  DP_CHECK (burst_capture_create_backed ("/nonexistent-dir-dp/ring.cf32",
+                                         acq_code (), ACQ_SF, BURST_LEN, REPS,
+                                         SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9)
+            == NULL);
+  return 0;
+}
+
 /** A blob whose envelope is wrong is REJECTED, never reinterpreted. */
 static int
 test_state_rejects_a_foreign_blob (void)
@@ -518,6 +711,14 @@ main (void)
   if (test_state_resumes_mid_burst ())
     return 1;
   if (test_state_rejects_a_foreign_blob ())
+    return 1;
+  if (test_backed_finds_the_same_burst_with_a_smaller_blob ())
+    return 1;
+  if (test_history_survives_destroying_the_capture ())
+    return 1;
+  if (test_a_blob_without_its_file_is_refused ())
+    return 1;
+  if (test_backed_rejects_a_bad_path ())
     return 1;
   DP_TEST_END ("test_burst_capture_core");
 }

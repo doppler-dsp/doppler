@@ -294,6 +294,26 @@ be delegated to a caller.
 
 ::: doppler.dsss.BurstCapture
 
+### `PersistentBurstCapture` — the same capture, with the ring in a file
+
+The look-back is essentially the whole checkpoint: at a 511-chip code, 5
+repetitions and an 8029-symbol frame, `BurstCapture.state_bytes()` is
+16.68 MB and all but ~20 kB of it is retained history.
+`PersistentBurstCapture` takes a `path` and backs the ring's pages with that
+file (`MAP_SHARED`), so the samples **are** the file's contents — there is no
+mirror buffer and no flush path. Two things follow: the blob drops to 21.6 kB
+because the history is already durable, and the history outlives the process,
+so a capture restored over the same file reaches back across a restart into a
+burst that began before it.
+
+It is a view over the same core — the constructor differs and nothing else
+does — so every method and read-back is shared verbatim. A blob does not
+travel between the two flavours in either direction: `state_bytes()` differs,
+and accepting one for the other would resume a capture whose history was
+somewhere else.
+
+::: doppler.dsss.PersistentBurstCapture
+
 ## `AsyncDsssReceiver` — the packaged continuous async receiver
 
 `AsyncDsssReceiver` wraps the whole acquire → carrier-refine → track chain

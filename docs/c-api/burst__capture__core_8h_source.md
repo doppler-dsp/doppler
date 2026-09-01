@@ -113,6 +113,9 @@ typedef struct
   size_t ev_len;           
   uint64_t suppress_until; 
   size_t acq_blob_max;     
+  /* ── Persistence (docs/design/burst-capture.md §9) ───────────────────── */
+  int backed;   
+  int recovered; 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
   uint64_t dropped;  
   uint64_t n_bursts; 
@@ -126,6 +129,13 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
                                              double cn0_dbhz,
                                              double doppler_uncertainty,
                                              double pfa, double pd);
+
+burst_capture_state_t *
+burst_capture_create_backed (const char *path, const uint8_t *acq_code,
+                             size_t acq_code_len, size_t burst_len,
+                             size_t reps, size_t spc, double chip_rate,
+                             double cn0_dbhz, double doppler_uncertainty,
+                             double pfa, double pd);
 
 void burst_capture_destroy (burst_capture_state_t *state);
 

@@ -10,7 +10,7 @@ through `bytes`.
 import numpy as np
 import pytest
 
-from doppler.dsss import BurstCapture
+from doppler.dsss import BurstCapture, PersistentBurstCapture
 from doppler.wfm import PN
 
 ACQ_SF, DATA_SF, REPS, SPC = 31, 8, 4, 4
@@ -195,3 +195,93 @@ def test_state_rejects_a_blob_it_did_not_write():
 def test_context_manager_releases_it():
     with make() as cap:
         assert cap.burst_len == BURST_LEN
+
+
+# ── Persistence: the ring in a file ─────────────────────────────────────────
+
+
+def make_persistent(path) -> PersistentBurstCapture:
+    return PersistentBurstCapture(
+        path,
+        acq_code(),
+        burst_len=BURST_LEN,
+        reps=REPS,
+        spc=SPC,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=55.0,
+    )
+
+
+def test_persistent_takes_a_path_like(tmp_path):
+    """`os.PathLike`, not just `str` — the ctor coerces with
+    PyUnicode_FSConverter, so a Path is the natural thing to hand it."""
+    cap = make_persistent(tmp_path / "ring.cf32")
+    assert cap.burst_len == BURST_LEN
+    assert (tmp_path / "ring.cf32").stat().st_size > 0
+
+
+def test_persistent_finds_the_same_burst_with_a_smaller_blob(tmp_path):
+    """Where the pages live is not a DSP parameter: the windows are
+    bit-identical. What changes is the blob, which no longer carries the
+    look-back — and the look-back IS the in-RAM blob."""
+    x = build_capture(80_000, [9000])
+    ram = make()
+    dsk = make_persistent(tmp_path / "ring.cf32")
+
+    a, b = ram.push(x), dsk.push(x)
+    assert a.size == BURST_LEN
+    assert np.array_equal(a, b)
+    assert ram.preamble_start == dsk.preamble_start == 9000
+
+    assert dsk.state_bytes() < ram.state_bytes()
+    saved = ram.state_bytes() - dsk.state_bytes()
+    assert saved == ram.retain_span * 8  # complex64 == 8 bytes
+
+
+def test_history_outlives_the_object(tmp_path):
+    """The claim the feature exists for.
+
+    A capture is dropped mid-preamble and a FRESH one is built over the same
+    file; restoring the blob into it finds the burst whose start is behind the
+    split. That fails for both obvious wrong implementations — a ring that
+    does not really share the file's pages, and a set_state() that restores
+    positions without the samples being there."""
+    path = tmp_path / "ring.cf32"
+    at = 60_000
+    x = build_capture(200_000, [at])
+    cut = at + 2 * ACQ_SF * SPC
+
+    a = make_persistent(path)
+    assert a.push(x[:cut]).size == 0
+    blob = a.get_state()
+    del a  # the ring's memory goes with it; the file does not
+
+    b = make_persistent(path)
+    b.set_state(blob)
+    assert b.push(x[cut:]).size == BURST_LEN
+    assert b.preamble_start == at
+
+
+def test_a_blob_without_its_file_is_refused(tmp_path):
+    """Restoring against a file that has no history would give valid positions
+    over zeros — a capture that never finds another burst, indistinguishable
+    from a quiet stream."""
+    x = build_capture(200_000, [60_000])
+    a = make_persistent(tmp_path / "has.cf32")
+    a.push(x[:70_000])
+    blob = a.get_state()
+
+    b = make_persistent(tmp_path / "empty.cf32")
+    with pytest.raises(ValueError):
+        b.set_state(blob)
+
+
+def test_the_two_flavours_do_not_share_blobs(tmp_path):
+    """Different configurations, different blob lengths — so neither restores
+    into the other, rather than one silently resuming with the history of
+    somewhere else."""
+    ram, dsk = make(), make_persistent(tmp_path / "ring.cf32")
+    with pytest.raises(ValueError):
+        ram.set_state(dsk.get_state())
+    with pytest.raises(ValueError):
+        dsk.set_state(ram.get_state())

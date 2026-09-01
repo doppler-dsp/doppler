@@ -23,11 +23,16 @@ burst_capture_pow2_ceil (size_t n)
   return p;
 }
 
-burst_capture_state_t *
-burst_capture_create (const uint8_t *acq_code, size_t acq_code_len,
-                      size_t burst_len, size_t reps, size_t spc,
-                      double chip_rate, double cn0_dbhz,
-                      double doppler_uncertainty, double pfa, double pd)
+/**
+ * @brief Both constructors, differing only in where the ring's pages live.
+ *
+ * @param path NULL for an anonymous ring; a file to back it with otherwise.
+ */
+static burst_capture_state_t *
+burst_capture_create_impl (const char *path, const uint8_t *acq_code,
+                           size_t acq_code_len, size_t burst_len, size_t reps,
+                           size_t spc, double chip_rate, double cn0_dbhz,
+                           double doppler_uncertainty, double pfa, double pd)
 {
   /* Every one of these is an ARGUMENT error, and the manifest's
    * create_error/create_error_message turn a NULL return into a ValueError
@@ -85,8 +90,21 @@ burst_capture_create (const uint8_t *acq_code, size_t acq_code_len,
     /* Twice the retained span, so `chunk_max` below is never zero: a push
        larger than the ring is processed in slices rather than refused,
        which is what "accepts any block size" costs. */
-    s->hist = dp_xnn (
-        dp_f32_create (burst_capture_pow2_ceil (2u * s->retain_span)));
+    size_t cap = burst_capture_pow2_ceil (2u * s->retain_span);
+    if (path)
+      {
+        /* A file failure is the CALLER's -- a bad path, a full disk, a
+           read-only mount -- so it returns NULL like any other argument
+           error, rather than aborting the way an OOM does. */
+        s->hist = dp_f32_create_backed (cap, path, &s->recovered);
+        if (!s->hist)
+          goto fail;
+        s->backed = 1;
+      }
+    else
+      {
+        s->hist = dp_xnn (dp_f32_create (cap));
+      }
     /* One code period of headroom. The retention bound below lands EXACTLY
        on retain_span, and a merge can move an anchor forward inside the
        window, so leave a period rather than sit on the equality. */
@@ -143,6 +161,31 @@ burst_capture_create (const uint8_t *acq_code, size_t acq_code_len,
 fail:
   burst_capture_destroy (s);
   return NULL;
+}
+
+burst_capture_state_t *
+burst_capture_create (const uint8_t *acq_code, size_t acq_code_len,
+                      size_t burst_len, size_t reps, size_t spc,
+                      double chip_rate, double cn0_dbhz,
+                      double doppler_uncertainty, double pfa, double pd)
+{
+  return burst_capture_create_impl (NULL, acq_code, acq_code_len, burst_len,
+                                    reps, spc, chip_rate, cn0_dbhz,
+                                    doppler_uncertainty, pfa, pd);
+}
+
+burst_capture_state_t *
+burst_capture_create_backed (const char *path, const uint8_t *acq_code,
+                             size_t acq_code_len, size_t burst_len,
+                             size_t reps, size_t spc, double chip_rate,
+                             double cn0_dbhz, double doppler_uncertainty,
+                             double pfa, double pd)
+{
+  if (!path || !*path)
+    return NULL;
+  return burst_capture_create_impl (path, acq_code, acq_code_len, burst_len,
+                                    reps, spc, chip_rate, cn0_dbhz,
+                                    doppler_uncertainty, pfa, pd);
 }
 
 void
@@ -787,7 +830,15 @@ burst_capture_state_bytes (const burst_capture_state_t *s)
          + sizeof (uint32_t) * 2u /* pending, q_head                        */
          + sizeof (burst_capture_pending_t) * s->q_cap
          + sizeof (uint32_t) /* retained sample count                       */
-         + s->retain_span * sizeof (float _Complex)
+         /* The look-back, and it is nearly the whole blob -- 2.57 MB at a
+            1029-symbol frame, 16.68 MB at 8029 (docs/design/burst-capture.md
+            §6). A BACKED capture omits it: the samples are already durable in
+            the ring's own file, so the blob only has to name where in the ring
+            they sit. `backed` is fixed at create(), so this stays a pure
+            function of configuration -- and a backed blob and an in-RAM one
+            are different lengths on purpose, which is what stops one being
+            restored into the other. */
+         + (s->backed ? 0u : s->retain_span * sizeof (float _Complex))
          + sizeof (uint32_t) /* acquisition child length                    */
          + s->acq_blob_max;
 }
@@ -821,17 +872,26 @@ burst_capture_get_state (const burst_capture_state_t *s, void *blob)
   if (n > s->retain_span)
     n = s->retain_span;
   dp_w_u32 (&_w, (uint32_t)n);
-  {
-    void *region
-        = dp_w_reserve (&_w, s->retain_span * sizeof (float _Complex));
-    if (region)
-      {
-        memset (region, 0, s->retain_span * sizeof (float _Complex));
-        uint64_t from = s->hist->head - (uint64_t)n;
-        memcpy (region, burst_capture_at (s, from),
-                n * sizeof (float _Complex));
-      }
-  }
+  if (s->backed)
+    {
+      /* The samples are the FILE's, so the blob names the count and stops.
+         Flushing here is what makes the pair consistent: until the pages are
+         written back they live in the page cache, and a blob taken without
+         this names a history a crash can still lose. */
+      dp_f32_sync (s->hist);
+    }
+  else
+    {
+      void *region
+          = dp_w_reserve (&_w, s->retain_span * sizeof (float _Complex));
+      if (region)
+        {
+          memset (region, 0, s->retain_span * sizeof (float _Complex));
+          uint64_t from = s->hist->head - (uint64_t)n;
+          memcpy (region, burst_capture_at (s, from),
+                  n * sizeof (float _Complex));
+        }
+    }
 
   size_t an = acq_state_bytes (s->acq->engine);
   dp_w_u32 (&_w, (uint32_t)an);
@@ -875,19 +935,38 @@ burst_capture_set_state (burst_capture_state_t *s, const void *blob)
   uint32_t n = dp_r_u32 (&_r);
   if ((size_t)n > s->retain_span)
     return DP_ERR_INVALID;
-  {
-    const void *region
-        = dp_r_reserve (&_r, s->retain_span * sizeof (float _Complex));
-    if (!region)
-      return DP_ERR_INVALID;
-    /* Rewind the ring to the saved stream position, so a look-back read at
-       an absolute sample index lands where the saving capture had it. */
-    uint64_t head = s->samples_fed;
-    DP_STORE_REL (&s->hist->head, (size_t)(head - (uint64_t)n));
-    DP_STORE_REL (&s->hist->tail, (size_t)(head - (uint64_t)n));
-    if (n && !dp_f32_write (s->hist, (const float *)region, n))
-      return DP_ERR_INVALID;
-  }
+  if (s->backed)
+    {
+      /* The samples are already in the ring -- they are the file's contents,
+         mapped by create(). Only the POSITIONS are restored, so a look-back
+         read at an absolute sample index lands where the saving capture had
+         it, in the very bytes it wrote.
+
+         Unless the file was not there. create() reports whether it adopted a
+         ring of this exact geometry or made a fresh (zeroed) one, and a blob
+         that claims retained history against a fresh file is a resume into
+         silence: the positions would be right and the samples would be zeros,
+         so every later burst would simply not be found. Refuse it. */
+      if (n && !s->recovered)
+        return DP_ERR_INVALID;
+      uint64_t head = s->samples_fed;
+      DP_STORE_REL (&s->hist->tail, (size_t)(head - (uint64_t)n));
+      DP_STORE_REL (&s->hist->head, (size_t)head);
+    }
+  else
+    {
+      const void *region
+          = dp_r_reserve (&_r, s->retain_span * sizeof (float _Complex));
+      if (!region)
+        return DP_ERR_INVALID;
+      /* Rewind the ring to the saved stream position, so a look-back read at
+         an absolute sample index lands where the saving capture had it. */
+      uint64_t head = s->samples_fed;
+      DP_STORE_REL (&s->hist->head, (size_t)(head - (uint64_t)n));
+      DP_STORE_REL (&s->hist->tail, (size_t)(head - (uint64_t)n));
+      if (n && !dp_f32_write (s->hist, (const float *)region, n))
+        return DP_ERR_INVALID;
+    }
 
   uint32_t an = dp_r_u32 (&_r);
   {

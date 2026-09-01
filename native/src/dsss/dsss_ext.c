@@ -3,8 +3,8 @@
  *
  * Objects: Despreader, BurstDespreader, Acquisition, BurstAcquisition,
  * PolynomialPhaseEstimator, BurstDemod, BurstCapture, DsssReceiver,
- * AsyncDsssReceiver, DsssBurstReceiver GENERATED — do not hand-edit. Patches
- * belong in the _ext_<obj>.c fragments.
+ * AsyncDsssReceiver, DsssBurstReceiver, PersistentBurstCapture GENERATED — do
+ * not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -24,6 +24,7 @@
 #include "dsss_ext_despreader.c"
 #include "dsss_ext_dsss_burst_receiver.c"
 #include "dsss_ext_dsss_receiver.c"
+#include "dsss_ext_persistentburstcapture.c"
 #include "dsss_ext_ppe.c"
 
 static PyObject *
@@ -130,6 +131,8 @@ PyInit_dsss (void)
     return NULL;
   if (PyType_Ready (&DsssBurstReceiverObjType) < 0)
     return NULL;
+  if (PyType_Ready (&PersistentBurstCaptureObjType) < 0)
+    return NULL;
   PyObject *m = PyModule_Create (&dsss_moduledef);
   if (!m)
     return NULL;
@@ -213,6 +216,15 @@ PyInit_dsss (void)
       < 0)
     {
       Py_DECREF (&DsssBurstReceiverObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&PersistentBurstCaptureObjType);
+  if (PyModule_AddObject (m, "PersistentBurstCapture",
+                          (PyObject *)&PersistentBurstCaptureObjType)
+      < 0)
+    {
+      Py_DECREF (&PersistentBurstCaptureObjType);
       Py_DECREF (m);
       return NULL;
     }

@@ -35,9 +35,10 @@
    which is most of them. This file carried one and it was inert exactly that
    way -- doppler#986. A downstream compiling the installed headers needs the
    same definition on ITS compile line. */
-#include <fcntl.h> /* shm_open on macOS */
-#include <stdio.h> /* snprintf */
-#include <sys/mman.h>
+#include <fcntl.h> /* shm_open on macOS; open() for a file-backed ring */
+#include <stdio.h>    /* snprintf */
+#include <sys/mman.h> /* mmap, msync */
+#include <sys/stat.h> /* fstat -- is this file already a ring? */
 #include <unistd.h>
 #endif /* _WIN32 */
 
@@ -260,6 +261,75 @@ dp__buf_alloc (size_t bytes, void **handle_out)
 #endif /* _WIN32 */
 }
 
+static inline void *
+dp__buf_alloc_file (size_t bytes, void **handle_out, const char *path,
+                    int *existed)
+{
+  *handle_out = NULL;
+  if (existed)
+    *existed = 0;
+#ifdef _WIN32
+  (void)bytes;
+  (void)path;
+  return NULL;
+#else
+  if (!path || !*path)
+    return NULL;
+
+  int fd = open (path, O_RDWR | O_CREAT, 0600);
+  if (fd == -1)
+    return NULL;
+
+  /* A file already exactly this long is a ring somebody filled: map it as it
+     stands. Anything else -- absent, short, or a different geometry -- is
+     truncated, which both sizes it and zeroes it. */
+  struct stat st;
+  if (fstat (fd, &st) == 0 && (size_t)st.st_size == bytes)
+    {
+      if (existed)
+        *existed = 1;
+    }
+  else if (ftruncate (fd, (off_t)bytes) == -1)
+    {
+      close (fd);
+      return NULL;
+    }
+
+  /* Reserve 2*bytes of address space, then place both views in it -- the
+     same sequence dp__buf_alloc() uses, over a different fd. */
+  void *addr
+      = mmap (NULL, 2 * bytes, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (addr == MAP_FAILED)
+    {
+      close (fd);
+      return NULL;
+    }
+  if (mmap (addr, bytes, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, 0)
+          == MAP_FAILED
+      || mmap ((char *)addr + bytes, bytes, PROT_READ | PROT_WRITE,
+               MAP_SHARED | MAP_FIXED, fd, 0)
+             == MAP_FAILED)
+    {
+      munmap (addr, 2 * bytes);
+      close (fd);
+      return NULL;
+    }
+  close (fd); /* both views hold the file open */
+  return addr;
+#endif
+}
+
+static inline void
+dp__buf_sync (void *addr, size_t bytes)
+{
+#ifdef _WIN32
+  (void)addr;
+  (void)bytes;
+#else
+  (void)msync (addr, bytes, MS_SYNC);
+#endif
+}
+
 static inline void
 dp__buf_free (void *addr, size_t bytes, void *handle)
 {
@@ -300,6 +370,23 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
   } dp_##name##_t;                                                            \
                                                                               \
                                                                          \
+  static inline dp_##name##_t *dp_##name##_wrap_ (                            \
+      void *addr, size_t n_samples, void *handle)                             \
+  {                                                                           \
+    dp_##name##_t *ab = (dp_##name##_t *)calloc (1, sizeof (dp_##name##_t)); \
+    if (!ab)                                                                  \
+      {                                                                       \
+        dp__buf_free (addr, n_samples * sizeof (type) * 2, handle);           \
+        return NULL;                                                          \
+      }                                                                       \
+    ab->data = (type *)addr;                                                  \
+    ab->capacity = n_samples;                                                 \
+    ab->mask = n_samples - 1;                                                 \
+    ab->_handle = handle;                                                     \
+    return ab;                                                                \
+  }                                                                           \
+                                                                              \
+                                                                         \
   static inline dp_##name##_t *dp_##name##_create (size_t n_samples)          \
   {                                                                           \
     if (n_samples == 0 || (n_samples & (n_samples - 1)) != 0)                 \
@@ -318,17 +405,31 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
     void *addr = dp__buf_alloc (bytes, &handle);                              \
     if (!addr)                                                                \
       return NULL;                                                            \
-    dp_##name##_t *ab = (dp_##name##_t *)calloc (1, sizeof (dp_##name##_t)); \
-    if (!ab)                                                                  \
-      {                                                                       \
-        dp__buf_free (addr, bytes, handle);                                   \
-        return NULL;                                                          \
-      }                                                                       \
-    ab->data = (type *)addr;                                                  \
-    ab->capacity = n_samples;                                                 \
-    ab->mask = n_samples - 1;                                                 \
-    ab->_handle = handle;                                                     \
-    return ab;                                                                \
+    return dp_##name##_wrap_ (addr, n_samples, handle);                       \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline dp_##name##_t *dp_##name##_create_backed (                    \
+      size_t n_samples, const char *path, int *existed)                       \
+  {                                                                           \
+    if (n_samples == 0 || (n_samples & (n_samples - 1)) != 0)                 \
+      return NULL;                                                            \
+    size_t page = dp__page_size ();                                           \
+    size_t elem = sizeof (type) * 2;                                          \
+    while (n_samples * elem < page)                                           \
+      n_samples <<= 1;                                                        \
+    size_t bytes = n_samples * elem;                                          \
+    void *handle = NULL;                                                      \
+    void *addr = dp__buf_alloc_file (bytes, &handle, path, existed);          \
+    if (!addr)                                                                \
+      return NULL;                                                            \
+    return dp_##name##_wrap_ (addr, n_samples, handle);                       \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline void dp_##name##_sync (dp_##name##_t *ab)                     \
+  {                                                                           \
+    dp__buf_sync (ab->data, ab->capacity * sizeof (type) * 2);                \
   }                                                                           \
                                                                               \
               \

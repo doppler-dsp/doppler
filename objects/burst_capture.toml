@@ -88,6 +88,33 @@ name = "pd"
 type = "double"
 default = "0.9"
 
+# ── The persistent flavour ───────────────────────────────────────────────────
+# A difference in CONSTRUCTOR is a flavor (a view over one core); a difference
+# in METHOD SIGNATURE would be a separate type. This differs only in where the
+# history ring's pages come from, so it is a view: the methods are shared
+# verbatim, and there is one algorithm rather than two.
+#
+# `path` is REQUIRED and first. A non-required string init-param renders its
+# "create with defaults" doctest with a numeric zero (`Obj(path=0)`), which
+# fails the .pyi doctest gate -- and a backing file with a default would be a
+# capture quietly persisting somewhere nobody named.
+
+[[burst_capture.views]]
+class_name = "PersistentBurstCapture"
+create_fn = "burst_capture_create_backed"
+init_params = [
+  { name = "path", type = "path", required = true },
+  { name = "acq_code", type = "uint8_t[]" },
+  { name = "burst_len", type = "size_t", default = "8192" },
+  { name = "reps", type = "size_t", default = "5" },
+  { name = "spc", type = "size_t", default = "4" },
+  { name = "chip_rate", type = "double", default = "1000000.0" },
+  { name = "cn0_dbhz", type = "double", default = "50.0" },
+  { name = "doppler_uncertainty", type = "double", default = "0.0" },
+  { name = "pfa", type = "double", default = "1e-3" },
+  { name = "pd", type = "double", default = "0.9" },
+]
+
 [[burst_capture.methods]]
 name = "push"
 doc = "Stream raw cf32 samples and get back the SAMPLES of every burst whose window has fully arrived, concatenated: burst i occupies burst_len samples starting at i*burst_len, and events() returns the matching record for each. Samples feed the embedded BurstAcquisition and are retained in a history ring; when a detection fires, the refine stage correlates one code period at each preamble position to recover the exact preamble start -- the one quantity acquisition structurally cannot report, since its code_phase is a lag modulo one code period -- and the window is emitted the moment its last sample has arrived. It stops there: what to DO with a burst (demodulate it, write it to a file, ship it to another process) is the caller's. An empty return is normal, not an error: it means no burst completed in this call. Accepts any block size -- the history ring is a contiguous window over the stream and is never reset between bursts, so a burst whose tail falls outside one call is completed by a later one."

@@ -53,9 +53,10 @@
    which is most of them. This file carried one and it was inert exactly that
    way -- doppler#986. A downstream compiling the installed headers needs the
    same definition on ITS compile line. */
-#include <fcntl.h> /* shm_open on macOS */
-#include <stdio.h> /* snprintf */
-#include <sys/mman.h>
+#include <fcntl.h> /* shm_open on macOS; open() for a file-backed ring */
+#include <stdio.h>    /* snprintf */
+#include <sys/mman.h> /* mmap, msync */
+#include <sys/stat.h> /* fstat -- is this file already a ring? */
 #include <unistd.h>
 #endif /* _WIN32 */
 
@@ -304,6 +305,113 @@ dp__buf_alloc (size_t bytes, void **handle_out)
 }
 
 /**
+ * @brief As dp__buf_alloc(), but the pages are backed by a FILE.
+ *
+ * The mirror trick is indifferent to where the fd came from, so a persistent
+ * ring is the same double mapping over an `open()`ed path instead of an
+ * anonymous one. Because the mapping is `MAP_SHARED`, the ring's samples ARE
+ * the file's contents: there is no separate write path to disk, no copy, and
+ * no way for the two to disagree. The kernel writes the pages back on its own
+ * schedule; dp__buf_sync() forces the point.
+ *
+ * The file is created if absent and truncated to @p bytes. An EXISTING file of
+ * the right size is mapped as it stands, which is what lets a ring survive the
+ * process that filled it: the caller restores the head/tail positions and the
+ * samples are simply there.
+ *
+ * @param bytes      Size of ONE mapping (the mirror unit is 2x this).
+ * @param handle_out Set to NULL on POSIX (as dp__buf_alloc).
+ * @param path       File to back the ring with.
+ * @param existed    If non-NULL, set to 1 when the file was already the right
+ *                   size (so its contents are the ring's), 0 when it was
+ *                   created or resized.
+ * @return Base address of the double-mapped region, or NULL on failure.
+ *
+ * @note POSIX only. Windows returns NULL — the platform is not one doppler
+ *       builds for ([project] platforms), and a file mapping there needs the
+ *       CreateFileMapping path rather than this one.
+ */
+static inline void *
+dp__buf_alloc_file (size_t bytes, void **handle_out, const char *path,
+                    int *existed)
+{
+  *handle_out = NULL;
+  if (existed)
+    *existed = 0;
+#ifdef _WIN32
+  (void)bytes;
+  (void)path;
+  return NULL;
+#else
+  if (!path || !*path)
+    return NULL;
+
+  int fd = open (path, O_RDWR | O_CREAT, 0600);
+  if (fd == -1)
+    return NULL;
+
+  /* A file already exactly this long is a ring somebody filled: map it as it
+     stands. Anything else -- absent, short, or a different geometry -- is
+     truncated, which both sizes it and zeroes it. */
+  struct stat st;
+  if (fstat (fd, &st) == 0 && (size_t)st.st_size == bytes)
+    {
+      if (existed)
+        *existed = 1;
+    }
+  else if (ftruncate (fd, (off_t)bytes) == -1)
+    {
+      close (fd);
+      return NULL;
+    }
+
+  /* Reserve 2*bytes of address space, then place both views in it -- the
+     same sequence dp__buf_alloc() uses, over a different fd. */
+  void *addr
+      = mmap (NULL, 2 * bytes, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (addr == MAP_FAILED)
+    {
+      close (fd);
+      return NULL;
+    }
+  if (mmap (addr, bytes, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, fd, 0)
+          == MAP_FAILED
+      || mmap ((char *)addr + bytes, bytes, PROT_READ | PROT_WRITE,
+               MAP_SHARED | MAP_FIXED, fd, 0)
+             == MAP_FAILED)
+    {
+      munmap (addr, 2 * bytes);
+      close (fd);
+      return NULL;
+    }
+  close (fd); /* both views hold the file open */
+  return addr;
+#endif
+}
+
+/**
+ * @brief Flush a file-backed region to disk.
+ *
+ * A no-op for an anonymous ring, and harmless there. Call it where a
+ * checkpoint is TAKEN: the samples are in the page cache until the kernel
+ * decides otherwise, so a blob written without this names a history that a
+ * crash can still lose.
+ *
+ * @param addr  Base address (the first view).
+ * @param bytes Size of ONE mapping.
+ */
+static inline void
+dp__buf_sync (void *addr, size_t bytes)
+{
+#ifdef _WIN32
+  (void)addr;
+  (void)bytes;
+#else
+  (void)msync (addr, bytes, MS_SYNC);
+#endif
+}
+
+/**
  * @brief Releases a double-mapped region created by dp__buf_alloc().
  *
  * @param addr   Base address returned by dp__buf_alloc().
@@ -358,6 +466,30 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
   } dp_##name##_t;                                                            \
                                                                               \
   /**                                                                         \
+   * @brief Wrap an already-mapped mirrored region in a buffer struct.        \
+   *                                                                          \
+   * The tail both constructors share. It exists so the struct allocation is  \
+   * written ONCE: two copies of it is two places for the field                \
+   * initialisation to drift, and the second one raised this file's           \
+   * bare-allocation count against a ratchet that may only shrink.            \
+   */                                                                         \
+  static inline dp_##name##_t *dp_##name##_wrap_ (                            \
+      void *addr, size_t n_samples, void *handle)                             \
+  {                                                                           \
+    dp_##name##_t *ab = (dp_##name##_t *)calloc (1, sizeof (dp_##name##_t)); \
+    if (!ab)                                                                  \
+      {                                                                       \
+        dp__buf_free (addr, n_samples * sizeof (type) * 2, handle);           \
+        return NULL;                                                          \
+      }                                                                       \
+    ab->data = (type *)addr;                                                  \
+    ab->capacity = n_samples;                                                 \
+    ab->mask = n_samples - 1;                                                 \
+    ab->_handle = handle;                                                     \
+    return ab;                                                                \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
    * @brief Creates a double-mapped circular buffer.                          \
    *                                                                          \
    * Uses virtual memory mirroring so reads/writes that cross the buffer      \
@@ -393,17 +525,58 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
     void *addr = dp__buf_alloc (bytes, &handle);                              \
     if (!addr)                                                                \
       return NULL;                                                            \
-    dp_##name##_t *ab = (dp_##name##_t *)calloc (1, sizeof (dp_##name##_t)); \
-    if (!ab)                                                                  \
-      {                                                                       \
-        dp__buf_free (addr, bytes, handle);                                   \
-        return NULL;                                                          \
-      }                                                                       \
-    ab->data = (type *)addr;                                                  \
-    ab->capacity = n_samples;                                                 \
-    ab->mask = n_samples - 1;                                                 \
-    ab->_handle = handle;                                                     \
-    return ab;                                                                \
+    return dp_##name##_wrap_ (addr, n_samples, handle);                       \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Creates a double-mapped circular buffer BACKED BY A FILE.         \
+   *                                                                          \
+   * Identical to dp_##name##_create() except for where the pages come from:  \
+   * the mapping is MAP_SHARED over @p path, so the ring's samples ARE the    \
+   * file's contents. There is no separate write-to-disk path and no copy.    \
+   *                                                                          \
+   * An existing file of exactly the right size is mapped AS IT STANDS, which \
+   * is what lets a ring outlive the process that filled it -- restore the    \
+   * head/tail positions and the history is already there. Anything else is   \
+   * created or truncated, which sizes and zeroes it.                         \
+   *                                                                          \
+   * The capacity rounds up to a whole page exactly as dp_##name##_create()   \
+   * does, so the FILE's size is `capacity * sizeof(type) * 2` -- read        \
+   * ->capacity back rather than assuming the requested value.                \
+   *                                                                          \
+   * @param n_samples Requested capacity, a power of two.                     \
+   * @param path      File to back the ring with.                             \
+   * @param existed   If non-NULL, set to 1 when the file already held a ring \
+   *                  of this exact size (its samples are now the ring's).    \
+   * @return Initialised buffer, or NULL on failure (including on Windows).   \
+   */                                                                         \
+  static inline dp_##name##_t *dp_##name##_create_backed (                    \
+      size_t n_samples, const char *path, int *existed)                       \
+  {                                                                           \
+    if (n_samples == 0 || (n_samples & (n_samples - 1)) != 0)                 \
+      return NULL;                                                            \
+    size_t page = dp__page_size ();                                           \
+    size_t elem = sizeof (type) * 2;                                          \
+    while (n_samples * elem < page)                                           \
+      n_samples <<= 1;                                                        \
+    size_t bytes = n_samples * elem;                                          \
+    void *handle = NULL;                                                      \
+    void *addr = dp__buf_alloc_file (bytes, &handle, path, existed);          \
+    if (!addr)                                                                \
+      return NULL;                                                            \
+    return dp_##name##_wrap_ (addr, n_samples, handle);                       \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Flush a file-backed ring to disk; a no-op for an anonymous one.   \
+   *                                                                          \
+   * Call it where a CHECKPOINT is taken. Until then the samples live in the  \
+   * page cache, so a snapshot written without this names a history a crash   \
+   * can still lose.                                                          \
+   */                                                                         \
+  static inline void dp_##name##_sync (dp_##name##_t *ab)                     \
+  {                                                                           \
+    dp__buf_sync (ab->data, ab->capacity * sizeof (type) * 2);                \
   }                                                                           \
                                                                               \
   /** @brief Destroys the buffer and releases virtual memory. */              \

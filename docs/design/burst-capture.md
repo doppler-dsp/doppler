@@ -254,7 +254,83 @@ decision already made.
 
 ______________________________________________________________________
 
-## 9. See also
+## 9. Persistence — the ring in a file
+
+§8's last question was whether a deployment could hold the look-back in RAM
+**and** in the blob. `PersistentBurstCapture` is the answer for one that
+cannot: the same object, with the history ring's pages backed by a file
+instead of anonymous memory.
+
+### 9.1 There is no write path
+
+`buffer.h` builds its ring by mapping one fd **twice** at adjacent addresses,
+which is what makes a window spanning the wrap contiguous. The mirror does not
+care where the fd came from, so a persistent ring is that same double mapping
+over an `open()`ed path — `MAP_SHARED`, so **the ring's samples ARE the file's
+contents**.
+
+That is the whole mechanism, and it is worth being explicit about what it is
+not: there is no mirror buffer, no background flusher, no second copy of the
+stream, and no way for the memory and the file to hold different bytes. Writes
+land in the page cache and the kernel writes them back; `get_state()` calls
+`msync` so a checkpoint and the history it names are consistent even across a
+crash.
+
+The primitive lives in `buffer.h` beside the anonymous one
+(`dp_f32_create_backed`, `dp_f32_sync`), not in this object — a second private
+ring is exactly the drift this repo forbids, and every `DECLARE_DP_BUFFER`
+type gets the capability for free.
+
+### 9.2 What it buys: the blob stops carrying the history
+
+§8's measurement was that the look-back IS the blob. Backed, it is not.
+Measured 2026-09-01 at `ACQ_SF=511`, `REPS=5`, `DATA_SF=63`, `spc=4`:
+
+| frame    | `retain_span` | in-RAM blob | backed blob | ring file |
+| -------- | ------------- | ----------- | ----------- | --------- |
+| 61 sym   | 74 648        | 0.61 MB     | 17.0 kB     | 2.10 MB   |
+| 1029 sym | 318 584       | 2.57 MB     | 17.5 kB     | 8.39 MB   |
+| 8029 sym | 2 082 584     | 16.68 MB    | 21.6 kB     | 33.55 MB  |
+
+A checkpoint at the long geometry drops from 16.68 MB to 21.6 kB — **770×** —
+and what is left is the acquisition child plus the detection queue. The file
+is larger than `retain_span` because the ring is twice the retained span
+rounded up to a power of two; it is written once and reused, not accumulated.
+
+The second thing it buys is that the history **outlives the process**. Point a
+new capture at the same path and the samples are already there; restore the
+blob and it reaches back across the restart into a burst that began before it.
+
+### 9.3 Two refusals, both deliberate
+
+- **A backed blob does not restore into an in-RAM capture, or the reverse.**
+    `state_bytes()` differs, so jm's length check rejects it. They are
+    different configurations, and silently accepting one for the other would
+    resume a capture whose history was somewhere else entirely.
+- **A blob claiming retained history, restored against a file that has none,
+    is refused.** `create()` reports whether it adopted a ring of exactly this
+    geometry or made a fresh (zeroed) one. Without that check the positions
+    would be perfectly valid and the samples would be zeros, so the capture
+    would simply never find another burst — indistinguishable from a quiet
+    stream, which is the failure this object exists to prevent.
+
+### 9.4 Why a view rather than an argument
+
+The two constructors differ and nothing else does, so
+`PersistentBurstCapture` is a `[[burst_capture.views]]` entry over the same
+core — the mechanism `MatchedDDC` established: a difference in CONSTRUCTOR is
+a flavour, a difference in METHOD SIGNATURE would be a separate type. The
+methods are shared verbatim, so there is one algorithm rather than two.
+
+An optional `path=None` on the base constructor was the alternative and is
+worse twice over: a non-required string init-param renders its own
+"create with defaults" doctest as `BurstCapture(path=0)`, which fails the
+stub-doctest gate, and a backing file with a default is a capture quietly
+persisting somewhere nobody named.
+
+______________________________________________________________________
+
+## 10. See also
 
 - [`DsssBurstReceiver`](dsss-burst-receiver.md) — the composition this comes
     out of; §11 is the decision record, §3 the measurements the refine stage

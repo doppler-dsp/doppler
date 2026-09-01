@@ -76,11 +76,54 @@ publish_job_count() {
 }
 
 # ── 1. Find the release run for the tag (it may lag the push by a few seconds).
+#
+# Matched on the tag's COMMIT as well as its name. Selecting on the name alone
+# is not enough once a tag has been deleted and re-pushed: a run for the
+# PREVIOUS push still carries that `headBranch`, so the "wait for the run to
+# appear" loop below is satisfied on its first iteration by a run that finished
+# hours ago -- and a tag push returns before GitHub has created the new run, so
+# the stale one is all there is to find at that moment.
+#
+# Measured on just-makeit v0.74.0 (2026-09-01): the first attempt failed its
+# pre-publish smoke, the tag was deleted, the defect fixed and the tag
+# re-pushed. `release-watch` then attached to the FIRST run and reported its
+# failure -- twelve red smoke jobs, `publish: skipped` -- while the real run
+# was still in progress and went on to publish cleanly. The ordering was never
+# wrong; `[0]` is the newest. The existence check was.
+#
+# That is the failure mode this script's own header already warns about: a
+# watcher that can report the wrong run is worse than no watcher, because the
+# failure it invents is indistinguishable from a real one and the first
+# instinct is to go fix a release that is already fine.
+#
+# Resolving the SHA from the REMOTE, not a local ref: `release-watch` is a
+# separate target from `tag-release` and may be run from a checkout that never
+# had the tag, or has a stale one. `^{}` dereferences the annotated tag object
+# to the commit it points at -- without it this compares against the tag
+# object's own SHA and never matches.
+TAG_SHA=$(git ls-remote "https://github.com/$REPO" "refs/tags/$TAG^{}" 2>/dev/null | cut -f1)
+if [ -z "$TAG_SHA" ]; then
+  # An unannotated tag has no peeled ref; fall back to the tag ref itself.
+  TAG_SHA=$(git ls-remote "https://github.com/$REPO" "refs/tags/$TAG" 2>/dev/null | cut -f1)
+fi
+if [ -n "$TAG_SHA" ]; then
+  echo "  tag $TAG -> ${TAG_SHA%"${TAG_SHA#???????}"}"
+else
+  echo "  warning: could not resolve $TAG to a commit; matching on tag name alone"
+fi
+
 RUN=""
 for i in $(seq 1 12); do
-  RUN=$(gh run list --workflow=release.yml -R "$REPO" -L 15 \
-        --json databaseId,headBranch \
-        --jq "[.[] | select(.headBranch==\"$TAG\")][0].databaseId" 2>/dev/null)
+  if [ -n "$TAG_SHA" ]; then
+    RUN=$(gh run list --workflow=release.yml -R "$REPO" -L 15 \
+          --json databaseId,headBranch,headSha \
+          --jq "[.[] | select(.headBranch==\"$TAG\" and .headSha==\"$TAG_SHA\")][0].databaseId" \
+          2>/dev/null)
+  else
+    RUN=$(gh run list --workflow=release.yml -R "$REPO" -L 15 \
+          --json databaseId,headBranch \
+          --jq "[.[] | select(.headBranch==\"$TAG\")][0].databaseId" 2>/dev/null)
+  fi
   [ -n "$RUN" ] && [ "$RUN" != "null" ] && break
   echo "  waiting for release run to appear ($i/12)…"; sleep 10
   RUN=""

@@ -80,6 +80,7 @@ typedef struct
   float _Complex *corr_buf; 
   size_t refine_span;  
   size_t corr_len;     
+  size_t min_gap;      
   size_t retain_span;  
   size_t chunk_max;    
   size_t k_lo;         
@@ -185,6 +186,8 @@ int burst_capture_configure_search_raw (burst_capture_state_t *state,
  * They are read-backs, not knobs -- every one is derived at create() from
  * the parameters above, and `configure_search_raw()` is the one call that
  * moves them. */
+
+size_t burst_capture_get_min_gap (const burst_capture_state_t *state);
 
 double burst_capture_get_eta (const burst_capture_state_t *state);
 double burst_capture_get_eta_nc (const burst_capture_state_t *state);

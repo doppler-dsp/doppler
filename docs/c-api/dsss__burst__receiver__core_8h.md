@@ -91,6 +91,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  double | [**dsss\_burst\_receiver\_get\_est\_freq\_hz**](#function-dsss_burst_receiver_get_est_freq_hz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_est\_rate\_hz**](#function-dsss_burst_receiver_get_est_rate_hz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_est\_snr\_db**](#function-dsss_burst_receiver_get_est_snr_db) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
+|  size\_t | [**dsss\_burst\_receiver\_get\_min\_gap**](#function-dsss_burst_receiver_get_min_gap) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  uint64\_t | [**dsss\_burst\_receiver\_get\_n\_bursts**](#function-dsss_burst_receiver_get_n_bursts) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  size\_t | [**dsss\_burst\_receiver\_get\_pending**](#function-dsss_burst_receiver_get_pending) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  uint64\_t | [**dsss\_burst\_receiver\_get\_preamble\_start**](#function-dsss_burst_receiver_get_preamble_start) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
@@ -526,6 +527,21 @@ double dsss_burst_receiver_get_est_rate_hz (
 
 ```C++
 double dsss_burst_receiver_get_est_snr_db (
+    const dsss_burst_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dsss\_burst\_receiver\_get\_min\_gap 
+
+```C++
+size_t dsss_burst_receiver_get_min_gap (
     const dsss_burst_receiver_state_t * state
 ) 
 ```

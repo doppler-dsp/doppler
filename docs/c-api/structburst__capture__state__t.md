@@ -57,6 +57,7 @@ _BurstCapture state._ [More...](#detailed-description)
 |  dp\_f32\_t \* | [**hist**](#variable-hist)  <br> |
 |  size\_t | [**k\_hi**](#variable-k_hi)  <br> |
 |  size\_t | [**k\_lo**](#variable-k_lo)  <br> |
+|  size\_t | [**min\_gap**](#variable-min_gap)  <br> |
 |  uint64\_t | [**n\_bursts**](#variable-n_bursts)  <br> |
 |  size\_t | [**pending**](#variable-pending)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
@@ -500,6 +501,36 @@ size_t burst_capture_state_t::k_lo;
 
 
 Whole code periods searched BEFORE the anchor. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable min\_gap 
+
+```C++
+size_t burst_capture_state_t::min_gap;
+```
+
+
+
+Dead air a caller must leave BETWEEN bursts, in samples  edge to edge, not start to start.
+
+
+DERIVED, and the derivation is the point. A detection's anchor is the code epoch of whichever frame detected, and acquisition's framing is not aligned to the preamble, so the last frame that can detect sits up to `reps * code_period` past the true start (the detection lag, docs/design/dsss-burst-receiver.md §7.1). CLAIM merges two anchors closer than `refine_span`, so with the first burst detected LATE and the second EARLY the pair survives only when
+
+
+gap &gt;= refine\_span + reps\*P - burst\_len
+
+
+ZERO is a real answer  a burst longer than `refine_span + reps*P` needs no gap for the claim rule's sake. It does not mean zero is wise: a zero gap is a continuous stream rather than a burst link (the design's own non-goal), and it measures 88% at a geometry where this reads 0.
+
+
+The prose this replaces said `max(0, refine_span - burst_len)` and was short by the whole detection-lag term  32 samples against 528 at the C suite's geometry (doppler#1172). 
  
 
 

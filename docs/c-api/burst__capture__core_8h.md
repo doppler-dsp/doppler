@@ -85,6 +85,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  uint64\_t | [**burst\_capture\_get\_dropped**](#function-burst_capture_get_dropped) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  double | [**burst\_capture\_get\_eta**](#function-burst_capture_get_eta) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Coherent detection gate; in force when_ `n_noncoh == 1` _._ |
 |  double | [**burst\_capture\_get\_eta\_nc**](#function-burst_capture_get_eta_nc) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Non-coherent gate; in force when_ `n_noncoh > 1` _(the usual case)._ |
+|  size\_t | [**burst\_capture\_get\_min\_gap**](#function-burst_capture_get_min_gap) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Dead air a caller must leave between bursts, edge to edge._  |
 |  uint64\_t | [**burst\_capture\_get\_n\_bursts**](#function-burst_capture_get_n_bursts) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  size\_t | [**burst\_capture\_get\_n\_noncoh**](#function-burst_capture_get_n_noncoh) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Non-coherent looks combined per decision._  |
 |  double | [**burst\_capture\_get\_pd\_predicted**](#function-burst_capture_get_pd_predicted) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Detection probability the sized grid actually predicts._  |
@@ -588,6 +589,22 @@ double burst_capture_get_eta (
 _Non-coherent gate; in force when_ `n_noncoh > 1` _(the usual case)._
 ```C++
 double burst_capture_get_eta_nc (
+    const burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function burst\_capture\_get\_min\_gap 
+
+_Dead air a caller must leave between bursts, edge to edge._ 
+```C++
+size_t burst_capture_get_min_gap (
     const burst_capture_state_t * state
 ) 
 ```

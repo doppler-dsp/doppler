@@ -198,6 +198,33 @@ typedef struct
                             against the 32 samples that formula gives at the
                             test geometry (doppler#1172).                 */
   size_t corr_len;     /**< Entries in corr_buf.                            */
+  size_t min_gap;      /**< Dead air a caller must leave BETWEEN bursts, in
+                            samples -- edge to edge, not start to start.
+
+                            DERIVED, and the derivation is the point. A
+                            detection's anchor is the code epoch of whichever
+                            frame detected, and acquisition's framing is not
+                            aligned to the preamble, so the last frame that
+                            can detect sits up to `reps * code_period` past
+                            the true start (the detection lag,
+                            docs/design/dsss-burst-receiver.md §7.1). CLAIM
+                            merges two anchors closer than `refine_span`, so
+                            with the first burst detected LATE and the second
+                            EARLY the pair survives only when
+
+                              gap >= refine_span + reps*P - burst_len
+
+                            ZERO is a real answer -- a burst longer than
+                            `refine_span + reps*P` needs no gap for the claim
+                            rule's sake. It does not mean zero is wise: a
+                            zero gap is a continuous stream rather than a
+                            burst link (the design's own non-goal), and it
+                            measures 88% at a geometry where this reads 0.
+
+                            The prose this replaces said
+                            `max(0, refine_span - burst_len)` and was short by
+                            the whole detection-lag term -- 32 samples against
+                            528 at the C suite's geometry (doppler#1172).   */
   size_t retain_span;  /**< Samples that must stay reachable: refine span +
                             one whole burst. Also the caller-facing minimum
                             TRAILING context -- a burst closer than this to
@@ -560,6 +587,9 @@ int burst_capture_configure_search_raw (burst_capture_state_t *state,
  * They are read-backs, not knobs -- every one is derived at create() from
  * the parameters above, and `configure_search_raw()` is the one call that
  * moves them. */
+
+/** @brief Dead air a caller must leave between bursts, edge to edge. */
+size_t burst_capture_get_min_gap (const burst_capture_state_t *state);
 
 /** @brief Coherent detection gate; in force when `n_noncoh == 1`. */
 double burst_capture_get_eta (const burst_capture_state_t *state);

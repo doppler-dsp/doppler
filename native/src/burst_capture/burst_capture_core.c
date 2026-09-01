@@ -102,6 +102,18 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
     s->k_hi        = 2u;
     s->refine_span = (s->k_lo + s->k_hi + reps) * s->code_period;
     s->retain_span = s->refine_span + s->burst_len;
+    /* The dead air a caller must leave. Derived from the claim rule and the
+       detection lag, not fitted: the first burst can be detected on a frame
+       up to reps*P past its start and the second on its first frame, so the
+       two anchors close by that much before CLAIM ever sees them. Verified
+       on four geometries -- at 0.6x this value a pair is 92-98% captured, at
+       this value it is 100% (doppler#1172). */
+    {
+      size_t lag = reps * s->code_period;
+      s->min_gap = s->refine_span + lag > s->burst_len
+                       ? s->refine_span + lag - s->burst_len
+                       : 0u;
+    }
     /* Twice the retained span, so `chunk_max` below is never zero: a push
        larger than the ring is processed in slices rather than refused,
        which is what "accepts any block size" costs. */
@@ -844,6 +856,12 @@ burst_capture_get_n_bursts (const burst_capture_state_t *state)
  * Forwarded rather than duplicated: every one is the engine's own figure,
  * and re-deriving any of them here would be a second copy of the sizing that
  * the engine already did. */
+
+size_t
+burst_capture_get_min_gap (const burst_capture_state_t *state)
+{
+  return state->min_gap;
+}
 
 double
 burst_capture_get_eta (const burst_capture_state_t *state)

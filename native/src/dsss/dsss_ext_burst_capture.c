@@ -770,6 +770,19 @@ BurstCapture_getprop_n_bursts (BurstCaptureObject *self,
       (unsigned long long)burst_capture_get_n_bursts (self->handle));
 }
 
+static PyObject *
+BurstCapture_getprop_min_gap (BurstCaptureObject *self,
+                              void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->min_gap);
+}
+
 static PyGetSetDef BurstCapture_getset[] = {
   { "preamble_start", (getter)BurstCapture_getprop_preamble_start, NULL,
     "Stream-absolute sample index the most recent window's preamble starts "
@@ -897,6 +910,33 @@ static PyGetSetDef BurstCapture_getset[] = {
     NULL },
   { "n_bursts", (getter)BurstCapture_getprop_n_bursts, NULL,
     "Windows emitted, lifetime.\n", NULL },
+  { "min_gap", (getter)BurstCapture_getprop_min_gap, NULL,
+    "Dead air to leave BETWEEN bursts, in samples — edge to edge, not\n"
+    "start to start.\n"
+    "\n"
+    "Derived rather than documented as a rule the caller has to apply: a\n"
+    "detection's anchor is the code epoch of whichever frame detected, and\n"
+    "acquisition's framing is not aligned to the preamble, so the last frame "
+    "that\n"
+    "can detect sits up to `reps * code_period` past the true start. CLAIM "
+    "merges\n"
+    "two anchors closer than `refine_span`, so a pair survives only when\n"
+    "`gap >= refine_span + reps*code_period - burst_len`.\n"
+    "\n"
+    "**Zero is a real answer** — a burst longer than `refine_span + reps*P` "
+    "needs\n"
+    "no gap for the claim rule's sake — but it does not mean zero is wise: a "
+    "zero\n"
+    "gap is a continuous stream rather than a burst link, and it measures 88% "
+    "at a\n"
+    "geometry where this reads 0.\n"
+    "\n"
+    "Replaces the prose `max(0, refine_span - burst_len)`, which was short by "
+    "the\n"
+    "whole detection-lag term: 32 samples against 528 at the C suite's "
+    "geometry\n"
+    "(doppler#1172).\n",
+    NULL },
   { NULL }
 };
 

@@ -2613,6 +2613,24 @@ class BurstCapture:
         """
 
     @property
+    def min_gap(self) -> int:
+        """Dead air to leave BETWEEN bursts, in samples — edge to edge, not
+        start to start. Derived rather than documented as a rule the caller has
+        to apply: a detection's anchor is the code epoch of whichever frame
+        detected, and acquisition's framing is not aligned to the preamble, so
+        the last frame that can detect sits up to `reps * code_period` past the
+        true start. CLAIM merges two anchors closer than `refine_span`, so a
+        pair survives only when `gap >= refine_span + reps*code_period -
+        burst_len`. **Zero is a real answer** — a burst longer than
+        `refine_span + reps*P` needs no gap for the claim rule's sake — but it
+        does not mean zero is wise: a zero gap is a continuous stream rather
+        than a burst link, and it measures 88% at a geometry where this reads
+        0. Replaces the prose `max(0, refine_span - burst_len)`, which was
+        short by the whole detection-lag term: 32 samples against 528 at the C
+        suite's geometry (doppler#1172).
+        """
+
+    @property
     def retain_span(self) -> int:
         """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
         `refine_span` plus one whole burst. A burst closer than this to the end
@@ -3124,6 +3142,24 @@ class PersistentBurstCapture:
         dead air costs a caller real airtime for nothing: the gap actually
         required is `max(0, refine_span - burst_len)`, which is 0 whenever a
         burst is longer than the refine reach (doppler#1085).
+        """
+
+    @property
+    def min_gap(self) -> int:
+        """Dead air to leave BETWEEN bursts, in samples — edge to edge, not
+        start to start. Derived rather than documented as a rule the caller has
+        to apply: a detection's anchor is the code epoch of whichever frame
+        detected, and acquisition's framing is not aligned to the preamble, so
+        the last frame that can detect sits up to `reps * code_period` past the
+        true start. CLAIM merges two anchors closer than `refine_span`, so a
+        pair survives only when `gap >= refine_span + reps*code_period -
+        burst_len`. **Zero is a real answer** — a burst longer than
+        `refine_span + reps*P` needs no gap for the claim rule's sake — but it
+        does not mean zero is wise: a zero gap is a continuous stream rather
+        than a burst link, and it measures 88% at a geometry where this reads
+        0. Replaces the prose `max(0, refine_span - burst_len)`, which was
+        short by the whole detection-lag term: 32 samples against 528 at the C
+        suite's geometry (doppler#1172).
         """
 
     @property
@@ -4806,6 +4842,15 @@ class DsssBurstReceiver:
         """Runner-up period over the winner."""
 
     @property
+    def min_gap(self) -> int:
+        """Dead air to leave BETWEEN bursts, in samples — edge to edge. The
+        number a caller placing bursts actually wants, derived by the capture
+        rather than left as a rule to apply: `refine_span + reps*code_period -
+        burst_len`, floored at zero. `refine_span` below is the reach it comes
+        from, and is a start-to-start bound rather than a gap.
+        """
+
+    @property
     def refine_span(self) -> int:
         """Coalescing window, in samples -- the reach over which two detections
         are ONE preamble. Both sides of that test are burst STARTS (resolved
@@ -4813,19 +4858,16 @@ class DsssBurstReceiver:
         air between bursts. The two differ by a whole burst, and reading it as
         dead air costs a caller real airtime for nothing. The gap actually
         required is max(0, refine_span - burst_len) burst_len = retain_span -
-        refine_span which is 0 whenever a burst is longer than the refine
-        reach. **That formula is optimistic, measured** (doppler#1172): swept
-        over two bursts at 12 trials a spacing, a pair is not reliably captured
-        until roughly 2 code periods of dead air -- 256 samples at a geometry
-        where the formula says 32. The SHAPE is right and worth keeping: the
-        constraint is start-to-start, and reading it as a whole `refine_span`
-        of required silence cost 9% of airtime. The FLOOR is not. Leave a
-        couple of code periods. At a 255-chip code, `reps=5`, `spc=2` the reach
-        is 12240 samples; an 8316-sample burst placed 8916 apart start-to-start
-        (600 samples of dead air against the 3924 required) yields 2 decodes
-        from 7 bursts with `dropped == 0`, while at `frame_syms=2053` the same
-        code gives a 261228-sample burst -- 21.3x the reach -- and every
-        spacing down to ZERO dead air yields 7 of 7 (doppler#1085).
+        refine_span which was wrong -- short by the whole detection-lag term.
+        **Read `min_gap` instead**; the object derives it (doppler#1172). The
+        SHAPE of the old rule was right and is worth keeping: this reach is a
+        start-to-start bound, and reading it as required silence cost 9% of
+        airtime. At a 255-chip code, `reps=5`, `spc=2` the reach is 12240
+        samples; an 8316-sample burst placed 8916 apart start-to-start (600
+        samples of dead air against the 3924 required) yields 2 decodes from 7
+        bursts with `dropped == 0`, while at `frame_syms=2053` the same code
+        gives a 261228-sample burst -- 21.3x the reach -- and every spacing
+        down to ZERO dead air yields 7 of 7 (doppler#1085).
         """
 
     @property

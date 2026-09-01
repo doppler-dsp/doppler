@@ -75,9 +75,22 @@ CODE_PERIOD = ACQ_SF * SPC
 SIGMA = 0.02
 #: Trials per spacing. Each uses a different noise seed and a different
 #: absolute position, so a result is not an artifact of one alignment.
-TRIALS = 12
-#: Dead air swept, in samples, from touching to well past a whole burst.
-GAPS = [0, 32, 64, 128, 256, 512, 1024, 2048, 3072, 4096]
+#:
+#: **60, and the number is load-bearing.** This was 12, and 12 reported the
+#: floor as 256 samples -- 100% over 24 bursts. At 60 the same spacing is
+#: 88.8%, and the floor is 528. The first number reached a certified report
+#: before the sample size was questioned (doppler#1172). What the object now
+#: DERIVES as `min_gap` is 528 here, and the sweep exists to check the
+#: derivation rather than to discover a constant.
+TRIALS = 60
+
+
+#: Dead air swept, in samples. Anchored on the object's own `min_gap` rather
+#: than on round numbers, so the sweep straddles the bound being tested: a
+#: grid that happened to skip it would confirm nothing.
+def _gaps(min_gap: int) -> list[int]:
+    g = min_gap
+    return sorted({0, g // 4, g // 2, (3 * g) // 4, g, 2 * g, 4 * g, 8 * g})
 
 
 def acq_code() -> np.ndarray:
@@ -191,9 +204,10 @@ def run_pair(gap: int, seed: int) -> tuple[int, int, list[tuple]]:
 
 
 def sweep_spacing():
-    """``(gaps, found_rate, extra_per_pair, rows)`` over `GAPS`."""
+    """``(gaps, found_rate, extra_per_pair, rows)`` straddling `min_gap`."""
     found_rate, extra_rate, rows = [], [], []
-    for gap in GAPS:
+    gaps = _gaps(capture().min_gap)
+    for gap in gaps:
         f = e = 0
         for t in range(TRIALS):
             fi, ei, ri = run_pair(gap, seed=1000 + 97 * t + gap)
@@ -202,7 +216,7 @@ def sweep_spacing():
             rows.extend(ri)
         found_rate.append(f / (2.0 * TRIALS))
         extra_rate.append(e / float(TRIALS))
-    return np.array(GAPS), np.array(found_rate), np.array(extra_rate), rows
+    return np.array(gaps), np.array(found_rate), np.array(extra_rate), rows
 
 
 def separation(rows) -> dict:
@@ -232,12 +246,15 @@ def _plot(gaps, found, extra, rows, out_path: str) -> None:
 
     ax0.plot(gaps, 100.0 * found, "o-", label="transmitted bursts captured")
     ax0.plot(gaps, 100.0 * extra / 2.0, "s--", label="spurious windows / 2")
-    claimed = max(0, 2480 - BURST_LEN)  # refine_span - burst_len at this geom
+    old = max(0, capture().refine_span - BURST_LEN)
     ax0.axvline(
-        claimed,
-        color="crimson",
-        ls=":",
-        label=f"header's required gap ({claimed})",
+        old, color="crimson", ls=":", label=f"the retired formula ({old})"
+    )
+    ax0.axvline(
+        capture().min_gap,
+        color="seagreen",
+        ls="--",
+        label=f"derived min_gap ({capture().min_gap})",
     )
     ax0.set_xlabel("dead air between bursts (samples)")
     ax0.set_ylabel("percent")

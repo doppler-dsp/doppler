@@ -760,6 +760,62 @@ test_a_captured_burst_suppresses_its_own_payload (void)
 }
 
 /**
+ * `min_gap` is the dead air a caller must leave, and it is DERIVED.
+ *
+ * Two bursts exactly `min_gap` apart edge-to-edge are both captured; the
+ * object computes the number so a caller never has to know the rule. The
+ * rule, for the record: a detection's anchor is the code epoch of whichever
+ * frame detected, and framing is not aligned to the preamble, so the last
+ * frame that can detect sits `reps * code_period` past the true start.
+ * CLAIM merges anchors closer than `refine_span`, so the first burst
+ * detected LATE and the second EARLY close by that much before CLAIM sees
+ * them.
+ *
+ * The prose this replaced said `max(0, refine_span - burst_len)` -- short by
+ * the whole detection-lag term, 32 samples against 528 here (doppler#1172).
+ */
+static int
+test_min_gap_is_derived_and_sufficient (void)
+{
+  burst_capture_state_t *probe = make ();
+  DP_REQUIRE (probe != NULL);
+  const size_t gap  = probe->min_gap;
+  const size_t span = probe->refine_span;
+  const size_t P    = probe->code_period;
+  /* The derivation, asserted as arithmetic rather than as a constant: a
+     hard-coded 528 would pass on this geometry and say nothing about any
+     other. */
+  DP_CHECK (gap == span + REPS * P - BURST_LEN);
+  DP_CHECK (gap > 0);
+  /* ...and it is bigger than the formula it replaced, which is the defect. */
+  DP_CHECK (gap > (span > BURST_LEN ? span - BURST_LEN : 0u));
+  burst_capture_destroy (probe);
+
+  static float complex cap[200000];
+  const size_t         at[2] = { 9000u, 9000u + BURST_LEN + gap };
+  build_capture (cap, sizeof cap / sizeof *cap, at, 2u, 0.02, 13u);
+
+  burst_capture_state_t *s = make ();
+  DP_REQUIRE (s != NULL);
+  static float complex out[8 * BURST_LEN];
+  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                 sizeof out / sizeof *out);
+
+  /* Both transmitted bursts come back. NOT `n == 2 * BURST_LEN`: at
+     pfa = 1e-3 a spurious window is expected, and asserting the count would
+     be asserting the false-alarm rate is zero. */
+  DP_REQUIRE (n >= 2u * BURST_LEN);
+  int found[2] = { 0, 0 };
+  for (size_t i = 0; i < burst_capture_ready (s); i++)
+    for (size_t k = 0; k < 2u; k++)
+      if (burst_capture_event_at (s, i)->preamble_start == (uint64_t)at[k])
+        found[k] = 1;
+  DP_CHECK (found[0] && found[1]);
+  burst_capture_destroy (s);
+  return 0;
+}
+
+/**
  * `refine_span` bounds START-TO-START separation, not the dead air between
  * bursts.
  *
@@ -1071,6 +1127,8 @@ main (void)
   if (test_a_push_larger_than_the_ring_is_sliced ())
     return 1;
   if (test_a_captured_burst_suppresses_its_own_payload ())
+    return 1;
+  if (test_min_gap_is_derived_and_sufficient ())
     return 1;
   if (test_refine_span_bounds_start_to_start ())
     return 1;

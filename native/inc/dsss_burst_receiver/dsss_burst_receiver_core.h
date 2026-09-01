@@ -454,6 +454,8 @@ void dsss_burst_receiver_get_state(const dsss_burst_receiver_state_t *state, voi
  * @return DP_OK, or DP_ERR_INVALID if the envelope or any child rejects.
  */
 int dsss_burst_receiver_set_state(dsss_burst_receiver_state_t *state, const void *blob);
+size_t dsss_burst_receiver_get_min_gap (
+    const dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_get_refine_span(const dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_get_retain_span(const dsss_burst_receiver_state_t *state);
 #ifdef __cplusplus

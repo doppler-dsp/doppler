@@ -779,9 +779,13 @@ test_min_gap_is_derived_and_sufficient (void)
 {
   burst_capture_state_t *probe = make ();
   DP_REQUIRE (probe != NULL);
-  const size_t gap  = probe->min_gap;
+  /* Through the ACCESSOR, which is the C consumer's face -- a composing
+     object reads that, not the struct, and a field-only test leaves the
+     function every caller actually calls unexercised. */
+  const size_t gap  = burst_capture_get_min_gap (probe);
   const size_t span = probe->refine_span;
   const size_t P    = probe->code_period;
+  DP_CHECK (gap == probe->min_gap); /* the two faces agree */
   /* The derivation, asserted as arithmetic rather than as a constant: a
      hard-coded 528 would pass on this geometry and say nothing about any
      other. */

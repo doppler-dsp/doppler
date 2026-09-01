@@ -2683,7 +2683,7 @@ class PersistentBurstCapture:
     Parameters
     ----------
     path : str | os.PathLike
-        File to back the ring with. Must not be NULL or empty.
+        File to back the ring with; not NULL and not empty.
     acq_code : NDArray[np.uint8]
         Preamble PN chips (0/1), length acq_code_len.
     burst_len : int, default 8192

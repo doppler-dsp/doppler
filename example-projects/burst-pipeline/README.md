@@ -26,8 +26,8 @@ you reading the output.
 1. **Where the declared SNR actually shows up.** SNR is a property of a
     *source*, and the floor it implies runs through the whole segment — the
     gap is the channel, not digital silence. Measured with the library's own
-    estimators: ≈18.1 dB data-aided and ≈18.3 dB blind, against 12 dB
-    declared per sample plus the matched filter's 6.02 dB at `sps=4`.
+    estimators: ≈11.5 dB data-aided and ≈11.6 dB blind, against 12 dB
+    declared.
 
 1. **What a `Plan` does and does not cache.** It caches the clean signal and
     redraws the noise every point, so the saving is the signal's share of the
@@ -42,8 +42,8 @@ you reading the output.
     with the consumer's own work inside the read loop.
 
 1. **And then it receives.** The consumer does not know where the bursts are:
-    it demodulates the whole record, gaps included, and searches for the
-    frame's sync marker. Two things keep that honest rather than circular —
+    it demaps the whole record, gaps included, and searches for the frame's
+    sync marker. Two things keep that honest rather than circular —
     the marker is **rebuilt from the frame's own declaration**
     (`wfm_seq_bits` over the same generated field the transmitter used, not a
     second copy that can drift), and the tolerance is **derived** by
@@ -99,13 +99,14 @@ sent.
 
 `syncword_find` answers in the symbol domain: which **bit** the marker starts
 on, in which polarity, at what Hamming distance. It cannot resolve timing finer
-than a symbol, and it is not supposed to — with a rectangular pulse a
-one-sample shift still integrates almost the whole symbol, so the marker
-matches with *zero* bit errors at more than one sample phase. Recovering a
-fractional-sample offset is a timing loop's job (`symsync`, `ratesync`).
+than a symbol and is not meant to — recovering a fractional-sample offset is a
+timing loop's job (`symsync`, `ratesync`).
 
-Hand it a demodulated bit stream, take the bit offset it returns, and let a
-timing loop own the samples.
+That boundary is why this example runs at **one sample per symbol**. The frame,
+the search and the CRC are all questions about symbols; oversampling would add
+a pulse shape to match and a sample phase to recover, neither of which changes
+any answer here. Hand the searcher a demapped bit stream, take the bit offset
+it returns, and let a timing loop own the samples.
 
 ### Take the polarity with the offset
 

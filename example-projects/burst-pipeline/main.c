@@ -51,6 +51,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "mpsk/mpsk_core.h"
 #include "snr/snr_core.h"
 #include "syncword/syncword_core.h"
 #include "wfm/wfm_compose.h"
@@ -60,8 +61,16 @@
 #include "wfm_synth/wfm_synth_core.h"
 #include "wfm_writer/wfm_writer_core.h"
 
-#define FS 1.0e6      /* sample rate, Hz                                  */
-#define SPS 4         /* samples per symbol; rectangular                  */
+#define FS 1.0e6 /* sample rate, Hz                                  */
+/* ONE SAMPLE PER SYMBOL. The frame, the sync search and the CRC are all
+   questions about SYMBOLS, so this example stays in that domain: a sample is
+   a symbol, and the receive half is a demapper.
+
+   Oversampling would add a pulse shape to match and a sample phase to
+   recover. Both are a timing loop's job (`symsync`, `ratesync`) and neither
+   changes any answer here, so carrying them would only put a second subject
+   in front of the first. */
+#define SPS 1
 #define HDR_BITS 16u  /* the caller's own header                          */
 #define PAY_BITS 240u /* payload                                          */
 /* A GENERATED sync field rather than a literal: declaring a `kind` means the
@@ -83,13 +92,9 @@
 
 #define BURST_ON (FRAME_BITS * (unsigned)SPS) /* one frame, exactly       */
 #define BURST_OFF 4096u                       /* gap between bursts       */
-/* A lead-in, so the first burst does not begin at sample 0 and the search
-   below has somewhere to look. TWO WHOLE SYMBOLS, deliberately: the sync
-   search works on BITS, so sub-symbol timing is not its job and not its
-   answer. Recovering a fractional-sample offset is what a timing loop is
-   for (symsync / ratesync); mixing it in here would make this section teach
-   two things badly instead of one thing exactly. */
-#define DELAY_SAMPLES ((unsigned)SPS * 2u)
+/* A lead-in, so the first burst does not start at sample 0 and the search has
+   somewhere to look before it. */
+#define DELAY_SAMPLES 2u
 #define N_BURSTS 60u
 #define PERIOD ((size_t)(DELAY_SAMPLES + BURST_ON + BURST_OFF))
 #define TOTAL (PERIOD * N_BURSTS)
@@ -116,36 +121,6 @@ now_s (void)
   struct timespec t;
   clock_gettime (CLOCK_MONOTONIC, &t);
   return (double)t.tv_sec + (double)t.tv_nsec * 1e-9;
-}
-
-/** @brief Matched filter for a rectangular pulse: sum each symbol's SPS
- * samples. A sum IS the matched filter here, and it is the 6 dB of coherent
- * gain a receiver is entitled to at sps=4 — decimating to one sample per
- * symbol instead would throw three quarters of the energy away.
- *
- * `n_syms` symbols are read from `x`, which must hold `n_syms * SPS`
- * samples. */
-static void
-match_filter (const float complex *x, size_t n_syms, float complex *out)
-{
-  for (size_t k = 0; k < n_syms; k++)
-    {
-      float complex acc = 0.0f;
-      for (int j = 0; j < SPS; j++)
-        acc += x[k * (size_t)SPS + (size_t)j];
-      out[k] = acc;
-    }
-}
-
-/** @brief Hard BPSK decisions from matched-filter outputs.
- *
- * `bpsk_map`'s convention is 0 -> +1, 1 -> -1, so the SIGN carries the bit
- * and the decision is a comparison rather than a threshold to tune. */
-static void
-slice (const float complex *sym, size_t n, uint8_t *bits)
-{
-  for (size_t k = 0; k < n; k++)
-    bits[k] = crealf (sym[k]) < 0.0f ? 1u : 0u;
 }
 
 /** @brief A `wfm_seq_t` over bits the caller owns and keeps. */
@@ -328,14 +303,10 @@ main (void)
 
   /* Two estimators, for the two situations a caller is in: `snr_m2m4_db` is
      blind (moments only, nothing known about what was sent), while
-     `snr_data_aided_db` strips the known transmitted sign.
-
-     Both read SYMBOLS, so the burst is matched-filtered first — that is the
-     receiver's own 10log10(sps) dB, and why these read above the declared
-     per-sample figure rather than equal to it. */
-  static float complex tx_sym[N_SYMS];
+     `snr_data_aided_db` strips the known transmitted sign. Both read symbols,
+     which at one sample per symbol is the burst as composed. */
   static uint8_t       tx_bits[FRAME_BITS];
-  match_filter (declared + burst0, N_SYMS, tx_sym);
+  const float complex *tx_sym = declared + burst0; /* a sample IS a symbol */
 
   const size_t n_tx = wfm_frame_assemble (&d, NULL, tx_bits, FRAME_BITS);
   check (n_tx == FRAME_BITS,
@@ -343,7 +314,6 @@ main (void)
 
   const double snr_blind = snr_m2m4_db (tx_sym, N_SYMS);
   const double snr_da    = snr_data_aided_db (tx_sym, N_SYMS, tx_bits, n_tx);
-  const double mf_gain   = 10.0 * log10 ((double)SPS);
 
   /* THE GAP IS NOT SILENCE, and the estimator is what says so: it returns
      NaN for a block with zero power, so a digitally silent gap would fail
@@ -356,14 +326,11 @@ main (void)
   check (snr_gap < snr_blind - 6.0,
          "and it is NOISE, not signal — the blind estimator separates them");
 
-  check (fabs (snr_da - (SNR_DB + mf_gain)) < 1.5,
-         "data-aided Es/N0 recovers the declared SNR plus the matched "
-         "filter's gain");
-  printf ("  declared %.0f dB per sample, +%.2f dB matched filter "
-          "-> %.2f dB expected\n",
-          SNR_DB, mf_gain, SNR_DB + mf_gain);
-  printf ("  data-aided %.2f dB   blind (M2M4) %.2f dB   gap %.2f dB\n",
-          snr_da, snr_blind, snr_gap);
+  check (fabs (snr_da - SNR_DB) < 1.5,
+         "data-aided Es/N0 recovers the SNR the source declared");
+  printf ("  declared %.0f dB   data-aided %.2f dB   blind (M2M4) %.2f dB   "
+          "gap %.2f dB\n",
+          SNR_DB, snr_da, snr_blind, snr_gap);
   printf ("  snr_mode=fs, so the declaration is against the noise in the "
           "WHOLE band;\n"
           "  every instance of the burst sees the same declaration.\n\n");
@@ -523,20 +490,12 @@ main (void)
   /* ── 7. finding the bursts, by their sync marker ────────────────────── */
   printf ("--- 7. Finding each burst by its sync marker ---\n");
 
-  /* THE SEARCH IS OVER BITS. `syncword_find` answers in the symbol domain —
-     which bit the marker starts on, in which polarity, at what Hamming
-     distance — so that is what this section demonstrates and all it claims.
-     A fractional-sample offset is a timing loop's problem (symsync,
-     ratesync), not a bit-domain searcher's, and the scene's lead-in is a
-     whole number of symbols for exactly that reason.
-
-     Demodulate the WHOLE record, gaps included: the gaps demodulate to noise
-     bits, which is the point — on a real capture nothing announces a burst,
-     and the searcher has to survive the space between them. */
-  static uint8_t       rx_bits[TOTAL_BITS];
-  static float complex rx_sym[TOTAL_BITS];
-  match_filter (readback, TOTAL_BITS, rx_sym);
-  slice (rx_sym, TOTAL_BITS, rx_bits);
+  /* Demap the WHOLE record, gaps included: the gaps demap to noise bits,
+     which is the point — on a real capture nothing announces a burst, and the
+     searcher has to survive the space between them. `mpsk_demap` at m=2 is
+     the element-wise inverse of the BPSK mapping the source used. */
+  static uint8_t rx_bits[TOTAL_BITS];
+  mpsk_demap (readback, TOTAL_BITS, rx_bits, 2);
 
   /* THE MARKER COMES FROM THE DESCRIPTION, not from a constant here. The
      field declared a generated sequence, so the receiver materialises the

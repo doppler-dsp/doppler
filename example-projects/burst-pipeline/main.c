@@ -71,6 +71,9 @@
    changes any answer here, so carrying them would only put a second subject
    in front of the first. */
 #define SPS 1
+#define BPSK 1
+#define SEED 7u
+#define SNR_ESNO 3
 #define HDR_BITS 16u  /* the caller's own header                          */
 #define PAY_BITS 240u /* payload                                          */
 /* A GENERATED sync field rather than a literal: declaring a `kind` means the
@@ -99,7 +102,7 @@
 #define PERIOD ((size_t)(DELAY_SAMPLES + BURST_ON + BURST_OFF))
 #define TOTAL (PERIOD * N_BURSTS)
 
-#define SNR_DB 12.0 /* declared per-source SNR, in `fs` mode           */
+#define SNR_DB 12.0 /* declared per-source SNR, in Es/N0 mode          */
 #define N_SWEEP 24u /* operating points in the sweep                   */
 #define READ_BLOCK 4096u
 
@@ -123,36 +126,6 @@ now_s (void)
   return (double)t.tv_sec + (double)t.tv_nsec * 1e-9;
 }
 
-/** @brief A `wfm_seq_t` over bits the caller owns and keeps. */
-static wfm_seq_t
-literal (const uint8_t *bits, size_t len)
-{
-  wfm_seq_t s = { 0 };
-  s.kind      = WFM_SEQ_LITERAL;
-  s.bits      = bits;
-  s.len       = len;
-  return s;
-}
-
-/** @brief The burst: one framed BPSK source at the declared SNR. */
-static wfm_source_t
-burst_source (const uint8_t *payload, const wfm_frame_desc_t *d)
-{
-  /* `= { 0 }` then named fields, never a positional initialiser list:
-     wfm_source_t carries 30-odd members and a positional list silently
-     shifts the moment one is inserted. */
-  wfm_source_t src = { 0 };
-  src.type         = WFM_SYNTH_BITS;
-  src.payload      = literal (payload, PAY_BITS);
-  src.modulation   = 1; /* bpsk */
-  src.sps          = SPS;
-  src.snr          = SNR_DB;
-  src.snr_mode     = 1; /* fs: SNR against the noise in the whole band */
-  src.seed         = 7u;
-  src.frame        = d;
-  return src;
-}
-
 /** @brief Drain a composer into `out`, returning what it produced. */
 static size_t
 drain (wfm_compose_state_t *c, float complex *out, size_t cap)
@@ -168,8 +141,7 @@ main (void)
 {
   printf ("=== a burst waveform, end to end ===\n\n");
 
-  /* Borrowed by the description and by every source below, so they outlive
-     every compose call. */
+  /* Borrowed below, so they outlive every compose call. */
   static uint8_t hdr[HDR_BITS], pay[PAY_BITS];
   for (unsigned i = 0; i < HDR_BITS; i++)
     hdr[i] = (uint8_t)((0x5C5Cu >> (HDR_BITS - 1u - i)) & 1u);
@@ -186,8 +158,9 @@ main (void)
   sy.seed      = 1u; /* 0 would select 1 anyway; said out loud */
   sy.poly      = 0u; /* 0 selects the maximal-length polynomial for reg_bits */
 
-  wfm_seq_t        h = literal (hdr, HDR_BITS), p = literal (pay, PAY_BITS);
   wfm_frame_desc_t d;
+  wfm_seq_t h = { .kind = WFM_SEQ_LITERAL, .bits = hdr, .len = HDR_BITS };
+  wfm_seq_t p = { .kind = WFM_SEQ_LITERAL, .bits = pay, .len = PAY_BITS };
   memset (&d, 0, sizeof d);
   /* The cover names its ends and REACHES the derived field, which is what
      wires that field's producer — so the CRC's position and the fact that a
@@ -227,9 +200,24 @@ main (void)
   /* ── 2. the burst train, listed then declared ───────────────────────── */
   printf ("--- 2. Sixty bursts: listed, then declared ---\n");
 
+  /* THE SOURCE, spelled out: these are the fields a framed BPSK burst needs
+     and there is no shorter honest way to say it. `= { 0 }` then named
+     members, never a positional initialiser list — wfm_source_t carries
+     30-odd members and a positional list shifts silently the moment one is
+     inserted. */
+  wfm_source_t src = { 0 };
+  src.type         = WFM_SYNTH_BITS;
+  src.payload
+      = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = pay, .len = PAY_BITS };
+  src.modulation = BPSK;
+  src.sps        = SPS;
+  src.snr        = SNR_DB;
+  src.snr_mode   = SNR_ESNO; /* per transmitted symbol */
+  src.seed       = SEED;
+  src.frame      = &d; /* borrowed; the description outlives compose */
+
   /* The naive shape: one segment per burst. It works, and it is sixty copies
      of one fact — change the gap and you change it sixty times. */
-  wfm_source_t   src  = burst_source (pay, &d);
   wfm_segment_t *many = calloc (N_BURSTS, sizeof *many);
   if (!many)
     {
@@ -331,8 +319,8 @@ main (void)
   printf ("  declared %.0f dB   data-aided %.2f dB   blind (M2M4) %.2f dB   "
           "gap %.2f dB\n",
           SNR_DB, snr_da, snr_blind, snr_gap);
-  printf ("  snr_mode=fs, so the declaration is against the noise in the "
-          "WHOLE band;\n"
+  printf ("  snr_mode is Es/N0, so the declaration is per transmitted "
+          "symbol;\n"
           "  every instance of the burst sees the same declaration.\n\n");
 
   /* ── 4. prepare once, sweep many ────────────────────────────────────── */

@@ -56,6 +56,7 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  size\_t | [**ev\_len**](#variable-ev_len)  <br> |
 |  size\_t | [**frame\_bits**](#variable-frame_bits)  <br> |
 |  size\_t | [**frame\_syms**](#variable-frame_syms)  <br> |
+|  int | [**frame\_valid**](#variable-frame_valid)  <br> |
 |  float \* | [**llr**](#variable-llr)  <br> |
 |  size\_t | [**llr\_cap**](#variable-llr_cap)  <br> |
 |  size\_t | [**llr\_len**](#variable-llr_len)  <br> |
@@ -473,6 +474,24 @@ size_t dsss_burst_receiver_state_t::frame_syms;
 
 
 Symbols the frame occupies after the sync word, and so bits per burst out of push(). What they MEAN is a frame description's business, one layer up (doppler#1022). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable frame\_valid 
+
+```C++
+int dsss_burst_receiver_state_t::frame_valid;
+```
+
+
+
+The last window's frame passed its error detection  THIS receiver's frame carries a CRC-16 trailer. The verdict the capture cannot reach: a window that failed is given back with [**burst\_capture\_release()**](burst__capture__core_8h.md#function-burst_capture_release), so a decoy cannot own the span of a real burst behind it (doppler#1181, doppler#1004). 
  
 
 

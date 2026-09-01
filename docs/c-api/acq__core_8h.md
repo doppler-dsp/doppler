@@ -288,7 +288,10 @@ acq_state_t * acq_create_burst (
 
 
 
-Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))), and picks the _smallest_ coherent depth `coherent_bins` in `[1, reps]` whose coherent\_bins\*code\_bins coherent samples meet `pd` at the Bonferroni threshold (minimum latency for a strong signal), plus non-coherent looks (up to the internal [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)) if the coherent depth alone falls short. Intended for an unmodulated burst or preamble window  a continuous, data-modulated signal should use [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) instead (coherent combining under continuous data is a structural aliasing mislock, not a tunable SNR trade-off  see the file doc comment).
+Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))), and picks the _smallest_ coherent depth `coherent_bins` in `[1, reps]` whose coherent\_bins\*code\_bins coherent samples meet `pd` at the Bonferroni threshold (minimum latency for a strong signal). If the full ceiling still falls short the engine is `underpowered`; it does NOT add non-coherent looks. A burst has one frame of preamble, so looks beyond it add noise to the statistic and move the hit  `samples_consumed` is stamped at the end of the LAST accumulated look, so a consumer resolving the preamble's position sees an anchor up to n\_noncoh\*coherent\_bins periods late (doppler#1181). Intended for an unmodulated burst or preamble window  a continuous, data-modulated signal should use [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) instead (coherent combining under continuous data is a structural aliasing mislock, not a tunable SNR trade-off  see the file doc comment).
+
+
+`cn0_dbhz` is the DESIGN (minimum) C/N0 and is optional: 0 means none was given, and the engine then integrates the whole preamble (`coherent_bins = reps`) with the threshold set by `pfa` alone. `pd` is a sizing target only when a design C/N0 is given; without one `pd_predicted` is NAN and `underpowered` is never set.
 
 
 A tighter `doppler_uncertainty` narrows the scanned Doppler band, lowering the per-cell threshold (more sensitive). When `doppler_uncertainty` exceeds the native span `chip_rate/(2*sf)`, falls back to the wideband window-tiling mechanism (see the file doc comment) instead  coherent depth structurally can't cover more than one native span, regardless of `reps`. Use [**acq\_configure\_search\_raw()**](acq__core_8h.md#function-acq_configure_search_raw) to pin the grid directly instead of relying on this auto-sizer.
@@ -304,10 +307,10 @@ A tighter `doppler_uncertainty` narrows the scanned Doppler band, lowering the p
 * `reps` Max coherent code repetitions, the coherence ceiling (&gt;=1). 
 * `spc` Samples per chip (&gt;= 1). 
 * `chip_rate` Chip rate in Hz (&gt; 0). 
-* `cn0_dbhz` Carrier-to-noise density in dB-Hz (&gt; 0). 
+* `cn0_dbhz` Design carrier-to-noise density in dB-Hz (&gt;= 0; 0 = no design point, size for the whole preamble). 
 * `doppler_uncertainty` One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip\_rate/(2\*sf). A value greater than the native span engages wideband mode (see the file doc comment above): coherent\_bins is forced to 1 and the uncertainty is tiled with parallel frequency-window hypotheses instead. 
 * `pfa` Target system (max-of-N) false-alarm probability (0,1). 
-* `pd` Target detection probability (0,1). 
+* `pd` Target detection probability (0,1); a sizing target only when `cn0_dbhz` is given. 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
 
 

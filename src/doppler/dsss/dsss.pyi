@@ -1277,7 +1277,7 @@ class BurstAcquisition:
         Samples per chip (>= 1).
     chip_rate : float, default 1000000.0
         Chip rate in Hz (> 0).
-    cn0_dbhz : float, default 50.0
+    cn0_dbhz : float, default 0.0
         Carrier-to-noise density in dB-Hz (> 0).
     doppler_uncertainty : float, default 0.0
         One-sided Doppler search half-range in Hz.
@@ -2265,7 +2265,7 @@ class BurstCapture:
         Samples per chip.
     chip_rate : float, default 1000000.0
         Chip rate, Hz.
-    cn0_dbhz : float, default 50.0
+    cn0_dbhz : float, default 0.0
         C/N0 the search is sized for, dB-Hz.
     doppler_uncertainty : float, default 0.0
         Doppler search half-range, Hz (0 = native).
@@ -2281,7 +2281,7 @@ class BurstCapture:
     ValueError
         If construction fails. The exception message is ``BurstCapture: invalid
         parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0,
-        burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)``.
+        burst_len >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0 < pd < 1)``.
 
     Warns
     -----
@@ -2512,7 +2512,14 @@ class BurstCapture:
         (doppler_bins, n_noncoh). Forwards to the engine unchanged.
 
         The escape hatch for a caller who wants a specific (doppler_bins,
-        n_noncoh). Forwards to the engine unchanged.
+        n_noncoh). Forwards to the engine, with one refusal of this object's
+        own: a grid whose anchor can lag the preamble by more than refine
+        reaches -- `n_noncoh * doppler_bins` code periods against `k_lo` -- is
+        rejected rather than accepted and silently mis-refined. Acquisition
+        stamps a hit at the end of the LAST accumulated look, so every look
+        past the one holding the preamble moves the anchor a whole frame later;
+        a burst has one frame of preamble, so `n_noncoh = 1` is the grid a
+        capture wants and the sizer now always picks (doppler#1181).
 
         Parameters
         ----------
@@ -2535,6 +2542,58 @@ class BurstCapture:
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
         >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
         >>> cap.configure_search_raw(4, 1)   # 4 Doppler bins, coherent only
+
+        """
+
+    def release(self, i: int) -> None:
+        """Give back the span window `i` of the last push() claimed. An emitted
+        window owns its whole span: detections inside it are the payload firing
+        against the acquisition code, so they are HELD rather than reported. A
+        consumer that knows better -- a demodulator whose CRC failed -- calls
+        this for that window, and the held detections are searched again on the
+        next push(). Unreleased, they are dropped when the next push() begins.
+        Raises ValueError if `i` is not a window of the last push().
+
+        An emitted window owns its whole span: a detection inside it is the
+        payload firing against the acquisition code, not a new burst, so it is
+        HELD rather than reported. Whether the window WAS a burst is a verdict
+        this object cannot reach -- it stops at samples; error detection,
+        whatever form the frame gives it, is the consumer's -- so a consumer
+        that knows better calls this for that window, and the held detections
+        are searched again on the next push(). Unreleased, they are dropped
+        when the next push() begins, which is exactly the behaviour a consumer
+        with no verdict always had.
+
+        What it prevents (doppler#1181): a spurious window ending just after a
+        real burst begins used to swallow that burst's first detections -- the
+        receiver's own design says only a DECODED burst may own a span (§10.3,
+        doppler#1004), and the capture underneath had been owning it on
+        emission.
+
+        Must be called BEFORE the next push(): `i` indexes THIS push's windows.
+
+        Parameters
+        ----------
+        i : int
+            Input.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``release failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstCapture
+        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
+        >>> cap.release(0)   # no window 0 in a quiet push
+        Traceback (most recent call last):
+          ...
+        ValueError: release failed (rc=-4)
 
         """
 
@@ -2852,7 +2911,7 @@ class PersistentBurstCapture:
         Samples per chip.
     chip_rate : float, default 1000000.0
         Chip rate, Hz.
-    cn0_dbhz : float, default 50.0
+    cn0_dbhz : float, default 0.0
         C/N0 the search is sized for, dB-Hz.
     doppler_uncertainty : float, default 0.0
         Doppler search half-range, Hz (0 = native).
@@ -2868,7 +2927,7 @@ class PersistentBurstCapture:
     ValueError
         If construction fails. The exception message is ``BurstCapture: invalid
         parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0,
-        burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)``.
+        burst_len >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0 < pd < 1)``.
 
     Warns
     -----
@@ -3105,7 +3164,14 @@ class PersistentBurstCapture:
         (doppler_bins, n_noncoh). Forwards to the engine unchanged.
 
         The escape hatch for a caller who wants a specific (doppler_bins,
-        n_noncoh). Forwards to the engine unchanged.
+        n_noncoh). Forwards to the engine, with one refusal of this object's
+        own: a grid whose anchor can lag the preamble by more than refine
+        reaches -- `n_noncoh * doppler_bins` code periods against `k_lo` -- is
+        rejected rather than accepted and silently mis-refined. Acquisition
+        stamps a hit at the end of the LAST accumulated look, so every look
+        past the one holding the preamble moves the anchor a whole frame later;
+        a burst has one frame of preamble, so `n_noncoh = 1` is the grid a
+        capture wants and the sizer now always picks (doppler#1181).
 
         Parameters
         ----------
@@ -3128,6 +3194,58 @@ class PersistentBurstCapture:
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
         >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
         >>> cap.configure_search_raw(4, 1)   # 4 Doppler bins, coherent only
+
+        """
+
+    def release(self, i: int) -> None:
+        """Give back the span window `i` of the last push() claimed. An emitted
+        window owns its whole span: detections inside it are the payload firing
+        against the acquisition code, so they are HELD rather than reported. A
+        consumer that knows better -- a demodulator whose CRC failed -- calls
+        this for that window, and the held detections are searched again on the
+        next push(). Unreleased, they are dropped when the next push() begins.
+        Raises ValueError if `i` is not a window of the last push().
+
+        An emitted window owns its whole span: a detection inside it is the
+        payload firing against the acquisition code, not a new burst, so it is
+        HELD rather than reported. Whether the window WAS a burst is a verdict
+        this object cannot reach -- it stops at samples; error detection,
+        whatever form the frame gives it, is the consumer's -- so a consumer
+        that knows better calls this for that window, and the held detections
+        are searched again on the next push(). Unreleased, they are dropped
+        when the next push() begins, which is exactly the behaviour a consumer
+        with no verdict always had.
+
+        What it prevents (doppler#1181): a spurious window ending just after a
+        real burst begins used to swallow that burst's first detections -- the
+        receiver's own design says only a DECODED burst may own a span (§10.3,
+        doppler#1004), and the capture underneath had been owning it on
+        emission.
+
+        Must be called BEFORE the next push(): `i` indexes THIS push's windows.
+
+        Parameters
+        ----------
+        i : int
+            Input.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``release failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstCapture
+        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
+        >>> cap.release(0)   # no window 0 in a quiet push
+        Traceback (most recent call last):
+          ...
+        ValueError: release failed (rc=-4)
 
         """
 
@@ -4533,7 +4651,7 @@ class DsssBurstReceiver:
         Chip rate in Hz (> 0).
     frame_syms : int, default 64
         Frame symbols per burst (>= 1) — what push() returns, bit for bit.
-    cn0_dbhz : float, default 50.0
+    cn0_dbhz : float, default 0.0
         Carrier-to-noise density in dB-Hz (> 0), sizing the acquisition search.
     doppler_uncertainty : float, default 0.0
         One-sided Doppler half-range, Hz.
@@ -4553,7 +4671,7 @@ class DsssBurstReceiver:
     ValueError
         If construction fails. The exception message is ``DsssBurstReceiver:
         invalid parameter (need non-empty acq_code/data_code/sync, reps >= 1,
-        spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0
+        spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0
         < pd < 1)``.
 
     Examples
@@ -4968,6 +5086,15 @@ class DsssBurstReceiver:
     @property
     def refine_margin(self) -> float:
         """Runner-up period over the winner."""
+
+    @property
+    def frame_valid(self) -> bool:
+        """Whether the most recent window's frame passed its error detection --
+        this receiver's frame ends in a CRC-16. The verdict that decides
+        whether the window OWNS its span: a failed window is given back to the
+        capture (`release`), so a decoy ahead of a real burst cannot swallow it
+        (doppler#1181). Per burst, read `events()['frame_valid']`.
+        """
 
     @property
     def min_gap(self) -> int:

@@ -71,10 +71,12 @@ _BurstCapture state._ [More...](#detailed-description)
 |  float \* | [**ref\_sign**](#variable-ref_sign)  <br> |
 |  double | [**refine\_margin**](#variable-refine_margin)  <br> |
 |  size\_t | [**refine\_span**](#variable-refine_span)  <br> |
+|  uint8\_t \* | [**released**](#variable-released)  <br> |
 |  size\_t | [**reps**](#variable-reps)  <br> |
 |  size\_t | [**retain\_span**](#variable-retain_span)  <br> |
 |  uint64\_t | [**samples\_fed**](#variable-samples_fed)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
+|  uint64\_t | [**suppress\_base**](#variable-suppress_base)  <br> |
 |  uint64\_t | [**suppress\_until**](#variable-suppress_until)  <br> |
 |  int | [**underpowered**](#variable-underpowered)  <br> |
 |  float \_Complex \* | [**win**](#variable-win)  <br> |
@@ -539,7 +541,7 @@ size_t burst_capture_state_t::k_hi;
 
 
 
-...and after. 
+...and AFTER: `reps`. The detecting frame can start before the preamble, so the anchor can be up to `coherent_bins - 1` periods early. It was 2, and at reps=10 refine returned one period early with a resolved-looking margin (doppler#1181). 
  
 
 
@@ -557,7 +559,7 @@ size_t burst_capture_state_t::k_lo;
 
 
 
-Whole code periods searched BEFORE the anchor. 
+Whole code periods searched BEFORE the anchor: `3*reps + 2`, the detection lag's bound. 
  
 
 
@@ -780,6 +782,25 @@ The merge test compares two resolved code epochs  burst START against burst STAR
 
 
 
+### variable released 
+
+```C++
+uint8_t* burst_capture_state_t::released;
+```
+
+
+
+Per row of `ev`: the consumer said "not a
+ burst". Scratch, like the rows. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable reps 
 
 ```C++
@@ -843,6 +864,24 @@ size_t burst_capture_state_t::spc;
 
 
 Samples per chip. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable suppress\_base 
+
+```C++
+uint64_t burst_capture_state_t::suppress_base;
+```
+
+
+
+`suppress_until` as the last push() began: what EARLIER pushes' windows own, which a release() of this push's window must not give back. 
  
 
 

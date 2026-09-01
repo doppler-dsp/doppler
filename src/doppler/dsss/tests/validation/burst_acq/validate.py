@@ -46,7 +46,12 @@ BASE = {
     "reps": 8,
     "spc": SPC,
     "chip_rate": CHIP_RATE,
-    "cn0_dbhz": 45.0,
+    # 55 dB-Hz: a design point the COHERENT ceiling meets at this depth
+    # (D=6 of 8 predicts 0.935), so `cn0_dbhz` and `pd` each have somewhere
+    # to move the grid. 45 sat here while a burst engine bought non-coherent
+    # looks it could not fill; it no longer does (doppler#1181), and at 45
+    # every depth is underpowered, so nothing a sizing input did was visible.
+    "cn0_dbhz": 55.0,
     "doppler_uncertainty": 0.0,
     "pfa": 1e-3,
     "pd": 0.9,
@@ -84,6 +89,13 @@ def _derived(a) -> dict[str, object]:
         "pfa_cell": float(a.pfa_cell),
         "doppler_span_hz": round(float(a.doppler_span_hz), 3),
         "underpowered": bool(a.underpowered),
+        # The two sizing inputs the object reads back verbatim. They are what
+        # makes `cn0_dbhz` and `pd` distinguishable from `pfa` and
+        # `doppler_uncertainty` now that a burst engine never buys looks
+        # (doppler#1181): all four move the coherent depth and the threshold
+        # ladder the same way, and only the stored copy says which arrived.
+        "cn0_dbhz": float(a.cn0_dbhz),
+        "pd": float(a.pd),
     }
 
 
@@ -250,7 +262,7 @@ def _sec_forwarding(d: Data) -> None:
         ("reps 8 -> 16", {"reps": 16}),
         ("spc 4 -> 8", {"spc": 8}),
         ("chip_rate 1 -> 2 MHz", {"chip_rate": 2.0e6}),
-        ("cn0_dbhz 45 -> 30", {"cn0_dbhz": 30.0}),
+        ("cn0_dbhz 55 -> 60", {"cn0_dbhz": 60.0}),
         ("doppler_uncertainty 0 -> 40 kHz", {"doppler_uncertainty": 40e3}),
         ("pfa 1e-3 -> 1e-6", {"pfa": 1e-6}),
         ("pd 0.9 -> 0.99", {"pd": 0.99}),
@@ -276,8 +288,10 @@ def _sec_forwarding(d: Data) -> None:
         f"so no pair of arguments could be swapped without the table "
         f"changing. `pfa` and `pd` are the pair worth naming: both are "
         f"doubles in (0,1), and they move different things — `pfa` moves "
-        f"the threshold and the per-cell rate, `pd` moves only the look "
-        f"count. Raw sweep: `data/forwarding.csv`."
+        f"the threshold and the per-cell rate, `pd` moves the coherent "
+        f"depth (a burst engine never buys non-coherent looks, "
+        f"doppler#1181) and, past the ceiling, `underpowered`. Raw sweep: "
+        f"`data/forwarding.csv`."
     )
     R.md()
 

@@ -886,6 +886,14 @@ burst having demodulated — the sync word correlated here, which is a fact
 this object owns. A frame whose check fails is still a frame that was
 transmitted at that position.
 
+*2026-09-01:* once the capture owned the window (§11) it armed the span on
+every **emission**, and this promise was masked — a decoy ending just after
+a real burst began swallowed it (§2.10, lead 2100). The capture now holds
+the detections inside a span rather than dropping them, and this receiver
+checks its trailer in C and calls `burst_capture_release()` on every window
+that fails, so the span is owned exactly by the frames that decoded. See
+[`burst-capture.md` §11.2](burst-capture.md) and #1181.
+
 Callers slice their own payload: `push()`'s rows are frames, so a payload
 is `frame[field_off(i):][:field_bits(i)]` after `deframe()`. That is one
 line, and it is the line that makes the receiver reusable for a frame

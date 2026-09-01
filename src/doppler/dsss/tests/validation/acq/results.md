@@ -55,7 +55,7 @@ Measured behaviour. No verdicts — those are §3.
 | configuration | doppler_bins | n_noncoh | doppler_res_hz |
 |---|---|---|---|
 | burst, strong signal | 1 | 1 | 32258.1 |
-| burst, weak signal | 8 | 256 | 4032.3 |
+| burst, weak signal | 8 | 1 | 4032.3 |
 | continuous, no uncertainty | 1 | 1 | 32258.1 |
 | continuous, wide uncertainty | 3 | 1 | 32258.1 |
 

@@ -60,13 +60,16 @@ TOL = SPC  # one chip
 
 
 def cap(**kw) -> BurstCapture:
+    """The DEFAULT construction: no design C/N0, so the search integrates the
+    whole preamble in one look. This report used to size at 55 dB-Hz, which
+    was "met" only through a second look a burst cannot fill; under the
+    honest model that sizing is underpowered at this depth (doppler#1181)."""
     return BurstCapture(
         acq_code(),
         burst_len=kw.pop("burst_len", BURST_LEN),
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        cn0_dbhz=55.0,
         **kw,
     )
 
@@ -473,14 +476,16 @@ def characterise() -> Data:
     # captures fewer bursts than arrived.
     c6 = cap()
     d.search_visible = bool(
-        c6.doppler_bins >= 1
-        and c6.n_noncoh >= 1
+        c6.doppler_bins == REPS  # no design point: the whole preamble
+        and c6.n_noncoh == 1  # one frame of preamble, one look
         and c6.code_bins == ACQ_SF * SPC
         and c6.doppler_span_hz > 0.0
+        and c6.doppler_res_hz > 0.0
         and c6.eta > 0.0
-        and c6.eta_nc > c6.eta
+        and c6.eta_nc == 0.0  # the non-coherent gate is unused
         and 0.0 < c6.straddle_loss <= 1.0
         and not c6.underpowered
+        and np.isnan(c6.pd_predicted)
     )
     import warnings as _w
 
@@ -752,7 +757,8 @@ def limits(d: Data) -> None:
         d.search_visible,
         "the search is visible as numbers — `doppler_bins`, `n_noncoh`, "
         "`code_bins`, `doppler_span_hz`, both gates and `straddle_loss` — so "
-        "a caller can size a link without inferring it (§2.7)",
+        "a caller can size a link without inferring it; with no design C/N0 "
+        "it is the whole preamble in ONE look, and never underpowered (§2.7)",
     )
     R.limit(
         d.underpowered_says_so,

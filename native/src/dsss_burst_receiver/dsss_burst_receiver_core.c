@@ -12,12 +12,45 @@
  * and nothing else.
  */
 #include "dsss_burst_receiver/dsss_burst_receiver_core.h"
+#include "dp_crc16.h"
+
+#include <stdbool.h>
 
 #include <math.h>
 
-/* Frame trailer: the CRC-16 burst_demod checks. Named rather than spelled
- * 16 at each use -- the burst length below is derived from it, and a bare
- * 16 beside a payload length reads like a block size. */
+/* Frame trailer: the CRC-16 this receiver's frame ends in. Named rather than
+ * spelled 16 at each use -- the burst length below is derived from it, and a
+ * bare 16 beside a payload length reads like a block size. It is THIS
+ * receiver's frame (sync | payload | CRC-16), not a property of burst DSSS:
+ * other links code, interleave, put a midamble in, or detect errors some
+ * other way, so nothing below this object assumes it. */
+#define DSSS_BR_CRC_BITS 16u
+
+/**
+ * @brief Did the frame the demodulator just produced pass its trailer?
+ *
+ * Read from the demodulator's own soft bits rather than the caller's output
+ * buffer, which may be absent or short. The verdict is what lets this object
+ * honour its own rule that only a DECODED burst owns a span (§10.3): the
+ * capture underneath arms the span on every emitted window, and this is the
+ * one place that knows which of those were bursts.
+ */
+static int
+dsss_br_frame_valid (const dsss_burst_receiver_state_t *s)
+{
+  const burst_demod_state_t *d = s->demod;
+  const size_t               n = d->n_llr;
+  if (n != s->frame_bits || n < s->sync_len + DSSS_BR_CRC_BITS)
+    return 0;
+  uint8_t bits[n];
+  for (size_t j = 0; j < n; j++)
+    bits[j] = d->llr[j] < 0.0f; /* positive means bit 0 */
+  const size_t payload = n - s->sync_len - DSSS_BR_CRC_BITS;
+  uint16_t     rx      = 0;
+  for (size_t j = 0; j < DSSS_BR_CRC_BITS; j++)
+    rx = (uint16_t)((rx << 1) | bits[s->sync_len + payload + j]);
+  return rx == dp_crc16_ccitt (bits + s->sync_len, payload);
+}
 
 /** @brief Smallest power of two >= n (the ring's capacity contract). */
 static size_t
@@ -45,7 +78,7 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
    * objects/). */
   if (!acq_code || acq_code_len == 0 || !data_code || data_code_len == 0
       || !sync || sync_len == 0 || reps < 1 || spc < 1 || chip_rate <= 0.0
-      || frame_syms < 1 || cn0_dbhz <= 0.0 || pfa <= 0.0 || pfa >= 1.0
+      || frame_syms < 1 || cn0_dbhz < 0.0 || pfa <= 0.0 || pfa >= 1.0
       || pd <= 0.0 || pd >= 1.0)
     return NULL;
 
@@ -146,8 +179,9 @@ dsss_burst_receiver_reset (dsss_burst_receiver_state_t *state)
      it by construction: there is one ring, and one place that rewinds it. */
   burst_capture_reset (state->cap);
 
-  state->ev_len  = 0;
-  state->llr_len = 0;
+  state->ev_len      = 0;
+  state->frame_valid = 0;
+  state->llr_len     = 0;
 
   /* Every read-back together. These ARE the event (§4), and a stale
    * doppler_hz_est beside a cleared preamble_start describes a burst that
@@ -218,6 +252,7 @@ dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
   s->est_freq_hz    = s->demod->est_freq_hz;
   s->est_rate_hz    = s->demod->est_rate_hz;
   s->est_snr_db     = s->demod->est_snr_db;
+  s->frame_valid    = dsss_br_frame_valid (s);
   s->n_bursts++;
 
   /* The burst's SOFT bits, alongside its record and for the same reason: one
@@ -256,6 +291,7 @@ dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
     r->est_rate_hz     = s->est_rate_hz;
     r->est_snr_db      = s->est_snr_db;
     r->refine_margin   = s->refine_margin;
+    r->frame_valid     = (uint8_t)s->frame_valid;
   }
   return n;
 }
@@ -293,6 +329,12 @@ dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
       size_t room = max_out > produced ? max_out - produced : 0;
       produced
           += dsss_br_demod_one (state, i, out ? out + produced : NULL, room);
+      /* A window that was not a burst does not own its span. Given back
+         HERE, before the next push drops what it shadowed: this is what
+         "only a decoded burst arms the long window" (§10.3, doppler#1004)
+         means once the capture owns the window (doppler#1181). */
+      if (!state->frame_valid)
+        burst_capture_release (state->cap, i);
     }
   return produced;
 }
@@ -394,6 +436,12 @@ dsss_burst_receiver_get_refine_margin (
     const dsss_burst_receiver_state_t *state)
 {
   return state->refine_margin;
+}
+
+bool
+dsss_burst_receiver_get_frame_valid (const dsss_burst_receiver_state_t *state)
+{
+  return state->frame_valid != 0;
 }
 
 size_t

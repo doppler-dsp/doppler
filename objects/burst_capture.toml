@@ -16,7 +16,7 @@ serializable = "true"
 # rejects a parameter set that cannot build a capture. Same shape as
 # objects/dsss_burst_receiver.toml's.
 create_error = "ValueError"
-create_error_message = "BurstCapture: invalid parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0, burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)"
+create_error_message = "BurstCapture: invalid parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0, burst_len >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0 < pd < 1)"
 # A search that cannot meet the requested `pd` still BUILDS, best-effort, and
 # then captures fewer bursts than arrived -- so the only symptom is a quiet
 # stream. Declared here rather than hand-patched: jm's condition must be a
@@ -80,7 +80,7 @@ default = "1000000.0"
 [[burst_capture.init_params]]
 name = "cn0_dbhz"
 type = "double"
-default = "50.0"
+default = "0.0"
 
 [[burst_capture.init_params]]
 name = "doppler_uncertainty"
@@ -126,7 +126,7 @@ init_params = [
   { name = "reps", type = "size_t", default = "5" },
   { name = "spc", type = "size_t", default = "4" },
   { name = "chip_rate", type = "double", default = "1000000.0" },
-  { name = "cn0_dbhz", type = "double", default = "50.0" },
+  { name = "cn0_dbhz", type = "double", default = "0.0" },
   { name = "doppler_uncertainty", type = "double", default = "0.0" },
   { name = "pfa", type = "double", default = "1e-3" },
   { name = "pd", type = "double", default = "0.9" },
@@ -190,6 +190,16 @@ status_return = true
 params = [
     { name = "doppler_bins", type = "size_t" },
     { name = "n_noncoh", type = "size_t" },
+]
+
+[[burst_capture.methods]]
+name = "release"
+doc = "Give back the span window `i` of the last push() claimed. An emitted window owns its whole span: detections inside it are the payload firing against the acquisition code, so they are HELD rather than reported. A consumer that knows better -- a demodulator whose CRC failed -- calls this for that window, and the held detections are searched again on the next push(). Unreleased, they are dropped when the next push() begins. Raises ValueError if `i` is not a window of the last push()."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+    { name = "i", type = "size_t" },
 ]
 
 [[burst_capture.methods]]

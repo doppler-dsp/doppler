@@ -174,7 +174,7 @@ double acq_state_t::cn0_dbhz;
 
 
 
-Sensitivity used to size the search (dB-Hz). 
+Design C/N0 the search is sized for (dB-Hz); 0 on a burst engine means none was given. 
  
 
 
@@ -667,7 +667,7 @@ double acq_state_t::pd_predicted;
 
 
 
-Predicted Pd at cn0\_dbhz and the chosen grid: the AVERAGE Pd over the straddle priors (slow-time scalloping, intra-segment rotation, code sample offset — quadrature over uniform priors), not the on-grid best case, and not Pd at the mean amplitude (which Jensen makes optimistic). 
+Predicted Pd at cn0\_dbhz and the chosen grid: the AVERAGE Pd over the straddle priors (slow-time scalloping, intra-segment rotation, code sample offset — quadrature over uniform priors), not the on-grid best case, and not Pd at the mean amplitude (which Jensen makes optimistic). NAN when no design C/N0 was given. 
 
 
         
@@ -984,7 +984,7 @@ uint8_t acq_state_t::underpowered;
 
 
 
-1 when pd\_predicted &lt; pd. 
+1 when pd\_predicted &lt; pd; never without a design C/N0  there is no target to be under. 
 
 
         

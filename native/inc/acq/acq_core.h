@@ -235,7 +235,8 @@ extern "C"
 
     double chip_rate; /**< Chip rate (Hz).                               */
     double fs;        /**< Sample rate (Hz) = chip_rate * spc.           */
-    double cn0_dbhz;  /**< Sensitivity used to size the search (dB-Hz).  */
+    double cn0_dbhz;  /**< Design C/N0 the search is sized for (dB-Hz);
+                           0 on a burst engine means none was given.    */
     double
         doppler_span_hz; /**< Native Doppler half-range = chip_rate/(2*sf). */
     double
@@ -263,13 +264,16 @@ extern "C"
                                rotation, code sample offset — quadrature
                                over uniform priors), not the on-grid best
                                case, and not Pd at the mean amplitude
-                               (which Jensen makes optimistic). */
+                               (which Jensen makes optimistic). NAN when
+                               no design C/N0 was given. */
     double straddle_loss; /**< Mean AMPLITUDE derating from grid straddle —
                                a diagnostic summary (~20*log10 of it in dB);
                                sizing and pd_predicted average Pd itself
                                over the priors. Derived config, recomputed
                                by create(). */
-    uint8_t underpowered; /**< 1 when pd_predicted < pd. */
+    uint8_t underpowered; /**< 1 when pd_predicted < pd; never without a
+                               design C/N0 -- there is no target to be
+                               under. */
 
     uint64_t
         samples_consumed; /**< Total framed samples (the state's offset).   */
@@ -336,13 +340,23 @@ extern "C"
    * (snr = sqrt(10^(cn0_dbhz/10) / (chip_rate*spc))), and picks the
    * *smallest* coherent depth `coherent_bins` in `[1, reps]` whose
    * coherent_bins*code_bins coherent samples meet @p pd at the Bonferroni
-   * threshold (minimum latency for a strong signal), plus non-coherent
-   * looks (up to the internal @ref ACQ_N_NONCOH_SAFETY_CEILING) if the
-   * coherent depth alone falls short.  Intended for an unmodulated burst or
+   * threshold (minimum latency for a strong signal).  If the full ceiling
+   * still falls short the engine is `underpowered`; it does NOT add
+   * non-coherent looks.  A burst has one frame of preamble, so looks beyond
+   * it add noise to the statistic and move the hit -- `samples_consumed` is
+   * stamped at the end of the LAST accumulated look, so a consumer resolving
+   * the preamble's position sees an anchor up to n_noncoh*coherent_bins
+   * periods late (doppler#1181).  Intended for an unmodulated burst or
    * preamble window -- a continuous, data-modulated signal should use
    * acq_create_continuous() instead (coherent combining under continuous
    * data is a structural aliasing mislock, not a tunable SNR trade-off --
    * see the file doc comment).
+   *
+   * @p cn0_dbhz is the DESIGN (minimum) C/N0 and is optional: 0 means none
+   * was given, and the engine then integrates the whole preamble
+   * (`coherent_bins = reps`) with the threshold set by @p pfa alone.  @p pd
+   * is a sizing target only when a design C/N0 is given; without one
+   * `pd_predicted` is NAN and `underpowered` is never set.
    *
    * A tighter @p doppler_uncertainty narrows the scanned Doppler band,
    * lowering the per-cell threshold (more sensitive).  When
@@ -358,14 +372,16 @@ extern "C"
    * (>=1).
    * @param spc         Samples per chip (>= 1).
    * @param chip_rate   Chip rate in Hz (> 0).
-   * @param cn0_dbhz    Carrier-to-noise density in dB-Hz (> 0).
+   * @param cn0_dbhz    Design carrier-to-noise density in dB-Hz (>= 0; 0 =
+   * no design point, size for the whole preamble).
    * @param doppler_uncertainty  One-sided Doppler search half-range in Hz; 0
    * uses the full native span +/- chip_rate/(2*sf).  A value greater than the
    * native span engages wideband mode (see the file doc comment above):
    * coherent_bins is forced to 1 and the uncertainty is tiled with parallel
    * frequency-window hypotheses instead.
    * @param pfa         Target system (max-of-N) false-alarm probability (0,1).
-   * @param pd          Target detection probability (0,1).
+   * @param pd          Target detection probability (0,1); a sizing target
+   * only when @p cn0_dbhz is given.
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    * failure.

@@ -42,6 +42,7 @@ _One detection between acquisition and emission._ [More...](#detailed-descriptio
 |  double | [**margin**](#variable-margin)  <br> |
 |  double | [**peak\_mag**](#variable-peak_mag)  <br> |
 |  int | [**refined**](#variable-refined)  <br> |
+|  int | [**shadowed**](#variable-shadowed)  <br> |
 |  uint64\_t | [**start**](#variable-start)  <br> |
 
 
@@ -197,6 +198,24 @@ int burst_capture_pending_t::refined;
 
 
 Non-zero once `start` is known. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable shadowed 
+
+```C++
+int burst_capture_pending_t::shadowed;
+```
+
+
+
+Inside the span of a window already EMITTED. Held rather than dropped, because whether that window was a burst is a consumer's verdict (a CRC), not this object's: [**burst\_capture\_release()**](burst__capture__core_8h.md#function-burst_capture_release) gives the span back, and the next push() drops whatever is still shadowed (doppler#1181). 
  
 
 

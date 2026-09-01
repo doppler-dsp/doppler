@@ -45,7 +45,7 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
   unsigned long long reps_raw            = 5;
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
-  double             cn0_dbhz            = 50.0;
+  double             cn0_dbhz            = 0.0;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
@@ -93,7 +93,7 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_ValueError,
                        "BurstCapture: invalid parameter (need non-empty "
                        "acq_code, reps >= 1, spc >= 1, chip_rate > 0, "
-                       "burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < "
+                       "burst_len >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0 < pd < "
                        "1)");
       return -1;
     }
@@ -1157,6 +1157,30 @@ BurstCaptureObj_detections_max_out (BurstCaptureObject *self, PyObject *args)
       burst_capture_detections_max_out (self->handle, (size_t)n));
 }
 
+static PyObject *
+BurstCaptureObj_release (BurstCaptureObject *self, PyObject *args,
+                         PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "i", NULL };
+  unsigned long long i_raw     = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &i_raw))
+    return NULL;
+  size_t i   = (size_t)i_raw;
+  int    _rc = burst_capture_release (self->handle, i);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "release failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef BurstCaptureObj_methods[] = {
 
   { "push", (PyCFunction)(void *)BurstCaptureObj_push,
@@ -1298,7 +1322,14 @@ static PyMethodDef BurstCaptureObj_methods[] = {
     "(doppler_bins, n_noncoh). Forwards to the engine unchanged.\n"
     "\n"
     "The escape hatch for a caller who wants a specific (doppler_bins,\n"
-    "n_noncoh). Forwards to the engine unchanged.\n"
+    "n_noncoh). Forwards to the engine, with one refusal of this object's\n"
+    "own: a grid whose anchor can lag the preamble by more than refine\n"
+    "reaches -- `n_noncoh * doppler_bins` code periods against `k_lo` -- is\n"
+    "rejected rather than accepted and silently mis-refined. Acquisition\n"
+    "stamps a hit at the end of the LAST accumulated look, so every look\n"
+    "past the one holding the preamble moves the anchor a whole frame later;\n"
+    "a burst has one frame of preamble, so `n_noncoh = 1` is the grid a\n"
+    "capture wants and the sizer now always picks (doppler#1181).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1502,6 +1533,58 @@ static PyMethodDef BurstCaptureObj_methods[] = {
     "-------\n"
     "int\n"
     "    Output.\n" },
+  { "release", (PyCFunction)(void *)BurstCaptureObj_release,
+    METH_VARARGS | METH_KEYWORDS,
+    "release(i) -> None\n"
+    "\n"
+    "Give back the span window `i` of the last push() claimed. An emitted\n"
+    "window owns its whole span: detections inside it are the payload firing\n"
+    "against the acquisition code, so they are HELD rather than reported. A\n"
+    "consumer that knows better -- a demodulator whose CRC failed -- calls\n"
+    "this for that window, and the held detections are searched again on the\n"
+    "next push(). Unreleased, they are dropped when the next push() begins.\n"
+    "Raises ValueError if `i` is not a window of the last push().\n"
+    "\n"
+    "An emitted window owns its whole span: a detection inside it is the\n"
+    "payload firing against the acquisition code, not a new burst, so it is\n"
+    "HELD rather than reported. Whether the window WAS a burst is a verdict\n"
+    "this object cannot reach -- it stops at samples; error detection,\n"
+    "whatever form the frame gives it, is the consumer's -- so a consumer\n"
+    "that knows better calls this for that window, and the held detections\n"
+    "are searched again on the next push(). Unreleased, they are dropped\n"
+    "when the next push() begins, which is exactly the behaviour a consumer\n"
+    "with no verdict always had.\n"
+    "\n"
+    "What it prevents (doppler#1181): a spurious window ending just after a\n"
+    "real burst begins used to swallow that burst's first detections -- the\n"
+    "receiver's own design says only a DECODED burst may own a span (§10.3,\n"
+    "doppler#1004), and the capture underneath had been owning it on\n"
+    "emission.\n"
+    "\n"
+    "Must be called BEFORE the next push(): `i` indexes THIS push's windows.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "i : int\n"
+    "    Input.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``release failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import BurstCapture\n"
+    ">>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)\n"
+    ">>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)\n"
+    ">>> _ = cap.push(np.zeros(4096, dtype=np.complex64))\n"
+    ">>> cap.release(0)   # no window 0 in a quiet push\n"
+    "Traceback (most recent call last):\n"
+    "  ...\n"
+    "ValueError: release failed (rc=-4)\n" },
   { NULL }
 };
 
@@ -1526,7 +1609,7 @@ static PyTypeObject BurstCaptureObjType = {
     "    Samples per chip.\n"
     "chip_rate : float, default 1000000.0\n"
     "    Chip rate, Hz.\n"
-    "cn0_dbhz : float, default 50.0\n"
+    "cn0_dbhz : float, default 0.0\n"
     "    C/N0 the search is sized for, dB-Hz.\n"
     "doppler_uncertainty : float, default 0.0\n"
     "    Doppler search half-range, Hz (0 = native).\n"
@@ -1545,7 +1628,7 @@ static PyTypeObject BurstCaptureObjType = {
     "invalid\n"
     "    parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > "
     "0,\n"
-    "    burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)``.\n"
+    "    burst_len >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0 < pd < 1)``.\n"
     "\n"
     "Warns\n"
     "-----\n"

@@ -100,6 +100,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  size\_t | [**burst\_capture\_push**](#function-burst_capture_push) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Stream samples; get back every burst whose window has arrived._  |
 |  size\_t | [**burst\_capture\_push\_max\_out**](#function-burst_capture_push_max_out) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t x\_len) <br>_Upper bound on samples push() can return for_ `x_len` _input._ |
 |  size\_t | [**burst\_capture\_ready**](#function-burst_capture_ready) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Windows the last push() completed._  |
+|  int | [**burst\_capture\_release**](#function-burst_capture_release) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t i) <br>_Give back the span that window_ `i` _of the last push() claimed._ |
 |  void | [**burst\_capture\_reset**](#function-burst_capture_reset) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Return to the searching state._  |
 |  int | [**burst\_capture\_set\_state**](#function-burst_capture_set_state) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, const void \* blob) <br>_Restore from_ `blob` _._ |
 |  size\_t | [**burst\_capture\_state\_bytes**](#function-burst_capture_state_bytes) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Bytes one blob occupies: a pure function of CONFIGURATION._  |
@@ -137,7 +138,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 | ---: | :--- |
 | define  | [**BURST\_CAPTURE\_HITS**](burst__capture__core_8h.md#define-burst_capture_hits)  `16u`<br>_Detections collected from acquisition per batch._  |
 | define  | [**BURST\_CAPTURE\_STATE\_MAGIC**](burst__capture__core_8h.md#define-burst_capture_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('B', 'C', 'A', 'P')`<br>_State blob magic — a wrong blob is rejected, not reinterpreted._  |
-| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `1u`<br>_State blob layout version._  |
+| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `2u`<br>_State blob layout version._  |
 
 ## Detailed Description
 
@@ -188,14 +189,14 @@ int burst_capture_configure_search_raw (
 
 
 
-The escape hatch for a caller who wants a specific (doppler\_bins, n\_noncoh). Forwards to the engine unchanged.
+The escape hatch for a caller who wants a specific (doppler\_bins, n\_noncoh). Forwards to the engine, with one refusal of this object's own: a grid whose anchor can lag the preamble by more than refine reaches  `n_noncoh * doppler_bins` code periods against `k_lo`  is rejected rather than accepted and silently mis-refined. Acquisition stamps a hit at the end of the LAST accumulated look, so every look past the one holding the preamble moves the anchor a whole frame later; a burst has one frame of preamble, so `n_noncoh = 1` is the grid a capture wants and the sizer now always picks (doppler#1181).
 
 
 
 
 **Returns:**
 
-DP\_OK, or DP\_ERR\_INVALID if the engine refused the grid.
+DP\_OK, or DP\_ERR\_INVALID if this object or the engine refused the grid.
 
 
 
@@ -896,6 +897,55 @@ The C consumer's face, and the reason a composing object pays no second copy: [*
 
 
 
+### function burst\_capture\_release 
+
+_Give back the span that window_ `i` _of the last push() claimed._
+```C++
+int burst_capture_release (
+    burst_capture_state_t * state,
+    size_t i
+) 
+```
+
+
+
+An emitted window owns its whole span: a detection inside it is the payload firing against the acquisition code, not a new burst, so it is HELD rather than reported. Whether the window WAS a burst is a verdict this object cannot reach  it stops at samples; error detection, whatever form the frame gives it, is the consumer's  so a consumer that knows better calls this for that window, and the held detections are searched again on the next push(). Unreleased, they are dropped when the next push() begins, which is exactly the behaviour a consumer with no verdict always had.
+
+
+What it prevents (doppler#1181): a spurious window ending just after a real burst begins used to swallow that burst's first detections  the receiver's own design says only a DECODED burst may own a span (§10.3, doppler#1004), and the capture underneath had been owning it on emission.
+
+
+Must be called BEFORE the next push(): `i` indexes THIS push's windows.
+
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID if `i` is not a window of the last push().
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import BurstCapture
+>>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+>>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+>>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
+>>> cap.release(0)   # no window 0 in a quiet push
+Traceback (most recent call last):
+  ...
+ValueError: release failed (rc=-4)
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### function burst\_capture\_reset 
 
 _Return to the searching state._ 
@@ -1035,7 +1085,7 @@ _State blob magic — a wrong blob is rejected, not reinterpreted._
 
 _State blob layout version._ 
 ```C++
-#define BURST_CAPTURE_STATE_VERSION `1u`
+#define BURST_CAPTURE_STATE_VERSION `2u`
 ```
 
 

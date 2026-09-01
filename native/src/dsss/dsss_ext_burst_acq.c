@@ -46,7 +46,7 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
   unsigned long long reps_raw            = 1;
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
-  double             cn0_dbhz            = 50.0;
+  double             cn0_dbhz            = 0.0;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;

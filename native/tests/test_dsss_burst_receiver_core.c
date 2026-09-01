@@ -450,7 +450,11 @@ test_decodes_under_residual_doppler (void)
  *
  * The noise is deterministic (dp_gauss from a fixed seed), so the false
  * alarm below is reproducible rather than hoped for; the count is asserted
- * so this cannot quietly become vacuous if the realization changes. */
+ * so this cannot quietly become vacuous if the realization changes. It did
+ * change once: seed 12345 carried a false alarm under the old two-look grid
+ * and none under the one-look grid a burst engine now always sizes
+ * (doppler#1181). Seed 11 came from sweeping 1..59 -- 9 and 11 carry one;
+ * 11's sits at margin 0.982 against the real burst's 0.807. */
 static int
 test_true_burst_once_and_false_alarms_marked (void)
 {
@@ -459,7 +463,7 @@ test_true_burst_once_and_false_alarms_marked (void)
 
   const size_t         AT = 5000;
   static float complex cap[40000];
-  build_capture (cap, 40000, AT, 0.0, 0.02, 12345u);
+  build_capture (cap, 40000, AT, 0.0, 0.02, 11u);
 
   uint8_t out[FRAME_SYMS];
   size_t  n_valid = 0, n_false = 0;
@@ -1120,6 +1124,64 @@ test_destroy_null_is_safe (void)
   return 0;
 }
 
+/**
+ * A window that FAILED its frame check gives its span back, and the burst it
+ * hid comes out (doppler#1181).
+ *
+ * A decoy -- a bare preamble at 0.35 amplitude, no frame -- 2100 samples
+ * ahead of a real burst. Its window completes at AT + 348; the real
+ * preamble's first detecting frame ends at 9424. Pushing across a boundary
+ * between the two (9400) emits the decoy BEFORE the real burst's hit
+ * arrives, so the hit lands in a span the capture already owns. This
+ * receiver's rule is that only a DECODED burst owns a span (§10.3,
+ * doppler#1004); the capture underneath owns it on emission, and the CRC is
+ * the verdict only this object can give. One push over the whole scene never
+ * shows this: the two hits meet in the claim rule and the stronger wins.
+ */
+static int
+test_a_failed_frame_gives_its_span_back (void)
+{
+  const size_t         AT = 9000u, LEAD = 2100u, CUT = 9400u;
+  static float complex cap[40000];
+  build_capture (cap, 40000, AT, 0.0, 0.02, 7u);
+  {
+    static float complex burst[1 << 15];
+    build_burst (burst, 0.0);
+    for (size_t i = 0; i < REPS * ACQ_SF * SPC; i++)
+      cap[AT - LEAD + i] += 0.35f * burst[i];
+  }
+
+  dsss_burst_receiver_state_t *s = make_rx ();
+  DP_REQUIRE (s != NULL);
+  uint8_t out[4 * FRAME_SYMS];
+
+  /* The decoy's window: demodulated, and its frame fails. */
+  size_t n = dsss_burst_receiver_push (s, cap, CUT, out, sizeof out);
+  DP_CHECK (n == FRAME_SYMS);
+  DP_CHECK (!dsss_burst_receiver_get_frame_valid (s));
+  DP_CHECK (!frame_ok (out));
+  {
+    dsss_br_event_t ev[4];
+    DP_REQUIRE (dsss_burst_receiver_events (s, 0, ev, 4u) == 1u);
+    DP_CHECK (ev[0].frame_valid == 0);
+    DP_CHECK (ev[0].preamble_start == AT - LEAD);
+  }
+
+  /* ...and because it failed, the real burst behind it is still found. */
+  n = dsss_burst_receiver_push (s, cap + CUT, 40000 - CUT, out, sizeof out);
+  DP_CHECK (n == FRAME_SYMS);
+  DP_CHECK (dsss_burst_receiver_get_frame_valid (s));
+  DP_CHECK (frame_ok (out));
+  DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
+  {
+    dsss_br_event_t ev[4];
+    DP_REQUIRE (dsss_burst_receiver_events (s, 0, ev, 4u) == 1u);
+    DP_CHECK (ev[0].frame_valid == 1);
+  }
+  dsss_burst_receiver_destroy (s);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1132,6 +1194,8 @@ main (void)
   if (test_decodes_under_residual_doppler ())
     return 1;
   if (test_true_burst_once_and_false_alarms_marked ())
+    return 1;
+  if (test_a_failed_frame_gives_its_span_back ())
     return 1;
   if (test_silence_yields_no_burst ())
     return 1;

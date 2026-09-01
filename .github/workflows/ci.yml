@@ -129,6 +129,17 @@ jobs:
       # tarball on every release (x86_64, aarch64, macOS).
       run: make consumer-faces-check
 
+    - name: Build example-projects/burst-pipeline against a real install
+      # A directory the docs tell users to COPY, so it is built the way they
+      # will build it: find_package against an install prefix, not the source
+      # tree. It runs too, and its checks are real -- `repeats` against a
+      # hand-listed train, the declared SNR recovered from the gap and the
+      # burst, the Plan sweep beating a re-compose, BLUE round-tripped
+      # byte-exact -- so an API change that still compiles is caught here.
+      # Both link modes; the static one is where a missing transitive
+      # dependency shows up.
+      run: make burst-pipeline-check
+
   # Windows is intentionally unsupported: signal-processing users on Windows
   # run under WSL2, a VM, or a container. Dropping it removed the flaky MSYS2
   # toolchain setup and the MinGW build/test matrix.
@@ -195,6 +206,17 @@ jobs:
       # release-smoke.sh runs the same script against the published
       # tarball on every release (x86_64, aarch64, macOS).
       run: make consumer-faces-check
+
+    - name: Build example-projects/burst-pipeline against a real install
+      # A directory the docs tell users to COPY, so it is built the way they
+      # will build it: find_package against an install prefix, not the source
+      # tree. It runs too, and its checks are real -- `repeats` against a
+      # hand-listed train, the declared SNR recovered from the gap and the
+      # burst, the Plan sweep beating a re-compose, BLUE round-tripped
+      # byte-exact -- so an API change that still compiles is caught here.
+      # Both link modes; the static one is where a missing transitive
+      # dependency shows up.
+      run: make burst-pipeline-check
 
   # ------------------------------------------------------------------
   # Python package build + pytest

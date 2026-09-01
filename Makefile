@@ -521,7 +521,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 test-all test-stubs test-api-docs test-snippets test-rust \
                 abi-check link-check installed-headers-check \
                 test-asan test-ubsan test-tsan \
-                consumer-faces-check glibc-gate \
+                consumer-faces-check burst-pipeline-check glibc-gate \
                 specan-check check-isotime-parity coverage coverage-gate \
                 docker-examples
 
@@ -1117,6 +1117,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 test-ubsan test-tsan test-asan \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
+                burst-pipeline-check \
                 glibc-check glibc-gate glibc-image specan-check \
                 check-isotime-parity \
                 tests-ssot validation-report-check \
@@ -2679,6 +2680,29 @@ consumer-faces-check: build ## Build a consumer via cc/CMake/pkg-config, assert 
 	 $(CMAKE) --install $(BUILD_DIR) --prefix "$$t/pfx" > /dev/null \
 	 && bash tests/install/stream-consumer/build-three-ways.sh "$$t/pfx"; \
 	 rc=$$?; rm -rf "$$t"; exit $$rc
+
+# example-projects/burst-pipeline is a directory users are told to COPY, so it
+# has to keep building the way they will build it: find_package against an
+# install prefix, not this source tree. It runs too, and its checks are real --
+# `repeats` against a hand-listed train, the declared SNR recovered from the
+# gap and the burst, the Plan sweep beating a re-compose, and BLUE round-tripped
+# byte-exact -- so this also catches an API change that still compiles.
+#
+# Both link modes, because the static one is where a missing transitive
+# dependency actually shows up.
+burst-pipeline-check: build ## Build+run example-projects/burst-pipeline against an install prefix
+	@t=$$(mktemp -d); \
+	 $(CMAKE) --install $(BUILD_DIR) --prefix "$$t/pfx" > /dev/null \
+	 && $(CMAKE) -S example-projects/burst-pipeline -B "$$t/b" \
+	        -DCMAKE_PREFIX_PATH="$$t/pfx" -DCMAKE_BUILD_TYPE=Release > /dev/null \
+	 && $(CMAKE) --build "$$t/b" > /dev/null \
+	 && "$$t/b/burst_pipeline_shared" \
+	 && { [ -x "$$t/b/burst_pipeline_static" ] || { \
+	        echo "burst-pipeline-check: static target not built"; exit 1; }; } \
+	 && "$$t/b/burst_pipeline_static"; \
+	 rc=$$?; rm -rf "$$t"; \
+	 if [ $$rc -eq 0 ]; then echo "burst-pipeline-check: OK — both link modes"; fi; \
+	 exit $$rc
 
 # The oldest glibc a released ARTIFACT may reference. Pure inspection, and only
 # meaningful against a build MADE on that glibc: pointed at a modern distro's

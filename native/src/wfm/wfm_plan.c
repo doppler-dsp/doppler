@@ -387,7 +387,21 @@ segment_slots (const wfm_segment_t *g, size_t *n_sig, size_t *n_bg)
 }
 
 /* Resolve one segment's noise configuration (SHARED / BUNDLED / none) into
- * *ps. Returns 0 on success, -1 on an out-of-scope condition. */
+ * *ps. Returns 0 on success, -1 on an out-of-scope condition.
+ *
+ * Both noise-source copies below drop `frame`, which is a lifetime statement
+ * rather than an optimisation (doppler#1158). `wfm_source_t.frame` is
+ * BORROWED — it points at a description the caller owns. copy_source_arrays()
+ * deep-copies every other array precisely so a Plan outlives the segments it
+ * was built from, and plan_build() then destroys the composer that parsed
+ * them; a retained `frame` is a read of freed memory on every later render.
+ * The freed description usually failed wfm_frame_desc_layout() — its stage
+ * array reading back empty while a derived field still named a stage — so
+ * build_gap_synth() returned NULL and materialize()'s `if (gsyn && …)` guards
+ * dropped EVERY noise draw without a word, leaving a framed scene clean at any
+ * SNR. Nothing is lost by dropping it: this copy exists only to draw AWGN
+ * through wfm_synth_noise_steps(), and the framed signal is what cache_sig
+ * already holds. */
 static int
 resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
 {
@@ -410,6 +424,8 @@ resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
     {
       const wfm_source_t *nsrc = &g->sources[noise_idx];
       ps->noise_src            = *nsrc;
+      /* Borrowed, and not ours to keep — see the note above. */
+      ps->noise_src.frame = NULL;
       if (copy_source_arrays (&ps->noise_src, nsrc) != 0)
         return -1;
       ps->explicit_floor = 1;
@@ -435,6 +451,8 @@ resolve_segment_noise (wfm_plan_segment_t *ps, const wfm_segment_t *g)
   else if (ps->bundled)
     {
       ps->noise_src = g->sources[0];
+      /* Borrowed, and not ours to keep — see the note above. */
+      ps->noise_src.frame = NULL;
       if (copy_source_arrays (&ps->noise_src, &g->sources[0]) != 0)
         return -1;
     }

@@ -258,6 +258,84 @@ compose_n (const char *json, float _Complex *out, size_t n)
   return total;
 }
 
+/* 240 payload bits, spelled once: the segment's `pattern` and the frame's
+ * `payload` field are the same bits, and a framed source takes them from
+ * the description. */
+#define PAY_BITS_LIT                                                          \
+  "1010101010101010101010101010101010101010101010101010101010101010101010101" \
+  "0101010101010101010101010101010101010101010101010101010101010101010101010" \
+  "1010101010101010101010101010101010101010101010101010101010101010101010101" \
+  "010101010101010101010"
+
+/* A FRAMED scene must render through a Plan exactly as it composes
+ * (doppler#1158).
+ *
+ * The Plan's noise-source copy used to retain `wfm_source_t.frame`, which is
+ * borrowed from segments plan_build() destroys on its way out. The freed
+ * description then failed layout, build_gap_synth() returned NULL, and
+ * materialize() skipped EVERY noise draw — so a framed scene came back clean
+ * at any SNR, full length, exit 0. Nothing in the suite covered a framed
+ * source through a Plan, which is why it was invisible.
+ *
+ * Both halves matter. Byte-identity is the contract wfm_plan.h states for
+ * at(snr, anchor_seed) on a single-segment scene; the gap-power check is what
+ * fails LOUDLY in the specific way the bug failed, so a regression that drops
+ * the noise again cannot pass by matching a clean reference to a clean
+ * render. */
+static int
+test_framed_scene_matches_compose (void)
+{
+  /* [hdr | payload | crc], the CRC derived by a stage covering payload+crc —
+   * `derived_by` is the stage index PLUS ONE, so 1 names stage 0. */
+  static const char json[]
+      = "{\"version\":1,\"segments\":[{"
+        "\"type\":\"bits\",\"fs\":1000000,\"snr\":12,\"snr_mode\":\"fs\","
+        "\"seed\":7,\"sps\":4,\"modulation\":\"bpsk\","
+        "\"num_samples\":1088,\"off_samples\":512,"
+        "\"pattern\":\"" PAY_BITS_LIT "\","
+        "\"frame\":{\"fields\":["
+        "{\"name\":\"hdr\",\"lit\":\"0101010101010101\"},"
+        "{\"name\":\"payload\",\"lit\":\"" PAY_BITS_LIT "\"},"
+        "{\"name\":\"crc\",\"bits\":16,\"derived_by\":1}],"
+        "\"stages\":[{\"kind\":\"crc16\",\"first_field\":1,\"n_fields\":2}]"
+        "}}]}";
+
+  const size_t    n   = 1088u + 512u;
+  float _Complex *ref = malloc (n * sizeof *ref);
+  float _Complex *got = malloc (n * sizeof *got);
+  int             rc  = 1;
+  wfm_plan_t     *p   = NULL;
+  DP_REQUIRE_MSG (ref && got, "alloc framed buffers");
+
+  p = wfm_plan_prepare (json);
+  DP_REQUIRE_MSG (p, "FRAMED: a framed scene is in scope for a Plan");
+  DP_REQUIRE_MSG (wfm_plan_len (p) == n, "FRAMED: plan length");
+  DP_REQUIRE_MSG (wfm_plan_anchor_seed (p) == 7,
+                  "FRAMED: the anchor seed is the source's own");
+
+  DP_REQUIRE_MSG (compose_n (json, ref, n) == n, "FRAMED: compose baseline");
+  DP_REQUIRE_MSG (wfm_plan_at (p, 12.0, wfm_plan_anchor_seed (p), got) == n,
+                  "FRAMED: at(12, anchor) renders the full length");
+  DP_REQUIRE_MSG (memcmp (ref, got, n * sizeof *ref) == 0,
+                  "FRAMED: at(12,anchor) is byte-identical to compose");
+
+  /* The gap carries the segment's noise floor — the signal stops, the AWGN
+   * does not. A dropped noise draw shows up here as an exactly silent gap. */
+  double gap = 0.0;
+  for (size_t i = 1088u; i < n; i++)
+    gap += (double)crealf (got[i]) * crealf (got[i])
+           + (double)cimagf (got[i]) * cimagf (got[i]);
+  gap /= (double)(n - 1088u);
+  DP_REQUIRE_MSG (gap > 0.0,
+                  "FRAMED: the gap carries noise, it is not silent");
+
+  rc = 0;
+  wfm_plan_destroy (p);
+  free (ref);
+  free (got);
+  return rc;
+}
+
 static int
 test_background_fold (void)
 {
@@ -437,7 +515,8 @@ main (void)
 {
   if (test_noise_anchor_position () || test_background_fold ()
       || test_background_must_be_prefix ()
-      || test_background_bundled_is_not_folded ())
+      || test_background_bundled_is_not_folded ()
+      || test_framed_scene_matches_compose ())
     return 1;
   if (test_parallel_build_bit_exact ())
     return 1;

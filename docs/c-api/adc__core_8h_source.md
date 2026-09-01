@@ -40,7 +40,8 @@ void adc_reset(adc_state_t *state);
 JM_FORCEINLINE JM_HOT int64_t
 adc_step(adc_state_t *state, float x)
 {
-    /* jm: body sourced from [adc] impl/impl_file in objects/adc.toml — edit there, not here; `jm apply` overwrites this. */
+    /* jm: body sourced from [adc] impl/impl_file in objects/adc.toml — edit
+     * there, not here; `jm apply` overwrites this. */
         double s = (double)x * state->scale;
         if (state->dithering) {
             /* TPDF dither: two xorshift32 draws summed → triangular PDF

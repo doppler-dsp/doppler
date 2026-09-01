@@ -581,7 +581,7 @@ static PyMethodDef WriterObj_methods[] = {
     "Examples\n"
     "--------\n"
     "    >>> import numpy as np\n"
-    "    >>> from doppler import Writer\n"
+    "    >>> from doppler.wfm_writer import Writer\n"
     "    >>> obj = Writer(path=..., fs=0.0, file_type=\"raw\", "
     "sample_type=\"cf32\", endian=\"le\", fc=0.0, total=0, headroom=0.0, "
     "t0=0.0, sidecar=True)\n"

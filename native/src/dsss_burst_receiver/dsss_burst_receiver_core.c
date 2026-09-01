@@ -424,6 +424,12 @@ dsss_burst_receiver_get_n_bursts (const dsss_burst_receiver_state_t *state)
  * placing bursts holds a receiver, not a capture. */
 
 size_t
+dsss_burst_receiver_get_min_gap (const dsss_burst_receiver_state_t *state)
+{
+  return state->cap->min_gap;
+}
+
+size_t
 dsss_burst_receiver_get_refine_span (const dsss_burst_receiver_state_t *state)
 {
   return state->cap->refine_span;

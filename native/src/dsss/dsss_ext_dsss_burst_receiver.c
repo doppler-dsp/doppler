@@ -807,6 +807,20 @@ DsssBurstReceiver_getprop_n_bursts (DsssBurstReceiverObject *self,
       (unsigned long long)dsss_burst_receiver_get_n_bursts (self->handle));
 }
 
+static PyObject *
+DsssBurstReceiver_getprop_min_gap (DsssBurstReceiverObject *self,
+                                   void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dsss_burst_receiver_get_min_gap (self->handle));
+}
+
 static PyGetSetDef DsssBurstReceiver_getset[] = {
   { "preamble_start", (getter)DsssBurstReceiver_getprop_preamble_start, NULL,
     "Exact stream position of the preamble.\n", NULL },
@@ -838,20 +852,14 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "    max(0, refine_span - burst_len)      burst_len = retain_span - "
     "refine_span\n"
     "\n"
-    "which is 0 whenever a burst is longer than the refine reach. **That "
-    "formula\n"
-    "is optimistic, measured** (doppler#1172): swept over two bursts at 12 "
-    "trials\n"
-    "a spacing, a pair is not reliably captured until roughly 2 code periods "
-    "of\n"
-    "dead air -- 256 samples at a geometry where the formula says 32. The "
-    "SHAPE\n"
-    "is right and worth keeping: the constraint is start-to-start, and "
-    "reading it\n"
-    "as a whole `refine_span` of required silence cost 9% of airtime. The "
-    "FLOOR\n"
-    "is not. Leave a couple of code periods. At a 255-chip code, `reps=5`, "
-    "`spc=2` the reach is 12240\n"
+    "which was wrong -- short by the whole detection-lag term. **Read "
+    "`min_gap`\n"
+    "instead**; the object derives it (doppler#1172). The SHAPE of the old "
+    "rule\n"
+    "was right and is worth keeping: this reach is a start-to-start bound, "
+    "and\n"
+    "reading it as required silence cost 9% of airtime. At a 255-chip code, "
+    "`reps=5`, `spc=2` the reach is 12240\n"
     "samples; an 8316-sample burst placed 8916 apart start-to-start (600 "
     "samples\n"
     "of dead air against the 3924 required) yields 2 decodes from 7 bursts "
@@ -899,6 +907,16 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "Bursts DEMODULATED, lifetime. Distinct from the capture's own count, "
     "which is windows EMITTED: they differ by any window the demodulator "
     "refused, and that difference is the thing worth seeing.\n",
+    NULL },
+  { "min_gap", (getter)DsssBurstReceiver_getprop_min_gap, NULL,
+    "Dead air to leave BETWEEN bursts, in samples — edge to edge.\n"
+    "\n"
+    "The number a caller placing bursts actually wants, derived by the "
+    "capture\n"
+    "rather than left as a rule to apply: `refine_span + reps*code_period -\n"
+    "burst_len`, floored at zero. `refine_span` below is the reach it comes "
+    "from,\n"
+    "and is a start-to-start bound rather than a gap.\n",
     NULL },
   { NULL }
 };

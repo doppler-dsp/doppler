@@ -38,9 +38,9 @@ from doppler.dsss.tests.characterization.burst_capture.characterize import (
     ACQ_SF,
     BURST_LEN,
     CHIP_RATE,
-    GAPS,
     REPS,
     SPC,
+    _gaps,
     acq_code,
     run_pair,
     scene,
@@ -79,6 +79,7 @@ class Data:
     retain_span: int = 0
     q_cap_small: int = 0
     q_cap_large: int = 0
+    min_gap: int = 0
     start_err: list[int] = field(default_factory=list)
     block_sizes: dict = field(default_factory=dict)
     gaps: list = field(default_factory=list)
@@ -145,6 +146,7 @@ def characterise() -> Data:
     c = cap()
     big = cap(burst_len=20 * BURST_LEN)
     d.refine_span = int(c.refine_span)
+    d.min_gap = int(c.min_gap)
     d.retain_span = int(c.retain_span)
     R.table(
         ["quantity", "value (samples)", "identity"],
@@ -245,17 +247,30 @@ def characterise() -> Data:
     R.md("### 2.4 The spacing floor — measured, against a derived claim")
     R.md()
     R.md(
-        "`refine_span`'s own documentation states the gap a caller must "
-        "leave as `max(0, refine_span - burst_len)`, which for a burst "
-        "longer than the reach is **zero**. That number was derived rather "
-        "than measured, and the correction that produced it went the other "
-        "way from an earlier over-estimate (doppler#1085). The "
-        "characterization sweeps it: two bursts, dead air from zero upwards, "
-        "12 trials a point at randomised absolute positions."
+        "The object DERIVES this now, as `min_gap`, so a caller never applies "
+        "the rule by hand. The derivation: a detection's anchor is the code "
+        "epoch of whichever frame detected, and acquisition's framing is not "
+        "aligned to the preamble, so the last frame that can detect sits "
+        "`reps * code_period` past the true start. CLAIM merges two anchors "
+        "closer than `refine_span`, so the first burst detected LATE and the "
+        "second EARLY close by that much before CLAIM sees them:"
+    )
+    R.md()
+    R.md(
+        "        min_gap = max(0, refine_span + reps*code_period - burst_len)"
+    )
+    R.md()
+    R.md(
+        "**Two numbers here were wrong before this pass and are worth "
+        "recording.** The prose said `max(0, refine_span - burst_len)`, short "
+        "by the whole detection-lag term — 32 samples against 528. And this "
+        "report's own first answer, 256, came from a **12-trial** sweep that "
+        "read 100%; at 60 trials the same spacing is 88.8%. A floor measured "
+        "with too few alignments is not a floor (doppler#1172)."
     )
     R.md()
     rows = []
-    for gap in GAPS:
+    for gap in _gaps(cap().min_gap):
         f = 0
         for t in range(6):
             fi, _e, ri = run_pair(gap, seed=1000 + 97 * t + gap)
@@ -525,21 +540,20 @@ def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
     claimed = max(0, d.refine_span - BURST_LEN)
-    first_full = next((g for g, f in zip(d.gaps, d.found) if f >= 1.0), None)
+    next((g for g, f in zip(d.gaps, d.found) if f >= 1.0), None)
     R.find(
         "F1",
-        "CONFIRMED",
-        f"**The header's required-gap formula is optimistic by "
-        f"~{first_full // max(claimed, 1)}x.** "
-        f"`refine_span`'s doc gives the gap a caller must leave as "
-        f"`max(0, refine_span - burst_len)` = {claimed} samples here; "
-        f"measured, both bursts of a pair are not reliably captured until "
-        f"{first_full} samples of dead air (§2.4). The formula is right about "
-        "the SHAPE — the constraint is start-to-start, not a whole "
-        "`refine_span` of silence, and reading it the other way cost 9% of "
-        "airtime once — but wrong about the floor. A caller following it "
-        "literally loses roughly a fifth of a closely-packed pair. Tracked as "
-        "[gh-1172](https://github.com/doppler-dsp/doppler/issues/1172).",
+        "FIXED",
+        f"**The documented required gap was short by the whole detection-lag "
+        f"term, and the first measurement of it was under-powered.** The "
+        f"prose said `max(0, refine_span - burst_len)` = {claimed} samples "
+        f"here; the object now DERIVES `min_gap` = {d.min_gap} from the claim "
+        "rule and the detection lag, so a caller applies no rule at all "
+        "(§2.4). Two things were wrong: the formula omitted `reps * "
+        "code_period`, and this report's own first answer (256) came from a "
+        "12-trial sweep reading 100% where 60 trials read 88.8%. The "
+        "derivation is checked on four geometries, each predicting a "
+        "different value. [gh-1172](https://github.com/doppler-dsp/doppler/issues/1172).",
     )
     R.find(
         "F2",
@@ -628,11 +642,18 @@ def limits(d: Data) -> None:
         all(v[2] == 0 for v in d.block_sizes.values()),
         "no sample is dropped by the history ring at any block size (§2.3)",
     )
+    R.limit(
+        d.min_gap == d.refine_span + REPS * ACQ_SF * SPC - BURST_LEN,
+        f"`min_gap` is DERIVED — `refine_span + reps*code_period - burst_len` "
+        f"= {d.min_gap} — rather than a constant that fits this geometry "
+        "(§2.4)",
+    )
     nf = next((g for g, f in zip(d.gaps, d.found) if f >= 1.0), None)
     R.limit(
-        nf is not None and nf <= 512,
-        f"two bursts {nf} samples apart (edge to edge) are both captured — "
-        f"{nf / BURST_LEN:.2f} of a burst length, not a whole one (§2.4)",
+        nf is not None and nf <= d.min_gap,
+        f"the sweep reaches 100% at {nf} samples, at or below the derived "
+        f"`min_gap` of {d.min_gap} — so the bound the object publishes is "
+        "sufficient, not merely plausible (§2.4)",
     )
     R.limit(
         d.sep.get("cn0_real", 0) - d.sep.get("cn0_spurious", 0) > 3.0,

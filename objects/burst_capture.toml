@@ -228,6 +228,29 @@ airtime for nothing: the gap actually required is
 the refine reach (doppler#1085)."""
 
 [[burst_capture.properties]]
+name = "min_gap"
+type = "size_t"
+field = true
+doc = """Dead air to leave BETWEEN bursts, in samples — edge to edge, not
+start to start.
+
+Derived rather than documented as a rule the caller has to apply: a
+detection's anchor is the code epoch of whichever frame detected, and
+acquisition's framing is not aligned to the preamble, so the last frame that
+can detect sits up to `reps * code_period` past the true start. CLAIM merges
+two anchors closer than `refine_span`, so a pair survives only when
+`gap >= refine_span + reps*code_period - burst_len`.
+
+**Zero is a real answer** — a burst longer than `refine_span + reps*P` needs
+no gap for the claim rule's sake — but it does not mean zero is wise: a zero
+gap is a continuous stream rather than a burst link, and it measures 88% at a
+geometry where this reads 0.
+
+Replaces the prose `max(0, refine_span - burst_len)`, which was short by the
+whole detection-lag term: 32 samples against 528 at the C suite's geometry
+(doppler#1172)."""
+
+[[burst_capture.properties]]
 name = "retain_span"
 type = "size_t"
 field = true

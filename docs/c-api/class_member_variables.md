@@ -446,6 +446,7 @@
 * **mk\_period** ([**ber\_meter\_state\_t**](structber__meter__state__t.md))
 * **mk\_t0** ([**ber\_meter\_state\_t**](structber__meter__state__t.md))
 * **margin** ([**burst\_capture\_pending\_t**](structburst__capture__pending__t.md), [**node\_sync\_t**](structnode__sync__t.md))
+* **min\_gap** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md))
 * **max\_rate** ([**burst\_demod\_state\_t**](structburst__demod__state__t.md), [**ppe\_state\_t**](structppe__state__t.md))
 * **max\_n\_blocks** ([**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md))
 * **marker** ([**ccsds\_tm\_frame\_layout\_t**](structccsds__tm__frame__layout__t.md), [**syncword\_state\_t**](structsyncword__state__t.md))

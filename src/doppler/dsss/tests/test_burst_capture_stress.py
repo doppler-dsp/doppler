@@ -19,9 +19,9 @@ import numpy as np
 
 from doppler.dsss.tests.characterization.burst_capture.characterize import (
     BURST_LEN,
-    GAPS,
     REPS,
     SIGMA,
+    _gaps,
     acq_code,
     burst,
     capture,
@@ -47,7 +47,7 @@ def test_the_scene_builder_still_builds_a_burst():
 
 def test_a_generous_gap_captures_both_bursts():
     """The top of the envelope: well past the floor, both come back."""
-    found, _extra, rows = run_pair(gap=GAPS[-1], seed=7)
+    found, _extra, rows = run_pair(gap=_gaps(capture().min_gap)[-1], seed=7)
     assert found == 2, "both transmitted bursts must be captured"
     real = [r for r in rows if r[2]]
     assert len(real) == 2

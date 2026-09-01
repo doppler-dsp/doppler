@@ -268,6 +268,40 @@ decision already made.
     with `burst_len` and the search floor does not. If it becomes visible
     there, the answer is a bounded borrow window, not a bigger ring.
 
+- **How much dead air must a caller leave? — SETTLED, and the object derives
+    it** (2026-09-01). This section first recorded the answer as *measured,
+    256 samples*, against a documented `max(0, refine_span - burst_len)` of
+    32\. Both numbers were wrong, in different ways, and the pair is worth
+    keeping:
+
+    - The **formula** omitted the detection lag. A detection's anchor is the
+        code epoch of whichever frame detected, and acquisition's framing is
+        not aligned to the preamble, so the last frame that can detect sits
+        `reps · P` past the true start — the term §7.1's own table already
+        names. CLAIM merges anchors closer than `refine_span`, so the first
+        burst detected LATE and the second EARLY close by that much:
+
+        ```
+          min_gap = max(0, refine_span + reps·P - burst_len)
+        ```
+
+    - The **measurement** was under-powered. 256 came from 12 trials reading
+        100%; at 60 trials the same spacing reads 88.8% and the curve reaches
+        100% at 528 — which is what the derivation gives. A floor measured
+        with too few alignments is not a floor, and this one reached a
+        certified report before the sample size was questioned.
+
+    Checked on four geometries, each predicting a different bound
+    (`reps=6` → 1520, a 63-chip code → 3088, a 16-chip data code → 0), each
+    reaching 100% at its own value and short of it below. `min_gap` is a
+    read-back on both the capture and the receiver, so a caller applies no
+    rule at all (doppler#1172).
+
+    **Zero is a real answer** — a burst longer than `refine_span + reps·P`
+    needs no gap for the claim rule's sake — and it is not advice: at the
+    geometry where `min_gap` reads 0, a touching pair measures 88%, because
+    a zero gap is a continuous stream rather than a burst link (§5.1).
+
 - **Does the queue depth still hold at a capture-only geometry?** `q_cap` is
     derived as `burst_len/refine_span`, and the receiver only ever exercised
     it where a burst was also demodulated. A recorder with a very long

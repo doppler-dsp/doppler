@@ -230,21 +230,35 @@ ______________________________________________________________________
 Written down first, so a later sweep measures them rather than confirming a
 decision already made.
 
-- **Does the per-burst copy cost anything?** §5.1 chose a copy over a
-    lifetime contract. The measurement is `bench_dsss_burst_receiver` before
-    and after the refactor, interleaved (`make bench-interleaved`), at a real
-    link geometry rather than the test's short-payload one — a 2.5 MB burst
-    copy is a different question from a 40 kB one. If it is visible, the
-    answer is a bounded borrow window, not a bigger ring.
+- **Does the per-burst copy cost anything? — MEASURED at the test geometry,
+    and no.** §5.1 chose a copy over a lifetime contract.
+    `bench_burst_capture_core`, 64k blocks, minimum of 30 rounds, `ACQ_SF=31`,
+    `REPS=4`, `burst_len=2448`:
+
+    | row                    | min      | rate       |
+    | ---------------------- | -------- | ---------- |
+    | `push[quiet]`          | 2.242 ms | 29.2 MSa/s |
+    | `push[4 bursts]`       | 2.276 ms | 28.8 MSa/s |
+    | `push[4 bursts, file]` | 2.268 ms | 28.9 MSa/s |
+
+    Four bursts — four refines and four window copies — cost 34 µs against a
+    2.24 ms search floor, so the capture layer is **1.5%** on a block that is
+    almost all acquisition. What is NOT settled is the same question at a real
+    link geometry, where a window is 2.5 MB rather than 20 kB: the copy scales
+    with `burst_len` and the search floor does not. If it becomes visible
+    there, the answer is a bounded borrow window, not a bigger ring.
+
 - **Does the queue depth still hold at a capture-only geometry?** `q_cap` is
     derived as `burst_len/refine_span`, and the receiver only ever exercised
     it where a burst was also demodulated. A recorder with a very long
     `burst_len` and a short code is a shape nothing has run.
+
 - **What is the retention floor for a caller who never consumes?** `pending`
     is the read-back that says "a burst is held". A recorder that stops
     pushing has no way to flush; whether it needs one — a `drain()` that
     emits what it can — is unsettled, and the honest default is not to build
     it until a caller asks.
+
 - **Is `burst_len` the right parameter, or is it two?** Retention is
     `refine_span + burst_len`, and a caller who wants a window WIDER than the
     burst (guard samples either side, for an offline analyst) currently has
@@ -300,6 +314,13 @@ rounded up to a power of two; it is written once and reused, not accumulated.
 The second thing it buys is that the history **outlives the process**. Point a
 new capture at the same path and the samples are already there; restore the
 blob and it reaches back across the restart into a burst that began before it.
+
+**And it costs nothing measurable**, which is the claim the mechanism has to
+earn: `push[4 bursts]` at 2.276 ms against `push[4 bursts, file-backed]` at
+2.268 ms — the two rows are within each other's spread, because `MAP_SHARED`
+means there is no second write to be slower than. `bench_burst_capture` keeps
+both rows side by side, so the day that stops being true is the day the pair
+separates.
 
 ### 9.3 Two refusals, both deliberate
 

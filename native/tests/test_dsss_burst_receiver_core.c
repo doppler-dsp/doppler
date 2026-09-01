@@ -1087,6 +1087,31 @@ test_state_resumes_mid_burst (void)
 /* destroy(NULL) is a no-op: the create() failure path calls it on a
  * partially built object, so this is the guard that makes `goto fail` safe
  * rather than a double-free waiting for an allocation to fail. */
+/**
+ * The spans a caller places bursts by are forwarded from the capture.
+ *
+ * `min_gap` in particular: the receiver holds no copy of it, because the
+ * capture derives it and a mirror is a second value to keep in step. What
+ * this asserts is that the forwarding is real -- reading it here gives the
+ * child's number, and the derivation behind that number is pinned in
+ * test_burst_capture_core.c.
+ */
+static int
+test_the_spans_forward_from_the_capture (void)
+{
+  dsss_burst_receiver_state_t *s = make_rx ();
+  DP_REQUIRE (s != NULL);
+  DP_CHECK (dsss_burst_receiver_get_min_gap (s)
+            == burst_capture_get_min_gap (s->cap));
+  DP_CHECK (dsss_burst_receiver_get_refine_span (s) == s->cap->refine_span);
+  DP_CHECK (dsss_burst_receiver_get_retain_span (s) == s->cap->retain_span);
+  /* And the gap is the one a caller must leave: derived, non-zero here, and
+     bigger than the reach-minus-burst formula it replaced (doppler#1172). */
+  DP_CHECK (dsss_burst_receiver_get_min_gap (s) > 0);
+  dsss_burst_receiver_destroy (s);
+  return 0;
+}
+
 static int
 test_destroy_null_is_safe (void)
 {
@@ -1129,6 +1154,8 @@ main (void)
   if (test_reset_clears_the_event_but_not_the_counters ())
     return 1;
   if (test_state_resumes_mid_burst ())
+    return 1;
+  if (test_the_spans_forward_from_the_capture ())
     return 1;
   if (test_destroy_null_is_safe ())
     return 1;

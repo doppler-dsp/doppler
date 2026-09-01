@@ -71,9 +71,7 @@
    changes any answer here, so carrying them would only put a second subject
    in front of the first. */
 #define SPS 1
-#define BPSK 1
 #define SEED 7u
-#define SNR_ESNO 3
 #define HDR_BITS 16u  /* the caller's own header                          */
 #define PAY_BITS 240u /* payload                                          */
 /* A GENERATED sync field rather than a literal: declaring a `kind` means the
@@ -209,10 +207,10 @@ main (void)
   src.type         = WFM_SYNTH_BITS;
   src.payload
       = (wfm_seq_t){ .kind = WFM_SEQ_LITERAL, .bits = pay, .len = PAY_BITS };
-  src.modulation = BPSK;
+  src.modulation = WFM_BITMOD_BPSK;
   src.sps        = SPS;
   src.snr        = SNR_DB;
-  src.snr_mode   = SNR_ESNO; /* per transmitted symbol */
+  src.snr_mode   = WFM_SNR_ESNO;
   src.seed       = SEED;
   src.frame      = &d; /* borrowed; the description outlives compose */
 

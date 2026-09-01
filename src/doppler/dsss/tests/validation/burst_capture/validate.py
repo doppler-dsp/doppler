@@ -96,6 +96,8 @@ class Data:
     underpowered_says_so: bool = False
     lifetime_counts: bool = False
     res_hz_ok: bool = False
+    detections_unfiltered: bool = False
+    detections_absolute: bool = False
     blob_ram: int = 0
     blob_disk: int = 0
     resume_ok: bool = False
@@ -499,6 +501,27 @@ def characterise() -> Data:
         and any(issubclass(w.category, UserWarning) for w in caught)
     )
 
+    # detections() is the OTHER end of the pipe: what the search found,
+    # before the claim rule and the suppression window, each row carrying a
+    # stream-absolute epoch. A bank composing on this object reports both
+    # faces from one engine (doppler#1174). Two checks, because a residue
+    # would pass the first: the rows are at least as many as the windows,
+    # and every emitted burst has a row within `refine_span` of its start --
+    # which a code PHASE (a residue below one code period) could not be for
+    # a burst at 9000.
+    c8 = cap()
+    c8.push(x)
+    det = c8.detections()
+    ev8 = c8.events()
+    d.detections_unfiltered = bool(len(ev8) > 0 and len(det) >= len(ev8))
+    d.detections_absolute = bool(
+        len(ev8) > 0
+        and all(
+            any(abs(int(e) - int(s)) < c8.refine_span for e in det["epoch"])
+            for s in ev8["preamble_start"]
+        )
+    )
+
     R.table(
         ["claim", "holds"],
         [
@@ -529,6 +552,14 @@ def characterise() -> Data:
             [
                 "an unmeetable `pd` warns AND reads back",
                 str(d.underpowered_says_so),
+            ],
+            [
+                "`detections()` has at least one row per window",
+                str(d.detections_unfiltered),
+            ],
+            [
+                "every window has a detection epoch within `refine_span`",
+                str(d.detections_absolute),
             ],
         ],
     )
@@ -733,6 +764,13 @@ def limits(d: Data) -> None:
         d.res_hz_ok,
         "`doppler_res_hz` reports acquisition's native bin width, so the "
         "event's Doppler estimate carries its own uncertainty (§2.7)",
+    )
+    R.limit(
+        d.detections_unfiltered and d.detections_absolute,
+        "`detections()` is what the SEARCH found — at least one row per "
+        "window, each epoch stream-absolute (within `refine_span` of the "
+        "burst it became) — so a bank reads both faces from one engine "
+        "(§2.7)",
     )
 
 

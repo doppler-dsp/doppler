@@ -322,9 +322,30 @@ burst_capture_period_mag (const burst_capture_state_t *s, uint64_t pos)
  * `reps * P` samples as one reference is the obvious form and does not
  * survive the residual acquisition leaves: measured, a quarter of a Doppler
  * bin put the coherent peak two whole periods off, with the true position
- * 639x below it. One code period is short enough that a half-bin residual
- * cannot rotate through it. Same coherent-then-non-coherent split `acq`
- * itself uses, asked a finer question.
+ * 639x below it. Same coherent-then-non-coherent split `acq` itself uses,
+ * asked a finer question.
+ *
+ * **How short is "short enough" -- the number, which this comment used to
+ * assert without.** Acquisition leaves a residual of at most half a bin, and
+ * a bin is `chip_rate / (sf * coherent_bins)`; one code period lasts
+ * `sf / chip_rate` seconds. The product is
+ *
+ *     2*pi * (res/2) * T_P  =  pi / coherent_bins
+ *
+ * -- `sf` and `chip_rate` CANCEL, so the phase a residual rotates across one
+ * code period depends on the coherent depth alone, and on nothing else about
+ * the waveform. Across M periods it is `M*pi/coherent_bins`.
+ *
+ * At the depth this object is usually sized to (`coherent_bins = reps = 4`)
+ * one period is already 45 degrees, so M = 1 is the right choice and the
+ * fully coherent form is 180 degrees at M = 4 -- which is the null the
+ * measurement above walked into.
+ *
+ * It also says where the choice stops being free: `M <= coherent_bins / 2`
+ * keeps the rotation within 90 degrees, so a DEEPER search (`reps = 8` sizes
+ * `coherent_bins` up to 8) could coherently integrate 2 or 4 periods and gain
+ * amplitude this form discards. Whether that moves the sensitivity knee is
+ * unmeasured -- doppler#1177.
  *
  * @param s      Capture.
  * @param anchor Coarse code epoch from the hit.

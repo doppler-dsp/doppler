@@ -556,3 +556,28 @@ pointing `wfm_source_t.frame` at it, so a layout no flag spells reaches the
 samples — see
 [A Frame You Built, Generated](../gallery/wfmgen-carried-frame.md) and its
 demo, `native/examples/wfmgen_frame_demo.c`.
+
+### A burst waveform end to end
+
+[`example-projects/burst-pipeline/`](https://github.com/doppler-dsp/doppler/tree/main/example-projects/burst-pipeline)
+is a downstream project — its own `CMakeLists.txt`, `find_package(doppler)`,
+an install prefix rather than this source tree — that walks the whole path:
+describe a frame, generate a sixty-burst train, sweep it, write BLUE, read it
+back. Copy it as a starting point. Four things it measures rather than
+asserts:
+
+- **`repeats` is not shorthand.** Sixty listed segments restart the source
+    from its seed each time, so all sixty bursts carry *identical* noise; one
+    segment with `repeats = 60` draws fresh noise per instance. The program
+    checks both, because the difference is invisible in a plot and fatal to a
+    Monte-Carlo run.
+- **Where SNR shows up.** The gap is not silence — it carries the segment's
+    noise floor — so burst power over gap power recovers the declared SNR.
+- **Prepare once, sweep many.** A 24-point SNR sweep, re-composed at every
+    point against `wfm_plan_prepare` + `wfm_plan_at`.
+- **BLUE round-trips.** cf32 out and back is byte-exact, with both halves
+    timed in Msample/s.
+
+`make burst-pipeline-check` builds and runs it in both link modes against a
+scratch install, and CI runs the same target, so what you copy is known to
+work.

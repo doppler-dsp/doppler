@@ -51,6 +51,7 @@ typedef struct
   double   est_rate_hz;    /**< Demod's chirp-rate estimate.               */
   double   est_snr_db;     /**< Demod's post-decode SNR estimate.          */
   double   refine_margin;  /**< Runner-up period over the winner.          */
+  uint8_t  frame_valid;    /**< The frame passed its error detection.      */
 } dsss_br_event_t;
 
 #include "burst_capture/burst_capture_core.h"
@@ -118,6 +119,13 @@ typedef struct {
   double   est_freq_hz;    /**< Demod's own residual estimate, Hz.          */
   double   est_rate_hz;    /**< Demod's own chirp-rate estimate.            */
   double   est_snr_db;     /**< Demod's own post-decode SNR estimate.       */
+  int      frame_valid;    /**< The last window's frame passed its error
+                                detection -- THIS receiver's frame carries a
+                                CRC-16 trailer. The verdict the capture
+                                cannot reach: a window that failed is given
+                                back with burst_capture_release(), so a
+                                decoy cannot own the span of a real burst
+                                behind it (doppler#1181, doppler#1004).   */
   double   refine_margin;  /**< Winning preamble correlation over its
                                 nearest whole-period competitor. Near 1
                                 means the period was NOT resolved.         */
@@ -458,6 +466,7 @@ size_t dsss_burst_receiver_get_min_gap (
     const dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_get_refine_span(const dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_get_retain_span(const dsss_burst_receiver_state_t *state);
+bool dsss_burst_receiver_get_frame_valid(const dsss_burst_receiver_state_t *state);
 #ifdef __cplusplus
 }
 #endif

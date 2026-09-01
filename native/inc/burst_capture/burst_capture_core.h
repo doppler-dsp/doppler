@@ -66,7 +66,7 @@
 /** @brief State blob magic — a wrong blob is rejected, not reinterpreted. */
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
 /** @brief State blob layout version. */
-#define BURST_CAPTURE_STATE_VERSION 1u
+#define BURST_CAPTURE_STATE_VERSION 2u
 
 #ifdef __cplusplus
 extern "C" {
@@ -152,6 +152,12 @@ typedef struct
                             comparison actually means, how much preamble the
                             frame holds.                                   */
   int      refined;    /**< Non-zero once `start` is known.                 */
+  int      shadowed;   /**< Inside the span of a window already EMITTED.
+                            Held rather than dropped, because whether that
+                            window was a burst is a consumer's verdict (a
+                            CRC), not this object's: burst_capture_release()
+                            gives the span back, and the next push() drops
+                            whatever is still shadowed (doppler#1181).      */
 } burst_capture_pending_t;
 
 /**
@@ -261,8 +267,14 @@ typedef struct
   size_t chunk_max;    /**< Largest slice of one push processed at a time,
                             so any block size is accepted without the ring
                             overrunning its own retention.                 */
-  size_t k_lo;         /**< Whole code periods searched BEFORE the anchor.  */
-  size_t k_hi;         /**< ...and after.                                   */
+  size_t k_lo;         /**< Whole code periods searched BEFORE the anchor:
+                            `3*reps + 2`, the detection lag's bound.      */
+  size_t k_hi;         /**< ...and AFTER: `reps`. The detecting frame can
+                            start before the preamble, so the anchor can be
+                            up to `coherent_bins - 1` periods early. It was
+                            2, and at reps=10 refine returned one period
+                            early with a resolved-looking margin
+                            (doppler#1181).                                 */
 
   /* ── Detections in flight ────────────────────────────────────────────
    * Only detections whose burst window has NOT yet arrived live here: every
@@ -309,6 +321,8 @@ typedef struct
   burst_capture_event_t *ev; /**< One record per window returned.           */
   size_t ev_cap;           /**< Allocated records.                          */
   size_t ev_len;           /**< Records the last push() wrote.              */
+  uint8_t *released;       /**< Per row of `ev`: the consumer said "not a
+                                burst". Scratch, like the rows.            */
 
   uint64_t suppress_until; /**< Detections below this stream position fall
                                 inside a burst already EMITTED, so they are
@@ -324,6 +338,10 @@ typedef struct
                                 preamble is a separate job, done by
                                 `refine_span` proximity plus a greatest-of
                                 tie-break.                                 */
+  uint64_t suppress_base;  /**< `suppress_until` as the last push() began:
+                                what EARLIER pushes' windows own, which a
+                                release() of this push's window must not
+                                give back.                                 */
   size_t acq_blob_max;     /**< Fixed upper bound on the acquisition child's
                                 blob. state_bytes() must be a pure function
                                 of CONFIGURATION -- jm's binding compares an
@@ -616,12 +634,56 @@ const burst_capture_event_t *
 burst_capture_event_at (const burst_capture_state_t *state, size_t i);
 
 /**
+ * @brief Give back the span that window @p i of the last push() claimed.
+ *
+ * An emitted window owns its whole span: a detection inside it is the
+ * payload firing against the acquisition code, not a new burst, so it is
+ * HELD rather than reported. Whether the window WAS a burst is a verdict this
+ * object cannot reach -- it stops at samples; error detection, whatever form
+ * the frame gives it, is the consumer's -- so
+ * a consumer that knows better calls this for that window, and the held
+ * detections are searched again on the next push(). Unreleased, they are
+ * dropped when the next push() begins, which is exactly the behaviour a
+ * consumer with no verdict always had.
+ *
+ * What it prevents (doppler#1181): a spurious window ending just after a
+ * real burst begins used to swallow that burst's first detections -- the
+ * receiver's own design says only a DECODED burst may own a span (§10.3,
+ * doppler#1004), and the capture underneath had been owning it on emission.
+ *
+ * Must be called BEFORE the next push(): `i` indexes THIS push's windows.
+ *
+ * @return DP_OK, or DP_ERR_INVALID if @p i is not a window of the last push().
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import BurstCapture
+ * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+ * >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+ * >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
+ * >>> cap.release(0)   # no window 0 in a quiet push
+ * Traceback (most recent call last):
+ *   ...
+ * ValueError: release failed (rc=-4)
+ * @endcode
+ */
+int burst_capture_release (burst_capture_state_t *state, size_t i);
+
+/**
  * @brief Pin the embedded acquisition's search grid directly.
  *
  * The escape hatch for a caller who wants a specific (doppler_bins,
- * n_noncoh). Forwards to the engine unchanged.
+ * n_noncoh). Forwards to the engine, with one refusal of this object's own:
+ * a grid whose anchor can lag the preamble by more than refine reaches --
+ * `n_noncoh * doppler_bins` code periods against `k_lo` -- is rejected
+ * rather than accepted and silently mis-refined. Acquisition stamps a hit at
+ * the end of the LAST accumulated look, so every look past the one holding
+ * the preamble moves the anchor a whole frame later; a burst has one frame
+ * of preamble, so `n_noncoh = 1` is the grid a capture wants and the sizer
+ * now always picks (doppler#1181).
  *
- * @return DP_OK, or DP_ERR_INVALID if the engine refused the grid.
+ * @return DP_OK, or DP_ERR_INVALID if this object or the engine refused the
+ *         grid.
  *
  * @code
  * >>> import numpy as np

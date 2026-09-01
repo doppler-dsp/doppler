@@ -52,7 +52,7 @@ default = "1000000.0"
 [[burst_acq.init_params]]
 name = "cn0_dbhz"
 type = "double"
-default = "50.0"
+default = "0.0"
 
 [[burst_acq.init_params]]
 name = "doppler_uncertainty"

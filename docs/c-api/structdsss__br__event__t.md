@@ -42,6 +42,7 @@ _One completed burst's event, as_ `events()` _hands it back._[More...](#detailed
 |  double | [**est\_freq\_hz**](#variable-est_freq_hz)  <br> |
 |  double | [**est\_rate\_hz**](#variable-est_rate_hz)  <br> |
 |  double | [**est\_snr\_db**](#variable-est_snr_db)  <br> |
+|  uint8\_t | [**frame\_valid**](#variable-frame_valid)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
 |  double | [**refine\_margin**](#variable-refine_margin)  <br> |
 
@@ -199,6 +200,24 @@ double dsss_br_event_t::est_snr_db;
 
 
 Demod's post-decode SNR estimate. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable frame\_valid 
+
+```C++
+uint8_t dsss_br_event_t::frame_valid;
+```
+
+
+
+The frame passed its error detection. 
  
 
 

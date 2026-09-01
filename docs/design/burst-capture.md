@@ -444,6 +444,71 @@ conclusion. `eta` and `eta_nc` are the gates actually in force, and
 
 ______________________________________________________________________
 
+## 11. The sizing contract, and whose verdict a span is (2026-09-01)
+
+Two things the bank composition (#1174) and the review it asked for
+(#1181) settled about this object. Both are gates now, not prose.
+
+### 11.1 One look, and a design C/N0 that is optional
+
+Refine reaches `k_lo = 3·reps + 2` code periods back from an anchor. The
+anchor is acquisition's: `samples_consumed − n + code_phase`, the epoch of
+the frame a hit was stamped on. On the non-coherent path that frame is the
+**last** of `n_noncoh` accumulated, so a burst — whose preamble sits in one
+frame — gets an anchor up to `n_noncoh · coherent_bins` periods late. Sized
+at the old default of 50 dB-Hz the burst sizer chose `n_noncoh = 6` at the
+test geometry, and the same 34 dB scene came back **9 and 3 periods late**
+with a `refine_margin` of 0.68, which reads better than a correct 0.81.
+
+The extra looks could not have helped either: the sizer's Pd model assumes
+signal in every look, which is the continuous engine's situation, not a
+burst's. So the contract is:
+
+- **A burst engine never buys non-coherent looks.** When the coherent
+    ceiling falls short of `pd` it is `underpowered`, honestly, rather than
+    escalated (`acq_auto_config_burst`).
+- **`cn0_dbhz` is a design (minimum) C/N0, and optional.** `0` means none
+    given: the whole preamble is integrated in one look and the threshold is
+    `pfa`'s alone; `pd` is a target only with a design point, and without
+    one `pd_predicted` is NaN and `underpowered` never asserts. The
+    continuous engine keeps a required C/N0 — looks are its only lever.
+- **The capture refuses a pinned grid past its reach**:
+    `configure_search_raw` returns `DP_ERR_INVALID` when
+    `n_noncoh · doppler_bins > k_lo`.
+
+Pinned in C at the default sizing and at a design point the ceiling cannot
+meet, and in Python at `reps ∈ {3, 6, 10}` — `reps` is a link variable,
+never 4.
+
+### 11.2 Hold, and release
+
+An emitted window owns its whole span: detections inside it are the payload
+firing against the acquisition code. That rule was armed on emission, and
+the receiver's design says only a **decoded** burst may own a span
+([§10.3](dsss-burst-receiver.md), #1004). Under the two-look grid the
+timing hid the difference; under one look a decoy whose window ends just
+after a real burst begins swallowed that burst's first detections
+(receiver §2.10, lead 2100).
+
+The capture cannot reach the verdict — it stops at samples; error
+detection, in whatever form a frame carries it, is the consumer's. So:
+
+- detections inside an owned span are **held** (`shadowed`), not dropped;
+- `burst_capture_release(i)` gives window `i`'s span back and the held
+    detections are searched again on the next `push()`;
+- unreleased, they are dropped when the next `push()` begins — exactly what
+    a consumer with no verdict always got. `pending` never counts them.
+
+`DsssBurstReceiver` checks its own trailer in C (`frame_valid`, scalar and
+per event row) and releases every window that fails. Nothing assumes that
+trailer beyond this receiver: a link may code, interleave, carry a midamble
+or detect errors another way, and the capture's contract is the same.
+
+`STATE_VERSION` 1 → 2: the pending entry grew a flag. Proven by five
+sabotages: the sizer escalating again, the reach refusal removed, a
+shadowed hit dropped on arrival, dropped at emission, and the receiver never
+releasing — each red at its own pin.
+
 ## 10. See also
 
 - [`DsssBurstReceiver`](dsss-burst-receiver.md) — the composition this comes

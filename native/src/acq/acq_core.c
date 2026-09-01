@@ -319,12 +319,30 @@ acq_mean_pd (double snr, size_t D, double umax, size_t spc, int n, double eta,
   return acc / (double)(nd * nu * nk);
 }
 
+/* C/N0 (dB-Hz) -> per-sample amplitude SNR: power SNR = (C/N0)/fs, and the
+ * detection model's non-centrality is a = sqrt(2M)*snr (amplitude).
+ *
+ * ZERO means "no design point" (burst mode only; see acq_create_burst).
+ * Returned as 0.0 rather than the sqrt(1/fs) a literal 0 dB-Hz would give,
+ * so every consumer can test `snr > 0.0` for "was a design C/N0 given" and
+ * nothing sizes against a signal nobody specified. */
+static double
+acq_design_snr (double cn0_dbhz, double fs)
+{
+  return cn0_dbhz > 0.0 ? sqrt (pow (10.0, cn0_dbhz / 10.0) / fs) : 0.0;
+}
+
 /* Derive and commit the threshold ladder (searched_bins / pfa_cell / eta /
  * eta_nc / threshold / straddle_loss / pd_predicted / underpowered) for the
  * grid already set on st (st->coherent_bins / st->n_noncoh), given the sizing
  * physics.  Shared by both auto-sizers and acq_configure_search_raw, so a
  * caller-pinned grid gets exactly the same threshold derivation an
- * auto-sized one would. */
+ * auto-sized one would.
+ *
+ * The thresholds depend on pfa and the grid alone. Only pd_predicted and
+ * underpowered need a design C/N0; without one (snr == 0) the prediction is
+ * NAN and the engine is never underpowered -- there is no target to be under
+ * (doppler#1181). */
 static void
 acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
                        double du)
@@ -347,22 +365,30 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
       = acq_straddle_loss (D, st->searched_bins, st->spc, du, span);
   st->eta = (float)det_threshold (st->pfa_cell);
 
+  double gate;
   if (nc > 1)
     {
-      double e      = det_threshold_noncoherent (st->pfa_cell, (int)nc);
-      st->eta_nc    = (float)e;
+      gate          = det_threshold_noncoherent (st->pfa_cell, (int)nc);
+      st->eta_nc    = (float)gate;
       st->threshold = 0.0f; /* coherent gate unused on the non-coherent path */
-      st->pd_predicted
-          = acq_mean_pd (snr, D, umax, st->spc, (int)st->n, e, (int)nc);
     }
   else
     {
+      gate          = st->eta;
       st->eta_nc    = 0.0f;
       st->threshold = st->eta * ACQ_SQRT_2_OVER_PI;
-      st->pd_predicted
-          = acq_mean_pd (snr, D, umax, st->spc, (int)st->n, st->eta, 1);
     }
-  st->underpowered = (uint8_t)(st->pd_predicted < pd);
+  if (snr > 0.0)
+    {
+      st->pd_predicted
+          = acq_mean_pd (snr, D, umax, st->spc, (int)st->n, gate, (int)nc);
+      st->underpowered = (uint8_t)(st->pd_predicted < pd);
+    }
+  else
+    {
+      st->pd_predicted = NAN;
+      st->underpowered = 0;
+    }
 }
 
 /* Ascend n_noncoh from 1 until the AVERAGED Pd meets pd, capped at
@@ -443,16 +469,31 @@ acq_cover_window_bins (double du, double span)
  * grid to know what changed) and then acq_commit_thresholds() (which needs the
  * grid acq_regrid() just committed).  Search only; no side effects.
  *
+ * n_noncoh is ALWAYS 1 for a burst engine. The non-coherent path sums
+ * |dump|^2 over n_noncoh CONSECUTIVE frames, and the Pd model behind
+ * acq_ascend_n_noncoh assumes the signal is present in every one of them --
+ * true of a continuous signal, false of a burst, whose preamble occupies ONE
+ * frame (two when it straddles a boundary). Extra looks add noise to the
+ * statistic and nothing else. They also move the hit: samples_consumed is
+ * stamped at the end of the LAST accumulated frame, so a consumer resolving
+ * the preamble's position sees an anchor up to n_noncoh*coherent_bins code
+ * periods late. Measured (doppler#1181): a BurstCapture sized at its DEFAULT
+ * cn0_dbhz got n_noncoh=6 from the old escalation and reported preamble
+ * starts 9 and 3 periods late on a 34 dB burst, with a refine margin that
+ * read BETTER than a correct one. When the coherent ceiling falls short of
+ * Pd the honest answer is `underpowered`, which acq_commit_thresholds()
+ * sets from pd_predicted; it is not more looks.
+ *
  * du > span (wideband fallback): coherent depth structurally can't cover
  * more than one native span regardless of reps, so *out_d is forced to 1
  * and *out_window_bins = ceil(du/span) tiles the requested uncertainty
- * instead -- only n_noncoh needs sizing (acq_ascend_n_noncoh).
+ * instead.
  *
  * du <= span: picks the smallest coherent depth D in [1, reps] whose
  * D*code_bins coherent samples meet Pd at the (doppler_uncertainty-shrunk)
  * Bonferroni threshold (minimum latency for a strong signal); if the full
- * coherent ceiling still falls short, adds non-coherent looks via
- * acq_ascend_n_noncoh. */
+ * coherent ceiling still falls short, D is the ceiling and the engine is
+ * underpowered. */
 static void
 acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
                        double snr, double du, size_t *out_d, size_t *out_nc,
@@ -461,16 +502,24 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
   const size_t cb   = st->code_bins;
   const double span = st->doppler_span_hz;
 
+  *out_nc = 1; /* see above: a burst has one frame of preamble */
   if (du > span)
     {
-      const size_t window_bins = acq_cover_window_bins (du, span);
-      *out_d                   = 1;
-      *out_nc = acq_ascend_n_noncoh (snr, 1, window_bins, cb, pfa, pd, st->spc,
-                                     du, span);
-      *out_window_bins = window_bins;
+      *out_d           = 1;
+      *out_window_bins = acq_cover_window_bins (du, span);
       return;
     }
   *out_window_bins = 1;
+
+  /* No design C/N0: integrate the whole preamble. The smallest-depth search
+     below trades sensitivity for latency against a stated signal; with no
+     signal stated there is nothing to trade, and a burst's preamble is all
+     there is to integrate. */
+  if (!(snr > 0.0))
+    {
+      *out_d = st->reps;
+      return;
+    }
 
   /* Smallest coherent depth D meeting Pd (minimum latency for strong
    * signals); Bonferroni uses only the cells actually scanned at that
@@ -478,8 +527,7 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
    * on-grid best case would under-size the search (real Pd, averaged over
    * random Doppler/code phase, would miss the target — the gap the
    * Monte-Carlo characterization measures). */
-  size_t best_d    = st->reps;
-  int    coh_meets = 0;
+  size_t best_d = st->reps;
   for (size_t D = 1; D <= st->reps; D++)
     {
       size_t sb   = acq_searched_bins (D, du, span);
@@ -488,23 +536,11 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
       double eta  = det_threshold (pc);
       if (acq_mean_pd (snr, D, umax, st->spc, (int)(D * cb), eta, 1) >= pd)
         {
-          best_d    = D;
-          coh_meets = 1;
+          best_d = D;
           break;
         }
     }
-
-  /* Non-coherent looks only if the coherent ceiling fell short (best effort
-   * if even the safety-valve ceiling is infeasible). */
-  size_t nc = 1;
-  if (!coh_meets)
-    {
-      size_t sb = acq_searched_bins (best_d, du, span);
-      nc = acq_ascend_n_noncoh (snr, best_d, sb, cb, pfa, pd, st->spc, du,
-                                span);
-    }
-  *out_d  = best_d;
-  *out_nc = nc;
+  *out_d = best_d;
 }
 
 /* Search the grid for a CONTINUOUS-mode engine: ALWAYS the wideband
@@ -763,16 +799,21 @@ acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
                      double pd, int noise_mode, int continuous)
 {
   /* Validate: bad arguments yield NULL (the binding maps this to a clear
-   * MemoryError) rather than undefined behaviour downstream.  chip_rate /
-   * cn0_dbhz > 0 act as the required sentinels (their toml placeholder
-   * defaults are valid, but an explicit 0 is rejected). */
+   * MemoryError) rather than undefined behaviour downstream.  chip_rate > 0
+   * acts as the required sentinel (its toml placeholder default is valid,
+   * but an explicit 0 is rejected).  cn0_dbhz is the DESIGN C/N0: a burst
+   * engine takes 0 as "none given" and sizes for the whole preamble; a
+   * continuous engine has no such sizing -- non-coherent looks are its only
+   * sensitivity lever and they cannot be chosen without a target -- so it
+   * still requires one. */
   const size_t sf   = code_len; /* sf is inferred from the code length */
   const double span = (sf > 0) ? chip_rate / (2.0 * (double)sf) : 0.0;
   /* doppler_uncertainty > span is not rejected: it engages wideband mode
    * (see the file doc comment's "Wideband window-tiling mode" section)
    * instead of being an out-of-range error. */
   if (!code || code_len < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
-      || !(cn0_dbhz > 0.0) || !isfinite (cn0_dbhz) || !(pfa > 0.0 && pfa < 1.0)
+      || !(continuous ? cn0_dbhz > 0.0 : cn0_dbhz >= 0.0)
+      || !isfinite (cn0_dbhz) || !(pfa > 0.0 && pfa < 1.0)
       || !(pd > 0.0 && pd < 1.0) || doppler_uncertainty < 0.0)
     return NULL;
 
@@ -797,9 +838,7 @@ acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
                                 ? (chip_rate / (double)sf) / st->symbol_rate
                                 : 0.0;
 
-  /* C/N0 (dB-Hz) -> per-sample amplitude SNR: power SNR = (C/N0)/fs, and the
-   * detection model's non-centrality is a = sqrt(2M)*snr (amplitude). */
-  const double snr    = sqrt (pow (10.0, cn0_dbhz / 10.0) / st->fs);
+  const double snr    = acq_design_snr (cn0_dbhz, st->fs);
   size_t       best_d = 0, best_nc = 0, best_window_bins = 1;
   if (continuous)
     {
@@ -859,7 +898,7 @@ acq_configure_search_raw (acq_state_t *st, size_t doppler_bins,
   if (acq_regrid (st, doppler_bins, n_noncoh, 1, NULL, 0) != 0)
     return -1;
 
-  const double snr = sqrt (pow (10.0, st->cn0_dbhz / 10.0) / st->fs);
+  const double snr = acq_design_snr (st->cn0_dbhz, st->fs);
   acq_commit_thresholds (st, st->pfa, st->pd, snr, st->doppler_uncertainty);
   acq_reset (st);
   return 0;

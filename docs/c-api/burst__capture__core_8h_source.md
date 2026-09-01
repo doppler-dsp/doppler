@@ -27,7 +27,7 @@
 #define BURST_CAPTURE_HITS 16u
 
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
-#define BURST_CAPTURE_STATE_VERSION 1u
+#define BURST_CAPTURE_STATE_VERSION 2u
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,6 +60,7 @@ typedef struct
   double   margin;     
   double   peak_mag;   
   int      refined;    
+  int      shadowed;   
 } burst_capture_pending_t;
 
 typedef struct
@@ -124,7 +125,9 @@ typedef struct
   burst_capture_event_t *ev; 
   size_t ev_cap;           
   size_t ev_len;           
+  uint8_t *released;       
   uint64_t suppress_until; 
+  uint64_t suppress_base;  
   size_t acq_blob_max;     
   /* ── Persistence (docs/design/burst-capture.md §9) ───────────────────── */
   int backed;   
@@ -188,6 +191,8 @@ const float complex *burst_capture_window (const burst_capture_state_t *state,
 
 const burst_capture_event_t *
 burst_capture_event_at (const burst_capture_state_t *state, size_t i);
+
+int burst_capture_release (burst_capture_state_t *state, size_t i);
 
 int burst_capture_configure_search_raw (burst_capture_state_t *state,
                                         size_t doppler_bins,

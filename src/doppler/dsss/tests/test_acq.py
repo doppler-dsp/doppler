@@ -46,9 +46,8 @@ import pytest
 from doppler.detection import (
     det_pd,
     det_threshold,
-    det_threshold_noncoherent,
 )
-from doppler.dsss import BurstAcquisition
+from doppler.dsss import Acquisition, BurstAcquisition
 from doppler.examples.detector2d_acq_demo import (
     NX,
     NY,
@@ -461,8 +460,16 @@ def test_empirical_pfa():
 # ── Non-coherent integration ─────────────────────────────────────────────────
 
 
-def test_config_noncoherent_autosplit():
-    """A C/N0 unreachable by coherent reps alone auto-splits into looks."""
+def test_config_burst_never_autosplits():
+    """A C/N0 the coherent ceiling cannot reach leaves a BURST engine
+    underpowered -- it does not buy non-coherent looks.
+
+    A burst has one frame of preamble, so a second look adds noise to the
+    statistic and moves the hit's anchor a whole frame later; the sizer used
+    to escalate anyway, and a capture built on it refined to the wrong
+    period (doppler#1181). The continuous engine keeps the lever: every one
+    of its looks carries signal.
+    """
     pfa_cell = 1.0 - (1.0 - PFA) ** (1.0 / N)
     eta = det_threshold(pfa_cell)
     cn0 = 42.0  # too weak for 16 coherent reps to reach Pd
@@ -478,13 +485,13 @@ def test_config_noncoherent_autosplit():
     )
     assert a.doppler_bins == 16  # coherent grown to the reps ceiling
     assert det_pd(snr, N, eta) < PD  # coherent-only falls short
-    assert a.n_noncoh > 1  # ... then non-coherent looks
-    # threshold is the order-N_nc Marcum null, not the coherent Rayleigh gate
-    assert a.eta_nc == pytest.approx(
-        det_threshold_noncoherent(a.pfa_cell, a.n_noncoh), rel=1e-5
+    assert a.n_noncoh == 1  # ... and it STAYS coherent
+    assert a.eta_nc == 0.0  # the non-coherent gate is unused
+    assert a.pd_predicted < PD and a.underpowered  # and says so
+    cont = Acquisition(
+        CODE, spc=SPS, chip_rate=CHIP_RATE, cn0_dbhz=cn0, pfa=PFA, pd=PD
     )
-    assert a.pd_predicted >= PD  # the split now meets the Pd target
-    assert not a.underpowered
+    assert cont.n_noncoh > 1  # the continuous engine still splits
 
 
 def test_config_strong_stays_coherent():
@@ -503,13 +510,11 @@ def test_config_strong_stays_coherent():
     assert a.threshold == pytest.approx(a.eta * SQRT_2_OVER_PI, rel=1e-5)
 
 
-# Sizing that yields doppler_bins == NY with a small auto-split look count
-# (n_noncoh == 2), so the burst's frames complete several non-coherent dumps.
-# 46 dB-Hz: the weakest point where nc <= 4 non-coherent looks meet
-# pd = 0.9 at the straddle-AVERAGED Pd (45 dB-Hz needs nc = 5; the old
-# mean-amplitude sizing called 45/nc=4 powered when its true average Pd
-# was 0.849 — the honest criterion moved the boundary, not the physics).
-NC_CN0 = 46.0
+# The non-coherent PATH under test, on a PINNED grid: (NY, 2) -- a burst
+# engine never sizes itself to more than one look (doppler#1181), and
+# `configure_search_raw` is the escape hatch for exactly this. The tests
+# below exercise the order-N_nc gate, not the sizer.
+NC_LOOKS = 2
 
 
 def _noncoherent_acq():
@@ -518,11 +523,12 @@ def _noncoherent_acq():
         reps=REPS,
         spc=SPS,
         chip_rate=CHIP_RATE,
-        cn0_dbhz=NC_CN0,
+        cn0_dbhz=46.0,
         pfa=PFA,
         pd=PD,
     )
-    assert a.doppler_bins == NY and a.n_noncoh > 1 and not a.underpowered
+    a.configure_search_raw(NY, NC_LOOKS)
+    assert a.doppler_bins == NY and a.n_noncoh == NC_LOOKS
     return a
 
 

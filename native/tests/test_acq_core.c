@@ -557,8 +557,63 @@ main (void)
             == NULL);
   DP_CHECK (acq_create_burst (CODE7, 7, 8, spc, 0.0, 45.0, 0.0, 1e-3, 0.9, 0)
             == NULL); /* chip_rate <= 0 */
-  DP_CHECK (acq_create_burst (CODE7, 7, 8, spc, crate, 0.0, 0.0, 1e-3, 0.9, 0)
-            == NULL); /* cn0_dbhz <= 0 */
+  DP_CHECK (acq_create_burst (CODE7, 7, 8, spc, crate, -1.0, 0.0, 1e-3, 0.9, 0)
+            == NULL); /* cn0_dbhz < 0 */
+  /* A continuous engine has no sizing without a design C/N0 -- non-coherent
+     looks are its only lever -- so 0 stays an argument error THERE. */
+  DP_CHECK (
+      acq_create_continuous (CODE7, 7, spc, crate, 0.0, 0.0, 0.0, 1e-3, 0.9, 0)
+      == NULL);
+
+  /* ── the design C/N0 is OPTIONAL on a burst engine (doppler#1181) ──────
+   * 0 means none was given: the whole preamble is integrated in ONE look,
+   * the threshold comes from pfa alone, and there is no target to be under
+   * -- pd_predicted is NAN and underpowered stays clear. */
+  {
+    acq_state_t *free_
+        = acq_create_burst (CODE7, 7, 8, spc, crate, 0.0, 0.0, 1e-3, 0.9, 0);
+    DP_CHECK (free_ != NULL);
+    if (free_)
+      {
+        DP_CHECK (free_->coherent_bins == 8);
+        DP_CHECK (free_->n_noncoh == 1);
+        DP_CHECK (!free_->underpowered);
+        DP_CHECK (isnan (free_->pd_predicted));
+        DP_CHECK (free_->threshold > 0.0f); /* pfa alone sets the gate */
+        /* Re-deriving the thresholds keeps the contract: still no target. */
+        DP_CHECK (acq_configure_search_raw (free_, 4, 1) == 0);
+        DP_CHECK (!free_->underpowered && isnan (free_->pd_predicted));
+        acq_destroy (free_);
+      }
+  }
+
+  /* ── a burst engine NEVER buys non-coherent looks (doppler#1181) ───────
+   * A burst has one frame of preamble, so looks beyond it add noise and move
+   * the hit's anchor a whole frame later each. When even the full coherent
+   * ceiling cannot meet pd the honest answer is `underpowered`, not looks.
+   * The continuous engine at the same C/N0 still escalates: looks are its
+   * only lever and every one of them carries signal. */
+  {
+    acq_state_t *weak
+        = acq_create_burst (CODE7, 7, 8, spc, crate, 20.0, 0.0, 1e-3, 0.9, 0);
+    DP_CHECK (weak != NULL);
+    if (weak)
+      {
+        DP_CHECK (weak->coherent_bins == 8); /* the ceiling */
+        DP_CHECK (weak->n_noncoh == 1);
+        DP_CHECK (weak->underpowered);
+        DP_CHECK (weak->pd_predicted < 0.9);
+        acq_destroy (weak);
+      }
+    acq_state_t *cont = acq_create_continuous (CODE7, 7, spc, crate, 0.0, 20.0,
+                                               0.0, 1e-3, 0.9, 0);
+    DP_CHECK (cont != NULL);
+    if (cont)
+      {
+        DP_CHECK (cont->n_noncoh > 1);
+        acq_destroy (cont);
+      }
+  }
   DP_CHECK (acq_create_burst (CODE7, 7, 8, spc, crate, 45.0, 0.0, 0.0, 0.9, 0)
             == NULL); /* pfa out of range */
   /* doppler_uncertainty > span used to be rejected; it now engages wideband

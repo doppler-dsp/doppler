@@ -34,7 +34,8 @@ burst_capture_pow2_ceil (size_t n)
  * @param reps          Preamble code repetitions.
  * @param spc           Samples per chip.
  * @param chip_rate     Chip rate, Hz.
- * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz.
+ * @param cn0_dbhz      Design (minimum) C/N0 the search is sized for,
+ *                      dB-Hz; 0 = no design point (see acq_create_burst).
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
@@ -54,7 +55,7 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
    * naming the constraint -- not the blanket MemoryError this would
    * otherwise surface as. */
   if (!acq_code || acq_code_len == 0 || burst_len == 0 || reps < 1 || spc < 1
-      || chip_rate <= 0.0 || cn0_dbhz <= 0.0 || pfa <= 0.0 || pfa >= 1.0
+      || chip_rate <= 0.0 || cn0_dbhz < 0.0 || pfa <= 0.0 || pfa >= 1.0
       || pd <= 0.0 || pd >= 1.0)
     return NULL;
 
@@ -97,9 +98,19 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
        -- the only open question is which repetition. k_lo is generous: the
        anchor is the earliest code epoch of whichever frame detected, and
        with a coherent depth up to `reps` that frame can end a whole preamble
-       past the true start. */
+       past the true start.
+
+       k_hi is `reps`, not the 2 it was. The detecting frame can also START
+       before the preamble -- acquisition's framing is not aligned to it, and
+       a frame overlapping the preamble by a single period still clears the
+       gate on a strong burst -- so the anchor sits up to `coherent_bins - 1`
+       periods EARLY. Measured at reps=10 (doppler#1181): the frame that won
+       started 3 periods ahead, k_hi = 2 could not reach the truth, and
+       refine returned the best it could see -- one period early, with the
+       margin of a resolved period. The early direction is the one a demod
+       can survive only if told how early; it is not told. */
     s->k_lo        = 3u * reps + 2u;
-    s->k_hi        = 2u;
+    s->k_hi        = reps;
     s->refine_span = (s->k_lo + s->k_hi + reps) * s->code_period;
     s->retain_span = s->refine_span + s->burst_len;
     /* The dead air a caller must leave. Derived from the claim rule and the
@@ -234,6 +245,7 @@ burst_capture_destroy (burst_capture_state_t *state)
   free (state->corr_buf);
   free (state->q);
   free (state->win);
+  free (state->released);
   free (state->ev);
   free (state->det);
   free (state);
@@ -264,6 +276,7 @@ burst_capture_reset (burst_capture_state_t *state)
   state->ev_len         = 0;
   state->det_len        = 0;
   state->suppress_until = 0;
+  state->suppress_base  = 0;
   state->preamble_start = 0;
   state->doppler_hz_est = 0.0;
   state->doppler_res_hz = 0.0;
@@ -462,6 +475,8 @@ burst_capture_emit (burst_capture_state_t *s)
   if (!s->pending)
     return 0;
   burst_capture_pending_t *e = &s->q[s->q_head];
+  if (e->shadowed)
+    return 0; /* held inside an emitted span; see burst_capture_release() */
 
   if (!e->refined)
     {
@@ -488,10 +503,12 @@ burst_capture_emit (burst_capture_state_t *s)
   }
   if (s->ev_len == s->ev_cap)
     {
-      size_t cap = s->ev_cap ? s->ev_cap * 2u : 8u;
-      s->ev      = dp_xrealloc (s->ev, cap * sizeof *s->ev);
-      s->ev_cap  = cap;
+      size_t cap  = s->ev_cap ? s->ev_cap * 2u : 8u;
+      s->ev       = dp_xrealloc (s->ev, cap * sizeof *s->ev);
+      s->released = dp_xrealloc (s->released, cap * sizeof *s->released);
+      s->ev_cap   = cap;
     }
+  s->released[s->ev_len] = 0;
 
   /* The window itself, copied out of the ring. One memcpy per BURST -- see
      the `win` field's note on why it is not a borrow. */
@@ -531,23 +548,19 @@ burst_capture_emit (burst_capture_state_t *s)
      span -- the physical fact this object owns. Arming it on every DETECTION
      let one spurious hit blind the search for a whole burst and discard the
      next real one (doppler#1004). Candidates already queued inside the span
-     go with it; the compaction only ever writes at or behind the entry it
-     just read, so it is safe in place. */
+     are SHADOWED rather than dropped: a consumer whose verdict on this window
+     is "not a burst" gives them back with release(), and the next push drops
+     whatever is still shadowed (doppler#1181). */
   {
     uint64_t until = e->start + (uint64_t)s->burst_len;
     if (until > s->suppress_until)
       s->suppress_until = until;
-
-    size_t keep = 0;
     for (size_t j = 0; j < s->pending; j++)
       {
         burst_capture_pending_t *cand = &s->q[(s->q_head + j) % s->q_cap];
         if (cand->anchor < s->suppress_until)
-          continue;
-        s->q[(s->q_head + keep) % s->q_cap] = *cand;
-        keep++;
+          cand->shadowed = 1;
       }
-    s->pending = keep;
   }
 
   return 1;
@@ -614,6 +627,27 @@ burst_capture_push (burst_capture_state_t *state, const float complex *x,
   /* `pending` is NOT cleared here. It is the live queue length -- detections
      whose burst window has not arrived -- and it must survive across pushes,
      because surviving across pushes is the whole point of holding them. */
+
+  /* What the previous push SHADOWED goes now, unless the consumer released
+     the window that shadowed it between the two calls (doppler#1181). Held
+     rather than dropped at the time so that a consumer with a verdict this
+     object cannot reach -- error detection, in whatever form its frame
+     carries it -- can give a decoy's span back; dropped here so a consumer
+     with no verdict gets exactly the behaviour a bare capture always had. */
+  {
+    size_t keep = 0;
+    for (size_t j = 0; j < state->pending; j++)
+      {
+        burst_capture_pending_t *cand
+            = &state->q[(state->q_head + j) % state->q_cap];
+        if (cand->shadowed)
+          continue;
+        state->q[(state->q_head + keep) % state->q_cap] = *cand;
+        keep++;
+      }
+    state->pending = keep;
+  }
+  state->suppress_base = state->suppress_until;
 
   /* Drain anything already complete FIRST -- it is returned by this call,
      not held back. In practice this finds nothing, and that is the point:
@@ -687,9 +721,11 @@ burst_capture_push (burst_capture_state_t *state, const float complex *x,
               }
 
               /* Inside a burst already CAPTURED: acquisition fires on the
-                 payload too, and those are not new bursts. */
-              if (epoch < state->suppress_until)
-                continue;
+                 payload too, and those are not new bursts -- unless the
+                 window that owns this span turns out not to be a burst, which
+                 only a consumer can know. So the hit is queued SHADOWED: not
+                 emitted, dropped at the next push, given back by release(). */
+              const int shadow = epoch < state->suppress_until;
 
               /* THE SAME PREAMBLE as a candidate already queued? Two anchors
                  name one burst exactly when refine can map both onto a single
@@ -718,6 +754,7 @@ burst_capture_push (burst_capture_state_t *state, const float complex *x,
                       cand->peak_mag   = (double)hits[i].peak_mag;
                       cand->start      = 0;
                       cand->margin     = 1.0;
+                      cand->shadowed   = shadow;
                       cand->refined    = 0;
                       cand->doppler_hz = dp_fftfreq (
                           hits[i].doppler_bin, e->coherent_bins,
@@ -739,6 +776,7 @@ burst_capture_push (burst_capture_state_t *state, const float complex *x,
               q->margin   = 1.0;
               q->peak_mag = (double)hits[i].peak_mag;
               q->refined  = 0;
+              q->shadowed = shadow;
               q->doppler_hz
                   = dp_fftfreq (hits[i].doppler_bin, e->coherent_bins,
                                 e->doppler_res_hz * (double)e->coherent_bins);
@@ -844,6 +882,17 @@ int
 burst_capture_configure_search_raw (burst_capture_state_t *state,
                                     size_t doppler_bins, size_t n_noncoh)
 {
+  /* A grid refine cannot reach is refused HERE, before the engine sees it.
+     acq stamps a hit at the end of the LAST of n_noncoh accumulated frames,
+     so the preamble can sit up to n_noncoh*doppler_bins code periods before
+     the anchor; refine searches k_lo periods back and no further. Past that
+     it returns the best candidate it CAN see -- a wrong period with a
+     plausible margin, which is worse than a refusal (doppler#1181). The
+     engine itself accepts any n_noncoh up to its safety ceiling, because for
+     a continuous signal that is a real sensitivity lever; for a capture it
+     is a way to lose the burst quietly. */
+  if (n_noncoh * doppler_bins > state->k_lo)
+    return DP_ERR_INVALID;
   /* The child forwards acq's own -1, which is NOT one of the eight codes
      `clib_common.h` defines -- and this header promises DP_ERR_INVALID. A C
      caller branching on the documented code would mis-read a refusal, so the
@@ -906,7 +955,41 @@ burst_capture_get_refine_margin (const burst_capture_state_t *state)
 size_t
 burst_capture_get_pending (const burst_capture_state_t *state)
 {
-  return state->pending;
+  /* The read-back's meaning is "a burst you would lose by stopping now", so
+     the shadowed entries -- payload hits inside a window already handed out
+     -- are not counted. They are the next push's to drop. */
+  size_t n = 0;
+  for (size_t j = 0; j < state->pending; j++)
+    n += !state->q[(state->q_head + j) % state->q_cap].shadowed;
+  return n;
+}
+
+int
+burst_capture_release (burst_capture_state_t *state, size_t i)
+{
+  if (i >= state->ev_len)
+    return DP_ERR_INVALID;
+  state->released[i] = 1;
+
+  /* The span is owned by whatever this push emitted and did NOT release, on
+     top of what earlier pushes owned; a released window's span is simply
+     no longer part of that. Then every held detection is re-judged against
+     the new boundary -- the ones the released window shadowed come back. */
+  uint64_t until = state->suppress_base;
+  for (size_t k = 0; k < state->ev_len; k++)
+    {
+      uint64_t end = state->ev[k].preamble_start + (uint64_t)state->burst_len;
+      if (!state->released[k] && end > until)
+        until = end;
+    }
+  state->suppress_until = until;
+  for (size_t j = 0; j < state->pending; j++)
+    {
+      burst_capture_pending_t *cand
+          = &state->q[(state->q_head + j) % state->q_cap];
+      cand->shadowed = cand->anchor < state->suppress_until;
+    }
+  return DP_OK;
 }
 
 uint64_t
@@ -1091,6 +1174,7 @@ burst_capture_set_state (burst_capture_state_t *s, const void *blob)
   s->cn0_dbhz_est   = dp_r_f64 (&_r);
   s->refine_margin  = dp_r_f64 (&_r);
   s->suppress_until = dp_r_u64 (&_r);
+  s->suppress_base  = s->suppress_until;
 
   uint32_t pending = dp_r_u32 (&_r);
   uint32_t q_head  = dp_r_u32 (&_r);

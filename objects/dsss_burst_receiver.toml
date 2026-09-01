@@ -17,7 +17,7 @@ serializable = "true"
 # as objects/dsss_receiver.toml's -- a blanket MemoryError names neither the
 # offending parameter nor its constraint.
 create_error = "ValueError"
-create_error_message = "DsssBurstReceiver: invalid parameter (need non-empty acq_code/data_code/sync, reps >= 1, spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)"
+create_error_message = "DsssBurstReceiver: invalid parameter (need non-empty acq_code/data_code/sync, reps >= 1, spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0 < pd < 1)"
 # Composes the three certified Burst* cores. `corr` is the refine stage's
 # primitive (docs/design/dsss-burst-receiver.md §3.4) -- the whole preamble
 # correlated as one reference, which is what names the code repetition that
@@ -106,7 +106,7 @@ default = "64"
 [[dsss_burst_receiver.init_params]]
 name = "cn0_dbhz"
 type = "double"
-default = "50.0"
+default = "0.0"
 
 [[dsss_burst_receiver.init_params]]
 name = "doppler_uncertainty"
@@ -184,6 +184,7 @@ result_fields = [
   { name = "est_rate_hz", type = "double" },
   { name = "est_snr_db", type = "double" },
   { name = "refine_margin", type = "double" },
+  { name = "frame_valid", type = "uint8_t" },
 ]
 
 [[dsss_burst_receiver.methods]]
@@ -250,6 +251,11 @@ type = "double"
 [[dsss_burst_receiver.properties]]
 name = "refine_margin"
 type = "double"
+
+[[dsss_burst_receiver.properties]]
+name = "frame_valid"
+type = "bool"
+doc = "Whether the most recent window's frame passed its error detection -- this receiver's frame ends in a CRC-16. The verdict that decides whether the window OWNS its span: a failed window is given back to the capture (`release`), so a decoy ahead of a real burst cannot swallow it (doppler#1181). Per burst, read `events()['frame_valid']`."
 
 # The two spans a caller must respect, and could not read (gh-1011).
 #

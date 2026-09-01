@@ -64,13 +64,16 @@ def build_capture(n: int, at: list[int], sigma: float = 0.02, seed: int = 7):
 
 
 def make() -> BurstCapture:
+    """No design C/N0: the scenes here are strong, so the search integrates
+    the whole preamble in one look and there is no target to be under. 55
+    dB-Hz used to sit here and was "met" only through a second look the
+    burst could not fill (doppler#1181)."""
     return BurstCapture(
         acq_code(),
         burst_len=BURST_LEN,
         reps=REPS,
         spc=SPC,
         chip_rate=CHIP_RATE,
-        cn0_dbhz=55.0,
     )
 
 
@@ -301,19 +304,34 @@ def test_the_search_is_visible():
     construction — and they exist because a caller sizing a link should be
     able to SEE the search rather than infer it from what it passed in.
     """
+    import math
+
     cap = make()
-    assert cap.doppler_bins >= 1
-    assert cap.n_noncoh >= 1
+    assert cap.doppler_bins == REPS  # no design point: the whole preamble
+    assert cap.n_noncoh == 1  # a burst has one frame of preamble
     assert cap.code_bins == ACQ_SF * SPC
     assert cap.doppler_span_hz > 0.0
-    assert 0.0 <= cap.pd_predicted <= 1.0
-    assert cap.underpowered is False  # 55 dB-Hz meets pd=0.9 here
-    # The gates are real numbers, not zeros: `threshold` is deliberately NOT
-    # exposed because it is the coherent gate and reads 0.0 whenever
-    # n_noncoh > 1, which is the usual case.
+    assert cap.doppler_res_hz > 0.0  # the engine's, readable before a push
+    assert math.isnan(cap.pd_predicted)  # nothing to predict against
+    assert cap.underpowered is False  # nothing to be under
+    # The gates are real numbers, not zeros. `eta_nc` is the non-coherent
+    # gate and reads 0.0 on the one-look grid a capture always sizes.
     assert cap.eta > 0.0
-    assert cap.eta_nc > cap.eta  # combining looks costs the threshold
+    assert cap.eta_nc == 0.0
     assert 0.0 < cap.straddle_loss <= 1.0
+    # With a design C/N0 the ceiling cannot meet, it says so -- rather than
+    # buying looks that would move the anchor past refine's reach.
+    with pytest.warns(UserWarning):
+        weak = BurstCapture(
+            acq_code(),
+            burst_len=BURST_LEN,
+            reps=REPS,
+            spc=SPC,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=40.0,
+        )
+    assert weak.n_noncoh == 1 and weak.underpowered
+    assert 0.0 <= weak.pd_predicted < 0.9
 
 
 def test_an_impossible_pd_says_so_rather_than_failing_quietly():
@@ -365,3 +383,74 @@ def test_the_cfar_mode_is_a_caller_choice():
     assert median.eta > 0.0 and median.code_bins == mean.code_bins
     with pytest.raises((ValueError, TypeError)):
         BurstCapture(acq_code(), burst_len=BURST_LEN, noise_mode="nonsense")
+
+
+# ── The sizing contract, over the depths a link actually uses ──────────────
+
+
+@pytest.mark.parametrize("reps", [3, 6, 10])
+def test_no_design_point_refines_exactly_at_any_depth(reps):
+    """Without a design C/N0 the capture integrates the WHOLE preamble in one
+    look, and the preamble start is exact at every repetition count a link
+    uses (3-10 in practice; `reps` is a variable, never 4).
+
+    This is the regression for doppler#1181: the old sizer's default C/N0
+    escalated `n_noncoh` to 6 at reps=4, acquisition stamps a hit at the end
+    of the LAST accumulated look, and refine reaches a fixed `3*reps+2`
+    periods back -- so the same strong scene came back 9 and 3 periods late
+    with a margin that read better than a correct one. The burst is the
+    library's own `Segment(type="dsss")`, at the requested depth.
+    """
+    import math
+
+    from doppler.wfm import Composer, Segment
+
+    sync = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], dtype=np.uint8)
+    payload_bits = np.array(
+        [(i * 7 + 3) & 1 for i in range(PAYLOAD_SYMS - len(sync) - 16)],
+        dtype=np.uint8,
+    )
+    burst_len = (reps * ACQ_SF + PAYLOAD_SYMS * DATA_SF) * SPC
+    seg = Segment(
+        type="dsss",
+        fs=CHIP_RATE * SPC,
+        freq=0.0,
+        snr=100.0,
+        snr_mode="esno",
+        seed=1,
+        sps=SPC,
+        acq_code=acq_code().tobytes(),
+        acq_reps=reps,
+        data_code=data_code().tobytes(),
+        sync=sync.tobytes(),
+        payload=payload_bits.tobytes(),
+        gap_noise="auto",
+        off_samples=0,
+    )
+    burst = np.asarray(Composer([seg]).compose(), dtype=np.complex64)[
+        :burst_len
+    ]
+    assert burst.size == burst_len
+
+    rng = np.random.default_rng(reps)
+    at = [9000, 60_000]
+    x = rng.normal(0.0, 0.02, 200_000) + 1j * rng.normal(0.0, 0.02, 200_000)
+    x = x.astype(np.complex64)
+    for a in at:
+        x[a : a + burst_len] += burst
+
+    cap = BurstCapture(
+        acq_code(),
+        burst_len=burst_len,
+        reps=reps,
+        spc=SPC,
+        chip_rate=CHIP_RATE,
+    )
+    assert cap.doppler_bins == reps and cap.n_noncoh == 1
+    assert not cap.underpowered and math.isnan(cap.pd_predicted)
+
+    cap.push(x)
+    starts = sorted(int(v) for v in cap.events()["preamble_start"])
+    assert [s for s in starts if s in at] == at, (
+        f"reps={reps}: transmitted at {at}, captured at {starts}"
+    )

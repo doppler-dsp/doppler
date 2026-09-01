@@ -51,7 +51,7 @@ DsssBurstReceiverObj_init (DsssBurstReceiverObject *self, PyObject *args,
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
   unsigned long long frame_syms_raw      = 64;
-  double             cn0_dbhz            = 50.0;
+  double             cn0_dbhz            = 0.0;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
@@ -821,6 +821,20 @@ DsssBurstReceiver_getprop_min_gap (DsssBurstReceiverObject *self,
       (unsigned long long)dsss_burst_receiver_get_min_gap (self->handle));
 }
 
+static PyObject *
+DsssBurstReceiver_getprop_frame_valid (DsssBurstReceiverObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyBool_FromLong (
+      (long)(dsss_burst_receiver_get_frame_valid (self->handle)));
+}
+
 static PyGetSetDef DsssBurstReceiver_getset[] = {
   { "preamble_start", (getter)DsssBurstReceiver_getprop_preamble_start, NULL,
     "Exact stream position of the preamble.\n", NULL },
@@ -917,6 +931,13 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "burst_len`, floored at zero. `refine_span` below is the reach it comes "
     "from,\n"
     "and is a start-to-start bound rather than a gap.\n",
+    NULL },
+  { "frame_valid", (getter)DsssBurstReceiver_getprop_frame_valid, NULL,
+    "Whether the most recent window's frame passed its error detection -- "
+    "this receiver's frame ends in a CRC-16. The verdict that decides whether "
+    "the window OWNS its span: a failed window is given back to the capture "
+    "(`release`), so a decoy ahead of a real burst cannot swallow it "
+    "(doppler#1181). Per burst, read `events()['frame_valid']`.\n",
     NULL },
   { NULL }
 };
@@ -1180,7 +1201,9 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "est_snr_db : float\n"
     "    Demod's post-decode SNR estimate.\n"
     "refine_margin : float\n"
-    "    Runner-up period over the winner.\n" },
+    "    Runner-up period over the winner.\n"
+    "frame_valid : int\n"
+    "    The frame passed its error detection.\n" },
   { "events_max_out", (PyCFunction)DsssBurstReceiverObj_events_max_out,
     METH_NOARGS,
     "events_max_out() -> int\n"
@@ -1368,7 +1391,7 @@ static PyTypeObject DsssBurstReceiverObjType = {
     "    Chip rate in Hz (> 0).\n"
     "frame_syms : int, default 64\n"
     "    Frame symbols per burst (>= 1) — what push() returns, bit for bit.\n"
-    "cn0_dbhz : float, default 50.0\n"
+    "cn0_dbhz : float, default 0.0\n"
     "    Carrier-to-noise density in dB-Hz (> 0), sizing the acquisition "
     "search.\n"
     "doppler_uncertainty : float, default 0.0\n"
@@ -1391,7 +1414,8 @@ static PyTypeObject DsssBurstReceiverObjType = {
     "``DsssBurstReceiver:\n"
     "    invalid parameter (need non-empty acq_code/data_code/sync, reps >= "
     "1,\n"
-    "    spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz > 0, 0 < pfa < 1, "
+    "    spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz >= 0, 0 < pfa < "
+    "1, "
     "0\n"
     "    < pd < 1)``.\n"
     "\n"

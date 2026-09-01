@@ -27,6 +27,7 @@ typedef struct
   double   est_rate_hz;    
   double   est_snr_db;     
   double   refine_margin;  
+  uint8_t  frame_valid;    
 } dsss_br_event_t;
 
 #include "burst_capture/burst_capture_core.h"
@@ -77,6 +78,7 @@ typedef struct {
   double   est_freq_hz;    
   double   est_rate_hz;    
   double   est_snr_db;     
+  int      frame_valid;    
   double   refine_margin;  
   /* ── The completed bursts of the LAST push ───────────────────────────
    * Scratch, deliberately NOT serialized: it describes the most recent
@@ -158,6 +160,7 @@ size_t dsss_burst_receiver_get_min_gap (
     const dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_get_refine_span(const dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_get_retain_span(const dsss_burst_receiver_state_t *state);
+bool dsss_burst_receiver_get_frame_valid(const dsss_burst_receiver_state_t *state);
 #ifdef __cplusplus
 }
 #endif

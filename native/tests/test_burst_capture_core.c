@@ -117,11 +117,41 @@ build_capture (float complex *cap, size_t n_cap, const size_t *at, size_t n_at,
       cap[at[k] + i] += burst[i];
 }
 
+/* No design C/N0: the suite's scenes are strong (sigma 0.02, ~67 dB-Hz
+ * measured), so the search integrates the whole preamble in one look and
+ * there is no target to be under. 55 dB-Hz used to sit here and was "met"
+ * only through a second non-coherent look the burst could not fill
+ * (doppler#1181); under the honest model it is underpowered at this depth. */
 static burst_capture_state_t *
 make (void)
 {
   return burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
-                               1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
+                               1.0e6, 0.0, 0.0, 1e-3, 0.9, 0);
+}
+
+/**
+ * @brief 1 if every transmitted burst in @p at came back EXACTLY once.
+ *
+ * The seed-11 scene most tests here share carries one false alarm under the
+ * one-look grid (at 21298, ~50 dB-Hz against ~67 for the real ones) -- the
+ * design pfa at work, and the object's certification (F2) says a caller
+ * filters those on `cn0_dbhz_est`. So "the bursts came back" is asked by
+ * POSITION, and a count is compared against `burst_capture_ready()` rather
+ * than against the number transmitted.
+ */
+static int
+real_windows_once (const burst_capture_state_t *s, const size_t *at,
+                   size_t n_at)
+{
+  for (size_t k = 0; k < n_at; k++)
+    {
+      size_t seen = 0;
+      for (size_t i = 0; i < burst_capture_ready (s); i++)
+        seen += burst_capture_event_at (s, i)->preamble_start == at[k];
+      if (seen != 1u)
+        return 0;
+    }
+  return 1;
 }
 
 /* ── The constructor ─────────────────────────────────────────────────── */
@@ -209,9 +239,9 @@ test_create_rejects_bad_parameters (void)
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 0.0, 55.0,
                                   0.0, 1e-3, 0.9, 0)
             == NULL);
-  DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 0.0,
+  DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, -1.0,
                                   0.0, 1e-3, 0.9, 0)
-            == NULL);
+            == NULL); /* a design C/N0 below zero; 0 itself means "none" */
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0,
                                   0.0, 0.0, 0.9, 0)
             == NULL);
@@ -311,16 +341,41 @@ test_every_burst_is_emitted_once (void)
   size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                                  sizeof out / sizeof *out);
 
-  DP_CHECK (n == 3u * BURST_LEN);
-  DP_REQUIRE (burst_capture_ready (s) == 3u);
+  /* Every transmitted burst comes back EXACTLY once. Windows beyond those
+     are the design pfa doing what it says -- this scene carries one, at
+     21298 (cn0 50.5 against ~67 for the real ones) -- and the object's own
+     certification (F2) says a caller tells them apart by `cn0_dbhz_est`,
+     which is pinned here rather than assumed away: an extra window may not
+     out-score a real one. The old assertion was "exactly three", and it
+     held only because a second non-coherent look the burst could not fill
+     happened to gate that false alarm (doppler#1181). */
+  const size_t ready = burst_capture_ready (s);
+  DP_CHECK (n == ready * BURST_LEN);
+  DP_REQUIRE (ready >= 3u);
+  double weakest_real = 1e9;
   for (size_t k = 0; k < 3u; k++)
     {
-      const burst_capture_event_t *ev = burst_capture_event_at (s, k);
-      DP_REQUIRE (ev != NULL);
-      DP_CHECK (ev->preamble_start == at[k]);
+      size_t seen = 0;
+      for (size_t i = 0; i < ready; i++)
+        if (burst_capture_event_at (s, i)->preamble_start == at[k])
+          {
+            seen++;
+            if (burst_capture_event_at (s, i)->cn0_dbhz_est < weakest_real)
+              weakest_real = burst_capture_event_at (s, i)->cn0_dbhz_est;
+          }
+      DP_CHECK (seen == 1u);
+    }
+  for (size_t i = 0; i < ready; i++)
+    {
+      const burst_capture_event_t *ev   = burst_capture_event_at (s, i);
+      int                          real = 0;
+      for (size_t k = 0; k < 3u; k++)
+        real |= ev->preamble_start == at[k];
+      if (!real)
+        DP_CHECK (ev->cn0_dbhz_est < weakest_real);
     }
   DP_CHECK (s->dropped == 0);
-  DP_CHECK (s->n_bursts == 3u);
+  DP_CHECK (s->n_bursts == ready);
   DP_CHECK (s->pending == 0);
   burst_capture_destroy (s);
   return 0;
@@ -357,7 +412,9 @@ test_block_size_does_not_change_the_answer (void)
     }
 
   DP_CHECK (na == nb);
-  DP_CHECK (na == 3u * BURST_LEN);
+  DP_CHECK (na == burst_capture_ready (a) * BURST_LEN);
+  DP_CHECK (
+      real_windows_once (a, at, 3u)); /* b's events are its LAST push's */
   DP_CHECK (memcmp (out_a, out_b, na * sizeof *out_a) == 0);
   DP_CHECK (a->n_bursts == b->n_bursts);
   burst_capture_destroy (a);
@@ -389,7 +446,8 @@ test_never_returns_a_partial_window (void)
   /* The bursts still HAPPENED — the events describe all three, so a caller
      who under-sized its buffer can see what it missed rather than believing
      the stream was quiet. */
-  DP_CHECK (burst_capture_ready (s) == 3u);
+  DP_CHECK (burst_capture_ready (s) >= 3u);
+  DP_CHECK (real_windows_once (s, at, 3u));
   burst_capture_destroy (s);
   return 0;
 }
@@ -534,7 +592,8 @@ test_push_max_out_bounds_a_real_push (void)
   size_t               bound = burst_capture_push_max_out (s, n_cap);
   size_t n = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
   DP_CHECK (n <= bound);
-  DP_CHECK (n == 3u * BURST_LEN);
+  DP_CHECK (n == burst_capture_ready (s) * BURST_LEN);
+  DP_CHECK (real_windows_once (s, at, 3u));
   burst_capture_destroy (s);
   return 0;
 }
@@ -560,19 +619,28 @@ test_events_describe_the_last_push (void)
   burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                       sizeof out / sizeof *out);
 
-  DP_CHECK (burst_capture_events_max_out (s, 0) == 3u);
-  DP_CHECK (burst_capture_events_max_out (s, 99u) == 3u); /* n is ignored */
+  /* Four rows, not three: this scene carries one false alarm (at 21298,
+     the design pfa at work -- see test_every_burst_is_emitted_once), and
+     it has a row like any other window. */
+  const size_t ready = burst_capture_events_max_out (s, 0);
+  DP_CHECK (ready >= 3u);
+  DP_CHECK (burst_capture_events_max_out (s, 99u) == ready); /* n ignored */
 
   burst_capture_event_t ev[8];
   size_t                got = burst_capture_events (s, 0, ev, 8u);
-  DP_CHECK (got == 3u);
+  DP_CHECK (got == ready);
   for (size_t k = 0; k < 3u; k++)
-    DP_CHECK (ev[k].preamble_start == at[k]);
+    {
+      size_t seen = 0;
+      for (size_t i = 0; i < got; i++)
+        seen += ev[i].preamble_start == at[k];
+      DP_CHECK (seen == 1u);
+    }
 
   /* A short buffer truncates rather than overruns. */
   burst_capture_event_t one[1];
   DP_CHECK (burst_capture_events (s, 0, one, 1u) == 1u);
-  DP_CHECK (one[0].preamble_start == at[0]);
+  DP_CHECK (one[0].preamble_start == ev[0].preamble_start);
 
   /* A push that completes nothing clears them -- events() describes THIS
      call, so a stale row would attribute an old burst to a quiet block. */
@@ -653,14 +721,14 @@ test_detections_are_what_the_search_found (void)
   burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                       sizeof out / sizeof *out);
   const size_t ne = burst_capture_events_max_out (s, 0);
-  DP_REQUIRE (ne == 3u);
+  DP_REQUIRE (ne >= 3u); /* the three bursts, plus the scene's false alarm */
 
   const size_t nd = burst_capture_detections_max_out (s, 0);
   DP_CHECK (burst_capture_detections_max_out (s, 99u) == nd); /* n ignored */
   DP_CHECK (nd >= ne);
-  /* Measured 4 against 3 at this geometry: more rows than bursts is the
+  /* Measured 5 against 4 at this geometry: more rows than windows is the
      evidence that nothing filtered them. A `detections()` that returned the
-     claim rule's output would read exactly 3 here. */
+     claim rule's output would read exactly `ne` here. */
   DP_CHECK (nd > ne);
 
   burst_capture_detection_t det[64];
@@ -702,6 +770,224 @@ test_detections_are_what_the_search_found (void)
   DP_CHECK (burst_capture_detections_max_out (s, 0) == 0);
 
   burst_capture_destroy (s);
+  return 0;
+}
+
+/* ── The sizing contract: one look, and a design point that is optional ── */
+
+/**
+ * With NO design C/N0 the capture integrates the whole preamble in ONE look
+ * and refines EXACTLY -- and with a design point the coherent ceiling cannot
+ * meet, it is `underpowered` rather than escalated. Under the old sizer the
+ * DEFAULT cn0_dbhz produced n_noncoh=6 at this geometry and starts 9 and 3
+ * periods late with a plausible margin, because acquisition stamps a hit at
+ * the end of the LAST accumulated look and refine reaches k_lo periods back
+ * and no further (doppler#1181).
+ */
+static int
+test_one_look_and_the_design_point_is_optional (void)
+{
+  static float complex cap[200000];
+  const size_t         at[3] = { 9000u, 60000u, 120000u };
+  build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
+  static float complex out[8 * BURST_LEN];
+
+  /* No design point: the whole preamble, one look, nothing to be under. */
+  burst_capture_state_t *s
+      = burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
+                              0.0, 0.0, 1e-3, 0.9, 0);
+  DP_REQUIRE (s != NULL);
+  DP_CHECK (s->acq->engine->n_noncoh == 1u);
+  DP_CHECK (s->acq->engine->coherent_bins == REPS);
+  DP_CHECK (!s->underpowered);
+  DP_CHECK (isnan (s->acq->engine->pd_predicted));
+  burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                      sizeof out / sizeof *out);
+  /* Each transmitted burst exactly once, at its exact sample; the scene's
+     false alarm (21298, the design pfa) is a fourth row and not the point. */
+  burst_capture_event_t ev[8];
+  size_t                got = burst_capture_events (s, 0, ev, 8u);
+  DP_CHECK (got >= 3u);
+  for (size_t k = 0; k < 3u; k++)
+    {
+      size_t seen = 0;
+      for (size_t i = 0; i < got; i++)
+        seen += ev[i].preamble_start == at[k];
+      DP_CHECK (seen == 1u);
+    }
+  burst_capture_destroy (s);
+
+  /* A design point the ceiling cannot meet: still one look, and it says so.
+     The scene is strong, so the bursts are still found -- and found where
+     they are, which the escalated grid could not do. */
+  burst_capture_state_t *low
+      = burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
+                              40.0, 0.0, 1e-3, 0.9, 0);
+  DP_REQUIRE (low != NULL);
+  DP_CHECK (low->acq->engine->n_noncoh == 1u);
+  DP_CHECK (low->acq->engine->coherent_bins == REPS);
+  DP_CHECK (low->underpowered);
+  DP_CHECK (!isnan (low->acq->engine->pd_predicted));
+  burst_capture_push (low, cap, sizeof cap / sizeof *cap, out,
+                      sizeof out / sizeof *out);
+  got = burst_capture_events (low, 0, ev, 8u);
+  DP_CHECK (got >= 3u);
+  for (size_t k = 0; k < 3u; k++)
+    {
+      size_t seen = 0;
+      for (size_t i = 0; i < got; i++)
+        seen += ev[i].preamble_start == at[k];
+      DP_CHECK (seen == 1u);
+    }
+  burst_capture_destroy (low);
+
+  /* Negative is still an argument error; 0 is the documented "none". */
+  DP_CHECK (burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
+                                  1.0e6, -1.0, 0.0, 1e-3, 0.9, 0)
+            == NULL);
+  return 0;
+}
+
+/**
+ * A pinned grid whose anchor can lag the preamble past refine's reach is
+ * REFUSED, and refusing changes nothing. `n_noncoh * doppler_bins` code
+ * periods against `k_lo`: at this geometry k_lo = 14, so (4, 4) = 16 is
+ * refused and (2, 7) = 14 is the last grid accepted.
+ */
+static int
+test_configure_search_raw_refuses_a_grid_beyond_reach (void)
+{
+  burst_capture_state_t *s = make ();
+  DP_REQUIRE (s != NULL);
+  const size_t k_lo = s->k_lo;
+  const size_t db0  = s->acq->engine->coherent_bins;
+  const size_t nc0  = s->acq->engine->n_noncoh;
+  DP_CHECK (burst_capture_configure_search_raw (s, REPS, k_lo / REPS + 1u)
+            == DP_ERR_INVALID);
+  DP_CHECK (s->acq->engine->coherent_bins == db0);
+  DP_CHECK (s->acq->engine->n_noncoh == nc0);
+  DP_CHECK (burst_capture_configure_search_raw (s, 2u, k_lo / 2u) == DP_OK);
+  DP_CHECK (s->acq->engine->n_noncoh == k_lo / 2u);
+  burst_capture_destroy (s);
+  return 0;
+}
+
+/* ── Hold and release: whose verdict a span is (doppler#1181) ────────── */
+
+/**
+ * A window that was not a burst can be given back, and the burst it hid
+ * comes out.
+ *
+ * The shape that lost a burst: a decoy (a bare preamble at 0.35 amplitude,
+ * no payload) 2100 samples ahead of a real burst. Its window completes at
+ * `decoy + burst_len` = AT + 348; the real preamble's first detecting frame
+ * ends at 9424. A push boundary between the two -- here at 9400 -- means the
+ * decoy is EMITTED before the real burst's hit arrives, and the hit lands
+ * inside a span that is already owned. One push over the whole scene never
+ * shows this: the two hits meet in the claim rule and the stronger wins.
+ *
+ * The capture cannot know the decoy was not a burst -- that is a consumer's
+ * error detection. So the hit is HELD: released, it is searched again and
+ * the burst comes out at its exact sample; not released, it is dropped at
+ * the next push, which is what a consumer with no verdict always got. Both
+ * halves are pinned, because both are the contract.
+ */
+static int
+test_release_gives_back_a_shadowed_burst (void)
+{
+  const size_t         AT = 9000u, LEAD = 2100u, CUT = 9400u;
+  static float complex cap[80000];
+  build_capture (cap, sizeof cap / sizeof *cap, &AT, 1u, 0.02, 7u);
+  {
+    static float complex burst[1 << 16];
+    build_burst (burst);
+    for (size_t i = 0; i < REPS * ACQ_SF * SPC; i++)
+      cap[AT - LEAD + i] += 0.35f * burst[i];
+  }
+  static float complex out[4 * BURST_LEN];
+
+  /* Released: the burst comes out. */
+  {
+    burst_capture_state_t *s = make ();
+    DP_REQUIRE (s != NULL);
+    burst_capture_push (s, cap, CUT, out, sizeof out / sizeof *out);
+    DP_REQUIRE (burst_capture_ready (s) == 1u); /* the decoy's window */
+    DP_CHECK (burst_capture_event_at (s, 0)->preamble_start == AT - LEAD);
+    DP_CHECK (burst_capture_release (s, 1u) == DP_ERR_INVALID); /* no such */
+    DP_CHECK (burst_capture_release (s, 0u) == DP_OK);
+    size_t n
+        = burst_capture_push (s, cap + CUT, sizeof cap / sizeof *cap - CUT,
+                              out, sizeof out / sizeof *out);
+    DP_CHECK (n == BURST_LEN);
+    DP_REQUIRE (burst_capture_ready (s) == 1u);
+    DP_CHECK (burst_capture_event_at (s, 0)->preamble_start == AT);
+    DP_CHECK (burst_capture_get_pending (s) == 0);
+    burst_capture_destroy (s);
+  }
+
+  /* Not released: the hit is held through the push that shadowed it, then
+     dropped -- and `pending` never counted it, because it is not a burst a
+     caller would lose by stopping. */
+  {
+    burst_capture_state_t *s = make ();
+    DP_REQUIRE (s != NULL);
+    burst_capture_push (s, cap, CUT, out, sizeof out / sizeof *out);
+    DP_REQUIRE (burst_capture_ready (s) == 1u);
+    burst_capture_push (s, cap + CUT, sizeof cap / sizeof *cap - CUT, out,
+                        sizeof out / sizeof *out);
+    DP_CHECK (burst_capture_ready (s) == 0);
+    DP_CHECK (s->pending >= 1u);                   /* held... */
+    DP_CHECK (burst_capture_get_pending (s) == 0); /* ...and not counted */
+    static float complex quiet[8000];
+    build_capture (quiet, sizeof quiet / sizeof *quiet, NULL, 0u, 0.02, 4u);
+    burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
+                        sizeof out / sizeof *out);
+    DP_CHECK (burst_capture_ready (s) == 0);
+    DP_CHECK (s->pending == 0); /* dropped when the next push began */
+    /* A late release names a window of a push that is gone. */
+    DP_CHECK (burst_capture_release (s, 0u) == DP_ERR_INVALID);
+    burst_capture_destroy (s);
+  }
+
+  /* A LONG burst -- the link geometry, where `burst_len` is several times
+     `refine_span` -- takes the other path: the decoy and the real hit are
+     too far apart to merge, both are queued, and the real one is shadowed
+     when the decoy's window is EMITTED, not when it arrived. Released, it
+     comes out at its exact sample all the same. */
+  {
+    const size_t           LONG = 4u * BURST_LEN, FAR = 3000u;
+    burst_capture_state_t *s = burst_capture_create (
+        acq_code (), ACQ_SF, LONG, REPS, SPC, 1.0e6, 0.0, 0.0, 1e-3, 0.9, 0);
+    DP_REQUIRE (s != NULL);
+    DP_REQUIRE (FAR >= s->refine_span && FAR < LONG); /* the premise */
+    static float complex scene[80000];
+    build_capture (scene, sizeof scene / sizeof *scene, &AT, 1u, 0.02, 7u);
+    {
+      static float complex burst[1 << 16];
+      build_burst (burst);
+      for (size_t i = 0; i < REPS * ACQ_SF * SPC; i++)
+        scene[AT - FAR + i] += 0.35f * burst[i];
+    }
+    static float complex big[8 * 4 * BURST_LEN];
+    /* One push past the decoy's window end (AT - FAR + LONG) and past the
+       real preamble's first frame, so both hits are queued before the drain
+       emits the decoy over the real one. */
+    const size_t first = AT - FAR + LONG + 500u;
+    burst_capture_push (s, scene, first, big, sizeof big / sizeof *big);
+    DP_REQUIRE (burst_capture_ready (s) == 1u);
+    DP_CHECK (burst_capture_event_at (s, 0)->preamble_start == AT - FAR);
+    DP_CHECK (burst_capture_get_pending (s) == 0); /* shadowed, uncounted */
+    DP_CHECK (s->pending >= 1u);
+    DP_CHECK (burst_capture_release (s, 0u) == DP_OK);
+    DP_CHECK (burst_capture_get_pending (s) >= 1u); /* given back */
+    size_t n = burst_capture_push (s, scene + first,
+                                   sizeof scene / sizeof *scene - first, big,
+                                   sizeof big / sizeof *big);
+    DP_CHECK (n == LONG);
+    DP_REQUIRE (burst_capture_ready (s) == 1u);
+    DP_CHECK (burst_capture_event_at (s, 0)->preamble_start == AT);
+    burst_capture_destroy (s);
+  }
   return 0;
 }
 
@@ -812,7 +1098,8 @@ test_a_push_larger_than_the_ring_is_sliced (void)
   static float complex out[8 * BURST_LEN];
   size_t n = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
   DP_CHECK (n_cap > chunk_max); /* the slicing path really was taken */
-  DP_CHECK (n == 2u * BURST_LEN);
+  DP_CHECK (n == burst_capture_ready (s) * BURST_LEN);
+  DP_CHECK (real_windows_once (s, at, 2u));
   DP_CHECK (s->dropped == 0);
   DP_CHECK (s->samples_fed == (uint64_t)n_cap);
   burst_capture_destroy (s);
@@ -1216,6 +1503,12 @@ main (void)
   if (test_accessors_agree_with_the_event ())
     return 1;
   if (test_configure_search_raw_reaches_the_engine ())
+    return 1;
+  if (test_one_look_and_the_design_point_is_optional ())
+    return 1;
+  if (test_configure_search_raw_refuses_a_grid_beyond_reach ())
+    return 1;
+  if (test_release_gives_back_a_shadowed_burst ())
     return 1;
   if (test_destroy_null_is_safe ())
     return 1;

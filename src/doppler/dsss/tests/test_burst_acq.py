@@ -26,7 +26,9 @@ SPC = 4
 CHIP_RATE = 1.0e6
 PFA = 1e-3
 PD = 0.9
-CN0_DBHZ = 50.0  # comfortably powered for both classes at this grid
+CN0_DBHZ = 55.0  # powered for both classes at this grid: burst D=6 (0.935),
+# continuous via looks. 50 was "powered" only through looks a burst cannot
+# fill (doppler#1181); coherently it predicts 0.47 at reps=8.
 
 
 def _burst_acq(**kw):

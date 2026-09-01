@@ -262,6 +262,12 @@ is the ONLY sensitivity lever, so a cap defaulting to "don't use it"
 would silently underpower it). `n_noncoh` becomes a purely derived
 output (already exposed as a read-only property) on both classes.
 
+*2026-09-01:* this auto-selection is the **continuous** engine's. The burst
+engine no longer escalates `n_noncoh` at all — a burst's preamble fills one
+look, so extra looks add noise and move the hit's anchor past the capture's
+refine reach ([#1181](https://github.com/doppler-dsp/doppler/issues/1181),
+`burst-capture.md` §11.1); its C/N0 is a design point and optional.
+
 This does NOT remove the need for an internal ceiling, though -- just
 moves it out of the user-facing API. The semi-analytical `pd_predicted`
 model itself is only reliable up to a point: this exact geometry's own

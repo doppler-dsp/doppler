@@ -760,9 +760,15 @@ int
 burst_capture_configure_search_raw (burst_capture_state_t *state,
                                     size_t doppler_bins, size_t n_noncoh)
 {
+  /* The child forwards acq's own -1, which is NOT one of the eight codes
+     `clib_common.h` defines -- and this header promises DP_ERR_INVALID. A C
+     caller branching on the documented code would mis-read a refusal, so the
+     translation happens here rather than the doc being weakened to match.
+     (The DSP layer returns only DP_OK / DP_ERR_MEMORY / DP_ERR_INVALID; see
+     docs/dev/contributing/error-convention.md.) */
   int rc = burst_acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
-  if (rc != DP_OK)
-    return rc;
+  if (rc != 0)
+    return DP_ERR_INVALID;
   /* The grid moved, so the child's blob size may have moved with it. This is
      the one call that can legitimately change it underneath a bound that
      state_bytes() promises is a pure function of configuration. */

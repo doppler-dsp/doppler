@@ -235,6 +235,7 @@ burst_capture_destroy (burst_capture_state_t *state)
   free (state->q);
   free (state->win);
   free (state->ev);
+  free (state->det);
   free (state);
 }
 
@@ -261,6 +262,7 @@ burst_capture_reset (burst_capture_state_t *state)
   state->pending        = 0;
   state->q_head         = 0;
   state->ev_len         = 0;
+  state->det_len        = 0;
   state->suppress_until = 0;
   state->preamble_start = 0;
   state->doppler_hz_est = 0.0;
@@ -606,8 +608,9 @@ size_t
 burst_capture_push (burst_capture_state_t *state, const float complex *x,
                     size_t x_len, float complex *out, size_t max_out)
 {
-  /* Every call starts a fresh window list: events() describes THIS push. */
-  state->ev_len = 0;
+  /* Every call starts fresh: both lists describe THIS push. */
+  state->ev_len  = 0;
+  state->det_len = 0;
   /* `pending` is NOT cleared here. It is the live queue length -- detections
      whose burst window has not arrived -- and it must survive across pushes,
      because surviving across pushes is the whole point of holding them. */
@@ -659,6 +662,29 @@ burst_capture_push (burst_capture_state_t *state, const float complex *x,
                  is, refine decides. */
               uint64_t epoch = hits[i].samples_consumed - (uint64_t)e->n
                                + (uint64_t)hits[i].code_phase;
+
+              /* Record the hit BEFORE anything filters it. This is what the
+                 search found; `events()` is what survived the claim rule and
+                 the suppression window. A bank that wants both would
+                 otherwise have to run a second acquisition engine over the
+                 same stream (doppler#1174). */
+              if (state->det_len == state->det_cap)
+                {
+                  size_t cap = state->det_cap ? state->det_cap * 2u : 16u;
+                  state->det
+                      = dp_xrealloc (state->det, cap * sizeof *state->det);
+                  state->det_cap = cap;
+                }
+              {
+                burst_capture_detection_t *d = &state->det[state->det_len++];
+                d->epoch                     = epoch;
+                d->doppler_hz                = dp_fftfreq (
+                    hits[i].doppler_bin, e->coherent_bins,
+                    e->doppler_res_hz * (double)e->coherent_bins);
+                d->cn0_dbhz  = hits[i].cn0_dbhz_est;
+                d->test_stat = (double)hits[i].test_stat;
+                d->peak_mag  = (double)hits[i].peak_mag;
+              }
 
               /* Inside a burst already CAPTURED: acquisition fires on the
                  payload too, and those are not new bursts. */
@@ -753,6 +779,24 @@ burst_capture_push (burst_capture_state_t *state, const float complex *x,
   rows -= rows % state->burst_len;
   if (out && rows)
     memcpy (out, state->win, rows * sizeof *out);
+  return rows;
+}
+
+size_t
+burst_capture_detections_max_out (burst_capture_state_t *state, size_t n)
+{
+  (void)n; /* the count is the last push's, not a request */
+  return state->det_len;
+}
+
+size_t
+burst_capture_detections (burst_capture_state_t *state, size_t n,
+                          burst_capture_detection_t *out, size_t max_out)
+{
+  (void)n;
+  const size_t rows = state->det_len < max_out ? state->det_len : max_out;
+  if (out && rows)
+    memcpy (out, state->det, rows * sizeof *out);
   return rows;
 }
 
@@ -1096,8 +1140,9 @@ burst_capture_set_state (burst_capture_state_t *s, const void *blob)
       return DP_ERR_INVALID;
   }
 
-  /* The last push's windows describe a call that did not happen on this
-     instance. Clearing them is what keeps events() honest after a resume. */
-  s->ev_len = 0;
+  /* The last push's rows describe a call that did not happen on this
+     instance. Clearing them is what keeps both faces honest after a resume. */
+  s->ev_len  = 0;
+  s->det_len = 0;
   return DP_OK;
 }

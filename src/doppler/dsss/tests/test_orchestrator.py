@@ -12,8 +12,12 @@ import math
 import numpy as np
 import pytest
 
-from doppler.dsss import bin_to_signed
-from doppler.dsss.orchestrator import Acquirer, CoarseChannel
+from doppler.dsss import (
+    BurstCapture,
+    PersistentBurstCapture,
+    bin_to_signed,
+)
+from doppler.dsss.orchestrator import Acquirer, CoarseChannel, Detection
 
 CODE = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
 SF = 7
@@ -263,3 +267,130 @@ def test_bank_pod_handoff_resumes_bit_exact():
 
     for bank in (ref, a, b):
         bank.close()
+
+
+# ── Capturing channels (doppler#1174) ───────────────────────────────────────
+
+
+def _burst_scene():
+    """Two bursts in noise, at known SOURCE positions."""
+    from doppler.dsss.tests.characterization.burst_capture import (
+        characterize as ch,
+    )
+
+    return (
+        ch.acq_code(),
+        ch.scene([9000, 60_000], 200_000, seed=11),
+        ch.BURST_LEN,
+    )
+
+
+def _cap_channel(burst_len, code, **kw):
+    return CoarseChannel(
+        0.0,
+        source_rate=CHIP_RATE * SPC,
+        code=code,
+        reps=REPS,
+        spc=SPC,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=55.0,
+        pfa=1e-3,
+        pd=0.9,
+        burst_len=burst_len,
+        **kw,
+    )
+
+
+def test_a_detector_channel_is_unchanged():
+    """No `burst_len` means the object that was always there.
+
+    The migration is additive: a caller who wants detections gets exactly the
+    channel they had, built on `BurstAcquisition`, and `bursts()` is empty
+    rather than an error.
+    """
+    code, x, _ = _burst_scene()
+    ch = CoarseChannel(
+        0.0,
+        source_rate=CHIP_RATE * SPC,
+        code=code,
+        reps=REPS,
+        spc=SPC,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=55.0,
+        pfa=1e-3,
+        pd=0.9,
+    )
+    assert ch.burst_len == 0
+    assert ch.process(x, 0)
+    assert ch.bursts()[0].size == 0
+
+
+def test_a_capturing_channel_reports_both_faces():
+    """One object, both outputs — which is why the capture publishes the
+    detections it made.
+
+    Without `detections()` a bank wanting both would push every sample
+    through two acquisition engines. The detections are what the SEARCH
+    found, so there are at least as many as there are bursts.
+    """
+    code, x, burst_len = _burst_scene()
+    ch = _cap_channel(burst_len, code)
+    assert isinstance(ch._acq, BurstCapture)
+    dets = ch.process(x, 0)
+    win, ev = ch.bursts()
+
+    assert dets, "a capturing channel still reports detections"
+    assert all(isinstance(d, Detection) for d in dets)
+    assert win.size % burst_len == 0 and win.size > 0
+    assert len(ev) == win.size // burst_len
+    assert len(dets) >= len(ev), (
+        "the search cannot find fewer hits than it turned into bursts"
+    )
+
+
+def test_a_burst_position_indexes_the_stream_the_capture_saw():
+    """`preamble_start` means an index into the DDC's OUTPUT.
+
+    That is the stream the capture searched, the stream its ring holds, and
+    the stream the window is a slice of — so the assertion is exact rather
+    than approximate: the window handed back must equal
+    `ddc_output[start : start+burst_len]`, sample for sample.
+
+    Written this way after the first version compared the starts against the
+    SOURCE positions and read the difference as an error to be corrected. It
+    is not one: the DDC's group delay ahead of the capture is not something
+    these positions have to undo, because nothing downstream of them works in
+    source coordinates.
+    """
+    code, x, burst_len = _burst_scene()
+    ch = _cap_channel(burst_len, code)
+    ch.process(x, 0)
+    win, ev = ch.bursts()
+    assert len(ev), "the scene has bursts in it"
+
+    # The same DDC configuration, fed the same block: what the capture saw.
+    probe = _cap_channel(burst_len, code)
+    seen = probe._ddc.execute(x)
+
+    for i, start in enumerate(int(v) for v in ev["preamble_start"]):
+        window = win[i * burst_len : (i + 1) * burst_len]
+        assert np.array_equal(window, seen[start : start + burst_len]), (
+            f"burst {i} at {start} is not a slice of the stream searched"
+        )
+
+
+def test_a_file_backed_channel_shrinks_the_checkpoint(tmp_path):
+    """The bank is the pod-shippable object, so its blob is the thing to
+    shrink: the look-back is nearly all of an in-RAM one."""
+    code, x, burst_len = _burst_scene()
+    ram = _cap_channel(burst_len, code)
+    dsk = _cap_channel(burst_len, code, ring_path=str(tmp_path / "ch0.cf32"))
+    assert isinstance(dsk._acq, PersistentBurstCapture)
+
+    ram.process(x, 0)
+    dsk.process(x, 0)
+    assert len(dsk.get_state()) < len(ram.get_state())
+    # Same answer either way: where the ring's pages live is not a DSP
+    # parameter.
+    assert len(ram.bursts()[1]) == len(dsk.bursts()[1])
+    assert (tmp_path / "ch0.cf32").stat().st_size > 0

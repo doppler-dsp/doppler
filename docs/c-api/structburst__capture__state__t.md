@@ -48,6 +48,9 @@ _BurstCapture state._ [More...](#detailed-description)
 |  size\_t | [**code\_period**](#variable-code_period)  <br> |
 |  float \_Complex \* | [**corr\_buf**](#variable-corr_buf)  <br> |
 |  size\_t | [**corr\_len**](#variable-corr_len)  <br> |
+|  [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md) \* | [**det**](#variable-det)  <br> |
+|  size\_t | [**det\_cap**](#variable-det_cap)  <br> |
+|  size\_t | [**det\_len**](#variable-det_len)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
 |  uint64\_t | [**dropped**](#variable-dropped)  <br> |
@@ -339,6 +342,60 @@ size_t burst_capture_state_t::corr_len;
 
 
 Entries in corr\_buf. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable det 
+
+```C++
+burst_capture_detection_t* burst_capture_state_t::det;
+```
+
+
+
+Raw hits of the LAST push  what the SEARCH found, before the claim rule and the suppression window. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable det\_cap 
+
+```C++
+size_t burst_capture_state_t::det_cap;
+```
+
+
+
+Allocated records. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable det\_len 
+
+```C++
+size_t burst_capture_state_t::det_len;
+```
+
+
+
+Records the last push wrote. 
  
 
 

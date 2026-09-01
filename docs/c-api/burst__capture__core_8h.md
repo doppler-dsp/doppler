@@ -40,6 +40,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 
 | Type | Name |
 | ---: | :--- |
+| struct | [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md) <br>_One raw detection, as the search reported it._  |
 | struct | [**burst\_capture\_event\_t**](structburst__capture__event__t.md) <br>_One captured burst's event, as_ `events()` _hands it back._ |
 | struct | [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md) <br>_One detection between acquisition and emission._  |
 | struct | [**burst\_capture\_state\_t**](structburst__capture__state__t.md) <br>_BurstCapture state._  |
@@ -73,6 +74,8 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create**](#function-burst_capture_create) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst capture: acquisition, refine and retention behind one push()._  |
 |  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create\_backed**](#function-burst_capture_create_backed) (const char \* path, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a capture whose look-back lives in a FILE._  |
 |  void | [**burst\_capture\_destroy**](#function-burst_capture_destroy) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Release a capture and everything it owns. NULL-safe._  |
+|  size\_t | [**burst\_capture\_detections**](#function-burst_capture_detections) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t n, [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md) \* out, size\_t max\_out) <br>_Every hit the search made in the last push(), unfiltered._  |
+|  size\_t | [**burst\_capture\_detections\_max\_out**](#function-burst_capture_detections_max_out) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t n) <br>_Raw detections available from the last push()._ `n` _is ignored._ |
 |  const [**burst\_capture\_event\_t**](structburst__capture__event__t.md) \* | [**burst\_capture\_event\_at**](#function-burst_capture_event_at) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t i) <br>_Borrow event_ `i` _of the last push(), or NULL if out of range._ |
 |  size\_t | [**burst\_capture\_events**](#function-burst_capture_events) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t n, [**burst\_capture\_event\_t**](structburst__capture__event__t.md) \* out, size\_t max\_out) <br>_The event record for each burst the last push() returned._  |
 |  size\_t | [**burst\_capture\_events\_max\_out**](#function-burst_capture_events_max_out) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t n) <br>_Records available from the last push()._ `n` _is ignored._ |
@@ -380,6 +383,60 @@ _Release a capture and everything it owns. NULL-safe._
 ```C++
 void burst_capture_destroy (
     burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function burst\_capture\_detections 
+
+_Every hit the search made in the last push(), unfiltered._ 
+```C++
+size_t burst_capture_detections (
+    burst_capture_state_t * state,
+    size_t n,
+    burst_capture_detection_t * out,
+    size_t max_out
+) 
+```
+
+
+
+BEFORE the claim rule and the suppression window: several rows can name one preamble, and a row can be a false alarm. That is the point  this is what acquisition FOUND, and `events()` is what survived. Valid until the next push(), reset() or set\_state().
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import BurstCapture
+>>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+>>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+>>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
+>>> # what the search found, against what became a burst
+>>> len(cap.detections()) >= len(cap.events())
+True
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function burst\_capture\_detections\_max\_out 
+
+_Raw detections available from the last push()._ `n` _is ignored._
+```C++
+size_t burst_capture_detections_max_out (
+    burst_capture_state_t * state,
+    size_t n
 ) 
 ```
 

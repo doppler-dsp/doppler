@@ -61,7 +61,12 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from doppler.ddc import DDC
-from doppler.dsss import BurstAcquisition, bin_to_signed
+from doppler.dsss import (
+    BurstAcquisition,
+    BurstCapture,
+    PersistentBurstCapture,
+    bin_to_signed,
+)
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -130,6 +135,8 @@ class CoarseChannel:
         pfa: float,
         pd: float,
         noise_mode: str = "mean",
+        burst_len: int = 0,
+        ring_path: str | None = None,
     ) -> None:
         acq_fs = chip_rate * spc
         if not source_rate >= acq_fs:
@@ -147,17 +154,32 @@ class CoarseChannel:
             # A conservative sizing C/N0 may flag under-power; the bank (not
             # the single channel) is the operating point — caller decides.
             warnings.simplefilter("ignore", UserWarning)
-            self._acq = BurstAcquisition(
-                code,
-                reps=reps,
-                spc=spc,
-                chip_rate=chip_rate,
-                cn0_dbhz=cn0_dbhz,
-                doppler_uncertainty=0.0,
-                pfa=pfa,
-                pd=pd,
-                noise_mode=noise_mode,
-            )
+            # With a burst length the channel CAPTURES: same search, plus the
+            # stage that turns its output into bursts. `detections()` still
+            # reports what the search found, so nothing is lost by using the
+            # richer object -- which is the whole reason it publishes them
+            # (doppler#1174). Without one, the channel is a detector, exactly
+            # as before.
+            kw = {
+                "reps": reps,
+                "spc": spc,
+                "chip_rate": chip_rate,
+                "cn0_dbhz": cn0_dbhz,
+                "doppler_uncertainty": 0.0,
+                "pfa": pfa,
+                "pd": pd,
+                "noise_mode": noise_mode,
+            }
+            if burst_len:
+                self._acq = (
+                    PersistentBurstCapture(
+                        ring_path, code, burst_len=burst_len, **kw
+                    )
+                    if ring_path
+                    else BurstCapture(code, burst_len=burst_len, **kw)
+                )
+            else:
+                self._acq = BurstAcquisition(code, **kw)
             # Pin n_noncoh=1 explicitly: process() reports a hit per single
             # push() call (one block = one decision), which only holds for
             # coherent-only detection. With no caller-facing max_noncoh knob
@@ -168,6 +190,11 @@ class CoarseChannel:
             # accumulated push() calls before a hit could fire at all --
             # breaking this module's one-block-one-decision design.
             self._acq.configure_search_raw(self._acq.doppler_bins, 1)
+        self.burst_len = int(burst_len)
+        #: What the last capturing `process()` produced. Empty for a detector
+        #: channel, and empty until the first push completes a burst.
+        self._win: NDArray[np.complex64] = np.empty(0, dtype=np.complex64)
+        self._ev: NDArray[np.void] = np.empty(0, dtype=np.void)
         self._res = self._acq.doppler_res_hz
         self._nbins = self._acq.doppler_bins
 
@@ -195,8 +222,36 @@ class CoarseChannel:
     def process(
         self, block: NDArray[np.complex64], index: int
     ) -> list[Detection]:
-        """Down-mix + acquire a block; return absolute-coordinate hits."""
+        """Down-mix + acquire a block; return absolute-coordinate hits.
+
+        A capturing channel reports the same detections through a different
+        door: `BurstCapture.detections()` is what the search found, before
+        its claim rule coalesced anything, which is exactly what a detector
+        bank reports. Its windows are read separately with :meth:`bursts`.
+        """
         baseband = self._ddc.execute(block)
+        if self.burst_len:
+            # Both faces come from ONE push: the windows it returned and the
+            # detections it made. Stashed here rather than re-read later --
+            # `events()` and `detections()` describe the most recent push, so
+            # a second call to read them would describe a different one.
+            self._win = self._acq.push(baseband)
+            self._ev = self._acq.events()
+            return [
+                Detection(
+                    self.f_hz + float(d["doppler_hz"]),
+                    # A capture reports the STREAM-ABSOLUTE epoch, which is
+                    # strictly more than a code phase -- the phase is a lag
+                    # modulo one code period. Reduced here so the record means
+                    # the same thing on both paths; `bursts()` carries the
+                    # absolute position for a caller who wants it.
+                    int(d["epoch"] % (self._acq.code_bins)),
+                    float(d["test_stat"]),
+                    float(d["cn0_dbhz"]),
+                    index,
+                )
+                for d in self._acq.detections()
+            ]
         hits = []
         for (
             dop_bin,
@@ -217,6 +272,28 @@ class CoarseChannel:
                 )
             )
         return hits
+
+    def bursts(self) -> tuple[NDArray[np.complex64], NDArray[np.void]]:
+        """``(windows, events)`` for the bursts the last :meth:`process`
+        completed — empty unless the channel was built with a ``burst_len``.
+
+        Windows are concatenated at this channel's own rate: burst ``i``
+        occupies ``burst_len`` samples from ``i*burst_len``.
+
+        **The positions index this channel's own stream — the DDC's output —
+        which is exactly what the capture searched, what its ring holds, and
+        what the window is a slice of.** `win[i*burst_len:]` is bit-for-bit
+        `ddc_output[start : start+burst_len]`, so a start means precisely what
+        a consumer of these windows needs it to mean, and the DDC's group
+        delay relative to the source stream is not something anything here
+        has to undo.
+
+        A caller correlating a burst against the SOURCE stream — timestamping
+        it against a sample clock at the source rate, say — needs that delay,
+        and `DDC` does not publish it. That is a narrow, separate want; it is
+        not a limitation of these positions.
+        """
+        return self._win, self._ev
 
     def get_state(self) -> bytes:
         """Serialize this channel's running state to a portable blob.

@@ -143,6 +143,28 @@ pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
 
+# What the SEARCH found, before the claim rule merged anything and before the
+# suppression window dropped anything -- the other end of the same pipe from
+# events(). They arrive at different times, which is why both exist: a
+# detection is available the moment a frame clears threshold, a burst not
+# until its last sample has. A bank that wants both would otherwise run two
+# acquisition engines over one stream (doppler#1174).
+[[burst_capture.methods]]
+name = "detections"
+doc = "Every hit the search made in the last push(), unfiltered — before the claim rule coalesced the several detections of one preamble, and before the suppression window dropped the ones inside a burst already captured. So several rows can name one burst and a row can be a false alarm; that is the point. Each carries the STREAM-ABSOLUTE code epoch, which acquisition's own `code_phase` is not (it is a lag modulo one code period), plus the folded Doppler, the C/N0 lower bound and the CFAR statistic that gated it. Read `events()` instead for the bursts that survived and whose windows arrived. Valid until the next push(), reset() or set_state()."
+arg_type = "void"
+return_type = "burst_capture_detection_t"
+variable_output = true
+record_dtype = "burst_capture_detection_t"
+pass_capacity = true
+result_fields = [
+  { name = "epoch", type = "uint64_t" },
+  { name = "doppler_hz", type = "double" },
+  { name = "cn0_dbhz", type = "double" },
+  { name = "test_stat", type = "double" },
+  { name = "peak_mag", type = "double" },
+]
+
 [[burst_capture.methods]]
 name = "events"
 doc = "The event record for each burst the last push() returned. Row i describes the window at samples[i*burst_len ...] of that push. Valid until the next push(), reset() or set_state()."

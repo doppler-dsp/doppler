@@ -96,6 +96,34 @@ typedef struct
 } burst_capture_event_t;
 
 /**
+ * @brief One raw detection, as the search reported it.
+ *
+ * What `detections()` hands back: everything acquisition found in the last
+ * push, BEFORE the claim rule merged anything and before the suppression
+ * window dropped anything. `events()` is the other end of the same pipe --
+ * the bursts that survived all of that and whose windows arrived.
+ *
+ * Both exist because they answer different questions and arrive at different
+ * times. A detection is available the moment a frame clears threshold; a
+ * burst is not available until its LAST sample has, which is `retain_span`
+ * later and never for a burst that was cut off. A caller watching a band for
+ * activity wants the first; a caller decoding wants the second; a bank doing
+ * both would otherwise have to run two acquisition engines over one stream.
+ *
+ * The epoch is stream-absolute, which `acq_result_t::code_phase` is not --
+ * that is a lag modulo one code period, and making it absolute is the first
+ * thing this object does with a hit.
+ */
+typedef struct
+{
+  uint64_t epoch;      /**< Stream-absolute code epoch of the hit.         */
+  double   doppler_hz; /**< Signed coarse Doppler, folded, Hz.            */
+  double   cn0_dbhz;   /**< C/N0 lower bound from the hit, dB-Hz.         */
+  double   test_stat;  /**< The CFAR gating statistic, peak over noise.   */
+  double   peak_mag;   /**< Raw CFAR peak magnitude.                      */
+} burst_capture_detection_t;
+
+/**
  * @brief One detection between acquisition and emission.
  *
  * A hit cannot always be refined the moment it arrives -- the refine window
@@ -271,6 +299,11 @@ typedef struct
    * §6.1 weighs (that one is the whole stream). It is also what lets a C
    * consumer borrow a window through burst_capture_window() and hand it
    * onward with no further copy. */
+  burst_capture_detection_t *det;     /**< Raw hits of the LAST push -- what
+                                           the SEARCH found, before the claim
+                                           rule and the suppression window.  */
+  size_t                     det_cap; /**< Allocated records.               */
+  size_t                     det_len; /**< Records the last push wrote.     */
   float _Complex *win;     /**< Emitted windows, burst_len apart.          */
   size_t          win_cap; /**< Allocated samples.                          */
   burst_capture_event_t *ev; /**< One record per window returned.           */
@@ -510,6 +543,33 @@ size_t burst_capture_push_max_out (burst_capture_state_t *state,
 size_t burst_capture_push (burst_capture_state_t *state,
                            const float complex *x, size_t x_len,
                            float complex *out, size_t max_out);
+
+/** @brief Raw detections available from the last push(). @p n is ignored. */
+size_t burst_capture_detections_max_out (burst_capture_state_t *state,
+                                         size_t n);
+
+/**
+ * @brief Every hit the search made in the last push(), unfiltered.
+ *
+ * BEFORE the claim rule and the suppression window: several rows can name one
+ * preamble, and a row can be a false alarm. That is the point -- this is what
+ * acquisition FOUND, and `events()` is what survived. Valid until the next
+ * push(), reset() or set_state().
+ *
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import BurstCapture
+ * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+ * >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+ * >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
+ * >>> # what the search found, against what became a burst
+ * >>> len(cap.detections()) >= len(cap.events())
+ * True
+ * @endcode
+ */
+size_t burst_capture_detections (burst_capture_state_t *state, size_t n,
+                                 burst_capture_detection_t *out,
+                                 size_t max_out);
 
 /** @brief Records available from the last push(). @p n is ignored. */
 size_t burst_capture_events_max_out (burst_capture_state_t *state, size_t n);

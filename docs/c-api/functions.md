@@ -218,6 +218,8 @@
 * **burst\_capture\_create** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_create\_backed** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_destroy** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
+* **burst\_capture\_detections** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
+* **burst\_capture\_detections\_max\_out** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_event\_at** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_events** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_events\_max\_out** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))

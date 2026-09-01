@@ -315,6 +315,143 @@ through JSON in Python — `Composer.from_json(c.to_json())` reproduces the stre
 
 ______________________________________________________________________
 
+## A frame the caller built
+
+The framing keys on a source — `sync`, `acq_code`, `crc`, `rs_depth`,
+`randomise`, `asm`, `conv`, `interleave` — spell the frames doppler already
+knows, at the positions doppler already puts them. A layout outside that
+shape has one more key: **`frame`**, a description you build yourself.
+
+It is two lists, ordered independently, because position and coverage are
+independent axes: **`fields`** in wire order, **`stages`** in application
+order, each stage carrying the span of fields it covers. (In a CCSDS CADU the
+marker is inserted third and covered by the stage applied fourth, which a
+single ordered list cannot say — see
+[A CCSDS CADU](../../gallery/ccsds-link.md).)
+
+Present, `frame` **wins**: it *is* the frame, and the flat keys beside it are
+not merged in. They keep working exactly as before on every scene that does
+not carry one.
+
+```json title="frame.json"
+{
+  "version": 1,
+  "segments": [
+    {
+      "type": "bits", "fs": 1e6, "sps": 4, "modulation": "bpsk",
+      "pattern": "101010101010101010101010",
+      "snr": 100.0, "snr_mode": "fs", "num_samples": 224,
+      "frame": {
+        "fields": [
+          { "name": "hdr", "lit": "0101110001011100" },
+          { "name": "payload", "lit": "101010101010101010101010" },
+          { "name": "crc", "bits": 16, "derived_by": 1 }
+        ],
+        "stages": [
+          { "kind": "crc16", "first_field": 1, "n_fields": 2 }
+        ]
+      }
+    }
+  ]
+}
+```
+
+That description says the same thing as `--sync 0101110001011100 --crc crc16`, so the two are byte-identical — which is how you can tell the flat
+keys really are sugar for building one of these:
+
+```sh
+wfmgen --from-file frame.json -o from_desc.cf32
+wfmgen --type bits --bits 101010101010101010101010 \
+       --sync 0101110001011100 --crc crc16 \
+       --fs 1e6 --sps 4 --snr 100 --count 224 -o from_flags.cf32
+python3 - <<'EOF'
+import pathlib
+import sys
+
+a = pathlib.Path("from_desc.cf32").read_bytes()
+b = pathlib.Path("from_flags.cf32").read_bytes()
+print("byte-identical" if a == b else "DIFFER")
+sys.exit(0 if a == b else 1)
+EOF
+```
+
+```text
+byte-identical
+```
+
+What the description buys is everything past that: a field of your own bits
+at a position you choose, and a stage covering a span you name. `hdr` above
+is neither a preamble nor a sync word, and it sits outside the CRC's cover —
+a receiver has to find it before it can check anything.
+
+!!! warning "A derived field must name its producer: `derived_by`"
+
+    A field with a declared length and no bits — a CRC trailer, a block of
+    check symbols — is **derived**, and in JSON it must say which stage
+    produces it: `derived_by` is the stage's index **plus one**, so `1` means
+    stage 0. The `+1` is what makes a zero mean "the caller supplies this
+    field" rather than "the output of stage 0".
+
+    Omit it and the scene still loads, still generates, and still exits 0 —
+    with a **different waveform**. Measured on the description above: the
+    frame comes out **40 bits** rather than 56 (the unclaimed `crc` field is
+    dropped to zero length) and the payload's own bits do not survive into
+    the record. Nothing refuses it, so check the frame length is what you
+    declared. This is doppler#1155.
+
+    The C builder has no such trap: `wfm_frame_add_stage()` takes the cover
+    by name and wires the producer itself, so the fact cannot be stated
+    twice and cannot disagree.
+
+### The same description from C and from Python
+
+The C struct is the primary interface — `wfm_source_t.frame` takes a
+`wfm_frame_desc_t *`, and `wfm_frame_add_field()` / `wfm_frame_add_derived()`
+/ `wfm_frame_add_stage()` build one by name rather than by index. The
+[gallery page](../../gallery/wfmgen-carried-frame.md) is a whole program.
+
+Python reaches the same description through the scene JSON rather than
+through a keyword, because `Composer.from_json()` runs the same C code
+`wfmgen --from-file` does:
+
+```python
+import json
+
+from doppler.wfm import Composer
+
+seg = {
+    "type": "bits", "fs": 1e6, "sps": 4, "modulation": "bpsk",
+    "pattern": "101010101010101010101010",
+    "snr": 100.0, "snr_mode": "fs", "num_samples": 224,
+    "frame": {
+        "fields": [
+            {"name": "hdr", "lit": "0101110001011100"},
+            {"name": "payload", "lit": "101010101010101010101010"},
+            {"name": "crc", "bits": 16, "derived_by": 1},
+        ],
+        "stages": [{"kind": "crc16", "first_field": 1, "n_fields": 2}],
+    },
+}
+x = Composer.from_json(json.dumps({"version": 1, "segments": [seg]})).compose()
+print(len(x))
+```
+
+```text
+224
+```
+
+A description also goes back **out** through `to_json()`, so a scene read and
+re-written keeps its frame rather than silently reverting to a derived one.
+
+**Kernels stay in C, by design.** A stage names a *kind*, and the code that
+runs it is a `wfm_frame_ops_t` entry. `kind` accepts a name for the ones
+doppler ships (`crc16`, `rs`, `randomise`, `conv`, `interleave`) or a raw
+integer for your own, allocated from `WFM_STAGE_USER` (4096) up — doppler
+promises never to allocate at or above that. A kind with no kernel is a
+refusal, never a silent skip.
+
+______________________________________________________________________
+
 ## Prepare once, sweep many — `Plan`
 
 Evaluating a system — a detector, a demodulator, a synchroniser — means feeding

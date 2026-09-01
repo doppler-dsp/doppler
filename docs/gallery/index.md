@@ -1,14 +1,18 @@
 # Gallery
 
-Worked examples across every doppler subsystem — each one a runnable script
-under [`src/doppler/examples/`](https://github.com/doppler-dsp/doppler/tree/main/src/doppler/examples),
+Worked examples across every doppler subsystem — nearly all of them a
+runnable script under [`src/doppler/examples/`](https://github.com/doppler-dsp/doppler/tree/main/src/doppler/examples),
 grouped below by DSP domain. Most pages render a figure; **run `make gallery`
 to regenerate every image**, or run a single script directly (each page lists
 its command under *Reproduce* / *Run it*).
 
+A page whose subject is a C API instead carries a compiled-and-run `c` fence
+and points at its demo under
+[`native/examples/`](https://github.com/doppler-dsp/doppler/tree/main/native/examples).
+
 Looking for a runnable script that isn't a rendered walkthrough — LO, NCO,
-FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
-[Examples](../examples/index.md) page instead.
+FFT, ring buffers, the C API reference programs, or the NATS streaming demo?
+Those live on the [Examples](../examples/index.md) page instead.
 
 ## Sources & Waveforms
 
@@ -17,6 +21,10 @@ FFT, ring buffers, C programs, or the NATS streaming demo? Those live on the
 - [Waveform Scenes](wfm-composition.md) — sum, add, headroom; a SoI under a CW interferer over one noise floor.
 - [Waveform I/O](wfm-io.md) — one capture written to raw / CSV / BLUE / SigMF and read back.
 - [Waveform JSON Round-Trip](wfm-json.md) — `--record` a scene to JSON and replay it byte-identically.
+- [A Frame You Built, Generated](wfmgen-carried-frame.md) — `wfm_source_t.frame`:
+    a source carries the description a caller built, so a layout no flag
+    spells reaches the samples — and the flat framing flags turn out to be
+    sugar for exactly this
 - [A CCSDS CADU](ccsds-link.md) — a frame as a list of fields and a list of
     stages, each carrying the span it covers: why a pipeline cannot express
     the one thing CCSDS's stages disagree about, and what an outer code

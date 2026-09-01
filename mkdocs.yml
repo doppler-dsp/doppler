@@ -145,6 +145,7 @@ nav:
           - Waveform I/O: gallery/wfm-io.md
           - Waveform JSON Round-Trip: gallery/wfm-json.md
           - A CCSDS CADU: gallery/ccsds-link.md
+          - "A Frame You Built, Generated": gallery/wfmgen-carried-frame.md
           - Name Your Own Code: gallery/coding.md
           - Waveform Write: gallery/wfm-write.md
           - WCDMA Carriers: gallery/wcdma-carriers.md

@@ -44,6 +44,15 @@ typedef struct
 
 typedef struct
 {
+  uint64_t epoch;      
+  double   doppler_hz; 
+  double   cn0_dbhz;   
+  double   test_stat;  
+  double   peak_mag;   
+} burst_capture_detection_t;
+
+typedef struct
+{
   uint64_t anchor;     
   uint64_t start;      
   double   doppler_hz; 
@@ -107,6 +116,9 @@ typedef struct
    * §6.1 weighs (that one is the whole stream). It is also what lets a C
    * consumer borrow a window through burst_capture_window() and hand it
    * onward with no further copy. */
+  burst_capture_detection_t *det;     
+  size_t                     det_cap; 
+  size_t                     det_len; 
   float _Complex *win;     
   size_t          win_cap; 
   burst_capture_event_t *ev; 
@@ -156,6 +168,13 @@ size_t burst_capture_push_max_out (burst_capture_state_t *state,
 size_t burst_capture_push (burst_capture_state_t *state,
                            const float complex *x, size_t x_len,
                            float complex *out, size_t max_out);
+
+size_t burst_capture_detections_max_out (burst_capture_state_t *state,
+                                         size_t n);
+
+size_t burst_capture_detections (burst_capture_state_t *state, size_t n,
+                                 burst_capture_detection_t *out,
+                                 size_t max_out);
 
 size_t burst_capture_events_max_out (burst_capture_state_t *state, size_t n);
 

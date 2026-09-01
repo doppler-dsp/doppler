@@ -28,6 +28,7 @@
 * [**ber\_meter\_state\_t**](structber__meter__state__t.md)
 * [**boxcar\_state\_t**](structboxcar__state__t.md)
 * [**burst\_acq\_state\_t**](structburst__acq__state__t.md)
+* [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md)
 * [**burst\_capture\_event\_t**](structburst__capture__event__t.md)
 * [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md)
 * [**burst\_capture\_state\_t**](structburst__capture__state__t.md)

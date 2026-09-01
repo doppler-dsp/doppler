@@ -2388,6 +2388,70 @@ class BurstCapture:
             Output.
         """
 
+    def detections(
+        self,
+        count: int = 1,
+        out: NDArray[Any] | None = None,
+    ) -> NDArray[Any]:
+        """Every hit the search made in the last push(), unfiltered — before
+        the claim rule coalesced the several detections of one preamble, and
+        before the suppression window dropped the ones inside a burst already
+        captured. So several rows can name one burst and a row can be a false
+        alarm; that is the point. Each carries the STREAM-ABSOLUTE code epoch,
+        which acquisition's own `code_phase` is not (it is a lag modulo one
+        code period), plus the folded Doppler, the C/N0 lower bound and the
+        CFAR statistic that gated it. Read `events()` instead for the bursts
+        that survived and whose windows arrived. Valid until the next push(),
+        reset() or set_state().
+
+        BEFORE the claim rule and the suppression window: several rows can name
+        one preamble, and a row can be a false alarm. That is the point -- this
+        is what acquisition FOUND, and `events()` is what survived. Valid until
+        the next push(), reset() or set_state().
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[Any] | None
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
+
+        Returns
+        -------
+        NDArray[Any]
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstCapture
+        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
+        >>> # what the search found, against what became a burst
+        >>> len(cap.detections()) >= len(cap.events())
+        True
+
+        """
+
+    def detections_max_out(self, n: int) -> int:
+        """Raw detections available from the last push(). n is ignored.
+
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
     def events(
         self,
         count: int = 1,
@@ -2909,6 +2973,70 @@ class PersistentBurstCapture:
         Parameters
         ----------
         x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def detections(
+        self,
+        count: int = 1,
+        out: NDArray[Any] | None = None,
+    ) -> NDArray[Any]:
+        """Every hit the search made in the last push(), unfiltered — before
+        the claim rule coalesced the several detections of one preamble, and
+        before the suppression window dropped the ones inside a burst already
+        captured. So several rows can name one burst and a row can be a false
+        alarm; that is the point. Each carries the STREAM-ABSOLUTE code epoch,
+        which acquisition's own `code_phase` is not (it is a lag modulo one
+        code period), plus the folded Doppler, the C/N0 lower bound and the
+        CFAR statistic that gated it. Read `events()` instead for the bursts
+        that survived and whose windows arrived. Valid until the next push(),
+        reset() or set_state().
+
+        BEFORE the claim rule and the suppression window: several rows can name
+        one preamble, and a row can be a false alarm. That is the point -- this
+        is what acquisition FOUND, and `events()` is what survived. Valid until
+        the next push(), reset() or set_state().
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[Any] | None
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
+
+        Returns
+        -------
+        NDArray[Any]
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstCapture
+        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
+        >>> # what the search found, against what became a burst
+        >>> len(cap.detections()) >= len(cap.events())
+        True
+
+        """
+
+    def detections_max_out(self, n: int) -> int:
+        """Raw detections available from the last push(). n is ignored.
+
+        Parameters
+        ----------
+        n : int
             Input.
 
         Returns

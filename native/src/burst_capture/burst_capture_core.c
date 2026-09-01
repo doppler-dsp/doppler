@@ -38,6 +38,7 @@ burst_capture_pow2_ceil (size_t n)
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
+ * @param noise_mode    CFAR reference: 0=mean, 1=median, 2=min, 3=max.
  * @return Heap state, or NULL on an out-of-range parameter or a file the
  *         ring could not be backed with.
  */
@@ -45,7 +46,8 @@ static burst_capture_state_t *
 burst_capture_create_impl (const char *path, const uint8_t *acq_code,
                            size_t acq_code_len, size_t burst_len, size_t reps,
                            size_t spc, double chip_rate, double cn0_dbhz,
-                           double doppler_uncertainty, double pfa, double pd)
+                           double doppler_uncertainty, double pfa, double pd,
+                           int noise_mode)
 {
   /* Every one of these is an ARGUMENT error, and the manifest's
    * create_error/create_error_message turn a NULL return into a ValueError
@@ -158,8 +160,9 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
   /* ── The composed child ─────────────────────────────────────────────
    * Certified individually; this object owns only the seam around it.
    * noise_mode 0 = mean, matching burst_acq's own default. */
-  s->acq = burst_acq_create (s->acq_code, acq_code_len, reps, spc, chip_rate,
-                             cn0_dbhz, doppler_uncertainty, pfa, pd, 0);
+  s->acq
+      = burst_acq_create (s->acq_code, acq_code_len, reps, spc, chip_rate,
+                          cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode);
   if (!s->acq)
     goto fail;
 
@@ -168,6 +171,9 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
      happens to be unconsumed. It is re-read in configure_search_raw(), the
      one call that can legitimately change the grid underneath it. */
   s->acq_blob_max = acq_state_bytes (s->acq->engine);
+  /* Mirrored once here: the declared warning needs it as a field, and a
+     value that cannot change after create() has no reason to be re-read. */
+  s->underpowered = s->acq->engine->underpowered ? 1 : 0;
 
   return s;
 
@@ -180,11 +186,12 @@ burst_capture_state_t *
 burst_capture_create (const uint8_t *acq_code, size_t acq_code_len,
                       size_t burst_len, size_t reps, size_t spc,
                       double chip_rate, double cn0_dbhz,
-                      double doppler_uncertainty, double pfa, double pd)
+                      double doppler_uncertainty, double pfa, double pd,
+                      int noise_mode)
 {
   return burst_capture_create_impl (NULL, acq_code, acq_code_len, burst_len,
                                     reps, spc, chip_rate, cn0_dbhz,
-                                    doppler_uncertainty, pfa, pd);
+                                    doppler_uncertainty, pfa, pd, noise_mode);
 }
 
 burst_capture_state_t *
@@ -192,13 +199,13 @@ burst_capture_create_backed (const char *path, const uint8_t *acq_code,
                              size_t acq_code_len, size_t burst_len,
                              size_t reps, size_t spc, double chip_rate,
                              double cn0_dbhz, double doppler_uncertainty,
-                             double pfa, double pd)
+                             double pfa, double pd, int noise_mode)
 {
   if (!path || !*path)
     return NULL;
   return burst_capture_create_impl (path, acq_code, acq_code_len, burst_len,
                                     reps, spc, chip_rate, cn0_dbhz,
-                                    doppler_uncertainty, pfa, pd);
+                                    doppler_uncertainty, pfa, pd, noise_mode);
 }
 
 void
@@ -830,6 +837,60 @@ uint64_t
 burst_capture_get_n_bursts (const burst_capture_state_t *state)
 {
   return state->n_bursts;
+}
+
+/* ── The search, as numbers ──────────────────────────────────────────────
+ *
+ * Forwarded rather than duplicated: every one is the engine's own figure,
+ * and re-deriving any of them here would be a second copy of the sizing that
+ * the engine already did. */
+
+double
+burst_capture_get_eta (const burst_capture_state_t *state)
+{
+  return state->acq->engine->eta;
+}
+
+double
+burst_capture_get_eta_nc (const burst_capture_state_t *state)
+{
+  return state->acq->engine->eta_nc;
+}
+
+double
+burst_capture_get_straddle_loss (const burst_capture_state_t *state)
+{
+  return state->acq->engine->straddle_loss;
+}
+
+double
+burst_capture_get_pd_predicted (const burst_capture_state_t *state)
+{
+  return state->acq->engine->pd_predicted;
+}
+
+size_t
+burst_capture_get_doppler_bins (const burst_capture_state_t *state)
+{
+  return state->acq->engine->coherent_bins;
+}
+
+size_t
+burst_capture_get_n_noncoh (const burst_capture_state_t *state)
+{
+  return state->acq->engine->n_noncoh;
+}
+
+size_t
+burst_capture_get_code_bins (const burst_capture_state_t *state)
+{
+  return state->acq->engine->code_bins;
+}
+
+double
+burst_capture_get_doppler_span_hz (const burst_capture_state_t *state)
+{
+  return state->acq->engine->doppler_span_hz;
 }
 
 /* ── Serializable state ──────────────────────────────────────────────── */

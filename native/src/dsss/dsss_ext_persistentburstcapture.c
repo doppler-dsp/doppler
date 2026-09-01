@@ -41,9 +41,9 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
                                 PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "path", "acq_code",  "burst_len", "reps",
-          "spc",  "chip_rate", "cn0_dbhz",  "doppler_uncertainty",
-          "pfa",  "pd",        NULL };
+      = { "path", "acq_code",  "burst_len",  "reps",
+          "spc",  "chip_rate", "cn0_dbhz",   "doppler_uncertainty",
+          "pfa",  "pd",        "noise_mode", NULL };
   PyObject          *acq_code_obj        = NULL;
   PyObject          *path                = NULL; /* fspath -> bytes */
   unsigned long long burst_len_raw       = 8192;
@@ -54,18 +54,37 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
+  const char        *noise_mode_str      = "mean";
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O&O|KKKddddd", kwlist, PyUnicode_FSConverter, &path,
+          args, kwds, "O&O|KKKddddds", kwlist, PyUnicode_FSConverter, &path,
           &acq_code_obj, &burst_len_raw, &reps_raw, &spc_raw, &chip_rate,
-          &cn0_dbhz, &doppler_uncertainty, &pfa, &pd))
+          &cn0_dbhz, &doppler_uncertainty, &pfa, &pd, &noise_mode_str))
     {
       Py_XDECREF (path);
       return -1;
     }
-  size_t         burst_len    = (size_t)burst_len_raw;
-  size_t         reps         = (size_t)reps_raw;
-  size_t         spc          = (size_t)spc_raw;
+  size_t burst_len  = (size_t)burst_len_raw;
+  size_t reps       = (size_t)reps_raw;
+  size_t spc        = (size_t)spc_raw;
+  int    noise_mode = 0;
+  if (strcmp (noise_mode_str, "mean") == 0)
+    noise_mode = 0;
+  else if (strcmp (noise_mode_str, "median") == 0)
+    noise_mode = 1;
+  else if (strcmp (noise_mode_str, "min") == 0)
+    noise_mode = 2;
+  else if (strcmp (noise_mode_str, "max") == 0)
+    noise_mode = 3;
+  else
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "noise_mode must be one of \"mean\", \"median\", \"min\", "
+                    "\"max\", got '%s'",
+                    noise_mode_str);
+      Py_XDECREF (path);
+      return -1;
+    }
   PyArrayObject *acq_code_arr = (PyArrayObject *)PyArray_FROM_OTF (
       acq_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!acq_code_arr)
@@ -77,7 +96,7 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
   self->handle        = burst_capture_create_backed (
       PyBytes_AS_STRING (path), (const uint8_t *)PyArray_DATA (acq_code_arr),
       acq_code_len, burst_len, reps, spc, chip_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd);
+      doppler_uncertainty, pfa, pd, noise_mode);
   Py_XDECREF (path);
   Py_DECREF (acq_code_arr);
   if (!self->handle)
@@ -606,6 +625,116 @@ PersistentBurstCapture_getprop_retain_span (PersistentBurstCaptureObject *self,
       (unsigned long long)self->handle->retain_span);
 }
 static PyObject *
+PersistentBurstCapture_getprop_underpowered (
+    PersistentBurstCaptureObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong ((long)(self->handle->underpowered));
+}
+static PyObject *
+PersistentBurstCapture_getprop_pd_predicted (
+    PersistentBurstCaptureObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_pd_predicted (self->handle));
+}
+static PyObject *
+PersistentBurstCapture_getprop_eta (PersistentBurstCaptureObject *self,
+                                    void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_eta (self->handle));
+}
+static PyObject *
+PersistentBurstCapture_getprop_eta_nc (PersistentBurstCaptureObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_eta_nc (self->handle));
+}
+static PyObject *
+PersistentBurstCapture_getprop_straddle_loss (
+    PersistentBurstCaptureObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_straddle_loss (self->handle));
+}
+static PyObject *
+PersistentBurstCapture_getprop_doppler_bins (
+    PersistentBurstCaptureObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)burst_capture_get_doppler_bins (self->handle));
+}
+static PyObject *
+PersistentBurstCapture_getprop_n_noncoh (PersistentBurstCaptureObject *self,
+                                         void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)burst_capture_get_n_noncoh (self->handle));
+}
+static PyObject *
+PersistentBurstCapture_getprop_code_bins (PersistentBurstCaptureObject *self,
+                                          void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)burst_capture_get_code_bins (self->handle));
+}
+static PyObject *
+PersistentBurstCapture_getprop_doppler_span_hz (
+    PersistentBurstCaptureObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_doppler_span_hz (self->handle));
+}
+static PyObject *
 PersistentBurstCapture_getprop_pending (PersistentBurstCaptureObject *self,
                                         void *Py_UNUSED (closure))
 {
@@ -711,6 +840,54 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "see the samples it needs. Feed at least this many more, or the last "
     "burst of\n"
     "a capture never comes out.\n",
+    NULL },
+  { "underpowered", (getter)PersistentBurstCapture_getprop_underpowered, NULL,
+    "True when the search cannot meet the requested `pd` at this `cn0_dbhz` "
+    "and geometry — `pd_predicted < pd`. The grid is still built, "
+    "best-effort, so the symptom is bursts that are never captured rather "
+    "than a failure. Construction also emits a UserWarning; this is the same "
+    "fact as a value, for a caller that would rather ask than catch.\n",
+    NULL },
+  { "pd_predicted", (getter)PersistentBurstCapture_getprop_pd_predicted, NULL,
+    "Detection probability the sized grid actually predicts at `cn0_dbhz`. "
+    "The number behind `underpowered`, and the one to compare against the "
+    "`pd` that was asked for.\n",
+    NULL },
+  { "eta", (getter)PersistentBurstCapture_getprop_eta, NULL,
+    "Coherent detection gate: the normalised statistic a single-look decision "
+    "must clear, from `pfa` spread across the search surface. In force when "
+    "`n_noncoh == 1`.\n",
+    NULL },
+  { "eta_nc", (getter)PersistentBurstCapture_getprop_eta_nc, NULL,
+    "Non-coherent detection gate — the one in force when `n_noncoh > 1`, "
+    "which is the usual case. Higher than `eta` for the same `pfa`, because "
+    "combining looks costs the threshold what it buys in sensitivity.\n",
+    NULL },
+  { "straddle_loss", (getter)PersistentBurstCapture_getprop_straddle_loss,
+    NULL,
+    "Correlation kept, worst case, by a burst landing BETWEEN grid points "
+    "rather than on one. The search is a finite grid in Doppler and code "
+    "phase, so a real burst almost never sits on a hypothesis exactly; this "
+    "is what that costs, and it is already priced into `pd_predicted`.\n",
+    NULL },
+  { "doppler_bins", (getter)PersistentBurstCapture_getprop_doppler_bins, NULL,
+    "Doppler hypotheses searched — the coherent depth the sizer chose, "
+    "bounded by `reps`. `configure_search_raw` is what pins it.\n",
+    NULL },
+  { "n_noncoh", (getter)PersistentBurstCapture_getprop_n_noncoh, NULL,
+    "Non-coherent looks combined per decision. Above 1 the object needs that "
+    "many frames before it can decide at all, which is why a caller sweeping "
+    "in short dwells has to pin it.\n",
+    NULL },
+  { "code_bins", (getter)PersistentBurstCapture_getprop_code_bins, NULL,
+    "Code-phase hypotheses per Doppler row: one segment in samples, `sf * "
+    "spc`.\n",
+    NULL },
+  { "doppler_span_hz", (getter)PersistentBurstCapture_getprop_doppler_span_hz,
+    NULL,
+    "Unambiguous Doppler half-range, ± this. Beyond it the per-segment "
+    "integrate-and-dump's sinc rolloff suppresses the correlation, so a burst "
+    "outside the span is not merely harder to find — it is nulled.\n",
     NULL },
   { "pending", (getter)PersistentBurstCapture_getprop_pending, NULL,
     "Detections held because their burst window has NOT fully arrived.\n"
@@ -1050,48 +1227,52 @@ static PyTypeObject PersistentBurstCaptureObjType = {
   .tp_basicsize = sizeof (PersistentBurstCaptureObject),
   .tp_dealloc   = (destructor)PersistentBurstCaptureObj_dealloc,
   .tp_flags     = Py_TPFLAGS_DEFAULT,
-  .tp_doc       = "Create a capture whose look-back lives in a FILE.\n"
-                  "\n"
-                  "Parameters\n"
-                  "----------\n"
-                  "path : str | os.PathLike\n"
-                  "    File to back the ring with. Must not be NULL or empty.\n"
-                  "acq_code : NDArray[np.uint8]\n"
-                  "    Preamble PN chips (0/1), length acq_code_len.\n"
-                  "burst_len : int, default 8192\n"
-                  "    Samples in one burst -- what gets captured.\n"
-                  "reps : int, default 5\n"
-                  "    Preamble code repetitions.\n"
-                  "spc : int, default 4\n"
-                  "    Samples per chip.\n"
-                  "chip_rate : float, default 1000000.0\n"
-                  "    Chip rate, Hz.\n"
-                  "cn0_dbhz : float, default 50.0\n"
-                  "    C/N0 the search is sized for, dB-Hz.\n"
-                  "doppler_uncertainty : float, default 0.0\n"
-                  "    Doppler search half-range, Hz (0 = native).\n"
-                  "pfa : float, default 1e-3\n"
-                  "    Target false-alarm probability, in (0, 1).\n"
-                  "pd : float, default 0.9\n"
-                  "    Target detection probability, in (0, 1).\n"
-                  "\n"
-                  "Examples\n"
-                  "--------\n"
-                  ">>> import numpy as np, tempfile, os\n"
-                  ">>> from doppler.dsss import PersistentBurstCapture\n"
-                  ">>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)\n"
-                  ">>> path = os.path.join(tempfile.mkdtemp(), \"ring.cf32\")\n"
-                  ">>> cap = PersistentBurstCapture(path, code, burst_len=512,\n"
-                  "...                             reps=4, spc=2)\n"
-                  ">>> _ = cap.push(np.zeros(4096, dtype=np.complex64))\n"
-                  ">>> blob = cap.get_state()\n"
-                  ">>> cap.state_bytes() < 4096      # the look-back is in the "
-                  "file, not here\n"
-                  "True\n"
-                  ">>> os.path.getsize(path) > 0\n"
-                  "True\n",
-  .tp_methods   = PersistentBurstCaptureObj_methods,
-  .tp_getset    = PersistentBurstCapture_getset,
-  .tp_new       = PersistentBurstCaptureObj_new,
-  .tp_init      = (initproc)PersistentBurstCaptureObj_init,
+  .tp_doc
+  = "Create a capture whose look-back lives in a FILE.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "path : str | os.PathLike\n"
+    "    File to back the ring with; not NULL and not empty.\n"
+    "acq_code : NDArray[np.uint8]\n"
+    "    Preamble PN chips (0/1), length acq_code_len.\n"
+    "burst_len : int, default 8192\n"
+    "    Samples in one burst -- what gets captured.\n"
+    "reps : int, default 5\n"
+    "    Preamble code repetitions.\n"
+    "spc : int, default 4\n"
+    "    Samples per chip.\n"
+    "chip_rate : float, default 1000000.0\n"
+    "    Chip rate, Hz.\n"
+    "cn0_dbhz : float, default 50.0\n"
+    "    C/N0 the search is sized for, dB-Hz.\n"
+    "doppler_uncertainty : float, default 0.0\n"
+    "    Doppler search half-range, Hz (0 = native).\n"
+    "pfa : float, default 1e-3\n"
+    "    Target false-alarm probability, in (0, 1).\n"
+    "pd : float, default 0.9\n"
+    "    Target detection probability, in (0, 1).\n"
+    "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
+    "\"mean\"\n"
+    "    CFAR reference: 0=mean, 1=median, 2=min, 3=max.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np, tempfile, os\n"
+    ">>> from doppler.dsss import BurstCapture, PersistentBurstCapture\n"
+    ">>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)\n"
+    ">>> path = os.path.join(tempfile.mkdtemp(), \"ring.cf32\")\n"
+    ">>> cap = PersistentBurstCapture(path, code, burst_len=512,\n"
+    "...                             reps=4, spc=2)\n"
+    ">>> ram = BurstCapture(code, burst_len=512, reps=4, spc=2)\n"
+    ">>> _ = cap.push(np.zeros(4096, dtype=np.complex64))\n"
+    ">>> # the look-back is in the file, so the blob stops carrying it\n"
+    ">>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8\n"
+    "True\n"
+    ">>> os.path.getsize(path) > 0\n"
+    "True\n",
+  .tp_methods = PersistentBurstCaptureObj_methods,
+  .tp_getset  = PersistentBurstCapture_getset,
+  .tp_new     = PersistentBurstCaptureObj_new,
+  .tp_init    = (initproc)PersistentBurstCaptureObj_init,
 };

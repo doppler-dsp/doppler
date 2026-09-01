@@ -2273,6 +2273,8 @@ class BurstCapture:
         Target false-alarm probability, in (0, 1).
     pd : float, default 0.9
         Target detection probability, in (0, 1).
+    noise_mode : Literal["mean", "median", "min", "max"], default "mean"
+        CFAR reference: 0=mean, 1=median, 2=min, 3=max.
 
     Raises
     ------
@@ -2280,6 +2282,15 @@ class BurstCapture:
         If construction fails. The exception message is ``BurstCapture: invalid
         parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0,
         burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)``.
+
+    Warns
+    -----
+    UserWarning
+        Emitted after construction when ``underpowered`` holds: ``BurstCapture:
+        the search cannot meet the requested pd at this cn0_dbhz and geometry
+        (pd_predicted < pd). It still builds a best-effort grid, so the symptom
+        is bursts that are never captured rather than an error. Lower pd, raise
+        cn0_dbhz, or give the preamble more repetitions.``.
 
     Examples
     --------
@@ -2304,6 +2315,7 @@ class BurstCapture:
         doppler_uncertainty: float = ...,
         pfa: float = ...,
         pd: float = ...,
+        noise_mode: Literal["mean", "median", "min", "max"] = "mean",
     ) -> None: ...
 
     def push(
@@ -2610,6 +2622,70 @@ class BurstCapture:
         """
 
     @property
+    def underpowered(self) -> bool:
+        """True when the search cannot meet the requested `pd` at this
+        `cn0_dbhz` and geometry — `pd_predicted < pd`. The grid is still built,
+        best-effort, so the symptom is bursts that are never captured rather
+        than a failure. Construction also emits a UserWarning; this is the same
+        fact as a value, for a caller that would rather ask than catch.
+        """
+
+    @property
+    def pd_predicted(self) -> float:
+        """Detection probability the sized grid actually predicts at
+        `cn0_dbhz`. The number behind `underpowered`, and the one to compare
+        against the `pd` that was asked for.
+        """
+
+    @property
+    def eta(self) -> float:
+        """Coherent detection gate: the normalised statistic a single-look
+        decision must clear, from `pfa` spread across the search surface. In
+        force when `n_noncoh == 1`.
+        """
+
+    @property
+    def eta_nc(self) -> float:
+        """Non-coherent detection gate — the one in force when `n_noncoh > 1`,
+        which is the usual case. Higher than `eta` for the same `pfa`, because
+        combining looks costs the threshold what it buys in sensitivity.
+        """
+
+    @property
+    def straddle_loss(self) -> float:
+        """Correlation kept, worst case, by a burst landing BETWEEN grid points
+        rather than on one. The search is a finite grid in Doppler and code
+        phase, so a real burst almost never sits on a hypothesis exactly; this
+        is what that costs, and it is already priced into `pd_predicted`.
+        """
+
+    @property
+    def doppler_bins(self) -> int:
+        """Doppler hypotheses searched — the coherent depth the sizer chose,
+        bounded by `reps`. `configure_search_raw` is what pins it.
+        """
+
+    @property
+    def n_noncoh(self) -> int:
+        """Non-coherent looks combined per decision. Above 1 the object needs
+        that many frames before it can decide at all, which is why a caller
+        sweeping in short dwells has to pin it.
+        """
+
+    @property
+    def code_bins(self) -> int:
+        """Code-phase hypotheses per Doppler row: one segment in samples, `sf *
+        spc`.
+        """
+
+    @property
+    def doppler_span_hz(self) -> float:
+        """Unambiguous Doppler half-range, ± this. Beyond it the per-segment
+        integrate-and-dump's sinc rolloff suppresses the correlation, so a
+        burst outside the span is not merely harder to find — it is nulled.
+        """
+
+    @property
     def pending(self) -> int:
         """Detections held because their burst window has NOT fully arrived.
         push() deliberately emits nothing for these: a window is returned when
@@ -2702,6 +2778,8 @@ class PersistentBurstCapture:
         Target false-alarm probability, in (0, 1).
     pd : float, default 0.9
         Target detection probability, in (0, 1).
+    noise_mode : Literal["mean", "median", "min", "max"], default "mean"
+        CFAR reference: 0=mean, 1=median, 2=min, 3=max.
 
     Raises
     ------
@@ -2709,6 +2787,15 @@ class PersistentBurstCapture:
         If construction fails. The exception message is ``BurstCapture: invalid
         parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0,
         burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)``.
+
+    Warns
+    -----
+    UserWarning
+        Emitted after construction when ``underpowered`` holds: ``BurstCapture:
+        the search cannot meet the requested pd at this cn0_dbhz and geometry
+        (pd_predicted < pd). It still builds a best-effort grid, so the symptom
+        is bursts that are never captured rather than an error. Lower pd, raise
+        cn0_dbhz, or give the preamble more repetitions.``.
 
     Examples
     --------
@@ -2739,6 +2826,7 @@ class PersistentBurstCapture:
         doppler_uncertainty: float = ...,
         pfa: float = ...,
         pd: float = ...,
+        noise_mode: Literal["mean", "median", "min", "max"] = "mean",
     ) -> None: ...
 
     def push(
@@ -3045,6 +3133,70 @@ class PersistentBurstCapture:
         of what has been pushed is held rather than emitted, because refine
         cannot yet see the samples it needs. Feed at least this many more, or
         the last burst of a capture never comes out.
+        """
+
+    @property
+    def underpowered(self) -> bool:
+        """True when the search cannot meet the requested `pd` at this
+        `cn0_dbhz` and geometry — `pd_predicted < pd`. The grid is still built,
+        best-effort, so the symptom is bursts that are never captured rather
+        than a failure. Construction also emits a UserWarning; this is the same
+        fact as a value, for a caller that would rather ask than catch.
+        """
+
+    @property
+    def pd_predicted(self) -> float:
+        """Detection probability the sized grid actually predicts at
+        `cn0_dbhz`. The number behind `underpowered`, and the one to compare
+        against the `pd` that was asked for.
+        """
+
+    @property
+    def eta(self) -> float:
+        """Coherent detection gate: the normalised statistic a single-look
+        decision must clear, from `pfa` spread across the search surface. In
+        force when `n_noncoh == 1`.
+        """
+
+    @property
+    def eta_nc(self) -> float:
+        """Non-coherent detection gate — the one in force when `n_noncoh > 1`,
+        which is the usual case. Higher than `eta` for the same `pfa`, because
+        combining looks costs the threshold what it buys in sensitivity.
+        """
+
+    @property
+    def straddle_loss(self) -> float:
+        """Correlation kept, worst case, by a burst landing BETWEEN grid points
+        rather than on one. The search is a finite grid in Doppler and code
+        phase, so a real burst almost never sits on a hypothesis exactly; this
+        is what that costs, and it is already priced into `pd_predicted`.
+        """
+
+    @property
+    def doppler_bins(self) -> int:
+        """Doppler hypotheses searched — the coherent depth the sizer chose,
+        bounded by `reps`. `configure_search_raw` is what pins it.
+        """
+
+    @property
+    def n_noncoh(self) -> int:
+        """Non-coherent looks combined per decision. Above 1 the object needs
+        that many frames before it can decide at all, which is why a caller
+        sweeping in short dwells has to pin it.
+        """
+
+    @property
+    def code_bins(self) -> int:
+        """Code-phase hypotheses per Doppler row: one segment in samples, `sf *
+        spc`.
+        """
+
+    @property
+    def doppler_span_hz(self) -> float:
+        """Unambiguous Doppler half-range, ± this. Beyond it the per-segment
+        integrate-and-dump's sinc rolloff suppresses the correlation, so a
+        burst outside the span is not merely harder to find — it is nulled.
         """
 
     @property

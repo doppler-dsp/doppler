@@ -116,6 +116,13 @@ typedef struct
   /* ── Persistence (docs/design/burst-capture.md §9) ───────────────────── */
   int backed;   
   int recovered; 
+  /* ── Diagnostics ────────────────────────────────────────────────────
+   * Mirrored from the engine at create() rather than read through it on
+   * demand, because jm's declared warning needs a bare bool field on THIS
+   * struct -- the reason the sibling BurstAcquisition's copy of the same
+   * warning has to be a hand-patch in its fragment (see the note at the top
+   * of objects/burst_acq.toml). */
+  int underpowered; 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
   uint64_t dropped;  
   uint64_t n_bursts; 
@@ -128,14 +135,15 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
                                              size_t spc, double chip_rate,
                                              double cn0_dbhz,
                                              double doppler_uncertainty,
-                                             double pfa, double pd);
+                                             double pfa, double pd,
+                                             int noise_mode);
 
 burst_capture_state_t *
 burst_capture_create_backed (const char *path, const uint8_t *acq_code,
                              size_t acq_code_len, size_t burst_len,
                              size_t reps, size_t spc, double chip_rate,
                              double cn0_dbhz, double doppler_uncertainty,
-                             double pfa, double pd);
+                             double pfa, double pd, int noise_mode);
 
 void burst_capture_destroy (burst_capture_state_t *state);
 
@@ -166,6 +174,26 @@ int burst_capture_configure_search_raw (burst_capture_state_t *state,
                                         size_t n_noncoh);
 
 /* ── Serializable state — the elastic / pure-transducer face ──────────── */
+
+/* ── The search this capture will do, as numbers ──────────────────────
+ *
+ * A capture is only as good as the search under it, and a caller sizing a
+ * link needs to see that search rather than infer it. These forward the
+ * engine's own figures: what a detection must clear, how deep the sizer
+ * went, and how wide in Doppler and code phase it will look.
+ *
+ * They are read-backs, not knobs -- every one is derived at create() from
+ * the parameters above, and `configure_search_raw()` is the one call that
+ * moves them. */
+
+double burst_capture_get_eta (const burst_capture_state_t *state);
+double burst_capture_get_eta_nc (const burst_capture_state_t *state);
+double burst_capture_get_straddle_loss (const burst_capture_state_t *state);
+double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
+size_t burst_capture_get_doppler_bins (const burst_capture_state_t *state);
+size_t burst_capture_get_n_noncoh (const burst_capture_state_t *state);
+size_t burst_capture_get_code_bins (const burst_capture_state_t *state);
+double burst_capture_get_doppler_span_hz (const burst_capture_state_t *state);
 
 size_t burst_capture_state_bytes (const burst_capture_state_t *state);
 void burst_capture_get_state (const burst_capture_state_t *state, void *blob);

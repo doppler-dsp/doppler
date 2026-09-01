@@ -121,7 +121,7 @@ static burst_capture_state_t *
 make (void)
 {
   return burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
-                               1.0e6, 55.0, 0.0, 1e-3, 0.9);
+                               1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
 }
 
 /* ── The constructor ─────────────────────────────────────────────────── */
@@ -136,7 +136,7 @@ test_create_copies_and_derives (void)
   for (size_t i = 0; i < ACQ_SF; i++)
     code[i] = (uint8_t)(i & 1u);
   burst_capture_state_t *s = burst_capture_create (
-      code, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+      code, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
   DP_REQUIRE (s != NULL);
 
   DP_CHECK (s->acq_code != code);
@@ -162,8 +162,9 @@ test_create_copies_and_derives (void)
      actually says is that the depth MOVES with the geometry, so the test is
      two objects whose burst_len differs by an order of magnitude. */
   {
-    burst_capture_state_t *big = burst_capture_create (
-        code, ACQ_SF, 20u * BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+    burst_capture_state_t *big
+        = burst_capture_create (code, ACQ_SF, 20u * BURST_LEN, REPS, SPC,
+                                1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
     DP_REQUIRE (big != NULL);
     DP_CHECK (big->q_cap > s->q_cap);
     DP_CHECK (s->q_cap >= 8u); /* ...and the floor still holds */
@@ -181,33 +182,33 @@ test_create_rejects_bad_parameters (void)
 {
   const uint8_t *c = acq_code ();
   DP_CHECK (burst_capture_create (NULL, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
-                                  55.0, 0.0, 1e-3, 0.9)
+                                  55.0, 0.0, 1e-3, 0.9, 0)
             == NULL);
   DP_CHECK (burst_capture_create (c, 0, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0,
-                                  1e-3, 0.9)
+                                  1e-3, 0.9, 0)
             == NULL);
   /* burst_len is the parameter this object exists to take; zero of it is not
      a capture. */
   DP_CHECK (burst_capture_create (c, ACQ_SF, 0, REPS, SPC, 1.0e6, 55.0, 0.0,
-                                  1e-3, 0.9)
+                                  1e-3, 0.9, 0)
             == NULL);
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, 0, SPC, 1.0e6, 55.0,
-                                  0.0, 1e-3, 0.9)
+                                  0.0, 1e-3, 0.9, 0)
             == NULL);
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, 0, 1.0e6, 55.0,
-                                  0.0, 1e-3, 0.9)
+                                  0.0, 1e-3, 0.9, 0)
             == NULL);
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 0.0, 55.0,
-                                  0.0, 1e-3, 0.9)
+                                  0.0, 1e-3, 0.9, 0)
             == NULL);
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 0.0,
-                                  0.0, 1e-3, 0.9)
+                                  0.0, 1e-3, 0.9, 0)
             == NULL);
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0,
-                                  0.0, 0.0, 0.9)
+                                  0.0, 0.0, 0.9, 0)
             == NULL);
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0,
-                                  0.0, 1e-3, 1.0)
+                                  0.0, 1e-3, 1.0, 0)
             == NULL);
   return 0;
 }
@@ -843,9 +844,9 @@ test_backed_finds_the_same_burst_with_a_smaller_blob (void)
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
   burst_capture_state_t *ram = make ();
-  burst_capture_state_t *dsk
-      = burst_capture_create_backed (path, acq_code (), ACQ_SF, BURST_LEN,
-                                     REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+  burst_capture_state_t *dsk = burst_capture_create_backed (
+      path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
+      0.9, 0);
   DP_REQUIRE (ram != NULL && dsk != NULL);
   DP_CHECK (dsk->backed == 1);
   DP_CHECK (ram->backed == 0);
@@ -906,9 +907,9 @@ test_history_survives_destroying_the_capture (void)
   void                *blob = NULL;
   size_t               cb   = 0;
   {
-    burst_capture_state_t *a
-        = burst_capture_create_backed (path, acq_code (), ACQ_SF, BURST_LEN,
-                                       REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+    burst_capture_state_t *a = burst_capture_create_backed (
+        path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0,
+        1e-3, 0.9, 0);
     DP_REQUIRE (a != NULL);
     DP_CHECK (a->recovered == 0); /* the file did not exist yet */
     DP_CHECK (burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out)
@@ -920,9 +921,9 @@ test_history_survives_destroying_the_capture (void)
     burst_capture_destroy (a); /* the ring's memory is gone with it */
   }
 
-  burst_capture_state_t *b
-      = burst_capture_create_backed (path, acq_code (), ACQ_SF, BURST_LEN,
-                                     REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+  burst_capture_state_t *b = burst_capture_create_backed (
+      path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
+      0.9, 0);
   DP_REQUIRE (b != NULL);
   /* The file was adopted rather than re-made, which is what carries the
      samples across. */
@@ -963,7 +964,7 @@ test_a_blob_without_its_file_is_refused (void)
 
   burst_capture_state_t *a
       = burst_capture_create_backed (src, acq_code (), ACQ_SF, BURST_LEN, REPS,
-                                     SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+                                     SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
   DP_REQUIRE (a != NULL);
   static float complex out[4 * BURST_LEN];
   burst_capture_push (a, cap, at + 2u * ACQ_SF * SPC, out,
@@ -979,7 +980,7 @@ test_a_blob_without_its_file_is_refused (void)
 
   burst_capture_state_t *b
       = burst_capture_create_backed (dst, acq_code (), ACQ_SF, BURST_LEN, REPS,
-                                     SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+                                     SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
   DP_REQUIRE (b != NULL);
   DP_CHECK (b->recovered == 0);
   DP_CHECK (burst_capture_set_state (b, blob) == DP_ERR_INVALID);
@@ -998,15 +999,15 @@ test_backed_rejects_a_bad_path (void)
 {
   DP_CHECK (burst_capture_create_backed (NULL, acq_code (), ACQ_SF, BURST_LEN,
                                          REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
-                                         0.9)
+                                         0.9, 0)
             == NULL);
   DP_CHECK (burst_capture_create_backed ("", acq_code (), ACQ_SF, BURST_LEN,
                                          REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
-                                         0.9)
+                                         0.9, 0)
             == NULL);
   DP_CHECK (burst_capture_create_backed ("/nonexistent-dir-dp/ring.cf32",
                                          acq_code (), ACQ_SF, BURST_LEN, REPS,
-                                         SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9)
+                                         SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0)
             == NULL);
   return 0;
 }

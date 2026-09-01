@@ -38,7 +38,8 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
       = { "acq_code", "burst_len",           "reps", "spc", "chip_rate",
-          "cn0_dbhz", "doppler_uncertainty", "pfa",  "pd",  NULL };
+          "cn0_dbhz", "doppler_uncertainty", "pfa",  "pd",  "noise_mode",
+          NULL };
   PyObject          *acq_code_obj        = NULL;
   unsigned long long burst_len_raw       = 8192;
   unsigned long long reps_raw            = 5;
@@ -48,15 +49,33 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
+  const char        *noise_mode_str      = "mean";
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKKddddd", kwlist,
-                                    &acq_code_obj, &burst_len_raw, &reps_raw,
-                                    &spc_raw, &chip_rate, &cn0_dbhz,
-                                    &doppler_uncertainty, &pfa, &pd))
+  if (!PyArg_ParseTupleAndKeywords (
+          args, kwds, "O|KKKddddds", kwlist, &acq_code_obj, &burst_len_raw,
+          &reps_raw, &spc_raw, &chip_rate, &cn0_dbhz, &doppler_uncertainty,
+          &pfa, &pd, &noise_mode_str))
     return -1;
-  size_t         burst_len    = (size_t)burst_len_raw;
-  size_t         reps         = (size_t)reps_raw;
-  size_t         spc          = (size_t)spc_raw;
+  size_t burst_len  = (size_t)burst_len_raw;
+  size_t reps       = (size_t)reps_raw;
+  size_t spc        = (size_t)spc_raw;
+  int    noise_mode = 0;
+  if (strcmp (noise_mode_str, "mean") == 0)
+    noise_mode = 0;
+  else if (strcmp (noise_mode_str, "median") == 0)
+    noise_mode = 1;
+  else if (strcmp (noise_mode_str, "min") == 0)
+    noise_mode = 2;
+  else if (strcmp (noise_mode_str, "max") == 0)
+    noise_mode = 3;
+  else
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "noise_mode must be one of \"mean\", \"median\", \"min\", "
+                    "\"max\", got '%s'",
+                    noise_mode_str);
+      return -1;
+    }
   PyArrayObject *acq_code_arr = (PyArrayObject *)PyArray_FROM_OTF (
       acq_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!acq_code_arr)
@@ -66,7 +85,8 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
   size_t acq_code_len = (size_t)PyArray_SIZE (acq_code_arr);
   self->handle        = burst_capture_create (
       (const uint8_t *)PyArray_DATA (acq_code_arr), acq_code_len, burst_len,
-      reps, spc, chip_rate, cn0_dbhz, doppler_uncertainty, pfa, pd);
+      reps, spc, chip_rate, cn0_dbhz, doppler_uncertainty, pfa, pd,
+      noise_mode);
   Py_DECREF (acq_code_arr);
   if (!self->handle)
     {
@@ -76,6 +96,19 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
                        "burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < "
                        "1)");
       return -1;
+    }
+  if (self->handle->underpowered)
+    {
+      if (PyErr_WarnEx (PyExc_UserWarning,
+                        "BurstCapture: the search cannot meet the requested "
+                        "pd at this cn0_dbhz and geometry (pd_predicted < "
+                        "pd). It still builds a best-effort grid, so the "
+                        "symptom is bursts that are never captured rather "
+                        "than an error. Lower pd, raise cn0_dbhz, or give "
+                        "the preamble more repetitions.",
+                        1)
+          < 0)
+        return -1;
     }
   return 0;
 }
@@ -589,6 +622,115 @@ BurstCapture_getprop_retain_span (BurstCaptureObject *self,
       (unsigned long long)self->handle->retain_span);
 }
 static PyObject *
+BurstCapture_getprop_underpowered (BurstCaptureObject *self,
+                                   void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong ((long)(self->handle->underpowered));
+}
+static PyObject *
+BurstCapture_getprop_pd_predicted (BurstCaptureObject *self,
+                                   void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_pd_predicted (self->handle));
+}
+static PyObject *
+BurstCapture_getprop_eta (BurstCaptureObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_eta (self->handle));
+}
+static PyObject *
+BurstCapture_getprop_eta_nc (BurstCaptureObject *self,
+                             void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_eta_nc (self->handle));
+}
+static PyObject *
+BurstCapture_getprop_straddle_loss (BurstCaptureObject *self,
+                                    void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_straddle_loss (self->handle));
+}
+static PyObject *
+BurstCapture_getprop_doppler_bins (BurstCaptureObject *self,
+                                   void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)burst_capture_get_doppler_bins (self->handle));
+}
+static PyObject *
+BurstCapture_getprop_n_noncoh (BurstCaptureObject *self,
+                               void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)burst_capture_get_n_noncoh (self->handle));
+}
+static PyObject *
+BurstCapture_getprop_code_bins (BurstCaptureObject *self,
+                                void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)burst_capture_get_code_bins (self->handle));
+}
+static PyObject *
+BurstCapture_getprop_doppler_span_hz (BurstCaptureObject *self,
+                                      void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_doppler_span_hz (self->handle));
+}
+static PyObject *
 BurstCapture_getprop_pending (BurstCaptureObject *self,
                               void               *Py_UNUSED (closure))
 {
@@ -690,6 +832,52 @@ static PyGetSetDef BurstCapture_getset[] = {
     "see the samples it needs. Feed at least this many more, or the last "
     "burst of\n"
     "a capture never comes out.\n",
+    NULL },
+  { "underpowered", (getter)BurstCapture_getprop_underpowered, NULL,
+    "True when the search cannot meet the requested `pd` at this `cn0_dbhz` "
+    "and geometry — `pd_predicted < pd`. The grid is still built, "
+    "best-effort, so the symptom is bursts that are never captured rather "
+    "than a failure. Construction also emits a UserWarning; this is the same "
+    "fact as a value, for a caller that would rather ask than catch.\n",
+    NULL },
+  { "pd_predicted", (getter)BurstCapture_getprop_pd_predicted, NULL,
+    "Detection probability the sized grid actually predicts at `cn0_dbhz`. "
+    "The number behind `underpowered`, and the one to compare against the "
+    "`pd` that was asked for.\n",
+    NULL },
+  { "eta", (getter)BurstCapture_getprop_eta, NULL,
+    "Coherent detection gate: the normalised statistic a single-look decision "
+    "must clear, from `pfa` spread across the search surface. In force when "
+    "`n_noncoh == 1`.\n",
+    NULL },
+  { "eta_nc", (getter)BurstCapture_getprop_eta_nc, NULL,
+    "Non-coherent detection gate — the one in force when `n_noncoh > 1`, "
+    "which is the usual case. Higher than `eta` for the same `pfa`, because "
+    "combining looks costs the threshold what it buys in sensitivity.\n",
+    NULL },
+  { "straddle_loss", (getter)BurstCapture_getprop_straddle_loss, NULL,
+    "Correlation kept, worst case, by a burst landing BETWEEN grid points "
+    "rather than on one. The search is a finite grid in Doppler and code "
+    "phase, so a real burst almost never sits on a hypothesis exactly; this "
+    "is what that costs, and it is already priced into `pd_predicted`.\n",
+    NULL },
+  { "doppler_bins", (getter)BurstCapture_getprop_doppler_bins, NULL,
+    "Doppler hypotheses searched — the coherent depth the sizer chose, "
+    "bounded by `reps`. `configure_search_raw` is what pins it.\n",
+    NULL },
+  { "n_noncoh", (getter)BurstCapture_getprop_n_noncoh, NULL,
+    "Non-coherent looks combined per decision. Above 1 the object needs that "
+    "many frames before it can decide at all, which is why a caller sweeping "
+    "in short dwells has to pin it.\n",
+    NULL },
+  { "code_bins", (getter)BurstCapture_getprop_code_bins, NULL,
+    "Code-phase hypotheses per Doppler row: one segment in samples, `sf * "
+    "spc`.\n",
+    NULL },
+  { "doppler_span_hz", (getter)BurstCapture_getprop_doppler_span_hz, NULL,
+    "Unambiguous Doppler half-range, ± this. Beyond it the per-segment "
+    "integrate-and-dump's sinc rolloff suppresses the correlation, so a burst "
+    "outside the span is not merely harder to find — it is nulled.\n",
     NULL },
   { "pending", (getter)BurstCapture_getprop_pending, NULL,
     "Detections held because their burst window has NOT fully arrived.\n"
@@ -1046,6 +1234,9 @@ static PyTypeObject BurstCaptureObjType = {
     "    Target false-alarm probability, in (0, 1).\n"
     "pd : float, default 0.9\n"
     "    Target detection probability, in (0, 1).\n"
+    "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
+    "\"mean\"\n"
+    "    CFAR reference: 0=mean, 1=median, 2=min, 3=max.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1056,22 +1247,29 @@ static PyTypeObject BurstCaptureObjType = {
     "0,\n"
     "    burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)``.\n"
     "\n"
+    "Warns\n"
+    "-----\n"
+    "UserWarning\n"
+    "    Emitted after construction when ``underpowered`` holds: "
+    "``BurstCapture:\n"
+    "    the search cannot meet the requested pd at this cn0_dbhz and "
+    "geometry\n"
+    "    (pd_predicted < pd). It still builds a best-effort grid, so the "
+    "symptom\n"
+    "    is bursts that are never captured rather than an error. Lower pd, "
+    "raise\n"
+    "    cn0_dbhz, or give the preamble more repetitions.``.\n"
+    "\n"
     "Examples\n"
     "--------\n"
-    "Create with defaults:\n"
-    "\n"
+    ">>> import numpy as np\n"
     ">>> from doppler.dsss import BurstCapture\n"
-    ">>> obj = BurstCapture(\n"
-    "...     acq_code=np.zeros(1, dtype=np.uint8),\n"
-    "...     burst_len=8192,\n"
-    "...     reps=5,\n"
-    "...     spc=4,\n"
-    "...     chip_rate=1000000.0,\n"
-    "...     cn0_dbhz=50.0,\n"
-    "...     doppler_uncertainty=0.0,\n"
-    "...     pfa=1e-3,\n"
-    "...     pd=0.9,\n"
-    "... )\n",
+    ">>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)\n"
+    ">>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)\n"
+    ">>> cap.burst_len\n"
+    "512\n"
+    ">>> cap.retain_span == cap.refine_span + cap.burst_len\n"
+    "True\n",
   .tp_methods = BurstCaptureObj_methods,
   .tp_getset  = BurstCapture_getset,
   .tp_new     = BurstCaptureObj_new,

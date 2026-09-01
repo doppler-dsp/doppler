@@ -70,21 +70,29 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 | Type | Name |
 | ---: | :--- |
 |  int | [**burst\_capture\_configure\_search\_raw**](#function-burst_capture_configure_search_raw) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded acquisition's search grid directly._  |
-|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create**](#function-burst_capture_create) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd) <br>_Create a burst capture: acquisition, refine and retention behind one push()._  |
-|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create\_backed**](#function-burst_capture_create_backed) (const char \* path, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd) <br>_Create a capture whose look-back lives in a FILE._  |
+|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create**](#function-burst_capture_create) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst capture: acquisition, refine and retention behind one push()._  |
+|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create\_backed**](#function-burst_capture_create_backed) (const char \* path, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a capture whose look-back lives in a FILE._  |
 |  void | [**burst\_capture\_destroy**](#function-burst_capture_destroy) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Release a capture and everything it owns. NULL-safe._  |
 |  const [**burst\_capture\_event\_t**](structburst__capture__event__t.md) \* | [**burst\_capture\_event\_at**](#function-burst_capture_event_at) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t i) <br>_Borrow event_ `i` _of the last push(), or NULL if out of range._ |
 |  size\_t | [**burst\_capture\_events**](#function-burst_capture_events) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t n, [**burst\_capture\_event\_t**](structburst__capture__event__t.md) \* out, size\_t max\_out) <br>_The event record for each burst the last push() returned._  |
 |  size\_t | [**burst\_capture\_events\_max\_out**](#function-burst_capture_events_max_out) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t n) <br>_Records available from the last push()._ `n` _is ignored._ |
 |  double | [**burst\_capture\_get\_cn0\_dbhz\_est**](#function-burst_capture_get_cn0_dbhz_est) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
+|  size\_t | [**burst\_capture\_get\_code\_bins**](#function-burst_capture_get_code_bins) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Code-phase hypotheses per Doppler row._  |
+|  size\_t | [**burst\_capture\_get\_doppler\_bins**](#function-burst_capture_get_doppler_bins) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Doppler hypotheses searched (the coherent depth)._  |
 |  double | [**burst\_capture\_get\_doppler\_hz\_est**](#function-burst_capture_get_doppler_hz_est) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  double | [**burst\_capture\_get\_doppler\_res\_hz**](#function-burst_capture_get_doppler_res_hz) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
+|  double | [**burst\_capture\_get\_doppler\_span\_hz**](#function-burst_capture_get_doppler_span_hz) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Unambiguous Doppler half-range, Hz (+/- this)._  |
 |  uint64\_t | [**burst\_capture\_get\_dropped**](#function-burst_capture_get_dropped) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
+|  double | [**burst\_capture\_get\_eta**](#function-burst_capture_get_eta) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Coherent detection gate; in force when_ `n_noncoh == 1` _._ |
+|  double | [**burst\_capture\_get\_eta\_nc**](#function-burst_capture_get_eta_nc) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Non-coherent gate; in force when_ `n_noncoh > 1` _(the usual case)._ |
 |  uint64\_t | [**burst\_capture\_get\_n\_bursts**](#function-burst_capture_get_n_bursts) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
+|  size\_t | [**burst\_capture\_get\_n\_noncoh**](#function-burst_capture_get_n_noncoh) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Non-coherent looks combined per decision._  |
+|  double | [**burst\_capture\_get\_pd\_predicted**](#function-burst_capture_get_pd_predicted) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Detection probability the sized grid actually predicts._  |
 |  size\_t | [**burst\_capture\_get\_pending**](#function-burst_capture_get_pending) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  uint64\_t | [**burst\_capture\_get\_preamble\_start**](#function-burst_capture_get_preamble_start) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  double | [**burst\_capture\_get\_refine\_margin**](#function-burst_capture_get_refine_margin) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  void | [**burst\_capture\_get\_state**](#function-burst_capture_get_state) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, void \* blob) <br>_Serialize into_ `blob` _, which must be state\_bytes() long._ |
+|  double | [**burst\_capture\_get\_straddle\_loss**](#function-burst_capture_get_straddle_loss) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Correlation kept, worst case, by a burst landing between bins._  |
 |  size\_t | [**burst\_capture\_push**](#function-burst_capture_push) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Stream samples; get back every burst whose window has arrived._  |
 |  size\_t | [**burst\_capture\_push\_max\_out**](#function-burst_capture_push_max_out) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t x\_len) <br>_Upper bound on samples push() can return for_ `x_len` _input._ |
 |  size\_t | [**burst\_capture\_ready**](#function-burst_capture_ready) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Windows the last push() completed._  |
@@ -147,7 +155,7 @@ Lifecycle: create, then push() repeatedly, then destroy. There is no step()/step
 uint8_t code[31];
 for (size_t i = 0; i < 31; i++) code[i] = (uint8_t)(i & 1u);
 burst_capture_state_t *cap = burst_capture_create (
-    code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+    code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
 float complex x[2048] = { 0 };
 float complex win[4096];
 size_t n = burst_capture_push (cap, x, 2048, win, 4096);
@@ -217,7 +225,8 @@ burst_capture_state_t * burst_capture_create (
     double cn0_dbhz,
     double doppler_uncertainty,
     double pfa,
-    double pd
+    double pd,
+    int noise_mode
 ) 
 ```
 
@@ -244,6 +253,7 @@ The look-back buffer is NOT a parameter. Its span is derived from the geometry h
 * `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 
+* `noise_mode` CFAR reference: 0=mean, 1=median, 2=min, 3=max. 
 
 
 
@@ -287,7 +297,8 @@ burst_capture_state_t * burst_capture_create_backed (
     double cn0_dbhz,
     double doppler_uncertainty,
     double pfa,
-    double pd
+    double pd,
+    int noise_mode
 ) 
 ```
 
@@ -328,6 +339,7 @@ A blob from a backed capture does NOT restore into an in-RAM one, or the reverse
 * `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 
+* `noise_mode` CFAR reference: 0=mean, 1=median, 2=min, 3=max. 
 
 
 
@@ -462,6 +474,38 @@ double burst_capture_get_cn0_dbhz_est (
 
 
 
+### function burst\_capture\_get\_code\_bins 
+
+_Code-phase hypotheses per Doppler row._ 
+```C++
+size_t burst_capture_get_code_bins (
+    const burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function burst\_capture\_get\_doppler\_bins 
+
+_Doppler hypotheses searched (the coherent depth)._ 
+```C++
+size_t burst_capture_get_doppler_bins (
+    const burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function burst\_capture\_get\_doppler\_hz\_est 
 
 ```C++
@@ -492,6 +536,22 @@ double burst_capture_get_doppler_res_hz (
 
 
 
+### function burst\_capture\_get\_doppler\_span\_hz 
+
+_Unambiguous Doppler half-range, Hz (+/- this)._ 
+```C++
+double burst_capture_get_doppler_span_hz (
+    const burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function burst\_capture\_get\_dropped 
 
 ```C++
@@ -507,10 +567,74 @@ uint64_t burst_capture_get_dropped (
 
 
 
+### function burst\_capture\_get\_eta 
+
+_Coherent detection gate; in force when_ `n_noncoh == 1` _._
+```C++
+double burst_capture_get_eta (
+    const burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function burst\_capture\_get\_eta\_nc 
+
+_Non-coherent gate; in force when_ `n_noncoh > 1` _(the usual case)._
+```C++
+double burst_capture_get_eta_nc (
+    const burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function burst\_capture\_get\_n\_bursts 
 
 ```C++
 uint64_t burst_capture_get_n_bursts (
+    const burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function burst\_capture\_get\_n\_noncoh 
+
+_Non-coherent looks combined per decision._ 
+```C++
+size_t burst_capture_get_n_noncoh (
+    const burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function burst\_capture\_get\_pd\_predicted 
+
+_Detection probability the sized grid actually predicts._ 
+```C++
+double burst_capture_get_pd_predicted (
     const burst_capture_state_t * state
 ) 
 ```
@@ -574,6 +698,22 @@ _Serialize into_ `blob` _, which must be state\_bytes() long._
 void burst_capture_get_state (
     const burst_capture_state_t * state,
     void * blob
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function burst\_capture\_get\_straddle\_loss 
+
+_Correlation kept, worst case, by a burst landing between bins._ 
+```C++
+double burst_capture_get_straddle_loss (
+    const burst_capture_state_t * state
 ) 
 ```
 

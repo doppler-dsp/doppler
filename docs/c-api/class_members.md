@@ -839,7 +839,7 @@
 
 ## u
 
-* **underpowered** ([**acq\_state\_t**](structacq__state__t.md))
+* **underpowered** ([**acq\_state\_t**](structacq__state__t.md), [**burst\_capture\_state\_t**](structburst__capture__state__t.md))
 * **uncorrectable** ([**ccsds\_tm\_rs\_block\_rx\_t**](structccsds__tm__rs__block__rx__t.md))
 * **underruns** ([**dp\_sample\_clock\_t**](structdp__sample__clock__t.md))
 * **units** ([**frame\_check\_t**](structframe__check__t.md), [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md))

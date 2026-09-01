@@ -91,6 +91,8 @@ class Data:
     bytes_static: bool = False
     accessors_agree: bool = False
     grid_refused: bool = False
+    search_visible: bool = False
+    underpowered_says_so: bool = False
     lifetime_counts: bool = False
     res_hz_ok: bool = False
     blob_ram: int = 0
@@ -449,6 +451,39 @@ def characterise() -> Data:
         refused = True
     d.grid_refused = bool(refused and ok_shallow is None)
 
+    # The search under the capture, and the diagnostic whose failure mode is
+    # silence: a grid that cannot meet the requested pd still BUILDS and then
+    # captures fewer bursts than arrived.
+    c6 = cap()
+    d.search_visible = bool(
+        c6.doppler_bins >= 1
+        and c6.n_noncoh >= 1
+        and c6.code_bins == ACQ_SF * SPC
+        and c6.doppler_span_hz > 0.0
+        and c6.eta > 0.0
+        and c6.eta_nc > c6.eta
+        and 0.0 < c6.straddle_loss <= 1.0
+        and not c6.underpowered
+    )
+    import warnings as _w
+
+    with _w.catch_warnings(record=True) as caught:
+        _w.simplefilter("always")
+        c7 = BurstCapture(
+            acq_code(),
+            burst_len=BURST_LEN,
+            reps=REPS,
+            spc=SPC,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=20.0,
+            pd=0.99,
+        )
+    d.underpowered_says_so = bool(
+        c7.underpowered
+        and c7.pd_predicted < 0.99
+        and any(issubclass(w.category, UserWarning) for w in caught)
+    )
+
     R.table(
         ["claim", "holds"],
         [
@@ -475,6 +510,11 @@ def characterise() -> Data:
                 str(d.accessors_agree),
             ],
             ["a grid deeper than `reps` is refused", str(d.grid_refused)],
+            ["the search under the capture is visible", str(d.search_visible)],
+            [
+                "an unmeetable `pd` warns AND reads back",
+                str(d.underpowered_says_so),
+            ],
         ],
     )
     R.md()
@@ -655,6 +695,18 @@ def limits(d: Data) -> None:
         d.grid_refused,
         "`configure_search_raw` accepts a coherent depth within `reps` and "
         "REFUSES one beyond it, rather than silently clamping (§2.7)",
+    )
+    R.limit(
+        d.search_visible,
+        "the search is visible as numbers — `doppler_bins`, `n_noncoh`, "
+        "`code_bins`, `doppler_span_hz`, both gates and `straddle_loss` — so "
+        "a caller can size a link without inferring it (§2.7)",
+    )
+    R.limit(
+        d.underpowered_says_so,
+        "a search that cannot meet the requested `pd` warns at construction "
+        "AND reads back as `underpowered`, rather than building quietly and "
+        "capturing fewer bursts than arrived (§2.7)",
     )
     R.limit(
         d.res_hz_ok,

@@ -13,3 +13,11 @@
     look-back outlives the process, so a restored capture reaches back across
     a restart into a burst that began before it.
     See [`burst-capture.md` §9](docs/design/burst-capture.md).
+- **The search under a capture is visible, and an unmeetable `pd` says so.**
+    `BurstCapture` forwarded one of the engine's 27 read-backs and hardcoded
+    the CFAR mode. It now carries the numbers that decide what gets captured —
+    `doppler_bins`, `n_noncoh`, `code_bins`, `doppler_span_hz`, both detection
+    gates and `straddle_loss` — plus `noise_mode` as a choice and
+    `underpowered` as a **declared** warning, which the sibling
+    `BurstAcquisition` can only hand-patch. Required configuration is still
+    one parameter: `BurstCapture(code)`.

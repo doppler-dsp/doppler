@@ -16,11 +16,11 @@
  *      fresh noise per instance. Measured here, both ways, because the
  *      difference is invisible in a plot and fatal to a Monte-Carlo run.
  *
- *   3. SNR ACROSS THE SCENE, measured rather than asserted. SNR is a property
- *      of a SOURCE, and the noise floor it implies runs through the whole
- *      segment — including the gaps, where the signal is off. So the gap is
- *      the noise floor, the burst is signal + that same floor, and the two
- *      together recover the SNR that was asked for.
+ *   3. SNR ACROSS THE SCENE, measured with doppler's own estimators. SNR is
+ *      a property of a SOURCE, and the noise floor it implies runs through
+ *      the whole segment — including the gaps, where the signal is off. The
+ *      gap is therefore the noise floor rather than digital silence, which
+ *      `snr_m2m4_db` shows by returning a real number for it at all.
  *
  *   4. PREPARE ONCE, SWEEP MANY. A sweep over SNR re-renders the same bursts
  *      at every point. `wfm_plan_prepare` caches the clean signal and
@@ -37,6 +37,23 @@
  * consumer would — in blocks, as fast as the reader will produce them —
  * timing both halves and checking the bytes survived.
  *
+ *   5. AND THEN IT RECEIVES. The consumer does not know where the bursts
+ *      are, so it demodulates the whole record, gaps included, and searches
+ *      for the frame's sync marker. Two things make that honest rather than
+ *      circular: the marker is REBUILT from the frame's own declaration
+ *      rather than held as a second copy, and the tolerance is DERIVED by
+ *      `syncword_max_errors_for` from how much stream is searched rather
+ *      than guessed. Each frame the search lands on is then checked with
+ *      `wfm_frame_desc_crc_ok`, which needs no payload truth — so it is a
+ *      frame error rate a receiver could compute on a capture it did not
+ *      generate.
+ *
+ * Where doppler already has the measurement, this uses it rather than
+ * open-coding one: `snr_data_aided_db` and `snr_m2m4_db` for SNR,
+ * `syncword_*` for the search and its threshold arithmetic. A hand-rolled
+ * mean-power ratio was what this example used to do, and it is one more
+ * place for a convention to drift from the library's own.
+ *
  * Every timing here is measured on the machine that runs it and printed with
  * its units; nothing is hard-coded, and the ratio is the point rather than
  * any absolute number. Every check exits non-zero on failure, because an
@@ -52,6 +69,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "snr/snr_core.h"
+#include "syncword/syncword_core.h"
 #include "wfm/wfm_compose.h"
 #include "wfm/wfm_frame.h"
 #include "wfm/wfm_plan.h"
@@ -63,12 +82,38 @@
 #define SPS 4         /* samples per symbol; rectangular                  */
 #define HDR_BITS 16u  /* the caller's own header                          */
 #define PAY_BITS 240u /* payload                                          */
-#define FRAME_BITS (HDR_BITS + PAY_BITS + WFM_FRAME_CRC_BITS)
+/* The sync marker is a GENERATED field, not a literal: a 63-bit m-sequence
+   from a 6-stage LFSR, the classic marker choice because its periodic
+   autocorrelation is a single peak. Declaring it as a `kind` rather than an
+   array means the description PRODUCES it, so the receiver rebuilds the very
+   same bits from the very same declaration (`wfm_seq_bits`) instead of
+   holding a second copy that can drift. No standard is involved — a caller
+   who wants a specific marker uses a literal field instead.
+
+   SIXTY-THREE BITS, AND THE LIBRARY PICKED THE LENGTH. A 31-bit marker was
+   the first choice and `syncword_max_errors_for` refused it outright: over
+   this scene's search window, even demanding an EXACT match leaves a
+   false-frame probability above 1e-6, because every offset ahead of the real
+   one is its own chance to hit first. Doubling the register took the
+   exact-match probability from 2^-31 to 2^-63 and bought real tolerance. */
+#define SYNC_BITS 63u
+#define SYNC_REG_BITS 6u
+#define FRAME_BITS (SYNC_BITS + HDR_BITS + PAY_BITS + WFM_FRAME_CRC_BITS)
+#define N_SYMS FRAME_BITS /* one BPSK symbol per bit */
+#define TOTAL_BITS (TOTAL / (size_t)SPS)
 
 #define BURST_ON (FRAME_BITS * (unsigned)SPS) /* one frame, exactly       */
 #define BURST_OFF 4096u                       /* gap between bursts       */
+/* A lead-in, so the first burst does not begin at sample 0 and the search
+   below has somewhere to look. TWO WHOLE SYMBOLS, deliberately: the sync
+   search works on BITS, so sub-symbol timing is not its job and not its
+   answer. Recovering a fractional-sample offset is what a timing loop is
+   for (symsync / ratesync); mixing it in here would make this section teach
+   two things badly instead of one thing exactly. */
+#define DELAY_SAMPLES ((unsigned)SPS * 2u)
 #define N_BURSTS 60u
-#define TOTAL ((size_t)(BURST_ON + BURST_OFF) * N_BURSTS)
+#define PERIOD ((size_t)(DELAY_SAMPLES + BURST_ON + BURST_OFF))
+#define TOTAL (PERIOD * N_BURSTS)
 
 #define SNR_DB 12.0 /* declared per-source SNR, in `fs` mode           */
 #define N_SWEEP 24u /* operating points in the sweep                   */
@@ -94,15 +139,34 @@ now_s (void)
   return (double)t.tv_sec + (double)t.tv_nsec * 1e-9;
 }
 
-/** @brief Mean power of a span, linear. */
-static double
-power (const float complex *x, size_t n)
+/** @brief Matched filter for a rectangular pulse: sum each symbol's SPS
+ * samples. A sum IS the matched filter here, and it is the 6 dB of coherent
+ * gain a receiver is entitled to at sps=4 — decimating to one sample per
+ * symbol instead would throw three quarters of the energy away.
+ *
+ * `n_syms` symbols are read from `x`, which must hold `n_syms * SPS`
+ * samples. */
+static void
+match_filter (const float complex *x, size_t n_syms, float complex *out)
 {
-  double acc = 0.0;
-  for (size_t i = 0; i < n; i++)
-    acc += (double)crealf (x[i]) * crealf (x[i])
-           + (double)cimagf (x[i]) * cimagf (x[i]);
-  return n ? acc / (double)n : 0.0;
+  for (size_t k = 0; k < n_syms; k++)
+    {
+      float complex acc = 0.0f;
+      for (int j = 0; j < SPS; j++)
+        acc += x[k * (size_t)SPS + (size_t)j];
+      out[k] = acc;
+    }
+}
+
+/** @brief Hard BPSK decisions from matched-filter outputs.
+ *
+ * `bpsk_map`'s convention is 0 -> +1, 1 -> -1, so the SIGN carries the bit
+ * and the decision is a comparison rather than a threshold to tune. */
+static void
+slice (const float complex *sym, size_t n, uint8_t *bits)
+{
+  for (size_t k = 0; k < n; k++)
+    bits[k] = crealf (sym[k]) < 0.0f ? 1u : 0u;
 }
 
 /** @brief A `wfm_seq_t` over bits the caller owns and keeps. */
@@ -161,20 +225,31 @@ main (void)
   /* ── 1. the frame ───────────────────────────────────────────────────── */
   printf ("--- 1. The frame this waveform carries ---\n");
 
+  wfm_seq_t sy = { 0 };
+  sy.kind      = WFM_SEQ_PN;
+  sy.len       = SYNC_BITS;
+  sy.reg_bits  = SYNC_REG_BITS;
+  sy.seed      = 1u; /* 0 would select 1 anyway; said out loud */
+  sy.poly      = 0u; /* 0 selects the maximal-length polynomial for reg_bits */
+
   wfm_seq_t        h = literal (hdr, HDR_BITS), p = literal (pay, PAY_BITS);
   wfm_frame_desc_t d;
   memset (&d, 0, sizeof d);
   /* The cover names its ends and REACHES the derived field, which is what
      wires that field's producer — so the CRC's position and the fact that a
-     CRC fills it are one declaration rather than two that can disagree. The
-     header sits outside the cover: a receiver finds it before it can check
-     anything. */
+     CRC fills it are one declaration rather than two that can disagree.
+     Naming the ends is also why inserting the sync field AHEAD of them moved
+     nothing here: `first_field`/`n_fields` would both have had to shift.
+     The sync marker and the header sit outside the cover — a receiver finds
+     them before it can check anything. */
   int built
-      = wfm_frame_add_field (&d, "hdr", &h, 0u) == 0
-        && wfm_frame_add_field (&d, "payload", &p, 0u) == 1
-        && wfm_frame_add_derived (&d, "crc", WFM_FRAME_CRC_BITS) == 2
+      = wfm_frame_add_field (&d, "sync", &sy, 0u) == 0
+        && wfm_frame_add_field (&d, "hdr", &h, 0u) == 1
+        && wfm_frame_add_field (&d, "payload", &p, 0u) == 2
+        && wfm_frame_add_derived (&d, "crc", WFM_FRAME_CRC_BITS) == 3
         && wfm_frame_add_stage (&d, WFM_STAGE_CRC16, "payload", "crc") == 0;
-  check (built, "a header, a payload and a derived CRC-16 over a named span");
+  check (built, "a generated sync marker, a header, a payload and a derived "
+                "CRC-16 over a named span");
   if (!built)
     return 1;
 
@@ -209,11 +284,12 @@ main (void)
     }
   for (unsigned i = 0; i < N_BURSTS; i++)
     {
-      many[i].sources     = &src;
-      many[i].n_sources   = 1u;
-      many[i].fs          = FS;
-      many[i].num_samples = BURST_ON;
-      many[i].off_samples = BURST_OFF;
+      many[i].sources       = &src;
+      many[i].n_sources     = 1u;
+      many[i].fs            = FS;
+      many[i].num_samples   = BURST_ON;
+      many[i].off_samples   = BURST_OFF;
+      many[i].delay_samples = DELAY_SAMPLES;
     }
 
   double               t0       = now_s ();
@@ -231,6 +307,7 @@ main (void)
   one.fs            = FS;
   one.num_samples   = BURST_ON;
   one.off_samples   = BURST_OFF;
+  one.delay_samples = DELAY_SAMPLES;
   one.repeats       = N_BURSTS;
 
   t0                = now_s ();
@@ -254,11 +331,16 @@ main (void)
 
      `repeats` says "the same burst, again": the signal is fixed across
      instances and the AWGN is FRESH per instance. */
-  const size_t period = BURST_ON + BURST_OFF;
-  check (memcmp (listed, listed + period, BURST_ON * sizeof *listed) == 0,
+  const size_t period = PERIOD;
+  /* Instance k is [delay | on | off], so a burst starts DELAY_SAMPLES in. */
+  const size_t burst0 = DELAY_SAMPLES;
+  check (memcmp (listed + burst0, listed + burst0 + period,
+                 BURST_ON * sizeof *listed)
+             == 0,
          "listed: every burst carries IDENTICAL noise — one seed, sixty "
          "fresh segments");
-  check (memcmp (declared, declared + period, BURST_ON * sizeof *declared)
+  check (memcmp (declared + burst0, declared + burst0 + period,
+                 BURST_ON * sizeof *declared)
              != 0,
          "repeats: each instance draws its own noise, as a burst train "
          "should");
@@ -269,23 +351,48 @@ main (void)
   printf ("--- 3. Where the declared %.0f dB SNR actually shows up ---\n",
           SNR_DB);
 
-  /* The gap carries the noise floor: the source's AWGN keeps running while
-     the signal stops, so an inter-burst region is the CHANNEL rather than
-     digital silence. That is what makes the floor measurable here at all. */
-  const size_t burst0_off = 0;
-  const size_t gap0_off   = BURST_ON;
-  const double p_burst    = power (declared + burst0_off, BURST_ON);
-  const double p_gap      = power (declared + gap0_off, BURST_OFF);
-  const double snr_meas   = 10.0 * log10 ((p_burst - p_gap) / p_gap);
+  /* MEASURED WITH DOPPLER'S OWN ESTIMATORS, not with a power ratio written
+     here. `snr_m2m4_db` is blind — moments only, no knowledge of what was
+     sent — and `snr_data_aided_db` strips the known transmitted sign. A
+     downstream checking its own link has one of those two situations and
+     should reach for the matching estimator rather than reinvent either.
 
-  check (p_gap > 0.0,
+     Both read SYMBOLS, so the burst is matched-filtered first: that is the
+     receiver's own 6 dB at sps=4, and it is why these come out above the
+     declared per-sample figure rather than equal to it. */
+  static float complex tx_sym[N_SYMS];
+  static uint8_t       tx_bits[FRAME_BITS];
+  match_filter (declared + burst0, N_SYMS, tx_sym);
+
+  const size_t n_tx = wfm_frame_assemble (&d, NULL, tx_bits, FRAME_BITS);
+  check (n_tx == FRAME_BITS,
+         "the description assembles the bits the burst carries");
+
+  const double snr_blind = snr_m2m4_db (tx_sym, N_SYMS);
+  const double snr_da    = snr_data_aided_db (tx_sym, N_SYMS, tx_bits, n_tx);
+  const double mf_gain   = 10.0 * log10 ((double)SPS);
+
+  /* THE GAP IS NOT SILENCE, and the estimator is what says so: it returns
+     NaN for a block with zero power, so a digitally silent gap would fail
+     this check rather than quietly reading as a very good SNR. What the gap
+     actually holds is the segment's noise floor — the source's AWGN keeps
+     running while the signal stops. */
+  const double snr_gap = snr_m2m4_db (declared + burst0 + BURST_ON, BURST_OFF);
+  check (!isnan (snr_gap),
          "the GAP is not silent — it carries the segment's noise floor");
-  check (fabs (snr_meas - SNR_DB) < 1.0,
-         "burst power over gap power recovers the declared SNR");
-  printf ("  burst %.4f   gap %.4f   ->  %.2f dB measured "
-          "against %.0f dB declared\n",
-          p_burst, p_gap, snr_meas, SNR_DB);
-  printf ("  snr_mode=fs, so the floor is the noise in the WHOLE band;\n"
+  check (snr_gap < snr_blind - 6.0,
+         "and it is NOISE, not signal — the blind estimator separates them");
+
+  check (fabs (snr_da - (SNR_DB + mf_gain)) < 1.5,
+         "data-aided Es/N0 recovers the declared SNR plus the matched "
+         "filter's gain");
+  printf ("  declared %.0f dB per sample, +%.2f dB matched filter "
+          "-> %.2f dB expected\n",
+          SNR_DB, mf_gain, SNR_DB + mf_gain);
+  printf ("  data-aided %.2f dB   blind (M2M4) %.2f dB   gap %.2f dB\n",
+          snr_da, snr_blind, snr_gap);
+  printf ("  snr_mode=fs, so the declaration is against the noise in the "
+          "WHOLE band;\n"
           "  every instance of the burst sees the same declaration.\n\n");
 
   /* ── 4. prepare once, sweep many ────────────────────────────────────── */
@@ -437,24 +544,124 @@ main (void)
     }
   const double t_read = now_s () - t0;
 
-  /* Count the bursts in what was READ, on the burst period, so the count is
-     a property of the recovered data rather than of the loop above. The
-     threshold sits between the floor and the burst, both measured in
-     section 3 — nothing here is a tuned constant. */
-  for (unsigned i = 0; i < N_BURSTS; i++)
-    if (power (readback + (size_t)i * period, BURST_ON)
-        > 0.5 * (p_burst + p_gap))
-      bursts++;
-
   check (got == TOTAL, "the consumer read every sample that was written");
   check (memcmp (readback, declared, TOTAL * sizeof *declared) == 0,
          "and cf32 through BLUE is byte-exact — what went in came back");
-  check (bursts == N_BURSTS, "it finds all sixty bursts in what it read");
-  printf ("  %zu samples in %.1f ms  (%.1f Msample/s), mean power %.4f\n", got,
-          t_read * 1e3, (double)got / t_read / 1e6,
-          got ? acc / (double)got : 0.0);
-  printf ("  %zu bursts recovered\n\n", bursts);
+  printf ("  %zu samples in %.1f ms  (%.1f Msample/s)\n\n", got, t_read * 1e3,
+          (double)got / t_read / 1e6);
 
+  /* ── 7. finding the bursts, by their sync marker ────────────────────── */
+  printf ("--- 7. Finding each burst by its sync marker ---\n");
+
+  /* THE SEARCH IS OVER BITS. `syncword_find` answers in the symbol domain —
+     which bit the marker starts on, in which polarity, at what Hamming
+     distance — so that is what this section demonstrates and all it claims.
+     A fractional-sample offset is a timing loop's problem (symsync,
+     ratesync), not a bit-domain searcher's, and the scene's lead-in is a
+     whole number of symbols for exactly that reason.
+
+     Demodulate the WHOLE record, gaps included: the gaps demodulate to noise
+     bits, which is the point — on a real capture nothing announces a burst,
+     and the searcher has to survive the space between them. */
+  static uint8_t       rx_bits[TOTAL_BITS];
+  static float complex rx_sym[TOTAL_BITS];
+  match_filter (readback, TOTAL_BITS, rx_sym);
+  slice (rx_sym, TOTAL_BITS, rx_bits);
+
+  /* THE MARKER COMES FROM THE DESCRIPTION, not from a constant here. The
+     field declared a generated sequence, so the receiver materialises the
+     same bits from the same declaration — one statement of what the marker
+     is, and the two ends cannot drift apart. */
+  static uint8_t marker[SYNC_BITS];
+  check (wfm_seq_bits (&sy, marker, SYNC_BITS) == SYNC_BITS,
+         "the receiver rebuilds the marker from the frame's own declaration");
+
+  syncword_state_t *sw = syncword_create (marker, SYNC_BITS);
+  if (!sw)
+    {
+      fprintf (stderr, "syncword_create failed\n");
+      return 1;
+    }
+
+  /* THE TOLERANCE IS DERIVED, not guessed. `max_errors` is a function of how
+     much stream is searched rather than of how long the marker is: the
+     search reports the FIRST acceptable offset, so every offset ahead of the
+     true one is an independent chance to false-hit first. Ask for a false
+     frame probability and let the library answer. */
+  const size_t window_bits = PERIOD / (size_t)SPS;
+  const double pfa_target  = 1e-6;
+  const int    max_err = syncword_max_errors_for (sw, window_bits, pfa_target);
+  /* -1 means no tolerance clears the target — the marker is too short for
+     the window. It is a REFUSAL, and casting it to the unsigned tolerance
+     the search takes would turn "impossible" into "accept anything", which
+     is how a receiver locks onto noise and reports sixty happy frames. */
+  check (max_err >= 0,
+         "a tolerance exists for this marker over this search window");
+  if (max_err < 0)
+    {
+      printf ("  %u-bit marker is too short to search %zu bits at Pfa "
+              "%.0e\n\n",
+              SYNC_BITS, window_bits, pfa_target);
+      syncword_destroy (sw);
+      goto done;
+    }
+  printf ("  %u-bit marker, %zu-bit window, Pfa <= %.0e  ->  tolerate %d "
+          "bit error(s)\n",
+          SYNC_BITS, window_bits, pfa_target, max_err);
+  printf ("  (at that tolerance the actual Pfa is %.2e)\n",
+          syncword_pfa (sw, (uint32_t)max_err));
+
+  /* Walk the record one burst at a time, and CHECK each frame the search
+     lands on. wfm_frame_desc_crc_ok needs the description and the received
+     bits and no payload truth at all, so this is the frame error rate a
+     receiver can compute on a capture it did not generate. */
+  size_t         pos = 0, at_expected = 0;
+  unsigned       crc_pass = 0, inverted = 0;
+  static uint8_t frame[FRAME_BITS];
+
+  for (unsigned k = 0; k < N_BURSTS && pos < TOTAL_BITS; k++)
+    {
+      const syncword_hit_t hit = syncword_find (
+          sw, rx_bits + pos, TOTAL_BITS - pos, (uint32_t)max_err);
+      if (!hit.found)
+        break;
+      const size_t at = pos + hit.offset;
+
+      /* The sync field is field 0, so where the marker starts IS where the
+         frame starts — in bits, which is the unit the search deals in. */
+      if (at == (size_t)k * window_bits + DELAY_SAMPLES / (size_t)SPS)
+        at_expected++;
+      inverted += (unsigned)(hit.inverted != 0);
+
+      if (at + FRAME_BITS <= TOTAL_BITS)
+        {
+          /* A hit carries its POLARITY, and a receiver that took the offset
+             without it would hand the frame decoder inverted bits that fail
+             the CRC for the wrong reason. */
+          for (size_t j = 0; j < FRAME_BITS; j++)
+            frame[j]
+                = hit.inverted ? (uint8_t)!rx_bits[at + j] : rx_bits[at + j];
+          if (wfm_frame_desc_crc_ok (&d, frame) == 1)
+            crc_pass++;
+        }
+      bursts++;
+      pos = at + FRAME_BITS;
+    }
+  syncword_destroy (sw);
+
+  check (bursts == N_BURSTS, "every burst is found by its marker");
+  check (at_expected == N_BURSTS,
+         "and each lands on the exact BIT the scene's geometry predicts");
+  check (crc_pass == N_BURSTS,
+         "every recovered frame passes its CRC — a frame error rate that "
+         "needs no payload truth");
+  printf ("  %zu burst(s) found, %zu at the exact predicted bit, "
+          "%u inverted, %u/%u CRC pass\n",
+          bursts, at_expected, inverted, crc_pass, N_BURSTS);
+  printf ("  mean power %.4f over the record\n\n",
+          got ? acc / (double)got : 0.0);
+
+done:
   (void)remove (path);
   free (many);
   free (listed);

@@ -14,6 +14,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 * `#include "jm_perf.h"`
 * `#include "buffer/buffer.h"`
 * `#include "dp_state.h"`
+* `#include "burst_capture/burst_capture_core.h"`
 * `#include "burst_acq/burst_acq_core.h"`
 * `#include "acq/acq_core.h"`
 * `#include "burst_demod/burst_demod_core.h"`
@@ -50,8 +51,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 
 | Type | Name |
 | ---: | :--- |
-| struct | [**dsss\_br\_event\_t**](structdsss__br__event__t.md) <br> |
-| struct | [**dsss\_br\_pending\_t**](structdsss__br__pending__t.md) <br>_One detection between acquisition and demodulation._  |
+| struct | [**dsss\_br\_event\_t**](structdsss__br__event__t.md) <br>_One completed burst's event, as_ `events()` _hands it back._ |
 | struct | [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) <br>_DsssBurstReceiver state._  |
 
 
@@ -95,6 +95,8 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  size\_t | [**dsss\_burst\_receiver\_get\_pending**](#function-dsss_burst_receiver_get_pending) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  uint64\_t | [**dsss\_burst\_receiver\_get\_preamble\_start**](#function-dsss_burst_receiver_get_preamble_start) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_refine\_margin**](#function-dsss_burst_receiver_get_refine_margin) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
+|  size\_t | [**dsss\_burst\_receiver\_get\_refine\_span**](#function-dsss_burst_receiver_get_refine_span) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
+|  size\_t | [**dsss\_burst\_receiver\_get\_retain\_span**](#function-dsss_burst_receiver_get_retain_span) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  void | [**dsss\_burst\_receiver\_get\_state**](#function-dsss_burst_receiver_get_state) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dsss\_burst\_receiver\_state\_bytes()**_](dsss__burst__receiver__core_8h.md#function-dsss_burst_receiver_state_bytes) _long)._ |
 |  size\_t | [**dsss\_burst\_receiver\_llrs**](#function-dsss_burst_receiver_llrs) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_The SOFT bits of every burst the last push() returned._  |
 |  size\_t | [**dsss\_burst\_receiver\_llrs\_max\_out**](#function-dsss_burst_receiver_llrs_max_out) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t n) <br>_Max LLRs llrs() writes: frame bits x the bursts the last push returned._  |
@@ -134,9 +136,8 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 
 | Type | Name |
 | ---: | :--- |
-| define  | [**DSSS\_BR\_HITS**](dsss__burst__receiver__core_8h.md#define-dsss_br_hits)  `16u`<br>_One completed burst's event, as_ `events()` _hands it back._ |
 | define  | [**DSSS\_BURST\_RECEIVER\_STATE\_MAGIC**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('D', 'B', 'R', 'X')`<br>_Per-object envelope tag: "DBRX" (DsssBurstReceiver)._  |
-| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `4u`<br> |
+| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `5u`<br> |
 
 ## Detailed Description
 
@@ -596,6 +597,36 @@ double dsss_burst_receiver_get_refine_margin (
 
 
 
+### function dsss\_burst\_receiver\_get\_refine\_span 
+
+```C++
+size_t dsss_burst_receiver_get_refine_span (
+    const dsss_burst_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dsss\_burst\_receiver\_get\_retain\_span 
+
+```C++
+size_t dsss_burst_receiver_get_retain_span (
+    const dsss_burst_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function dsss\_burst\_receiver\_get\_state 
 
 _Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dsss\_burst\_receiver\_state\_bytes()**_](dsss__burst__receiver__core_8h.md#function-dsss_burst_receiver_state_bytes) _long)._
@@ -896,30 +927,6 @@ size_t dsss_burst_receiver_state_bytes (
 
 
 
-### define DSSS\_BR\_HITS 
-
-_One completed burst's event, as_ `events()` _hands it back._
-```C++
-#define DSSS_BR_HITS `16u`
-```
-
-
-
-push() returns the PAYLOADS of every burst it completed, concatenated; this is the parallel record for row `i` of that return. It exists because a single push() can complete many bursts, and each one needs its own event  a single set of scalar read-backs would describe only the last (docs/design/dsss-burst-receiver.md section 4: the record must be sufficient on its own, for EVERY burst, not just the most recent).
-
-
-Detections collected from acquisition per batch.
-
-
-A BATCHING parameter, never a correctness one: push() loops until acq has absorbed the whole chunk, so a smaller array means more iterations and nothing else. Growing it to "be safe" would hide the fact that [**acq\_push()**](acq__core_8h.md#function-acq_push) stops once its result array is full and abandons the rest of its input. 
-
-
-        
-
-<hr>
-
-
-
 ### define DSSS\_BURST\_RECEIVER\_STATE\_MAGIC 
 
 _Per-object envelope tag: "DBRX" (DsssBurstReceiver)._ 
@@ -937,7 +944,7 @@ _Per-object envelope tag: "DBRX" (DsssBurstReceiver)._
 ### define DSSS\_BURST\_RECEIVER\_STATE\_VERSION 
 
 ```C++
-#define DSSS_BURST_RECEIVER_STATE_VERSION `4u`
+#define DSSS_BURST_RECEIVER_STATE_VERSION `5u`
 ```
 
 

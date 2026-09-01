@@ -8,7 +8,7 @@
 
 
 
-
+_One completed burst's event, as_ `events()` _hands it back._[More...](#detailed-description)
 
 * `#include <dsss_burst_receiver_core.h>`
 
@@ -88,6 +88,13 @@
 
 
 
+## Detailed Description
+
+
+push() returns the PAYLOADS of every burst it completed, concatenated; this is the parallel record for row `i` of that return. It exists because a single push() can complete many bursts, and each one needs its own event  a single set of scalar read-backs would describe only the last (docs/design/dsss-burst-receiver.md section 4: the record must be sufficient on its own, for EVERY burst, not just the most recent). 
+
+
+    
 ## Public Attributes Documentation
 
 

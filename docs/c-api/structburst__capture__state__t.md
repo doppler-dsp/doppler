@@ -682,7 +682,7 @@ size_t burst_capture_state_t::refine_span;
 Candidate offsets searched, in samples: `(k_lo + k_hi + reps) * code_period`. Read it rather than restating the formula  the design doc's own prose for it was 2.4x low at reps=5 until it was measured.
 
 
-The merge test compares two resolved code epochs  burst START against burst START  so it bounds start-to-start separation, NOT the dead air between bursts (doppler#1085). 
+The merge test compares two resolved code epochs  burst START against burst START  so it bounds start-to-start separation, NOT the dead air between bursts (doppler#1085). The gap actually required is NOT `max(0, refine_span - burst_len)` either: swept, a pair needs about two code periods of dead air, against the 32 samples that formula gives at the test geometry (doppler#1172). 
  
 
 

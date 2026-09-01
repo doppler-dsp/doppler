@@ -88,7 +88,6 @@
 * [**dp\_tlm\_stats\_t**](structdp__tlm__stats__t.md)
 * [**dp\_writer\_t**](structdp__writer__t.md)
 * [**dsss\_br\_event\_t**](structdsss__br__event__t.md)
-* [**dsss\_br\_pending\_t**](structdsss__br__pending__t.md)
 * [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md)
 * [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md)
 * [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md)

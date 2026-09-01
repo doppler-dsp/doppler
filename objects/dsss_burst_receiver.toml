@@ -31,6 +31,10 @@ create_error_message = "DsssBurstReceiver: invalid parameter (need non-empty acq
 # and burst_despreader pulls loop_filter. Listing only the direct deps links
 # a .so that cannot resolve them.
 depends_on = [
+    # The capture: search, refine, retain, emit. This object composes it and
+    # adds the demodulator, which is the whole of the split -- everything
+    # about FINDING a burst is the child's, and is certified there.
+    { name = "burst_capture", link = true },
     { name = "burst_acq", link = true },
     { name = "acq", link = true },
     { name = "burst_demod", link = true },
@@ -257,7 +261,6 @@ type = "double"
 [[dsss_burst_receiver.properties]]
 name = "refine_span"
 type = "size_t"
-field = true
 doc = """Coalescing window, in samples -- the reach over which two detections
 are ONE preamble.
 
@@ -268,8 +271,13 @@ airtime for nothing. The gap actually required is
 
     max(0, refine_span - burst_len)      burst_len = retain_span - refine_span
 
-which is 0 whenever a burst is longer than the refine reach -- every
-realistic payload. At a 255-chip code, `reps=5`, `spc=2` the reach is 12240
+which is 0 whenever a burst is longer than the refine reach. **That formula
+is optimistic, measured** (doppler#1172): swept over two bursts at 12 trials
+a spacing, a pair is not reliably captured until roughly 2 code periods of
+dead air -- 256 samples at a geometry where the formula says 32. The SHAPE
+is right and worth keeping: the constraint is start-to-start, and reading it
+as a whole `refine_span` of required silence cost 9% of airtime. The FLOOR
+is not. Leave a couple of code periods. At a 255-chip code, `reps=5`, `spc=2` the reach is 12240
 samples; an 8316-sample burst placed 8916 apart start-to-start (600 samples
 of dead air against the 3924 required) yields 2 decodes from 7 bursts with
 `dropped == 0`, while at `frame_syms=2053` the same code gives a
@@ -279,7 +287,6 @@ dead air yields 7 of 7 (doppler#1085)."""
 [[dsss_burst_receiver.properties]]
 name = "retain_span"
 type = "size_t"
-field = true
 doc = """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
 
 `refine_span` plus one whole burst. A burst closer than this to the end of
@@ -298,7 +305,6 @@ trailing samples against a `retain_span` of 20556 loses the burst."""
 [[dsss_burst_receiver.properties]]
 name = "pending"
 type = "size_t"
-field = true
 doc = """Detections held because their burst window has not fully arrived.
 
 `push()` emits nothing for these on purpose -- a burst is returned when it

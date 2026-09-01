@@ -191,7 +191,12 @@ typedef struct
                             The merge test compares two resolved code
                             epochs -- burst START against burst START -- so
                             it bounds start-to-start separation, NOT the
-                            dead air between bursts (doppler#1085).       */
+                            dead air between bursts (doppler#1085). The gap
+                            actually required is NOT
+                            `max(0, refine_span - burst_len)` either: swept,
+                            a pair needs about two code periods of dead air,
+                            against the 32 samples that formula gives at the
+                            test geometry (doppler#1172).                 */
   size_t corr_len;     /**< Entries in corr_buf.                            */
   size_t retain_span;  /**< Samples that must stay reachable: refine span +
                             one whole burst. Also the caller-facing minimum

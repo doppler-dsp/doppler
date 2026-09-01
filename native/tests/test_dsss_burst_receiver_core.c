@@ -242,7 +242,7 @@ test_create_copies_and_derives (void)
 
   /* One preamble repetition, in samples -- the modulus every epoch
    * ambiguity in this object is stated against. */
-  DP_CHECK (s->code_period == ACQ_SF * SPC);
+  DP_CHECK (s->cap->code_period == ACQ_SF * SPC);
 
   /* preamble + spread (sync | payload | CRC-16) frame. */
   DP_CHECK (s->burst_len
@@ -252,11 +252,16 @@ test_create_copies_and_derives (void)
    * itself, rounded to a power of two (§7.1). Checked as ">= the span"
    * rather than "== a literal": pinning the rounded number would pin the
    * rounding, and the CONTRACT is that the span fits. */
-  DP_REQUIRE (s->hist != NULL);
-  DP_CHECK (s->hist->capacity >= 2u * REPS * s->code_period + s->burst_len);
-  DP_CHECK ((s->hist->capacity & (s->hist->capacity - 1u)) == 0u);
+  /* The ring is the CAPTURE's now, and so are its sizing claims -- pinned in
+     test_burst_capture_core.c and certified at 20 limits. What this test
+     asserts is that the composition built one and handed it the geometry. */
+  DP_REQUIRE (s->cap != NULL);
+  DP_REQUIRE (s->cap->hist != NULL);
+  DP_CHECK (s->cap->hist->capacity
+            >= 2u * REPS * s->cap->code_period + s->burst_len);
+  DP_CHECK ((s->cap->hist->capacity & (s->cap->hist->capacity - 1u)) == 0u);
 
-  DP_CHECK (s->acq != NULL);
+  DP_CHECK (s->cap->acq != NULL);
   DP_CHECK (s->demod != NULL);
 
   dsss_burst_receiver_destroy (s);
@@ -393,7 +398,7 @@ test_decodes_under_residual_doppler (void)
 {
   dsss_burst_receiver_state_t *probe = make_rx ();
   DP_REQUIRE (probe != NULL);
-  double res_hz = probe->acq->engine->doppler_res_hz;
+  double res_hz = probe->cap->acq->engine->doppler_res_hz;
   double fs     = 1.0e6 * (double)SPC;
   dsss_burst_receiver_destroy (probe);
 
@@ -539,7 +544,8 @@ test_one_giant_push_finds_the_same_burst (void)
 {
   dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
-  DP_REQUIRE (40000 > s->hist->capacity); /* genuinely larger than the ring */
+  DP_REQUIRE (40000
+              > s->cap->hist->capacity); /* genuinely larger than the ring */
 
   const size_t         AT = 5000;
   static float complex cap[40000];
@@ -606,10 +612,10 @@ test_a_burst_near_the_stream_start (void)
 
   /* Inside the clamp's reach: the refine span cannot be taken in full. */
   const size_t AT = 600;
-  DP_REQUIRE (AT < s->k_lo * s->code_period);
+  DP_REQUIRE (AT < s->cap->k_lo * s->cap->code_period);
   /* ...and NOT on a code-period boundary, so a grid that lost the phase
      could not land on the right answer by accident. */
-  DP_REQUIRE (AT % s->code_period != 0);
+  DP_REQUIRE (AT % s->cap->code_period != 0);
 
   static float complex cap[40000];
   build_capture (cap, 40000, AT, 0.0, 0.02, 4242u);
@@ -646,7 +652,7 @@ test_one_burst_many_detections_is_claimed_once (void)
   DP_REQUIRE (dsss_burst_receiver_configure_search_raw (s, 1, 1) == 0);
   /* The frame really is one code period now -- otherwise the preamble would
      not span several frames and this test would prove nothing. */
-  DP_REQUIRE (s->acq->engine->n == s->code_period);
+  DP_REQUIRE (s->cap->acq->engine->n == s->cap->code_period);
 
   const size_t         AT = 5000;
   static float complex cap[40000];
@@ -831,7 +837,7 @@ test_every_burst_survives_any_block_size (void)
 
 /* acq_push() stops once it has filled the caller's result array and abandons
  * the rest of its input (acq_core.c:925). push() slices at chunk_max, so a
- * chunk can easily carry more than DSSS_BR_HITS dumps -- and a single
+ * chunk can easily carry more than BURST_CAPTURE_HITS dumps -- and a single
  * burst_acq_push() per chunk then leaves acq un-fed over samples this object
  * is holding, losing detections rather than samples.
  *
@@ -846,9 +852,9 @@ test_acq_saturation_does_not_lose_bursts (void)
   static float complex cap[40000];
 
   /* A DELIBERATELY loose false-alarm rate, so noise crosses the gate often
-     enough that one batch of DSSS_BR_HITS cannot hold a chunk's detections.
-     Saturation is the condition under test; leaving it to chance would make
-     this test pass for the wrong reason. */
+     enough that one batch of BURST_CAPTURE_HITS cannot hold a chunk's
+     detections. Saturation is the condition under test; leaving it to chance
+     would make this test pass for the wrong reason. */
   dsss_burst_receiver_state_t *s = dsss_burst_receiver_create (
       acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
       SPC, 1.0e6, FRAME_SYMS, 55.0, 0.0, 0.2, 0.9, 0.0, 0.0, 10);
@@ -860,7 +866,7 @@ test_acq_saturation_does_not_lose_bursts (void)
   at[2]        = at[1] + s->burst_len + GAP;
   DP_REQUIRE (at[2] + s->burst_len < N_CAP);
   /* The premise: a chunk spans far more frames than one batch of hits. */
-  DP_REQUIRE (s->chunk_max / s->code_period > DSSS_BR_HITS);
+  DP_REQUIRE (s->cap->chunk_max / s->cap->code_period > BURST_CAPTURE_HITS);
   build_capture_multi (cap, N_CAP, at, 3, 0.02, 909u);
 
   size_t   cap_bits = dsss_burst_receiver_push_max_out (s, N_CAP);
@@ -933,10 +939,10 @@ test_a_burst_split_across_two_pushes_survives (void)
       size_t n1
           = dsss_burst_receiver_push (s, cap, cuts[c], bits, sizeof bits);
       DP_CHECK (n1 == 0); /* incomplete: emit nothing rather than guess */
-      /* Through the ACCESSOR, not `s->pending`. The field and the getter are
-         different surfaces: Python reads the getter, and a getter hardwired
-         to 0 passes every test in this file that reads the field directly.
-         Verified by sabotage -- it did. */
+      /* Through the ACCESSOR, not `s->cap->pending`. The field and the getter
+         are different surfaces: Python reads the getter, and a getter
+         hardwired to 0 passes every test in this file that reads the field
+         directly. Verified by sabotage -- it did. */
       DP_CHECK (dsss_burst_receiver_get_pending (s) == 1u);
 
       size_t n2 = dsss_burst_receiver_push (
@@ -968,7 +974,7 @@ test_push_max_out_scales_with_input (void)
   DP_CHECK (dsss_burst_receiver_push_max_out (s, 1u << 20)
             > dsss_burst_receiver_push_max_out (s, 1));
   {
-    size_t n = (1u << 20) / s->burst_len + 1u + s->q_cap;
+    size_t n = (1u << 20) / s->burst_len + 1u + s->cap->q_cap;
     DP_CHECK (dsss_burst_receiver_push_max_out (s, 1u << 20)
               == n * FRAME_SYMS);
   }
@@ -988,14 +994,14 @@ test_reset_clears_the_event_but_not_the_counters (void)
 
   /* Stand in for a completed burst. Written directly because push() cannot
    * produce one yet; phase 3 replaces this with a real burst. */
-  s->preamble_start = 4096;
-  s->doppler_hz_est = 1234.5;
-  s->est_snr_db     = 12.0;
-  s->refine_margin  = 0.75;
-  s->pending        = 2;
-  s->n_bursts       = 7;
-  s->dropped        = 3;
-  s->samples_fed    = 99999;
+  s->preamble_start   = 4096;
+  s->doppler_hz_est   = 1234.5;
+  s->est_snr_db       = 12.0;
+  s->refine_margin    = 0.75;
+  s->cap->pending     = 2;
+  s->n_bursts         = 7;
+  s->cap->dropped     = 3;
+  s->cap->samples_fed = 99999;
 
   DP_REQUIRE (s->preamble_start == 4096 && s->doppler_hz_est != 0.0);
 
@@ -1007,7 +1013,7 @@ test_reset_clears_the_event_but_not_the_counters (void)
   DP_CHECK (dsss_burst_receiver_get_est_snr_db (s) == 0.0);
   DP_CHECK (dsss_burst_receiver_get_refine_margin (s) == 0.0);
   DP_CHECK (dsss_burst_receiver_get_pending (s) == 0);
-  DP_CHECK (s->samples_fed == 0);
+  DP_CHECK (s->cap->samples_fed == 0);
 
   /* Lifetime, on purpose: a reset that zeroed these could hide that the
    * receiver had already lost samples. */

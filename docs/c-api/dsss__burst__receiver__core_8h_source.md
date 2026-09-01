@@ -17,8 +17,6 @@
 #include "buffer/buffer.h"
 #include "dp_state.h"
 
-#define DSSS_BR_HITS 16u
-
 typedef struct
 {
   uint64_t preamble_start; 
@@ -31,16 +29,7 @@ typedef struct
   double   refine_margin;  
 } dsss_br_event_t;
 
-typedef struct
-{
-  uint64_t anchor;     
-  uint64_t start;      
-  double   doppler_hz; 
-  double   cn0_dbhz;   
-  double   margin;     
-  double   peak_mag;   
-  int      refined;    
-} dsss_br_pending_t;
+#include "burst_capture/burst_capture_core.h"
 #include "burst_acq/burst_acq_core.h"
 #include "acq/acq_core.h"
 #include "burst_demod/burst_demod_core.h"
@@ -78,11 +67,8 @@ typedef struct {
   size_t code_period; 
   size_t burst_len;   
   /* ── The composed children (each certified separately) ──────────────── */
-  burst_acq_state_t   *acq;   
-  burst_demod_state_t *demod; 
-  /* ── Look-back (docs/design/dsss-burst-receiver.md §7.1) ────────────── */
-  dp_f32_t *hist;      
-  uint64_t samples_fed; 
+  burst_capture_state_t *cap;   
+  burst_demod_state_t   *demod; 
   /* ── The DetectionEvent, describing the most recent completed burst ─── */
   uint64_t preamble_start; 
   double   doppler_hz_est; 
@@ -92,21 +78,6 @@ typedef struct {
   double   est_rate_hz;    
   double   est_snr_db;     
   double   refine_margin;  
-  /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
-  float *ref_sign;   
-  float _Complex *corr_buf; 
-  size_t refine_span;  
-  size_t corr_len;     
-  size_t retain_span;  
-  size_t chunk_max;    
-  /* ── Detections in flight ────────────────────────────────────────────
-   * Only detections whose burst window has NOT yet arrived live here: every
-   * one whose window HAS arrived is demodulated before push() returns, which
-   * is what bounds retention (see dsss_br_trim). */
-  dsss_br_pending_t *q;      
-  size_t             q_cap;  
-  size_t             q_head; 
-  size_t             pending; 
   /* ── The completed bursts of the LAST push ───────────────────────────
    * Scratch, deliberately NOT serialized: it describes the most recent
    * push() only, so keeping it out of the blob is what lets state_bytes()
@@ -120,12 +91,7 @@ typedef struct {
   size_t  llr_len; 
   size_t  frame_bits; 
   size_t           ev_len; 
-  uint64_t suppress_until; 
-  size_t acq_blob_max; 
-  size_t k_lo; 
-  size_t k_hi; 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
-  uint64_t dropped;  
   uint64_t n_bursts; 
 /*<<property_struct_fields>>*/
 } dsss_burst_receiver_state_t;
@@ -181,13 +147,15 @@ uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *sta
  */
 
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
-#define DSSS_BURST_RECEIVER_STATE_VERSION 4u
+#define DSSS_BURST_RECEIVER_STATE_VERSION 5u
 
 size_t dsss_burst_receiver_state_bytes(const dsss_burst_receiver_state_t *state);
 
 void dsss_burst_receiver_get_state(const dsss_burst_receiver_state_t *state, void *blob);
 
 int dsss_burst_receiver_set_state(dsss_burst_receiver_state_t *state, const void *blob);
+size_t dsss_burst_receiver_get_refine_span(const dsss_burst_receiver_state_t *state);
+size_t dsss_burst_receiver_get_retain_span(const dsss_burst_receiver_state_t *state);
 #ifdef __cplusplus
 }
 #endif

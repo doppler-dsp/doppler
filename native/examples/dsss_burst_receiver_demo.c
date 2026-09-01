@@ -209,8 +209,10 @@ main (void)
       fprintf (stderr, "create failed\n");
       return 1;
     }
-  const size_t refine_span = probe->refine_span;
-  const size_t retain_span = probe->retain_span;
+  /* Through the accessors: both spans are the CAPTURE's, derived there and
+     forwarded here, so the receiver has no field of its own to read. */
+  const size_t refine_span = dsss_burst_receiver_get_refine_span (probe);
+  const size_t retain_span = dsss_burst_receiver_get_retain_span (probe);
   dsss_burst_receiver_destroy (probe);
 
   printf ("=== DsssBurstReceiver — the burst chain as one object ===\n");
@@ -267,13 +269,15 @@ main (void)
     size_t   cap_out = dsss_burst_receiver_push_max_out (rx, n);
     uint8_t *out     = malloc (cap_out);
     size_t   a1      = dsss_burst_receiver_push (rx, cap, cut, out, cap_out);
-    size_t   held    = rx->pending;
+    size_t   held    = dsss_burst_receiver_get_pending (rx);
     size_t   a2
         = dsss_burst_receiver_push (rx, cap + cut, n - cut, out, cap_out);
     printf ("§3  split mid-burst: push 1 -> %zu payload(s), pending %zu;"
             "  push 2 -> %zu, pending %zu\n",
-            a1 / FRAME_SYMS, held, a2 / FRAME_SYMS, rx->pending);
-    int ok = (a1 == 0 && held == 1u && a2 == FRAME_SYMS && rx->pending == 0);
+            a1 / FRAME_SYMS, held, a2 / FRAME_SYMS,
+            dsss_burst_receiver_get_pending (rx));
+    int ok = (a1 == 0 && held == 1u && a2 == FRAME_SYMS
+              && dsss_burst_receiver_get_pending (rx) == 0);
     for (size_t i = 0; i < PAYLOAD && ok; i++)
       ok = (out[SYNC_LEN + i] == payload[i]);
     free (out);

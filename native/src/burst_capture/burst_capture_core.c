@@ -883,7 +883,12 @@ burst_capture_get_doppler_hz_est (const burst_capture_state_t *state)
 double
 burst_capture_get_doppler_res_hz (const burst_capture_state_t *state)
 {
-  return state->doppler_res_hz;
+  /* The ENGINE's, not the last event's mirror of it. The bin width is a
+     property of the configured search and a composing bank sizes its
+     cross-channel dedup from it at construction -- the mirror read 0.0
+     there, before any burst, and a dedup window of zero merged nothing
+     (doppler#1174). The event row keeps its own copy per burst. */
+  return state->acq->engine->doppler_res_hz;
 }
 
 double

@@ -151,6 +151,14 @@ test_create_copies_and_derives (void)
   DP_CHECK (s->refine_span == (s->k_lo + s->k_hi + REPS) * s->code_period);
   DP_CHECK (s->retain_span == s->refine_span + BURST_LEN);
 
+  /* The Doppler bin width is readable BEFORE any push: it is the engine's,
+     a property of the configured search, and a composing bank sizes its
+     cross-channel dedup from it at construction. Read through the
+     last-event mirror it was 0.0 here. */
+  DP_CHECK (burst_capture_get_doppler_res_hz (s) > 0.0);
+  DP_CHECK (burst_capture_get_doppler_res_hz (s)
+            == s->acq->engine->doppler_res_hz);
+
   /* The ring holds twice the retained span, so chunk_max is never zero: a
      push larger than the ring is sliced rather than refused. */
   DP_CHECK (s->hist->capacity >= 2u * s->retain_span);
@@ -610,6 +618,89 @@ test_accessors_agree_with_the_event (void)
   DP_CHECK (burst_capture_get_pending (s) == s->pending);
   DP_CHECK (burst_capture_get_dropped (s) == s->dropped);
   DP_CHECK (burst_capture_get_n_bursts (s) == 1u);
+  burst_capture_destroy (s);
+  return 0;
+}
+
+/**
+ * `detections()` is what the SEARCH found, and the epochs are stream-absolute.
+ *
+ * The claim the bank composes on (doppler#1174): a capturing channel reports
+ * the same detections a detector would, so one acquisition engine serves both
+ * faces. Three parts of the header's prose, each pinned:
+ *
+ * - UNFILTERED -- before the claim rule and the suppression window, so the
+ *   rows are at least as many as the windows, and are usually more (the
+ *   payload fires acquisition too, and a preamble straddling two frames
+ *   fires twice).
+ * - STREAM-ABSOLUTE -- every window's `preamble_start` has a detection
+ *   within `refine_span` of it. `code_phase` alone is a residue below
+ *   `code_period`, so a residue could not land within `refine_span` of a
+ *   burst at 60000 or 120000: the check discriminates an epoch from a phase.
+ * - DESCRIBES THIS PUSH -- a quiet push clears them, and a short buffer
+ *   truncates rather than overruns.
+ */
+static int
+test_detections_are_what_the_search_found (void)
+{
+  static float complex cap[200000];
+  const size_t         at[3] = { 9000u, 60000u, 120000u };
+  build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
+
+  burst_capture_state_t *s = make ();
+  DP_REQUIRE (s != NULL);
+  static float complex out[8 * BURST_LEN];
+  burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                      sizeof out / sizeof *out);
+  const size_t ne = burst_capture_events_max_out (s, 0);
+  DP_REQUIRE (ne == 3u);
+
+  const size_t nd = burst_capture_detections_max_out (s, 0);
+  DP_CHECK (burst_capture_detections_max_out (s, 99u) == nd); /* n ignored */
+  DP_CHECK (nd >= ne);
+  /* Measured 4 against 3 at this geometry: more rows than bursts is the
+     evidence that nothing filtered them. A `detections()` that returned the
+     claim rule's output would read exactly 3 here. */
+  DP_CHECK (nd > ne);
+
+  burst_capture_detection_t det[64];
+  DP_REQUIRE (nd <= sizeof det / sizeof *det);
+  DP_CHECK (burst_capture_detections (s, 0, det, 64u) == nd);
+
+  burst_capture_event_t ev[8];
+  DP_REQUIRE (burst_capture_events (s, 0, ev, 8u) == ne);
+  for (size_t k = 0; k < ne; k++)
+    {
+      int named = 0;
+      for (size_t i = 0; i < nd; i++)
+        {
+          uint64_t d = det[i].epoch > ev[k].preamble_start
+                           ? det[i].epoch - ev[k].preamble_start
+                           : ev[k].preamble_start - det[i].epoch;
+          if (d < (uint64_t)s->refine_span)
+            named = 1;
+        }
+      DP_CHECK (named); /* an emitted burst came from a hit that names it */
+    }
+  /* ...and every row carries the statistic that gated it. */
+  for (size_t i = 0; i < nd; i++)
+    {
+      DP_CHECK (det[i].test_stat > 0.0);
+      DP_CHECK (det[i].peak_mag > 0.0);
+    }
+
+  /* A short buffer truncates rather than overruns. */
+  burst_capture_detection_t one[1];
+  DP_CHECK (burst_capture_detections (s, 0, one, 1u) == 1u);
+  DP_CHECK (one[0].epoch == det[0].epoch);
+
+  /* A quiet push clears them: the rows describe THIS call. */
+  static float complex quiet[8000];
+  build_capture (quiet, sizeof quiet / sizeof *quiet, NULL, 0u, 0.02, 4u);
+  burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
+                      sizeof out / sizeof *out);
+  DP_CHECK (burst_capture_detections_max_out (s, 0) == 0);
+
   burst_capture_destroy (s);
   return 0;
 }
@@ -1119,6 +1210,8 @@ main (void)
   if (test_push_max_out_bounds_a_real_push ())
     return 1;
   if (test_events_describe_the_last_push ())
+    return 1;
+  if (test_detections_are_what_the_search_found ())
     return 1;
   if (test_accessors_agree_with_the_event ())
     return 1;

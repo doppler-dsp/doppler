@@ -10,7 +10,11 @@ its own ``BurstAcquisition`` there, so the bank spans ``±doppler_uncertainty``.
 
 Each channel is an independent ``DDC → BurstAcquisition`` pipeline over the
 elastic pure kernels, so the bank fans out across a thread pool (the C kernels
-release the GIL).  The same channels are shippable as
+release the GIL).  Given a ``burst_len`` the channel is ``DDC → BurstCapture``
+instead — the same search, plus the stage that turns its output into aligned
+burst windows — and the bank reports both faces from one pass over the
+stream: :meth:`Acquirer.process` the detections, :meth:`Acquirer.bursts` the
+windows, per channel.  The same channels are shippable as
 ``(descriptor, state, block)`` to separate processes / pods:
 :meth:`CoarseChannel.get_state` / :meth:`Acquirer.get_state` snapshot the
 running state (the DDC mixer/decimator and the Acquisition search), and
@@ -56,6 +60,7 @@ import struct
 import warnings
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -143,6 +148,14 @@ class CoarseChannel:
             raise ValueError(
                 f"source_rate ({source_rate}) must be >= chip_rate*spc "
                 f"({acq_fs}); the DDC decimates down to the acq rate"
+            )
+        if ring_path and not burst_len:
+            # A ring holds the look-back a CAPTURE reaches into; a detector
+            # has none. Refused rather than ignored, so a caller who asked
+            # for a file-backed channel does not silently get a detector.
+            raise ValueError(
+                "ring_path needs a burst_len: only a capturing channel has "
+                "a look-back to back with a file"
             )
         self.f_hz = float(f_hz)
         self._ddc = DDC(
@@ -374,6 +387,12 @@ class Acquirer:
     pool, and dedups detections that the same target produced in adjacent
     (overlapping) channels.
 
+    Given a ``burst_len`` every channel captures as well as detects: the
+    same :meth:`process` call fills each channel's burst windows, read back
+    per channel with :meth:`bursts`. A detection's ``channel`` names which
+    channel's windows hold its burst — the dedup keeps the strongest of a
+    target seen in two adjacent channels, and that is the channel to read.
+
     Parameters
     ----------
     code : ndarray[uint8]
@@ -392,6 +411,17 @@ class Acquirer:
         Per-channel :class:`~doppler.dsss.BurstAcquisition` detect params.
     max_workers : int, optional
         Thread-pool size; defaults to the channel count.
+    burst_len : int, default 0
+        Samples in one burst, at the acquisition rate. Non-zero makes every
+        channel a :class:`~doppler.dsss.BurstCapture`; zero leaves it the
+        detector it always was.
+    ring_dir : path-like, optional
+        Directory for one file-backed look-back ring per channel
+        (:class:`~doppler.dsss.PersistentBurstCapture`); created if absent.
+        Needs ``burst_len``. Each ring is named by its channel's CENTER
+        (``ch+32258Hz.cf32``), not its index: widening the bank adds
+        channels at the edges and keeps every existing ring valid, where an
+        index would shift and re-point every file at a different sub-band.
     """
 
     def __init__(
@@ -408,9 +438,30 @@ class Acquirer:
         pd: float = 0.9,
         noise_mode: str = "mean",
         max_workers: int | None = None,
+        burst_len: int = 0,
+        ring_dir: str | Path | None = None,
     ) -> None:
         if doppler_uncertainty_hz < 0.0:
             raise ValueError("doppler_uncertainty_hz must be >= 0")
+        if ring_dir is not None:
+            if not burst_len:
+                # The channel refuses this too; refused here first so the
+                # directory is not created for a bank that cannot use it.
+                raise ValueError(
+                    "ring_dir needs a burst_len: only a capturing bank has "
+                    "look-backs to back with files"
+                )
+            ring_dir = Path(ring_dir)
+            ring_dir.mkdir(parents=True, exist_ok=True)
+        self.burst_len = int(burst_len)
+
+        def ring(f_hz: float) -> str | None:
+            return (
+                None
+                if ring_dir is None
+                else str(ring_dir / f"ch{f_hz:+.0f}Hz.cf32")
+            )
+
         ch_kw = {
             "source_rate": source_rate,
             "code": code,
@@ -421,9 +472,11 @@ class Acquirer:
             "pfa": pfa,
             "pd": pd,
             "noise_mode": noise_mode,
+            "burst_len": burst_len,
         }
-        # Probe one channel to read the native span / resolution.
-        probe = CoarseChannel(0.0, **ch_kw)
+        # Probe one channel to read the native span / resolution. It is the
+        # centre channel (f = 0) and is kept as such below, ring and all.
+        probe = CoarseChannel(0.0, ring_path=ring(0.0), **ch_kw)
         self.span_hz = probe._acq.doppler_span_hz
         self.res_hz = probe._acq.doppler_res_hz
         step = 2.0 * self.span_hz  # each channel covers ±span
@@ -433,7 +486,9 @@ class Acquirer:
         half = math.ceil(doppler_uncertainty_hz / step) if step > 0 else 0
         centers = [k * step for k in range(-half, half + 1)]
         self.channels = [
-            probe if i == half else CoarseChannel(centers[i], **ch_kw)
+            probe
+            if i == half
+            else CoarseChannel(centers[i], ring_path=ring(centers[i]), **ch_kw)
             for i in range(len(centers))
         ]
         self._pool = ThreadPoolExecutor(
@@ -470,6 +525,24 @@ class Acquirer:
         acquisition decision), or ``None`` if no channel fired."""
         dets = self.process(block)
         return max(dets, key=lambda d: d.test_stat) if dets else None
+
+    def bursts(
+        self,
+    ) -> list[tuple[NDArray[np.complex64], NDArray[np.void]]]:
+        """Per channel, the ``(windows, events)`` the last :meth:`process`
+        completed — one entry per channel, in :attr:`channels` order, so
+        ``bursts()[d.channel]`` is where a :class:`Detection` ``d``'s burst
+        is. Every entry is empty for a bank built without ``burst_len``.
+
+        The windows are the channel's own down-mixed stream, and a position
+        indexes that stream (see :meth:`CoarseChannel.bursts`). Every channel
+        decimates by the same factor, so those positions sit on ONE sample
+        grid across the bank — a burst's ``preamble_start`` does not move
+        with the channel that mixed it down. What differs between channels
+        is the mix, and that is what the detection's ``doppler_hz`` already
+        resolves: read the window from the channel the dedup kept.
+        """
+        return [c.bursts() for c in self.channels]
 
     def get_state(self) -> bytes:
         """Snapshot the whole bank's running state — every channel, in order.

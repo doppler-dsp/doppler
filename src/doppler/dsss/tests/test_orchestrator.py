@@ -18,6 +18,9 @@ from doppler.dsss import (
     bin_to_signed,
 )
 from doppler.dsss.orchestrator import Acquirer, CoarseChannel, Detection
+from doppler.dsss.tests.characterization.burst_capture import (
+    characterize as _bc,
+)
 
 CODE = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
 SF = 7
@@ -270,33 +273,47 @@ def test_bank_pod_handoff_resumes_bit_exact():
 
 
 # ── Capturing channels (doppler#1174) ───────────────────────────────────────
+#
+# The stimulus is the burst_capture characterization's scene, so the channel
+# is built on THAT geometry -- chip rate, spc, reps -- and the source rate is
+# the scene's own sample rate. The first version of these tests declared the
+# module's detector geometry (spc 2, reps 8) against a scene made at spc 4,
+# reps 4, and found bursts anyway at this SNR: a search matched to the wrong
+# chip length, measuring nothing this section claims.
+
+_CAP_KW = {
+    "source_rate": _bc.CHIP_RATE * _bc.SPC,
+    "reps": _bc.REPS,
+    "spc": _bc.SPC,
+    "chip_rate": _bc.CHIP_RATE,
+    "cn0_dbhz": 55.0,
+    "pfa": 1e-3,
+    "pd": 0.9,
+}
 
 
 def _burst_scene():
-    """Two bursts in noise, at known SOURCE positions."""
-    from doppler.dsss.tests.characterization.burst_capture import (
-        characterize as ch,
-    )
-
+    """Two bursts in noise, at known positions in the scene's own stream."""
     return (
-        ch.acq_code(),
-        ch.scene([9000, 60_000], 200_000, seed=11),
-        ch.BURST_LEN,
+        _bc.acq_code(),
+        _bc.scene([9000, 60_000], 200_000, seed=11),
+        _bc.BURST_LEN,
     )
 
 
 def _cap_channel(burst_len, code, **kw):
-    return CoarseChannel(
-        0.0,
-        source_rate=CHIP_RATE * SPC,
-        code=code,
-        reps=REPS,
-        spc=SPC,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=55.0,
-        pfa=1e-3,
-        pd=0.9,
+    return CoarseChannel(0.0, code=code, burst_len=burst_len, **_CAP_KW, **kw)
+
+
+def _cap_bank(burst_len, code, **kw):
+    """Three channels: the scene's burst at DC lands in the centre one, and
+    the neighbours sit a full `2*span` away, where the fast-time sinc nulls
+    it."""
+    return Acquirer(
+        code,
+        doppler_uncertainty_hz=2.0e4,
         burst_len=burst_len,
+        **_CAP_KW,
         **kw,
     )
 
@@ -309,20 +326,28 @@ def test_a_detector_channel_is_unchanged():
     rather than an error.
     """
     code, x, _ = _burst_scene()
-    ch = CoarseChannel(
-        0.0,
-        source_rate=CHIP_RATE * SPC,
-        code=code,
-        reps=REPS,
-        spc=SPC,
-        chip_rate=CHIP_RATE,
-        cn0_dbhz=55.0,
-        pfa=1e-3,
-        pd=0.9,
-    )
+    ch = CoarseChannel(0.0, code=code, **_CAP_KW)
     assert ch.burst_len == 0
     assert ch.process(x, 0)
     assert ch.bursts()[0].size == 0
+
+
+def test_a_ring_without_a_burst_length_is_refused():
+    """A ring is the look-back a CAPTURE reaches into; a detector has none.
+
+    Refused at construction rather than ignored, so a caller who asked for a
+    file-backed channel cannot silently get a detector with no file.
+    """
+    code, _, _ = _burst_scene()
+    with pytest.raises(ValueError, match="burst_len"):
+        CoarseChannel(0.0, code=code, ring_path="/nonexistent", **_CAP_KW)
+    with pytest.raises(ValueError, match="burst_len"):
+        Acquirer(
+            code,
+            doppler_uncertainty_hz=0.0,
+            ring_dir="/nonexistent",
+            **_CAP_KW,
+        )
 
 
 def test_a_capturing_channel_reports_both_faces():
@@ -394,3 +419,221 @@ def test_a_file_backed_channel_shrinks_the_checkpoint(tmp_path):
     # parameter.
     assert len(ram.bursts()[1]) == len(dsk.bursts()[1])
     assert (tmp_path / "ch0.cf32").stat().st_size > 0
+
+
+# ── The bank fans bursts out as it does detections ──────────────────────────
+
+
+def test_a_detector_bank_has_no_bursts():
+    """`bursts()` on the bank that always existed: one empty entry per
+    channel, not an error."""
+    code, x, _ = _burst_scene()
+    with Acquirer(code, doppler_uncertainty_hz=2.0e4, **_CAP_KW) as bank:
+        assert bank.burst_len == 0
+        assert bank.process(x)
+        got = bank.bursts()
+        assert len(got) == bank.n_channels
+        assert all(w.size == 0 and len(e) == 0 for w, e in got)
+
+
+def test_a_capturing_bank_reports_both_faces_per_channel():
+    """One `process()` fills both: the dedup'd detections it returns and the
+    windows each channel completed. A detection's `channel` is the index
+    into `bursts()` where its burst is -- and here the burst is at DC, so
+    that is the centre channel, whose neighbours a full `2*span` away are
+    nulled by the fast-time sinc."""
+    code, x, burst_len = _burst_scene()
+    with _cap_bank(burst_len, code) as bank:
+        assert bank.n_channels == 3
+        assert all(isinstance(c._acq, BurstCapture) for c in bank.channels)
+        dets = bank.process(x)
+        got = bank.bursts()
+
+    assert dets
+    assert len(got) == bank.n_channels
+    centre = bank.n_channels // 2
+    strongest = sorted(dets, key=lambda d: -d.test_stat)[:2]
+    assert all(d.channel == centre and d.doppler_hz == 0.0 for d in strongest)
+    win, ev = got[centre]
+    # At least the two transmitted bursts; a spurious window is EXPECTED at
+    # pfa=1e-3 over a scene this long (the object's validation report, F2),
+    # and the two real ones are the two the search rated highest.
+    assert len(ev) >= 2 and win.size == len(ev) * burst_len
+    real = sorted(ev, key=lambda e: -float(e["cn0_dbhz_est"]))[:2]
+    starts = sorted(int(e["preamble_start"]) for e in real)
+    assert starts[1] - starts[0] == 60_000 - 9000, (
+        "the transmitted spacing, so these are the transmitted bursts"
+    )
+    # ...and the fan-out is the serial answer, window for window.
+    ch = _cap_channel(burst_len, code)
+    ch.process(x, 0)
+    ref_win, ref_ev = ch.bursts()
+    assert np.array_equal(win, ref_win)
+    assert np.array_equal(ev, ref_ev)
+
+
+def test_an_offcentre_burst_is_read_from_the_channel_the_dedup_kept():
+    """A target at half a span off DC is still the centre channel's, and the
+    dedup'd detection's `channel` is the index into `bursts()` where its
+    window is -- the claim `bursts()` makes about how to read it.
+
+    Its `preamble_start` is the SAME as the unshifted burst's: every channel
+    decimates by the same factor, so a position is on one sample grid across
+    the bank and does not move with the mix.
+
+    Half a span, not a full one. Measured at this geometry (reps=4, four
+    coherent bins), a single channel's test statistic falls 31 -> 23 -> 12 ->
+    6 -> 0 from DC to exactly one span, so a burst midway between two
+    centres is detected by NEITHER neighbour -- the module docstring's
+    "both at -4 dB" does not hold here. Recorded rather than papered over:
+    doppler#1179.
+    """
+    code, x, burst_len = _burst_scene()
+    with _cap_bank(burst_len, code) as bank:
+        f = 0.5 * bank.span_hz
+        n = np.arange(x.size)
+        shifted = (
+            x * np.exp(2j * np.pi * f / _CAP_KW["source_rate"] * n)
+        ).astype(np.complex64)
+        dets = bank.process(shifted)
+        got = bank.bursts()
+        centre = bank.n_channels // 2
+        ref = bank.channels[centre]
+
+    assert dets
+    best = max(dets, key=lambda d: d.test_stat)
+    assert best.channel == centre
+    assert abs(best.doppler_hz - f) <= bank.res_hz
+    _w, ev = got[best.channel]
+    assert len(ev) >= 2, "the channel the dedup kept holds the windows"
+
+    unshifted = _cap_channel(burst_len, code)
+    unshifted.process(x, 0)
+    grid = sorted(int(v) for v in unshifted.bursts()[1]["preamble_start"])
+    real = sorted(ev, key=lambda e: -float(e["cn0_dbhz_est"]))[:2]
+    assert sorted(int(e["preamble_start"]) for e in real) == grid[:2], (
+        "a position does not move with the mix"
+    )
+    assert ref.f_hz == 0.0
+
+
+def test_a_file_backed_bank_names_a_ring_per_centre(tmp_path):
+    """One ring file per channel, named by the channel's CENTRE.
+
+    Named by centre rather than index so that widening the bank -- which
+    adds channels at the edges -- keeps every existing ring pointing at the
+    sub-band it holds the history of. And the bank's blob shrinks by every
+    channel's look-back, which is the number the pod hand-off pays."""
+    code, x, burst_len = _burst_scene()
+    rings = tmp_path / "rings"
+    with (
+        _cap_bank(burst_len, code) as ram,
+        _cap_bank(burst_len, code, ring_dir=rings) as dsk,
+    ):
+        assert all(
+            isinstance(c._acq, PersistentBurstCapture) for c in dsk.channels
+        )
+        names = sorted(p.name for p in rings.iterdir())
+        assert names == sorted(f"ch{c:+.0f}Hz.cf32" for c in dsk.centers_hz)
+        assert all((rings / n).stat().st_size > 0 for n in names)
+
+        ram.process(x)
+        dsk.process(x)
+        assert len(dsk.get_state()) < len(ram.get_state())
+        assert [len(e) for _w, e in ram.bursts()] == [
+            len(e) for _w, e in dsk.bursts()
+        ]
+
+        # Widening the bank keeps the centre channels' rings, and adds two.
+        wide = Acquirer(
+            code,
+            doppler_uncertainty_hz=2.0 * 2.0e4,
+            burst_len=burst_len,
+            ring_dir=rings,
+            **_CAP_KW,
+        )
+        wide.close()
+        assert set(names) < {p.name for p in rings.iterdir()}
+
+
+# ── The pod hand-off, for a bank that captures ──────────────────────────────
+#
+# The reason the bank exists is that it ships: checkpoint here, rebuild from
+# the descriptor on another pod, restore, continue. A capturing bank carries
+# each channel's look-back in that blob (or in its ring file), so the burst
+# that STRADDLES the hand-off is the one that proves it -- a detector bank
+# only had to reproduce the next block's detections.
+
+
+def _cut_mid_burst():
+    """Where to split the scene: inside the second burst's preamble."""
+    return 60_000 + 2 * _bc.ACQ_SF * _bc.SPC
+
+
+def test_a_capturing_bank_resumes_bit_exact_across_a_pod_handoff():
+    """Checkpoint mid-burst, restore into a fresh bank, and the continuation
+    is window-for-window the uninterrupted run's -- including the burst that
+    began before the cut, which only a travelling look-back can complete."""
+    code, x, burst_len = _burst_scene()
+    cut = _cut_mid_burst()
+
+    with _cap_bank(burst_len, code) as ref:
+        ref.process(x[:cut])
+        r2 = ref.process(x[cut:])
+        ref_bursts = ref.bursts()
+
+    with _cap_bank(burst_len, code) as a:
+        a.process(x[:cut])
+        blob = a.get_state()
+
+    with _cap_bank(burst_len, code) as b:  # the other pod
+        b.set_state(blob)
+        r2b = b.process(x[cut:])
+        got = b.bursts()
+
+    assert r2b == r2
+    for (w, e), (rw, re_) in zip(got, ref_bursts):
+        assert np.array_equal(w, rw)
+        assert np.array_equal(e, re_)
+    centre = ref.n_channels // 2
+    starts = [int(v) for v in got[centre][1]["preamble_start"]]
+    assert any(s < cut < s + burst_len for s in starts), (
+        "the burst straddling the hand-off was completed after it"
+    )
+
+
+def test_a_file_backed_bank_resumes_across_a_restart(tmp_path):
+    """The HPA case: the pod dies, a new one mounts the same volume.
+
+    The rings ARE the history, so the new bank built over the same
+    `ring_dir` adopts them and the blob restores into it -- and finishes
+    the burst the old pod was in the middle of. Against a ring directory
+    that is EMPTY the same blob is refused: it claims retained history that
+    is not there, and resuming into silence would lose the burst quietly.
+    """
+    code, x, burst_len = _burst_scene()
+    cut = _cut_mid_burst()
+    rings = tmp_path / "volume"
+
+    with _cap_bank(burst_len, code) as ref:
+        ref.process(x[:cut])
+        r2 = ref.process(x[cut:])
+        ref_bursts = ref.bursts()
+
+    with _cap_bank(burst_len, code, ring_dir=rings) as old_pod:
+        old_pod.process(x[:cut])
+        blob = old_pod.get_state()
+    # The old pod is gone; only the volume and the blob survive.
+
+    with _cap_bank(burst_len, code, ring_dir=rings) as new_pod:
+        new_pod.set_state(blob)
+        assert new_pod.process(x[cut:]) == r2
+        for (w, e), (rw, re_) in zip(new_pod.bursts(), ref_bursts):
+            assert np.array_equal(w, rw)
+            assert np.array_equal(e, re_)
+
+    with (
+        _cap_bank(burst_len, code, ring_dir=tmp_path / "empty") as other,
+        pytest.raises(ValueError),
+    ):
+        other.set_state(blob)

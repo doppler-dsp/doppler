@@ -317,8 +317,17 @@ A blob from a backed capture does NOT restore into an in-RAM one, or the reverse
 **Parameters:**
 
 
-* `path` File to back the ring with. Must not be NULL or empty. 
-* `...` As [**burst\_capture\_create()**](burst__capture__core_8h.md#function-burst_capture_create). 
+* `path` File to back the ring with; not NULL and not empty. 
+* `acq_code` Preamble PN chips (0/1), length `acq_code_len`. 
+* `acq_code_len` Preamble code length, chips. 
+* `burst_len` Samples in one burst  what gets captured. 
+* `reps` Preamble code repetitions. 
+* `spc` Samples per chip. 
+* `chip_rate` Chip rate, Hz. 
+* `cn0_dbhz` C/N0 the search is sized for, dB-Hz. 
+* `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
+* `pfa` Target false-alarm probability, in (0, 1). 
+* `pd` Target detection probability, in (0, 1). 
 
 
 

@@ -363,8 +363,17 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
  * the intent — they are different configurations, and silently accepting one
  * for the other would resume a capture whose history was somewhere else.
  *
- * @param path  File to back the ring with. Must not be NULL or empty.
- * @param ...   As burst_capture_create().
+ * @param path          File to back the ring with; not NULL and not empty.
+ * @param acq_code      Preamble PN chips (0/1), length @p acq_code_len.
+ * @param acq_code_len  Preamble code length, chips.
+ * @param burst_len     Samples in one burst -- what gets captured.
+ * @param reps          Preamble code repetitions.
+ * @param spc           Samples per chip.
+ * @param chip_rate     Chip rate, Hz.
+ * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz.
+ * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
+ * @param pfa           Target false-alarm probability, in (0, 1).
+ * @param pd            Target detection probability, in (0, 1).
  * @return Heap state, or NULL if a parameter is out of range or the file
  *         could not be opened, sized or mapped.
  *

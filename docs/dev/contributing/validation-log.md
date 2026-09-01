@@ -60,7 +60,7 @@ There is no list here to update.
 
 <!-- validation-log:start -->
 
-**33 objects certified** — 22 of the 80 `objects/*.toml` jm fragments, plus 11 with no object manifest at all (`ccsds_tm`, `conv`, `detection`, `ema`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
+**34 objects certified** — 23 of the 80 `objects/*.toml` jm fragments, plus 11 with no object manifest at all (`ccsds_tm`, `conv`, `detection`, `ema`, `mpsk`, `resamp`, `rs`, `wfm_compose`, `wfm_frame`, `wfm_plan`, `wfmgen`): a function primitive, or a core declared another way. Not every fragment is a DSP object with an envelope worth certifying, so read the denominator as a ceiling rather than a target — and note the two counts are different populations, not a percentage.
 
 | object                                                                                                                                 | module       | limits | findings | still open                 |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------ | -------- | -------------------------- |
@@ -70,6 +70,7 @@ There is no list here to update.
 | [LockDet](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/lockdet/results.md)                  | `detection`  | 22/22  | 6        | none                       |
 | [acq](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/acq/results.md)                               | `dsss`       | 16/16  | 7        | 3 — F3, F6, F7             |
 | [BurstAcquisition](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_acq/results.md)            | `dsss`       | 17/17  | 4        | none                       |
+| [BurstCapture](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_capture/results.md)            | `dsss`       | 18/18  | 6        | 2 — F1, F6                 |
 | [BurstDemod](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_demod/results.md)                | `dsss`       | 15/15  | 5        | none                       |
 | [BurstDespreader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_despreader/results.md)      | `dsss`       | 15/15  | 5        | none                       |
 | [DsssBurstReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md) | `dsss`       | 32/32  | 11       | none                       |

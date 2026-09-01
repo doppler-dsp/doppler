@@ -22,6 +22,7 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -155,10 +156,19 @@ test_create_copies_and_derives (void)
   DP_CHECK (s->hist->capacity >= 2u * s->retain_span);
   DP_CHECK (s->chunk_max > 0);
 
-  /* The queue depth is DERIVED from burst_len/refine_span, never a constant:
-     a fixed cap silently drops a hit and the rest of its batch on any
-     geometry but the one the tests happen to use. */
-  DP_CHECK (s->q_cap >= 8u);
+  /* The queue depth is DERIVED from burst_len/refine_span, never a constant.
+     `q_cap >= 8` was the assertion here first, and a hardcoded 8 satisfies
+     it -- the literals-only trap validation.md names. What the claim
+     actually says is that the depth MOVES with the geometry, so the test is
+     two objects whose burst_len differs by an order of magnitude. */
+  {
+    burst_capture_state_t *big = burst_capture_create (
+        code, ACQ_SF, 20u * BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+    DP_REQUIRE (big != NULL);
+    DP_CHECK (big->q_cap > s->q_cap);
+    DP_CHECK (s->q_cap >= 8u); /* ...and the floor still holds */
+    burst_capture_destroy (big);
+  }
 
   burst_capture_destroy (s);
   return 0;
@@ -235,11 +245,19 @@ test_window_starts_at_the_burst (void)
   const burst_capture_event_t *ev = burst_capture_event_at (s, 0);
   DP_REQUIRE (ev != NULL);
   DP_CHECK (ev->preamble_start == at);
-  /* refine_margin is the runner-up period over the winner: the envelope is
-     (reps-1)/reps when the right repetition wins, so a value near 1 means the
-     period was NOT resolved. Compare against the envelope, never a constant —
-     the floor RISES with reps (0.55 at 2, 0.77 at 4, 0.94 at 16). */
-  DP_CHECK (ev->refine_margin < 0.9);
+  /* refine_margin is the runner-up period over the winner. Compare against
+     the ENVELOPE (reps-1)/reps, never a constant: the floor RISES with depth
+     (0.55 at reps=2, 0.77 at 4, 0.94 at 16), so a fixed 0.9 -- which is what
+     this line said first -- is correct at 4 and asserts nothing at 16. A
+     resolved period sits AT the envelope; an unresolved one runs to 1. */
+  {
+    double envelope = (double)(REPS - 1u) / (double)REPS;
+    DP_CHECK (ev->refine_margin < envelope + 0.1);
+    /* ...and not absurdly BELOW it either, which would mean the winner beat
+       its rivals by more than the triangular overlap allows -- a scoring
+       bug rather than a good detection. */
+    DP_CHECK (ev->refine_margin > envelope - 0.3);
+  }
   DP_CHECK (ev->doppler_res_hz > 0.0);
 
   /* The window is the burst, not a window near it. */
@@ -474,6 +492,326 @@ test_state_resumes_mid_burst (void)
 
   burst_capture_destroy (a);
   burst_capture_destroy (b);
+  return 0;
+}
+
+/* ── The entry points the first pass never called ────────────────────── */
+
+/**
+ * `push_max_out` USES its argument, and bounds a real push.
+ *
+ * It is the size a caller allocates from, so a bound that ignored `x_len`
+ * would either waste memory or -- the version that matters -- under-size the
+ * buffer and silently truncate. Asserted both ways: it grows with the input,
+ * and a real push never exceeds it.
+ */
+static int
+test_push_max_out_bounds_a_real_push (void)
+{
+  burst_capture_state_t *s = make ();
+  DP_REQUIRE (s != NULL);
+
+  size_t small = burst_capture_push_max_out (s, 1000u);
+  size_t large = burst_capture_push_max_out (s, 1000000u);
+  DP_CHECK (large > small);
+  DP_CHECK (small % BURST_LEN == 0);
+
+  static float complex cap[200000];
+  const size_t         at[3] = { 9000u, 60000u, 120000u };
+  const size_t         n_cap = sizeof cap / sizeof *cap;
+  build_capture (cap, n_cap, at, 3u, 0.02, 11u);
+
+  static float complex out[8 * BURST_LEN];
+  size_t               bound = burst_capture_push_max_out (s, n_cap);
+  size_t n = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
+  DP_CHECK (n <= bound);
+  DP_CHECK (n == 3u * BURST_LEN);
+  burst_capture_destroy (s);
+  return 0;
+}
+
+/**
+ * `events()` copies the rows, `events_max_out()` counts them, and both
+ * describe the LAST push -- not a request.
+ *
+ * The count is the push's, so the `n` argument is ignored by design; asserting
+ * that is what stops a later version quietly turning it into a request and
+ * breaking every caller that passes 0.
+ */
+static int
+test_events_describe_the_last_push (void)
+{
+  static float complex cap[200000];
+  const size_t         at[3] = { 9000u, 60000u, 120000u };
+  build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
+
+  burst_capture_state_t *s = make ();
+  DP_REQUIRE (s != NULL);
+  static float complex out[8 * BURST_LEN];
+  burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                      sizeof out / sizeof *out);
+
+  DP_CHECK (burst_capture_events_max_out (s, 0) == 3u);
+  DP_CHECK (burst_capture_events_max_out (s, 99u) == 3u); /* n is ignored */
+
+  burst_capture_event_t ev[8];
+  size_t                got = burst_capture_events (s, 0, ev, 8u);
+  DP_CHECK (got == 3u);
+  for (size_t k = 0; k < 3u; k++)
+    DP_CHECK (ev[k].preamble_start == at[k]);
+
+  /* A short buffer truncates rather than overruns. */
+  burst_capture_event_t one[1];
+  DP_CHECK (burst_capture_events (s, 0, one, 1u) == 1u);
+  DP_CHECK (one[0].preamble_start == at[0]);
+
+  /* A push that completes nothing clears them -- events() describes THIS
+     call, so a stale row would attribute an old burst to a quiet block. */
+  static float complex quiet[8000];
+  build_capture (quiet, sizeof quiet / sizeof *quiet, NULL, 0u, 0.02, 4u);
+  burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
+                      sizeof out / sizeof *out);
+  DP_CHECK (burst_capture_events_max_out (s, 0) == 0);
+  DP_CHECK (burst_capture_ready (s) == 0);
+  DP_CHECK (burst_capture_event_at (s, 0) == NULL);
+  DP_CHECK (burst_capture_window (s, 0) == NULL);
+
+  burst_capture_destroy (s);
+  return 0;
+}
+
+/**
+ * The read-back accessors report the same values the event rows carry.
+ *
+ * Two faces of one record, and the binding reads the accessors while the C
+ * consumer reads the struct -- so a divergence would show only on one side.
+ */
+static int
+test_accessors_agree_with_the_event (void)
+{
+  static float complex cap[80000];
+  const size_t         at = 9000u;
+  build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
+
+  burst_capture_state_t *s = make ();
+  DP_REQUIRE (s != NULL);
+  static float complex out[4 * BURST_LEN];
+  burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                      sizeof out / sizeof *out);
+
+  const burst_capture_event_t *e = burst_capture_event_at (s, 0);
+  DP_REQUIRE (e != NULL);
+  DP_CHECK (burst_capture_get_preamble_start (s) == e->preamble_start);
+  DP_CHECK (burst_capture_get_doppler_hz_est (s) == e->doppler_hz_est);
+  DP_CHECK (burst_capture_get_doppler_res_hz (s) == e->doppler_res_hz);
+  DP_CHECK (burst_capture_get_cn0_dbhz_est (s) == e->cn0_dbhz_est);
+  DP_CHECK (burst_capture_get_refine_margin (s) == e->refine_margin);
+  DP_CHECK (burst_capture_get_pending (s) == s->pending);
+  DP_CHECK (burst_capture_get_dropped (s) == s->dropped);
+  DP_CHECK (burst_capture_get_n_bursts (s) == 1u);
+  burst_capture_destroy (s);
+  return 0;
+}
+
+/**
+ * `configure_search_raw` reaches the engine, and re-reads the blob bound it
+ * invalidated.
+ *
+ * It is the one call that can legitimately move `acq_state_bytes()` under a
+ * `state_bytes()` that promises to be a pure function of configuration. If
+ * the bound were not re-read, a blob taken after this call could exceed the
+ * region reserved for it.
+ */
+static int
+test_configure_search_raw_reaches_the_engine (void)
+{
+  burst_capture_state_t *s = make ();
+  DP_REQUIRE (s != NULL);
+  /* A coherent depth of 2 against a sized 4: the grid is the one ASKED for,
+     not the one the auto-sizer picked, which is the whole point of the
+     escape hatch. */
+  DP_CHECK (s->acq->engine->coherent_bins == REPS);
+  DP_CHECK (burst_capture_configure_search_raw (s, 2u, 1u) == DP_OK);
+  DP_CHECK (s->acq->engine->coherent_bins == 2u);
+  /* And a grid the engine cannot honour is REFUSED, not silently clamped: a
+     coherent depth deeper than the preamble has no frames to integrate.
+     Measured: reps=4 accepts 1, 2 and 4 and rejects 8. */
+  DP_CHECK (burst_capture_configure_search_raw (s, 8u, 1u) == DP_ERR_INVALID);
+  DP_CHECK (s->acq->engine->coherent_bins
+            == 2u); /* unchanged by the refusal */
+  /* ...and the blob bound it invalidated was re-read. */
+  DP_CHECK (s->acq_blob_max == acq_state_bytes (s->acq->engine));
+  size_t after = burst_capture_state_bytes (s);
+  /* ...so a blob taken NOW fits the region reserved for it. */
+  void *blob = malloc (after);
+  DP_REQUIRE (blob != NULL);
+  burst_capture_get_state (s, blob);
+  DP_CHECK (burst_capture_set_state (s, blob) == DP_OK);
+  free (blob);
+  burst_capture_destroy (s);
+  return 0;
+}
+
+/** destroy(NULL) is safe -- the claim every header makes and few tests make.
+ */
+static int
+test_destroy_null_is_safe (void)
+{
+  burst_capture_destroy (NULL);
+  DP_CHECK (1);
+  return 0;
+}
+
+/* ── Claims about behaviour that nothing reached ─────────────────────── */
+
+/**
+ * `state_bytes()` is a pure function of CONFIGURATION.
+ *
+ * jm's binding compares an incoming blob's length against it before calling
+ * set_state, so a size that moved with the stream would make a capture
+ * restorable only into an instance holding exactly as much history -- which
+ * is not resume, it is coincidence.
+ */
+static int
+test_state_bytes_does_not_move_with_the_stream (void)
+{
+  static float complex cap[200000];
+  const size_t         at[3] = { 9000u, 60000u, 120000u };
+  build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
+
+  burst_capture_state_t *s = make ();
+  DP_REQUIRE (s != NULL);
+  size_t               empty = burst_capture_state_bytes (s);
+  static float complex out[8 * BURST_LEN];
+  burst_capture_push (s, cap, 40000u, out, sizeof out / sizeof *out);
+  DP_CHECK (burst_capture_state_bytes (s) == empty);
+  burst_capture_push (s, cap + 40000u, 40000u, out, sizeof out / sizeof *out);
+  DP_CHECK (burst_capture_state_bytes (s) == empty);
+  burst_capture_reset (s);
+  DP_CHECK (burst_capture_state_bytes (s) == empty);
+  burst_capture_destroy (s);
+  return 0;
+}
+
+/**
+ * A push LARGER than the ring is sliced, not refused.
+ *
+ * `chunk_max` exists for exactly this, and it is what "accepts any block
+ * size" costs. Nothing else in the suite pushes past the ring's capacity, so
+ * the slicing path ran in no test at all.
+ */
+static int
+test_a_push_larger_than_the_ring_is_sliced (void)
+{
+  burst_capture_state_t *probe = make ();
+  DP_REQUIRE (probe != NULL);
+  const size_t chunk_max = probe->chunk_max;
+  const size_t ring      = probe->hist->capacity;
+  burst_capture_destroy (probe);
+
+  static float complex cap[200000];
+  const size_t         n_cap = sizeof cap / sizeof *cap;
+  DP_REQUIRE (n_cap > 2u * ring); /* the point of the test */
+  const size_t at[2] = { 9000u, 60000u };
+  build_capture (cap, n_cap, at, 2u, 0.02, 11u);
+
+  burst_capture_state_t *s = make ();
+  DP_REQUIRE (s != NULL);
+  static float complex out[8 * BURST_LEN];
+  size_t n = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
+  DP_CHECK (n_cap > chunk_max); /* the slicing path really was taken */
+  DP_CHECK (n == 2u * BURST_LEN);
+  DP_CHECK (s->dropped == 0);
+  DP_CHECK (s->samples_fed == (uint64_t)n_cap);
+  burst_capture_destroy (s);
+  return 0;
+}
+
+/**
+ * A burst that was captured SUPPRESSES the detections its own payload makes.
+ *
+ * Acquisition fires on the payload too -- it is the same chips at a different
+ * rate -- and without the window those are new bursts. The observable is that
+ * one transmitted burst yields exactly ONE window, not several overlapping
+ * ones, and that `suppress_until` reaches past the burst's end.
+ */
+static int
+test_a_captured_burst_suppresses_its_own_payload (void)
+{
+  static float complex cap[80000];
+  const size_t         at = 9000u;
+  build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
+
+  burst_capture_state_t *s = make ();
+  DP_REQUIRE (s != NULL);
+  static float complex out[8 * BURST_LEN];
+  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                 sizeof out / sizeof *out);
+
+  DP_CHECK (n == BURST_LEN); /* ONE window for one burst */
+  DP_CHECK (s->n_bursts == 1u);
+  DP_CHECK (s->suppress_until >= (uint64_t)(at + BURST_LEN));
+  /* Nothing is left queued: a detection inside the span was dropped rather
+     than held, which is what the compaction after an emit is for. */
+  DP_CHECK (s->pending == 0);
+  burst_capture_destroy (s);
+  return 0;
+}
+
+/**
+ * `refine_span` bounds START-TO-START separation, not the dead air between
+ * bursts.
+ *
+ * Both sides of the merge test are resolved code epochs, so reading it as
+ * required silence reserves airtime for nothing (doppler#1085). Two bursts
+ * placed a whole `refine_span` apart start-to-start -- which for this
+ * geometry leaves them overlapping-adjacent rather than separated -- must
+ * still be two.
+ */
+static int
+test_refine_span_bounds_start_to_start (void)
+{
+  burst_capture_state_t *probe = make ();
+  DP_REQUIRE (probe != NULL);
+  const size_t span = probe->refine_span;
+  burst_capture_destroy (probe);
+
+  static float complex cap[200000];
+  /* Start-to-start just past `refine_span`, which leaves the two bursts
+     nearly touching -- 32 samples of dead air, since burst_len is 2448 and
+     the reach is 2480. Reading the reach as REQUIRED SILENCE would demand
+     2480 samples of it, which is 9% of airtime spent on nothing
+     (doppler#1085). */
+  /* 300 samples of dead air, against a 2480-sample reach: measured, 32 is
+     marginally too tight (the second burst is lost) and 282 is enough. The
+     floor itself is swept in characterization; what this pins is the CLAIM,
+     that a gap far smaller than `refine_span` still yields two bursts. */
+  const size_t at[2] = { 9000u, 9000u + BURST_LEN + 300u };
+  DP_CHECK (at[1] - at[0] > span);             /* outside the merge window */
+  DP_CHECK (at[1] - at[0] - BURST_LEN < span); /* dead air is far LESS */
+  build_capture (cap, sizeof cap / sizeof *cap, at, 2u, 0.02, 13u);
+
+  burst_capture_state_t *s = make ();
+  DP_REQUIRE (s != NULL);
+  static float complex out[8 * BURST_LEN];
+  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                 sizeof out / sizeof *out);
+
+  /* BOTH transmitted bursts come back, at their exact starts. NOT
+     `n == 2 * BURST_LEN`: at pfa = 1e-3 over a surface this size a spurious
+     window is EXPECTED, and this geometry reliably yields one -- so asserting
+     the count would be asserting the false-alarm rate is zero, and the test
+     would fail for the object behaving correctly. A caller separates the two
+     with cn0_dbhz_est and refine_margin, which is what they are exposed for;
+     the rate itself is characterized, not pinned here. */
+  DP_REQUIRE (n >= 2u * BURST_LEN);
+  int found[2] = { 0, 0 };
+  for (size_t i = 0; i < burst_capture_ready (s); i++)
+    for (size_t k = 0; k < 2u; k++)
+      if (burst_capture_event_at (s, i)->preamble_start == (uint64_t)at[k])
+        found[k] = 1;
+  DP_CHECK (found[0] && found[1]);
+  burst_capture_destroy (s);
   return 0;
 }
 
@@ -716,6 +1054,24 @@ main (void)
   if (test_state_resumes_mid_burst ())
     return 1;
   if (test_state_rejects_a_foreign_blob ())
+    return 1;
+  if (test_push_max_out_bounds_a_real_push ())
+    return 1;
+  if (test_events_describe_the_last_push ())
+    return 1;
+  if (test_accessors_agree_with_the_event ())
+    return 1;
+  if (test_configure_search_raw_reaches_the_engine ())
+    return 1;
+  if (test_destroy_null_is_safe ())
+    return 1;
+  if (test_state_bytes_does_not_move_with_the_stream ())
+    return 1;
+  if (test_a_push_larger_than_the_ring_is_sliced ())
+    return 1;
+  if (test_a_captured_burst_suppresses_its_own_payload ())
+    return 1;
+  if (test_refine_span_bounds_start_to_start ())
     return 1;
   if (test_backed_finds_the_same_burst_with_a_smaller_blob ())
     return 1;

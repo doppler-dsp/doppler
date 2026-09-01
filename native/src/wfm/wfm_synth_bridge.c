@@ -152,6 +152,26 @@ wfm_source_frame_error (const wfm_source_t *src)
                "so a remainder has nowhere to go and is refused rather than "
                "padded";
     }
+
+  /* Last, and deliberately last: does the description this source resolves to
+     actually lay out? Every check above is about ONE flag's value, so it can
+     name the flag. This one asks the geometry itself, which is the only way a
+     CARRIED description gets checked at all -- the flat fields it would
+     otherwise be derived from are not consulted when `src->frame` is set.
+     doppler#1155: a derived field naming no producing stage laid out at zero
+     length and generated an empty capture, exit 0 and nothing on stderr,
+     which is the refusal-nobody-was-told-about shape --data-code already had
+     to be dragged out of. */
+  wfm_frame_desc_t        desc;
+  wfm_frame_desc_layout_t lay;
+  if (wfm_source_describe_frame (src, &desc) != 0
+      || wfm_frame_desc_layout (&desc, &lay) != 0)
+    return "this frame description does not lay out: a field that declares a "
+           "length but supplies no bits is DERIVED and must name the stage "
+           "that fills it (`derived_by` = the stage's index plus one), a "
+           "derived field must be the last field its stage covers, and an "
+           "emitting stage must be the only one and must cover the whole "
+           "frame";
   return NULL;
 }
 

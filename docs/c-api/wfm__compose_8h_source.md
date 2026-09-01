@@ -330,6 +330,9 @@ char *wfm_spec_template_json(void);
 
 wfm_compose_state_t *wfm_compose_from_json(const char *json);
 
+wfm_compose_state_t *wfm_compose_from_json_why(const char *json,
+                                               const char **why);
+
 wfm_compose_state_t *wfm_compose_from_file(const char *path);
 
 #ifdef __cplusplus

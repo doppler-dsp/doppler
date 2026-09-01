@@ -1893,7 +1893,18 @@ doppler_wfmgen (int argc, char *argv[])
           rc = 1;
           goto done;
         }
-      comp = wfm_compose_from_json (spec);
+      /* A refused FRAME is the one spec failure with a sentence behind it,
+         so it exits here rather than falling through to the generic line
+         below — two messages for one fault reads as two faults. */
+      const char *why = NULL;
+      comp            = wfm_compose_from_json_why (spec, &why);
+      if (!comp && why)
+        {
+          (void)fprintf (stderr, "error: %s\n", why);
+          free (spec);
+          rc = 2;
+          goto done;
+        }
       if (!o.headroom_set)
         o.headroom = wfm_spec_headroom (spec);
       free (spec);

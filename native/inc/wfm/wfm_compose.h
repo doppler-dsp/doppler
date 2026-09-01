@@ -809,6 +809,29 @@ char *wfm_spec_template_json(void);
 wfm_compose_state_t *wfm_compose_from_json(const char *json);
 
 /**
+ * @brief The same, but able to say why a FRAME was refused.
+ *
+ * A spec is the interface most likely to be hand-written, and a NULL return
+ * is the one answer that cannot teach anything. This runs
+ * @ref wfm_source_frame_error over every parsed source before handing them to
+ * the composer — which asks the same question and would refuse either way —
+ * so the reason survives the boundary as a sentence instead of a pointer.
+ *
+ * Only the frame rule reports this way. A parse error or a bad type is still
+ * a bare NULL, because those are cJSON's to describe and duplicating its
+ * diagnostics here would be a second opinion about the same text.
+ *
+ * @param json  the spec.
+ * @param why   optional; receives a STATIC message when a source's frame is
+ *              refused, or NULL in every other case (including success).
+ *              Passing NULL makes this exactly @ref wfm_compose_from_json.
+ * @return Composer state, or NULL on parse error / bad type / no segments /
+ *         a refused frame.
+ */
+wfm_compose_state_t *wfm_compose_from_json_why(const char *json,
+                                               const char **why);
+
+/**
  * @brief Build a composer from a JSON spec file.
  * @return Composer state, or NULL on read/parse error.
  */

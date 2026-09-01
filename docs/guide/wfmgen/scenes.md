@@ -392,16 +392,25 @@ a receiver has to find it before it can check anything.
     stage 0. The `+1` is what makes a zero mean "the caller supplies this
     field" rather than "the output of stage 0".
 
-    Omit it and the scene still loads, still generates, and still exits 0 —
-    with a **different waveform**. Measured on the description above: the
-    frame comes out **40 bits** rather than 56 (the unclaimed `crc` field is
-    dropped to zero length) and the payload's own bits do not survive into
-    the record. Nothing refuses it, so check the frame length is what you
-    declared. This is doppler#1155.
+    Omit it and the scene is **refused**, naming what is missing — the
+    geometry is decided in one place, so the CLI, the C API and Python all
+    say the same thing:
 
-    The C builder has no such trap: `wfm_frame_add_stage()` takes the cover
-    by name and wires the producer itself, so the fact cannot be stated
-    twice and cannot disagree.
+    ```text
+    error: this frame description does not lay out: a field that declares a
+    length but supplies no bits is DERIVED and must name the stage that
+    fills it (`derived_by` = the stage's index plus one), …
+    ```
+
+    It is worth knowing what that refusal replaced (doppler#1155): the scene
+    used to load, generate and exit 0 with a **different waveform** — the
+    frame came out **40 bits** rather than 56, because the unclaimed `crc`
+    field was dropped to zero length, and the payload's own bits did not
+    survive into the record.
+
+    The C builder never had the trap: `wfm_frame_add_stage()` takes the cover
+    by name and wires the producer itself, so the fact cannot be stated twice
+    and cannot disagree.
 
 ### The same description from C and from Python
 

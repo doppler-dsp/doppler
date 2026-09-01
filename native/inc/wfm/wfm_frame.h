@@ -544,11 +544,22 @@ extern "C"
    * not the data, was wrong. Geometry is decided here, so it is refused
    * here.
    *
+   * A field that declares @c bits but supplies no sequence is DERIVED, and
+   * one that names no producing stage (@c derived_by zero) is refused for
+   * the same reason. It used to lay out at zero length: the frame came out
+   * short, the stage that should have filled the field ran over a cover
+   * whose tail no longer existed, and the caller got a record rather than an
+   * error. Every reader funnels through here, so refusing at this one point
+   * covers the scene JSON and the CLI as well as the builder — which cannot
+   * reach the state at all, since @ref wfm_frame_add_stage wires the
+   * producer from the cover it is given.
+   *
    * @param d    the description.
    * @param out  receives the layout.
    * @return 0, or -1 if @p d or @p out is NULL, a count or a cover runs
-   *         past its array, or an emitting stage covers less than the whole
-   *         frame or is not the only one.
+   *         past its array, a derived field names no producing stage, or an
+   *         emitting stage covers less than the whole frame or is not the
+   *         only one.
    */
   int wfm_frame_desc_layout (const wfm_frame_desc_t  *d,
                              wfm_frame_desc_layout_t *out);

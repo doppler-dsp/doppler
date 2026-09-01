@@ -12,6 +12,7 @@ import math
 import numpy as np
 import pytest
 
+from doppler.dsss import bin_to_signed
 from doppler.dsss.orchestrator import Acquirer, CoarseChannel
 
 CODE = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
@@ -146,6 +147,67 @@ _CH_KW = {
     "pfa": 1e-3,
     "pd": 0.9,
 }
+
+
+def test_the_doppler_fold_is_the_librarys_and_not_a_copy():
+    """`_abs_doppler` must agree with `bin_to_signed` at EVERY bin.
+
+    The fold used to be spelled out here. It agreed with the canonical form
+    everywhere — checked exhaustively for `n < 40` before it was removed —
+    and that is precisely why it was worth removing rather than leaving: a
+    copy that agrees is a copy that can stop agreeing, and this particular
+    arithmetic has already cost a receiver reporting `tracking == 1` while
+    decoding noise (`clib_common.h`, the wideband search against its own
+    hand-off).
+
+    The check walks the whole grid rather than sampling it, because two
+    spellings differ at ONE index — the Nyquist bin of an even grid, where
+    `+n/2` and `-n/2` name the same frequency and a consumer seeded on the
+    wrong side of it is off by the full search span. A test that checked
+    three bins in the middle would pass against a broken fold.
+
+    **What this catches, and what it does not.** Proven by sabotage both ways:
+    re-inlining the *old* copy leaves it GREEN, because that copy agreed;
+    changing the threshold to `> n // 2` — the Nyquist-side spelling, which
+    is the one that cost a receiver `tracking == 1` on noise — turns it RED.
+    So this gates the DIVERGENCE, not the DUPLICATION. A future copy that
+    happens to agree will pass here and will still be a copy. Nothing
+    textual was added to catch that: a regex for the shape would be brittle
+    and would be suppressed rather than obeyed, which is worse than an
+    honest gap (doppler#1168).
+    """
+    ch = CoarseChannel(
+        0.0,
+        source_rate=SOURCE_RATE,
+        code=CODE,
+        reps=REPS,
+        spc=SPC,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=35.0,
+        pfa=1e-3,
+        pd=0.9,
+    )
+    n = ch._nbins
+    res = ch._res
+    for b in range(n):
+        assert ch._abs_doppler(b) == pytest.approx(
+            ch.f_hz + bin_to_signed(b, n) * res
+        ), f"bin {b} of {n} disagrees with the library's fold"
+
+    # ...and the offset really does move the answer, so the loop above is not
+    # comparing two expressions that are both anchored at zero.
+    off = CoarseChannel(
+        1234.0,
+        source_rate=SOURCE_RATE,
+        code=CODE,
+        reps=REPS,
+        spc=SPC,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=35.0,
+        pfa=1e-3,
+        pd=0.9,
+    )
+    assert off._abs_doppler(0) == pytest.approx(1234.0)
 
 
 def test_channel_state_roundtrip_and_reject():

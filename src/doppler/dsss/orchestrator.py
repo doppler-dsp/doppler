@@ -61,7 +61,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from doppler.ddc import DDC
-from doppler.dsss import BurstAcquisition
+from doppler.dsss import BurstAcquisition, bin_to_signed
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -177,13 +177,20 @@ class CoarseChannel:
         return self._acq
 
     def _abs_doppler(self, doppler_bin: int) -> float:
-        """Map a folded slow-time bin to absolute Doppler (Hz)."""
-        # Fold [0, nbins) -> [-nbins/2, nbins/2): a residual above +span reads
-        # as a negative offset (the slow-time FFT is circular).
-        signed = doppler_bin
-        if doppler_bin >= (self._nbins + 1) // 2:
-            signed = doppler_bin - self._nbins
-        return self.f_hz + signed * self._res
+        """Map a folded slow-time bin to absolute Doppler (Hz).
+
+        The fold is `bin_to_signed`, not a copy of it. This function used to
+        spell it out — `bin - nbins if bin >= (nbins + 1) // 2` — which agrees
+        with the canonical form at every grid size (checked exhaustively for
+        `n < 40`), and that is exactly why it was worth removing rather than
+        leaving: a copy that agrees is a copy that can stop agreeing, and
+        `clib_common.h` records what this particular arithmetic already cost
+        once. An acquisition's wideband search and its own hand-off spelled
+        the fold differently, and it surfaced as a receiver reporting
+        `tracking == 1` while decoding noise. One home, in C, wrapped for
+        Python (doppler#1168).
+        """
+        return self.f_hz + bin_to_signed(doppler_bin, self._nbins) * self._res
 
     def process(
         self, block: NDArray[np.complex64], index: int

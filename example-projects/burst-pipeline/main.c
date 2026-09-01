@@ -1,63 +1,45 @@
 /*
- * main.c — a burst waveform, end to end: describe, generate, write, consume.
+ * main.c — a burst waveform, end to end: describe, generate, write, receive.
  *
  * Copy this directory as the starting point for a downstream that generates
- * realistic burst traffic and then does something with it. It walks the four
- * decisions that actually cost time or correctness:
+ * realistic burst traffic and then does something with it. Five steps, each
+ * checked, each exiting non-zero if the check fails:
  *
  *   1. THE FRAME. A `wfm_frame_desc_t` the caller builds — fields in wire
  *      order, a stage covering a span it names — put on a source. No wfmgen
- *      flag spells the layout used here.
+ *      flag spells this layout.
  *
- *   2. THE BURST TRAIN, naive then declared. Sixty bursts as sixty listed
- *      segments, against ONE segment with `repeats = 60` — and they are NOT
- *      the same waveform. The listed form restarts the source from its seed
- *      each time, so all sixty bursts carry identical noise; `repeats` draws
- *      fresh noise per instance. Measured here, both ways, because the
+ *   2. THE BURST TRAIN, listed then declared. Sixty bursts as sixty listed
+ *      segments are NOT the same waveform as one segment with `repeats = 60`:
+ *      a listed segment restarts the source from its seed, so all sixty carry
+ *      identical noise, while `repeats` draws fresh noise per instance. The
  *      difference is invisible in a plot and fatal to a Monte-Carlo run.
  *
- *   3. SNR ACROSS THE SCENE, measured with doppler's own estimators. SNR is
- *      a property of a SOURCE, and the noise floor it implies runs through
- *      the whole segment — including the gaps, where the signal is off. The
- *      gap is therefore the noise floor rather than digital silence, which
- *      `snr_m2m4_db` shows by returning a real number for it at all.
+ *   3. SNR ACROSS THE SCENE. SNR is a property of a SOURCE, and the noise
+ *      floor it implies runs through the whole segment — including the gaps,
+ *      where the signal is off. So a gap is the channel, not digital silence.
  *
- *   4. PREPARE ONCE, SWEEP MANY. A sweep over SNR re-renders the same bursts
- *      at every point. `wfm_plan_prepare` caches the clean signal and
- *      `wfm_plan_at` re-weights it, which is the difference between doing the
- *      DSP once and doing it per point. Both times are printed, and NEITHER
+ *   4. PREPARE ONCE, SWEEP MANY. `wfm_plan_prepare` caches the clean signal
+ *      and `wfm_plan_at` re-weights it. Both timings are printed and NEITHER
  *      is asserted: a Plan caches the signal but redraws the noise, so what
- *      it saves is the signal's share of the work — measure it for your own
- *      scene rather than taking a ratio on trust. What IS asserted is that
- *      the cached render is byte-identical to composing the scene. A cache
- *      that is fast because it quietly does less is exactly the failure this
- *      example found (doppler#1158), and no stopwatch can see it.
+ *      it saves is the signal's share of the work, and that depends on the
+ *      scene and the machine. What IS asserted is that a cached render is
+ *      byte-identical to composing the scene — a cache that is fast because
+ *      it quietly does less is not something a stopwatch can catch.
  *
- * Then it writes the result to a BLUE file and reads it back the way a
- * consumer would — in blocks, as fast as the reader will produce them —
- * timing both halves and checking the bytes survived.
+ *   5. WRITE IT, THEN RECEIVE IT. Out to a BLUE file, back in through the
+ *      reader, and then found the way a receiver would have to: demodulate
+ *      the whole record, gaps included, and search for the frame's sync
+ *      marker. The marker is rebuilt from the frame's own declaration rather
+ *      than held as a second copy, and the search tolerance is derived by
+ *      `syncword_max_errors_for` rather than guessed. Each frame found is
+ *      checked with `wfm_frame_desc_crc_ok`, which needs no payload truth —
+ *      a frame error rate a receiver could compute on someone else's capture.
  *
- *   5. AND THEN IT RECEIVES. The consumer does not know where the bursts
- *      are, so it demodulates the whole record, gaps included, and searches
- *      for the frame's sync marker. Two things make that honest rather than
- *      circular: the marker is REBUILT from the frame's own declaration
- *      rather than held as a second copy, and the tolerance is DERIVED by
- *      `syncword_max_errors_for` from how much stream is searched rather
- *      than guessed. Each frame the search lands on is then checked with
- *      `wfm_frame_desc_crc_ok`, which needs no payload truth — so it is a
- *      frame error rate a receiver could compute on a capture it did not
- *      generate.
- *
- * Where doppler already has the measurement, this uses it rather than
- * open-coding one: `snr_data_aided_db` and `snr_m2m4_db` for SNR,
- * `syncword_*` for the search and its threshold arithmetic. A hand-rolled
- * mean-power ratio was what this example used to do, and it is one more
- * place for a convention to drift from the library's own.
- *
- * Every timing here is measured on the machine that runs it and printed with
- * its units; nothing is hard-coded, and the ratio is the point rather than
- * any absolute number. Every check exits non-zero on failure, because an
- * example that validates nothing still exits 0.
+ * Measurement comes from the library where the library has it:
+ * `snr_data_aided_db` / `snr_m2m4_db` for SNR, `syncword_*` for the search
+ * and its threshold arithmetic. Every number printed is measured on the
+ * machine that runs it and carries its units.
  *
  * Builds against either link mode; see CMakeLists.txt (find_package) and the
  * pkg-config commands in docs/install/c.md.
@@ -82,20 +64,17 @@
 #define SPS 4         /* samples per symbol; rectangular                  */
 #define HDR_BITS 16u  /* the caller's own header                          */
 #define PAY_BITS 240u /* payload                                          */
-/* The sync marker is a GENERATED field, not a literal: a 63-bit m-sequence
-   from a 6-stage LFSR, the classic marker choice because its periodic
-   autocorrelation is a single peak. Declaring it as a `kind` rather than an
-   array means the description PRODUCES it, so the receiver rebuilds the very
-   same bits from the very same declaration (`wfm_seq_bits`) instead of
-   holding a second copy that can drift. No standard is involved — a caller
-   who wants a specific marker uses a literal field instead.
+/* A GENERATED sync field rather than a literal: declaring a `kind` means the
+   description PRODUCES the marker, so the receiver rebuilds the same bits
+   from the same declaration (`wfm_seq_bits`) instead of holding a second copy
+   that can drift. A literal field works too, for a marker you must match.
 
-   SIXTY-THREE BITS, AND THE LIBRARY PICKED THE LENGTH. A 31-bit marker was
-   the first choice and `syncword_max_errors_for` refused it outright: over
-   this scene's search window, even demanding an EXACT match leaves a
-   false-frame probability above 1e-6, because every offset ahead of the real
-   one is its own chance to hit first. Doubling the register took the
-   exact-match probability from 2^-31 to 2^-63 and bought real tolerance. */
+   LENGTH IS THE PROPERTY THAT MATTERS, because the search is a Hamming
+   distance over bits: what makes a marker safe is being unlikely to appear by
+   chance anywhere in the window searched, which is 2^-63 here and 2^-31 at
+   half the length. (An m-sequence's two-valued autocorrelation is why it
+   suits a sample-domain correlator; that is not what this is.)
+   `syncword_max_errors_for` puts a number on it — see section 7. */
 #define SYNC_BITS 63u
 #define SYNC_REG_BITS 6u
 #define FRAME_BITS (SYNC_BITS + HDR_BITS + PAY_BITS + WFM_FRAME_CRC_BITS)
@@ -321,16 +300,12 @@ main (void)
   printf ("  %u segments: %.1f ms   |   1 segment x %u repeats: %.1f ms\n",
           N_BURSTS, t_listed * 1e3, N_BURSTS, t_declared * 1e3);
 
-  /* AND THEY ARE NOT THE SAME WAVEFORM. This is the reason to reach for
-     `repeats`, and it is not brevity.
-
-     A listed segment is a fresh segment: it starts this source from its
-     declared `seed`, so all sixty draw the SAME noise. Sixty bursts that
-     look independent and are not — which is precisely the mistake a
-     Monte-Carlo run cannot afford, and it is invisible in a plot.
-
-     `repeats` says "the same burst, again": the signal is fixed across
-     instances and the AWGN is FRESH per instance. */
+  /* AND THEY ARE NOT THE SAME WAVEFORM — the reason to reach for `repeats`
+     is not brevity. A listed segment is a fresh segment: it restarts the
+     source from its declared `seed`, so all sixty draw the SAME noise, which
+     is sixty bursts that look independent and are not. `repeats` says "the
+     same burst, again": signal fixed across instances, AWGN fresh per
+     instance. */
   const size_t period = PERIOD;
   /* Instance k is [delay | on | off], so a burst starts DELAY_SAMPLES in. */
   const size_t burst0 = DELAY_SAMPLES;
@@ -351,15 +326,13 @@ main (void)
   printf ("--- 3. Where the declared %.0f dB SNR actually shows up ---\n",
           SNR_DB);
 
-  /* MEASURED WITH DOPPLER'S OWN ESTIMATORS, not with a power ratio written
-     here. `snr_m2m4_db` is blind — moments only, no knowledge of what was
-     sent — and `snr_data_aided_db` strips the known transmitted sign. A
-     downstream checking its own link has one of those two situations and
-     should reach for the matching estimator rather than reinvent either.
+  /* Two estimators, for the two situations a caller is in: `snr_m2m4_db` is
+     blind (moments only, nothing known about what was sent), while
+     `snr_data_aided_db` strips the known transmitted sign.
 
-     Both read SYMBOLS, so the burst is matched-filtered first: that is the
-     receiver's own 6 dB at sps=4, and it is why these come out above the
-     declared per-sample figure rather than equal to it. */
+     Both read SYMBOLS, so the burst is matched-filtered first — that is the
+     receiver's own 10log10(sps) dB, and why these read above the declared
+     per-sample figure rather than equal to it. */
   static float complex tx_sym[N_SYMS];
   static uint8_t       tx_bits[FRAME_BITS];
   match_filter (declared + burst0, N_SYMS, tx_sym);
@@ -446,13 +419,10 @@ main (void)
 
   /* THE CHECK THAT MATTERS, and it is not the clock. A cache is worth having
      only if it renders what compose would have: at the scene's own SNR and
-     anchor seed, `wfm_plan_at` is documented to reproduce `wfm_compose` to
-     the bit (wfm_plan.h). Pinning that here rather than a speed ratio is
-     deliberate — the ratio is a property of the machine, and asserting one
-     made this example fail on macOS while passing on Linux. Worse, the
-     speedup it was celebrating was partly a Plan that dropped the noise
-     floor entirely (doppler#1158); a timing gate cannot tell "faster" from
-     "did less". Byte-identity can. */
+     anchor seed, `wfm_plan_at` reproduces `wfm_compose` to the bit
+     (wfm_plan.h). A speed ratio asserts nothing useful in its place — it is
+     a property of the machine, and it cannot tell "faster" from "did less".
+     Byte-identity can. */
   int exact = 0;
   if (plan)
     {

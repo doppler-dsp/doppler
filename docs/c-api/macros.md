@@ -53,6 +53,9 @@
 * **BOXCAR\_MAX\_LEN** ([**boxcar\_core.h**](boxcar__core_8h.md))
 * **BOXCAR\_STATE\_MAGIC** ([**boxcar\_core.h**](boxcar__core_8h.md))
 * **BOXCAR\_STATE\_VERSION** ([**boxcar\_core.h**](boxcar__core_8h.md))
+* **BURST\_CAPTURE\_HITS** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
+* **BURST\_CAPTURE\_STATE\_MAGIC** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
+* **BURST\_CAPTURE\_STATE\_VERSION** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **BURST\_DESPREADER\_STATE\_MAGIC** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
 * **BURST\_DESPREADER\_STATE\_VERSION** ([**burst\_despreader\_core.h**](burst__despreader__core_8h.md))
 

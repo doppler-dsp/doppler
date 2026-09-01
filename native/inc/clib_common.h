@@ -96,6 +96,19 @@ dp_xcalloc (size_t nmemb, size_t size)
   return dp_xnn (calloc (nmemb, size));
 }
 
+/** realloc that aborts on OOM — the third member of the family.
+ *
+ *  A grow-on-demand scratch buffer is the shape that wants it: the new size
+ *  scales with the caller's block, but the only way the call fails is still
+ *  genuine exhaustion, so the unwind path is as uncoverable as malloc's.
+ *  Passing NULL for @p p is a fresh allocation, exactly as realloc defines.
+ */
+static inline void *
+dp_xrealloc (void *p, size_t n)
+{
+  return dp_xnn (realloc (p, n));
+}
+
 /**
  * @brief `numpy.fft.fftfreq(n)[bin] * n` — the SIGNED index of an FFT bin.
  *

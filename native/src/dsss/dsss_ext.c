@@ -2,9 +2,9 @@
  * dsss_ext.c — Python extension module dsss
  *
  * Objects: Despreader, BurstDespreader, Acquisition, BurstAcquisition,
- * PolynomialPhaseEstimator, BurstDemod, DsssReceiver, AsyncDsssReceiver,
- * DsssBurstReceiver GENERATED — do not hand-edit. Patches belong in the
- * _ext_<obj>.c fragments.
+ * PolynomialPhaseEstimator, BurstDemod, BurstCapture, DsssReceiver,
+ * AsyncDsssReceiver, DsssBurstReceiver GENERATED — do not hand-edit. Patches
+ * belong in the _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -18,6 +18,7 @@
 #include "dsss_ext_acq.c"
 #include "dsss_ext_async_dsss_receiver.c"
 #include "dsss_ext_burst_acq.c"
+#include "dsss_ext_burst_capture.c"
 #include "dsss_ext_burst_demod.c"
 #include "dsss_ext_burst_despreader.c"
 #include "dsss_ext_despreader.c"
@@ -121,6 +122,8 @@ PyInit_dsss (void)
     return NULL;
   if (PyType_Ready (&BurstDemodObjType) < 0)
     return NULL;
+  if (PyType_Ready (&BurstCaptureObjType) < 0)
+    return NULL;
   if (PyType_Ready (&DsssReceiverObjType) < 0)
     return NULL;
   if (PyType_Ready (&AsyncDsssReceiverObjType) < 0)
@@ -176,6 +179,14 @@ PyInit_dsss (void)
   if (PyModule_AddObject (m, "BurstDemod", (PyObject *)&BurstDemodObjType) < 0)
     {
       Py_DECREF (&BurstDemodObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&BurstCaptureObjType);
+  if (PyModule_AddObject (m, "BurstCapture", (PyObject *)&BurstCaptureObjType)
+      < 0)
+    {
+      Py_DECREF (&BurstCaptureObjType);
       Py_DECREF (m);
       return NULL;
     }

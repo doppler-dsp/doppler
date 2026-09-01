@@ -2249,6 +2249,434 @@ class BurstDemod:
         """
 
 @final
+class BurstCapture:
+    """Create a burst capture: acquisition, refine and retention behind one
+    push().
+
+    Parameters
+    ----------
+    acq_code : NDArray[np.uint8]
+        Preamble PN chips (0/1), length acq_code_len.
+    burst_len : int, default 8192
+        Samples in one burst -- what gets captured.
+    reps : int, default 5
+        Preamble code repetitions.
+    spc : int, default 4
+        Samples per chip.
+    chip_rate : float, default 1000000.0
+        Chip rate, Hz.
+    cn0_dbhz : float, default 50.0
+        C/N0 the search is sized for, dB-Hz.
+    doppler_uncertainty : float, default 0.0
+        Doppler search half-range, Hz (0 = native).
+    pfa : float, default 1e-3
+        Target false-alarm probability, in (0, 1).
+    pd : float, default 0.9
+        Target detection probability, in (0, 1).
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``BurstCapture: invalid
+        parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0,
+        burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import BurstCapture
+    >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+    >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+    >>> cap.burst_len
+    512
+    >>> cap.retain_span == cap.refine_span + cap.burst_len
+    True
+
+    """
+    def __init__(
+        self,
+        acq_code: NDArray[np.uint8],
+        burst_len: int = ...,
+        reps: int = ...,
+        spc: int = ...,
+        chip_rate: float = ...,
+        cn0_dbhz: float = ...,
+        doppler_uncertainty: float = ...,
+        pfa: float = ...,
+        pd: float = ...,
+    ) -> None: ...
+
+    def push(
+        self,
+        x: NDArray[np.complex64],
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """Stream raw cf32 samples and get back the SAMPLES of every burst
+        whose window has fully arrived, concatenated: burst i occupies
+        burst_len samples starting at i*burst_len, and events() returns the
+        matching record for each. Samples feed the embedded BurstAcquisition
+        and are retained in a history ring; when a detection fires, the refine
+        stage correlates one code period at each preamble position to recover
+        the exact preamble start -- the one quantity acquisition structurally
+        cannot report, since its code_phase is a lag modulo one code period --
+        and the window is emitted the moment its last sample has arrived. It
+        stops there: what to DO with a burst (demodulate it, write it to a
+        file, ship it to another process) is the caller's. An empty return is
+        normal, not an error: it means no burst completed in this call. Accepts
+        any block size -- the history ring is a contiguous window over the
+        stream and is never reset between bursts, so a burst whose tail falls
+        outside one call is completed by a later one.
+
+        Windows are concatenated: burst `i` occupies `burst_len` samples
+        starting at `i*burst_len`, and events() returns the matching record for
+        each. Every sample of x is consumed. An empty return is normal -- it
+        means no burst completed in this call.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input samples, x_len long.
+        out : NDArray[np.complex64] | None
+            Written with the completed windows; may be NULL to drop.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Samples written -- always a multiple of `burst_len`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstCapture
+        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
+        >>> win.size % cap.burst_len        # whole windows, never a partial
+        0
+        >>> win.size                        # silence, so no burst completed
+        0
+
+        """
+
+    def push_max_out(self, x_len: int) -> int:
+        """Upper bound on samples push() can return for x_len input.
+
+        Distinct bursts cannot overlap, so `x_len` samples complete at most
+
+        `x_len/burst_len + 1` of them, plus whatever is already queued.
+
+        Parameters
+        ----------
+        x_len : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def events(
+        self,
+        count: int = 1,
+        out: NDArray[Any] | None = None,
+    ) -> NDArray[Any]:
+        """The event record for each burst the last push() returned. Row i
+        describes the window at samples[i*burst_len ...] of that push. Valid
+        until the next push(), reset() or set_state().
+
+        Row `i` describes the window at `i*burst_len`. Valid until the next
+        push(), reset() or set_state().
+
+        Parameters
+        ----------
+        count : int
+            How many output samples to ask for. The call may return fewer; size
+            an `out=` buffer with the matching `_max_out()` when you need the
+            worst case.
+        out : NDArray[Any] | None
+            Optional pre-allocated output buffer. When given, the result is
+            written into it and the returned array is a view of exactly the
+            samples produced; when omitted, a fresh array is allocated.
+
+        Returns
+        -------
+        NDArray[Any]
+            Output.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstCapture
+        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
+        >>> len(cap.events()) == win.size // cap.burst_len
+        True
+
+        """
+
+    def events_max_out(self, n: int) -> int:
+        """Records available from the last push(). n is ignored.
+
+        Parameters
+        ----------
+        n : int
+            Input.
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
+        """Pin the embedded BurstAcquisition's search grid directly, bypassing
+        the auto-sizing -- the escape hatch for a caller who wants a specific
+        (doppler_bins, n_noncoh). Forwards to the engine unchanged.
+
+        The escape hatch for a caller who wants a specific (doppler_bins,
+        n_noncoh). Forwards to the engine unchanged.
+
+        Parameters
+        ----------
+        doppler_bins : int
+            Input.
+        n_noncoh : int
+            Input.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``configure_search_raw failed``, with the return code appended
+            (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstCapture
+        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> cap.configure_search_raw(4, 1)   # 4 Doppler bins, coherent only
+
+        """
+
+    def reset(self) -> None:
+        """Return to the searching state: resets the embedded acquisition,
+        drops the history ring's contents, clears every queued detection and
+        every read-back, so a fresh stream cannot inherit the previous one's
+        position. Construction parameters are untouched.
+
+        Resets the embedded acquisition, rewinds the history ring, clears every
+        queued detection and every read-back. Construction parameters are
+        untouched; `dropped` deliberately survives, because a lost burst stays
+        lost.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstCapture
+        >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> cap.push(np.zeros(4096, dtype=np.complex64)).size
+        0
+        >>> cap.reset()
+        >>> cap.pending
+        0
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the BurstCapture has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the BurstCapture has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the BurstCapture has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def preamble_start(self) -> int:
+        """Stream-absolute sample index the most recent window's preamble
+        starts at. NEVER LATE: a window that began after the preamble has
+        destroyed the burst, so the refine stage's obligation is to be
+        early-or-exact and to say how early.
+        """
+
+    @property
+    def doppler_hz_est(self) -> float:
+        """Folded/signed coarse Doppler estimate of the most recent window, Hz.
+        Acquisition's own bin, mapped through dp_fftfreq -- the ONE home for
+        that fold, because a consumer seeded on the wrong side of it is off by
+        the full search span.
+        """
+
+    @property
+    def doppler_res_hz(self) -> float:
+        """Acquisition's native Doppler bin width =
+        chip_rate/(sf*coherent_bins), Hz. The width of doppler_hz_est: the
+        estimate is that value +/- half of this.
+        """
+
+    @property
+    def cn0_dbhz_est(self) -> float:
+        """Estimated carrier-to-noise density of the most recent window
+        (dB-Hz), backed out of the hit's test statistic. A LOWER BOUND: it
+        tracks the true C/N0 while receiver noise dominates the CFAR estimate,
+        then saturates at the code's own autocorrelation-sidelobe floor once
+        the true C/N0 exceeds what this code and geometry can resolve -- a real
+        ceiling, not a fault.
+        """
+
+    @property
+    def refine_margin(self) -> float:
+        """The refine stage's own confidence: the best rival code period's
+        score over the winner's. The envelope is (reps-1)/reps when the right
+        repetition wins, so compare against THAT and never a constant -- the
+        floor rises with depth (0.55 at reps=2, 0.77 at 4, 0.94 at 16). Near 1
+        means the period was not resolved, which nothing else in the chain can
+        see.
+        """
+
+    @property
+    def burst_len(self) -> int:
+        """Samples in one emitted window -- the burst length this capture was
+        built for, and the stride of a row in push()'s return.
+        """
+
+    @property
+    def refine_span(self) -> int:
+        """Coalescing window, in samples -- the reach over which two detections
+        are ONE preamble. Both sides of that test are burst STARTS (resolved
+        code epochs), so this bounds start-to-start separation, NOT the dead
+        air between bursts. The two differ by a whole burst, and reading it as
+        dead air costs a caller real airtime for nothing: the gap actually
+        required is `max(0, refine_span - burst_len)`, which is 0 whenever a
+        burst is longer than the refine reach (doppler#1085).
+        """
+
+    @property
+    def retain_span(self) -> int:
+        """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
+        `refine_span` plus one whole burst. A burst closer than this to the end
+        of what has been pushed is held rather than emitted, because refine
+        cannot yet see the samples it needs. Feed at least this many more, or
+        the last burst of a capture never comes out.
+        """
+
+    @property
+    def pending(self) -> int:
+        """Detections held because their burst window has NOT fully arrived.
+        push() deliberately emits nothing for these: a window is returned when
+        it is complete, not when it is guessed at. What this exists for is the
+        other end -- a caller closing a file or a socket while this is non-zero
+        is discarding a burst that would have been captured, and every other
+        read-back looks identical to "nothing was ever there".
+        """
+
+    @property
+    def dropped(self) -> int:
+        """Samples the history ring refused, lifetime. A LOST BURST each, not a
+        statistic -- it survives reset().
+        """
+
+    @property
+    def n_bursts(self) -> int:
+        """Windows emitted, lifetime."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "BurstCapture":
+        """Enter a context manager, returning this object.
+
+        Lets a BurstCapture be used in a `with` statement so its C resources
+        are released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        BurstCapture
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the BurstCapture.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class DsssReceiver:
     """Create a DSSS receiver in the searching state.
 

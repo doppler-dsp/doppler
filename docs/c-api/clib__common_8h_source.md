@@ -91,6 +91,12 @@ dp_xcalloc (size_t nmemb, size_t size)
   return dp_xnn (calloc (nmemb, size));
 }
 
+static inline void *
+dp_xrealloc (void *p, size_t n)
+{
+  return dp_xnn (realloc (p, n));
+}
+
 static inline long
 dp_fftfreq_index (size_t bin, size_t n)
 {

@@ -50,9 +50,7 @@ link = true
 
 [[dp_tlm_capture.init_params]]
 name = "tlm"
-type = "dp_tlm_t *"
-capsule = "doppler.telemetry.dp_tlm"
-header = "dp_tlm/dp_tlm_core.h"
+object = "dp_tlm"
 required = true
 doc = "Telemetry context to capture. Must outlive the capture."
 
@@ -113,7 +111,7 @@ class_name = "Capture"
 create_fn = "dp_tlm_capture_open"
 exclude_methods = ["records"]
 init_params = [
-  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "dp_tlm/dp_tlm_core.h", required = true, doc = "Telemetry context to capture. Must outlive the capture." },
+  { name = "tlm", object = "dp_tlm", required = true, doc = "Telemetry context to capture. Must outlive the capture." },
   { name = "block_samples", type = "size_t", required = true, doc = "The LARGEST number of input samples processed between two boundaries — the step of your own block loop." },
   { name = "path", type = "path", required = true, doc = "Output file, truncated if it exists. The 16-byte record layout IS the file, so np.fromfile reads it directly; a <path>-meta JSON sidecar carries the probe table, the counters and the time base." },
   { name = "clock", type = "const dp_sample_clock_t *", capsule = "doppler.wfm.dp_sample_clock", header = "timing/timing_core.h", doc = "The pipeline's sample clock, borrowed for the sidecar's time base — see MemoryCapture. Pass None to state that there is no time base; the argument itself is not omittable." },

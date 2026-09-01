@@ -419,3 +419,75 @@ def test_segment_takes_a_framedesc_directly():
     )
     direct = np.asarray(Composer([seg]).compose())
     assert np.array_equal(direct, _carried(True))
+
+
+# ── a derived field must name its producer (doppler#1155) ───────────────────
+
+
+def _derived_scene(derived_by):
+    """`[payload | CRC]`, with the CRC field's producer named or not.
+
+    ``derived_by`` is the producing stage's index PLUS ONE, so ``1`` names
+    stage 0, and ``0``/absent means "the caller supplies this field" — which,
+    for a field with a declared length and no bits, is a description nothing
+    can build.
+    """
+    crc = {"name": "crc", "bits": 16}
+    if derived_by is not None:
+        crc["derived_by"] = derived_by
+    return json.dumps(
+        {
+            "version": 1,
+            "segments": [
+                {
+                    "type": "bits",
+                    "fs": FS,
+                    "sps": SPS,
+                    "modulation": "bpsk",
+                    "pattern": _bits(PAYLOAD),
+                    "num_samples": (len(PAYLOAD) + 16) * SPS,
+                    "frame": {
+                        "fields": [
+                            {"name": "payload", "lit": _bits(PAYLOAD)},
+                            crc,
+                        ],
+                        "stages": [
+                            {
+                                "kind": "crc16",
+                                "first_field": 0,
+                                "n_fields": 2,
+                            }
+                        ],
+                    },
+                }
+            ],
+        }
+    )
+
+
+def test_a_derived_field_with_no_producing_stage_is_refused():
+    """The scene is REFUSED, where it used to generate a wrong waveform.
+
+    Behavioural, per this file's rule, and the behaviour pinned is a refusal:
+    before doppler#1155 the unclaimed field laid out at zero length, so the
+    frame came out short, the CRC stage ran over a cover whose tail no longer
+    existed, and a record was produced with no error anywhere. A test
+    asserting "it composes" would have passed against that.
+    """
+    with pytest.raises(ValueError):
+        Composer.from_json(_derived_scene(None))
+
+
+def test_the_same_description_composes_once_its_producer_is_named():
+    """And it is the FULL frame, which is what says the refusal was needed.
+
+    Without this, the check above would be satisfied by a reader that refused
+    the shape outright — including the correct spelling of it.
+    """
+    x = np.asarray(Composer.from_json(_derived_scene(1)).compose())
+    assert len(x) == (len(PAYLOAD) + 16) * SPS
+
+    # The payload's own bits survive, at the head of the frame. They did not
+    # in the unclaimed form: the CRC stage overwrote them.
+    got = (x.real[::SPS] < 0).astype(np.uint8)[: len(PAYLOAD)]
+    assert np.array_equal(got, PAYLOAD)

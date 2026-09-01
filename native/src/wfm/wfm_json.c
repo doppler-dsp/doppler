@@ -1265,8 +1265,10 @@ wfm_spec_headroom (const char *json)
 }
 
 wfm_compose_state_t *
-wfm_compose_from_json (const char *json)
+wfm_compose_from_json_why (const char *json, const char **why)
 {
+  if (why)
+    *why = NULL;
   cJSON *root = cJSON_Parse (json);
   if (!root)
     return NULL;
@@ -1384,8 +1386,29 @@ wfm_compose_from_json (const char *json)
     return NULL;
   }
   cJSON_Delete (root);
-  wfm_compose_state_t *c = wfm_compose_create (segs, n, repeat, cont);
-  wfm_compose_set_seed_advance (c, seed_advance);
+
+  /* Ask the ONE frame rule before handing over, purely so the reason can be
+     REPORTED. wfm_compose_create() asks it too and would refuse either way;
+     what it cannot do is say why, because it answers with a NULL pointer.
+     A spec is the interface most likely to be hand-written, so it is the one
+     that most needs the sentence -- doppler#1155, where a derived field
+     naming no producing stage generated a wrong record in silence. */
+  const char *bad = NULL;
+  for (size_t j = 0; j < n && !bad; j++)
+    for (size_t k = 0; k < segs[j].n_sources && !bad; k++)
+      bad = wfm_source_frame_error (&segs[j].sources[k]);
+
+  wfm_compose_state_t *c = NULL;
+  if (bad)
+    {
+      if (why)
+        *why = bad;
+    }
+  else
+    {
+      c = wfm_compose_create (segs, n, repeat, cont);
+      wfm_compose_set_seed_advance (c, seed_advance);
+    }
   for (size_t j = 0; j < n; j++)
     {
       free_src_bits (segs[j].sources, segs[j].n_sources);
@@ -1393,6 +1416,12 @@ wfm_compose_from_json (const char *json)
     }
   free (segs);
   return c;
+}
+
+wfm_compose_state_t *
+wfm_compose_from_json (const char *json)
+{
+  return wfm_compose_from_json_why (json, NULL);
 }
 
 wfm_compose_state_t *

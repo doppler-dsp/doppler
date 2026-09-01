@@ -108,9 +108,29 @@ wfm_frame_desc_layout (const wfm_frame_desc_t *d, wfm_frame_desc_layout_t *out)
         return -1;
     }
 
-  /* 1. what the caller supplied */
+  /* 1. what the caller supplied.
+   *
+   * A field that declares a LENGTH but supplies no bits is derived, and a
+   * derived field with no producing stage is refused (doppler#1155). It used
+   * to fall through here at zero length: the frame came out short, the stage
+   * that should have filled it ran over a cover whose tail no longer existed,
+   * and the record was generated with exit 0 and nothing on stderr. Measured
+   * on the guide's own description -- 40 bits rather than 56, with the
+   * payload's own bits not surviving.
+   *
+   * Refused HERE, where geometry is decided, so it covers every reader at
+   * once: the builder, the scene JSON, the CLI and Python all funnel through
+   * this function. The builder cannot reach the state anyway --
+   * wfm_frame_add_stage() wires the producer from the cover it is given --
+   * so the check exists for the readers that take the two facts as
+   * independent integers and could otherwise let them disagree. */
   for (unsigned i = 0; i < d->n_fields; i++)
-    out->field_bits[i] = supplied_bits (&d->field[i]);
+    {
+      const wfm_field_t *f = &d->field[i];
+      if (!f->derived_by && f->bits && f->seq.len == 0)
+        return -1;
+      out->field_bits[i] = supplied_bits (f);
+    }
 
   /* 2. size the derived fields. A stage that covers no supplied bits derives
         nothing — the general form of "a CRC over an empty payload protects

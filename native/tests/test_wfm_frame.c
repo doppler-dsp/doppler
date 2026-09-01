@@ -1365,6 +1365,62 @@ main (void)
                   "not counted against the one-emitter rule");
   }
 
+  /* ── a DERIVED field must name its producer (doppler#1155) ───────────── */
+  {
+    /* The failure this pins is not an error anyone saw. The unclaimed field
+       laid out at zero length, so the frame came out SHORT and the stage
+       that should have filled it ran over a cover whose tail no longer
+       existed: a record was produced, exit 0, nothing on stderr. Measured
+       through the CLI at 40 bits instead of 56, with the payload's own bits
+       not surviving. So the assertions below are about the REFUSAL, and the
+       length assertion beside them is what says the refusal was needed. */
+    static const uint8_t pay[24] = { 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
+                                     1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0 };
+    wfm_frame_desc_t     d       = { 0 };
+    wfm_seq_t            p       = { 0 };
+    p.kind                       = WFM_SEQ_LITERAL;
+    p.bits                       = pay;
+    p.len                        = 24u;
+
+    DP_REQUIRE_MSG (wfm_frame_add_field (&d, "payload", &p, 0u) == 0,
+                    "the payload field is appended");
+    /* Hand-built rather than through wfm_frame_add_stage(), because that is
+       the whole point: the builder WIRES the producer from the cover it is
+       given and cannot express this. Only a reader taking the two facts as
+       independent integers -- the scene JSON -- can. */
+    d.field[1].bits        = WFM_FRAME_CRC_BITS;
+    d.field[1].derived_by  = 0u; /* nothing produces it */
+    d.n_fields             = 2u;
+    d.stage[0].kind        = WFM_STAGE_CRC16;
+    d.stage[0].first_field = 0u;
+    d.stage[0].n_fields    = 2u;
+    d.n_stages             = 1u;
+
+    wfm_frame_desc_layout_t l;
+    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == -1,
+                  "a derived field naming no producing stage is refused");
+
+    /* Claim it and the same description is accepted, at its FULL length --
+       so the refusal above is about the missing producer and not about the
+       shape of the description. */
+    d.field[1].derived_by = 1u; /* stage 0, plus one */
+    DP_CHECK_MSG (wfm_frame_desc_layout (&d, &l) == 0,
+                  "claimed by its stage, the same description lays out");
+    DP_CHECK_MSG (l.frame_bits == 24u + WFM_FRAME_CRC_BITS,
+                  "and it is payload + CRC, not the short frame the "
+                  "unclaimed form used to produce");
+
+    /* An anonymous zero-length field is NOT this: it declares nothing, so
+       there is nothing for a stage to fill and nothing to refuse. Without
+       this the check would reject every zero-initialised description. */
+    wfm_frame_desc_t e = { 0 };
+    DP_CHECK_MSG (wfm_frame_add_field (&e, "payload", &p, 0u) == 0,
+                  "a lone supplied field");
+    e.n_fields = 2u; /* field[1] is all zeros: no bits, no seq, no producer */
+    DP_CHECK_MSG (wfm_frame_desc_layout (&e, &l) == 0,
+                  "an empty field is not a derived one and stays legal");
+  }
+
   if (test_seq_bits ())
     return 1;
   if (test_dsss_nchips ())

@@ -80,6 +80,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  size\_t | [**wfm\_compose\_execute**](#function-wfm_compose_execute) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, float complex \* out, size\_t max) <br>_Emit up to_ `max` _samples of the composed stream._ |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_file**](#function-wfm_compose_from_file) (const char \* path) <br>_Build a composer from a JSON spec file._  |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_json**](#function-wfm_compose_from_json) (const char \* json) <br>_Build a composer from a JSON spec string (for_  _from-file)._ |
+|  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_json\_why**](#function-wfm_compose_from_json_why) (const char \* json, const char \*\* why) <br>_The same, but able to say why a FRAME was refused._  |
 |  int | [**wfm\_compose\_seed\_advance**](#function-wfm_compose_seed_advance) (const [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state) <br>_The composer's current seed-advance mode (a_ `wfm_seed_advance_t` _)._ |
 |  const [**wfm\_segment\_t**](structwfm__segment__t.md) \* | [**wfm\_compose\_segments**](#function-wfm_compose_segments) (const [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, size\_t \* n\_out, int \* repeat, int \* continuous) <br>_Borrow the composer's stored segment list (for_  _record / SigMF)._ |
 |  void | [**wfm\_compose\_set\_seed\_advance**](#function-wfm_compose_set_seed_advance) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, int mode) <br>_Choose how the seed advances on each repeat of a looped/continuous stream (a_ `wfm_seed_advance_t` _):_ |
@@ -558,6 +559,48 @@ wfm_compose_state_t * wfm_compose_from_json (
 **Returns:**
 
 Composer state, or NULL on parse error / bad type / no segments. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_compose\_from\_json\_why 
+
+_The same, but able to say why a FRAME was refused._ 
+```C++
+wfm_compose_state_t * wfm_compose_from_json_why (
+    const char * json,
+    const char ** why
+) 
+```
+
+
+
+A spec is the interface most likely to be hand-written, and a NULL return is the one answer that cannot teach anything. This runs [**wfm\_source\_frame\_error**](wfm__compose_8h.md#function-wfm_source_frame_error) over every parsed source before handing them to the composer — which asks the same question and would refuse either way — so the reason survives the boundary as a sentence instead of a pointer.
+
+
+Only the frame rule reports this way. A parse error or a bad type is still a bare NULL, because those are cJSON's to describe and duplicating its diagnostics here would be a second opinion about the same text.
+
+
+
+
+**Parameters:**
+
+
+* `json` the spec. 
+* `why` optional; receives a STATIC message when a source's frame is refused, or NULL in every other case (including success). Passing NULL makes this exactly [**wfm\_compose\_from\_json**](wfm__compose_8h.md#function-wfm_compose_from_json). 
+
+
+
+**Returns:**
+
+Composer state, or NULL on parse error / bad type / no segments / a refused frame. 
 
 
 

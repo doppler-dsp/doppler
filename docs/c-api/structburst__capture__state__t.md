@@ -72,6 +72,7 @@ _BurstCapture state._ [More...](#detailed-description)
 |  uint64\_t | [**samples\_fed**](#variable-samples_fed)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  uint64\_t | [**suppress\_until**](#variable-suppress_until)  <br> |
+|  int | [**underpowered**](#variable-underpowered)  <br> |
 |  float \_Complex \* | [**win**](#variable-win)  <br> |
 |  size\_t | [**win\_cap**](#variable-win_cap)  <br> |
 
@@ -772,6 +773,24 @@ uint64_t burst_capture_state_t::suppress_until;
 
 
 Detections below this stream position fall inside a burst already EMITTED, so they are the payload firing against the acquisition code rather than new bursts. Armed when a window is emitted  refine resolved a start here and this object handed out the whole span, which is the fact it owns. Arming it on every DETECTION instead let one spurious hit blind the search for a whole burst and discard the next real one (doppler#1004). Coalescing the several frames of ONE preamble is a separate job, done by `refine_span` proximity plus a greatest-of tie-break. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable underpowered 
+
+```C++
+int burst_capture_state_t::underpowered;
+```
+
+
+
+The search cannot meet the requested pd at this cn0\_dbhz and geometry. It still builds a best-effort grid, so the symptom is bursts that are never captured rather than an error. 
  
 
 

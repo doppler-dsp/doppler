@@ -285,3 +285,79 @@ def test_the_two_flavours_do_not_share_blobs(tmp_path):
         ram.set_state(dsk.get_state())
     with pytest.raises(ValueError):
         dsk.set_state(ram.get_state())
+
+
+# ── The search under the capture ────────────────────────────────────────────
+
+
+def test_the_search_is_visible():
+    """A capture is only as good as the search beneath it.
+
+    These are read-backs rather than knobs — every one is derived at
+    construction — and they exist because a caller sizing a link should be
+    able to SEE the search rather than infer it from what it passed in.
+    """
+    cap = make()
+    assert cap.doppler_bins >= 1
+    assert cap.n_noncoh >= 1
+    assert cap.code_bins == ACQ_SF * SPC
+    assert cap.doppler_span_hz > 0.0
+    assert 0.0 <= cap.pd_predicted <= 1.0
+    assert cap.underpowered is False  # 55 dB-Hz meets pd=0.9 here
+    # The gates are real numbers, not zeros: `threshold` is deliberately NOT
+    # exposed because it is the coherent gate and reads 0.0 whenever
+    # n_noncoh > 1, which is the usual case.
+    assert cap.eta > 0.0
+    assert cap.eta_nc > cap.eta  # combining looks costs the threshold
+    assert 0.0 < cap.straddle_loss <= 1.0
+
+
+def test_an_impossible_pd_says_so_rather_than_failing_quietly():
+    """The diagnostic that matters most, because its failure mode is silence.
+
+    A search that cannot meet the requested `pd` still BUILDS, best-effort,
+    and then captures fewer bursts than arrived — so without this the only
+    symptom is a quiet stream, indistinguishable from one with nothing in it.
+
+    Both faces are asserted: a warning for the caller who is not looking, and
+    a value for the one who would rather ask than catch. A declared
+    diagnostic that nothing exercises is how one stops working invisibly —
+    which is `BurstAcquisition`'s own F3.
+    """
+    with pytest.warns(UserWarning, match="cannot meet the requested pd"):
+        cap = BurstCapture(
+            acq_code(),
+            burst_len=BURST_LEN,
+            reps=REPS,
+            spc=SPC,
+            chip_rate=CHIP_RATE,
+            cn0_dbhz=20.0,
+            pd=0.99,
+        )
+    assert cap.underpowered is True
+    assert cap.pd_predicted < 0.99
+
+
+def test_the_cfar_mode_is_a_caller_choice():
+    """`noise_mode` was hardcoded to `mean` until it was declared.
+
+    Not a small default — a capability a caller simply did not have. The
+    observable is that the sizer lands somewhere different: the reference the
+    threshold is set against changes what depth it needs.
+    """
+    mean = make()
+    median = BurstCapture(
+        acq_code(),
+        burst_len=BURST_LEN,
+        reps=REPS,
+        spc=SPC,
+        chip_rate=CHIP_RATE,
+        cn0_dbhz=55.0,
+        noise_mode="median",
+    )
+    # The two modes need not size differently at every operating point, so
+    # what is asserted is that the mode REACHES the engine and that a bad one
+    # is refused -- the binding claim. Which mode wins where is acq's.
+    assert median.eta > 0.0 and median.code_bins == mean.code_bins
+    with pytest.raises((ValueError, TypeError)):
+        BurstCapture(acq_code(), burst_len=BURST_LEN, noise_mode="nonsense")

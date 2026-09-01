@@ -108,11 +108,29 @@ repetition and §3.2's cliff returns noise. `push()` defining the coordinate
 system makes the invariant internal and unbreakable.
 
 What that costs is a caller with a foreign detector, and the loss is smaller
-than it looks: the engine stays reachable as a child for read-backs and
-`configure_search_raw()`, and a consumer receiving detections over a
-transport needs the WINDOW as well — which is what
-[§1.1](dsss-burst-receiver.md)'s sufficiency criterion already requires the
-event to carry.
+than it looks — but the first version of this paragraph overstated it, and
+the correction is worth keeping. It said "the engine stays reachable as a
+child for read-backs and `configure_search_raw()`". **It is not reachable**:
+there is no child accessor and there is not going to be one. What is true
+instead:
+
+- **`BurstAcquisition` is public.** A caller who wants the search's own face
+    constructs one with the same parameters and gets all 27 of its
+    read-backs. Nothing was taken away by this object existing, which is what
+    makes the swallowing survivable.
+- **The search this capture will do is visible FROM the capture** —
+    `doppler_bins`, `n_noncoh`, `code_bins`, `doppler_span_hz`, both
+    detection gates, `straddle_loss`, `pd_predicted` and `underpowered`
+    (§9.5). Forwarded, not re-derived.
+- **A consumer receiving detections over a transport** needs the WINDOW as
+    well, which is what [§1.1](dsss-burst-receiver.md)'s sufficiency
+    criterion already requires the event to carry.
+
+The version that shipped first forwarded ONE of the engine's 27 read-backs,
+had no `noise_mode` at all, and let the under-powered warning vanish. An
+object that swallows another and republishes a twenty-seventh of its face is
+a split in the wrong place — and the fix was not to move the split but to
+forward what a capture caller actually needs.
 
 ______________________________________________________________________
 
@@ -350,6 +368,45 @@ worse twice over: a non-required string init-param renders its own
 "create with defaults" doctest as `BurstCapture(path=0)`, which fails the
 stub-doctest gate, and a backing file with a default is a capture quietly
 persisting somewhere nobody named.
+
+______________________________________________________________________
+
+## 9.5 Minimal where it is REQUIRED, rich everywhere else
+
+Two different axes, and pulling on the wrong one makes the object worse.
+
+**Required configuration is one parameter: `acq_code`.** Everything else —
+the geometry, the search targets, the burst length, the CFAR mode — carries a
+default, so the smallest thing that constructs is `BurstCapture(code)`. That
+is the axis to minimise, because every required parameter is a decision a
+caller has to make before they can begin.
+
+**Read-backs, optional configuration and diagnostics are rich, deliberately.**
+Twenty read-backs is not bloat when each answers a question the object alone
+can answer:
+
+| group                            | what it answers                                            |
+| -------------------------------- | ---------------------------------------------------------- |
+| `refine_span`, `retain_span`     | where may the next burst go, and how much trailing context |
+| `pending`, `dropped`, `n_bursts` | am I losing bursts, and is one still in flight             |
+| the `events()` row               | where was THIS burst, how strong, how well resolved        |
+| the search group                 | will this configuration find my bursts at all              |
+
+The one that earns its place most is **`underpowered`**, because its failure
+mode is silence: a search that cannot meet the requested `pd` still builds a
+best-effort grid and then captures fewer bursts than arrived, which is
+indistinguishable from a stream with nothing in it. It is a *declared*
+warning here, gated on a bool field — which the sibling `BurstAcquisition`
+cannot do, because `burst_acq_state_t` holds nothing but its `engine` pointer
+and jm's condition must be a bare identifier on the struct. Its copy of the
+same warning is a hand-patch in a sacred fragment.
+
+`threshold` is deliberately **not** forwarded, though the engine carries it:
+it is the COHERENT gate and is zeroed on the non-coherent path
+(`acq_core.c:354`), so it reads 0.0 whenever `n_noncoh > 1` — the usual case.
+A read-back that is zero for a healthy object invites exactly the wrong
+conclusion. `eta` and `eta_nc` are the gates actually in force, and
+`n_noncoh` says which.
 
 ______________________________________________________________________
 

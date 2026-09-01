@@ -30,7 +30,7 @@
  * uint8_t code[31];
  * for (size_t i = 0; i < 31; i++) code[i] = (uint8_t)(i & 1u);
  * burst_capture_state_t *cap = burst_capture_create (
- *     code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9);
+ *     code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
  * float complex x[2048] = { 0 };
  * float complex win[4096];
  * size_t n = burst_capture_push (cap, x, 2048, win, 4096);
@@ -282,6 +282,17 @@ typedef struct
                       into, which set_state() refuses rather than resuming
                       into silence.                                        */
 
+  /* ── Diagnostics ────────────────────────────────────────────────────
+   * Mirrored from the engine at create() rather than read through it on
+   * demand, because jm's declared warning needs a bare bool field on THIS
+   * struct -- the reason the sibling BurstAcquisition's copy of the same
+   * warning has to be a hand-patch in its fragment (see the note at the top
+   * of objects/burst_acq.toml). */
+  int underpowered; /**< The search cannot meet the requested pd at this
+                         cn0_dbhz and geometry. It still builds a
+                         best-effort grid, so the symptom is bursts that are
+                         never captured rather than an error.             */
+
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
   uint64_t dropped;  /**< Samples the ring refused. A LOST BURST each, not
                           a statistic -- lifetime, survives reset().       */
@@ -312,6 +323,7 @@ typedef struct
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
+ * @param noise_mode    CFAR reference: 0=mean, 1=median, 2=min, 3=max.
  * @return Heap state, or NULL if any parameter is out of range.
  *
  * @code
@@ -331,7 +343,8 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
                                              size_t spc, double chip_rate,
                                              double cn0_dbhz,
                                              double doppler_uncertainty,
-                                             double pfa, double pd);
+                                             double pfa, double pd,
+                                             int noise_mode);
 
 /**
  * @brief Create a capture whose look-back lives in a FILE.
@@ -374,6 +387,7 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
+ * @param noise_mode    CFAR reference: 0=mean, 1=median, 2=min, 3=max.
  * @return Heap state, or NULL if a parameter is out of range or the file
  *         could not be opened, sized or mapped.
  *
@@ -398,7 +412,7 @@ burst_capture_create_backed (const char *path, const uint8_t *acq_code,
                              size_t acq_code_len, size_t burst_len,
                              size_t reps, size_t spc, double chip_rate,
                              double cn0_dbhz, double doppler_uncertainty,
-                             double pfa, double pd);
+                             double pfa, double pd, int noise_mode);
 
 /** @brief Release a capture and everything it owns. NULL-safe. */
 void burst_capture_destroy (burst_capture_state_t *state);
@@ -530,6 +544,34 @@ int burst_capture_configure_search_raw (burst_capture_state_t *state,
                                         size_t n_noncoh);
 
 /* ── Serializable state — the elastic / pure-transducer face ──────────── */
+
+/* ── The search this capture will do, as numbers ──────────────────────
+ *
+ * A capture is only as good as the search under it, and a caller sizing a
+ * link needs to see that search rather than infer it. These forward the
+ * engine's own figures: what a detection must clear, how deep the sizer
+ * went, and how wide in Doppler and code phase it will look.
+ *
+ * They are read-backs, not knobs -- every one is derived at create() from
+ * the parameters above, and `configure_search_raw()` is the one call that
+ * moves them. */
+
+/** @brief Coherent detection gate; in force when `n_noncoh == 1`. */
+double burst_capture_get_eta (const burst_capture_state_t *state);
+/** @brief Non-coherent gate; in force when `n_noncoh > 1` (the usual case). */
+double burst_capture_get_eta_nc (const burst_capture_state_t *state);
+/** @brief Correlation kept, worst case, by a burst landing between bins. */
+double burst_capture_get_straddle_loss (const burst_capture_state_t *state);
+/** @brief Detection probability the sized grid actually predicts. */
+double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
+/** @brief Doppler hypotheses searched (the coherent depth). */
+size_t burst_capture_get_doppler_bins (const burst_capture_state_t *state);
+/** @brief Non-coherent looks combined per decision. */
+size_t burst_capture_get_n_noncoh (const burst_capture_state_t *state);
+/** @brief Code-phase hypotheses per Doppler row. */
+size_t burst_capture_get_code_bins (const burst_capture_state_t *state);
+/** @brief Unambiguous Doppler half-range, Hz (+/- this). */
+double burst_capture_get_doppler_span_hz (const burst_capture_state_t *state);
 
 /** @brief Bytes one blob occupies: a pure function of CONFIGURATION. */
 size_t burst_capture_state_bytes (const burst_capture_state_t *state);

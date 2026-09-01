@@ -17,6 +17,15 @@ serializable = "true"
 # objects/dsss_burst_receiver.toml's.
 create_error = "ValueError"
 create_error_message = "BurstCapture: invalid parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0, burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)"
+# A search that cannot meet the requested `pd` still BUILDS, best-effort, and
+# then captures fewer bursts than arrived -- so the only symptom is a quiet
+# stream. Declared here rather than hand-patched: jm's condition must be a
+# bare bool field on the state struct, which is exactly why the sibling
+# BurstAcquisition's copy of this warning lives in its sacred fragment (see
+# the note at the top of objects/burst_acq.toml).
+warnings = [
+  { after = "__init__", condition = "underpowered", category = "UserWarning", message = "BurstCapture: the search cannot meet the requested pd at this cn0_dbhz and geometry (pd_predicted < pd). It still builds a best-effort grid, so the symptom is bursts that are never captured rather than an error. Lower pd, raise cn0_dbhz, or give the preamble more repetitions." },
+]
 # burst_acq and its transitive closure -- jm's depends_on linking is not
 # recursive, the same reason objects/dsss_burst_receiver.toml repeats it:
 # burst_acq pulls acq -> corr2d/fft2d/fft/detection.
@@ -88,6 +97,14 @@ name = "pd"
 type = "double"
 default = "0.9"
 
+# Optional, and forwarded straight to the engine. It was hardcoded to `mean`
+# until this pass, which is not a small default -- it is a capability a caller
+# simply did not have.
+[[burst_capture.init_params]]
+name = "noise_mode"
+type = "string_enum:mean,median,min,max"
+default = "mean"
+
 # ── The persistent flavour ───────────────────────────────────────────────────
 # A difference in CONSTRUCTOR is a flavor (a view over one core); a difference
 # in METHOD SIGNATURE would be a separate type. This differs only in where the
@@ -113,6 +130,7 @@ init_params = [
   { name = "doppler_uncertainty", type = "double", default = "0.0" },
   { name = "pfa", type = "double", default = "1e-3" },
   { name = "pd", type = "double", default = "0.9" },
+  { name = "noise_mode", type = "string_enum:mean,median,min,max", default = "mean" },
 ]
 
 [[burst_capture.methods]]
@@ -219,6 +237,64 @@ doc = """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
 what has been pushed is held rather than emitted, because refine cannot yet
 see the samples it needs. Feed at least this many more, or the last burst of
 a capture never comes out."""
+
+# ── The search under the capture, as numbers ────────────────────────────────
+# A capture is only as good as the search beneath it, and a caller sizing a
+# link should be able to SEE that search rather than infer it from the
+# parameters it passed. Read-backs, not knobs: every one is derived at
+# create(), and configure_search_raw() is the only call that moves them.
+
+[[burst_capture.properties]]
+name = "underpowered"
+type = "bool"
+field = true
+doc = "True when the search cannot meet the requested `pd` at this `cn0_dbhz` and geometry — `pd_predicted < pd`. The grid is still built, best-effort, so the symptom is bursts that are never captured rather than a failure. Construction also emits a UserWarning; this is the same fact as a value, for a caller that would rather ask than catch."
+
+[[burst_capture.properties]]
+name = "pd_predicted"
+type = "double"
+doc = "Detection probability the sized grid actually predicts at `cn0_dbhz`. The number behind `underpowered`, and the one to compare against the `pd` that was asked for."
+
+# NOT `threshold`, which the engine also carries: it is the COHERENT gate and
+# is deliberately zeroed on the non-coherent path (acq_core.c:354), so it
+# reads 0.0 whenever `n_noncoh > 1` -- which is the usual case. A read-back
+# that is zero for a working object invites exactly the wrong conclusion.
+# These two are the gates that are actually in force, and `n_noncoh` above
+# says which.
+[[burst_capture.properties]]
+name = "eta"
+type = "double"
+doc = "Coherent detection gate: the normalised statistic a single-look decision must clear, from `pfa` spread across the search surface. In force when `n_noncoh == 1`."
+
+[[burst_capture.properties]]
+name = "eta_nc"
+type = "double"
+doc = "Non-coherent detection gate — the one in force when `n_noncoh > 1`, which is the usual case. Higher than `eta` for the same `pfa`, because combining looks costs the threshold what it buys in sensitivity."
+
+[[burst_capture.properties]]
+name = "straddle_loss"
+type = "double"
+doc = "Correlation kept, worst case, by a burst landing BETWEEN grid points rather than on one. The search is a finite grid in Doppler and code phase, so a real burst almost never sits on a hypothesis exactly; this is what that costs, and it is already priced into `pd_predicted`."
+
+[[burst_capture.properties]]
+name = "doppler_bins"
+type = "size_t"
+doc = "Doppler hypotheses searched — the coherent depth the sizer chose, bounded by `reps`. `configure_search_raw` is what pins it."
+
+[[burst_capture.properties]]
+name = "n_noncoh"
+type = "size_t"
+doc = "Non-coherent looks combined per decision. Above 1 the object needs that many frames before it can decide at all, which is why a caller sweeping in short dwells has to pin it."
+
+[[burst_capture.properties]]
+name = "code_bins"
+type = "size_t"
+doc = "Code-phase hypotheses per Doppler row: one segment in samples, `sf * spc`."
+
+[[burst_capture.properties]]
+name = "doppler_span_hz"
+type = "double"
+doc = "Unambiguous Doppler half-range, ± this. Beyond it the per-segment integrate-and-dump's sinc rolloff suppresses the correlation, so a burst outside the span is not merely harder to find — it is nulled."
 
 [[burst_capture.properties]]
 name = "pending"

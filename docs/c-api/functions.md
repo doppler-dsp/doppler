@@ -732,6 +732,8 @@
 * **dsss\_burst\_receiver\_get\_pending** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_get\_preamble\_start** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_get\_refine\_margin** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
+* **dsss\_burst\_receiver\_get\_refine\_span** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
+* **dsss\_burst\_receiver\_get\_retain\_span** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_get\_state** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_llrs** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_llrs\_max\_out** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))

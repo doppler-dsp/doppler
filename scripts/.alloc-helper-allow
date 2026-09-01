@@ -4,15 +4,22 @@
 # them predating the dp_xmalloc/dp_xcalloc/dp_xnn helpers in
 # native/inc/clib_common.h.
 #
-# EVERY COUNT MAY ONLY SHRINK, and a file not listed may not allocate at
-# all. Converting a call means the number here comes down -- re-record with
+# A COUNT MAY ONLY SHRINK, UNLESS THE LINE CARRIES A REASON. A file not
+# listed may not allocate at all. Converting a call means the number here
+# comes down -- re-record with
 #
 #     make lint-alloc-helpers-baseline
 #
 # A count that stayed high after its file improved is a waiver outliving
 # its reason, so the gate fails on that too.
 #
-# Format:  <path> <count>
+# Raising one is allowed for the case the gate cannot see -- a CALLER-sized
+# allocation whose failure is genuinely reachable and already handled -- but
+# the reason goes on the line, not in a commit message that is read once by
+# whoever is already convinced. The gate compares against origin/main to know
+# a raise happened, and refuses an unexplained one.
+#
+# Format:  <path> <count>[  # why this file is allowed to have gone UP]
 
 native/inc/buffer/buffer.h 1
 native/inc/ccsds_tm/ccsds_tm_frame.h 1
@@ -52,7 +59,7 @@ native/src/dll/dll_core.c 9
 native/src/dp_interrupt_guard/dp_interrupt_guard_core.c 1
 native/src/dp_tlm/dp_tlm_core.c 1
 native/src/dp_tlm_capture/dp_tlm_capture_core.c 5
-native/src/dsss_burst_receiver/dsss_burst_receiver_core.c 9
+native/src/dsss_burst_receiver/dsss_burst_receiver_core.c 4
 native/src/f32_to_i16/f32_to_i16_core.c 1
 native/src/f32_to_i16u32/f32_to_i16u32_core.c 1
 native/src/f32_to_i16u64/f32_to_i16u64_core.c 1

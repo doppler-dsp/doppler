@@ -4813,14 +4813,19 @@ class DsssBurstReceiver:
         air between bursts. The two differ by a whole burst, and reading it as
         dead air costs a caller real airtime for nothing. The gap actually
         required is max(0, refine_span - burst_len) burst_len = retain_span -
-        refine_span which is 0 whenever a burst is longer than the refine reach
-        -- every realistic payload. At a 255-chip code, `reps=5`, `spc=2` the
-        reach is 12240 samples; an 8316-sample burst placed 8916 apart
-        start-to-start (600 samples of dead air against the 3924 required)
-        yields 2 decodes from 7 bursts with `dropped == 0`, while at
-        `frame_syms=2053` the same code gives a 261228-sample burst -- 21.3x
-        the reach -- and every spacing down to ZERO dead air yields 7 of 7
-        (doppler#1085).
+        refine_span which is 0 whenever a burst is longer than the refine
+        reach. **That formula is optimistic, measured** (doppler#1172): swept
+        over two bursts at 12 trials a spacing, a pair is not reliably captured
+        until roughly 2 code periods of dead air -- 256 samples at a geometry
+        where the formula says 32. The SHAPE is right and worth keeping: the
+        constraint is start-to-start, and reading it as a whole `refine_span`
+        of required silence cost 9% of airtime. The FLOOR is not. Leave a
+        couple of code periods. At a 255-chip code, `reps=5`, `spc=2` the reach
+        is 12240 samples; an 8316-sample burst placed 8916 apart start-to-start
+        (600 samples of dead air against the 3924 required) yields 2 decodes
+        from 7 bursts with `dropped == 0`, while at `frame_syms=2053` the same
+        code gives a 261228-sample burst -- 21.3x the reach -- and every
+        spacing down to ZERO dead air yields 7 of 7 (doppler#1085).
         """
 
     @property
@@ -4849,13 +4854,14 @@ class DsssBurstReceiver:
 
     @property
     def dropped(self) -> int:
-        """Samples the ring refused. A LOST BURST each, not a statistic --
-        lifetime, survives reset().
-        """
+        """Overrun ctr."""
 
     @property
     def n_bursts(self) -> int:
-        """Bursts demodulated, lifetime."""
+        """Bursts DEMODULATED, lifetime. Distinct from the capture's own count,
+        which is windows EMITTED: they differ by any window the demodulator
+        refused, and that difference is the thing worth seeing.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

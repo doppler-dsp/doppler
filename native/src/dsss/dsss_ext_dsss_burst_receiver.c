@@ -750,8 +750,9 @@ DsssBurstReceiver_getprop_refine_span (DsssBurstReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->refine_span);
+      (unsigned long long)dsss_burst_receiver_get_refine_span (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_retain_span (DsssBurstReceiverObject *self,
@@ -762,8 +763,9 @@ DsssBurstReceiver_getprop_retain_span (DsssBurstReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->retain_span);
+      (unsigned long long)dsss_burst_receiver_get_retain_span (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_pending (DsssBurstReceiverObject *self,
@@ -774,8 +776,9 @@ DsssBurstReceiver_getprop_pending (DsssBurstReceiverObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->pending);
+      (unsigned long long)dsss_burst_receiver_get_pending (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_dropped (DsssBurstReceiverObject *self,
@@ -829,16 +832,26 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "this\n"
     "bounds start-to-start separation, NOT the dead air between bursts. The "
     "two\n"
-    "differ by a whole burst, and reading it as dead air costs a caller "
-    "real\n"
+    "differ by a whole burst, and reading it as dead air costs a caller real\n"
     "airtime for nothing. The gap actually required is\n"
     "\n"
     "    max(0, refine_span - burst_len)      burst_len = retain_span - "
     "refine_span\n"
     "\n"
-    "which is 0 whenever a burst is longer than the refine reach -- every\n"
-    "realistic payload. At a 255-chip code, `reps=5`, `spc=2` the reach is "
-    "12240\n"
+    "which is 0 whenever a burst is longer than the refine reach. **That "
+    "formula\n"
+    "is optimistic, measured** (doppler#1172): swept over two bursts at 12 "
+    "trials\n"
+    "a spacing, a pair is not reliably captured until roughly 2 code periods "
+    "of\n"
+    "dead air -- 256 samples at a geometry where the formula says 32. The "
+    "SHAPE\n"
+    "is right and worth keeping: the constraint is start-to-start, and "
+    "reading it\n"
+    "as a whole `refine_span` of required silence cost 9% of airtime. The "
+    "FLOOR\n"
+    "is not. Leave a couple of code periods. At a 255-chip code, `reps=5`, "
+    "`spc=2` the reach is 12240\n"
     "samples; an 8316-sample burst placed 8916 apart start-to-start (600 "
     "samples\n"
     "of dead air against the 3924 required) yields 2 decodes from 7 bursts "
@@ -881,11 +894,12 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "is neither.\n",
     NULL },
   { "dropped", (getter)DsssBurstReceiver_getprop_dropped, NULL,
-    "Samples the ring refused. A LOST BURST each, not a statistic -- "
-    "lifetime, survives reset().\n",
-    NULL },
+    "Overrun ctr.\n", NULL },
   { "n_bursts", (getter)DsssBurstReceiver_getprop_n_bursts, NULL,
-    "Bursts demodulated, lifetime.\n", NULL },
+    "Bursts DEMODULATED, lifetime. Distinct from the capture's own count, "
+    "which is windows EMITTED: they differ by any window the demodulator "
+    "refused, and that difference is the thing worth seeing.\n",
+    NULL },
   { NULL }
 };
 

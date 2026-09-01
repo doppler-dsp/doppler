@@ -41,16 +41,6 @@
  * (docs/design/dsss-burst-receiver.md section 4: the record must be
  * sufficient on its own, for EVERY burst, not just the most recent).
  */
-/**
- * @brief Detections collected from acquisition per batch.
- *
- * A BATCHING parameter, never a correctness one: push() loops until acq has
- * absorbed the whole chunk, so a smaller array means more iterations and
- * nothing else. Growing it to "be safe" would hide the fact that acq_push()
- * stops once its result array is full and abandons the rest of its input.
- */
-#define DSSS_BR_HITS 16u
-
 typedef struct
 {
   uint64_t preamble_start; /**< Exact stream position of the preamble.     */
@@ -63,36 +53,7 @@ typedef struct
   double   refine_margin;  /**< Runner-up period over the winner.          */
 } dsss_br_event_t;
 
-/**
- * @brief One detection between acquisition and demodulation.
- *
- * A hit cannot always be refined the moment it arrives -- the refine window
- * reaches BACKWARDS and forwards, so some of it may not have been pushed
- * yet -- and a detection dropped because its window was incomplete is a lost
- * burst. So a hit is queued here with the event fields acquisition supplied,
- * refined when its window is reachable, and demodulated when the burst has
- * fully arrived.
- */
-typedef struct
-{
-  uint64_t anchor;     /**< Coarse code epoch from the hit (stream-absolute).*/
-  uint64_t start;      /**< Refined preamble start; valid once `refined`.   */
-  double   doppler_hz; /**< Signed coarse Doppler, Hz.                      */
-  double   cn0_dbhz;   /**< C/N0 lower bound from the hit, dB-Hz.           */
-  double   margin;     /**< Refine runner-up ratio; valid once `refined`.   */
-  double   peak_mag;   /**< The hit's RAW CFAR peak. Two detections naming
-                            the same preamble keep the stronger, so a weak
-                            hit that merely arrived first cannot own the
-                            slot a real burst needs (doppler#1004).
-                            Deliberately not `test_stat`: that is
-                            peak/noise_est, and the noise estimate is a mean
-                            over the surface, so a BARE preamble -- which
-                            raises no floor -- outscores a real burst whose
-                            payload does. The raw peak measures what the
-                            comparison actually means, how much preamble the
-                            frame holds.                                   */
-  int      refined;    /**< Non-zero once `start` is known.                 */
-} dsss_br_pending_t;
+#include "burst_capture/burst_capture_core.h"
 #include "burst_acq/burst_acq_core.h"
 #include "acq/acq_core.h"
 #include "burst_demod/burst_demod_core.h"
@@ -142,20 +103,12 @@ typedef struct {
   size_t burst_len;   /**< Preamble + spread frame, in samples.           */
 
   /* ── The composed children (each certified separately) ──────────────── */
-  burst_acq_state_t   *acq;   /**< Search stage.                           */
-  burst_demod_state_t *demod; /**< Demod stage, re-seeded per burst.       */
-
-  /* ── Look-back (docs/design/dsss-burst-receiver.md §7.1) ────────────── */
-  dp_f32_t *hist;      /**< History ring. Double-mapped, so a window that
-                            spans the wrap is ONE contiguous pointer. The
-                            receiver keeps its own rather than borrowing
-                            acq's, which consumes every frame it processes
-                            and has therefore released what is still
-                            needed.                                        */
-  uint64_t samples_fed; /**< Stream position: total samples ever pushed.
-                             What makes an epoch stream-ABSOLUTE, and the
-                             reason preamble_start is a quantity only this
-                             object can compute.                           */
+  burst_capture_state_t *cap;   /**< Search, refine, retain, emit. Owns the
+                                     acquisition engine, the history ring
+                                     and the claim rule -- everything about
+                                     FINDING a burst. This object owns what
+                                     to DO with one.                       */
+  burst_demod_state_t   *demod; /**< Demod stage, re-seeded per burst.     */
 
   /* ── The DetectionEvent, describing the most recent completed burst ─── */
   uint64_t preamble_start; /**< Stream-absolute preamble start. Never late. */
@@ -168,72 +121,6 @@ typedef struct {
   double   refine_margin;  /**< Winning preamble correlation over its
                                 nearest whole-period competitor. Near 1
                                 means the period was NOT resolved.         */
-
-  /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
-  float *ref_sign;   /**< One code period of +-1 chip signs, spc-expanded.
-                          Real, so the per-period correlation is a signed
-                          sum rather than a complex multiply.              */
-  float _Complex *corr_buf; /**< Per-offset code-period correlations, reused
-                                 across the candidate sweep so the sliding
-                                 correlation is computed once and the
-                                 non-coherent combine just indexes it.     */
-  size_t refine_span;  /**< Candidate offsets searched, in samples:
-                            `(k_lo + k_hi + reps) * code_period`, which is
-                            `(4*reps + 4) * code_period` for the `k_lo`
-                            chosen in create(). This doc claimed
-                            `2*reps*code_period` until it was measured --
-                            2.4x low at reps=5 -- so read `refine_span`
-                            rather than the formula.
-
-                            The merge test compares two resolved code
-                            epochs -- burst START against burst START -- so
-                            it bounds start-to-start separation, NOT the
-                            dead air between bursts. The two differ by a
-                            whole burst; the gap a caller must leave is
-                            `max(0, refine_span - burst_len)`, which is 0
-                            for any burst longer than the reach. Reading it
-                            as dead air reserved 9% airtime for nothing
-                            (doppler#1085).                              */
-  size_t corr_len;     /**< Entries in corr_buf.                            */
-  size_t retain_span;  /**< Samples that must stay reachable: refine span +
-                            one whole burst. Also the caller-facing minimum
-                            TRAILING context -- a burst closer than this to
-                            the end of what has been pushed is not emitted
-                            until more samples arrive.                     */
-  size_t chunk_max;    /**< Largest slice of one push processed at a time,
-                            so any block size is accepted without the ring
-                            overrunning its own retention.                 */
-
-  /* ── Detections in flight ────────────────────────────────────────────
-   * Only detections whose burst window has NOT yet arrived live here: every
-   * one whose window HAS arrived is demodulated before push() returns, which
-   * is what bounds retention (see dsss_br_trim). */
-  dsss_br_pending_t *q;      /**< Detections, oldest first; `q_cap` long.   */
-  size_t             q_cap;  /**< DERIVED, not a constant. Entries sit at
-                                  least `refine_span` apart within
-                                  `retain_span` of the head, so the count
-                                  scales with burst_len/refine_span -- about
-                                  1 at the C test geometry but 5.5x at a real
-                                  link and 20x for a long payload. A fixed 8
-                                  silently dropped the hit AND the rest of
-                                  the batch on anything but the test's own
-                                  geometry.                                 */
-  size_t             q_head; /**< Index of the oldest entry.                */
-  size_t             pending; /**< Detections held because their burst window
-                                  has NOT fully arrived -- the caller-facing
-                                  "there is not enough data yet" read-back.
-
-                                  push() deliberately emits nothing for these:
-                                  a burst is returned when it is complete, not
-                                  when it is guessed at. Feed more samples and
-                                  it comes out, bit-exact, wherever the split
-                                  fell. What this exists for is the OTHER end:
-                                  a caller closing a file or a socket while
-                                  this is non-zero is discarding a burst that
-                                  would have decoded, and every other
-                                  read-back looks identical to "nothing was
-                                  ever there" (`dropped` counts ring refusals,
-                                  not this).                                */
 
   /* ── The completed bursts of the LAST push ───────────────────────────
    * Scratch, deliberately NOT serialized: it describes the most recent
@@ -252,31 +139,11 @@ typedef struct {
   size_t  frame_bits; /**< The frame's length, from the description --
                            the stride of a row in `llr`.                */
   size_t           ev_len; /**< Records the last push() wrote.              */
-  uint64_t suppress_until; /**< Detections below this stream position fall
-                                inside a burst that has already DECODED, so
-                                they are the payload firing against the
-                                acquisition code rather than new bursts.
-                                Armed only on a valid frame: arming it on
-                                every detection let one spurious hit blind
-                                the search for a whole burst and discard the
-                                next real one (doppler#1004). Coalescing the
-                                several frames of ONE preamble is a separate
-                                job, done by `refine_span` proximity plus a
-                                greatest-of tie-break.                     */
-  size_t acq_blob_max; /**< Fixed upper bound on the acquisition child's
-                            blob. `state_bytes()` must be a pure function of
-                            CONFIGURATION -- jm's binding compares an incoming
-                            blob's length against it -- yet both the retained
-                            look-back and acq's own unconsumed ring vary with
-                            the stream. Both are therefore written into
-                            fixed-size regions with a length prefix.        */
-  size_t k_lo; /**< Whole code periods searched BEFORE the anchor.        */
-  size_t k_hi; /**< ...and after.                                         */
-
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
-  uint64_t dropped;  /**< Samples the ring refused. A LOST BURST each, not
-                          a statistic -- lifetime, survives reset().       */
-  uint64_t n_bursts; /**< Bursts demodulated, lifetime.                    */
+  uint64_t n_bursts; /**< Bursts DEMODULATED, lifetime. Distinct from the
+                          capture's own count, which is windows EMITTED:
+                          they differ by any window the demodulator refused,
+                          and that difference is the thing worth seeing.  */
 /*<<property_struct_fields>>*/
 } dsss_burst_receiver_state_t;
 
@@ -571,7 +438,7 @@ uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *sta
 
 /** @brief Per-object envelope tag: "DBRX" (DsssBurstReceiver). */
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
-#define DSSS_BURST_RECEIVER_STATE_VERSION 4u
+#define DSSS_BURST_RECEIVER_STATE_VERSION 5u
 
 /** @brief Byte size of @p state's blob (envelope + payload + child). */
 size_t dsss_burst_receiver_state_bytes(const dsss_burst_receiver_state_t *state);
@@ -587,6 +454,8 @@ void dsss_burst_receiver_get_state(const dsss_burst_receiver_state_t *state, voi
  * @return DP_OK, or DP_ERR_INVALID if the envelope or any child rejects.
  */
 int dsss_burst_receiver_set_state(dsss_burst_receiver_state_t *state, const void *blob);
+size_t dsss_burst_receiver_get_refine_span(const dsss_burst_receiver_state_t *state);
+size_t dsss_burst_receiver_get_retain_span(const dsss_burst_receiver_state_t *state);
 #ifdef __cplusplus
 }
 #endif

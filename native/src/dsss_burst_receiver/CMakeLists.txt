@@ -4,12 +4,14 @@ target_include_directories(
   dsss_burst_receiver_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                             ${CMAKE_SOURCE_DIR}/native/inc/dsss_burst_receiver)
 target_link_libraries(dsss_burst_receiver_core PUBLIC
+    burst_capture_core
     burst_acq_core
     acq_core
     corr2d_core
     fft2d_core
     fft_core
     detection_core
+    pn_core
     burst_demod_core
     ppe_core
     spectral_core
@@ -17,7 +19,6 @@ target_link_libraries(dsss_burst_receiver_core PUBLIC
     ccsds_tm_core
     conv_core
     rs_core
-    pn_core
     gold_core
     mpsk_core
     burst_despreader_core
@@ -27,12 +28,14 @@ target_link_libraries(dsss_burst_receiver_core PUBLIC
 add_executable(test_dsss_burst_receiver_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_dsss_burst_receiver_core.c)
 target_link_libraries(test_dsss_burst_receiver_core
-                      PRIVATE dsss_burst_receiver_core burst_acq_core
+                      PRIVATE dsss_burst_receiver_core burst_capture_core
+    burst_acq_core
     acq_core
     corr2d_core
     fft2d_core
     fft_core
     detection_core
+    pn_core
     burst_demod_core
     ppe_core
     spectral_core
@@ -40,7 +43,6 @@ target_link_libraries(test_dsss_burst_receiver_core
     ccsds_tm_core
     conv_core
     rs_core
-    pn_core
     gold_core
     mpsk_core
     burst_despreader_core
@@ -55,12 +57,14 @@ add_executable(
   bench_dsss_burst_receiver_core
   ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_dsss_burst_receiver_core.c)
 target_link_libraries(bench_dsss_burst_receiver_core
-                      PRIVATE dsss_burst_receiver_core burst_acq_core
+                      PRIVATE dsss_burst_receiver_core burst_capture_core
+    burst_acq_core
     acq_core
     corr2d_core
     fft2d_core
     fft_core
     detection_core
+    pn_core
     burst_demod_core
     ppe_core
     spectral_core
@@ -68,7 +72,6 @@ target_link_libraries(bench_dsss_burst_receiver_core
     ccsds_tm_core
     conv_core
     rs_core
-    pn_core
     gold_core
     mpsk_core
     burst_despreader_core

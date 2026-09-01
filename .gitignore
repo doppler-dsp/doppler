@@ -13,6 +13,10 @@ src/doppler/wfm/_bin/
 compile_commands.json
 ffi/rust/target/
 /consumer.cf32
+# Written by the example projects' own `make run`, in their own directory --
+# the gates run them from a scratch dir, a reader runs them in place.
+example-projects/consumer/consumer.cf32
+example-projects/burst-pipeline/burst_train.blue
 
 # Generated documentation output
 docs/doxygen/

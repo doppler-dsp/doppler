@@ -2481,14 +2481,14 @@ test-examples-c: build ## Smoke-test every standalone C example
 # src/doppler/examples/.examples-skip already holds the Python side to.
 	@echo "Running C example smoke tests..."
 	@bash scripts/smoke-c-examples.sh $(EXAMPLE_BIN_DIR) $(C_EXAMPLE_TIMEOUT)
+# Through the example's own Makefile, for the reason burst-pipeline-check
+# gives: its README tells a reader to run `make DOPPLER_BUILD_DIR=... run`, so
+# that is the command this has to prove still works.
 	@echo "Building standalone example..."
-	@cmake -B $(STANDALONE_BUILD_DIR) example-projects/standalone \
-	    -DDOPPLER_BUILD_DIR=$(abspath $(BUILD_DIR)) \
-	    -DCMAKE_BUILD_TYPE=Release \
-	    > /dev/null 2>&1
-	@cmake --build $(STANDALONE_BUILD_DIR) > /dev/null 2>&1
 	@printf "  %-24s" "awgn_example"; \
-	if $(STANDALONE_BUILD_DIR)/awgn_example > /dev/null 2>&1; then \
+	if $(MAKE) --no-print-directory -C example-projects/standalone \
+	       BUILD_DIR=$(abspath $(STANDALONE_BUILD_DIR)) \
+	       DOPPLER_BUILD_DIR=$(abspath $(BUILD_DIR)) run > /dev/null 2>&1; then \
 	    echo "PASS"; \
 	else \
 	    echo "FAIL"; exit 1; \
@@ -2685,21 +2685,24 @@ consumer-faces-check: build ## Build a consumer via cc/CMake/pkg-config, assert 
 # has to keep building the way they will build it: find_package against an
 # install prefix, not this source tree. It runs too, and its checks are real --
 # `repeats` against a hand-listed train, the declared SNR recovered from the
-# gap and the burst, the Plan sweep beating a re-compose, and BLUE round-tripped
-# byte-exact -- so this also catches an API change that still compiles.
+# gap and the burst, a cached Plan render byte-identical to a full compose, and
+# BLUE round-tripped byte-exact -- so this also catches an API change that
+# still compiles.
 #
-# Both link modes, because the static one is where a missing transitive
-# dependency actually shows up.
+# THROUGH THE EXAMPLE'S OWN MAKEFILE, not a cmake line of our own. Its README
+# tells a reader to run `make PREFIX=... run`; a gate that configured CMake
+# separately would prove something adjacent to what they are about to type,
+# and would keep passing after that Makefile broke. `run` builds both link
+# modes -- the static one is where a missing transitive dependency shows up --
+# and the static binary's EXISTENCE is asserted here rather than there,
+# because the example only NOTES its absence while this gate must fail on it.
 burst-pipeline-check: build ## Build+run example-projects/burst-pipeline against an install prefix
 	@t=$$(mktemp -d); \
 	 $(CMAKE) --install $(BUILD_DIR) --prefix "$$t/pfx" > /dev/null \
-	 && $(CMAKE) -S example-projects/burst-pipeline -B "$$t/b" \
-	        -DCMAKE_PREFIX_PATH="$$t/pfx" -DCMAKE_BUILD_TYPE=Release > /dev/null \
-	 && $(CMAKE) --build "$$t/b" > /dev/null \
-	 && "$$t/b/burst_pipeline_shared" \
+	 && $(MAKE) --no-print-directory -C example-projects/burst-pipeline \
+	        BUILD_DIR="$$t/b" PREFIX="$$t/pfx" run \
 	 && { [ -x "$$t/b/burst_pipeline_static" ] || { \
-	        echo "burst-pipeline-check: static target not built"; exit 1; }; } \
-	 && "$$t/b/burst_pipeline_static"; \
+	        echo "burst-pipeline-check: static target not built"; exit 1; }; }; \
 	 rc=$$?; rm -rf "$$t"; \
 	 if [ $$rc -eq 0 ]; then echo "burst-pipeline-check: OK — both link modes"; fi; \
 	 exit $$rc

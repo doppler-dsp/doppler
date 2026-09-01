@@ -546,7 +546,7 @@ class MemoryCapture:
     """
     def __init__(
         self,
-        tlm: object,
+        tlm: Telemetry,
         block_samples: int,
         clock: object | None,
     ) -> None: ...
@@ -876,7 +876,7 @@ class Capture:
     """
     def __init__(
         self,
-        tlm: object,
+        tlm: Telemetry,
         block_samples: int,
         path: str | os.PathLike,
         clock: object | None,

@@ -25,6 +25,9 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**ber\_meter\_state\_t**](structber__meter__state__t.md) _BerMeter state._ 
 * **struct** [**boxcar\_state\_t**](structboxcar__state__t.md) _Boxcar moving-average state (cf32)._ 
 * **struct** [**burst\_acq\_state\_t**](structburst__acq__state__t.md) _BurstAcquisition state: a pure wrapper around one shared_ [_**acq\_state\_t**_](structacq__state__t.md) _engine._
+* **struct** [**burst\_capture\_event\_t**](structburst__capture__event__t.md) _One captured burst's event, as_ `events()` _hands it back._
+* **struct** [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md) _One detection between acquisition and emission._ 
+* **struct** [**burst\_capture\_state\_t**](structburst__capture__state__t.md) _BurstCapture state._ 
 * **struct** [**burst\_demod\_state\_t**](structburst__demod__state__t.md) _BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__core_8h.md#function-burst_demod_create) _._
 * **struct** [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) _BurstDespreader state._ 
 * **struct** [**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) _CarrierAcquisition state._ 

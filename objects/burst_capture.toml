@@ -1,0 +1,215 @@
+[burst_capture]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "BurstCapture"
+# Carries running state across calls -- the history ring, the embedded
+# acquisition engine, and every detection whose burst window has not yet
+# arrived -- so it owes the triplet. The look-back is IN the blob and is
+# essentially all of it: a resume has to reach back to a burst start already
+# gone past, so a blob without it restores an object that cannot refine the
+# detection it is still holding (docs/design/dsss-burst-receiver.md §11.4).
+serializable = "true"
+# A NULL create() is an ARGUMENT error, never an allocation one -- the guard
+# rejects a parameter set that cannot build a capture. Same shape as
+# objects/dsss_burst_receiver.toml's.
+create_error = "ValueError"
+create_error_message = "BurstCapture: invalid parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0, burst_len >= 1, cn0_dbhz > 0, 0 < pfa < 1, 0 < pd < 1)"
+# burst_acq and its transitive closure -- jm's depends_on linking is not
+# recursive, the same reason objects/dsss_burst_receiver.toml repeats it:
+# burst_acq pulls acq -> corr2d/fft2d/fft/detection.
+depends_on = [
+    { name = "burst_acq", link = true },
+    { name = "acq", link = true },
+    { name = "corr2d", link = true },
+    { name = "fft2d", link = true },
+    { name = "fft", link = true },
+    { name = "detection", link = true },
+    # pn: the MLS generator this object's C test builds its acquisition code
+    # with. Bare, not link=true -- the test/bench need the symbol, the .so
+    # does not.
+    { name = "pn" },
+]
+
+# ── Construction ─────────────────────────────────────────────────────────────
+# The acquisition geometry, plus the ONE thing acquisition does not have a
+# notion of: how long a burst is. `acq_create_burst()` takes search parameters
+# only, and teaching it frame geometry to support refine would be wrong -- but
+# for a capture the burst length IS the parameter, because it is what gets
+# captured, and it is what sizes the retention.
+#
+# The history ring is NOT a knob. Its span is derived here (refine reach plus
+# one whole burst), because every term is known and a caller asked to size a
+# look-back buffer is a caller handed a way to lose bursts silently.
+
+[[burst_capture.init_params]]
+name = "acq_code"
+type = "uint8_t[]"
+
+[[burst_capture.init_params]]
+name = "burst_len"
+type = "size_t"
+default = "8192"
+
+[[burst_capture.init_params]]
+name = "reps"
+type = "size_t"
+default = "5"
+
+[[burst_capture.init_params]]
+name = "spc"
+type = "size_t"
+default = "4"
+
+[[burst_capture.init_params]]
+name = "chip_rate"
+type = "double"
+default = "1000000.0"
+
+[[burst_capture.init_params]]
+name = "cn0_dbhz"
+type = "double"
+default = "50.0"
+
+[[burst_capture.init_params]]
+name = "doppler_uncertainty"
+type = "double"
+default = "0.0"
+
+[[burst_capture.init_params]]
+name = "pfa"
+type = "double"
+default = "1e-3"
+
+[[burst_capture.init_params]]
+name = "pd"
+type = "double"
+default = "0.9"
+
+[[burst_capture.methods]]
+name = "push"
+doc = "Stream raw cf32 samples and get back the SAMPLES of every burst whose window has fully arrived, concatenated: burst i occupies burst_len samples starting at i*burst_len, and events() returns the matching record for each. Samples feed the embedded BurstAcquisition and are retained in a history ring; when a detection fires, the refine stage correlates one code period at each preamble position to recover the exact preamble start -- the one quantity acquisition structurally cannot report, since its code_phase is a lag modulo one code period -- and the window is emitted the moment its last sample has arrived. It stops there: what to DO with a burst (demodulate it, write it to a file, ship it to another process) is the caller's. An empty return is normal, not an error: it means no burst completed in this call. Accepts any block size -- the history ring is a contiguous window over the stream and is never reset between bursts, so a burst whose tail falls outside one call is completed by a later one."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[burst_capture.methods]]
+name = "events"
+doc = "The event record for each burst the last push() returned. Row i describes the window at samples[i*burst_len ...] of that push. Valid until the next push(), reset() or set_state()."
+arg_type = "void"
+return_type = "burst_capture_event_t"
+variable_output = true
+record_dtype = "burst_capture_event_t"
+pass_capacity = true
+result_fields = [
+  { name = "preamble_start", type = "uint64_t" },
+  { name = "doppler_hz_est", type = "double" },
+  { name = "doppler_res_hz", type = "double" },
+  { name = "cn0_dbhz_est", type = "double" },
+  { name = "refine_margin", type = "double" },
+]
+
+[[burst_capture.methods]]
+name = "configure_search_raw"
+doc = "Pin the embedded BurstAcquisition's search grid directly, bypassing the auto-sizing -- the escape hatch for a caller who wants a specific (doppler_bins, n_noncoh). Forwards to the engine unchanged."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+    { name = "doppler_bins", type = "size_t" },
+    { name = "n_noncoh", type = "size_t" },
+]
+
+[[burst_capture.methods]]
+name = "reset"
+doc = "Return to the searching state: resets the embedded acquisition, drops the history ring's contents, clears every queued detection and every read-back, so a fresh stream cannot inherit the previous one's position. Construction parameters are untouched."
+arg_type = "void"
+return_type = "void"
+
+# ── Read-backs ───────────────────────────────────────────────────────────────
+# The event of the most recent window emitted. events() is the per-burst
+# record; these describe the last row of it, and exist because a caller
+# holding one window at a time should not have to index a list to ask where
+# it came from.
+
+[[burst_capture.properties]]
+name = "preamble_start"
+type = "uint64_t"
+doc = "Stream-absolute sample index the most recent window's preamble starts at. NEVER LATE: a window that began after the preamble has destroyed the burst, so the refine stage's obligation is to be early-or-exact and to say how early."
+
+[[burst_capture.properties]]
+name = "doppler_hz_est"
+type = "double"
+doc = "Folded/signed coarse Doppler estimate of the most recent window, Hz. Acquisition's own bin, mapped through dp_fftfreq -- the ONE home for that fold, because a consumer seeded on the wrong side of it is off by the full search span."
+
+[[burst_capture.properties]]
+name = "doppler_res_hz"
+type = "double"
+doc = "Acquisition's native Doppler bin width = chip_rate/(sf*coherent_bins), Hz. The width of doppler_hz_est: the estimate is that value +/- half of this."
+
+[[burst_capture.properties]]
+name = "cn0_dbhz_est"
+type = "double"
+doc = "Estimated carrier-to-noise density of the most recent window (dB-Hz), backed out of the hit's test statistic. A LOWER BOUND: it tracks the true C/N0 while receiver noise dominates the CFAR estimate, then saturates at the code's own autocorrelation-sidelobe floor once the true C/N0 exceeds what this code and geometry can resolve -- a real ceiling, not a fault."
+
+[[burst_capture.properties]]
+name = "refine_margin"
+type = "double"
+doc = "The refine stage's own confidence: the best rival code period's score over the winner's. The envelope is (reps-1)/reps when the right repetition wins, so compare against THAT and never a constant -- the floor rises with depth (0.55 at reps=2, 0.77 at 4, 0.94 at 16). Near 1 means the period was not resolved, which nothing else in the chain can see."
+
+[[burst_capture.properties]]
+name = "burst_len"
+type = "size_t"
+field = true
+doc = "Samples in one emitted window -- the burst length this capture was built for, and the stride of a row in push()'s return."
+
+[[burst_capture.properties]]
+name = "refine_span"
+type = "size_t"
+field = true
+doc = """Coalescing window, in samples -- the reach over which two detections
+are ONE preamble.
+
+Both sides of that test are burst STARTS (resolved code epochs), so this
+bounds start-to-start separation, NOT the dead air between bursts. The two
+differ by a whole burst, and reading it as dead air costs a caller real
+airtime for nothing: the gap actually required is
+`max(0, refine_span - burst_len)`, which is 0 whenever a burst is longer than
+the refine reach (doppler#1085)."""
+
+[[burst_capture.properties]]
+name = "retain_span"
+type = "size_t"
+field = true
+doc = """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
+
+`refine_span` plus one whole burst. A burst closer than this to the end of
+what has been pushed is held rather than emitted, because refine cannot yet
+see the samples it needs. Feed at least this many more, or the last burst of
+a capture never comes out."""
+
+[[burst_capture.properties]]
+name = "pending"
+type = "size_t"
+doc = """Detections held because their burst window has NOT fully arrived.
+
+push() deliberately emits nothing for these: a window is returned when it is
+complete, not when it is guessed at. What this exists for is the other end --
+a caller closing a file or a socket while this is non-zero is discarding a
+burst that would have been captured, and every other read-back looks
+identical to "nothing was ever there"."""
+
+[[burst_capture.properties]]
+name = "dropped"
+type = "uint64_t"
+doc = "Samples the history ring refused, lifetime. A LOST BURST each, not a statistic -- it survives reset()."
+
+[[burst_capture.properties]]
+name = "n_bursts"
+type = "uint64_t"
+doc = "Windows emitted, lifetime."

@@ -65,6 +65,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**buffer.h**](buffer_8h.md) _High-performance x86-64 Circular Buffer for RF Streaming._     
         * **dir** [**burst\_acq**](dir_d3ec06985dce876581dd948705a4d1da.md)     
             * **file** [**burst\_acq\_core.h**](burst__acq__core_8h.md) _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._     
+        * **dir** [**burst\_capture**](dir_8eab18aa96a66319f16718502165a0b6.md)     
+            * **file** [**burst\_capture\_core.h**](burst__capture__core_8h.md) _BurstCapture — acquisition's output turned into aligned bursts._     
         * **dir** [**burst\_demod**](dir_96a22b0098c79a5049df57065c5b8df4.md)     
             * **file** [**burst\_demod\_core.h**](burst__demod__core_8h.md) _Feedforward BPSK DSSS frame demodulator._     
         * **dir** [**burst\_despreader**](dir_311cad0a77759dd1ff95e00f622e2f49.md)     

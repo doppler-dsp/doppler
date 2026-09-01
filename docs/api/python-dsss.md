@@ -267,6 +267,33 @@ the capture is fed and when the estimate is emitted.
 
 ::: doppler.dsss.BurstAcquisition
 
+## `BurstCapture` — acquisition's output, turned into bursts
+
+`BurstCapture` is the stage between a detector and whatever consumes a burst.
+[`BurstAcquisition`](#burstacquisition-the-burst-front-door-to-acquisition)
+reports an END anchor and a code phase that is a lag **modulo one code
+period**, so it names the alignment within a preamble repetition and never
+which one — and a burst has a frame that begins in one specific repetition.
+`BurstCapture` resolves that (the refine stage), keeps the look-back needed to
+reach a start that has already gone past, and emits the burst's **samples**.
+
+It stops there. Demodulating is
+[`BurstDemod`](#burstdemod-feedforward-dsss-frame-demodulator)'s job, and
+[`DsssBurstReceiver`](#dsssburstreceiver-the-composed-burst-chain) is this
+plus that. Reach for `BurstCapture` directly when you want the bursts
+themselves: a recorder, an offline corpus, or a second consumer fanned out
+from one stream.
+
+`push()` returns windows concatenated — burst `i` occupies `burst_len`
+samples at `i*burst_len` — and `events()` returns the matching record for
+each. It owns its acquisition engine rather than accepting detections from
+elsewhere, because a hit's `samples_consumed` is stream-absolute only for an
+engine fed continuously and never reset; see
+[the design note](../design/burst-capture.md) for why that invariant cannot
+be delegated to a caller.
+
+::: doppler.dsss.BurstCapture
+
 ## `AsyncDsssReceiver` — the packaged continuous async receiver
 
 `AsyncDsssReceiver` wraps the whole acquire → carrier-refine → track chain
@@ -325,7 +352,7 @@ sample **rate** where numpy takes the sample **spacing**.
 
 **Gallery** — [Streaming Async Despreader](../gallery/async-despread.md), [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Correlation and Detection](../gallery/corr.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md)
 **Guides** — [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Lock Detection Across `doppler.track`](../guide/lock-detection.md), [Checkpoint & Resume](../guide/state-serialization.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
-**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DsssReceiver Specifications](../design/async-dsss-spec.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [Detection Sizing — the four laws behind one prefix](../design/detection.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [Design](../design/index.md), [MPSK Receiver](../design/mpsk.md), [The Polynomial-Phase Estimator — the reasoning](../design/ppe.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
+**Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [DsssReceiver Specifications](../design/async-dsss-spec.md), [Asynchronous symbol/code despreading](../design/async-symbol-despreader.md), [`BurstCapture`: acquisition's output, turned into bursts](../design/burst-capture.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [Detection Sizing — the four laws behind one prefix](../design/detection.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [Design](../design/index.md), [MPSK Receiver](../design/mpsk.md), [The Polynomial-Phase Estimator — the reasoning](../design/ppe.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
 **Contributing** — [DSSS Primary Use Cases for Code Acquisition Design](../dev/contributing/dsss-use-cases.md), [Validation log](../dev/contributing/validation-log.md), [Contributing](../dev/index.md)
 
 <!-- related-pages:end -->

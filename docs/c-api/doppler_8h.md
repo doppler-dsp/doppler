@@ -83,6 +83,7 @@
 * `#include "burst_acq/burst_acq_core.h"`
 * `#include "ppe/ppe_core.h"`
 * `#include "burst_demod/burst_demod_core.h"`
+* `#include "burst_capture/burst_capture_core.h"`
 * `#include "dsss_receiver/dsss_receiver_core.h"`
 * `#include "async_dsss_receiver/async_dsss_receiver_core.h"`
 * `#include "dsss_burst_receiver/dsss_burst_receiver_core.h"`

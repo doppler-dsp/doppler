@@ -64,6 +64,7 @@
 |  void \* | [**dp\_xcalloc**](#function-dp_xcalloc) (size\_t nmemb, size\_t size) <br> |
 |  void \* | [**dp\_xmalloc**](#function-dp_xmalloc) (size\_t n) <br> |
 |  void \* | [**dp\_xnn**](#function-dp_xnn) (void \* p) <br> |
+|  void \* | [**dp\_xrealloc**](#function-dp_xrealloc) (void \* p, size\_t n) <br> |
 
 
 
@@ -247,6 +248,29 @@ static inline void * dp_xnn (
 
 
 Assert a just-constructed object / allocation is non-NULL, aborting with a diagnostic on the impossible OOM. The single check point: a sub-object create() returns NULL only on OOM once its arguments are validated, so wrap the call — `x = dp_xnn (foo_create (...))` — instead of checking-and-unwinding at every call site. (Classic GNU `xmalloc`.) 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_xrealloc 
+
+```C++
+static inline void * dp_xrealloc (
+    void * p,
+    size_t n
+) 
+```
+
+
+
+realloc that aborts on OOM — the third member of the family.
+
+
+A grow-on-demand scratch buffer is the shape that wants it: the new size scales with the caller's block, but the only way the call fails is still genuine exhaustion, so the unwind path is as uncoverable as malloc's. Passing NULL for `p` is a fresh allocation, exactly as realloc defines. 
 
 
         

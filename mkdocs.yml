@@ -273,13 +273,12 @@ nav:
       - Ending a Capture: design/end-of-capture.md
       - DSSS Acquisition: design/dsss-acquisition.md
       - Polynomial-Phase Estimator: design/ppe.md
-      - Async DSSS Receiver Spec: design/async-dsss-spec.md
+      - AsyncDsssReceiver: design/async-dsss-receiver.md
       - DsssBurstReceiver: design/dsss-burst-receiver.md
       - BurstCapture: design/burst-capture.md
       - BurstBank: design/burst-bank.md
       - CoarseChannel: design/coarse-channel.md
       - Multi-peak Acquisition: design/acq-multi-peak.md
-      - Async Symbol Despreader: design/async-symbol-despreader.md
       - Automatic Gain Control: design/agc.md
       - Detection Sizing: design/detection.md
       - Timing Lock Detector: design/timing_lock_detector.md

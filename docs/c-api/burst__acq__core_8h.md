@@ -98,7 +98,7 @@ _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._ [More...
 ## Detailed Description
 
 
-Composes [**acq\_state\_t**](structacq__state__t.md) ([**native/inc/acq/acq\_core.h**](acq__core_8h.md)) as an embedded pointer, built via [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst)  the BURST front door onto the SAME shared engine `Acquisition` ([**acq\_core.h**](acq__core_8h.md)) composes via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous). Every function here is a direct forward to the corresponding acq\_\* call; the entire algorithm lives in acq\_core.c exactly once (see docs/design/async-dsss-spec.md's Acquisition/BurstAcquisition split and CLAUDE.md's "every algorithm lives in C exactly once" rule).
+Composes [**acq\_state\_t**](structacq__state__t.md) ([**native/inc/acq/acq\_core.h**](acq__core_8h.md)) as an embedded pointer, built via [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst)  the BURST front door onto the SAME shared engine `Acquisition` ([**acq\_core.h**](acq__core_8h.md)) composes via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous). Every function here is a direct forward to the corresponding acq\_\* call; the entire algorithm lives in acq\_core.c exactly once (see docs/design/async-dsss-receiver.md's Acquisition/BurstAcquisition split and CLAUDE.md's "every algorithm lives in C exactly once" rule).
 
 
 

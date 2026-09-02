@@ -135,7 +135,7 @@ typedef struct {
      *    deinit contract there, same lifecycle class as `code`/owns_code).
      *    This is the direct C port of the coupled-despreader
      *    prototype's `find_max_power()`/`get_window()` (also
-     *    `docs/design/async-despreader-working-design.md`'s own reference
+     *    `docs/design/async-dsss-receiver.md` §3.6's own reference
      *    pseudocode) -- see dll_steps_impl()'s segments>1 branch, which
      *    builds the SAME named artifacts (`sums`, `backward_sums`,
      *    `correlations`) in the same order so it can be checked directly
@@ -200,7 +200,7 @@ dll_chip_sign(uint8_t c)
  * interpolation, not a dwell-width-aware blend: this replaces the earlier
  * exact matched-filter integral (which varied its blend width with the
  * sample's chip-phase dwell time) with the simpler, validated design from
- * `docs/design/async-despreader-working-design.md` — the dwell-integral
+ * `docs/design/async-dsss-receiver.md` §3.6 — the dwell-integral
  * model was mathematically fancier but did not, on its own, fix the
  * long-run false-lock that motivated this redesign; this one does.
  *
@@ -374,7 +374,7 @@ void dll_lock_epoch(dll_state_t *s);
  * Runs the power-domain non-coherent early-minus-late discriminator
  * `0.5 * (|E|^2 - |L|^2) / |P|^2` on the dumped accumulators (the prompt
  * power is the normalizing "signal + noise power" reference — the
- * validated design from `docs/design/async-despreader-working-design.md`,
+ * validated design from `docs/design/async-dsss-receiver.md` §3.6,
  * not a magnitude-domain `(|E|-|L|)/(|E|+|L|)` ratio), filters it, and
  * steers `phase_inc` (sample-and-hold — held constant until the next
  * call, exactly one epoch later) from BOTH the integrator (`code_rate`,

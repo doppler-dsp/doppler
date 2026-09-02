@@ -42,14 +42,12 @@ instead.)
     it, and what owning both ends of the file buys
 - [The Polynomial-Phase Estimator](ppe.md) — the feedforward frequency/chirp-rate estimate a burst gets exactly one of: why the search is two-dimensional and coherent, why the transform is 4x its input, and why the caller strips the modulation
 - [DSSS Acquisition](dsss-acquisition.md) — stateless, parallel, dynamics-capable acquisition architecture + roadmap
-- [Async DSSS Receiver Spec](async-dsss-spec.md) — the target waveform and receiver specification (CCSDS Gold-1023, 3.069 Mcps, 2700 bps, ±50 kHz, \<500 Hz/s) the async DSSS receiver is built against
+- [AsyncDsssReceiver](async-dsss-receiver.md) — the continuous DSSS receiver from spec to object: the target waveform (CCSDS Gold-1023, 3.069 Mcps, 2700 bps, ±50 kHz, \<500 Hz/s), the two acquisition front doors and the `DetectionEvent` hand-off, the asynchronous despreader and its look-back working design, the receiver as built, and what it must gain for the multi-emitter use case
 - [DsssBurstReceiver](dsss-burst-receiver.md) — the burst chain composed in C: the three-stage `search → refine → demod` shape, why the hand-off needs a never-late epoch, and what a burst `DetectionEvent` must carry to stand alone
 - [BurstCapture](burst-capture.md) — acquisition's output turned into aligned burst samples: why the period-resolving refine and the look-back need a home outside the receiver, why the object owns its own engine rather than taking foreign detections, and the one behaviour that changes
 - [BurstBank](burst-bank.md) — the coarse-Doppler bank as one C object: why its cross-channel claim rule belongs beside the capture's, the layout rule now that the engine searches to its edge, rings named by centre so a pod can hold one channel, and the unknowns the characterization measures
 - [CoarseChannel](coarse-channel.md) — question 1 of the bank design: is a channel its own object or a slice of the bank, judged against the two primary use cases (one process runs the whole bank; one pod runs one channel), with the trades and the work that answers it
 - [Multi-peak acquisition](acq-multi-peak.md) — every emitter on one surface: why a single maximum per dwell hides every emitter but the strongest for as long as it is up, the peak list with exclusion zones and the cancellation the Gold code's cross-correlation floor forces beyond it, where each piece lives, the lock-detector release that ends an assignment, and the work that picks the branch
-- [Asynchronous Symbol Despreader](async-symbol-despreader.md) — despreading when the data-symbol rate is asynchronous to the code-epoch rate
-- [Asynchronous Data on a Repeating PN Code](async-despreader-working-design.md) — the working design behind the async despreader, assuming at most one data transition per code epoch
 - [Automatic Gain Control](agc.md) — the log-domain level loop every receiver
     stands on: why the filter is in dB and the detector is not, why the loop
     must be total under any input, and what level alone cannot tell it

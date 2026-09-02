@@ -26,7 +26,7 @@
  *     update per code period, `bn_fll`-assisted -- removes BULK Doppler
  *     and its RATE OF CHANGE before the code loop ever sees it; a fixed/
  *     bounded residual alone is fine downstream-only, per
- *     `docs/design/async-symbol-despreader.md` §4, but an unbounded
+ *     `docs/design/async-dsss-receiver.md` §3.4, but an unbounded
  *     Doppler RATE is not), one code
  *     period at a time (a small internal carry buffer holds any leftover
  *     partial-period tail across calls -- `steps()` still accepts any

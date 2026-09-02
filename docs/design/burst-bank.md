@@ -401,12 +401,12 @@ belongs in the bank's C benchmark from the first commit.
 ## 11. The continuous case — the C++ application's waveform
 
 *Added 2026-09-02 from the maintainer's description; the numbers are
-derived from `async-dsss-spec.md`'s waveform and the measurements in §10.4,
+derived from `async-dsss-receiver.md`'s waveform and the measurements in §10.4,
 and the questions at the end are open.*
 
 The C++ application does not receive bursts. It receives **continuous**
 DSSS with asynchronous data — the CCSDS command-link shape
-[`async-dsss-spec.md`](async-dsss-spec.md) already specifies (a 1023-chip
+[`async-dsss-receiver.md`](async-dsss-receiver.md) already specifies (a 1023-chip
 Gold code, 3.069 Mcps, ±50 kHz) — and the stream carries a **data-free
 period of one code period just before each frame sequence**. Several
 emitters are in the air at once on the **same** Gold code, and what tells

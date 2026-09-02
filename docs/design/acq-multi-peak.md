@@ -633,5 +633,5 @@ ______________________________________________________________________
     `N_eff`, and the interpolated-vs-native split every peak keeps.
 - [`coarse-channel.md`](coarse-channel.md) — the channel as an object,
     which is what carries the searcher.
-- [`async-dsss-spec.md`](async-dsss-spec.md) — the waveform, and the
+- [`async-dsss-receiver.md`](async-dsss-receiver.md) — the waveform, and the
     `DetectionEvent` each reported peak becomes.

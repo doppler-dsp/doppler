@@ -572,14 +572,16 @@ record — is already there.
 1. **Who owns the lifecycle.** *Partly answered:* because the channel
     always searches, the bank must at least remember what it handed off
     (an emitter keyed by Doppler and code phase) or it re-hands-off the
-    same emitter every window. Still open: whether the bank also owns the
-    tracker pool and notices loss, or reports "still there / gone" to an
-    application that owns the table.
-1. **How many emitters at once**, and how long an emitter is typically in
-    view: the first sizes the tracker pool the application holds, the
-    second is the soak the characterization runs — hours with emitters
-    cycling in and out, checking that nothing grows and nothing is missed
-    on the way back in.
+    same emitter every window. The receiver's half — how "gone" is
+    decided and what it releases — is designed in
+    [`acq-multi-peak.md`](acq-multi-peak.md) §5. Still open: whether the
+    bank also owns the tracker pool and the assigned table, or reports
+    "still there / gone" to an application that owns them.
+1. ~~**How many emitters at once**, and how long an emitter is typically
+    in view.~~ **Answered** (maintainer, 2026-09-02): at least one always
+    on, up to 10 at once, each on for 5 to 15 minutes on average. The pool
+    and the soak follow in [`acq-multi-peak.md`](acq-multi-peak.md) §1.1,
+    §5 and §6.
 1. ~~**Can two emitters sit within one span of each other?**~~
     **Answered: yes** — one frequency channel, one code; emitters are
     separated by code phase, power and Doppler on one surface. A channel

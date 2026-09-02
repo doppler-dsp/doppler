@@ -1,6 +1,6 @@
 """End-to-end integration: the real closed-loop async DSSS receiver.
 
-`docs/design/async-symbol-despreader.md` validates the segmented-DLL
+`docs/design/async-dsss-receiver.md` validates the segmented-DLL
 code path (`Dll(segments=K)`) and the always-on lock detector against
 real objects, but its own BER table comes from a **numpy stand-in**
 for the despread step with **no carrier at all**

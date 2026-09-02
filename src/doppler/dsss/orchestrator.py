@@ -207,7 +207,7 @@ class CoarseChannel:
             # push() call (one block = one decision), which only holds for
             # coherent-only detection. With no caller-facing max_noncoh knob
             # left to default to "coherent-only" (removed -- see
-            # docs/design/async-dsss-spec.md), the auto-sizer would
+            # docs/design/async-dsss-receiver.md), the auto-sizer would
             # otherwise silently auto-escalate non-coherent looks whenever
             # the coherent depth alone falls short of pd, requiring several
             # accumulated push() calls before a hit could fire at all --

@@ -330,7 +330,7 @@ extern "C"
    * The semi-analytical Pd model both auto-sizers ascend against turns
    * non-monotonic and unreliable past a few hundred looks (this project's
    * own geometry found ~256 empirically -- see
-   * docs/design/async-dsss-spec.md).  Hitting this ceiling without
+   * docs/design/async-dsss-receiver.md).  Hitting this ceiling without
    * meeting @p pd leaves acq_state_t::underpowered set, same as any other
    * infeasible operating point -- no separate bookkeeping needed.
    */

@@ -510,7 +510,7 @@ dll_steps_impl (dll_state_t *state, const float _Complex *x, size_t x_len,
   /* segments > 1: chunked output + a one-epoch-deep lookback for a clean
      power reference -- a direct C port of the coupled-despreader
      prototype's `find_max_power()`/`get_window()` (also
-     `docs/design/async-despreader-working-design.md`'s own reference
+     `docs/design/async-dsss-receiver.md` §3.6's own reference
      pseudocode), traceable against that Python source step for step (see
      the epoch-boundary block below). The OUTPUT is always this epoch's
      own natural, unshifted per-chunk prompt sums (an oversampled stream

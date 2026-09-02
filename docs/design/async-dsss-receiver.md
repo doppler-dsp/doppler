@@ -1,4 +1,19 @@
-# DsssReceiver Specifications
+# AsyncDsssReceiver — the continuous DSSS receiver, from spec to object
+
+*One page, consolidated 2026-09-02 from three: the receiver specification
+(`async-dsss-spec.md`), the asynchronous despreader (`async-symbol-despreader.md`)
+and the despreader's original working design (`async-despreader-working-design.md`).
+§1–§4 are those pages' content under one numbering, edited only where a
+cross-reference had to move. §5 is new: what the tracking receiver must gain
+to serve the multi-emitter, always-searching use case that
+[`acq-multi-peak.md`](acq-multi-peak.md) designs — the C++ application's
+continuous waveform of [`burst-bank.md`](burst-bank.md) §11.*
+
+______________________________________________________________________
+
+## 1. The specification
+
+The waveform and the receiver requirements, as given:
 
 - Level: Any
 - Nominal frequency: 2.5 GHz
@@ -11,7 +26,7 @@
     - Modulation: Asynchronous Rectangular BPSK @ 2700 bps
 - Es/N0 >= 5 dB <sup>[(2)](#note-2)</sup>
 
-## Target implementations
+### 1.1 Target implementations
 
 - Complete C DsssReceiver available in libdoppler.{a,so} to compile into
     C/C++ applications <sup>[(3)](#note-3)</sup>
@@ -23,7 +38,7 @@
     - Code and Coarse Carrier Acquisition (BurstAcquisition)
     - Frame Demodulation (BurstDemod)
 
-### Service boundaries: which blocks are HPA-friendly
+#### Service boundaries: which blocks are HPA-friendly
 
 This microservices target is specifically the BURST counterparts
 (`BurstAcquisition`/`BurstDemod` -- `DsssBurstReceiver`, task #80,
@@ -82,7 +97,7 @@ fan-out sharding pattern, but a genuine, not-free duplication.
 `BurstDemod`, task #80) is filed but not implemented -- neither object
 calls the other today, and neither composes DDC internally yet.
 
-______________________________________________________________________
+### 1.2 Footnotes
 
 <a id="note-1"></a>**(1)** Was mistyped "5 kHz/s" -- an order of
 magnitude too high; matches the standard LEO worst-case nadir-pass
@@ -136,7 +151,7 @@ per-pass stateful process (see "Service boundaries" below), so it stays
 part of the monolithic Complete C DsssReceiver above rather than being
 split into k8s hops.
 
-## Derived: tracking loop bandwidths (all loops: code DLL, Costas/CarrierMpsk carrier, FLL-assist)
+### 1.3 Derived: tracking loop bandwidths (all loops: code DLL, Costas/CarrierMpsk carrier, FLL-assist)
 
 - Design target: loop SNR `rho >= 20 dB` at the Es/N0 floor (5 dB), using
     the standard PLL loop-SNR relation `rho(dB) = Es/N0(dB) - 10*log10(2*bn)`
@@ -162,9 +177,22 @@ split into k8s hops.
     jitter once locked, not the separate (and still not fully explained)
     pull-in/lock-acquisition behavior below the floor. See task #99.
 
-## Acquisition
+### 1.4 A second operating point
 
-### User-facing API
+The C++ application's continuous waveform is the same shape at different
+numbers — a 1023-chip Gold code at **2 to 5 Mcps**, a DDC from **13 MSa/s** to
+twice the chip rate, `D = 1`, ±50 kHz to start and likely ±5 kHz after
+Doppler pre-compensation, up to ten emitters on one code at once — and a
+throughput floor of 30 MSa/s, comfortably. Those numbers, and what they do to
+the search and the receiver pool, are worked in
+[`acq-multi-peak.md`](acq-multi-peak.md) §1.1 and §1.4; this page's §5 is the
+receiver's side of them.
+
+______________________________________________________________________
+
+## 2. Acquisition
+
+### 2.1 User-facing API
 
 **Split at the user level into two classes, `Acquisition` (continuous)
 and `BurstAcquisition`, sharing ONE C engine underneath.** Per direct
@@ -282,7 +310,7 @@ entering the model's known-unreliable regime and set `underpowered`
 instead of trusting the number), not a parameter the caller has to
 discover and tune correctly.
 
-### Output data structure: `DetectionEvent` (the acquisition handoff)
+### 2.2 Output data structure: `DetectionEvent` (the acquisition handoff)
 
 `DetectionEvent` is the DATA -- the acquisition handoff is the ACTION
 (the process of converting a raw `push()` hit into this record and
@@ -363,7 +391,7 @@ something `Acquisition` hands it pre-scaled. Keeps `Acquisition`
 carrier-frequency-agnostic and reusable for a baseband-only caller
 that has no carrier concept at all.
 
-### Notes
+### 2.3 Notes — the wideband search, and how it was settled
 
 - FFT bin spacing per code epoch (native unambiguous Doppler span,
     ANY coherent depth D -- a D-point slow-time FFT sampled at the
@@ -485,3 +513,615 @@ that has no carrier concept at all.
         SNR loss for SOME of the `nc` epochs, not a structural mislock,
         since non-coherent summing doesn't alias -- but not yet separately
         quantified here).
+
+______________________________________________________________________
+
+## 3. The asynchronous despreader
+
+**Status:** draft / validated architecture
+**Scope:** the receive-side despreader when the **data-symbol rate is on the
+order of the code-epoch rate but asynchronous** to it. This is theory, the
+failure mechanism, and a validated robust architecture that composes existing
+`doppler.track` primitives. The reproducible study is
+`src/doppler/examples/async_despreader_study.py`
+(`python -m doppler.examples.async_despreader_study`).
+
+______________________________________________________________________
+
+### 3.1 The two-clock problem
+
+A DSSS receiver despreads by integrating early/prompt/late correlations over one
+**code epoch** (`TE = sf·sps` samples) — an integrate-and-dump locked to the
+*code* clock. The data symbols are a separate stream; the despread prompt per
+epoch carries the data.
+
+That works when the symbol clock is locked to the code clock at an integer ratio
+(GPS C/A: 20 code epochs per data bit, bit edges on epoch edges). It **breaks**
+when the symbol clock is *independent*:
+
+```
+T_sym = TE · (1 + delta)        # symbol period, samples
+                                # delta = symbol-vs-code rate offset
+phi_sym                         # independent symbol phase
+```
+
+with `T_sym ≈ TE` (symbol ≈ one epoch). This is the hard regime: ~one symbol per
+epoch, a transition roughly every epoch, and — crucially — `delta ≠ 0` makes the
+symbol boundary **slide continuously** through the epoch at the beat rate
+`delta / TE`.
+
+______________________________________________________________________
+
+### 3.2 Why per-epoch despreading fails
+
+The coherent prompt over an epoch whose data flips at fraction `f ∈ [0,1]`:
+
+```
+P(f) = A·[ f·d1 + (1−f)·d2 ]  =  A·d1·(2f−1)        (d2 = −d1)
+```
+
+- `f → 0, 1` (flip at an epoch edge): `|P| = A` (full despread).
+- `f → 0.5` (flip mid-epoch): **`|P| = 0`** — total coherent cancellation.
+
+Because `delta ≠ 0`, `f` sweeps through every value, so ~half of all epochs
+straddle a transition and their prompts collapse. The consequences:
+
+1. **Data**: per-epoch decisions floor — the BER plateaus regardless of `Es/N0`
+    (the straddle epochs carry no usable energy). Measured floor ≈ 1e-1 even when
+    the bound is < 1e-5.
+1. **Code**: the early/late discriminator `(|E|−|L|)/(|E|+|L|)` collapses to
+    `0/0` on straddle epochs → the DLL is starved → the code loop wanders.
+
+**Root cause:** at one prompt per epoch the symbol clock is **unobservable** (a
+single sample per symbol cannot drive a timing loop), and the integration window
+is forced to straddle transitions.
+
+#### Diagnostic fingerprint
+
+The straddle modulation is periodic at the symbol↔epoch beat. The spectrum of
+the prompt-magnitude stream `|P[n]|` shows a **tone at `|delta|` cycles/epoch**
+(centre panel of the figure). This is the signature to look for when a DSSS link
+shows unexplained despread fades — it identifies this failure class directly.
+
+______________________________________________________________________
+
+### 3.3 Robust architecture
+
+![Async despreader study](../assets/async_despreader_study.png)
+
+The fix gives the symbol clock its own observability and its own matched filter,
+and makes code tracking insensitive to data sign — composing primitives that
+already exist.
+
+#### 3.3.1 Data path — partial correlations + symbol matched filter + SymbolSync
+
+1. **Partial correlations.** Split each code epoch into `K` sub-epoch partial
+    prompt correlations (each `TE/K` samples, known code phase). This yields `K`
+    despread samples per epoch ≈ `K` samples per symbol — the symbol clock is now
+    **observable**.
+1. **Symbol matched filter.** A length-`K` **boxcar** over the partial stream.
+    This is a *sliding, symbol-aligned* coherent re-integration of the partials —
+    the full-symbol despread the epoch-locked window could not form. It is
+    essential: without it, the rectangular symbol pulse is sampled at one point
+    and only ~1/`K` of the symbol energy is captured (the BER floors at ~2e-2).
+1. **SymbolSync.** [`track.SymbolSync`](../api/python-track.md) (Gardner TED +
+    Farrow interpolator) recovers the independent symbol clock (`delta`, `phi`)
+    from the matched-filtered stream and decimates at the symbol-aligned peak.
+
+**Result (left panel):** the BER follows the BPSK matched-filter bound within
+~1–2 dB. A **genie** reference (coherent symbol-aligned despread with *known*
+timing) hits the bound exactly — the loss was only window misalignment, never
+SNR. The broken per-epoch path floors.
+
+| Es/N0  | bound  | genie (known timing) | partial+MF+SymbolSync | broken epoch |
+| ------ | ------ | -------------------- | --------------------- | ------------ |
+| 6 dB   | 2.4e-3 | 2.5e-3               | 4.5e-3                | ~7e-2        |
+| 8 dB   | 1.9e-4 | 1.5e-4               | 5.8e-4                | ~6e-2        |
+| 9.6 dB | 9.7e-6 | 0                    | 0                     | ~5e-2        |
+
+#### 3.3.2 Code path — non-coherent partial combining
+
+The DLL keeps tracking through data flips by combining the partial correlations
+**non-coherently**: `|E| = Σ_k |E_k|`, `|L| = Σ_k |L_k|`. A data flip changes a
+partial's *sign*, not its *magnitude*, so only the one straddling segment
+degrades (~`1/K`). This roughly **halves the discriminator variance** versus the
+coherent-epoch form (right panel) — keeping the (already validated, smooth
+sub-chip) code loop locked. It needs no symbol timing, so it works from cold
+start; the bootstrap order stays sequential: DLL (non-coherent) → SymbolSync →
+data.
+
+#### 3.3.3 Choosing K
+
+`K` trades observability and straddle-robustness against the non-coherent
+squaring/Rician bias (which erodes the discriminator gain as `K` grows). The
+study shows **`K = 4` as the sweet spot** for `T_sym ≈ TE` (best discriminator
+SNR; `K = 8` loses more gain than variance). `K` must divide `TE`.
+
+______________________________________________________________________
+
+### 3.4 Scope: the despreader removes the code and outputs samples
+
+The despreader's one job is to **remove the PN code and output samples**. The
+asynchronous symbol clock is merely *why* it despreads in `K` partial
+correlations (§3.3) — it is not a reason to recover symbols here. **Carrier
+recovery and symbol extraction are downstream problems**, handled by separate
+objects fed from the despreader's output:
+
+```
+              ┌──────────────── the despreader ───────────────┐
+acq seed →    Dll(segments=K):  E/P/L correlate · partial dump · non-coherent
+   (code phase)                 (|E|−|L|) code loop
+              └───────────────── partial stream out ──────────┘
+                         │  K oversampled async BPSK samples/symbol
+                         │  (PN removed; residual carrier + data still on them)
+                         ▼
+   downstream:  Costas (carrier recovery)  →  SymbolSync (symbol timing) → bits
+```
+
+This is **`track.Dll(..., segments=K)`** — no new object. `segments=1` is the
+classic coherent full-epoch DLL; `segments=K>1` is the streaming async
+despreader. It composes downstream with `Costas` and `SymbolSync`, which already
+exist (the data path of §3 is exactly that composition).
+
+#### Why the carrier belongs downstream
+
+The DLL's `|E|−|L|` discriminator is **non-coherent**, so code tracking is
+**carrier-blind** — it locks with a residual carrier still on the samples. And
+because each output is a *partial* (a `TE/K`-sample integrate-and-dump, not a
+full epoch), a residual carrier barely dents it. For a ½-Doppler-bin residual
+after acquisition the I&D loss is `sinc(Δφ/2)` with `Δφ = π/segments`:
+
+| segments | window | Δφ at ½-bin residual | despread loss |
+| -------- | ------ | -------------------- | ------------- |
+| 1        | `TE`   | `π`                  | **−3.9 dB**   |
+| 4        | `TE/4` | `π/4`                | **−0.2 dB**   |
+
+So short partials make the despread carrier-tolerant: the small residual just
+rides out on the output (a ring in the constellation; see the gallery demo), and
+a downstream `Costas` loop removes it at full symbol SNR. Putting a carrier loop
+*inside* the despreader would only matter for long coherent integration — which
+partials deliberately avoid.
+
+#### The same scope rule applies to the DSSS-MPSK composition
+
+`Dll(segments=K) -> MpskReceiver` (`docs/gallery/dsss-receiver.md`) is
+the other downstream composition, and the same rule bites the same way: the
+despreader's partial-correlation output rate is whatever `K*chip_rate/SF`
+comes out to — a sub-multiple of the chip rate, not chosen with
+`MpskReceiver`'s `sps` in mind. An early version of that gallery page
+violated its own §3.4 by picking `K` specifically so
+`round(K*T_sym/T_epoch)` landed on an integer, coupling `Dll`'s own
+tracking parameter to `MpskReceiver`'s sample-rate requirement. That made a
+perfectly good `Dll` tuning look downstream-broken. The fix is
+`doppler.resample.RateConverter` between the two — an explicit, arbitrary-
+ratio resample stage, the same category of fix as `Costas`/`SymbolSync`
+being separate objects from `Dll` here. Choose `segments` for the
+despreader's own tracking quality; choose the demodulator's `sps` for its
+own reasons; bridge the two with a resampler, never by coupling the
+parameters directly.
+
+### 3.5 Code-lock detection (always on)
+
+A tracking channel must always answer one question: *am I locked?* The DLL
+carries an **always-on** lock detector that reuses **acquisition's** non-coherent
+test statistic, so acquire and track agree on what "detected" means.
+
+**Statistic.** Each emitted look (a partial in `segments` mode, the full-epoch
+prompt when `segments=1`) contributes its prompt power `|P_k|²`. The detector
+sums `N = n_looks` consecutive looks and forms
+
+```
+R = sqrt( 2 · Σ_{k=1}^{N} |P_k|²  /  E|O|² )
+```
+
+which under H0 (noise only) has `P(R > η) = marcum_q(N, 0, η)` — exactly the
+acquisition tail. So a caller sizes the threshold `η = det_threshold_noncoherent(pfa, N)` and the depth `N = det_n_noncoh(snr, …)` to
+meet a target `(Pfa, Pd)`; `configure_lock(pfa, n_looks)` does the conversion
+(default `pfa=1e-3`, `N=20`).
+
+**The noise reference `E|O|²`.** Instead of a separate noise channel, the loop
+correlates each look a second time at a **random off-peak code phase** — a whole
+chip offset re-drawn every epoch and kept clear of the prompt/early/late lobe by
+`noise_guard` chips. For a low-sidelobe code (Gold, long PN) that offset
+correlation is signal-free, so `|O_k|²` is a sample of the per-look noise power.
+Cycling the offset and averaging recovers the same noise estimate a bank of
+fixed off-peak taps would, with O(1) state.
+
+**Why an EMA, and why it must be long.** The reference is an EMA of `|O_k|²`
+(`E|O|² += α(|O_k|² − E|O|²)`), which is adaptive (tracks a drifting noise floor)
+and O(1) — matching the `Costas` lock-metric pattern. The subtlety, found by
+Monte-Carlo: the *detection* integrates a fixed `N` looks (that sets the χ²(2N)
+threshold), but the *noise estimate* must average **many more** cells than `N`,
+or its own variance inflates Pfa. One offset cell per look (`L=N`) drives Pfa
+~400× high; `1/α = max(1024, 32·N)` (`L_eff ≫ N`) holds Pfa at target with
+`Pd ≈ 0.98`. So the integration depth and the noise-averaging length are
+**decoupled**: `N` is the test, `1/α` is the reference. The reference uses a
+**cumulative-mean bootstrap** — it is the running average until `1/α` looks have
+accrued, then relaxes to the fixed-α EMA — so the noise floor is unbiased from
+the first look instead of seed-dominated for the ~`1/α`-look warm-up (otherwise
+Pfa runs ~10× high until the EMA settles, ~hundreds of epochs in). Verified
+end-to-end: empirical Pfa ≈ `9e-4` against the `1e-3` target right from the
+start of a noise stream.
+
+**Readouts.** `Dll.locked` (bool, latched each `N`-look decision), `Dll.lock_stat`
+(the last `R`), `Dll.noise_est` (`E|O|²`). The detector runs inside the normal
+`steps()` — no separate method, no opt-in. The threshold conversion (the one
+`detection`-module call) lives in the binding so `dll_core` links only `-lm`.
+
+### 3.6 The look-back window — the original working design
+
+*The note the C `Dll`'s dwell-integral look-back was built from
+(`native/inc/dll/dll_core.h` cites it as its reference); kept verbatim, in
+NumPy, as the algorithm's own statement.*
+
+> **Important:** This assumes at most one data symbol transition per code epoch
+
+```mermaid
+flowchart LR
+subgraph TED
+
+end
+LUT["LOCAL CODE \n INTERPOLATED LUT"]
+TED --> LF
+RX["RX CODE"] --> TED
+LF["LOOP FILTER"] --> SCALE["SCALE BY \n EPOCHS / SAMPLE"]
+SCALE --> SH["SAMPLE\nAND\nHOLD"]
+SH --> NCO["U32 NCO\n MAX = SAMPLES / EPOCH"]
+NCO --$$i + \mu$$--> LUT
+LUT --E / P / L--> TED
+```
+
+- TED generates one error per epoch using the signal power formed by correlating
+    the rx signal with local code replicas E, P, and L over a window _which maximizes power_
+    of the prompt correlation and forms the error:
+
+    ```text
+    code_phase_error = 0.5 * (early_power - late_power) / signal_plus_noise_power
+    ```
+
+- This requires storing a buffer of the last received samples to "look back" in the case
+    where a transition occurs in the current sample buffer so a transition free epoch may be
+    obtained
+
+- This is scaled down and repeated driving the NCO at 2x chip rate
+
+- Local code is 2 samples per chip and linear interpolation is used to compute fractional samples
+
+- LUT outputs early, prompt, and late codes offset by 1/2 chip (1 sample)
+
+```text
+
+# Init
+code_size = 1023
+samples_per_chip = 2
+max_error = 0.5 # dB async correlation loss
+phases = code_size * samples_per_chip
+phase_resolution = 1 - 10 ** (-max_error / 10)
+phase_step = int(np.ceil(phases * phase_resolution))
+factors = [i for i in range(1, phases + 1) if phases % i == 0]
+phase_step = factors[np.abs(np.array(factors) - phase_step).argmin()]
+windows, window_size = int(phases / phase_step), phase_step
+last_backard_sums = np.zeros(windows, np.complex128)
+last_early_sums = np.zeros_like(last_backward_sums)
+last_late_sums = np.zeros_like(last_backward_sums)
+
+def find_max_power(x, windows, step_size, last_backward_sums):
+    """Find max correlation over different output phase offsets."""
+
+    # First compute the partial sums of the current correlation
+    partial_sums = x.reshape(windows, step_size).sum(axis=1)
+
+    # Now sum up the portions of the windows this epoch contributes
+    sums = partial_sums.cumsum()
+    backward_sums = partial_sums[::-1].cumsum()
+
+    # Use the last epochs backward looking sums and the current
+    # epochs forward looking sums to comput the overlapping correlation
+    # at each phase across the two epochs and keep the maximum
+    correlations = np.zeros(sums.size)
+    correlations[-1] = np.abs(sums[-1] / (code_size * samples_per_chip))
+    correlations[:-1] = (
+        np.abs(sums[:-1] + last_backward_sums[::-1][1:])
+        / (code_size * samples_per_chip)
+    )
+    max_window = correlations.argmax()
+    max_abs = correlations[max_window]
+    max_power = max_abs ** 2
+
+    # Use partial sums as integrate and dump downsampled output
+    integrate_and_dump = partial_sums / (step_size * max_abs)
+
+    # Compute window index. This is the offset from the end of the last
+    # correlation window that is the start of the max power correlation
+    # window.
+    window_index = (windows - 1 - max_window) * step_size
+
+    return (
+        max_power,
+        max_window,
+        backward_sums,
+        integrate_and_dump,
+        window_index
+    )
+
+def get_window(x_window, x, last_x, index):
+
+    if index:
+        x_window[:index] = last_x[-index:]
+        x_window[index:] = x[:-index]
+    else
+        x_window = x[:]
+
+    return x_window
+
+# In your loop
+
+while signal_buffer,more_data:
+
+    # NCO + interpolated LUT
+    early, prompt, late = pn_gen.steps(
+        pn_control
+    )
+
+    b = signal_buffer.get()
+    x = b * prompt
+    power, window, last_backward_sums, integrate_and_dump,window_index = find_max_power(
+        x, windows, window_size, last_backward_sums
+    )
+    signal_plus_noise_power = power
+
+    b_win = get_window(b_window, b, last_b, window_index)
+    last_b = b[:]
+    early_win = get_window(early_window, early, last_early, window_index)
+    last_early = early[:]
+    late_win = get_window(late_window, late, last_late, window_index)
+    last_late = late[:]
+
+    early_power = np.mean(b_win * early_win) ** 2
+    late_power = np.mean(b_win * late_win) ** 2
+    code_phase_error = 0.5 * (early_power - late_power) / signal_plus_noise_power
+    loop_filter.step(code_phase_error)
+    pn_control = np.full(loop_filter.out / (code_size * samples_per_chip))
+
+```
+
+______________________________________________________________________
+
+## 4. The receiver as built
+
+`AsyncDsssReceiver` (`native/inc/async_dsss_receiver/async_dsss_receiver_core.h`)
+is the composed continuous receiver, one C object, the production port of the
+validated Python `search → refine → track` prototypes. It has three states,
+read back through `get_refining()`/`get_tracking()`:
+
+- **searching** — samples feed an embedded continuous `Acquisition` (§2,
+    window-tiled over `doppler_uncertainty`, `D = 1`). A hit becomes a hand-off
+    through `acq_build_handoff()`, which seeds the refine stage; the unconsumed
+    tail of the same call is handed straight to it.
+- **refining** — a frozen-carrier derotation at the coarse estimate feeds a
+    collection `Dll` whose look-back segments oversample each epoch, then a
+    `RateConverter` to `CarrierAcquisition`'s own rate, then
+    `CarrierAcquisition` itself. When it reports ready or gives up, the live
+    tracking chain is built **fresh** from the *original* hand-off chip phase
+    and the refined (or, on give-up, unrefined) Doppler.
+- **tracking** — the refined carrier is unfrozen into a live pre-despread
+    Costas loop (`costas_update()` once per code period, driven by a
+    non-data-aided squaring discriminator over the period's coherent partials)
+    → `Dll` (§3, `segments = K`) → `RateConverter` → `MpskReceiver`. Two lock
+    detectors run: the `Dll`'s own CFAR-based **code lock** (`get_code_locked()`,
+    §3.5) and a hysteretic **symbol lock** on the emitted symbols
+    (`get_locked()`, the `cos(2φ)` statistic over a 30-symbol dwell, declared
+    after 30 consecutive symbols at or above 0.5 and dropped after 15 below 0.3).
+
+`DsssReceiver` is the same object without the refining stage — a hit's coarse
+Doppler goes straight to tracking — and §1.2's note (2) is why the refine
+exists: the 4–5 dB pull-in cliff the coarse-only hand-off left. `reset()` on
+either returns to searching: a receiver that has locked cannot be reset back
+onto the same signal, only back to the hunt. Both are serializable
+(`state_bytes`/`get_state`/`set_state`), every child included.
+
+### 4.1 Status
+
+- **Shipped — the despreader.** `Dll(..., segments=K)` (the §3.3 code+symbol path;
+    `segments=1` = the classic coherent DLL). Validated **carrier-present**: code
+    lock holds with a residual carrier on the samples, and the partial output is
+    losslessly recoverable by a downstream carrier wipe + symbol despread
+    (`test_dll.py::test_segments_carrier_present_*`). The streaming binding returns
+    an independent array per call (block-size invariant).
+- **Shipped — the inline symbol-loop primitive.** `symsync_step()` (the
+    per-sample SymbolSync composition API); `symsync_steps()` is it in a loop.
+- **Shipped — the always-on code-lock detector** (§3.5). `Dll.locked` /
+    `lock_stat` / `noise_est`, tuned by `configure_lock(pfa, n_looks)`; reuses
+    acquisition's non-coherent statistic with a random off-peak EMA noise
+    reference. Validated signal-vs-noise in `test_dll.py` / `test_dll_core.c`.
+- **Downstream, already available:** `Costas` (carrier recovery) and
+    `SymbolSync` (Gardner + Farrow symbol timing). A receiver is the pipeline
+    `Dll(segments) → Costas → SymbolSync`; the §3.3 study and the
+    `async_despread_demo` gallery example show the composition.
+- **End-to-end validated with a real acquisition front end.**
+    `Dll(segments=K) → MpskReceiver` (`MpskReceiver` already fuses matched
+    filter + NDA carrier acquisition + Gardner/Farrow timing + acq↔track
+    handover into one object — its own docstring names this exact
+    composition) is now proven at real physical parameters — a continuous
+    1023-chip code at 3 Mchips/s, async 2100 sym/s BPSK data, with a genuine
+    `Acquisition` search in front (see the
+    [DsssReceiver](../gallery/dsss-receiver.md) gallery page,
+    `src/doppler/examples/dsss_receiver_demo.py`).
+    One correction to this section's own guidance surfaced doing so: `K=4`
+    (§3.3.3's sweet spot) is tuned for the DLL's own code-discriminator
+    variance, not for feeding a downstream matched filter — each partial is
+    `K`-times weaker than a full coherent epoch, so a downstream receiver
+    needs a much larger `K` (34, in the validated example) to reconstruct
+    real coherent gain before its own carrier/timing loops can converge.
+    The acquisition hand-off also needs two non-obvious unit conversions
+    (`Dll`'s `init_chip` is phase-*inverted* relative to `Acquisition`'s
+    `code_phase`; `MpskReceiver`'s `init_norm_freq` is cycles per its own
+    *partial-rate* input, not per raw ADC sample) — see the example's
+    docstring for the exact formulas.
+
+#### Possible refinements
+
+- **Symbol MF length.** A downstream length-`K` boxcar matched filter follows the
+    BPSK bound within ~1–2 dB; matching it to the *tracked* symbol period closes
+    the gap.
+- **Closed-loop code-jitter asset.** Drive the non-coherent partial code loop
+    under async data + code Doppler; confirm lock retention and the low-SNR
+    threshold (`bn≈1e-5` held to 4 dB Es/N0; `bn≈0.002` lost lock at 6 dB).
+
+______________________________________________________________________
+
+## 5. What the multi-emitter use case needs from the tracking receiver
+
+[`acq-multi-peak.md`](acq-multi-peak.md) fixes the lifecycle: a **searcher**
+per channel that never stops, and one `AsyncDsssReceiver` per emitter,
+**assigned once** from a detection and tracking until *its own* loss decision
+— never stopped, never re-seeded, never doubled up by the searcher. Up to ten
+emitters at once, each on the air for 5 to 15 minutes, on one Gold code, on a
+stream the whole pool must consume at 30 MSa/s comfortably. The receiver of §4
+is the right object for that (maintainer, 2026-09-02) and needs five things,
+none of which is a new receiver. Each is a Phase-1 design here and an
+implementation item in
+[adding an algorithm](../dev/contributing/adding-algorithms.md)'s order; the
+measurements that size them are `acq-multi-peak.md` §6.
+
+### 5.1 The hand-off mode: an acquisition input, and an internal bypass
+
+Today the only way in is the receiver's own search. In the pool the search is
+the searcher's, so the receiver needs to **take a detection from outside** —
+the `DetectionEvent` of §2.2, exactly as its own `acq_build_handoff()` would
+have produced it — and to **skip its own acquisition entirely** in that mode:
+no embedded `Acquisition` is built (a 23-to-53-tile engine per receiver, twelve
+times over, is memory and work nothing uses), the searching branch of `push()`
+is unreachable, and the object starts in *refining* from the given seed.
+
+That is a difference in **constructor**, not in method, so it is the
+`ddc`/`MatchedDDC` shape: a second `create` over the same state, declared as a
+`[[async_dsss_receiver.views]]` entry in the manifest, the chain past the seed
+shared verbatim. Two consequences follow:
+
+- **`seed(event)` is a method on the base type**, not the view's alone. The
+    base receiver's own hit already takes this path internally — a hit is a
+    seed the object made for itself — so exposing it is honest on both
+    flavors, and a view shares methods verbatim in any case. On a receiver that
+    is not idle it **refuses**: "assigned once" is enforced by the object, not
+    by the orchestrator's discipline.
+- **`reset()` in hand-off mode returns to idle — waiting for a seed — not to
+    searching**, because there is no search to return to. Samples pushed in
+    idle are consumed and discarded, so the feeding loop has no special case,
+    and the pool reuses the object without reallocating.
+
+### 5.2 The lost state, and the release
+
+"Until they are gone" is the receiver's decision, and §4's two lock flags are
+the pieces of it; what is missing is the transition. Today a receiver whose
+flags fall keeps running its loops on noise, and the only exit is `reset()`.
+
+The rule, argued in `acq-multi-peak.md` §5: an emitter is gone when **code
+lock drops and stays dropped** for a confirm interval. Code lock measures
+presence — an emitter that leaves takes its code with it — where symbol lock
+measures the carrier leg's health, which a cycle slip or a fade can take down
+while the code is still despread and which the loops are built to recover.
+Symbol lock alone is therefore a **degrade**, reported and not acted on.
+
+Hand-off mode adds a fourth state, **lost**, beside searching / refining /
+tracking. On the rule above the receiver enters it: the loops stop updating,
+the replica of §5.4 stops being published — at the *drop*, before the confirm
+interval has run, on the same flag — and `get_lost()` reports it. The holder
+of the pool then releases the assignment and calls `reset()`, which in this
+mode goes to idle. The confirm interval is `n_down` consecutive misses in the
+`lockdet` vocabulary, sized by `det_verify_count()` from a **false-release
+budget**, because against 5-to-15-minute on-times release latency costs nothing
+and a false release costs a frame of that emitter's data plus, on the
+cancellation branch, a frame of raised floor under every weaker emitter. Both
+the per-look miss probability and the interval it gives are measurements
+(`acq-multi-peak.md` §6 step 6) — and whether the code flag really rides
+through a 20 dB fade for a second is what that step decides, so the rule is
+written as the expectation the measurement confirms or corrects.
+
+### 5.3 The status record
+
+The holder of the pool needs to ask each receiver what it is doing. The facts
+split by who owns them (`acq-multi-peak.md` §5): the **orchestrator** made the
+assignment and fed the samples, so it holds the seed event verbatim, the sample
+counts at assignment and at each state change, and the duration they give by
+the `dp_sample_clock_t` arithmetic — nothing the receiver has to remember. The
+**receiver** owns only what it alone knows, and today that is a scatter of
+getters (§4's `get_*` family, one call each), which a reader on another thread
+cannot assemble into one consistent picture across a `push()`.
+
+So the receiver gains **one status record, returned by value** — the `measure`
+objects' `single = true` record (`ToneMetrics` is the model), a jm-generated
+structseq over a C struct, read on demand and never pushed — carrying: the
+state (idle / searching / refining / tracking / lost); where the emitter is
+**now** — the live carrier loop's Doppler, the `Dll`'s chip phase and code
+rate, the despreader's C/N0 estimate; both lock flags, the symbol-lock metric
+and its threshold, the two residual carrier errors; and the samples since the
+state was entered and, in lost, since the code flag dropped. The existing
+getters stay as the same fields' other face. The orchestrator refreshes its
+*now* columns from this record at whatever cadence it reads — once per
+data-free window is the minimum, because the searcher's exclusion zone is keyed
+on the receiver's current estimate, not the seed. The record is a read of live
+state and is not `get_state()`: the bytes triplet resumes the receiver
+elsewhere, the record describes it here.
+
+### 5.4 The replica output
+
+On the strong branch of `acq-multi-peak.md` §4 — emitters more than the Gold
+code's ~−24 dB cross-correlation floor apart in power — the searcher cancels
+every assigned emitter from its input before it correlates, and the only
+replica that is right through data modulation is the assigned receiver's: it
+holds the live carrier's phase and frequency, the `Dll`'s code phase, the
+despreader's amplitude and the decided symbols, block by block. So the receiver
+gains a **replica output**: after a `push()`, the reconstructed chip stream of
+the samples just consumed — code at the tracked phase and rate, carrier at the
+tracked phase and frequency, amplitude from the prompt, data from the
+decisions — into a caller buffer, for the searcher to subtract.
+
+Three things about it are design, not detail:
+
+- **It is lock-gated on code lock.** A receiver that is not code-locked
+    publishes nothing, so a wrong replica is never subtracted; that is the
+    same flag §5.2 releases on, read at the drop.
+- **It lags by the decision latency.** The data on a block's chips is known
+    only once the matched filter and the symbol timing have decided the
+    symbols under it, some symbols after the block was pushed. The replica for
+    block `k` is therefore complete only later, and the searcher's input is a
+    **delayed** copy of the raw stream — a ring of the raw samples sized by
+    that latency, which the holder owns. The receivers themselves always see
+    the raw stream, live.
+- **It is per output sample, on the searcher's thread.** Ten replicas
+    subtracted serially per block is the cancellation's price, priced in
+    `acq-multi-peak.md` §1.4, and the reason the pool's holder stands on the
+    searcher's push path on this branch and not otherwise.
+
+The replica is not needed on the weak-spread branch, and this item is built
+only if `acq-multi-peak.md` §6 step 3's knee says so.
+
+### 5.5 The cost
+
+Twelve receivers at twice the chip rate — 10 MSa/s at the top of the range —
+on the application's threads, beside one searcher and one front-end DDC; the
+budget is 100 ns per output sample per core at the operating point and 43 at
+the 30 MSa/s floor, half of that as the working margin (`acq-multi-peak.md`
+§1.4). What that asks of the receiver: nothing allocates per `push()` or per
+state change (the pool runs for hours), the replica writes into a caller
+buffer, the status record is by value, and one receiver's cost per output
+sample is a number the bench of `acq-multi-peak.md` §6 step 8 reports beside
+the count of emitters it kept.
+
+______________________________________________________________________
+
+## 6. See also
+
+- [`acq-multi-peak.md`](acq-multi-peak.md) — the searcher this receiver is
+    paired with: the peak list, the cancellation, the release rule, the
+    population and the throughput floor.
+- [`burst-bank.md`](burst-bank.md) — §11, the continuous use case, and its
+    open questions.
+- [`dsss-acquisition.md`](dsss-acquisition.md) — the acquisition engine
+    under §2: the tiling, the CFAR vocabulary, the roadmap.
+- [`dsss-burst-receiver.md`](dsss-burst-receiver.md) — the burst chain, which
+    shares §2.2's `DetectionEvent`.
+- [AsyncDsssReceiver: the SPEC waveform](../gallery/async-dsss-receiver-spec.md)
+    and [Streaming Async Despreader](../gallery/async-despread.md) — the
+    gallery demonstrations of §4 and §3.

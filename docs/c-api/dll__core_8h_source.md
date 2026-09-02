@@ -82,7 +82,7 @@ typedef struct {
      *    deinit contract there, same lifecycle class as `code`/owns_code).
      *    This is the direct C port of the coupled-despreader
      *    prototype's `find_max_power()`/`get_window()` (also
-     *    `docs/design/async-despreader-working-design.md`'s own reference
+     *    `docs/design/async-dsss-receiver.md` §3.6's own reference
      *    pseudocode) -- see dll_steps_impl()'s segments>1 branch, which
      *    builds the SAME named artifacts (`sums`, `backward_sums`,
      *    `correlations`) in the same order so it can be checked directly

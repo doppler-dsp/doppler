@@ -411,8 +411,11 @@ Gold code, 3.069 Mcps, ±50 kHz) — and the stream carries a **data-free
 period of one code period just before each frame sequence**. Several
 emitters are in the air at once on the **same** Gold code, and what tells
 them apart is Doppler: each emitter's frequency difference *is* its
-Doppler. *(Maintainer, 2026-09-02: "one Gold code period; each emitter
-frequency difference is Doppler.")*
+Doppler. There is **one frequency channel**: every emitter is in the same
+band on the same code, and what distinguishes them is **code phase, power
+and Doppler**. *(Maintainer, 2026-09-02: "one Gold code period; each
+emitter frequency difference is Doppler"; "ONE frequency channel, emitters
+are distinguished by code phase, power, and Doppler.")*
 
 ### 11.1 What the data-free window changes
 
@@ -490,21 +493,28 @@ So the C++ application's channel is not `DDC → BurstCapture`. Against what
 already exists, the bank adds exactly three things, and each is a design
 decision rather than a given:
 
-- **Resolution: N emitters at once, one band, one code.** A detector takes
-    the maximum over its surface, so one engine tiled over ±50 kHz reports
-    **one** emitter per dwell — the strongest — and the weaker ones are
-    masked until it is handed off, and masked again by the next-strongest
-    after that; its CFAR reference is polluted by every emitter in the
-    band too. A bank of `K` channels of one span each is `K` independent
-    detectors with `K` independent references: an emitter in channel `k`
-    is invisible to channel `j`, and `N` emitters in `N` channels are
-    reported in the same dwell. This is the bank's whole reason to exist
-    here, and it is the independence requirement of §10.1 seen from the
-    detector rather than the thread. Its limit is also exact: **two
-    emitters inside one span** (< 3 kHz apart on the same code) share a
-    surface and are again strongest-wins — resolvable only by code phase,
-    which needs a multi-peak report the engine does not make. Whether that
-    case occurs is question 7.
+- **Resolution on the (Doppler × code phase) surface.** Every emitter
+    is a peak on the same 2-D surface a channel already computes, at its
+    own Doppler bin and code phase, with its own power. A Doppler bank
+    partitions one axis of that surface: emitters more than a span apart
+    land in different channels and are found independently, with
+    independent CFAR references. But emitters *within* a span — the normal
+    case, since there is one band and only Doppler separates them — share a
+    surface, and a detector that takes the **maximum** of it reports one
+    of them per dwell, the strongest, and masks the rest. So the channel's
+    detector must report **every** peak above threshold in a dwell, each
+    with an exclusion zone around it (a bin in Doppler, a chip in code
+    phase) so one emitter is not reported as several — a multi-peak report
+    the engine does not make today. Then **power**: a 1023-chip Gold code's
+    cross-correlation floor is about −24 dB, so an emitter that much weaker
+    than the strongest in the same surface sits under the strongest one's
+    sidelobes and is found only by cancelling the strong one first
+    (successive interference cancellation) — and two emitters at the same
+    Doppler *and* code phase within a chip are one peak, distinguishable by
+    nothing. Question 7 is therefore answered: emitters do share a span,
+    and the bank's channel count buys parallel surfaces and independent
+    references but not resolution; the resolution is the detector's, per
+    surface, and it is the piece to design.
 - **Many emitters, one band.** One `AsyncDsssReceiver` tracks one signal;
     its state machine has no "lost" state and no second emitter. The bank
     is what holds the pool: which emitters are up, which channel each is
@@ -570,10 +580,15 @@ record — is already there.
     second is the soak the characterization runs — hours with emitters
     cycling in and out, checking that nothing grows and nothing is missed
     on the way back in.
-1. **Can two emitters sit within one span of each other** (< 3 kHz on the
-    same code)? If yes, a channel needs a multi-peak report (detect the
-    strongest, cancel it, detect again — the engine has none) or a finer
-    channel; if no, the bank's per-channel resolution is the whole answer.
+1. ~~**Can two emitters sit within one span of each other?**~~
+    **Answered: yes** — one frequency channel, one code; emitters are
+    separated by code phase, power and Doppler on one surface. A channel
+    therefore needs a multi-peak report per dwell with exclusion zones, and
+    the engine has none. Open in its place: the **power spread** between
+    emitters that are up at once — inside the Gold code's ~−24 dB
+    cross-correlation floor a multi-peak report suffices; beyond it the
+    weak ones need the strong ones cancelled first, which is a different
+    object.
 
 ## 12. See also
 

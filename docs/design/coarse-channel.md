@@ -40,7 +40,7 @@ A wide-Doppler receiver in one process — a C++ application that brings its
 The signals are **continuous** DSSS with asynchronous data on 1023-chip Gold
 codes, each carrying a data-free period just before each frame sequence,
 and several are in the air at once at different Dopplers
-([`burst-bank.md` §11](burst-bank.md)). `±U` of uncertainty, `K` channels
+([`async-dsss-receiver.md` §5](async-dsss-receiver.md)). `±U` of uncertainty, `K` channels
 per code, and the reason it is parallel at all is that multi-signal case:
 each signal lands in its own channel and is acquired at its own data-free
 windows without waiting on the others. This is **not** the k8s case;

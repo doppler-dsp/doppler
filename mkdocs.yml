@@ -278,7 +278,6 @@ nav:
       - BurstCapture: design/burst-capture.md
       - BurstBank: design/burst-bank.md
       - CoarseChannel: design/coarse-channel.md
-      - Multi-peak Acquisition: design/acq-multi-peak.md
       - Automatic Gain Control: design/agc.md
       - Detection Sizing: design/detection.md
       - Timing Lock Detector: design/timing_lock_detector.md

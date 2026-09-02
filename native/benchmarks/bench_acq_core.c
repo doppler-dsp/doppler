@@ -62,15 +62,28 @@ static const double PD_POINTS[] = { 0.9, 0.99, 0.999 };
  * number alone never showed. */
 typedef struct
 {
+  double      chip_rate;     /* Hz                                       */
   double      du;            /* doppler_uncertainty, Hz                  */
   const char *label;         /* bench name prefix                        */
   size_t      expect_bins;   /* window_bins the sizer must pick          */
   size_t      inject_window; /* hypothesis to inject into (0 when 1 bin) */
 } acq_bench_cfg_t;
 
+/* The first two rows are the SPEC waveform above. The four after them are
+ * the continuous async-DSSS operating point
+ * (docs/design/async-dsss-receiver.md §6.1): a chip rate anywhere in 2 to 5
+ * Mcps, the uncertainty +/-50 kHz to start and +/-5 kHz once Doppler
+ * pre-compensation exists. The tile count is the engine's own
+ * (acq_cover_window_bins: 2*ceil((du - span)/(2*span)) + 1), and it is what
+ * the searcher's cost scales with -- so the low chip rate, which has the
+ * narrowest tiles, is the searcher's worst case per output sample. */
 static const acq_bench_cfg_t CFGS[] = {
-  { 0.0, "native", 1, 0 },
-  { DOPPLER_UNCERTAINTY, "wideband", 35, INJECT_WINDOW },
+  { CHIP_RATE, 0.0, "native", 1, 0 },
+  { CHIP_RATE, DOPPLER_UNCERTAINTY, "wideband", 35, INJECT_WINDOW },
+  { 5.0e6, 50000.0, "op5M_U50k", 21, INJECT_WINDOW },
+  { 2.0e6, 50000.0, "op2M_U50k", 53, INJECT_WINDOW },
+  { 5.0e6, 5000.0, "op5M_U5k", 3, 1 },
+  { 2.0e6, 5000.0, "op2M_U5k", 7, 1 },
 };
 
 static double
@@ -123,16 +136,17 @@ main (void)
   for (size_t c = 0; c < SF; c++)
     code[c] = (uint8_t)(_xorshift32 (&cseed) & 1u);
 
-  const double fs      = CHIP_RATE * SPC;
-  const double amp_snr = sqrt (pow (10.0, CN0_DBHZ / 10.0) / fs);
-  const float  sigma   = (float)(1.0 / amp_snr);
-
   for (size_t g = 0; g < sizeof (CFGS) / sizeof (CFGS[0]); g++)
     {
       const acq_bench_cfg_t *cfg = &CFGS[g];
-      printf ("--- %s: doppler_uncertainty=+/-%.0f Hz -> window_bins=%zu "
-              "---\n",
-              cfg->label, cfg->du, cfg->expect_bins);
+      /* The noise is scaled per chip rate: the same C/N0 is a different
+         per-sample SNR when the sample rate changes with the chip rate. */
+      const double fs      = cfg->chip_rate * SPC;
+      const double amp_snr = sqrt (pow (10.0, CN0_DBHZ / 10.0) / fs);
+      const float  sigma   = (float)(1.0 / amp_snr);
+      printf ("--- %s: chip_rate=%.3g doppler_uncertainty=+/-%.0f Hz -> "
+              "window_bins=%zu ---\n",
+              cfg->label, cfg->chip_rate, cfg->du, cfg->expect_bins);
 
       for (size_t p = 0; p < sizeof (PD_POINTS) / sizeof (PD_POINTS[0]); p++)
         {
@@ -141,9 +155,9 @@ main (void)
           /* Let the real auto-sizer pick n_noncoh honestly, bounded only by
            * the internal safety-valve ceiling -- see the file doc comment
            * above. */
-          acq_state_t *a
-              = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYMBOL_RATE,
-                                       CN0_DBHZ, cfg->du, PFA, pd_target, 0);
+          acq_state_t *a = acq_create_continuous (
+              code, SF, SPC, cfg->chip_rate, SYMBOL_RATE, CN0_DBHZ, cfg->du,
+              PFA, pd_target, 0);
           if (!a)
             {
               fprintf (stderr, "acq_create_continuous failed at pd=%.3f\n",
@@ -220,9 +234,11 @@ main (void)
             }
           double mean = sum / ITERATIONS;
           printf ("  latency: mean=%.2f ms  min=%.2f ms  max=%.2f ms  "
-                  "(%zu epochs/dwell, %.3f ms/epoch)\n\n",
+                  "(%zu epochs/dwell, %.3f ms/epoch, %.1f ns/sample min, "
+                  "%.2fx real time on one core)\n\n",
                   mean * 1e3, mn * 1e3, mx * 1e3, a->n_noncoh,
-                  mean * 1e3 / (double)a->n_noncoh);
+                  mean * 1e3 / (double)a->n_noncoh, mn / (double)n_in * 1e9,
+                  mn / (double)n_in * fs);
 
           char name[JM_BENCH_NAME_LEN];
           snprintf (name, sizeof (name), "%s_nc%zu", cfg->label, nc);

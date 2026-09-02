@@ -40,9 +40,14 @@
 
 #define ITERATIONS 60
 #define BLOCK 32768
-#define N_RATE 4
+#define N_RATE 5
 
-static const double rates[N_RATE] = { 0.5, 0.25, 0.1, 0.05 };
+/* The fifth rate is the continuous async-DSSS operating point (13 MSa/s in,
+   twice a 5 Mcps chip rate out, docs/design/async-dsss-receiver.md §6.4):
+   a ratio with no integer factor, so the cascade is the polyphase
+   arbitrary resampler alone -- the dearest sample the front end makes,
+   chosen for exactly that reason. */
+static const double rates[N_RATE] = { 0.5, 0.25, 0.1, 0.05, 10.0 / 13.0 };
 #define REF_RATE_IDX 1
 
 enum

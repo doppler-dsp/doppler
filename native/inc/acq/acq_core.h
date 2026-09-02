@@ -260,12 +260,17 @@ extern "C"
     double pd;        /**< Target detection probability.                    */
     double pd_predicted;  /**< Predicted Pd at cn0_dbhz and the chosen
                                grid: the AVERAGE Pd over the straddle
-                               priors (slow-time scalloping, intra-segment
-                               rotation, code sample offset — quadrature
-                               over uniform priors), not the on-grid best
-                               case, and not Pd at the mean amplitude
-                               (which Jensen makes optimistic). NAN when
-                               no design C/N0 was given. */
+                               priors (slow-time scalloping over the
+                               INTERPOLATED bin the peak search samples,
+                               intra-segment rotation, code sample offset
+                               — quadrature over uniform priors), not the
+                               on-grid best case, and not Pd at the mean
+                               amplitude (which Jensen makes optimistic).
+                               Conservative by construction: the engine
+                               takes the maximum over an interpolated
+                               surface, which the Marcum form does not
+                               credit (doppler#1183, #1064). NAN when no
+                               design C/N0 was given. */
     double straddle_loss; /**< Mean AMPLITUDE derating from grid straddle —
                                a diagnostic summary (~20*log10 of it in dB);
                                sizing and pd_predicted average Pd itself

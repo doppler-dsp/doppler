@@ -106,6 +106,11 @@ class Data:
     pfa_ratio: float = 0.0
     pfa_sigma: float = 0.0
     pfa_within_ratchet: bool = False
+    pd_measured: float = 0.0
+    pd_model: float = 0.0
+    pd_trials: int = 0
+    pd_model_conservative: bool = False
+    pd_model_close: bool = False
 
 
 # ── 1. the object ─────────────────────────────────────────────────────
@@ -171,7 +176,7 @@ def section_object() -> None:
                 "`noise_mode` selects the CFAR reference "
                 "(mean/median/min/max)",
                 "**was nothing, in C or Python** — only the default ran",
-                "§2.6",
+                "§2.8",
             ],
             [
                 "burst picks the smallest coherent depth meeting `pd`",
@@ -196,7 +201,7 @@ def section_object() -> None:
             [
                 "`cn0_dbhz_est` inverts the sizing relationship",
                 "C, against injected AWGN",
-                "§2.5",
+                "§2.7",
             ],
             [
                 "a tighter uncertainty lowers the per-cell threshold",
@@ -207,14 +212,14 @@ def section_object() -> None:
                 "`configure_search_raw` bounds-checks and keeps the prior "
                 "grid on failure",
                 "C",
-                "§2.7",
+                "§2.9",
             ],
             [
                 "`reset` drains the ring and the accumulator",
                 "C + Python",
-                "§2.7",
+                "§2.9",
             ],
-            ["the state triplet round-trips", "C + Python", "§2.7"],
+            ["the state triplet round-trips", "C + Python", "§2.9"],
         ],
     )
 
@@ -233,6 +238,7 @@ def characterise() -> Data:
     _sec_anchor(d)
     _sec_threshold(d)
     _sec_realized_pfa(d)
+    _sec_measured_pd(d)
     _sec_cn0(d)
     _sec_noisemode(d)
     _sec_lifecycle(d)
@@ -509,8 +515,90 @@ def _sec_threshold(d: Data) -> None:
     R.md()
 
 
+def _sec_measured_pd(d: Data) -> None:
+    """Does `pd_predicted` describe the Pd a caller gets over the prior?"""
+    R.md("### 2.6 The Pd it delivers, against the Pd it predicts")
+    R.md()
+    R.md(
+        "`pd_predicted` is the AVERAGE Pd over the straddle priors -- Doppler "
+        "uniform across the searched band, code phase uniform across a "
+        "sample. Nothing measured that average until doppler#1183: the model "
+        "read 0.47 at this design point where the engine delivered 0.72, and "
+        "the gap had two causes the report could not see. The full-band "
+        "search never looked at its outermost native bin at an even depth "
+        "(1/D of the prior undetectable, a Pd CEILING no C/N0 lifts), and "
+        "the model derated scalloping over a native bin while the peak "
+        "search samples an interpolated one. Measured here the way the model "
+        "is defined: one preamble frame per trial, Doppler uniform over "
+        "+/-span, code phase uniform in quarter-sample steps, AWGN at the "
+        "design C/N0."
+    )
+    R.md()
+    cn0, D, trials = 50.0, 8, 300
+    a = BurstAcquisition(
+        _code(), reps=D, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=cn0, pfa=1e-3
+    )
+    a.configure_search_raw(D, 1)
+    code = _code()
+    fs = CHIP_RATE * SPC
+    nx = code.size * SPC
+    n = D * nx
+    span = CHIP_RATE / (2.0 * code.size)
+    snr = float(np.sqrt(10.0 ** (cn0 / 10.0) / fs))
+    sigma_q = 1.0 / (snr * np.sqrt(2.0))
+    OS = 4
+    pre_os = np.tile(np.repeat(np.where(code & 1, -1.0, 1.0), SPC * OS), D)
+    rng = np.random.default_rng(1183)
+    k = np.arange(n)
+    hits = 0
+    for _ in range(trials):
+        f = rng.uniform(-span, span)
+        off = int(rng.integers(0, nx * OS))
+        sig = np.roll(pre_os, off)[::OS] * np.exp(2j * np.pi * f / fs * k)
+        noise = sigma_q * (
+            rng.standard_normal(n) + 1j * rng.standard_normal(n)
+        )
+        a.reset()
+        hits += len(a.push((sig + noise).astype(np.complex64))) > 0
+    d.pd_measured = hits / trials
+    d.pd_model = float(a.pd_predicted)
+    d.pd_trials = trials
+    se = float(
+        np.sqrt(max(d.pd_measured * (1 - d.pd_measured), 1e-9) / trials)
+    )
+    d.pd_model_conservative = d.pd_measured >= d.pd_model - 2.0 * se
+    d.pd_model_close = d.pd_measured - d.pd_model <= 0.15
+    R.table(
+        [
+            "design point",
+            "`pd_predicted`",
+            "measured",
+            "+/- (1 sigma)",
+            "trials",
+        ],
+        [
+            [
+                f"D={D}, {cn0:.0f} dB-Hz, full span",
+                f"{d.pd_model:.3f}",
+                f"{d.pd_measured:.3f}",
+                f"{se:.3f}",
+                str(trials),
+            ]
+        ],
+    )
+    R.md()
+    R.md(
+        f"The model is conservative by {d.pd_measured - d.pd_model:+.3f}. "
+        "What remains is the H1 face of F7: the detector takes the maximum "
+        "over an interpolated surface, and the Marcum form credits the "
+        "on-grid cell only. That is the right side to err on for sizing, "
+        "and it is the same mechanism doppler#1064 tracks on H0."
+    )
+    R.md()
+
+
 def _sec_cn0(d: Data) -> None:
-    R.md("### 2.5 The reported C/N0 tracks the injected one")
+    R.md("### 2.7 The reported C/N0 tracks the injected one")
     R.md()
     R.md(
         "`cn0_dbhz_est` inverts the same C/N0 <-> per-sample-SNR "
@@ -556,7 +644,7 @@ def _sec_cn0(d: Data) -> None:
 
 
 def _sec_noisemode(d: Data) -> None:
-    R.md("### 2.6 The CFAR reference is a choice, worth ~15 dB")
+    R.md("### 2.8 The CFAR reference is a choice, worth ~15 dB")
     R.md()
     R.md(
         "`noise_mode` picks how the reference cells are aggregated, and it "
@@ -603,7 +691,7 @@ def _sec_noisemode(d: Data) -> None:
 
 
 def _sec_lifecycle(d: Data) -> None:
-    R.md("### 2.7 configure_search_raw, reset and the state triplet")
+    R.md("### 2.9 configure_search_raw, reset and the state triplet")
     R.md()
     code = _code()
     a = BurstAcquisition(
@@ -834,7 +922,7 @@ def review(d: Data) -> None:
         "`cn0_dbhz_est` saturates once the true C/N0 exceeds what the code "
         "and geometry can resolve, because the CFAR reference cells then "
         "contain the code's own autocorrelation sidelobes rather than "
-        "receiver noise. The header states this and §2.5 measures inside "
+        "receiver noise. The header states this and §2.7 measures inside "
         "the linear region deliberately. Worth a caller's attention: the "
         "estimate is a floor on the true C/N0 at high signal levels, not a "
         "measurement of it.",
@@ -855,21 +943,26 @@ def review(d: Data) -> None:
         "Interpolation finds noise peaks that used to fall between bins -- "
         "the scalloping-loss win of #1002 (~3.9 dB -> ~0.9 dB), applied to "
         "H0. Measured over 60,000 noise frames at pfa=1e-2 with only the "
-        "interpolation factor changed, it decomposes into two errors of "
-        "OPPOSITE sign: `N_eff(1)/N` = **0.89 +/- 0.04** (the native model "
-        "is conservative, because adjacent DFT bins are not perfectly "
-        "independent) and `N_eff(2)/N_eff(1)` = **1.86 +/- 0.09** (what "
-        "interpolation adds), netting **1.65 +/- 0.05** delivered to a "
-        "caller (\u00a72.5). Quoting 1.86 alone would be quoting the ratio "
-        "between two BUILDS rather than the rate anyone experiences -- and "
-        "correcting by 1.86 against a model already 11% conservative would "
-        "land at 0.89 of target. The FORM is right: the ratio holds across "
+        "interpolation factor changed, it decomposed into two errors of "
+        "OPPOSITE sign: `N_eff(1)/N` = **0.89 +/- 0.04** and "
+        "`N_eff(2)/N_eff(1)` = **1.86 +/- 0.09**, netting **1.65 +/- 0.05** "
+        "delivered to a caller. The 0.89 was read then as adjacent DFT bins "
+        "not being perfectly independent. It was not: at an even coherent "
+        "depth the full-band search never looked at its outermost native "
+        "bin (doppler#1183), so 7 of the 8 counted bins were searched -- "
+        "7/8 = 0.875. With the band searched to its edge the conservative "
+        "half is gone and the delivered ratio moves toward the "
+        "interpolation factor alone (\u00a72.5 re-measures it). Quoting 1.86 "
+        "alone would be quoting the ratio between two BUILDS rather than the "
+        "rate anyone experiences. The FORM is right: the ratio held across "
         "three decades of target (1.65/1.40/1.50 at 1e-2/1e-3/1e-4 with "
         "interpolation on), which is a multiplicative cell-count error and "
         "not a miscalibrated per-cell threshold -- that would drift with "
         "the target. `pd_predicted` and "
         "`underpowered` derive from the same `pfa_cell`, so the link-budget "
-        "prediction is optimistic by the same factor. Ratcheted at "
+        "prediction is optimistic by the same factor -- and conservative by "
+        "a larger one, because the Marcum form does not credit the maximum "
+        "over an interpolated surface under H1 (\u00a72.6). Ratcheted at "
         "2.2x by the limit below so the gap cannot widen unnoticed; "
         "the fix is NOT a Bonferroni over `interp` (the interpolated cells "
         "are correlated, so that over-corrects and costs sensitivity) but "
@@ -930,6 +1023,13 @@ def limits(d: Data) -> None:
         "the realized false-alarm rate stays inside its ratchet against "
         "the configured target -- a RATCHET, not a bound: it sits at "
         "~1.8x today (F7, doppler#1064) and may only shrink",
+    )
+    R.limit(
+        d.pd_model_conservative and d.pd_model_close,
+        f"`pd_predicted` describes the Pd delivered over the uniform prior: "
+        f"measured {d.pd_measured:.2f} against {d.pd_model:.2f} predicted at "
+        f"D=8, 50 dB-Hz -- never optimistic (within 2 sigma of "
+        f"{d.pd_trials} trials), never more than 0.15 pessimistic (\u00a72.6)",
     )
     R.limit(
         d.thresh_rises_with_cells,
@@ -993,7 +1093,7 @@ def build(write: bool = True) -> Report:
             "**The CFAR reference is a real choice, worth ~15 dB.** `min` "
             "is the optimistic extreme and `max` can suppress detection "
             "entirely at a given signal level. Only the default was ever "
-            "exercised before this certification (§2.6, F2).",
+            "exercised before this certification (§2.8, F2).",
             "**A tighter Doppler prior buys sensitivity, not just "
             "runtime**: fewer searched cells means a lower per-cell "
             "threshold. If the uncertainty can be bounded, bound it "

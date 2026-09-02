@@ -35,6 +35,16 @@ channel's target into another.  A target landing between two channel centers
 appears in both at ``~ -4 dB`` (``sinc(0.5)``); :meth:`Acquirer.process`
 dedups those to the single strongest detection.
 
+Measured (doppler#1179, #1183): that claim was FALSE until the engine's
+full-band search reached its own edge — at an even coherent depth the
+outermost native bin was never searched, so a target midway between two
+centers was seen by *neither* neighbour. It is true now: a single channel's
+test statistic at exactly one span reads 13 against 31 at DC (reps=4, 31-chip
+code, strong burst). One residual at the exact boundary: the Nyquist bin is
+sign-folded, so the channel below the target can report its Doppler with the
+wrong sign; the dedup keeps the stronger of the two, and the channel above
+sees it right.
+
 Examples
 --------
 >>> import numpy as np

@@ -16,6 +16,20 @@ readable, not to become a sixteenth copy of the territory.
 
 ______________________________________________________________________
 
+!!! warning "Use the existing, proven tools"
+
+    Every phase below has shipped helpers for the things a harness is
+    tempted to build: assertions and the epilogue (`dp_test.h`), noise
+    and random bits (`dp_rng_test.h`, `awgn`), stimulus (`dp_tx_test.h`,
+    `dp_dsss_test.h`, and the waveform generator itself, `wfm_synth` /
+    `wfm_compose`), verdicts (`dp_sym_test.h`, `dp_ber_test.h`,
+    `BerMeter`), the receiver instrument (`dp_rx_test.h`), the state round
+    trip (`dp_state_test.h`), and the bench scaffold (`dp_bench.h`). **A
+    harness renders nothing and asserts through `dp_test.h`.** The full
+    table, by phase, is
+    [What each place already gives you](#what-each-place-already-gives-you);
+    read it before the first line of any test, validator or bench.
+
 ## Start with why
 
 Before any code, write `docs/design/<algo>.md`:
@@ -248,6 +262,57 @@ worth memorising:
 The split between rows three and four is a cost decision: a validator runs
 twice on every push, so a sweep that needs minutes to say anything taxes
 every push for an answer nobody asked for on that push.
+
+## What each place already gives you
+
+The family of shared helpers exists so that no harness renders its own
+waveform, rolls its own noise, or invents its own assertion — and it is
+easy to miss, because each member lives beside the tests that use it
+rather than on a page. A measurement built on a private copy of any of
+these is not wrong at first; it is wrong the day the shipped one is fixed
+and the copy is not
+([`native/tests/README.md`](https://github.com/doppler-dsp/doppler/blob/main/native/tests/README.md)
+is the family's own page and the authority on the C side). The table is
+by phase: reach for the row before writing a line of the thing it names.
+
+| phase                 | you need                                                                                                                   | it already exists as                                                                                                                                                                        |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3–4, C tests          | assertions, counters, the pass/fail epilogue                                                                               | `dp_test.h` — `DP_CHECK`, `DP_CHECK_NEAR`, `DP_REQUIRE`, `DP_TEST_END` (fails a test that asserted nothing)                                                                                 |
+|                       | random bits and Gaussian noise                                                                                             | `dp_rng_test.h` — the one generator, the one Box-Muller; never a private `cgauss`                                                                                                           |
+|                       | a shaped symbol stream (RRC/RC/NRZ, real-valued sps, carrier, timing offset)                                               | `dp_tx_test.h` — `dp_tx_cfg_t`, `dp_tx_make`                                                                                                                                                |
+|                       | a code-spread BPSK capture, fixed Doppler or a ramp                                                                        | `dp_dsss_test.h` — `dp_dsss_capture`, `dp_dsss_ramp_capture`                                                                                                                                |
+|                       | a framed stimulus                                                                                                          | `dp_frame_test.h` — the named frame set, one `wfm_frame_t`                                                                                                                                  |
+|                       | an RRC-BPSK-on-carrier fixture and its EVM                                                                                 | `dp_mf_test.h`                                                                                                                                                                              |
+|                       | "is this a real lock" without truth data                                                                                   | `dp_sym_test.h` — `dp_test_evm_db_hard`, `dp_test_m2m4_snr_db`                                                                                                                              |
+|                       | an error rate with alignment, settling and a confidence interval                                                           | `dp_ber_test.h` — the instrument; a hand `min` over lags is a genie                                                                                                                         |
+|                       | a whole receiver measured at an operating point                                                                            | `dp_rx_test.h` + an adapter — [Measuring a Receiver](measuring-a-receiver.md), not a new harness                                                                                            |
+|                       | the state round trip and the clobbered-blob reject                                                                         | `dp_state_test.h` — `DP_STATE_ROUNDTRIP_TEST`                                                                                                                                               |
+| 3–4, 7, any C         | **a waveform**: tone, PN, BPSK/QPSK, chirp, a bit pattern, a DSSS burst or a continuous asynchronous DSSS stream with data | `wfm_synth` (`wfm_synth_create` + `set_dsss_cont` / `set_dsss` / `set_bits` / `set_symbols`), the generator wfmgen itself renders with; `wfm_synth_noise_steps` for the noise a gap carries |
+|                       | a scene: sources summed, segments in time, ranged fields, repeats, Doppler per source                                      | `wfm_compose` (`wfm_compose_create` / `_from_json`) — but it rebuilds a source at a segment boundary, so a fade of a *continuing* emitter is a scalar on one synth's stream, not a segment  |
+|                       | noise at a stated SNR or C/N0                                                                                              | `awgn` with `awgn_amplitude_for_snr` (the one answer to "per rail or total"), `wfm_snr_over_fs` for the mode conversion                                                                     |
+|                       | Doppler as physics: time-base dilation plus carrier, one parameter                                                         | `doppler_channel` — not a frequency offset                                                                                                                                                  |
+|                       | a spreading code                                                                                                           | `gold` (CCSDS #365 is the header's example), `pn`                                                                                                                                           |
+| 5, benches            | timing, min over rounds, the settle once per process, the JSON                                                             | `jm_bench.h` + `dp_bench.h`; interleave configurations — [Benchmarking](benchmarking.md)                                                                                                    |
+| 7, validation harness | everything in the C-test rows, plus a `--check` spot check registered in CTest                                             | the exemplar is `native/validation/lockdet_verify.c`: a probability measured with the shipped `awgn`, because a private sigma moves a rate without failing anything                         |
+| 8, Python report      | the report, its five sections, the limits and the staleness gate                                                           | `src/doppler/tests/_validation_common.py` — `Report`; [Object Validation](validation.md)                                                                                                    |
+|                       | an error rate through the binding                                                                                          | `doppler.ber.BerMeter` / `FrameMeter` — they can refuse (`align_ok`, slips); a hand SER cannot                                                                                              |
+|                       | a waveform through the binding                                                                                             | `doppler.wfm` — `Synth`, `compose`, `Gold`, `PN`, `SampleClock`, `wfm_awgn_amplitude`                                                                                                       |
+|                       | detection sizing: thresholds, dwell, Pd, verify counts                                                                     | `doppler.detection` — `det_threshold*`, `det_pd*`, `det_n_noncoh`, `det_verify_count`                                                                                                       |
+| 7, characterization   | a long Monte-Carlo with a fast twin                                                                                        | `src/doppler/dsss/tests/characterization/` — copy a subject's shape; `make characterization-check` fails one without a `__main__` or a twin                                                 |
+
+Two rules the table implies, stated so they are not inferred:
+
+- **A harness renders nothing.** If the signal under test is a waveform
+    this library can generate, the harness calls the generator. The first
+    pass of the continuous async-DSSS validators
+    ([`async-dsss-receiver.md`](../../design/async-dsss-receiver.md) §12)
+    built its emitter from chips by hand and derived its own noise sigma;
+    the shipped path gave the same numbers to within trial spread, and the
+    hand-rolled one was deleted — not because it was wrong that day, but
+    because nothing would have told anyone when it became wrong.
+- **A harness asserts through `dp_test.h`.** `DP_CHECK` counts, reports
+    with file and line, and `DP_TEST_END` refuses a run that checked
+    nothing. A `printf("FAIL ...")` and a return code do neither.
 
 ______________________________________________________________________
 

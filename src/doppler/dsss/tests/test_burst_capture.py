@@ -269,6 +269,33 @@ def test_history_outlives_the_object(tmp_path):
     assert b.preamble_start == at
 
 
+def test_the_live_persistent_capture_restores_its_own_checkpoint(tmp_path):
+    """doppler#1190: ``set_state(blob) -> push(chunk) -> get_state()`` per
+    call, on ONE live object, is a service shape this object supports. The
+    object that created the file used to refuse every checkpoint it took
+    after a push -- the history the blob named was in the file, in the bytes
+    it had written itself -- while a fresh object over the same file accepted
+    the same blob. Rewound to its own mid-preamble checkpoint, the same
+    capture finds the same burst at the same start."""
+    path = tmp_path / "ring.cf32"
+    at = 60_000
+    x = build_capture(200_000, [at])
+    cut = at + 2 * ACQ_SF * SPC
+
+    cap = make_persistent(path)
+    before = cap.get_state()
+    assert cap.push(x[:cut]).size == 0
+    blob = cap.get_state()
+    cap.set_state(blob)  # the issue's case A: the same object, post-push
+    assert cap.push(x[cut:]).size == BURST_LEN
+    assert cap.preamble_start == at
+    cap.set_state(before)  # and a checkpoint naming no history, as before
+    # A checkpoint whose span the ring has since wrapped past is refused:
+    # the file no longer holds it (the sibling of the empty-file refusal).
+    with pytest.raises(ValueError):
+        cap.set_state(blob)
+
+
 def test_a_blob_without_its_file_is_refused(tmp_path):
     """Restoring against a file that has no history would give valid positions
     over zeros — a capture that never finds another burst, indistinguishable

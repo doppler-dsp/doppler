@@ -31,7 +31,7 @@ The waveform and the receiver requirements, as given:
 ### 1.1 Target implementations
 
 - Complete C receiver in `libdoppler.{a,so}`, to compile into C/C++
-    applications <sup>[(3)](#note-3)</sup>.
+    applications.
 - Complete Python receiver, the same object through the binding.
 
 What the application wants from it (maintainer, 2026-09-02): **continuous**
@@ -47,68 +47,40 @@ not for scaling across machines. The fleet and per-burst service shapes
 the original spec also described belong to the burst chain and are not
 this page's concern.
 
-### 1.2 Footnotes
+### 1.2 Notes on the specification
 
-<a id="note-1"></a>**(1)** Was mistyped "5 kHz/s" -- an order of
-magnitude too high; matches the standard LEO worst-case nadir-pass
-derivation `f_dot_max = (f_c/c)*(v^2/h)` at this spec's own 2.5 GHz and
-a representative ~800 km altitude: ~579 Hz/s, i.e. this bound with a
-small margin.
+<a id="note-1"></a>**(1)** The rate bound is the standard LEO worst-case
+nadir-pass figure, `f_dot_max = (f_c/c)·(v²/h)`: at 2.5 GHz and a
+representative 800 km altitude it is ~579 Hz/s, so 500 Hz/s is that bound
+with a small margin.
 
-<a id="note-2"></a>**(2)** Raised from an earlier 3 dB floor: this
-receiver's own characterization
-(a full-characterization sweep, task #99) found a hard, SNR-only
-pull-in cliff between 4 dB and 5 dB --
-3 dB and 4 dB never lock (BER ~0.47-0.48, near-chance) while 5 dB locks
-cleanly (BER ~0.01-0.02, matching theory), confirmed independent of
-loop bandwidth (`bn_car` swept 0.005-0.02) and Doppler rate (swept
-0-500 Hz/s) alike, so this is not a tunable margin, it's a real floor.
-**Caveat, not yet resolved (task #99 remains open)**: this floor was
-characterized against the real C `DsssReceiver`'s current pipeline --
-Acquisition's coarse handoff feeding directly into the pre-despread
-Costas/FLL loop, with no refinement stage in between. "Acquisition hit
-quality" was flagged as the leading remaining candidate for the cliff
-at the time, and this folder's own Python prototype work (see
-`FINISHING_PLAN.md`'s `CarrierAcquisition` section) has since built and
-validated exactly the missing piece -- a one-shot PSDMF refinement
-stage between Acquisition's handoff and tracking -- that this floor was
-set before having available. This 5 dB number may be revisitable
-downward once that stage exists in C and task #99 is re-run against
-it; treat it as the current best-known floor, not a settled intrinsic
-limit, until that's actually tried.
+<a id="note-2"></a>**(2)** The Es/N0 floor is measured, not chosen: the
+receiver's characterization
+([#99](https://github.com/doppler-dsp/doppler/issues/99)) found a hard
+pull-in cliff between 4 and 5 dB — 3 and 4 dB never lock (BER near
+chance), 5 dB locks cleanly (BER matching theory) — independent of loop
+bandwidth (`bn_car` 0.005–0.02) and of Doppler rate (0–500 Hz/s). That
+cliff was measured on the coarse-hand-off pipeline, before the refining
+stage of §4 existed; it has not been re-measured with it, and may sit
+lower now. Treat 5 dB as the current floor, not a settled limit.
 
-<a id="note-3"></a>**(3)** Should internally compose Fine Carrier
-Frequency Refinement (`CarrierAcquisition`) as a stage between
-Acquisition's coarse handoff and Dll/Costas tracking -- motivated
-directly by task #99's still-open 4-5dB pull-in cliff (see the Es/N0
-footnote above). **Built:** that stage is §4's *refining* state, the C
-port of the Python prototype that validated it.
+### 1.3 Derived: tracking loop bandwidths
 
-### 1.3 Derived: tracking loop bandwidths (all loops: code DLL, Costas/CarrierMpsk carrier, FLL-assist)
+Every tracking loop — code DLL, Costas / carrier, FLL assist — is sized to
+a loop SNR `rho ≥ 20 dB` at the Es/N0 floor, using the PLL relation
+`rho(dB) = Es/N0(dB) − 10·log10(2·bn)`, where `bn` is the loop's noise
+bandwidth normalised to its own update rate (`doppler.track.LoopFilter`'s
+convention, so the update rate cancels). At the floor,
+`bn ≤ 10^((5 − 20)/10) / 2 ≈ 0.0158`; the shipped rule is **`bn ≤ 0.01`
+for every loop**, inside that bound. The code loop's per-epoch SNR is
+Es/N0 scaled by `1/epochs_per_symbol`, which at this waveform is
+`3000/2700 ≈ 1.11` — within 0.5 dB — so the same bound applies to it
+without a separate derivation.
 
-- Design target: loop SNR `rho >= 20 dB` at the Es/N0 floor (5 dB), using
-    the standard PLL loop-SNR relation `rho(dB) = Es/N0(dB) - 10*log10(2*bn)`
-    (`bn` = the loop's own noise bandwidth, normalised to its update rate --
-    `doppler.track.LoopFilter`'s own `bn` convention, so the update rate
-    cancels out of the relation entirely; it depends only on Es/N0 and `bn`).
-- Solving at the floor: `bn <= 10^((EsN0_dB - rho_dB)/10) / 2`
-    `= 10^((5 - 20)/10) / 2 = 10^-1.5 / 2 ~= 0.01581`
-- **Default rule: `bn <= 0.01` for every tracking loop** (kept as the
-    already-shipped, already-validated value -- it sits comfortably
-    inside the revised 5 dB floor's own `~0.01581` bound, so no
-    implementation change is forced by the floor's move from 3 to 5 dB;
-    the tighter 3 dB-derived `~0.00998` bound above is superseded). Sized
-    against the worst-case Es/N0 floor, not a comfortable/typical
-    operating point. (Applies to the code loop directly; the code loop's
-    own per-epoch SNR is Es/N0 scaled by `1/epochs_per_symbol` -- at this
-    waveform's `epochs_per_symbol = (chip_rate/sf)/data_rate = 3000/2700 = 10/9 ~= 1.11`, within ~0.5 dB of Es/N0 itself, so the same
-    `bn<=0.01` bound applies without a separate derivation.)
-- **Empirically, `bn` turned out not to be the deciding factor for the
-    pull-in cliff itself** -- sweeping `bn_car` from 0.005 to 0.02 (both
-    sides of the shipped 0.01) left the 4-5 dB cliff completely
-    unchanged; the loop-SNR derivation above sizes STEADY-STATE tracking
-    jitter once locked, not the separate (and still not fully explained)
-    pull-in/lock-acquisition behavior below the floor. See task #99.
+`bn` is not what sets the pull-in cliff of note (2): sweeping `bn_car`
+across 0.005–0.02 left it unchanged. The loop-SNR derivation sizes
+steady-state jitter once locked; pull-in below the floor is a separate
+behaviour, and the refining stage of §4 is what addresses it.
 
 ### 1.4 A second operating point
 
@@ -126,39 +98,35 @@ ______________________________________________________________________
 
 ### 2.1 User-facing API
 
-**Split at the user level into two classes, `Acquisition` (continuous)
-and `BurstAcquisition`, sharing ONE C engine underneath.** Per direct
-user redirect: rather than one class with a `mode` param and
-per-parameter "ignored in this mode" caveats, each class exposes only
-the parameters that are actually meaningful for it -- no dead
-knobs, no mode-dependent documentation. Underneath, both are thin
-front doors onto the SAME `acq_state_t` / `acq_core.c` (state struct,
-`_auto_config`, `push()`, serialization all shared, single
-implementation) -- two public constructor entry points calling one
-internal builder with their own mode fixed, the same "secondary
-constructor" idiom this project already uses elsewhere (e.g.
-`dll_core.h`'s reconfigure/secondary-constructor pattern). Not yet
-implemented -- reflects the `doppler_bins` naming settled this
-session, not what's currently shipped in `acq_core.h`.
+**Two classes, `Acquisition` (continuous) and `BurstAcquisition`, over one
+C engine.** Rather than one class with a `mode` and per-parameter "ignored
+in this mode" caveats, each exposes only the parameters that mean
+something for it. Both are thin front doors onto the same `acq_state_t` /
+`acq_core.c` — state, auto-sizing, `push()` and serialization shared —
+through two public constructors calling one internal builder with the
+mode fixed, the secondary-constructor idiom `dll_core.h` also uses.
 
-**Terminology: no "sub_bins".** Rolling the shared epoch FFT by `k`
-bins produces another Doppler hypothesis exactly as much as a
-slow-time FFT row does -- they're both just `doppler_bins`, full stop,
-so there's only ever ONE public name, on both classes. Internally the
-shared C struct keeps two distinctly-named fields for the two
-*mechanisms* that produce them (each class only ever has one active):
-`coherent_bins` (slow-time FFT depth, produced by coherent multi-epoch
-integration -- `BurstAcquisition`'s axis) and `window_bins`
-(roll-tiled frequency windows, each one a single-epoch coherent FFT
-rolled to a different hypothesis -- `Acquisition`'s axis). Named for
-mechanism, not regime, on purpose: "coherent"/"noncoherent" would
-describe which class uses which, but the roll-tiled axis isn't
-actually computed non-coherently (that word already means something
-else here -- `n_noncoh`, a completely orthogonal axis: repeated
-dwells accumulated for SNR at a FIXED hypothesis set, composing with
-EITHER bin mechanism). Both `coherent_bins`/`window_bins` stay
-implementation detail; the public property is `doppler_bins` on both
-classes.
+**One public name for the Doppler axis: `doppler_bins`.** Rolling the
+shared epoch FFT by `k` bins produces a Doppler hypothesis exactly as a
+slow-time FFT row does. Internally the engine keeps two fields for the
+two *mechanisms*, only one of which is ever active: `coherent_bins` (the
+slow-time FFT depth from coherent multi-epoch integration —
+`BurstAcquisition`'s axis) and `window_bins` (roll-tiled frequency
+windows, each a single-epoch FFT rolled to another hypothesis —
+`Acquisition`'s axis). They are named for mechanism, not regime: the
+roll-tiled axis is not computed non-coherently, and "non-coherent" here
+means `n_noncoh` — repeated dwells accumulated for SNR at a fixed
+hypothesis set, an axis that composes with either mechanism.
+
+**No `doppler_resolution`, `doppler_rate` or `max_noncoh`.** The first two
+existed to size a coherent depth safely under continuous data, and there
+is no such thing: coherent combining under asynchronous data is a
+structural mislock, not a trade-off, so the continuous class has no
+coherent-depth axis for them to tune. `n_noncoh` is auto-selected to meet
+`pd` at `pfa` and exposed read-only; its only bound is an internal safety
+valve (`ACQ_N_NONCOH_SAFETY_CEILING`, 256 looks) because the
+semi-analytical `pd_predicted` model turns non-monotonic past that — a
+modelling limit, not a sensitivity one.
 
 #### `Acquisition` (continuous)
 
@@ -188,42 +156,6 @@ an unmodulated preamble. It is not this receiver's concern; its parameters
 and the burst chain are in
 [`dsss-burst-receiver.md`](dsss-burst-receiver.md).
 
-**Removed from today's shipped API**: `doppler_resolution`,
-`doppler_rate`. Both existed to size a coherent-depth (`coherent_bins`)
-ceiling/floor safely under continuous data modulation -- but task #67
-already found that premise doesn't hold for this waveform: coherent
-combining under continuous async data isn't a tunable trade-off, it's
-a structural mislock (aliasing), regardless of how carefully
-`doppler_resolution`/`doppler_rate` size it. `Acquisition` (continuous)
-uses the `window_bins` mechanism unconditionally -- there is no
-coherent-depth axis for either parameter to tune, so both become dead
-weight and are dropped rather than kept as no-ops -- and since they
-only ever applied to the continuous case, they simply don't exist on
-that class at all now (no "ignored" caveat needed).
-
-**Also removed: `max_noncoh`.** Per direct user redirect -- `n_noncoh`
-should be auto-selected to meet `pd` at `pfa`, same as `doppler_bins`
-already is, not capped by a separate caller-tuned knob (whose default
-of `1` was also an `Acquisition` (continuous) footgun in its own
-right: with only the `window_bins` mechanism active there, `n_noncoh`
-is the ONLY sensitivity lever, so a cap defaulting to "don't use it"
-would silently underpower it). `n_noncoh` becomes a purely derived
-output (already exposed as a read-only property) on both classes.
-
-This does NOT remove the need for an internal ceiling, though -- just
-moves it out of the user-facing API. The semi-analytical `pd_predicted`
-model itself is only reliable up to a point: this exact geometry's own
-sweep (see below) found it "turns non-monotonic and unreliable past
-`n_noncoh~256`" -- a MODELING breakdown, not a physical sensitivity
-limit (more non-coherent looks always help in reality). Without a
-caller-supplied cap, the auto-sizer's ascend loop still needs to stop
-before wandering into that unreliable region and falsely reporting
-`pd_predicted >= pd` -- that stopping bound should be an internal,
-documented safety valve (or the ascend loop should detect it's
-entering the model's known-unreliable regime and set `underpowered`
-instead of trusting the number), not a parameter the caller has to
-discover and tune correctly.
-
 ### 2.2 Output data structure: `DetectionEvent` (the acquisition handoff)
 
 `DetectionEvent` is the DATA -- the acquisition handoff is the ACTION
@@ -239,15 +171,9 @@ grid-relative indices
 without also shipping the emitting object's own config (`spc`,
 `doppler_res_hz`, ...) alongside. Every field below is already
 converted to a physical unit, so the record is self-contained: a flat,
-pointer-free POD, safe to serialize (JSON, protobuf, whatever the
-transport is) across a process boundary. This is Phase 0 of the
-coupled-tracker roadmap (`~/.claude/plans/jiggly-munching-newell.md`)
-made concrete -- matches `dsss_acq_handoff_from_result()`'s planned
-C struct, and is exactly what the acquisition hand-off prototype's
-`DetectionEvent`/`handoff_from_hit()` already
-prototyped and validated in Python this session (code-phase
-conversion exact, full search -> handoff -> refine -> track chain
-locks).
+pointer-free POD, safe to serialize across a thread or process boundary.
+In C it is what `acq_build_handoff()` produces from a hit and what seeds
+the receiver of §4.
 
 One `DetectionEvent` record is emitted per detection event (i.e. once
 per `push()` hit, on both classes -- same shape, since both share the
@@ -265,167 +191,52 @@ underlying engine):
 | `noise_est`        | `float`    | Raw CFAR noise-floor estimate -- diagnostic passthrough.                                                                                                                                                                                                                                                                                            |
 | `test_stat`        | `float`    | Raw CFAR gating statistic -- diagnostic passthrough.                                                                                                                                                                                                                                                                                                |
 
-**Shipped** (`cb1765cc`, task #71's timestamp-mechanism follow-on):
-`acq_result_t` gained the `samples_consumed` field this section called
-for, `dp_sample_clock_t` gained the `stamp_at(c, n)`/`track(...)`
-pair, and the stream layer gained a one-shot `timestamp_ns` override so
-a hop-to-hop send no longer clobbers the true origin timestamp with a
-fresh syscall read. The acquisition hand-off prototype's
-`handoff_from_hit()` already takes the `dp_sample_clock_t` analogue
-(`doppler.wfm.SampleClock`) as its optional `clock` param and resolves
-`timestamp_ns = clock.stamp_at(samples_consumed)` -- verified exact
-end to end (`python acq_handoff.py`, `LOCKED`, timestamp checked
-against the formula directly). What's still open is only the C side of
-the handoff ACTION itself: `dsss_acq_handoff_from_result()` (Phase 0 of
-the coupled-tracker roadmap) doesn't exist as a C struct/function yet
--- today's validated conversion lives only in Python. `Acquisition`/
-`BurstAcquisition` themselves stay wall-clock/epoch-agnostic (pure
-sample-domain engines, no I/O) -- the `dp_sample_clock_t` anchor comes
-from whatever upstream source (DDC, a real front end) is actually
-feeding them samples, and gets threaded through by the composing layer
-(`DsssReceiver`, or the orchestrator), not owned by `Acquisition`
-itself.
+**Timing.** `acq_result_t` carries `samples_consumed`; the timestamp is
+`dp_sample_clock_t`'s `stamp_at(samples_consumed)`, and the stream layer
+carries an origin timestamp hop to hop rather than re-reading a clock. The
+engines themselves are clock-agnostic — pure sample-domain, no I/O — so
+the anchor comes from whatever feeds them samples and is threaded through
+by the composing layer (the receiver, or the orchestrator of §5).
 
-This gap wasn't specific to `Acquisition` -- `dp_tlm_rec_t`'s own doc
-comment already flagged the general pattern ("if never stamped it
-stays 0"), so the same unwired-timestamp check is worth running over
-other streaming objects too, not just this one.
+**No `carrier_freq` parameter on either class.** The engine works in
+baseband Doppler Hz throughout; the carrier-aiding scale
+(`doppler_hz_est · chip_rate / carrier_freq`) is computed by the component
+that knows the carrier — the tracker takes `carrier_freq_hz` itself. That
+keeps the engine usable by a baseband-only caller with no carrier at all.
 
-**Settles the plan's open question: no `carrier_freq` parameter on
-either class.** The plan flagged "does `carrier_freq` need to become a
-new `dsss_receiver_create()`/`acq_create()` parameter" -- answer: no.
-`Acquisition` has no other reason to know the RF carrier frequency (it
-operates in baseband/chip-rate Doppler Hz throughout); the
-carrier-aiding scale (`doppler_hz_est * chip_rate/carrier_freq`) is
-computed by whichever component actually knows `carrier_freq` --
-the coupled-despreader prototype's tracker already
-does exactly this with its own `carrier_freq_hz` parameter, not
-something `Acquisition` hands it pre-scaled. Keeps `Acquisition`
-carrier-frequency-agnostic and reusable for a baseband-only caller
-that has no carrier concept at all.
+### 2.3 The wideband search, as settled
 
-### 2.3 Notes — the wideband search, and how it was settled
-
-- FFT bin spacing per code epoch (native unambiguous Doppler span,
-    ANY coherent depth D -- a D-point slow-time FFT sampled at the
-    epoch rate has a fixed +/-(epoch_rate/2) Nyquist range regardless
-    of D; more bins only subdivide that SAME fixed range more finely,
-    never widen it): `chip_rate / sf = 3.069 Mcps / 1023 = 3.000 kHz`
-    exactly (half-span `chip_rate/(2*sf) = 1.500 kHz`).
-- **The big one**: required uncertainty is +/-50 kHz = 100 kHz total,
-    ~33.3x the 3 kHz native span -> **34 non-overlapping native windows
-    needed to cover it** (`ceil(100/3) = 34`). `Acquisition`'s own
-    `doppler_uncertainty` parameter cannot help here -- it only NARROWS
-    the search within one native span (`doppler_uncertainty <= span` is
-    an enforced precondition), it can't widen coverage beyond it.
-    Covering the full uncertainty therefore needs 34 independent
-    alias-window searches (each its own 2D correlation, `code_bins = sf*spc = 2046` at `spc=2`) -- "34 x 2046" -- run either:
-    1. **Sequentially** (34x acquisition latency -- almost certainly
-        fails the "FAST" requirement), or
-    1. **In parallel** (34x compute/hardware, full latency preserved), or
-    1. **Behind a DDC channelizer bank** (`doppler.ddc`/`RateConverter`,
-        already in the codebase -- reuse, don't reimplement): split the
-        +/-50 kHz input into a SMALLER number of wider sub-channels
-        first, so each channel's own residual uncertainty fits a cheaper
-        per-channel search, trading DDC channelizer cost against fewer
-        parallel/sequential full correlation engines.
-- **CORRECTED architecture, per direct user redirect ("slow-time
-    doesn't work for this case"): pure code-phase search, `D=1`, no
-    coherent Doppler-axis combining at all.** The first baseline number
-    below used `Acquisition`'s `symbol_rate`-aware auto-config, which
-    picked `doppler_bins=31` -- exactly the coherent multi-epoch
-    combining this whole story already proved unsafe under continuous
-    async data (data-modulation aliasing across the Doppler-bin axis,
-    `docs/design/dsss-acquisition.md`'s "ceiling (b) fails hard").
-    **`D=1` sidesteps this entirely** -- with only one epoch, there is no
-    multi-epoch axis for the data's own spectrum to alias across.
-    Detection SNR margin instead comes from **non-coherent accumulation**
-    (`n_noncoh`, magnitude-squared summing) across independent epochs --
-    provably immune to data-modulation sign flips (already established
-    earlier in this story), unlike coherent combining.
-- Real measured `pd_predicted` sweep at `D=1`, this waveform's exact
-    `cn0_dbhz=37.31`: crosses the 0.9 target around **`n_noncoh=96`**
-    (0.917), comfortable margin at **`n_noncoh=128`** (0.965) or
-    **`n_noncoh=192`** (0.994). (`pd_predicted` turns non-monotonic and
-    unreliable past `n_noncoh~256` in this exact config -- a modeling
-    edge case at very large `nc`, not a real detection cliff; stay
-    stay well under it -- `n_noncoh<=192` is comfortably clear of it.)
-- **Per-frequency-bin dwell time, measured throughput (33.2 MSa/s),
-    `code_bins=2046` per epoch**: `n_noncoh=96` -> **5.9 ms**;
-    `n_noncoh=128` -> **7.9 ms**; `n_noncoh=192` -> **11.8 ms** -- ALL
-    faster than the (now-superseded) D=31 slow-time baseline's 15.3 ms,
-    AND with none of its aliasing risk.
-- **Architecture: 34 of these `D=1` pure-code-phase searches, one per
-    3 kHz-spaced candidate frequency bin spanning +/-50 kHz, run in
-    PARALLEL for "fast as possible"** -- total acquisition latency ≈ ONE
-    bin's dwell time (**~6-12 ms** depending on the `n_noncoh` margin
-    chosen), not 34x it. Sequential would cost 34x (`~200-400 ms`) and is
-    ruled out by the "fast as possible" directive. Each of the 34 bins
-    needs its own frequency-shifted (down-converted) copy of the input
-    feeding an independent code-phase correlator -- realizing that bank
-    of 34 parallel down-conversions efficiently (a DDC/mixer bank,
-    `doppler.ddc`/`RateConverter`, reuse not reimplement) is the
-    remaining open engineering question, not a way to reduce the count
-    of 34 -- the count is fixed by `+/-50kHz / 3kHz` regardless.
-- **Resolved: how to realize the 34-bin frequency grid per epoch**
-    (`bench_freq_bank.py`, real `doppler.spectral.FFT`, real wall-clock
-    timing, not just operation-count theory). Two candidates: (A) one
-    forward FFT of the received epoch, then roll its spectrum by k bins
-    per hypothesis (exact -- the 3 kHz hypothesis spacing IS this
-    N=2046-sample epoch's own FFT bin spacing) against one fixed
-    precomputed replica spectrum, 1 fwd + 34 inverse FFTs; vs. (B) a
-    tuned mixer bank, 34 independent down-conversions each needing its
-    own forward FFT, 34 fwd + 34 inverse FFTs. Both cross-checked
-    bit-exact-cell correct first (identical injected true k/code-phase
-    recovered by both). **(A) wins empirically, consistently, across
-    repeated runs: ~0.6-0.8 ms/epoch vs. (B)'s ~0.9-1.0 ms/epoch, a
-    1.2x-1.55x speedup** -- directionally confirms the op-count theory
-    (35 vs. 68 FFT-equivalents, ~1.94x) but the *measured* margin is
-    smaller, because (A) pays an extra O(N) `np.roll` memory copy per
-    hypothesis that the theory didn't count, and Python-level per-call
-    overhead partially masks the underlying FFT-count gap. **Settled
-    architecture: (A), roll the replica/received spectrum, not a tuned
-    mixer bank** -- a hybrid (C) was considered but has no analytical
-    basis here (code-phase correlation needs the full N=2046-sample
-    resolution regardless of how the frequency search is realized, so
-    there's no reduced-rate sub-problem for a DDC front-end to help
-    with).
-- **Resolved: full C end-to-end benchmark of the wideband search**
-    (`native/benchmarks/bench_acq_core.c`, task #71). The roll-FFT
-    architecture is now wired directly into `dsss.Acquisition`'s real C
-    core (`acq_core.c`'s wideband mode, task #72) -- the "34 bins run in
-    parallel from one shared epoch FFT" requirement is satisfied
-    internally by that one object's per-epoch loop (no separate 34-way
-    thread fan-out needed, since all 34 hypotheses share one forward FFT
-    per epoch by construction). Benchmarked one real, timed `acq_push()`
-    call per non-coherent dwell (`n_noncoh` consecutive epochs, one call)
-    at this exact waveform (`sf=1023`, `spc=2`, `chip_rate=3.069 Mcps`,
-    `cn0_dbhz=37.31`, `doppler_uncertainty=+/-50kHz` -> `n_freq_bins=34`
-    automatically), with a real injected burst + AWGN, confirming correct
-    detection (right frequency window + code phase) at every point.
-    **Measured**: `n_noncoh=74` (pd_predicted 0.984) -> 32.7 ms;
-    `n_noncoh=101` (pd 0.999) -> 44.1 ms; `n_noncoh=123` (pd ~1.0) ->
-    54.5 ms -- consistently **~0.44 ms/epoch**, i.e. faster than
-    `bench_freq_bank.py`'s own Python/numpy roll-FFT prototype
-    (0.6-0.8 ms/epoch), as expected for real C over numpy dispatch
-    overhead.
-    - **Discrepancy found and resolved in the process**: the `n_noncoh= 96/128/192` operating points quoted earlier in this doc came from a
-        standalone Python sizing sketch written *before* this wideband mode
-        existed in C, and don't match the real, now-implemented 34-bin
-        Bonferroni-corrected auto-sizer -- the real model is considerably
-        more optimistic at this cn0 (`pd_predicted` reaches ~0.999 by
-        `n_noncoh~101`, not ~0.917 at 96 / ~0.994 at 192 as estimated
-        there). The benchmark sweeps by **pd target** (0.9/0.99/0.999,
-        letting the real auto-sizer pick `n_noncoh` honestly) rather than
-        forcing the old sketch's exact nc values, since the real C model is
-        now the authoritative source, not the earlier estimate. The
-        `n_noncoh=96/128/192` numbers above are left as historical context
-        for how this story arrived here, not as the operating spec.
-    - **Still open**: confirm `n_noncoh` choice against the occasional
-        epoch that straddles a data-bit transition (a graceful per-epoch
-        SNR loss for SOME of the `nc` epochs, not a structural mislock,
-        since non-coherent summing doesn't alias -- but not yet separately
-        quantified here).
+- **The native span is one epoch's bin.** A `D`-point slow-time FFT
+    sampled at the epoch rate has a fixed `±epoch_rate/2` range whatever
+    `D` is — more bins subdivide the same range, they never widen it. At
+    3.069 Mcps and 1023 chips that is `chip_rate/sf` = 3.0 kHz per bin,
+    a half-span of 1.5 kHz; the spec's ±50 kHz is 33 of them.
+- **`D = 1`, always, for continuous data.** Coherent multi-epoch
+    combining under asynchronous data aliases the data's own spectrum
+    across the Doppler axis and mislocks structurally
+    ([`dsss-acquisition.md`](dsss-acquisition.md)); with one epoch there
+    is no multi-epoch axis to alias across. Sensitivity comes from
+    non-coherent accumulation over `n_noncoh` epochs, which sums
+    magnitudes and is immune to data sign flips.
+- **The uncertainty is tiled by rolling one spectrum, not by a mixer
+    bank.** One forward FFT of the epoch, then the spectrum rolled by `k`
+    bins per hypothesis against one precomputed replica spectrum: one
+    forward plus one inverse per tile, against a forward *and* an inverse
+    per tile for a bank of down-converters. Measured in the prototype at
+    1.2–1.55× faster; adopted as the engine's wideband mode
+    (`acq_core.c`), so all tiles come from one object's per-epoch loop.
+    The engine sizes the tile count itself, odd and symmetric
+    (`acq_cover_window_bins`): 35 at 3.069 Mcps over ±50 kHz, 21 at
+    5 Mcps, 53 at 2.
+- **What it costs is measured, per tile.** `bench_acq_core.c` times a
+    real `acq_push()` per dwell on this waveform and on the operating
+    point of §6.1; the number is about 10 ns per tile per output sample
+    (§12.1), which is what makes the searcher's cost the same at 2 and 5
+    Mcps and over a core at ±50 kHz.
+- **Open:** the `n_noncoh` sizing against epochs that straddle a data
+    transition — a graceful per-epoch loss on some of the `nc` epochs,
+    not a mislock, and not separately quantified for the continuous
+    engine.
 
 ______________________________________________________________________
 

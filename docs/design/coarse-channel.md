@@ -31,22 +31,26 @@ argument for B; it is what makes B cheap to compare against.
 
 ## 2. Two primary use cases
 
-Everything below is judged against these two, and only these two. *(These
-are the maintainer's two; the reading of them here is the author's and may
-need correcting.)*
+Everything below is judged against these two, and only these two.
 
-### 2.1 One process runs the whole bank
+### 2.1 A C++ application runs the whole bank, on its own threads
 
-A wide-Doppler receiver on one node: `±U` of uncertainty, `K` channels, a
-thread per channel or a bounded parallel-for, one blob for the whole bank
-when it checkpoints. The caller wants **one object** — create it, push
-blocks, read detections and windows, get one blob back. It does not want to
-know that a channel exists.
+A wide-Doppler receiver in one process — a C++ application that brings its
+**own** threads or worker processes and expects to drive doppler from them.
+`±U` of uncertainty, `K` channels, and the reason it is parallel at all is
+the multi-signal case: several bursts in the air at once at different
+Dopplers, each landing in its own channel, each to be captured without
+waiting on the others. This is **not** the k8s case; nothing here ships a
+blob to a pod. Checkpointing is still wanted (a restart mid-pass), but as
+one blob for the whole bank.
 
-What this use case asks of the shape: that the bank is a single object with
-a single `push`, that the per-channel faces (`windows(k)`, `events(k)`,
-`release(k, i)`) are reachable without holding `K` handles, and that
-checkpoint/restore is one call each.
+What this use case asks of the shape: that a channel is something the
+application's thread can hold and push **on its own** — a handle, not an
+index into a bank whose `push` decides the scheduling — and that pushing
+channel `k` from thread `k` shares nothing with channel `j` on thread `j`
+(the independence requirement of `burst-bank.md` §10.1). The bank object is
+then what an application uses when it does *not* want to schedule: one
+`push`, one blob. Both faces are wanted; the first is the primary one.
 
 ### 2.2 One pod runs one channel
 
@@ -59,7 +63,7 @@ the fleet's detections meet — or does not happen at all if the consumer
 tolerates a boundary target twice.
 
 What this use case asks of the shape: that a channel can be constructed
-alone from `(descriptor, k)`; that a channel's blob is restorable into a
+alone from `(descriptor, k)` — the same handle §2.1's threads hold; that a channel's blob is restorable into a
 channel built alone *and* is the same bytes the bank's blob carries for
 that channel (a pod can be spun up from a slice of a bank checkpoint, and a
 bank can be rebuilt from `K` pod checkpoints); and that the dedup rule is
@@ -104,11 +108,13 @@ Two things the table does not settle and §5 measures:
 
 ## 4. The author's expectation
 
-B, for the second use case alone: a pod holding one channel should be
-running a certified object whose blob is the slice of the bank's, and the
-dedup has to be a function that a fleet aggregator can call. A is the
-right answer only if the single-channel pod turns out not to be a primary
-use case after all — and §2 says it is.
+B, and both use cases say so independently: the C++ application wants a
+channel it can push from its own thread, and the pod wants one it can build
+alone with a blob that is the slice of the bank's. In both, the dedup is a
+function over detections that something other than `burst_bank_push` calls
+— the application's collector in §2.1, the fleet's aggregator in §2.2. A
+is the right answer only if neither of those callers exists, and §2 says
+both do.
 
 Held loosely until §5 is done.
 
@@ -149,3 +155,27 @@ Held loosely until §5 is done.
 
 Steps 1, 3 and 4 are an afternoon in Python against the shipped bank. Step
 2 is a `wc`. Step 5 is arithmetic on numbers the objects already publish.
+
+## 6. What was measured (2026-09-01)
+
+Steps 2 and 3 of §5, against the shipped Python bank and the tree:
+
+- **The blob slice works both ways, today.** `Acquirer.get_state()` cut at
+    the per-channel length prefix restores into a `CoarseChannel` built
+    alone from `(descriptor, k)`, and the continuation is window-for-window
+    and event-for-event identical to the uninterrupted bank's channel `k`
+    (3 of 3 channels, 47,028 B each at the test geometry); a bank rebuilt
+    from the `K` channel blobs is likewise identical. So composability is a
+    property of the **envelope**, not of the shape — §3's "blob
+    composability" row is a tie once shape A adopts the same envelope, and
+    B's case no longer rests on it.
+- **B's marginal cost, from `burst_acq`:** toml 235, header 199, core 70,
+    C test 86, generated fragment 813, C bench 132, Python bench 87, Python
+    test 186, validator 679 lines — about 1,700 hand-written lines plus a
+    characterization subject. `burst_acq` has **no examples on either
+    face**, which is a gap in the tree, not a saving.
+
+What decides it, then, is §2.1: the C++ application pushes channel `k` from
+its own thread `k`, and the only shape that gives it a handle to do that
+with — certified alone, with a header that says what pushing it means — is
+B. §4's expectation stands, on that use case rather than on the blob.

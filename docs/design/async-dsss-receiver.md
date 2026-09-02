@@ -36,13 +36,16 @@ The waveform and the receiver requirements, as given:
 
 What the application wants from it (maintainer, 2026-09-02): **continuous**
 reception — tracking loops that run for the life of a pass, not bounded
-bursts — and **parallelism by threads on one multi-core server**. The
-searcher runs on one thread, each assigned receiver on another, all fed
-from one stream in one process (§5, §11). There are no pods and no
-serialized-state hops in this use case: the receiver's `get_state`/
-`set_state` remain for a checkpoint and restart mid-pass, not for scaling.
-The fleet and per-burst service shapes the original spec also described
-belong to the burst chain and are not this page's concern.
+bursts — and **parallelism on one server, not a cluster**. The server has
+many cores, and the design should use as many processes and threads as
+the work needs: the searcher on its own, each assigned receiver on its
+own, all fed from one stream on one machine (§5, §11). What is ruled out
+is the fleet — pods, a scheduler, state hopping between nodes. The
+receiver's `get_state`/`set_state` remain for a checkpoint and restart
+mid-pass and for handing a receiver between processes on the same box,
+not for scaling across machines. The fleet and per-burst service shapes
+the original spec also described belong to the burst chain and are not
+this page's concern.
 
 ### 1.2 Footnotes
 

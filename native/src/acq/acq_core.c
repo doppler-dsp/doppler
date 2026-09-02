@@ -57,10 +57,7 @@ acq_in_doppler_band (const acq_state_t *st, size_t k)
 {
   /* Wideband mode always searches its whole window_bins grid by
    * construction (there is no further-narrowing prior beyond the windows
-   * window_bins itself already tiles) -- every hypothesis is in-band.
-   * Bypassing the native fold formula also sidesteps its even-D Nyquist-row
-   * exclusion quirk (irrelevant here: window_bins isn't a slow-time FFT
-   * length, so that formula's assumptions don't apply to it anyway). */
+   * window_bins itself already tiles) -- every hypothesis is in-band. */
   if (st->window_bins > 1)
     return 1;
   /* k indexes the (interpolated) SURFACE, so fold on the fine grid and
@@ -69,6 +66,15 @@ acq_in_doppler_band (const acq_state_t *st, size_t k)
   const size_t rows = st->coherent_bins * st->interp;
   const size_t row  = k / st->code_bins;
   const size_t fold = (row <= rows - row) ? row : rows - row;
+  /* The FULL native band is every row: its edge is +/-span = D/2 bins, so
+     for an even D the Nyquist bin belongs to it, and for an odd D so does
+     the outer half of the outermost bin. The narrowed-prior rule below is
+     right only when the prior's edge is a bin CENTRE (acq_searched_bins
+     builds sb = 2*half+1 that way). Applied to the full band it dropped a
+     whole native bin at even D -- 1/D of a uniform Doppler prior, never
+     searched (doppler#1183). */
+  if (st->searched_bins >= st->coherent_bins)
+    return 1;
   return fold <= ((st->searched_bins - 1) / 2) * st->interp;
 }
 
@@ -272,10 +278,26 @@ acq_intra_umax (size_t D, size_t sb, double du, double span)
   return 0.5 * (frac < grid ? frac : grid);
 }
 
-static double
-acq_straddle_loss (size_t D, size_t sb, size_t spc, double du, double span)
+/* The Doppler-axis interpolation a grid gets: none for a single coherent
+ * bin (there is no slow-time transform to pad) or in wideband mode (the
+ * window axis is not a slow-time FFT), ACQ_DOPPLER_INTERP otherwise. One
+ * rule, because acq_regrid() applies it to the surface and the Pd model
+ * derates scalloping over the bin it produces -- a model still averaging
+ * over the NATIVE bin read 0.47 where the engine measured 0.72
+ * (doppler#1183). */
+static size_t
+acq_interp_for (size_t D, size_t window_bins)
 {
-  double l_scallop = (D > 1) ? acq_mean_sinc (0.5) : 1.0;
+  return (window_bins > 1 || D <= 1) ? 1u : ACQ_DOPPLER_INTERP;
+}
+
+static double
+acq_straddle_loss (size_t D, size_t sb, size_t spc, double du, double span,
+                   size_t interp)
+{
+  /* Half of the bin the peak search actually samples: the slow-time axis is
+     interpolated, so the worst straddle is half an INTERPOLATED bin. */
+  double l_scallop = (D > 1) ? acq_mean_sinc (0.5 / (double)interp) : 1.0;
   double l_intra   = acq_mean_sinc (acq_intra_umax (D, sb, du, span));
   double l_code    = 1.0 - 1.0 / (4.0 * (double)spc);
   return l_scallop * l_intra * l_code;
@@ -295,14 +317,16 @@ acq_sinc (double u)
  * evaluates the coherent path, nc > 1 the non-coherent one. */
 static double
 acq_mean_pd (double snr, size_t D, double umax, size_t spc, int n, double eta,
-             int nc)
+             int nc, size_t interp)
 {
-  const int nd = 8, nu = 8, nk = 4;
-  double    acc = 0.0;
+  const int    nd = 8, nu = 8, nk = 4;
+  const double half_bin = 0.5 / (double)interp; /* the SAMPLED bin */
+  double       acc      = 0.0;
   for (int i = 0; i < nd; i++)
     {
-      double ls
-          = (D > 1) ? acq_sinc (0.5 * ((double)i + 0.5) / (double)nd) : 1.0;
+      double ls = (D > 1)
+                      ? acq_sinc (half_bin * ((double)i + 0.5) / (double)nd)
+                      : 1.0;
       for (int j = 0; j < nu; j++)
         {
           double li = acq_sinc (umax * ((double)j + 0.5) / (double)nu);
@@ -361,9 +385,9 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
   st->doppler_res_hz = st->chip_rate / ((double)st->sf * (double)D);
   st->pfa_cell = 1.0 - pow (1.0 - pfa, 1.0 / (double)(st->searched_bins * cb));
   double umax  = acq_intra_umax (D, st->searched_bins, du, span);
-  st->straddle_loss
-      = acq_straddle_loss (D, st->searched_bins, st->spc, du, span);
-  st->eta = (float)det_threshold (st->pfa_cell);
+  st->straddle_loss = acq_straddle_loss (D, st->searched_bins, st->spc, du,
+                                         span, st->interp);
+  st->eta           = (float)det_threshold (st->pfa_cell);
 
   double gate;
   if (nc > 1)
@@ -380,8 +404,8 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
     }
   if (snr > 0.0)
     {
-      st->pd_predicted
-          = acq_mean_pd (snr, D, umax, st->spc, (int)st->n, gate, (int)nc);
+      st->pd_predicted = acq_mean_pd (snr, D, umax, st->spc, (int)st->n, gate,
+                                      (int)nc, st->interp);
       st->underpowered = (uint8_t)(st->pd_predicted < pd);
     }
   else
@@ -404,9 +428,10 @@ static size_t
 acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
                      double pd, size_t spc, double du, double span)
 {
-  const double umax  = acq_intra_umax (D, sb, du, span);
-  const double pc    = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
-  const double sloss = acq_straddle_loss (D, sb, spc, du, span);
+  const size_t interp = acq_interp_for (D, 1);
+  const double umax   = acq_intra_umax (D, sb, du, span);
+  const double pc     = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
+  const double sloss  = acq_straddle_loss (D, sb, spc, du, span, interp);
 
   int    k  = det_n_noncoh (snr * sloss, (int)(D * cb), pd, pc,
                             (int)ACQ_N_NONCOH_SAFETY_CEILING);
@@ -415,7 +440,8 @@ acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
     {
       double e = (nc > 1) ? det_threshold_noncoherent (pc, (int)nc)
                           : det_threshold (pc);
-      if (acq_mean_pd (snr, D, umax, spc, (int)(D * cb), e, (int)nc) >= pd)
+      if (acq_mean_pd (snr, D, umax, spc, (int)(D * cb), e, (int)nc, interp)
+          >= pd)
         break;
       nc++;
     }
@@ -534,7 +560,9 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
       double umax = acq_intra_umax (D, sb, du, span);
       double pc   = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
       double eta  = det_threshold (pc);
-      if (acq_mean_pd (snr, D, umax, st->spc, (int)(D * cb), eta, 1) >= pd)
+      if (acq_mean_pd (snr, D, umax, st->spc, (int)(D * cb), eta, 1,
+                       acq_interp_for (D, 1))
+          >= pd)
         {
           best_d = D;
           break;
@@ -599,8 +627,7 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
   /* Interpolate the Doppler axis only where there IS one: wideband mode
      tiles frequency with window_bins and pins coherent_bins at 1, so its
      rows are hypotheses rather than FFT bins and have no scalloping to fix. */
-  const size_t new_interp
-      = (new_freq_bins > 1 || new_db <= 1) ? 1u : ACQ_DOPPLER_INTERP;
+  const size_t new_interp = acq_interp_for (new_db, new_freq_bins);
   const size_t new_n_surf = new_n * new_interp;
 
   corr2d_state_t *new_corr          = NULL;

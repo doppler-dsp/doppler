@@ -236,6 +236,77 @@ _acq_configure_search_raw_check (void)
  * (rather than a caller cap, which no longer exists) making the auto-sizer's
  * n_noncoh ascend land on 1 -- the actual pushed burst is noise-free anyway,
  * so cn0_dbhz only steers the SIZING decision, not detectability. */
+/* doppler#1183: the full-band search reaches its EDGE, at every coherent
+ * depth.
+ *
+ * `acq_in_doppler_band()` admitted a row when
+ * `fold <= ((searched_bins-1)/2) * interp`. For a narrowed prior that is
+ * right (its edge is a bin centre). For the FULL band, `searched_bins == D`,
+ * and at an even D `(D-1)/2 = D/2 - 1` dropped the Nyquist bin -- with
+ * interpolation, every row of that native bin, 1/D of a uniform Doppler
+ * prior. Measured before the fix at 55 dB-Hz: D=8 read Pd 0.00 from
+ * 0.94*span, D=4 read 0.07 at 0.75*span, and D=7 (odd) reached the edge. Over
+ * a uniform prior that is a Pd CEILING of (D-1)/D no C/N0 can lift, and it is
+ * the hole the coarse-Doppler bank fell into between two channels
+ * (doppler#1179).
+ *
+ * The claim is a burst detected at 0.95*span and at the edge itself, at both
+ * signs, at an even AND an odd depth -- a strong burst, so the only thing
+ * that can fail it is the band rule. */
+static int
+_acq_band_edge_check (void)
+{
+  const double   PI  = acos (-1.0);
+  const size_t   spc = 4, sf = 31;
+  const double   crate = 1.0e6;
+  static uint8_t code31[31];
+  for (size_t i = 0; i < sf; i++)
+    code31[i] = (uint8_t)(((i * 2654435761u) >> 13) & 1u);
+  const size_t depths[3] = { 8u, 4u, 7u };
+  for (size_t di = 0; di < 3u; di++)
+    {
+      const size_t reps = depths[di];
+      acq_state_t *a    = acq_create_burst (code31, sf, reps, spc, crate, 0.0,
+                                            0.0, 1e-3, 0.9, 0);
+      DP_REQUIRE (a != NULL);
+      DP_CHECK (acq_configure_search_raw (a, reps, 1) == 0);
+      DP_CHECK (a->coherent_bins == reps);
+      const size_t nx = sf * spc, n = reps * nx;
+      /* Native span in cycles/sample is 1/(2*nx): one half-cycle per code
+         period. */
+      const double         span = 0.5 / (double)nx;
+      static float complex frame[8 * 31 * 4];
+      const double         fracs[2] = { 0.95, 1.0 };
+      for (int fi = 0; fi < 2; fi++)
+        for (int sign = -1; sign <= 1; sign += 2)
+          {
+            const double f = (double)sign * fracs[fi] * span;
+            acq_reset (a);
+            for (size_t k = 0; k < n; k++)
+              {
+                uint8_t chip = code31[((k % nx) / spc) % sf];
+                float   c    = chip ? -1.0f : 1.0f;
+                double  ph   = 2.0 * PI * f * (double)k;
+                frame[k]     = c * (float complex) (cos (ph) + I * sin (ph));
+              }
+            acq_result_t r[4];
+            size_t       nd = acq_push (a, frame, n, r, 4);
+            DP_CHECK_MSG (nd >= 1, "band edge missed");
+          }
+      /* ...and the model derates scalloping over the bin the search SAMPLES:
+         half an interpolated bin, not half a native one. 0.714 was the
+         native-bin figure at D=8, spc=4, full span; the sampled-bin figure
+         sits above 0.76. */
+      if (reps == 8u)
+        {
+          DP_CHECK (a->interp > 1);
+          DP_CHECK (a->straddle_loss > 0.76 && a->straddle_loss < 0.80);
+        }
+      acq_destroy (a);
+    }
+  return 0;
+}
+
 /* gh-1002: a burst at exactly HALF a coherent Doppler bin must still be
  * detected.
  *
@@ -796,6 +867,7 @@ main (void)
   (void)_acq_cn0_calibration ();
   (void)_acq_configure_search_raw_check ();
   (void)_acq_half_bin_check ();
+  (void)_acq_band_edge_check ();
   (void)_acq_wideband_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_continuous_check ();

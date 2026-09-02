@@ -472,6 +472,34 @@ def test_a_capturing_bank_reports_both_faces_per_channel():
     assert np.array_equal(ev, ref_ev)
 
 
+def test_a_target_on_a_channel_boundary_is_acquired():
+    """A target at exactly one span -- midway between two channel centres --
+    is acquired by the bank, at the right absolute Doppler.
+
+    This was the coverage hole of doppler#1179: at an even coherent depth the
+    engine never searched its outermost native bin, so a target on the
+    boundary was seen by NEITHER neighbour (test_stat 31 -> 23 -> 12 -> 6 ->
+    0 from DC to one span). The hole was the engine's (doppler#1183), and
+    this is the bank-side pin that it stays closed. The boundary is the
+    Nyquist bin, sign-folded, so the estimate is checked to within one bin
+    of |f| rather than of f: the channel above the target sees it with the
+    right sign, the channel below may not, and the dedup keeps the stronger.
+    """
+    code, x, burst_len = _burst_scene()
+    with _cap_bank(burst_len, code) as bank:
+        f = bank.span_hz
+        n = np.arange(x.size)
+        shifted = (
+            x * np.exp(2j * np.pi * f / _CAP_KW["source_rate"] * n)
+        ).astype(np.complex64)
+        dets = bank.process(shifted)
+        got = bank.bursts()
+    assert dets, "the boundary is searched"
+    best = max(dets, key=lambda d: d.test_stat)
+    assert abs(abs(best.doppler_hz) - f) <= bank.res_hz
+    assert len(got[best.channel][1]) >= 1, "and its window is captured"
+
+
 def test_an_offcentre_burst_is_read_from_the_channel_the_dedup_kept():
     """A target at half a span off DC is still the centre channel's, and the
     dedup'd detection's `channel` is the index into `bursts()` where its
@@ -481,12 +509,8 @@ def test_an_offcentre_burst_is_read_from_the_channel_the_dedup_kept():
     decimates by the same factor, so a position is on one sample grid across
     the bank and does not move with the mix.
 
-    Half a span, not a full one. Measured at this geometry (reps=4, four
-    coherent bins), a single channel's test statistic falls 31 -> 23 -> 12 ->
-    6 -> 0 from DC to exactly one span, so a burst midway between two
-    centres is detected by NEITHER neighbour -- the module docstring's
-    "both at -4 dB" does not hold here. Recorded rather than papered over:
-    doppler#1179.
+    Half a span, so the burst is unambiguously the centre channel's. The
+    boundary itself is the previous test's (doppler#1179, #1183).
     """
     code, x, burst_len = _burst_scene()
     with _cap_bank(burst_len, code) as bank:

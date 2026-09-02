@@ -691,6 +691,17 @@ pure-transducer / serializable-carry properties P0 asks for, but not via the
 `acq_caf_tile` tile-level kernel extraction this section's table row
 describes — that finer decomposition hasn't been built.
 
+**2026-09-01 (#1183).** The full-band search dropped its outermost native
+bin at an even coherent depth (`acq_in_doppler_band`'s fold rule was the
+narrowed-prior rule applied to the full band), so 1/D of a uniform Doppler
+prior was undetectable at any C/N0 — a Pd ceiling of (D−1)/D, and the
+between-channel hole of #1179. Fixed to search to the edge. The Pd model
+(`acq_mean_pd`) now derates slow-time scalloping over the *interpolated*
+bin the peak search samples rather than the native one: at D=8, 50 dB-Hz
+it read 0.47 where the engine measures 0.72; it reads 0.63 now, and stays
+conservative because the Marcum form does not credit the maximum over an
+interpolated surface under H1 (the H1 face of #1064).
+
 **P4 (orchestration) — shipped.** `src/doppler/dsss/orchestrator.py`
 (`Acquirer`/`CoarseChannel`) implements thread-pool fan-out over
 coarse-Doppler shards with bit-identical `get_state`/`set_state` pod

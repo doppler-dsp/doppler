@@ -57,11 +57,11 @@ One parameter is varied at a time and the object's whole derived state is compar
 |---|---|---|
 | reps 8 -> 16 | 1 | reps |
 | spc 4 -> 8 | 5 | code_bins, eta, fs, pfa_cell, spc |
-| chip_rate 1 -> 2 MHz | 6 | doppler_bins, doppler_span_hz, eta, fs, pfa_cell, underpowered |
+| chip_rate 1 -> 2 MHz | 5 | doppler_bins, doppler_span_hz, eta, fs, pfa_cell |
 | cn0_dbhz 55 -> 60 | 4 | cn0_dbhz, doppler_bins, eta, pfa_cell |
 | doppler_uncertainty 0 -> 40 kHz | 4 | doppler_bins, eta, pfa_cell, underpowered |
 | pfa 1e-3 -> 1e-6 | 3 | doppler_bins, eta, pfa_cell |
-| pd 0.9 -> 0.99 | 5 | doppler_bins, eta, pd, pfa_cell, underpowered |
+| pd 0.9 -> 0.99 | 4 | doppler_bins, eta, pd, pfa_cell |
 
 All seven move something (**True**), and all seven signatures are distinct (**True**) — so no pair of arguments could be swapped without the table changing. `pfa` and `pd` are the pair worth naming: both are doubles in (0,1), and they move different things — `pfa` moves the threshold and the per-cell rate, `pd` moves the coherent depth (a burst engine never buys non-coherent looks, doppler#1181) and, past the ceiling, `underpowered`. Raw sweep: `data/forwarding.csv`.
 

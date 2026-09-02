@@ -602,3 +602,29 @@ def test_configure_search_raw_detects():
     assert len(hits) == 1
     dop, col, *_ = hits[0]
     assert dop == 0 and col == 0
+
+
+def test_the_full_band_search_reaches_its_edge():
+    """A burst at 0.95 of the native span is found at an even coherent depth.
+
+    `acq_in_doppler_band` used to drop the outermost native bin at even D --
+    1/D of a uniform Doppler prior never searched, a Pd ceiling of (D-1)/D
+    no C/N0 could lift, and the hole the coarse-Doppler bank fell into
+    between two channels (doppler#1183, #1179). Odd depths reached the edge
+    all along, which is why a test at the file's reps=16 would not have
+    caught it: this pins an EVEN depth.
+    """
+    a = BurstAcquisition(
+        CODE, reps=8, spc=SPS, chip_rate=CHIP_RATE, pfa=PFA, pd=PD
+    )
+    a.configure_search_raw(8, 1)
+    assert a.doppler_bins == 8
+    n = 8 * NX
+    s0 = np.repeat(np.where(CODE & 1, -1.0, 1.0), SPS)
+    span = 0.5 / NX  # cycles/sample: one half-cycle per code period
+    for f in (0.95 * span, -0.95 * span, span):
+        a.reset()
+        burst = (
+            np.tile(s0, 8) * np.exp(2j * np.pi * f * np.arange(n))
+        ).astype(np.complex64)
+        assert len(a.push(burst)) >= 1, f"missed at f/span={f / span:+.2f}"

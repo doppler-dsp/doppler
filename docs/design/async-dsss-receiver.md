@@ -1324,9 +1324,22 @@ The list is the maximum, iterated:
 repeat up to max_peaks times
   take the maximum of the surface
   if it is below eta · noise_est: stop
+  if it is within ±1 chip of a listed peak's code phase, at any tile:
+     hold it as that emitter's twin; list it only if it is still there,
+     at the same tile, on the next epoch
   report it (at its native row where the surface is interpolated)
   exclude ±1 Doppler bin × ±1 chip around it
 ```
+
+The second rule was added after §12.2 measured that one emitter makes more
+than one peak: a data transition inside the epoch splits it into equal
+twins two or more tiles apart, and a half-tile Doppler offset throws a
+−9.5 dB sidelobe two tiles away — every one at the emitter's own code
+phase. A twin moves with the transition's position from epoch to epoch and
+is absent in the emitter's data-free window; a real second emitter at the
+same code phase stays at its tile. So the rule holds a same-phase peak for
+one epoch rather than dropping it, and costs no resolution at other code
+phases, where the adjacent tiles remain candidates.
 
 At `D = 1` the surface is the native one: the engine interpolates only
 the slow-time axis, and there is none, so the interpolated-vs-native
@@ -1497,23 +1510,30 @@ What is missing is the transition. Today a receiver whose flags fall keeps
 running its loops on noise, and the only exit is `reset()`, which returns
 to *searching* — a state the hand-off mode of §6.1 does not have.
 
-**The rule.** An emitter is gone when **code lock drops and stays
-dropped** for a confirm interval; symbol lock alone is a degrade, not a
-release. Code lock is the right flag because it is the one that measures
-presence rather than quality: a receiver can lose the carrier and re-lock
-it on the same emitter (the loops are designed to pull in), but it cannot
-re-lock a code that is no longer on the air. Symbol lock stays on the
-record as health — a long stretch of code-locked but symbol-unlocked
-tracking is a receiver reporting that it is holding an emitter it cannot
-decode, which the application may want to know and this page does not
-decide.
+**The rule.** An emitter is gone when **both flags are down, continuously,
+for longer than the longest fade the link must ride.** This page first
+argued the opposite division of labour — code lock as the presence flag,
+symbol lock as health — and §12.3 measured it the other way round: on a
+healthy signal code lock dips for a block or two about three times a
+second while symbol lock never moved in thirty seconds; a 10 dB fade drops
+code lock in 2 ms, the same as a switch-off; and a phase step that symbol
+lock rides through takes code lock down 400 ms later. Code lock is a
+CFAR detector on the prompt power, so anything that lowers that power for
+one decision trips it; symbol lock is a 30-symbol dwell with hysteresis
+and does not chatter. So neither flag alone is the release: code lock
+alone releases on every fade, symbol lock alone is slow (25–40 ms) and
+holds through a carrier disturbance the code has already lost. **Both
+down at once** is what a switch-off produces within 40 ms and never
+reverses, and what a fade produces for its own duration and then
+reverses — which is why the confirm interval is set by the fade, not by
+the detectors.
 
 **The transition.** Hand-off mode adds a fourth state, **lost**, beside
 searching / refining / tracking, and the receiver enters it on the rule
 above. In it the loops stop updating, the replica (§8 (iii)) is no longer
-published — the lock gate that (iii) already needs is the same flag, so
-publication stops at the *drop*, before the confirm interval has run —
-and the receiver reports lost to whoever holds the pool. The holder then
+published — its gate is *symbol* lock, the flag that does not chatter, so
+publication stops at that drop, before the confirm interval has run — and
+the receiver reports lost to whoever holds the pool. The holder then
 **releases the assignment**: the emitter leaves the assigned table, so the
 searcher may report those coordinates again, and the receiver is reset to
 the hand-off mode's idle — *waiting for a seed*, not searching — for the
@@ -1524,10 +1544,10 @@ in fact still present is re-detected at its next data-free window and
 seeded into a fresh receiver, which is a recovery, not a hand-back.
 
 **What the interval costs, and what it buys.** Against on-times of 5 to
-15 minutes, release latency is nothing: the symbol detector's drop is 15
-symbols — milliseconds at any data rate in the thousands of symbols per
-second — and any confirm interval under a second is well under 1% of the
-shortest on-time. The number that matters
+15 minutes, release latency is nothing: both flags are down within 40 ms
+of a switch-off (§12.3), and a confirm interval of even two seconds —
+longer than the one-second fades measured — is under 1% of the shortest
+on-time. The number that matters
 is the other one, the **false release**. A receiver that releases an
 emitter still on the air loses that emitter's data until the next
 data-free window plus a refine (the cadence of §5.4
@@ -1640,27 +1660,27 @@ shared verbatim. Two consequences follow:
 the pieces of it; what is missing is the transition. Today a receiver whose
 flags fall keeps running its loops on noise, and the only exit is `reset()`.
 
-The rule, argued in §10: an emitter is gone when **code
-lock drops and stays dropped** for a confirm interval. Code lock measures
-presence — an emitter that leaves takes its code with it — where symbol lock
-measures the carrier leg's health, which a cycle slip or a fade can take down
-while the code is still despread and which the loops are built to recover.
-Symbol lock alone is therefore a **degrade**, reported and not acted on.
+The rule, argued in §10 and measured in §12.3: an emitter is gone when
+**both flags are down continuously for longer than the longest fade the
+link must ride.** Code lock alone is not it — it is a per-decision CFAR
+flag that dips a few times a second on a healthy signal and drops on any
+fade as fast as on a switch-off; symbol lock alone is not it either — it
+rides a carrier disturbance the code has lost. One flag down is a
+**degrade**, reported and not acted on; both down is the clock starting.
 
 Hand-off mode adds a fourth state, **lost**, beside searching / refining /
 tracking. On the rule above the receiver enters it: the loops stop updating,
-the replica of §11.4 stops being published — at the *drop*, before the confirm
-interval has run, on the same flag — and `get_lost()` reports it. The holder
+the replica of §11.4 stops being published — at the *symbol-lock* drop,
+before the confirm interval has run — and `get_lost()` reports it. The holder
 of the pool then releases the assignment and calls `reset()`, which in this
-mode goes to idle. The confirm interval is `n_down` consecutive misses in the
-`lockdet` vocabulary, sized by `det_verify_count()` from a **false-release
-budget**, because against 5-to-15-minute on-times release latency costs nothing
-and a false release costs a frame of that emitter's data plus, on the
-cancellation branch, a frame of raised floor under every weaker emitter. Both
-the per-look miss probability and the interval it gives are measurements
-(§12 step 6) — and whether the code flag really rides
-through a 20 dB fade for a second is what that step decides, so the rule is
-written as the expectation the measurement confirms or corrects.
+mode goes to idle. The confirm interval is a **time**, not a verify count:
+the measured fades take both flags down for their whole duration and bring
+them back after, so the interval must exceed the longest fade the
+application wants ridden, and against 5-to-15-minute on-times two seconds
+costs nothing. What a false release costs is a frame of that emitter's data
+plus, on the cancellation branch, a frame of raised floor under every weaker
+emitter; §12.3's on-time run puts the both-down rate on a healthy signal at
+zero in thirty seconds, and a longer run is what bounds it.
 
 ### 11.3 The status record
 
@@ -1703,9 +1723,12 @@ decisions — into a caller buffer, for the searcher to subtract.
 
 Three things about it are design, not detail:
 
-- **It is lock-gated on code lock.** A receiver that is not code-locked
-    publishes nothing, so a wrong replica is never subtracted; that is the
-    same flag §11.2 releases on, read at the drop.
+- **It is lock-gated on symbol lock.** A receiver whose symbol lock is
+    down publishes nothing, so a wrong replica is never subtracted. Symbol
+    lock, not code lock, because §12.3 measured code lock dipping a few
+    times a second on a healthy signal — a gate on it would drop the
+    replica, and raise the searcher's floor, several times a second for
+    nothing.
 - **It lags by the decision latency.** The data on a block's chips is known
     only once the matched filter and the symbol timing have decided the
     symbols under it, some symbols after the block was pushed. The replica for
@@ -1783,6 +1806,10 @@ ______________________________________________________________________
     flag rides through the slip, both flags drop within tens of
     milliseconds of switch-off, and the deep fade is the case that
     decides the interval.
+    **Done (§12.3), and the expectation was wrong on the code flag:** it
+    rides nothing — it drops on a fade as fast as on a switch-off and
+    dips a few times a second on a healthy signal. The rule in §10 was
+    rewritten to both flags down for longer than the fade.
 1. **The lifecycle soak.** The population of §6.1 — one emitter always
     on, up to ten, on-times drawn around 5 to 15 minutes — at random
     Dopplers within one span and a spread on each side of the knee: each
@@ -1892,6 +1919,128 @@ the pick is one pass over the surface and will not move the ~10 ns per
 tile), a replica subtraction (no replica output yet), and the whole
 population as one run with its detection count beside the rate — that
 needs the orchestrator, and is what step 8 still owes.
+
+### 12.2 What was measured (2026-09-02) — step 1, the floor
+
+`native/validation/acq_emitter_floor.c` (`make validate-c`; its `--check`
+is in the C suite): one emitter rendered by the shipped continuous-DSSS
+synth (`wfm_synth`, the generator wfmgen uses) on the engine's own
+single-look surface at the operating point, ±50 kHz, Gold-1023 (CCSDS
+#365), read back from `mag_buf` after the dwell and binned outside the
+one-tile × one-chip exclusion zone. Everything in dB below the emitter's
+peak:
+
+| emitter                            | same tile, other lags               | worst cell, any tile                                                 | **worst cell at another code phase**   | CFAR reference |
+| ---------------------------------- | ----------------------------------- | -------------------------------------------------------------------- | -------------------------------------- | -------------- |
+| tile-centred, no data transition   | **−23.9** (the Gold bound, exactly) | −21.0 (far tiles)                                                    | **−21.0**                              | −32.9          |
+| centred, a transition in the epoch | −18.7                               | **0.0** — an equal twin two tiles away; the reported tile is one off | **−16.0**                              | −28.8          |
+| half a tile off centre, no data    | −18.2                               | −9.5 (two tiles away)                                                | **−16.1**                              | −28.8          |
+| half a tile off, a transition      | −14.6                               | **0.0** — twins two *and* three-plus tiles away                      | **−12.8** (5 Mcps), **−11.9** (2 Mcps) | −25.2          |
+
+The two chip rates agree to 0.1 dB except in the last row, where the
+lower rate's narrower tiles spread the split emitter further. With noise,
+one strong emitter moves the CFAR reference by 0.18 dB at 55 dB-Hz and by
+nothing measurable at 45 and 40.
+
+Four things this settles:
+
+- **The design number is −13 dB, not −24.** The Gold bound holds exactly
+    where it applies — full period, zero Doppler, no data — and that is the
+    spot check. But the searcher looks at every epoch, an emitter's data
+    puts a transition in 55% of them at 1.8 epochs per symbol, and it sits
+    anywhere in its tile; in those cases the worst cell at *another code
+    phase* is 16 dB down, and with both at once 12 to 13 dB. So a second
+    emitter more than about 13 dB weaker than the strongest, less the
+    detection margin, is under the strong one's floor and is the
+    cancellation branch's (§9); §6.3's fork is at −13 dB.
+- **One emitter can make more than one peak, and tile distance does not
+    bound it.** A transition in the epoch splits an emitter into equal
+    twins, two tiles apart when centred and three or more when it is also
+    off centre; a half-tile offset alone puts a −9.5 dB sidelobe two tiles
+    away. Every one of them is at the emitter's own code phase. The peak
+    list therefore needs a rule beside the zone that keys on **code
+    phase**, not tile distance: a peak within one chip of an already-listed
+    peak's code phase is a candidate twin. Two real emitters *can* share a
+    code phase at different Dopplers, so the twin is not dropped on one
+    epoch — it is held, and the next epochs decide: a twin moves with the
+    transition's position and vanishes in the emitter's data-free window,
+    a real emitter stays put. That is a two-epoch rule, and it belongs in
+    §7.1.
+- **The reference does not hide the weak emitter; the sidelobes do.** A
+    strong emitter leaves the CFAR reference where the noise put it, so a
+    weak emitter's gate is unchanged; what stops it being a peak is the
+    strong one's cells standing over it. That is why removing the strong
+    emitter (cancellation) is the only fix on that branch, as §6.3 argued.
+- **Where the peak list is taken matters.** In an emitter's own data-free
+    window the *other* emitters are still carrying data, so −13 to −16 dB
+    is the operating floor everywhere; the data-free window buys the
+    emitter its own clean, single peak, not a clean surface.
+
+A first pass of this harness built the emitter's samples by hand and gave
+the same numbers to within 0.5 dB on every clean row; the shipped generator
+is what is kept, because a harness that measures a surface has no business
+rendering its own waveform.
+
+### 12.3 What was measured (2026-09-02) — step 6, the release
+
+`native/validation/async_dsss_receiver_release.c` (`make validate-c`; its
+`--check` is in the C suite): the receiver as built, tracking one emitter
+from the shipped continuous-DSSS synth at the operating point (5 Mcps,
+2700 sym/s asynchronous BPSK, PRBS data) with the shipped `awgn` at two
+C/N0s, fed one epoch (0.2 ms) at a time with both lock flags read after
+every block. Once tracking with symbol lock held for 200 blocks, one event
+per trial; 30 trials per event, 10 of 3 s for the on-time.
+
+| C/N0 (Es/N0)       | event           | code lock off                   | symbol lock off            | both off                    | back by 1.5 s (code / symbol) |
+| ------------------ | --------------- | ------------------------------- | -------------------------- | --------------------------- | ----------------------------- |
+| 45 dB-Hz (10.7 dB) | switch-off      | 1.8 ms                          | 25 ms (max 38)             | 25 ms, stays off            | 0 / 0 of 30                   |
+|                    | 10 dB fade, 1 s | 1.8 ms                          | 44 ms (max 83)             | for 0.99 s                  | 30 / 29                       |
+|                    | 20 dB fade, 1 s | 1.8 ms                          | 26 ms                      | for 1.47 s                  | 29 / 27                       |
+|                    | π/2 phase step  | 164 ms median, 783 max          | held in 29 of 30           | never                       | 29 / 30                       |
+|                    | nothing, 30 s   | off 0.6% of blocks, 79 dips     | never                      | never                       |                               |
+| 40 dB-Hz (5.7 dB)  | switch-off      | already off                     | 20 ms (max 34)             | 20 ms, stays off            | 0 / 0                         |
+|                    | 10 dB fade, 1 s | already off                     | 22 ms                      | for 1.09 s                  | 0 / 23                        |
+|                    | 20 dB fade, 1 s | already off                     | 20 ms                      | for 1.48 s                  | 2 / 17                        |
+|                    | π/2 phase step  | already off                     | 9 ms, held in 17 of 30     | ≤ 52 ms                     | 2 / 30                        |
+|                    | nothing, 27 s   | off **96%** of blocks, 466 dips | 0.5% of blocks, 4 episodes | 0.5%, longest run **36 ms** |                               |
+
+What it settles, and what it overturned:
+
+- **Code lock is not a presence flag.** At Es/N0 10.7 dB it dips for a
+    block or two three times a second on a healthy signal; at 5.7 dB it is
+    off 96% of the time while the receiver is tracking and decoding. It
+    drops on a 10 dB fade in the same 2 ms as on a switch-off, and a phase
+    step that symbol lock rides takes it down 160 ms later. It is the
+    `Dll`'s per-decision CFAR flag on prompt power, and it does exactly
+    that. The page's original rule — release on code lock — would have
+    released on every fade and, near the floor, continuously.
+- **Symbol lock is the stable one.** Never a dip in 30 s at 10.7 dB; four
+    episodes in 27 s at 5.7 dB, the longest 36 ms. It drops 20–45 ms after
+    a switch-off or the start of a fade, and stays down for the fade's
+    length.
+- **The rule is both flags down for longer than the fade.** A switch-off
+    holds both down indefinitely; a 1 s fade holds both down for 1.0–1.5 s
+    and then brings them back at 10.7 dB (less reliably at 5.7 dB, where
+    symbol lock returned in 17–23 of 30 within the watch); a healthy
+    signal's longest both-down run is 36–52 ms. Two seconds separates
+    those with a margin of forty on the healthy side and two on the fade
+    side, and costs under 1% of the shortest on-time. The confirm
+    interval is a time, and the fade sets it — not a verify count.
+- **The replica's gate is symbol lock.** A gate on code lock would drop
+    the replica, and raise the searcher's floor, three times a second.
+- **A recovered receiver is the same assignment.** After a fade both
+    flags return on the same receiver with the same code phase — the
+    emitter never restarted — so a release that fires during a fade would
+    hand a fresh receiver an emitter one is already tracking. That is the
+    false release the interval is sized against.
+
+Both sweeps of this harness — a first pass that built the emitter by hand,
+and the kept one on the shipped synth — agree on every number above to
+within the trial-to-trial spread. Not measured yet: the false-release
+rate over an hour rather than half a minute (the both-down rate at 5.7 dB
+is 0.5% of blocks in runs of tens of milliseconds; whether a run ever
+reaches seconds is what an hour would say), and any of this on the
+hand-off-mode receiver, which does not exist.
 
 ______________________________________________________________________
 

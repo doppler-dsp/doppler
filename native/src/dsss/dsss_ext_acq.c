@@ -499,6 +499,19 @@ Acquisition_getprop_epochs_per_symbol (AcquisitionObject *self,
   return PyFloat_FromDouble (self->handle->epochs_per_symbol);
 }
 
+static PyObject *
+Acquisition_getprop_max_peaks (AcquisitionObject *self,
+                               void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->max_peaks);
+}
+
 static PyGetSetDef Acquisition_getset[] = {
   { "code_bins", (getter)Acquisition_getprop_code_bins, NULL,
     "Code-phase hypotheses searched (= sf*spc, one code period).\n", NULL },
@@ -571,6 +584,10 @@ static PyGetSetDef Acquisition_getset[] = {
     "(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when "
     "symbol_rate is 0.\n",
     NULL },
+  { "max_peaks", (getter)Acquisition_getprop_max_peaks, NULL,
+    "The peak list's capacity per dwell (1 = the classic gated maximum); set "
+    "with set_max_peaks().\n",
+    NULL },
   { NULL }
 };
 
@@ -600,6 +617,30 @@ AcquisitionObj_exit (AcquisitionObject *self, PyObject *args)
     {
       acq_destroy (self->handle);
       self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AcquisitionObj_set_max_peaks (AcquisitionObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "n", NULL };
+  unsigned long long n_raw     = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
+    return NULL;
+  size_t n   = (size_t)n_raw;
+  int    _rc = acq_set_max_peaks (self->handle, n);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
+                    (long long)_rc);
+      return NULL;
     }
   Py_RETURN_NONE;
 }
@@ -789,6 +830,62 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "set_max_peaks", (PyCFunction)(void *)AcquisitionObj_set_max_peaks,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_max_peaks(n) -> None\n"
+    "\n"
+    "How many peaks a dwell may report -- the peak list's capacity\n"
+    "(docs/design/async-dsss-receiver.md section 7.1). One (the default) is\n"
+    "the classic gated maximum. More lists every peak above the same gate,\n"
+    "strongest first, with an exclusion zone of one Doppler bin by one chip\n"
+    "around each (one emitter's main lobe, so its own shoulders are not the\n"
+    "next peak) and the two-epoch rule for a peak at an already-listed code\n"
+    "phase (a data transition inside the epoch splits one emitter into twins\n"
+    "at its own code phase on other tiles; such a peak is held for one dwell\n"
+    "and listed only if it is still there, at the same tile, on the next).\n"
+    "Each listed peak is one record from push(), all of a dwell's sharing\n"
+    "samples_consumed and noise_est; a held twin takes one of the n slots\n"
+    "that dwell but is not reported. The threshold does not change with n.\n"
+    "Raises ValueError outside 1..64. Clears the held candidates.\n"
+    "\n"
+    "One (the default) is the classic detector -- the maximum of the\n"
+    "surface, gated. More is the list of docs/design/async-dsss-receiver.md\n"
+    "§7.1: every peak above the same gate, strongest first, each with an\n"
+    "exclusion zone of one Doppler bin by one chip around it (one emitter's\n"
+    "main lobe, so its own shoulders are not the next peak), and the\n"
+    "two-epoch rule for a peak at an already-listed code phase -- a data\n"
+    "transition inside the epoch splits one emitter into twins at its own\n"
+    "code phase on other tiles, so such a peak is held for one dwell and\n"
+    "listed only if it is still there, at the same tile, on the next. Each\n"
+    "listed peak is one acq_result_t from acq_push(), all of a dwell's\n"
+    "sharing its `samples_consumed` and `noise_est`. A held twin takes a\n"
+    "slot of the `n` for that dwell but is not reported. The threshold does\n"
+    "not change: a second peak is another draw from the same cells against\n"
+    "the same union bound. Clears the held candidates.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    1 … ACQ_MAX_PEAKS.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_max_peaks failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> code = (np.arange(31) * 5 % 2).astype(np.uint8)\n"
+    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, symbol_rate=1e3,\n"
+    "...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)\n"
+    ">>> a.max_peaks\n"
+    "1\n"
+    ">>> a.set_max_peaks(8)\n"
+    ">>> a.max_peaks\n"
+    "8\n" },
   { NULL }
 };
 

@@ -6,14 +6,25 @@
  * and acq_create_continuous(), noise-free localization of a streamed burst
  * to the injected (Doppler bin, code phase), and a real AWGN calibration
  * check that acq_result_t::cn0_dbhz_est tracks a known injected C/N0.
+ *
+ * The peak list (docs/design/async-dsss-receiver.md §7.1, §8 (a)):
+ * det_peak_list() itself on a synthetic surface -- the gate ends the list,
+ * a zone is circular on both axes, a masked cell is never a candidate,
+ * strongest first, never more than asked -- and the engine's face of it:
+ * set_max_peaks' bounds, and the held twins riding the state blob (v2).
+ * The list on real emitters (two found, a data-split twin held) is the
+ * shipped generator's job: validate_acq_peak_list's --check.
  */
 #include "acq/acq_core.h"
+#include "detector/det_private.h"
 #include "dp_rng_test.h"
+#include "dp_state_test.h"
 #include "dp_test.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 /* A length-7 maximal-length sequence (one period). */
@@ -1017,6 +1028,106 @@ main (void)
         DP_CHECK (have[0] && have[2]);
         free (x);
       }
+  }
+
+  /* ── the peak list's primitive, on a surface built to exercise each rule ──
+   */
+  {
+    /* det_private.h's other statics are the engine's; naming them keeps the
+       compiler quiet about a header-only helper this test does not call. */
+    (void)det_ring_create;
+    (void)next_pow2;
+    (void)det_cmp_f32_asc;
+    enum
+    {
+      NY = 5,
+      NX = 8
+    };
+    float   surf[NY * NX];
+    uint8_t mask[NY * NX];
+    for (int k = 0; k < NY * NX; k++)
+      surf[k] = 1.0f;
+    surf[1 * NX + 2] = 10.0f; /* A                                     */
+    surf[1 * NX + 3] = 9.0f;  /* A's shoulder: inside A's zone         */
+    surf[2 * NX + 2] = 9.5f;  /* A's shoulder on the next row: inside  */
+    surf[3 * NX + 6] = 8.0f;  /* B: its own peak                       */
+    surf[4 * NX + 0] = 5.0f;  /* C: under the gate                     */
+    det_peak_t out[4];
+    memset (mask, 0, sizeof mask);
+    size_t n = det_peak_list (surf, NY, NX, 6.0f, 1, 1, mask, out, 4);
+    DP_CHECK (n == 2); /* A and B; the shoulders are A's, C is under */
+    DP_CHECK (out[0].row == 1 && out[0].col == 2 && out[0].value == 10.0f);
+    DP_CHECK (out[1].row == 3 && out[1].col == 6 && out[1].value == 8.0f);
+    /* Never more than asked: the same surface, one slot. */
+    memset (mask, 0, sizeof mask);
+    out[1].value = -1.0f;
+    n            = det_peak_list (surf, NY, NX, 6.0f, 1, 1, mask, out, 1);
+    DP_CHECK (n == 1 && out[1].value == -1.0f);
+    /* Under the gate for everything: nothing, and the strongest cell is
+       what the gate refused (so a caller may still read it at gate -1). */
+    memset (mask, 0, sizeof mask);
+    DP_CHECK (det_peak_list (surf, NY, NX, 11.0f, 1, 1, mask, out, 4) == 0);
+    memset (mask, 0, sizeof mask);
+    DP_CHECK (det_peak_list (surf, NY, NX, -1.0f, 1, 1, mask, out, 1) == 1
+              && out[0].value == 10.0f);
+    /* The zone is circular on both axes: a peak in the corner (0,0) owns
+       the cell diagonally across the wrap, (NY-1, NX-1). */
+    for (int k = 0; k < NY * NX; k++)
+      surf[k] = 1.0f;
+    surf[0]                        = 10.0f;
+    surf[(NY - 1) * NX + (NX - 1)] = 9.0f;
+    surf[2 * NX + 4]               = 7.0f;
+    memset (mask, 0, sizeof mask);
+    n = det_peak_list (surf, NY, NX, 6.0f, 1, 1, mask, out, 4);
+    DP_CHECK (n == 2 && out[1].row == 2 && out[1].col == 4);
+    /* A masked cell is never a candidate, however large: the band mask. */
+    memset (mask, 0, sizeof mask);
+    mask[0] = 1;
+    n       = det_peak_list (surf, NY, NX, 6.0f, 1, 1, mask, out, 4);
+    DP_CHECK (n == 2 && out[0].row == NY - 1 && out[0].col == NX - 1);
+    /* Zero zone: only the cell itself is excluded, so the shoulder lists. */
+    for (int k = 0; k < NY * NX; k++)
+      surf[k] = 1.0f;
+    surf[1 * NX + 2] = 10.0f;
+    surf[1 * NX + 3] = 9.0f;
+    memset (mask, 0, sizeof mask);
+    n = det_peak_list (surf, NY, NX, 6.0f, 0, 0, mask, out, 4);
+    DP_CHECK (n == 2 && out[1].col == 3);
+  }
+
+  /* ── the engine's face: max_peaks bounds, and the held twins in the blob ──
+   */
+  {
+    acq_state_t *a = acq_create_continuous (CODE7, 7, 4, 1.0e6, 1000.0, 50.0,
+                                            0.0, 1e-3, 0.9, 0);
+    DP_REQUIRE (a != NULL);
+    DP_CHECK (a->max_peaks == 1);
+    DP_CHECK (acq_set_max_peaks (a, 0) == -1 && a->max_peaks == 1);
+    DP_CHECK (acq_set_max_peaks (a, ACQ_MAX_PEAKS + 1) == -1);
+    DP_CHECK (acq_set_max_peaks (a, 4) == 0 && a->max_peaks == 4);
+    /* Held twins are running state: they ride the blob and come back. */
+    a->n_twins     = 2;
+    a->twin_row[0] = 3;
+    a->twin_col[0] = 11;
+    a->twin_row[1] = 0;
+    a->twin_col[1] = 27;
+    acq_state_t *b = acq_create_continuous (CODE7, 7, 4, 1.0e6, 1000.0, 50.0,
+                                            0.0, 1e-3, 0.9, 0);
+    DP_REQUIRE (b != NULL && acq_set_max_peaks (b, 4) == 0);
+    size_t nb   = acq_state_bytes (a);
+    void  *blob = malloc (nb);
+    acq_get_state (a, blob);
+    DP_CHECK (acq_set_state (b, blob) == DP_OK);
+    DP_CHECK (b->n_twins == 2 && b->twin_row[0] == 3 && b->twin_col[0] == 11
+              && b->twin_row[1] == 0 && b->twin_col[1] == 27);
+    /* A blob from a list of another capacity is refused, not resized from. */
+    DP_CHECK (acq_set_max_peaks (b, 2) == 0);
+    DP_CHECK (acq_set_state (b, blob) == DP_ERR_INVALID);
+    free (blob);
+    /* set_max_peaks clears the held candidates. */
+    DP_CHECK (acq_set_max_peaks (a, 4) == 0 && a->n_twins == 0);
+    acq_destroy (b);
+    acq_destroy (a);
   }
 
   DP_TEST_END ("test_acq_core");

@@ -116,6 +116,56 @@ acq_is_native_cell (const acq_state_t *st, size_t k)
   return st->interp <= 1 || ((k / st->code_bins) % st->interp) == 0;
 }
 
+/* The native row a surface pick reports: the surface is the Doppler axis
+ * interpolated `interp`-fold, and every consumer scales `doppler_bin` by
+ * `doppler_res_hz`, so a pick on an interpolated row is reported at the
+ * native row of the strongest native cell within its own zone (the two
+ * native neighbours), at its column -- the same rule as before the list,
+ * applied per peak instead of once to the global maximum. `interp == 1`
+ * (wideband mode, and D == 1) is the identity. */
+static size_t
+acq_native_row (const acq_state_t *st, const float *surf, size_t row,
+                size_t col)
+{
+  if (st->interp <= 1)
+    return row;
+  const size_t rows = st->n_surf / st->code_bins;
+  size_t       best = rows;
+  for (size_t d = 0; d <= 2 * st->interp; d++)
+    {
+      size_t r = (row + rows + d - st->interp) % rows;
+      if (r % st->interp)
+        continue;
+      size_t k = r * st->code_bins + col;
+      if (best == rows || surf[k] > surf[best * st->code_bins + col])
+        best = r;
+    }
+  return best / st->interp;
+}
+
+/* The list over a surface: the working mask starts as the band mask, the
+ * gate is `eta` in the surface's units, the zone one Doppler row (`interp`
+ * surface rows) by one chip (`spc` columns). When nothing crosses the
+ * gate the strongest cell is still taken for the inspection fields, as
+ * the classic detector always reported its maximum. */
+static void
+acq_list_peaks (acq_state_t *st, const float *surf, float gate)
+{
+  const size_t rows = st->n_surf / st->code_bins;
+  memcpy (st->peak_mask, st->band_mask, st->n_surf);
+  st->n_peaks
+      = det_peak_list (surf, rows, st->code_bins, gate, st->interp, st->spc,
+                       st->peak_mask, st->peaks, st->max_peaks);
+  if (st->n_peaks == 0)
+    {
+      memcpy (st->peak_mask, st->band_mask, st->n_surf);
+      (void)det_peak_list (surf, rows, st->code_bins, -1.0f, st->interp,
+                           st->spc, st->peak_mask, st->peaks, 1);
+    }
+  st->peak_row = acq_native_row (st, surf, st->peaks[0].row, st->peaks[0].col);
+  st->peak_col = st->peaks[0].col;
+}
+
 /* Peak, CFAR noise, and test statistic from the coherent dump in out_buf. */
 static void
 acq_compute_stat (acq_state_t *st)
@@ -138,31 +188,18 @@ acq_compute_stat (acq_state_t *st)
    * bin on noise. Measured: rounding cost ~5 points of Pd on the
    * characterization's true-cell criterion, because a peak landing on an odd
    * fine row reported the wrong neighbour. */
-  size_t peak = 0, nat = 0;
-  int    have_nat = 0;
-  for (size_t k = 0; k < n; k++)
-    {
-      if (!acq_in_doppler_band (st, k))
-        continue;
-      if (st->mag_buf[k] > st->mag_buf[peak])
-        peak = k;
-      if (acq_is_native_cell (st, k)
-          && (!have_nat || st->mag_buf[k] > st->mag_buf[nat]))
-        {
-          nat      = k;
-          have_nat = 1;
-        }
-    }
-
-  st->peak_row = (have_nat ? nat : peak) / st->code_bins / st->interp;
-  st->peak_col = (have_nat ? nat : peak) % st->code_bins;
-  st->peak_mag = st->mag_buf[peak];
-
   st->noise_est = det_noise_estimate (st->mag_buf, st->noise_lo, st->noise_hi,
                                       st->noise_scratch, st->noise_mode);
-
+  /* The gate in the surface's units: test_stat > threshold is
+     mag > threshold * noise_est. A zero reference gates nothing through
+     (test_stat reads 0), so the gate is then unreachable. */
+  const float gate
+      = st->noise_est > 0.0f ? st->threshold * st->noise_est : HUGE_VALF;
+  acq_list_peaks (st, st->mag_buf, gate);
+  st->peak_mag = st->peaks[0].value;
   st->test_stat
       = (st->noise_est > 0.0f) ? (st->peak_mag / st->noise_est) : 0.0f;
+  (void)n;
 }
 
 /* Non-coherent CFAR: peak + normalized order-N_nc statistic from nc_surface
@@ -179,36 +216,132 @@ acq_compute_stat_nc (acq_state_t *st)
 {
   const size_t n = st->n_surf;
 
-  /* Same split as the coherent path: the statistic comes from the
-   * interpolated surface, the reported cell from the native grid. */
-  size_t peak = 0, nat = 0;
-  int    have_nat = 0;
-  for (size_t k = 0; k < n; k++)
-    {
-      if (!acq_in_doppler_band (st, k))
-        continue;
-      if (st->nc_surface[k] > st->nc_surface[peak])
-        peak = k;
-      if (acq_is_native_cell (st, k)
-          && (!have_nat || st->nc_surface[k] > st->nc_surface[nat]))
-        {
-          nat      = k;
-          have_nat = 1;
-        }
-    }
-
-  st->peak_row = (have_nat ? nat : peak) / st->code_bins / st->interp;
-  st->peak_col = (have_nat ? nat : peak) % st->code_bins;
-  st->peak_mag = sqrtf (st->nc_surface[peak]);
-
   float noise_pow
       = det_noise_estimate (st->nc_surface, st->noise_lo, st->noise_hi,
                             st->noise_scratch, st->noise_mode);
   st->noise_est = sqrtf (noise_pow);
-  st->test_stat = (noise_pow > 0.0f)
-                      ? sqrtf (2.0f * (float)st->n_noncoh
-                               * st->nc_surface[peak] / noise_pow)
-                      : 0.0f;
+  /* The gate in the surface's (power) units: R > eta_nc is
+     cell > eta_nc^2 * noise_pow / (2 n_noncoh). */
+  const float gate = noise_pow > 0.0f ? st->eta_nc * st->eta_nc * noise_pow
+                                            / (2.0f * (float)st->n_noncoh)
+                                      : HUGE_VALF;
+  acq_list_peaks (st, st->nc_surface, gate);
+  st->peak_mag  = sqrtf (st->peaks[0].value);
+  st->test_stat = (noise_pow > 0.0f) ? sqrtf (2.0f * (float)st->n_noncoh
+                                              * st->peaks[0].value / noise_pow)
+                                     : 0.0f;
+  (void)n;
+}
+
+/* The listed peaks of the dwell just decided, as results: each pick's
+ * native row and column, its own statistic against the dwell's reference,
+ * and the two-epoch rule of docs/design/async-dsss-receiver.md §7.1 -- a
+ * pick within a chip of an already-listed pick's code phase, at any row, is
+ * that emitter's candidate twin (a data transition inside the epoch splits
+ * one emitter into equal peaks at its own code phase on other tiles; a
+ * half-tile straddle throws a sidelobe there), held for one dwell and
+ * listed only if it was there, at the same row, on the previous dwell --
+ * listed or held: two equal emitters at one code phase swap places as the
+ * strongest from dwell to dwell, and the one listed last time must not be
+ * held this time. A twin moves with the transition and is absent in the
+ * emitter's data-free window; a real second emitter at the same code
+ * phase stays at its tile. `twin_*` therefore carry every pick of the
+ * previous dwell. `stat_of`
+ * turns a surface value into the statistic for this path. Returns the
+ * results appended, at most `room`: a dwell's list is truncated to the
+ * room left, strongest first. */
+static size_t
+acq_report_peaks (acq_state_t *st, const float *surf,
+                  float (*stat_of) (const acq_state_t *, float),
+                  float (*mag_of) (float), acq_result_t *result, size_t room)
+{
+  const size_t nx   = st->code_bins;
+  size_t       ndet = 0, n_listed = 0, n_seen = 0;
+  size_t       listed_col[ACQ_MAX_PEAKS];
+  uint32_t     seen_row[ACQ_MAX_PEAKS], seen_col[ACQ_MAX_PEAKS];
+  for (size_t i = 0; i < st->n_peaks && ndet < room; i++)
+    {
+      const size_t r
+          = acq_native_row (st, surf, st->peaks[i].row, st->peaks[i].col);
+      const size_t c   = st->peaks[i].col;
+      seen_row[n_seen] = (uint32_t)r;
+      seen_col[n_seen] = (uint32_t)c;
+      n_seen++;
+      int twin = 0;
+      for (size_t j = 0; j < n_listed && !twin; j++)
+        {
+          size_t d = c > listed_col[j] ? c - listed_col[j] : listed_col[j] - c;
+          if (d > nx / 2)
+            d = nx - d;
+          twin = d <= st->spc;
+        }
+      if (twin)
+        {
+          int still = 0;
+          for (size_t k = 0; k < st->n_twins && !still; k++)
+            {
+              size_t d = c > st->twin_col[k] ? c - st->twin_col[k]
+                                             : st->twin_col[k] - c;
+              if (d > nx / 2)
+                d = nx - d;
+              still = st->twin_row[k] == (uint32_t)r && d <= st->spc;
+            }
+          if (!still)
+            continue; /* held: seen this dwell, listed next if it stays */
+        }
+      listed_col[n_listed++] = c;
+      const float stat       = stat_of (st, st->peaks[i].value);
+      const float amp_snr
+          = stat
+            / (st->n_noncoh > 1
+                   ? sqrtf (2.0f * (float)st->frame_n * (float)st->n_noncoh)
+                   : ACQ_SQRT_2_OVER_PI * sqrtf (2.0f * (float)st->frame_n));
+      result[ndet++] = (acq_result_t){
+        .doppler_bin      = r,
+        .code_phase       = c,
+        .peak_mag         = mag_of (st->peaks[i].value),
+        .noise_est        = st->noise_est,
+        .test_stat        = stat,
+        .cn0_dbhz_est     = acq_cn0_dbhz_from_amp_snr (amp_snr, st->fs),
+        .samples_consumed = st->samples_consumed,
+      };
+    }
+  /* This dwell's picks, listed and held, are what the next dwell's
+     same-phase candidates are checked against. */
+  st->n_twins = n_seen;
+  for (size_t k = 0; k < n_seen; k++)
+    {
+      st->twin_row[k] = seen_row[k];
+      st->twin_col[k] = seen_col[k];
+    }
+  return ndet;
+}
+
+static float
+acq_stat_coherent (const acq_state_t *st, float value)
+{
+  return st->noise_est > 0.0f ? value / st->noise_est : 0.0f;
+}
+
+static float
+acq_stat_noncoherent (const acq_state_t *st, float value)
+{
+  const float noise_pow = st->noise_est * st->noise_est;
+  return noise_pow > 0.0f
+             ? sqrtf (2.0f * (float)st->n_noncoh * value / noise_pow)
+             : 0.0f;
+}
+
+static float
+acq_mag_identity (float value)
+{
+  return value;
+}
+
+static float
+acq_mag_sqrt (float value)
+{
+  return sqrtf (value);
 }
 
 /* Scanned Doppler bins for a coherent depth D under a doppler_uncertainty
@@ -413,6 +546,11 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
       st->pd_predicted = NAN;
       st->underpowered = 0;
     }
+  /* The band mask the peak list starts from: the cells outside the searched
+     Doppler band are never candidates. searched_bins is decided just above,
+     so this is the one place the mask is built. */
+  for (size_t k = 0; k < st->n_surf; k++)
+    st->band_mask[k] = (uint8_t)!acq_in_doppler_band (st, k);
 }
 
 /* Ascend n_noncoh from 1 until the AVERAGED Pd meets pd, capped at
@@ -639,6 +777,8 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
   float complex  *new_colout        = NULL;
   float          *new_mag           = NULL;
   float          *new_scratch       = NULL;
+  uint8_t        *new_band          = NULL;
+  uint8_t        *new_pmask         = NULL;
   float          *new_ncsurf        = NULL;
   dp_f32_t       *new_ring          = NULL;
   size_t          new_ring_cap      = st->ring_cap;
@@ -691,6 +831,10 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
                                              * sizeof (float complex));
       new_mag     = (float *)malloc (new_n_surf * sizeof (float));
       new_scratch = (float *)malloc (new_n_surf * sizeof (float));
+      /* The masks are fixed-size, trusted allocations: abort-on-OOM, no
+         unwind path (clib_common.h). */
+      new_band  = (uint8_t *)dp_xcalloc (new_n_surf, 1);
+      new_pmask = (uint8_t *)dp_xmalloc (new_n_surf);
       if (!new_yframe || !new_out || !new_colbuf || !new_colout || !new_mag
           || !new_scratch)
         goto fail;
@@ -750,10 +894,14 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
       free (st->colout);
       free (st->mag_buf);
       free (st->noise_scratch);
+      free (st->band_mask);
+      free (st->peak_mask);
       free (st->wide_ref_spec);
       free (st->wide_spec);
       free (st->wide_prod);
       st->corr          = new_corr;
+      st->band_mask     = new_band;
+      st->peak_mask     = new_pmask;
       st->slow_fft      = new_fft;
       st->ref           = new_ref;
       st->yframe        = new_yframe;
@@ -805,6 +953,8 @@ fail:
   free (new_colout);
   free (new_mag);
   free (new_scratch);
+  free (new_band);
+  free (new_pmask);
   free (new_ncsurf);
   free (new_wide_ref_spec);
   free (new_wide_spec);
@@ -880,6 +1030,8 @@ acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
   if (acq_regrid (st, best_d, best_nc, best_window_bins, code, code_len) != 0)
     goto fail;
   acq_commit_thresholds (st, pfa, pd, snr, doppler_uncertainty);
+  if (acq_set_max_peaks (st, 1) != 0)
+    goto fail;
 
   return st;
 
@@ -954,10 +1106,34 @@ acq_destroy (acq_state_t *st)
   free (st->mag_buf);
   free (st->noise_scratch);
   free (st->nc_surface);
+  free (st->band_mask);
+  free (st->peak_mask);
+  free (st->peaks);
+  free (st->twin_row);
+  free (st->twin_col);
   free (st->wide_ref_spec);
   free (st->wide_spec);
   free (st->wide_prod);
   free (st);
+}
+
+int
+acq_set_max_peaks (acq_state_t *st, size_t n)
+{
+  if (n < 1 || n > ACQ_MAX_PEAKS)
+    return -1;
+  /* Fixed sizes from a validated argument: abort-on-OOM helpers, so there
+     is no unwind path nothing can reach. */
+  free (st->peaks);
+  free (st->twin_row);
+  free (st->twin_col);
+  st->peaks     = (det_peak_t *)dp_xmalloc (n * sizeof (det_peak_t));
+  st->twin_row  = (uint32_t *)dp_xmalloc (n * sizeof (uint32_t));
+  st->twin_col  = (uint32_t *)dp_xmalloc (n * sizeof (uint32_t));
+  st->max_peaks = n;
+  st->n_peaks   = 0;
+  st->n_twins   = 0;
+  return 0;
 }
 
 void
@@ -970,6 +1146,8 @@ acq_reset (acq_state_t *st)
     memset (st->nc_surface, 0, st->n_surf * sizeof (float));
   st->nc_count         = 0;
   st->samples_consumed = 0;
+  st->n_peaks          = 0;
+  st->n_twins          = 0;
   st->peak_row = st->peak_col = 0;
   st->peak_mag = st->noise_est = st->test_stat = 0.0f;
 }
@@ -1078,24 +1256,13 @@ acq_push (acq_state_t *st, const float complex *x, size_t n_in,
 
           if (st->n_noncoh <= 1)
             {
-              /* Coherent path (unchanged): amplitude mean-CFAR per dump. */
+              /* Coherent path: amplitude mean-CFAR per dump; the list of
+                 every peak above the gate, one result each. */
               acq_compute_stat (st);
               if (st->test_stat > st->threshold)
-                {
-                  float amp_snr = st->test_stat / ACQ_SQRT_2_OVER_PI
-                                  / sqrtf (2.0f * (float)frame_n);
-                  float cn0_dbhz_est
-                      = acq_cn0_dbhz_from_amp_snr (amp_snr, st->fs);
-                  result[ndet++] = (acq_result_t){
-                    .doppler_bin      = st->peak_row,
-                    .code_phase       = st->peak_col,
-                    .peak_mag         = st->peak_mag,
-                    .noise_est        = st->noise_est,
-                    .test_stat        = st->test_stat,
-                    .cn0_dbhz_est     = cn0_dbhz_est,
-                    .samples_consumed = st->samples_consumed,
-                  };
-                }
+                ndet += acq_report_peaks (st, st->mag_buf, acq_stat_coherent,
+                                          acq_mag_identity, result + ndet,
+                                          max_results - ndet);
               continue;
             }
 
@@ -1111,21 +1278,9 @@ acq_push (acq_state_t *st, const float complex *x, size_t n_in,
 
           acq_compute_stat_nc (st);
           if (st->test_stat > st->eta_nc)
-            {
-              float amp_snr
-                  = st->test_stat
-                    / sqrtf (2.0f * (float)frame_n * (float)st->n_noncoh);
-              float cn0_dbhz_est = acq_cn0_dbhz_from_amp_snr (amp_snr, st->fs);
-              result[ndet++]     = (acq_result_t){
-                .doppler_bin      = st->peak_row,
-                .code_phase       = st->peak_col,
-                .peak_mag         = st->peak_mag,
-                .noise_est        = st->noise_est,
-                .test_stat        = st->test_stat,
-                .cn0_dbhz_est     = cn0_dbhz_est,
-                .samples_consumed = st->samples_consumed,
-              };
-            }
+            ndet += acq_report_peaks (st, st->nc_surface, acq_stat_noncoherent,
+                                      acq_mag_sqrt, result + ndet,
+                                      max_results - ndet);
           memset (st->nc_surface, 0, st->n_surf * sizeof (float));
           st->nc_count = 0;
         }
@@ -1190,12 +1345,21 @@ acq_state_nc (void *blob, size_t ring_cap)
                    + ring_cap * sizeof (float complex));
 }
 
+static uint32_t *
+acq_state_twins (void *blob, const acq_state_t *st)
+{
+  return (uint32_t *)((char *)blob + ACQ_BODY_OFF
+                      + st->ring_cap * sizeof (float complex)
+                      + (st->n_noncoh > 1 ? st->n_surf * sizeof (float) : 0));
+}
+
 size_t
 acq_state_bytes (const acq_state_t *st)
 {
   size_t b = ACQ_BODY_OFF + st->ring_cap * sizeof (float complex);
   if (st->n_noncoh > 1)
     b += st->n_surf * sizeof (float);
+  b += 2 * st->max_peaks * sizeof (uint32_t);
   return b;
 }
 
@@ -1215,7 +1379,9 @@ acq_get_state (const acq_state_t *st, void *blob)
                      .n                = (uint64_t)n,
                      .samples_consumed = st->samples_consumed,
                      .nc_count         = (uint32_t)st->nc_count,
-                     .n_unconsumed     = (uint32_t)nun };
+                     .n_unconsumed     = (uint32_t)nun,
+                     .max_peaks        = (uint32_t)st->max_peaks,
+                     .n_twins          = (uint32_t)st->n_twins };
   dp_w_bytes (&w, &ex, sizeof ex);
 
   float complex *dst = acq_state_samples (blob);
@@ -1227,6 +1393,13 @@ acq_get_state (const acq_state_t *st, void *blob)
   if (ex.has_nc)
     memcpy (acq_state_nc (blob, st->ring_cap), st->nc_surface,
             st->n_surf * sizeof (float));
+  uint32_t *tw = acq_state_twins (blob, st);
+  memset (tw, 0, 2 * st->max_peaks * sizeof (uint32_t));
+  for (size_t k = 0; k < st->n_twins; k++)
+    {
+      tw[2 * k]     = st->twin_row[k];
+      tw[2 * k + 1] = st->twin_col[k];
+    }
 }
 
 int
@@ -1239,7 +1412,8 @@ acq_set_state (acq_state_t *st, const void *blob)
   acq_extra_t ex;
   memcpy (&ex, (const char *)blob + sizeof (dp_state_hdr_t), sizeof ex);
   if (ex.n != (uint64_t)st->n || ex.n_noncoh != (uint32_t)st->n_noncoh
-      || ex.n_unconsumed > (uint32_t)st->ring_cap)
+      || ex.n_unconsumed > (uint32_t)st->ring_cap
+      || ex.max_peaks != (uint32_t)st->max_peaks || ex.n_twins > ex.max_peaks)
     return DP_ERR_INVALID;
 
   /* Reset the live state, then replay the blob's buffered samples + nc. */
@@ -1261,6 +1435,14 @@ acq_set_state (acq_state_t *st, const void *blob)
       else
         memset (st->nc_surface, 0, st->n_surf * sizeof (float));
     }
+  const uint32_t *tw = acq_state_twins ((void *)blob, st);
+  st->n_twins        = ex.n_twins;
+  for (size_t k = 0; k < st->n_twins; k++)
+    {
+      st->twin_row[k] = tw[2 * k];
+      st->twin_col[k] = tw[2 * k + 1];
+    }
+  st->n_peaks = 0;
   return DP_OK;
 }
 

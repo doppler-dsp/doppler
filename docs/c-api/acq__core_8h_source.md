@@ -102,7 +102,27 @@ extern "C"
     uint8_t underpowered; 
     uint64_t
         samples_consumed; 
-    /* Last-dump bookkeeping (for inspection). */
+    /* The peak list (docs/design/async-dsss-receiver.md §7.1): up to
+       `max_peaks` peaks per dwell, each above the same gate, strongest
+       first, with an exclusion zone of one Doppler row (`interp` surface
+       rows) by one chip (`spc` columns), circular, around each; every
+       listed peak is one acq_result_t. `band_mask` marks the cells outside
+       the searched Doppler band (rebuilt with the thresholds); `peak_mask`
+       is the per-dwell working copy the list marks its zones into. The
+       two-epoch rule: a peak within a chip of an already-listed peak's code
+       phase, at any row, is that emitter's candidate twin -- held, not
+       listed, unless it was there at the same row on the previous dwell,
+       listed or held. `twin_*` are the previous dwell's picks (native
+       rows). */
+    size_t      max_peaks; 
+    size_t      n_peaks;   
+    det_peak_t *peaks;     
+    uint8_t    *band_mask; 
+    uint8_t    *peak_mask; 
+    uint32_t   *twin_row;  
+    uint32_t   *twin_col;  
+    size_t      n_twins;   
+    /* Last-dump bookkeeping (for inspection): the strongest pick. */
     size_t peak_row;
     size_t peak_col;
     float  peak_mag;
@@ -119,10 +139,14 @@ extern "C"
     uint64_t samples_consumed; 
     uint32_t nc_count;     
     uint32_t n_unconsumed; 
+    uint32_t max_peaks;    
+    uint32_t n_twins;      
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
-#define ACQ_STATE_VERSION 1u
+#define ACQ_STATE_VERSION 2u /* v2: the peak list's held twins ride along */
+
+#define ACQ_MAX_PEAKS 64u
 
 #define ACQ_N_NONCOH_SAFETY_CEILING 256u
 
@@ -143,6 +167,8 @@ extern "C"
 
   int acq_configure_search_raw (acq_state_t *state, size_t doppler_bins,
                                 size_t n_noncoh);
+
+  int acq_set_max_peaks (acq_state_t *state, size_t n);
 
   size_t acq_push (acq_state_t *state, const float complex *x, size_t n_in,
                    acq_result_t *result, size_t max_results);

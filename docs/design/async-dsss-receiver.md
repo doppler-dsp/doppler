@@ -1045,14 +1045,15 @@ decision drives (§10).
 
 ### 6.2 What one maximum per dwell loses
 
-Today's detector reports one cell. `det_result2d_t`
-(`native/inc/detector2d/detector2d_core.h`) is one `(row, col, peak_mag,   noise_est, test_stat)`, and the acquisition engine's `acq_compute_stat`
-(`native/src/acq/acq_core.c`) takes the same two maxima
-[`dsss-acquisition.md`](dsss-acquisition.md) §9.1 describes — the
-interpolated one to gate, the native one to report — and stops. The argmax
-itself is a private loop in each of the two objects; only the CFAR
-reference under it, `det_noise_estimate`, is shared through
-`det_private.h`. There is no exclusion zone and no second peak, in either.
+The classic detector reports one cell: the maximum of the surface, gated
+— `det_result2d_t` on the burst detector, and on the acquisition engine
+the two maxima [`dsss-acquisition.md`](dsss-acquisition.md) §9.1
+describes, the interpolated one to gate and the native one to report.
+That is still what both do at `max_peaks = 1`, the default, and it is the
+gap this section is about; §7.1 is the list that closes it, and §8 (a) is
+where it lives — one `det_peak_list` beside `det_noise_estimate` in
+`det_private.h`, under both detectors, with `Acquisition.set_max_peaks`
+as the engine's face of it (§12.6 measures it).
 
 With `K` emitters up, the surface has `K` peaks, and a maximum reports the
 strongest. The rest are not below threshold; they are simply not looked
@@ -1241,15 +1242,30 @@ and negligibly. What does change is the floor under a strong emitter
 (§6.3): the reference rises, so does `eta·noise_est`, and false peaks in
 the strong emitter's sidelobes are what §12 step 4 measures.
 
-**Fixed size.** `max_peaks` is configuration, the result is an array of
-that many `(doppler_bin, code_phase, peak_mag, test_stat)` entries plus a
-count, ordered by `test_stat`; nothing allocates per dwell and nothing
-grows with time — the duration rule of §5.1. Today's
-single-peak result is the same array at `max_peaks = 1`. The population
-sizes it: on the branch where the searcher sees every emitter (§9) the
-list must hold all ten plus the false peaks the gate admits, so
-`max_peaks` is of order 16; on the branch where assigned emitters are
-cancelled it holds only what rose since the last window, a few.
+**Fixed size.** `max_peaks` is configuration; a dwell's list is up to
+that many `acq_result_t` records from `push()`, strongest first, sharing
+the dwell's `samples_consumed` and `noise_est`; nothing allocates per
+dwell and nothing grows with time — the duration rule of §5.1. The
+classic single-peak result is the same list at `max_peaks = 1`, the
+default. A held twin takes one of the slots that dwell without being
+reported. The population sizes it: on the branch where the searcher sees
+every emitter (§9) the list must hold all ten plus the false peaks the
+gate admits, so `max_peaks` is of order 16; on the branch where assigned
+emitters are cancelled it holds only what rose since the last window, a
+few.
+
+**As built.** `det_peak_list` (`native/inc/detector/det_private.h`) is
+the iterated maximum with the zone, circular on both axes, over a
+caller-initialised mask; the engine seeds the mask with the cells outside
+its searched band, sets the gate in the surface's own units (`eta · noise_est` on the coherent surface, `eta_nc² · noise_pow / 2N` on the
+non-coherent one), maps each pick to its native row within its own zone,
+and applies the two-epoch rule with the held candidates carried in the
+state blob (v2). `Acquisition.set_max_peaks(n)` /
+`BurstAcquisition.set_max_peaks(n)` set the capacity, 1 to 64. Pinned by
+`test_acq_core.c` (the primitive on a synthetic surface; the API and the
+blob) and `validate_acq_peak_list --check` (two emitters, the split twin
+held then listed, twins under PRBS data, the rate under noise), measured
+in §12.6.
 
 ### 7.2 Cancellation
 
@@ -1287,15 +1303,15 @@ ______________________________________________________________________
 
 The peak list has one place it belongs and two it could be put:
 
-|                                                 | mechanism                                                                                                                                                                                | fits                                                                                                                                                   | cost                                                                                                                                                   |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **(a) one primitive under both detectors**      | a peak-list function beside `det_noise_estimate` in `det_private.h`: `(mag, ny, nx, gate, excl_rows, excl_cols, out[], max_peaks) → count`; both callers use it at `max_peaks = 1` today | one argmax instead of the two private copies; `CorrDetector2D` gains the list for free; the interpolated/native split stays where it is, in the caller | both result structs become an array plus a count, and every consumer of `acq_result_t` sees `n_peaks`                                                  |
-| **(b) inside `acq_compute_stat` only**          | the engine's loop iterates with exclusion; `detector2d` stays single-peak                                                                                                                | the engine alone changes                                                                                                                               | a third private copy of the pick, and the two detectors' behaviours diverge on the same surface                                                        |
-| **(c) a second pass over the surface, outside** | the bank asks the engine for its surface and picks peaks itself                                                                                                                          | no engine change                                                                                                                                       | the surface is the engine's scratch, not a product — exporting it is a copy of `ny·nx·interp` floats per dwell, and the gate's `eta` leaves the engine |
+|                                                 | mechanism                                                                                                                                                                                                    | fits                                                                                                                                                              | cost                                                                                                                                                                                   |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **(a) one primitive under both detectors**      | a peak-list function beside `det_noise_estimate` in `det_private.h`: `(mag, ny, nx, gate, excl_rows, excl_cols, mask, out[], max_peaks) → count`; both callers use it, the burst detector at `max_peaks = 1` | one argmax instead of the two private copies; `CorrDetector2D` can gain the list when it needs it; the interpolated/native split stays where it is, in the caller | `acq_result_t` is unchanged — a dwell is up to `max_peaks` records sharing `samples_consumed` — and `det_result2d_t` is untouched; the cost is the mask and the held table, fixed-size |
+| **(b) inside `acq_compute_stat` only**          | the engine's loop iterates with exclusion; `detector2d` stays single-peak                                                                                                                                    | the engine alone changes                                                                                                                                          | a third private copy of the pick, and the two detectors' behaviours diverge on the same surface                                                                                        |
+| **(c) a second pass over the surface, outside** | the bank asks the engine for its surface and picks peaks itself                                                                                                                                              | no engine change                                                                                                                                                  | the surface is the engine's scratch, not a product — exporting it is a copy of `ny·nx·interp` floats per dwell, and the gate's `eta` leaves the engine                                 |
 
 (a) is the repository's rule applied — fix it where the primitive is
 defined, once — and the only one under which the burst detector and the
-acquisition engine keep agreeing.
+acquisition engine keep agreeing. It is what shipped (§7.1, as built).
 
 Cancellation is a separate object, and its shape follows its information
 source:

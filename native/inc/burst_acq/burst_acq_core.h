@@ -184,6 +184,32 @@ extern "C"
   int burst_acq_configure_search_raw (burst_acq_state_t *state,
                                       size_t doppler_bins, size_t n_noncoh);
 
+  /**
+   * @brief How many peaks a dwell may report: the peak list's capacity.
+   *
+   * Forwards to acq_set_max_peaks() on the embedded engine (see its doc
+   * comment in acq_core.h): one is the classic gated maximum; more is the
+   * list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the
+   * same gate, strongest first, an exclusion zone of one Doppler bin by one
+   * chip around each, and the two-epoch rule for a peak at an
+   * already-listed code phase. Each listed peak is one result from push().
+   *
+   * @param state  Allocated engine (non-NULL).
+   * @param n      1 … ACQ_MAX_PEAKS.
+   * @return 0, or -1 (engine untouched) when @p n is out of range.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import BurstAcquisition
+   * >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
+   * >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
+   * ...                      cn0_dbhz=50.0)
+   * >>> b.set_max_peaks(4)
+   * >>> b.max_peaks
+   * 4
+   * @endcode
+   */
+  int burst_acq_set_max_peaks (burst_acq_state_t *state, size_t n);
+
   /* ── Serializable state — forwards straight to the embedded engine's own
    * triplet (the serialized bytes ARE the shared acq_state_t's own state;
    * no separate format needed). */

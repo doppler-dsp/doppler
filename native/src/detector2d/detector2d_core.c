@@ -24,15 +24,15 @@ detector2d_compute_stat_2d (detector2d_state_t *state)
   for (size_t k = 0; k < n; k++)
     state->mag_buf[k] = cabsf (state->out_buf[k]);
 
-  size_t peak = 0;
-  for (size_t k = 1; k < n; k++)
-    if (state->mag_buf[k] > state->mag_buf[peak])
-      peak = k;
-
-  /* Decompose flat index into row/col. */
-  state->peak_row = peak / state->nx;
-  state->peak_col = peak % state->nx;
-  state->peak_mag = state->mag_buf[peak];
+  /* The one argmax under both detectors (det_peak_list, at one peak and
+     no gate: the maximum, as this detector has always reported it). */
+  det_peak_t pk;
+  memset (state->peak_mask, 0, n);
+  (void)det_peak_list (state->mag_buf, state->ny, state->nx, -1.0f, 0, 0,
+                       state->peak_mask, &pk, 1);
+  state->peak_row = pk.row;
+  state->peak_col = pk.col;
+  state->peak_mag = pk.value;
 
   state->noise_est
       = det_noise_estimate (state->mag_buf, state->noise_lo, state->noise_hi,
@@ -92,6 +92,8 @@ detector2d_create (const float complex *ref, size_t ny, size_t nx,
   state->noise_scratch = (float *)malloc (scratch_count * sizeof (float));
   if (!state->noise_scratch)
     goto fail;
+
+  state->peak_mask = (uint8_t *)dp_xmalloc (n); /* fixed, trusted */
 
   return state;
 

@@ -32,6 +32,7 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 
 | Type | Name |
 | ---: | :--- |
+| struct | [**det\_peak\_t**](structdet__peak__t.md) <br> |
 | struct | [**det\_result2d\_t**](structdet__result2d__t.md) <br>_Detection event returned by_ [_**detector2d\_push()**_](detector2d__core_8h.md#function-detector2d_push) _._ |
 | struct | [**detector2d\_state\_t**](structdetector2d__state__t.md) <br>_2-D signal detector state._  |
 
@@ -108,6 +109,7 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 | define  | [**DETECTOR2D\_STATE\_MAGIC**](detector2d__core_8h.md#define-detector2d_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('D','E','T','2')`<br> |
 | define  | [**DETECTOR2D\_STATE\_VERSION**](detector2d__core_8h.md#define-detector2d_state_version)  `1u`<br> |
 | define  | [**DET\_NOISE\_MODE\_T\_DEFINED**](detector2d__core_8h.md#define-det_noise_mode_t_defined)  <br> |
+| define  | [**DET\_PEAK\_T\_DEFINED**](detector2d__core_8h.md#define-det_peak_t_defined)  <br>_One listed peak of a surface: a cell and its value, in the surface's own units (a magnitude on a coherent surface, a power on a non-coherent one). What det\_peak\_list() (_ [_**det\_private.h**_](det__private_8h.md) _) returns, and what the acquisition engine keeps per dwell._ |
 
 ## Detailed Description
 
@@ -484,6 +486,20 @@ size_t detector2d_state_bytes (
 
 ```C++
 #define DET_NOISE_MODE_T_DEFINED 
+```
+
+
+
+
+<hr>
+
+
+
+### define DET\_PEAK\_T\_DEFINED 
+
+_One listed peak of a surface: a cell and its value, in the surface's own units (a magnitude on a coherent surface, a power on a non-coherent one). What det\_peak\_list() (_ [_**det\_private.h**_](det__private_8h.md) _) returns, and what the acquisition engine keeps per dwell._
+```C++
+#define DET_PEAK_T_DEFINED 
 ```
 
 

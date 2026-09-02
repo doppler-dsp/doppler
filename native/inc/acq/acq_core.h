@@ -283,7 +283,28 @@ extern "C"
     uint64_t
         samples_consumed; /**< Total framed samples (the state's offset).   */
 
-    /* Last-dump bookkeeping (for inspection). */
+    /* The peak list (docs/design/async-dsss-receiver.md §7.1): up to
+       `max_peaks` peaks per dwell, each above the same gate, strongest
+       first, with an exclusion zone of one Doppler row (`interp` surface
+       rows) by one chip (`spc` columns), circular, around each; every
+       listed peak is one acq_result_t. `band_mask` marks the cells outside
+       the searched Doppler band (rebuilt with the thresholds); `peak_mask`
+       is the per-dwell working copy the list marks its zones into. The
+       two-epoch rule: a peak within a chip of an already-listed peak's code
+       phase, at any row, is that emitter's candidate twin -- held, not
+       listed, unless it was there at the same row on the previous dwell,
+       listed or held. `twin_*` are the previous dwell's picks (native
+       rows). */
+    size_t      max_peaks; /**< list capacity per dwell (1 = the maximum) */
+    size_t      n_peaks;   /**< picks in the last dwell, held ones too    */
+    det_peak_t *peaks;     /**< max_peaks: the last dwell's picks         */
+    uint8_t    *band_mask; /**< n_surf; 1 = outside the searched band     */
+    uint8_t    *peak_mask; /**< n_surf; the working mask                  */
+    uint32_t   *twin_row;  /**< max_peaks: last dwell's picks, native rows */
+    uint32_t   *twin_col;  /**< max_peaks: last dwell's picks, code phases */
+    size_t      n_twins;   /**< picks carried over from the last dwell     */
+
+    /* Last-dump bookkeeping (for inspection): the strongest pick. */
     size_t peak_row;
     size_t peak_col;
     float  peak_mag;
@@ -303,6 +324,7 @@ extern "C"
    *   `[ float complex unconsumed[n_unconsumed] ]`   (partial frame, < n
    * samples)
    *   `[ float          nc_surface[n] ]`             (only when n_noncoh > 1)
+   *   `[ uint32_t       twins[2 * max_peaks] ]`      (held row, col pairs)
    *
    * Build the byte buffer with acq_state_bytes(); set_state validates the
    * envelope (magic/version/size) plus n / n_noncoh below, rejecting a
@@ -317,10 +339,17 @@ extern "C"
     uint64_t samples_consumed; /**< Stream offset framed so far.          */
     uint32_t nc_count;     /**< Looks accumulated in the current dump.    */
     uint32_t n_unconsumed; /**< Partial-frame samples that follow (< n).  */
+    uint32_t max_peaks;    /**< List capacity; must equal the engine's.   */
+    uint32_t n_twins;      /**< Last dwell's picks that follow.           */
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
-#define ACQ_STATE_VERSION 1u
+#define ACQ_STATE_VERSION 2u /* v2: the peak list's held twins ride along */
+
+/** The largest `max_peaks` acq_set_max_peaks() accepts: one push's
+ *  result array is sized to this many in the binding, so one dwell can
+ *  always be reported whole. */
+#define ACQ_MAX_PEAKS 64u
 
   /**
    * @brief Internal safety-valve ceiling on auto-selected non-coherent
@@ -524,6 +553,42 @@ extern "C"
    */
   int acq_configure_search_raw (acq_state_t *state, size_t doppler_bins,
                                 size_t n_noncoh);
+
+  /**
+   * @brief How many peaks a dwell may report: the peak list's capacity.
+   *
+   * One (the default) is the classic detector -- the maximum of the surface,
+   * gated. More is the list of docs/design/async-dsss-receiver.md §7.1:
+   * every peak above the same gate, strongest first, each with an exclusion
+   * zone of one Doppler bin by one chip around it (one emitter's main lobe,
+   * so its own shoulders are not the next peak), and the two-epoch rule
+   * for a peak at an already-listed code phase -- a data transition inside
+   * the epoch splits one emitter into twins at its own code phase on other
+   * tiles, so such a peak is held for one dwell and listed only if it was
+   * there, at the same tile, on the previous one. Each listed peak is one
+   * acq_result_t from acq_push(), all of a dwell's sharing its
+   * `samples_consumed` and `noise_est`. A held twin takes a slot of the
+   * `n` for that dwell but is not reported. The threshold does not change:
+   * a second peak is another draw from the same cells against the same
+   * union bound. Clears the held candidates.
+   *
+   * @param state  Must be non-NULL.
+   * @param n      1 … ACQ_MAX_PEAKS.
+   * @return 0, or -1 (state untouched) when @p n is out of range.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
+   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, symbol_rate=1e3,
+   * ...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
+   * >>> a.max_peaks
+   * 1
+   * >>> a.set_max_peaks(8)
+   * >>> a.max_peaks
+   * 8
+   * @endcode
+   */
+  int acq_set_max_peaks (acq_state_t *state, size_t n);
 
   /**
    * @brief Stream raw samples; emit one event per CFAR dump above threshold.

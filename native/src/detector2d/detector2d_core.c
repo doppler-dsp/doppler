@@ -114,6 +114,7 @@ detector2d_destroy (detector2d_state_t *state)
   free (state->out_buf);
   free (state->mag_buf);
   free (state->noise_scratch);
+  free (state->peak_mask);
   free (state);
 }
 

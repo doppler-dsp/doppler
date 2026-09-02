@@ -53,6 +53,7 @@
  */
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
 #include "awgn/awgn_core.h"
+#include "dp_test.h"
 #include "gold/gold_core.h"
 #include "wfm_synth/wfm_synth_core.h"
 #include <complex.h>
@@ -286,39 +287,21 @@ main (int argc, char **argv)
 
   if (check)
     {
-      int fail = 0;
-      for (uint32_t s = 1; s <= 2; s++)
+      for (uint32_t sd = 1; sd <= 2; sd++)
         {
           trial_t t;
-          if (run_trial (code, EV_OFF, 45.0, s, &t))
-            return 1;
-          if (!t.settled)
-            {
-              printf ("FAIL trial %u never settled\n", s);
-              fail = 1;
-              continue;
-            }
-          if (t.t_code_s < 0.0 || t.t_code_s > CHECK_MAX_S)
-            {
-              printf ("FAIL trial %u: code lock %s after switch-off (limit "
-                      "%.1f s)\n",
-                      s, t.t_code_s < 0 ? "held" : "dropped late",
-                      CHECK_MAX_S);
-              fail = 1;
-            }
-          if (t.t_sym_s < 0.0 || t.t_sym_s > CHECK_MAX_S)
-            {
-              printf ("FAIL trial %u: symbol lock %s after switch-off (limit "
-                      "%.1f s)\n",
-                      s, t.t_sym_s < 0 ? "held" : "dropped late", CHECK_MAX_S);
-              fail = 1;
-            }
-          if (!fail)
-            printf ("async_dsss_receiver_release: OK trial %u (code lock off "
-                    "at %.1f ms, symbol lock off at %.1f ms)\n",
-                    s, t.t_code_s * 1e3, t.t_sym_s * 1e3);
+          DP_REQUIRE (run_trial (code, EV_OFF, 45.0, sd, &t) == 0);
+          DP_CHECK (t.settled);
+          /* After a switch-off both flags must be down within CHECK_MAX_S
+             and stay down: `held` (< 0) is as much a failure as late. */
+          DP_CHECK (t.t_code_s >= 0.0 && t.t_code_s <= CHECK_MAX_S);
+          DP_CHECK (t.t_sym_s >= 0.0 && t.t_sym_s <= CHECK_MAX_S);
+          DP_CHECK (!t.code_back && !t.sym_back);
+          printf ("  trial %u: code lock off at %.1f ms, symbol lock off at "
+                  "%.1f ms\n",
+                  sd, t.t_code_s * 1e3, t.t_sym_s * 1e3);
         }
-      return fail;
+      DP_TEST_END ("validate_async_dsss_receiver_release");
     }
 
   const double cn0s[]  = { 45.0, 40.0 };

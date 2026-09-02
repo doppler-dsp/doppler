@@ -47,6 +47,8 @@ _DLL state._ [More...](#detailed-description)
 |  size\_t | [**aid\_nhyp**](#variable-aid_nhyp)  <br> |
 |  double \* | [**aid\_power**](#variable-aid_power)  <br> |
 |  size\_t | [**aid\_ring**](#variable-aid_ring)  <br> |
+|  float complex \* | [**aid\_ring\_e**](#variable-aid_ring_e)  <br> |
+|  float complex \* | [**aid\_ring\_l**](#variable-aid_ring_l)  <br> |
 |  float complex \* | [**aid\_ring\_o**](#variable-aid_ring_o)  <br> |
 |  float complex \* | [**aid\_ring\_p**](#variable-aid_ring_p)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
@@ -62,8 +64,9 @@ _DLL state._ [More...](#detailed-description)
 |  double | [**inv\_tsamps**](#variable-inv_tsamps)  <br> |
 |  double | [**inv\_tsamps2**](#variable-inv_tsamps2)  <br> |
 |  double | [**inv\_tsamps\_sf**](#variable-inv_tsamps_sf)  <br> |
-|  float \_Complex \* | [**last\_backward\_p**](#variable-last_backward_p)  <br> |
-|  float \_Complex \* | [**last\_e**](#variable-last_e)  <br> |
+|  double | [**inv\_upd**](#variable-inv_upd)  <br> |
+|  float complex \* | [**last\_backward\_p**](#variable-last_backward_p)  <br> |
+|  float complex \* | [**last\_e**](#variable-last_e)  <br> |
 |  double | [**last\_error**](#variable-last_error)  <br> |
 |  float \_Complex \* | [**last\_l**](#variable-last_l)  <br> |
 |  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**lf**](#variable-lf)  <br> |
@@ -345,6 +348,42 @@ ring capacity, partials (power of two).
 
 
 
+### variable aid\_ring\_e 
+
+```C++
+float complex* dll_state_t::aid_ring_e;
+```
+
+
+
+last `aid_ring` early partials. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable aid\_ring\_l 
+
+```C++
+float complex* dll_state_t::aid_ring_l;
+```
+
+
+
+last `aid_ring` late partials. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable aid\_ring\_o 
 
 ```C++
@@ -603,6 +642,24 @@ double dll_state_t::inv_tsamps_sf;
 
 
 1 / (sf\*sps\*sf)  segments&lt;=1's kp\*e/(sf) ctrl term's scale. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable inv\_upd 
+
+```C++
+double dll_state_t::inv_upd;
+```
+
+
+
+1 / lf.t: one over the loop's update interval in epochs (1 per epoch; the symbol period in epochs once the aid is on). The filter's output is a correction per update; this turns it into the rate held over the interval. Precomputed with the gains, never in the loop. 
  
 
 

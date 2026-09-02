@@ -10,6 +10,11 @@
  *   4. Static phase offset is pulled in (discriminator decays)
  *   5. Reset reproducibility
  *   6. segments > 1: sub-epoch partials recover an async symbol clock
+ *   6b. Symbol-period aid: the lock detector's looks become coherent over
+ *       a symbol
+ *   6c. Symbol-period aid: the code loop steers on the aided window, once
+ *       per symbol, with bn kept per epoch (the rate is continuous across
+ *       the switch)
  *   7. Always-on lock detector: locks on signal, not on noise
  *   8. Long-run false-lock regression (segments=1, ~4188 periods, several
  *      noise seeds, zero Doppler/carrier)
@@ -24,6 +29,38 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Carrier-free spread signal with an ASYNCHRONOUS BPSK data clock: symbol
+ * period `tsym` samples (any real), first boundary at `phi` samples, random
+ * data; the incoming code runs at rate (1+delta). `sigma_rail` > 0 adds
+ * complex Gaussian noise of that per-rail std (0 = clean). The stream 6b
+ * and 6c share. */
+static void
+make_async_signal (float complex *rx, size_t N, const uint8_t *code, size_t sf,
+                   size_t sps, double delta, double tsym, double phi,
+                   double sigma_rail, uint32_t dseed, uint32_t nseed)
+{
+  uint32_t ds = dseed, ns = nseed;
+  int      data = 1;
+  long     cur  = -1;
+  double   inv  = 1.0 / (double)sps;
+  double   cph  = 0.0; /* incoming code phase, chips */
+  for (size_t nn = 0; nn < N; nn++)
+    {
+      long sidx = (long)floor (((double)nn - phi) / tsym);
+      if (sidx != cur)
+        {
+          data = (dp_xs32 (&ds) & 1u) ? 1 : -1;
+          cur  = sidx;
+        }
+      size_t ci = (size_t)fmod (cph, (double)sf);
+      float  cs = (code[ci] & 1u) ? -1.0f : 1.0f;
+      rx[nn]    = (float)data * cs;
+      if (sigma_rail > 0.0)
+        rx[nn] += (float)sigma_rail * dp_cgauss (&ns);
+      cph += inv * (1.0 + delta);
+    }
+}
 
 /* Build a deterministic 0/1 spreading code (xorshift bits). */
 static void
@@ -330,22 +367,8 @@ main (void)
     size_t         N   = (size_t)(nsym * tsym) + 2 * te;
     float complex *rx  = malloc (N * sizeof (*rx));
     float complex *out = malloc (N * sizeof (*out));
-    uint32_t       ds = 7u, ns = 99u;
-    int            data = 1;
-    long           cur  = -1;
-    for (size_t nn = 0; nn < N; nn++)
-      {
-        long sidx = (long)floor (((double)nn - phi) / tsym);
-        if (sidx != cur)
-          {
-            data = (dp_xs32 (&ds) & 1u) ? 1 : -1;
-            cur  = sidx;
-          }
-        size_t ci = (nn / sps) % sf;
-        float  cs = (code[ci] & 1u) ? -1.0f : 1.0f;
-        rx[nn]    = (float)data * cs
-                    + (float)(1.0 / a / sqrt (2.0)) * dp_cgauss (&ns);
-      }
+    make_async_signal (rx, N, code, sf, sps, 0.0, tsym, phi,
+                       1.0 / a / sqrt (2.0), 7u, 99u);
     /* Feed one epoch per call and count the epochs the flag was up. */
     size_t       nep = N / te;
     size_t       up0 = 0, up1 = 0;
@@ -415,6 +438,79 @@ main (void)
     DP_CHECK (dll_get_symbol_window (d1) == 0);
     dll_destroy (d0);
     dll_destroy (d1);
+    free (rx);
+    free (out);
+    free (code);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 6c. Symbol-period aid: the code loop steers on the aided window,  *
+   *     once per symbol, with bn kept per epoch                       *
+   *     (docs/design/async-dsss-receiver.md §3.7, §12.5)              *
+   * ---------------------------------------------------------------- */
+  {
+    /* 6b's asynchronous data stream (7.24 partials per symbol at four
+       partials per epoch), clean, with the incoming code running D0 fast:
+       the code-rate step a type-2 loop nulls only by integrating it. */
+    const size_t sf = 63, sps = 4, K = 4;
+    const size_t te = sf * sps, nep = 1500, post = 100;
+    const double P = 7.24, tsym = P * (double)te / (double)K;
+    const double phi = 0.37 * (double)te;
+    const double d0  = 1e-4; /* the incoming code runs 100 ppm fast:
+                                what this loop (K0 = 1/sps chips per unit
+                                of filter output) pulls in; 500 ppm slips
+                                the code out of the lobe in either mode */
+    const double bn   = 0.005;
+    const size_t mid  = 300; /* inside the settling: 5/bn is 1000 epochs */
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 11u);
+    size_t         N   = (nep + post) * te;
+    float complex *rx  = malloc (N * sizeof (*rx));
+    float complex *out = malloc (te * sizeof (*out));
+    make_async_signal (rx, N, code, sf, sps, d0, tsym, phi, 0.0, 7u, 0u);
+    dll_state_t *d   = dll_create (code, sf, sps, 0.0, bn, 0.707, 0.5, K);
+    dll_state_t *d0_ = dll_create (code, sf, sps, 0.0, bn, 0.707, 0.5, K);
+    DP_CHECK (dll_set_symbol_period (d, P) == DP_OK);
+    /* The filter is re-timed to the symbol: P/K epochs per update. */
+    DP_CHECK (fabs (d->lf.t - P / (double)K) < 1e-12);
+    /* The gain pin: a code-rate step is nulled by any gain, but HOW FAST
+       the integrator climbs is the gain -- so mid-transient the aided
+       loop must read what the per-epoch loop reads. A filter left at its
+       per-epoch gains while updating once per symbol climbs 1.8x slower
+       and fails this; the two agree to six decimals when re-timed. */
+    for (size_t e = 0; e < mid; e++)
+      {
+        dll_steps (d, rx + e * te, te, out, te);
+        dll_steps (d0_, rx + e * te, te, out, te);
+      }
+    double r_mid = dll_get_code_rate (d), r_mid0 = dll_get_code_rate (d0_);
+    /* Mid-transient, not settled: the per-epoch loop is still well off
+       the step (it overshoots to ~1.3x here at zeta 0.707). */
+    DP_CHECK (fabs (r_mid0 - 1.0 - d0) > 0.1 * d0);
+    DP_CHECK (fabs (r_mid - r_mid0) < 0.15 * d0);
+    for (size_t e = mid; e < nep; e++)
+      dll_steps (d, rx + e * te, te, out, te);
+    dll_destroy (d0_);
+    /* The aided loop pulled the code rate in: the discriminator on the
+       window steered it (a loop that never steered would sit at 1.0). */
+    double r_aided = dll_get_code_rate (d);
+    DP_CHECK (fabs (r_aided - (1.0 + d0)) < 4e-5);
+    DP_CHECK (fabs (dll_get_last_error (d)) < 0.5);
+    /* Off again: the filter is back to one update per epoch, and the rate
+       the loop had pulled in is CONTINUOUS across the switch -- after a
+       few epochs (short against the 5/bn settling) it still reads the
+       Doppler, not the Doppler scaled by the old interval. */
+    DP_CHECK (dll_set_symbol_period (d, 0.0) == DP_OK);
+    DP_CHECK (d->lf.t == 1.0);
+    for (size_t e = nep; e < nep + post; e++)
+      dll_steps (d, rx + e * te, te, out, te);
+    double r_after = dll_get_code_rate (d);
+    printf ("  6c: code rate at %zu epochs per-epoch %.7f aided %.7f; "
+            "settled %.7f; %zu epochs after the switch %.7f (incoming "
+            "%.7f)\n",
+            mid, r_mid0, r_mid, r_aided, post, r_after, 1.0 + d0);
+    DP_CHECK (fabs (r_after - r_aided) < 4e-5);
+    dll_destroy (d);
     free (rx);
     free (out);
     free (code);

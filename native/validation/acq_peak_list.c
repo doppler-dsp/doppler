@@ -345,7 +345,12 @@ main (int argc, char **argv)
   if (check)
     {
       /* Two clean emitters: one hit at max_peaks 1 (the maximum), both at
-         4, each on its own tile and code phase, and nothing else. */
+         4, each on its own tile and code phase, and nothing else -- on the
+         SECOND dwell. A peak's own half-chip shoulders are at its code
+         phase, so on one dwell the twin rule would hold them whether or
+         not the zone excluded them; on the second they recur at the same
+         tile and would be listed. Two dwells is what makes this the
+         zone's pin and not the rule's. */
       emitter_t e[2] = { A, B };
       e[0].data = e[1].data = WFM_DSSS_DATA_NONE;
       for (size_t mp = 1; mp <= 4; mp += 3)
@@ -355,8 +360,9 @@ main (int argc, char **argv)
                                   WFM_SYNTH_SNR_CLEAN, mp, 3u)
                       == 0);
           acq_result_t hits[MAX_HITS];
-          size_t       nh = scene_dwell (&sc, hits, MAX_HITS);
-          int          found[2], twins[2], other;
+          (void)scene_dwell (&sc, hits, MAX_HITS);
+          size_t nh = scene_dwell (&sc, hits, MAX_HITS);
+          int    found[2], twins[2], other;
           tally (&sc, hits, nh, found, twins, &other);
           printf ("  clean pair, max_peaks %zu: %zu hit(s); A %d B %d twins "
                   "%d other %d\n",

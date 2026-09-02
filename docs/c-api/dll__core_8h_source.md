@@ -61,6 +61,7 @@ typedef struct {
     double inv_tsamps;       
     double inv_tsamps2;      
     double inv_tsamps_sf;    
+    double inv_upd;          
     double spacing;          
     double chip_pos;         
     double code_rate;        
@@ -108,16 +109,19 @@ typedef struct {
     double lock_stat;        
     size_t lock_nz;          
     lockdet_state_t lock;    
-    /* ── symbol-timing-aided lock looks (segments>1 only; period 0 = off).
+    /* ── symbol-timing aid (segments>1 only; period 0 = off).
      *    The same max-power search the per-epoch look-back runs, lifted to
      *    the SYMBOL scale: with the data-symbol period known in partials,
      *    `aid_nhyp = ceil(period)` boundary-phase hypotheses each own a
      *    coherent window of `aid_len` partials per symbol; the hypothesis
      *    whose windows carry the most power (an EMA over symbols) is the
-     *    symbol timing, and ITS windows are the lock detector's looks --
-     *    coherent over most of a symbol instead of a quarter-epoch partial.
-     *    See dll_set_symbol_period(). Rings are heap-owned, sized at set
-     *    time, packed field-wise in the state blob like the chunk buffers. */
+     *    symbol timing, and ITS windows are both the lock detector's looks
+     *    and the code discriminator's windows -- coherent over most of a
+     *    symbol instead of a quarter-epoch partial, and the loop steers
+     *    once per symbol on them (the filter re-timed to that interval,
+     *    `inv_upd`). See dll_set_symbol_period(). Rings are heap-owned,
+     *    sized at set time, packed field-wise in the state blob like the
+     *    chunk buffers. */
     double  sym_period;      
     size_t  aid_len;         
     size_t  aid_nhyp;        
@@ -127,6 +131,8 @@ typedef struct {
     double  aid_alpha;       
     float complex *aid_ring_p; 
     float complex *aid_ring_o; 
+    float complex *aid_ring_e; 
+    float complex *aid_ring_l; 
     double        *aid_power;  
     int owns_code;           
     dll_tlm_t tlm;           
@@ -287,7 +293,10 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 8u /* v8: symbol-period aid fields + rings;
+#define DLL_STATE_VERSION 9u /* v9: the aid's early/late rings + inv_upd
+                                (the loop steers once per symbol on the
+                                aided window).
+                                v8: symbol-period aid fields + rings;
                                 v7: `rate_aid` carrier-aiding field added
                                 (whole-struct snapshot, so the blob grew).
                                 v6: `sums` scratch field added to the

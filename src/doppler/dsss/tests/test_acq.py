@@ -196,8 +196,15 @@ def _full_frames(l_pre):
 # the engine buys enough coherent depth to meet pd in operation — not on
 # the grid's best case, and not at the mean amplitude (which Jensen
 # makes optimistic).
+#
+# The depths moved once (doppler#1183): the model used to derate
+# scalloping over half a NATIVE bin while the peak search samples an
+# interpolated one, so it over-bought depth. Measured margins at the new
+# points — pd_predicted at the chosen depth against one shallower — are
+# 0.965 vs 0.844 (57 dB-Hz, D=3) and 0.937 vs 0.889 (53 dB-Hz, D=7):
+# neither sits on the 0.9 knife-edge where a libm can flip it.
 @pytest.mark.parametrize(
-    "cn0_dbhz, want_db", [(65.0, 1), (57.0, 4), (53.0, 9)]
+    "cn0_dbhz, want_db", [(65.0, 1), (57.0, 3), (53.0, 7)]
 )
 def test_config_physics(cn0_dbhz, want_db):
     """C/N0 → snr, smallest coherent depth meeting Pd, and grid math."""

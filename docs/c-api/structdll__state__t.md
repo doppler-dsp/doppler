@@ -40,6 +40,15 @@ _DLL state._ [More...](#detailed-description)
 |  float complex | [**acc\_l**](#variable-acc_l)  <br> |
 |  float complex | [**acc\_o**](#variable-acc_o)  <br> |
 |  float complex | [**acc\_p**](#variable-acc_p)  <br> |
+|  double | [**aid\_alpha**](#variable-aid_alpha)  <br> |
+|  size\_t | [**aid\_best**](#variable-aid_best)  <br> |
+|  uint64\_t | [**aid\_count**](#variable-aid_count)  <br> |
+|  size\_t | [**aid\_len**](#variable-aid_len)  <br> |
+|  size\_t | [**aid\_nhyp**](#variable-aid_nhyp)  <br> |
+|  double \* | [**aid\_power**](#variable-aid_power)  <br> |
+|  size\_t | [**aid\_ring**](#variable-aid_ring)  <br> |
+|  float complex \* | [**aid\_ring\_o**](#variable-aid_ring_o)  <br> |
+|  float complex \* | [**aid\_ring\_p**](#variable-aid_ring_p)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
 |  double | [**chip\_pos**](#variable-chip_pos)  <br> |
 |  float complex \* | [**chunk\_e**](#variable-chunk_e)  <br> |
@@ -80,6 +89,7 @@ _DLL state._ [More...](#detailed-description)
 |  double | [**spacing**](#variable-spacing)  <br> |
 |  size\_t | [**sps**](#variable-sps)  <br> |
 |  float complex \* | [**sums**](#variable-sums)  <br> |
+|  double | [**sym\_period**](#variable-sym_period)  <br> |
 |  [**dll\_tlm\_t**](structdll__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
 
@@ -201,6 +211,166 @@ float complex dll_state_t::acc_p;
 
 
 prompt correlator accumulator. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable aid\_alpha 
+
+```C++
+double dll_state_t::aid_alpha;
+```
+
+
+
+EMA over symbols of each window's power. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable aid\_best 
+
+```C++
+size_t dll_state_t::aid_best;
+```
+
+
+
+current best hypothesis (the timing). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable aid\_count 
+
+```C++
+uint64_t dll_state_t::aid_count;
+```
+
+
+
+partials seen since enable (ring index). 
+
+
+        
+
+<hr>
+
+
+
+### variable aid\_len 
+
+```C++
+size_t dll_state_t::aid_len;
+```
+
+
+
+coherent window length L, partials. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable aid\_nhyp 
+
+```C++
+size_t dll_state_t::aid_nhyp;
+```
+
+
+
+boundary-phase hypotheses Q = ceil(P). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable aid\_power 
+
+```C++
+double* dll_state_t::aid_power;
+```
+
+
+
+per-hypothesis window-power EMA (Q). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable aid\_ring 
+
+```C++
+size_t dll_state_t::aid_ring;
+```
+
+
+
+ring capacity, partials (power of two). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable aid\_ring\_o 
+
+```C++
+float complex* dll_state_t::aid_ring_o;
+```
+
+
+
+last `aid_ring` offset (noise) partials. 
+
+
+        
+
+<hr>
+
+
+
+### variable aid\_ring\_p 
+
+```C++
+float complex* dll_state_t::aid_ring_p;
+```
+
+
+
+last `aid_ring` partial prompts. 
  
 
 
@@ -909,6 +1079,24 @@ float complex* dll_state_t::sums;
 
 
 this epoch's running cumulative sum of chunk\_p; Python's `partial_sums .cumsum()`. Pure scratch (rebuilt every epoch boundary, never read across calls)  not part of the serialized state. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable sym\_period 
+
+```C++
+double dll_state_t::sym_period;
+```
+
+
+
+data-symbol period, partials (0 = off). 
  
 
 

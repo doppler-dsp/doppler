@@ -108,6 +108,26 @@ typedef struct {
     double lock_stat;        
     size_t lock_nz;          
     lockdet_state_t lock;    
+    /* ── symbol-timing-aided lock looks (segments>1 only; period 0 = off).
+     *    The same max-power search the per-epoch look-back runs, lifted to
+     *    the SYMBOL scale: with the data-symbol period known in partials,
+     *    `aid_nhyp = ceil(period)` boundary-phase hypotheses each own a
+     *    coherent window of `aid_len` partials per symbol; the hypothesis
+     *    whose windows carry the most power (an EMA over symbols) is the
+     *    symbol timing, and ITS windows are the lock detector's looks --
+     *    coherent over most of a symbol instead of a quarter-epoch partial.
+     *    See dll_set_symbol_period(). Rings are heap-owned, sized at set
+     *    time, packed field-wise in the state blob like the chunk buffers. */
+    double  sym_period;      
+    size_t  aid_len;         
+    size_t  aid_nhyp;        
+    size_t  aid_ring;        
+    size_t  aid_best;        
+    uint64_t aid_count;      
+    double  aid_alpha;       
+    float complex *aid_ring_p; 
+    float complex *aid_ring_o; 
+    double        *aid_power;  
     int owns_code;           
     dll_tlm_t tlm;           
 } dll_state_t;
@@ -233,6 +253,12 @@ double dll_get_bn(const dll_state_t *state);
 void dll_set_bn(dll_state_t *state, double val);
 
 void dll_set_rate_aid(dll_state_t *state, double rate_aid);
+
+int dll_set_symbol_period(dll_state_t *state, double partials_per_symbol);
+
+size_t dll_get_symbol_window(const dll_state_t *state);
+
+int dll_set_lock_verify(dll_state_t *state, uint32_t n_up, uint32_t n_down);
 double dll_get_code_phase(const dll_state_t *state);
 double dll_get_code_rate(const dll_state_t *state);
 double dll_get_last_error(const dll_state_t *state);
@@ -261,7 +287,8 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 7u /* v7: `rate_aid` carrier-aiding field added
+#define DLL_STATE_VERSION 8u /* v8: symbol-period aid fields + rings;
+                                v7: `rate_aid` carrier-aiding field added
                                 (whole-struct snapshot, so the blob grew).
                                 v6: `sums` scratch field added to the
                                 struct (pure epoch-local scratch, not

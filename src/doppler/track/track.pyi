@@ -958,6 +958,121 @@ class Dll:
 
         """
 
+    def set_symbol_period(self, partials_per_symbol: float) -> None:
+        """Give the code-lock detector the data-symbol period in partials
+        (segments * chip_rate / (sf * symbol_rate); 0 = off), so its looks are
+        coherent over a symbol instead of a quarter-epoch partial. The
+        per-epoch max-power look-back lifted to the symbol scale: ceil(period)
+        boundary-phase hypotheses each own a transition-free window of L =
+        min(floor(period) - 1, 4 * segments) partials per symbol, the
+        hypothesis whose windows carry the most power (an EMA over ~32 symbols)
+        is the symbol timing, and its windows become the detector's looks --
+        7.8 dB more per look at 1.8 epochs per symbol and four partials per
+        epoch, and never across a transition. Size n_looks with
+        detection.det_n_noncoh over L * (sf * sps / segments) samples. Only the
+        detector's looks change: the discriminator keeps its per-epoch window
+        and the emitted partial stream is untouched. Raises ValueError when
+        segments <= 1 or the period is in (0, 2).
+
+        In `segments > 1` mode every partial is a look for the code-lock
+        detector (dll_configure_lock()): the smallest integration the
+        asynchronous data allows when nothing is known about where its
+        transitions fall, and therefore the weakest. This is the same max-power
+        search the per-epoch look-back already runs, lifted to the symbol scale
+        once the symbol PERIOD is known: with `P = partials_per_symbol` the
+        transitions recur every `P` partials, so `ceil(P)` boundary-phase
+        hypotheses each define a transition-free window of `L = min(floor(P) -
+        1, 4 * segments)` partials per symbol. Each hypothesis accumulates the
+        power of its coherently summed windows (an EMA over the last ~32
+        symbols); the one with the most power IS the symbol timing, and its
+        windows become the detector's looks. A look then integrates `L`
+        partials coherently -- at SPEC's 1.8 epochs per symbol and four
+        partials per epoch, six partials instead of one, 7.8 dB more per look
+        -- and never straddles a transition. Size `n_looks` for it with
+        detection.det_n_noncoh() over `L * (sf * sps / segments)` samples.
+
+        Only the lock detector's looks change. The code loop's discriminator
+        keeps its per-epoch look-back window, and the emitted partial stream is
+        untouched. The search is blind to WHICH hypothesis is right on any one
+        symbol -- it needs no decision and no external timing -- so it costs
+        nothing at cold start and follows a slowly drifting symbol clock by
+        itself. `L` is capped at four epochs of partials so a long symbol (a
+        low data rate) does not ask for coherence across more carrier than the
+        wipe-off holds.
+
+        Parameters
+        ----------
+        partials_per_symbol : float
+            Data-symbol period in emitted partials, `segments * chip_rate / (sf
+            * symbol_rate)`; >= 2. 0 disables (per-partial looks again).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_symbol_period failed``, with the return code appended
+            (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> code = (np.arange(63) * 7 % 2).astype(np.uint8)
+        >>> d = Dll(code, sps=2, segments=4)
+        >>> d.set_symbol_period(7.24)      # 1.81 epochs per symbol, 4 partials/epoch
+        >>> d.symbol_window                # coherent partials per look
+        6
+        >>> d.set_symbol_period(0.0)       # back to per-partial looks
+        >>> d.symbol_window
+        0
+
+        """
+
+    def set_lock_verify(self, n_up: int, n_down: int) -> None:
+        """Set the lock detector's verify counts, keeping its thresholds and
+        noise reference: n_up consecutive above-threshold decisions to declare,
+        n_down consecutive below-threshold decisions to drop. configure_lock
+        derives n_up from pfa and fixes n_down at 2; a caller that sized
+        n_looks for a target Pd knows the per-decision miss probability 1 - pd,
+        and detection.det_verify_count(1 - pd, budget) is the drop count that
+        holds the false-drop rate under a budget (3 for pd = 0.99 at 1e-6 per
+        decision). The running verify counter and the flag restart. Raises
+        ValueError when either count is 0.
+
+        dll_configure_lock() derives the declare count from `pfa` and fixes the
+        drop count at 2. A caller that has sized `n_looks` for a target Pd
+        knows the per-decision miss probability `1 - pd`, and
+        det_verify_count(1 - pd, budget) is the drop count that holds the
+        false-drop rate under a budget -- three consecutive misses for pd =
+        0.99 at 1e-6 per decision. This sets both counts without touching the
+        thresholds or the noise reference; the running verify counter and the
+        flag restart.
+
+        Parameters
+        ----------
+        n_up : int
+            Consecutive above-threshold decisions to declare (>= 1).
+        n_down : int
+            Consecutive below-threshold decisions to drop (>= 1).
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_lock_verify failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> from doppler.detection import det_verify_count
+        >>> d = Dll(np.zeros(31, dtype=np.uint8), sps=2, segments=4)
+        >>> d.set_lock_verify(2, det_verify_count(0.01, 1e-6))
+        >>> d.locked
+        False
+
+        """
+
     def configure_lock(
         self,
         pfa: float,
@@ -1229,6 +1344,12 @@ class Dll:
     @property
     def segments(self) -> int:
         """partial correlations per epoch (1 = full)."""
+
+    @property
+    def symbol_window(self) -> int:
+        """The lock detector's coherent window in partials when
+        set_symbol_period is on (0 = off) -- size n_looks from it.
+        """
 
     @property
     def locked(self) -> bool:

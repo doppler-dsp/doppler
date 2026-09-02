@@ -14,6 +14,7 @@
  *   8. Long-run false-lock regression (segments=1, ~4188 periods, several
  *      noise seeds, zero Doppler/carrier)
  */
+#include "detection/detection_core.h"
 #include "dll/dll_core.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
@@ -305,6 +306,117 @@ main (void)
     free (rx);
     free (out);
     free (data);
+    free (code);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 6b. Symbol-period aid: the lock detector's looks become coherent  *
+   *     over a symbol, and lock at a C/N0 where per-partial looks     *
+   *     cannot (docs/design/async-dsss-receiver.md §3.7, §12.3)        *
+   * ---------------------------------------------------------------- */
+  {
+    const size_t sf = 63, sps = 4, K = 4, nsym = 1500;
+    const size_t te   = sf * sps;
+    const double P    = 7.24; /* partials per symbol: SPEC's 1.81 epochs */
+    const double tsym = P * (double)te / (double)K;
+    const double phi  = 0.37 * (double)te; /* symbol clock phase, samples */
+    /* Per-sample amplitude SNR chosen so ONE partial (te/K samples
+       coherent) is ~-3 dB per look -- the default 20-look detector's
+       statistic then sits under its threshold -- while a six-partial
+       symbol window is ~+5 dB per look. */
+    const double a    = sqrt (0.5 / (double)(te / K));
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 11u);
+    size_t         N   = (size_t)(nsym * tsym) + 2 * te;
+    float complex *rx  = malloc (N * sizeof (*rx));
+    float complex *out = malloc (N * sizeof (*out));
+    uint32_t       ds = 7u, ns = 99u;
+    int            data = 1;
+    long           cur  = -1;
+    for (size_t nn = 0; nn < N; nn++)
+      {
+        long sidx = (long)floor (((double)nn - phi) / tsym);
+        if (sidx != cur)
+          {
+            data = (dp_xs32 (&ds) & 1u) ? 1 : -1;
+            cur  = sidx;
+          }
+        size_t ci = (nn / sps) % sf;
+        float  cs = (code[ci] & 1u) ? -1.0f : 1.0f;
+        rx[nn]    = (float)data * cs
+                    + (float)(1.0 / a / sqrt (2.0)) * dp_cgauss (&ns);
+      }
+    /* Feed one epoch per call and count the epochs the flag was up. */
+    size_t       nep = N / te;
+    size_t       up0 = 0, up1 = 0;
+    dll_state_t *d0 = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
+    dll_state_t *d1 = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
+    DP_CHECK (dll_get_symbol_window (d1) == 0);
+    DP_CHECK (dll_set_symbol_period (d1, 1.5) == DP_ERR_INVALID);
+    DP_CHECK (dll_set_symbol_period (d1, P) == DP_OK);
+    DP_CHECK (dll_get_symbol_window (d1) == 6); /* floor(7.24) - 1 */
+    /* Sized the way the header says: the window's coherent length in
+       samples at this per-sample SNR. */
+    int nl = det_n_noncoh (a, (int)(6 * (te / K)), 0.99, 1e-3, 4000);
+    DP_CHECK (nl >= 1 && nl < 100);
+    DP_CHECK (dll_configure_lock (d1, 1e-3, (size_t)(nl > 0 ? nl : 1), 0.0)
+              == DP_OK);
+    for (size_t e = 0; e < nep; e++)
+      {
+        dll_steps (d0, rx + e * te, te, out, te);
+        dll_steps (d1, rx + e * te, te, out, te);
+        if (e >= nep / 4) /* after the loops and references have settled */
+          {
+            up0 += (size_t)dll_get_locked (d0);
+            up1 += (size_t)dll_get_locked (d1);
+          }
+      }
+    double f0 = (double)up0 / (double)(nep - nep / 4);
+    double f1 = (double)up1 / (double)(nep - nep / 4);
+    printf ("  6b: per-partial looks up %.1f%%, symbol-aided up %.1f%% "
+            "(N=%d, best phase %zu)\n",
+            100.0 * f0, 100.0 * f1, nl, d1->aid_best);
+    DP_CHECK (f0 < 0.5);  /* the default detector cannot hold this C/N0 */
+    DP_CHECK (f1 > 0.95); /* the aided one does */
+    /* The chosen hypothesis IS the symbol timing: its boundaries fall within
+       one partial of the true ones (circular over the period). */
+    double h_true = fmod (phi / ((double)te / (double)K), P);
+    double dist   = fabs ((double)d1->aid_best - h_true);
+    dist          = fmod (dist, P);
+    if (dist > P - dist)
+      dist = P - dist;
+    DP_CHECK (dist <= 1.0);
+    /* Both loops tracked the code regardless of the flag. */
+    DP_CHECK (fabs (dll_get_code_rate (d0) - 1.0) < 1e-3);
+    DP_CHECK (fabs (dll_get_code_rate (d1) - 1.0) < 1e-3);
+    /* Serialization: the rings and hypotheses ride the blob; a blob from an
+       instance without the aid is refused by one with it. */
+    {
+      dll_state_t *b = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
+      DP_CHECK (dll_set_symbol_period (b, P) == DP_OK);
+      DP_STATE_ROUNDTRIP_TEST (dll, d1, b);
+      size_t cb   = dll_state_bytes (d0);
+      void  *blob = malloc (cb);
+      dll_get_state (d0, blob);
+      DP_CHECK (dll_set_state (b, blob) == DP_ERR_INVALID);
+      free (blob);
+      dll_destroy (b);
+    }
+    /* Verify counts: set, kept with the thresholds, and refused at 0. */
+    {
+      double up = d1->lock.up_thresh, down = d1->lock.down_thresh;
+      DP_CHECK (dll_set_lock_verify (d1, 2, 3) == DP_OK);
+      DP_CHECK (d1->lock.n_up == 2 && d1->lock.n_down == 3);
+      DP_CHECK (d1->lock.up_thresh == up && d1->lock.down_thresh == down);
+      DP_CHECK (dll_set_lock_verify (d1, 0, 3) == DP_ERR_INVALID);
+    }
+    /* Off again: per-partial looks, no window. */
+    DP_CHECK (dll_set_symbol_period (d1, 0.0) == DP_OK);
+    DP_CHECK (dll_get_symbol_window (d1) == 0);
+    dll_destroy (d0);
+    dll_destroy (d1);
+    free (rx);
+    free (out);
     free (code);
   }
 

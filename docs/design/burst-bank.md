@@ -406,30 +406,27 @@ and the questions at the end are open.*
 
 The C++ application does not receive bursts. It receives **continuous**
 DSSS with asynchronous data — the CCSDS command-link shape
-[`async-dsss-spec.md`](async-dsss-spec.md) already specifies (1023-chip
-Gold codes, 3.069 Mcps, ±50 kHz) — and the stream carries a **data-free
-period just before each frame sequence**: a stretch of code with no data
-transitions, then the frame. Several such signals are in the air at once at
-different Dopplers, each on its own Gold code.
+[`async-dsss-spec.md`](async-dsss-spec.md) already specifies (a 1023-chip
+Gold code, 3.069 Mcps, ±50 kHz) — and the stream carries a **data-free
+period of one code period just before each frame sequence**. Several
+emitters are in the air at once on the **same** Gold code, and what tells
+them apart is Doppler: each emitter's frequency difference *is* its
+Doppler. *(Maintainer, 2026-09-02: "one Gold code period; each emitter
+frequency difference is Doppler.")*
 
 ### 11.1 What the data-free window changes
 
 Everything the burst family assumes about a preamble holds for that window
 and for nothing else in the stream:
 
-- **The coherent search is valid there and only there.** Over the
-    data-free window the code repeats with no sign flips, so `BurstAcquisition`
-    with `reps` = the window's period count integrates coherently and buys
-    `10·log10(reps)` dB — the gain the continuous `Acquisition` engine
-    cannot have, because it must assume a data bit anywhere (`window_bins`,
-    `D = 1`, non-coherent looks; `dsss-acquisition.md`'s warning). On the
-    data, the same Gold code correlates with the code at every period with
-    a random sign, so a coherent search run across the data sees the
-    aliasing mislock that warning describes. The channel therefore
-    searches continuously but *detects* at the windows; what it does with
-    hits that land on data is a claim-rule question this design has not
-    had to answer before (the burst capture's payload used a different
-    code and fired only weakly).
+- **There is no coherent gain to buy.** The data-free window is one code
+    period, so `reps = 1` and the coherent depth is one epoch — exactly the
+    continuous `Acquisition` engine's search (`D = 1`, sensitivity from
+    non-coherent looks, `dsss-acquisition.md`'s warning). The window buys
+    one clean epoch without a data transition inside it, which the
+    continuous engine already prices as a straddle loss and survives. The
+    bank's reason to exist in this use case is therefore **not** gain —
+    §11.3 says what it is.
 - **The hand-off is to a tracking receiver, not to a frame demodulator.**
     A burst ends; a continuous signal is tracked from the seed onward
     (`carrier_acq → Dll + Costas`, the monolithic C receiver). So the
@@ -463,22 +460,20 @@ and for nothing else in the stream:
 ### 11.2 The numbers, from the spec and §10.4
 
 - Native span `3.069e6 / (2·1023)` = **1.5 kHz**; channel spacing 3.0 kHz;
-    covering ±50 kHz takes `2·ceil(50/3)+1` = **35 channels per code**.
+    covering ±50 kHz takes `2·ceil(50/3)+1` = **35 channels** — one bank,
+    since there is one code.
 - At `spc = 2` the source is 6.14 MSa/s; at §10.4's 48 ns/sample a channel
-    is **0.29× real time**, so one code's bank is **~10× real time** —
-    eight cores at the measured 5.8× pool speedup do not keep up with one
-    code, and there are several codes. Two things follow: the C++
-    application's own threads (§10.1, the primary path) are not optional,
-    and the per-channel cost is the number to attack first — 48 ns/sample
-    was measured for `DDC → BurstCapture`, and a channel that hands off a
-    `DetectionEvent` rather than a window may not need the capture's ring
-    and refine at all.
-- Alternatively the continuous engine's own `window_bins` tiling covers
-    ±50 kHz in **one** engine at `D = 1` — the same tiling this bank does
-    with DDCs, at no coherent gain. The bank earns its `K`-fold cost only by
-    the `10·log10(reps)` the data-free window allows. That trade is
-    measurable: Pd at the spec's Es/N0 ≥ 5 dB, one continuous engine
-    against a bank of coherent ones.
+    is **0.29× real time**, so the bank is **~10× real time** — eight cores
+    at the measured 5.8× pool speedup do not keep up. Two things follow:
+    the C++ application's own threads (§10.1, the primary path) are not
+    optional, and the per-channel cost is the number to attack first — 48
+    ns/sample was measured for `DDC → BurstCapture`, and a channel that
+    hands off a `DetectionEvent` rather than a window needs neither the
+    capture's ring nor its refine.
+- The continuous engine's own `window_bins` tiling covers ±50 kHz in
+    **one** engine at the same `D = 1` — the same tiling this bank does
+    with DDCs, at the same sensitivity. What the single engine cannot do is
+    §11.3's first item, and that, not gain, is what the `K`-fold cost buys.
 
 ### 11.3 The async tools, and what the bank adds to them
 
@@ -495,13 +490,21 @@ So the C++ application's channel is not `DDC → BurstCapture`. Against what
 already exists, the bank adds exactly three things, and each is a design
 decision rather than a given:
 
-- **Coherent gain at the data-free windows.** The async chain's search is
-    `D = 1` by construction, because it must survive a data bit anywhere.
-    A search that knows the data-free window is coming can integrate
-    `reps` periods coherently there — `BurstAcquisition` on a continuous
-    stream. Whether that gain is worth `K` engines instead of one is
-    §11.2's measurement, and it is the bank's whole reason to exist in
-    this use case.
+- **Resolution: N emitters at once, one band, one code.** A detector takes
+    the maximum over its surface, so one engine tiled over ±50 kHz reports
+    **one** emitter per dwell — the strongest — and the weaker ones are
+    masked until it is handed off, and masked again by the next-strongest
+    after that; its CFAR reference is polluted by every emitter in the
+    band too. A bank of `K` channels of one span each is `K` independent
+    detectors with `K` independent references: an emitter in channel `k`
+    is invisible to channel `j`, and `N` emitters in `N` channels are
+    reported in the same dwell. This is the bank's whole reason to exist
+    here, and it is the independence requirement of §10.1 seen from the
+    detector rather than the thread. Its limit is also exact: **two
+    emitters inside one span** (< 3 kHz apart on the same code) share a
+    surface and are again strongest-wins — resolvable only by code phase,
+    which needs a multi-peak report the engine does not make. Whether that
+    case occurs is question 7.
 - **Many emitters, one band.** One `AsyncDsssReceiver` tracks one signal;
     its state machine has no "lost" state and no second emitter. The bank
     is what holds the pool: which emitters are up, which channel each is
@@ -512,7 +515,10 @@ decision rather than a given:
     bank, it is the capture's refine, transplanted.
 
 Everything else — the DDC, the tiling rule, the tracker, the hand-off
-record — is already there.
+record — is already there. And the channel itself may already exist: an
+`AsyncDsssReceiver` with `doppler_uncertainty = 0` behind a `DDC` *is* a
+one-span searcher-and-tracker, so the bank's channel is plausibly
+`DDC → AsyncDsssReceiver` and the bank is the pool around `K` of them.
 
 ### 11.4 Questions this raises (open)
 
@@ -520,15 +526,16 @@ record — is already there.
     `DetectionEvent` (then the channel is `DDC → BurstAcquisition` and the
     capture's ring is unnecessary), or a frame demodulator over a copied
     window (then the channel is `DDC → BurstCapture` as designed)?
-1. **One Gold code per signal.** If so the bank is per code and the
-    application runs one bank per code it listens for — `N × K` channels —
-    and the multi-signal case is *between* banks, not within one.
+1. ~~**One Gold code per signal.**~~ **Answered:** one Gold code, shared;
+    emitters differ by Doppler. One bank; the multi-signal case is *within*
+    it, across channels.
 1. **The frame epoch.** Does the tracking chain's own frame sync recover
     where the frame starts, or does the channel owe the refined code epoch
     (the capture's refine, at `1023·spc`-sample periods)?
-1. **The data-free window's length**, in code periods, and the frame
-    cadence: the first is `reps` and the coherent gain; the second is how
-    often a signal can be (re)acquired and how far it drifts in between.
+1. ~~**The data-free window's length.**~~ **Answered:** one code period,
+    so `reps = 1` and no coherent gain. Still open: the frame cadence — how
+    often an emitter can be (re)acquired and how far it drifts (< 500 Hz/s)
+    in between.
 1. **Who owns the lifecycle.** Once an emitter is handed to a tracker, does
     the bank keep a record of it (so its channel can tell "the same
     emitter, next window" from "a new emitter", and so loss is the bank's
@@ -536,11 +543,15 @@ record — is already there.
     a stateless acquirer that reports every window it sees? The first is
     what makes the bank always-on in its own right; the second keeps it
     thin and pushes the claim-across-time rule into the application.
-1. **How many emitters at once**, per code and in total, and how long an
-    emitter is typically in view: the first sizes the tracker pool the
-    application holds, the second is the soak the characterization runs —
-    hours with emitters cycling in and out, checking that nothing grows
-    and nothing is missed on the way back in.
+1. **How many emitters at once**, and how long an emitter is typically in
+    view: the first sizes the tracker pool the application holds, the
+    second is the soak the characterization runs — hours with emitters
+    cycling in and out, checking that nothing grows and nothing is missed
+    on the way back in.
+1. **Can two emitters sit within one span of each other** (< 3 kHz on the
+    same code)? If yes, a channel needs a multi-peak report (detect the
+    strongest, cancel it, detect again — the engine has none) or a finer
+    channel; if no, the bank's per-channel resolution is the whole answer.
 
 ## 12. See also
 

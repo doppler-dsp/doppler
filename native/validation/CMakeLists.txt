@@ -399,6 +399,21 @@ target_compile_options(validate_dll_aid_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_dll_aid_jitter
          COMMAND validate_dll_aid_jitter --check)
 
+# The peak list on the searcher's surface: two emitters resolved, the
+# power-spread knee against the weak emitter alone, and the false-alarm rate
+# under the list (docs/design/async-dsss-receiver.md §7.1, §12 steps 2-4).
+# Emitters from the shipped continuous-DSSS synth, noise from the shipped
+# awgn; native/tests is reached for dp_test.h's assertions only.
+add_executable(validate_acq_peak_list
+               ${CMAKE_CURRENT_SOURCE_DIR}/acq_peak_list.c)
+target_include_directories(validate_acq_peak_list
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_acq_peak_list PRIVATE doppler_lib_static m)
+target_compile_options(validate_acq_peak_list PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_acq_peak_list
+         COMMAND validate_acq_peak_list --check)
+
 # So `sweep` is what a sanitizer suite excludes (`ctest -LE sweep`). The spot
 # check still runs on every PR in the ordinary C suite, which is where it is
 # cheap and where it was always the point.

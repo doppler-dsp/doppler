@@ -9,6 +9,7 @@
 #ifndef DET_PRIVATE_H
 #define DET_PRIVATE_H
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -108,6 +109,84 @@ det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
       }
     }
   return 0.0f; /* unreachable */
+}
+
+/* det_peak_t (one listed peak) is public in detector2d_core.h; the 1-D
+   detector includes neither, so define it here under the same guard. */
+#ifndef DET_PEAK_T_DEFINED
+#define DET_PEAK_T_DEFINED
+typedef struct
+{
+  size_t row;
+  size_t col;
+  float  value;
+} det_peak_t;
+#endif
+
+/**
+ * @brief The maximum of a surface, iterated with exclusion zones: every
+ *        peak above a gate, strongest first, at most `max_peaks` of them.
+ *
+ * The one argmax under both detectors (docs/design/async-dsss-receiver.md
+ * §7.1, §8 (a)). Each pick is the largest unmasked cell; if it is not above
+ * `gate` the list ends there (the gate is `eta` in the surface's own units,
+ * so a second peak is another draw from the same cells against the same
+ * union bound -- the threshold does not change with the list). A pick's
+ * zone -- `excl_rows` either side along the rows and `excl_cols` along the
+ * columns, CIRCULAR on both axes, since every surface this serves is an FFT
+ * bin axis by a circular correlation lag axis -- is masked so the emitter
+ * just reported cannot be reported again from its own shoulders; outside
+ * the zone a second emitter has its own maximum. The zone is therefore the
+ * detector's resolution, and it is the caller's to size from the code and
+ * the dwell (one Doppler bin by one chip: the main lobe's first nulls).
+ *
+ * `mask` is the caller's, `ny * nx` bytes, initialised by the caller: 0 for
+ * a candidate cell, non-zero for one that is never a candidate (a Doppler
+ * band the engine does not search). On return every listed peak's zone is
+ * marked as well. Nothing here allocates, and the cost is `max_peaks`
+ * scans of the surface plus the zones -- the duration rule of §5.1.
+ *
+ * @param surf      The surface, row-major `ny x nx`.
+ * @param ny, nx    Its geometry.
+ * @param gate      A peak must exceed this (strictly) to be listed.
+ * @param excl_rows Zone half-width along rows (0 = the row alone).
+ * @param excl_cols Zone half-width along columns (0 = the column alone).
+ * @param mask      `ny * nx` bytes, 0 = candidate; updated in place.
+ * @param out       Receives up to `max_peaks` peaks, strongest first.
+ * @param max_peaks Capacity of `out`.
+ * @return          Peaks listed (0 when nothing exceeds the gate).
+ */
+static size_t
+det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
+               size_t excl_rows, size_t excl_cols, uint8_t *mask,
+               det_peak_t *out, size_t max_peaks)
+{
+  const size_t n     = ny * nx;
+  size_t       count = 0;
+  while (count < max_peaks)
+    {
+      size_t best = n;
+      for (size_t k = 0; k < n; k++)
+        if (!mask[k] && (best == n || surf[k] > surf[best]))
+          best = k;
+      if (best == n || !(surf[best] > gate))
+        break;
+      const size_t r = best / nx, c = best % nx;
+      out[count].row   = r;
+      out[count].col   = c;
+      out[count].value = surf[best];
+      count++;
+      /* The zone, circular on both axes. */
+      const size_t rh = excl_rows < ny / 2 ? excl_rows : ny / 2;
+      const size_t ch = excl_cols < nx / 2 ? excl_cols : nx / 2;
+      for (size_t dr = 0; dr <= 2 * rh; dr++)
+        {
+          size_t rr = (r + ny + dr - rh) % ny;
+          for (size_t dc = 0; dc <= 2 * ch; dc++)
+            mask[rr * nx + (c + nx + dc - ch) % nx] = 1;
+        }
+    }
+  return count;
 }
 
 #endif /* DET_PRIVATE_H */

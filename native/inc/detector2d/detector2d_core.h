@@ -67,6 +67,22 @@ typedef struct
   float test_stat;  /**< peak_mag / noise_est; 0 if noise_est == 0.        */
 } det_result2d_t;
 
+/**
+ * @brief One listed peak of a surface: a cell and its value, in the
+ *        surface's own units (a magnitude on a coherent surface, a power on
+ *        a non-coherent one). What det_peak_list() (det_private.h) returns,
+ *        and what the acquisition engine keeps per dwell.
+ */
+#ifndef DET_PEAK_T_DEFINED
+#define DET_PEAK_T_DEFINED
+typedef struct
+{
+  size_t row;   /**< surface row                                    */
+  size_t col;   /**< surface column                                 */
+  float  value; /**< the cell's value                               */
+} det_peak_t;
+#endif
+
 /* ── Detector2D state ───────────────────────────────────────────────────── */
 
 /**
@@ -81,6 +97,7 @@ typedef struct
   float _Complex *out_buf;   /**< Corr2D output (ny*nx complex samples).     */
   float *mag_buf;           /**< |out_buf&#91;k&#93;|, ny*nx floats.               */
   float *noise_scratch;     /**< Scratch for median sort.                   */
+  uint8_t *peak_mask;       /**< det_peak_list's working mask (ny*nx).      */
   size_t ny;                /**< Number of rows.                            */
   size_t nx;                /**< Number of columns.                         */
   size_t n;                 /**< ny * nx — total frame length.              */

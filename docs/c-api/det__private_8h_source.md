@@ -12,6 +12,7 @@
 #ifndef DET_PRIVATE_H
 #define DET_PRIVATE_H
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -97,6 +98,51 @@ det_noise_estimate (const float *mag, size_t lo, size_t hi, float *scratch,
       }
     }
   return 0.0f; /* unreachable */
+}
+
+/* det_peak_t (one listed peak) is public in detector2d_core.h; the 1-D
+   detector includes neither, so define it here under the same guard. */
+#ifndef DET_PEAK_T_DEFINED
+#define DET_PEAK_T_DEFINED
+typedef struct
+{
+  size_t row;
+  size_t col;
+  float  value;
+} det_peak_t;
+#endif
+
+static size_t
+det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
+               size_t excl_rows, size_t excl_cols, uint8_t *mask,
+               det_peak_t *out, size_t max_peaks)
+{
+  const size_t n     = ny * nx;
+  size_t       count = 0;
+  while (count < max_peaks)
+    {
+      size_t best = n;
+      for (size_t k = 0; k < n; k++)
+        if (!mask[k] && (best == n || surf[k] > surf[best]))
+          best = k;
+      if (best == n || !(surf[best] > gate))
+        break;
+      const size_t r = best / nx, c = best % nx;
+      out[count].row   = r;
+      out[count].col   = c;
+      out[count].value = surf[best];
+      count++;
+      /* The zone, circular on both axes. */
+      const size_t rh = excl_rows < ny / 2 ? excl_rows : ny / 2;
+      const size_t ch = excl_cols < nx / 2 ? excl_cols : nx / 2;
+      for (size_t dr = 0; dr <= 2 * rh; dr++)
+        {
+          size_t rr = (r + ny + dr - rh) % ny;
+          for (size_t dc = 0; dc <= 2 * ch; dc++)
+            mask[rr * nx + (c + nx + dc - ch) % nx] = 1;
+        }
+    }
+  return count;
 }
 
 #endif /* DET_PRIVATE_H */

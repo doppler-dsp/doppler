@@ -76,7 +76,8 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  void | [**acq\_get\_state**](#function-acq_get_state) (const [**acq\_state\_t**](structacq__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**acq\_state\_bytes()**_](acq__core_8h.md#function-acq_state_bytes) _long). Call between pushes (no partial dump pending)._ |
 |  size\_t | [**acq\_push**](#function-acq_push) ([**acq\_state\_t**](structacq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
 |  void | [**acq\_reset**](#function-acq_reset) ([**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Drain the input ring and reset the coherent accumulator._  |
-|  size\_t | [**acq\_run**](#function-acq_run) ([**acq\_state\_t**](structacq__state__t.md) \* state, const void \* state\_in, void \* state\_out, const float \_Complex \* in, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._ |
+|  size\_t | [**acq\_run**](#function-acq_run) ([**acq\_state\_t**](structacq__state__t.md) \* state, const void \* state\_in, void \* state\_out, const float complex \* in, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._ |
+|  int | [**acq\_set\_max\_peaks**](#function-acq_set_max_peaks) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t n) <br>_How many peaks a dwell may report: the peak list's capacity._  |
 |  int | [**acq\_set\_state**](#function-acq_set_state) ([**acq\_state\_t**](structacq__state__t.md) \* state, const void \* blob) <br>_Restore cross-call state from_ `blob` _into_`state` _(replacing it)._ |
 |  size\_t | [**acq\_state\_bytes**](#function-acq_state_bytes) (const [**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob (header + unconsumed + nc)._ |
 
@@ -110,9 +111,10 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**ACQ\_MAX\_PEAKS**](acq__core_8h.md#define-acq_max_peaks)  `64u`<br> |
 | define  | [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)  `256u`<br>_Internal safety-valve ceiling on auto-selected non-coherent looks_  _not a public knob (no caller-facing equivalent of the retired_`max_noncoh` _parameter)._ |
 | define  | [**ACQ\_STATE\_MAGIC**](acq__core_8h.md#define-acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'Q', 'R')`<br> |
-| define  | [**ACQ\_STATE\_VERSION**](acq__core_8h.md#define-acq_state_version)  `1u`<br> |
+| define  | [**ACQ\_STATE\_VERSION**](acq__core_8h.md#define-acq_state_version)  `2u /\* v2: the peak list's held twins ride along \*/`<br> |
 
 ## Detailed Description
 
@@ -585,6 +587,58 @@ Number of events written (0 … max\_results).
 
 
 
+### function acq\_set\_max\_peaks 
+
+_How many peaks a dwell may report: the peak list's capacity._ 
+```C++
+int acq_set_max_peaks (
+    acq_state_t * state,
+    size_t n
+) 
+```
+
+
+
+One (the default) is the classic detector  the maximum of the surface, gated. More is the list of docs/design/async-dsss-receiver.md §7.1: every peak above the same gate, strongest first, each with an exclusion zone of one Doppler bin by one chip around it (one emitter's main lobe, so its own shoulders are not the next peak), and the two-epoch rule for a peak at an already-listed code phase  a data transition inside the epoch splits one emitter into twins at its own code phase on other tiles, so such a peak is held for one dwell and listed only if it was there, at the same tile, on the previous one. Each listed peak is one [**acq\_result\_t**](structacq__result__t.md) from [**acq\_push()**](acq__core_8h.md#function-acq_push), all of a dwell's sharing its `samples_consumed` and `noise_est`. A held twin takes a slot of the `n` for that dwell but is not reported. The threshold does not change: a second peak is another draw from the same cells against the same union bound. Clears the held candidates.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `n` 1 … ACQ\_MAX\_PEAKS. 
+
+
+
+**Returns:**
+
+0, or -1 (state untouched) when `n` is out of range. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Acquisition
+>>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
+>>> a = Acquisition(code, spc=2, chip_rate=1e6, symbol_rate=1e3,
+...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
+>>> a.max_peaks
+1
+>>> a.set_max_peaks(8)
+>>> a.max_peaks
+8
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function acq\_set\_state 
 
 _Restore cross-call state from_ `blob` _into_`state` _(replacing it)._
@@ -632,6 +686,23 @@ size_t acq_state_bytes (
 
 
 
+### define ACQ\_MAX\_PEAKS 
+
+```C++
+#define ACQ_MAX_PEAKS `64u`
+```
+
+
+
+The largest `max_peaks` [**acq\_set\_max\_peaks()**](acq__core_8h.md#function-acq_set_max_peaks) accepts: one push's result array is sized to this many in the binding, so one dwell can always be reported whole. 
+
+
+        
+
+<hr>
+
+
+
 ### define ACQ\_N\_NONCOH\_SAFETY\_CEILING 
 
 _Internal safety-valve ceiling on auto-selected non-coherent looks_  _not a public knob (no caller-facing equivalent of the retired_`max_noncoh` _parameter)._
@@ -666,7 +737,7 @@ The semi-analytical Pd model both auto-sizers ascend against turns non-monotonic
 ### define ACQ\_STATE\_VERSION 
 
 ```C++
-#define ACQ_STATE_VERSION `1u`
+#define ACQ_STATE_VERSION `2u /* v2: the peak list's held twins ride along */`
 ```
 
 

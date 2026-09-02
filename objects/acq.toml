@@ -114,6 +114,22 @@ params = [
   { name = "n_noncoh", type = "size_t" },
 ]
 
+[[acq.methods]]
+name = "set_max_peaks"
+doc = "How many peaks a dwell may report -- the peak list's capacity (docs/design/async-dsss-receiver.md section 7.1). One (the default) is the classic gated maximum. More lists every peak above the same gate, strongest first, with an exclusion zone of one Doppler bin by one chip around each (one emitter's main lobe, so its own shoulders are not the next peak) and the two-epoch rule for a peak at an already-listed code phase (a data transition inside the epoch splits one emitter into twins at its own code phase on other tiles; such a peak is held for one dwell and listed only if it is still there, at the same tile, on the next). Each listed peak is one record from push(), all of a dwell's sharing samples_consumed and noise_est; a held twin takes one of the n slots that dwell but is not reported. The threshold does not change with n. Raises ValueError outside 1..64. Clears the held candidates."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "n", type = "size_t" },
+]
+
+[[acq.properties]]
+name = "max_peaks"
+type = "size_t"
+field = true
+doc = "The peak list's capacity per dwell (1 = the classic gated maximum); set with set_max_peaks()."
+
 # ── Read-back grid the engine derived ────────────────────────────────────────
 
 [[acq.properties]]

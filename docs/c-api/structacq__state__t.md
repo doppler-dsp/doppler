@@ -36,6 +36,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  uint8\_t \* | [**band\_mask**](#variable-band_mask)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  size\_t | [**code\_bins**](#variable-code_bins)  <br> |
@@ -53,9 +54,12 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**fs**](#variable-fs)  <br> |
 |  size\_t | [**interp**](#variable-interp)  <br> |
 |  float \* | [**mag\_buf**](#variable-mag_buf)  <br> |
+|  size\_t | [**max\_peaks**](#variable-max_peaks)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_noncoh**](#variable-n_noncoh)  <br> |
+|  size\_t | [**n\_peaks**](#variable-n_peaks)  <br> |
 |  size\_t | [**n\_surf**](#variable-n_surf)  <br> |
+|  size\_t | [**n\_twins**](#variable-n_twins)  <br> |
 |  size\_t | [**nc\_count**](#variable-nc_count)  <br> |
 |  float \* | [**nc\_surface**](#variable-nc_surface)  <br> |
 |  float | [**noise\_est**](#variable-noise_est)  <br> |
@@ -68,7 +72,9 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**pd\_predicted**](#variable-pd_predicted)  <br> |
 |  size\_t | [**peak\_col**](#variable-peak_col)  <br> |
 |  float | [**peak\_mag**](#variable-peak_mag)  <br> |
+|  uint8\_t \* | [**peak\_mask**](#variable-peak_mask)  <br> |
 |  size\_t | [**peak\_row**](#variable-peak_row)  <br> |
+|  [**det\_peak\_t**](structdet__peak__t.md) \* | [**peaks**](#variable-peaks)  <br> |
 |  double | [**pfa**](#variable-pfa)  <br> |
 |  double | [**pfa\_cell**](#variable-pfa_cell)  <br> |
 |  float \_Complex \* | [**ref**](#variable-ref)  <br> |
@@ -84,6 +90,8 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  float | [**test\_stat**](#variable-test_stat)  <br> |
 |  float | [**threshold**](#variable-threshold)  <br> |
+|  uint32\_t \* | [**twin\_col**](#variable-twin_col)  <br> |
+|  uint32\_t \* | [**twin\_row**](#variable-twin_row)  <br> |
 |  uint8\_t | [**underpowered**](#variable-underpowered)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**wide\_fwd**](#variable-wide_fwd)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**wide\_inv**](#variable-wide_inv)  <br> |
@@ -145,6 +153,24 @@ Allocate with [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_bur
     
 ## Public Attributes Documentation
 
+
+
+
+### variable band\_mask 
+
+```C++
+uint8_t* acq_state_t::band_mask;
+```
+
+
+
+n\_surf; 1 = outside the searched band 
+ 
+
+
+        
+
+<hr>
 
 
 
@@ -451,6 +477,23 @@ float* acq_state_t::mag_buf;
 
 
 
+### variable max\_peaks 
+
+```C++
+size_t acq_state_t::max_peaks;
+```
+
+
+
+list capacity per dwell (1 = the maximum) 
+
+
+        
+
+<hr>
+
+
+
 ### variable n 
 
 ```C++
@@ -486,6 +529,24 @@ Non-coherent looks per detection (1 = coherent).
 
 
 
+### variable n\_peaks 
+
+```C++
+size_t acq_state_t::n_peaks;
+```
+
+
+
+picks in the last dwell, held ones too 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable n\_surf 
 
 ```C++
@@ -495,6 +556,24 @@ size_t acq_state_t::n_surf;
 
 
 Cells in the correlation SURFACE = `interp` \* n. The inverse transform is evaluated on a finer Doppler grid, so the buffers, the peak search and the CFAR reference span this and not `n`. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable n\_twins 
+
+```C++
+size_t acq_state_t::n_twins;
+```
+
+
+
+picks carried over from the last dwell 
  
 
 
@@ -702,6 +781,24 @@ float acq_state_t::peak_mag;
 
 
 
+### variable peak\_mask 
+
+```C++
+uint8_t* acq_state_t::peak_mask;
+```
+
+
+
+n\_surf; the working mask 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable peak\_row 
 
 ```C++
@@ -710,6 +807,24 @@ size_t acq_state_t::peak_row;
 
 
 
+
+<hr>
+
+
+
+### variable peaks 
+
+```C++
+det_peak_t* acq_state_t::peaks;
+```
+
+
+
+max\_peaks: the last dwell's picks 
+ 
+
+
+        
 
 <hr>
 
@@ -968,6 +1083,40 @@ float acq_state_t::threshold;
 
 CFAR gate on test\_stat (theta); coherent path. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable twin\_col 
+
+```C++
+uint32_t* acq_state_t::twin_col;
+```
+
+
+
+max\_peaks: last dwell's picks, code phases 
+
+
+        
+
+<hr>
+
+
+
+### variable twin\_row 
+
+```C++
+uint32_t* acq_state_t::twin_row;
+```
+
+
+
+max\_peaks: last dwell's picks, native rows 
 
 
         

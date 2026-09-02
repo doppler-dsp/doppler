@@ -43,6 +43,8 @@ extern "C"
   int burst_acq_configure_search_raw (burst_acq_state_t *state,
                                       size_t doppler_bins, size_t n_noncoh);
 
+  int burst_acq_set_max_peaks (burst_acq_state_t *state, size_t n);
+
   /* ── Serializable state — forwards straight to the embedded engine's own
    * triplet (the serialized bytes ARE the shared acq_state_t's own state;
    * no separate format needed). */

@@ -1043,6 +1043,62 @@ class Acquisition:
 
         """
 
+    def set_max_peaks(self, n: int) -> None:
+        """How many peaks a dwell may report -- the peak list's capacity
+        (docs/design/async-dsss-receiver.md section 7.1). One (the default) is
+        the classic gated maximum. More lists every peak above the same gate,
+        strongest first, with an exclusion zone of one Doppler bin by one chip
+        around each (one emitter's main lobe, so its own shoulders are not the
+        next peak) and the two-epoch rule for a peak at an already-listed code
+        phase (a data transition inside the epoch splits one emitter into twins
+        at its own code phase on other tiles; such a peak is held for one dwell
+        and listed only if it is still there, at the same tile, on the next).
+        Each listed peak is one record from push(), all of a dwell's sharing
+        samples_consumed and noise_est; a held twin takes one of the n slots
+        that dwell but is not reported. The threshold does not change with n.
+        Raises ValueError outside 1..64. Clears the held candidates.
+
+        One (the default) is the classic detector -- the maximum of the
+        surface, gated. More is the list of docs/design/async-dsss-receiver.md
+        §7.1: every peak above the same gate, strongest first, each with an
+        exclusion zone of one Doppler bin by one chip around it (one emitter's
+        main lobe, so its own shoulders are not the next peak), and the
+        two-epoch rule for a peak at an already-listed code phase -- a data
+        transition inside the epoch splits one emitter into twins at its own
+        code phase on other tiles, so such a peak is held for one dwell and
+        listed only if it is still there, at the same tile, on the next. Each
+        listed peak is one acq_result_t from acq_push(), all of a dwell's
+        sharing its `samples_consumed` and `noise_est`. A held twin takes a
+        slot of the `n` for that dwell but is not reported. The threshold does
+        not change: a second peak is another draw from the same cells against
+        the same union bound. Clears the held candidates.
+
+        Parameters
+        ----------
+        n : int
+            1 … ACQ_MAX_PEAKS.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_max_peaks failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
+        >>> a = Acquisition(code, spc=2, chip_rate=1e6, symbol_rate=1e3,
+        ...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
+        >>> a.max_peaks
+        1
+        >>> a.set_max_peaks(8)
+        >>> a.max_peaks
+        8
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 
@@ -1094,6 +1150,12 @@ class Acquisition:
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def max_peaks(self) -> int:
+        """The peak list's capacity per dwell (1 = the classic gated maximum);
+        set with set_max_peaks().
         """
 
     @property
@@ -1436,6 +1498,52 @@ class BurstAcquisition:
 
         """
 
+    def set_max_peaks(self, n: int) -> None:
+        """How many peaks a dwell may report -- the peak list's capacity
+        (docs/design/async-dsss-receiver.md section 7.1). One (the default) is
+        the classic gated maximum. More lists every peak above the same gate,
+        strongest first, with an exclusion zone of one Doppler bin by one chip
+        around each (one emitter's main lobe, so its own shoulders are not the
+        next peak) and the two-epoch rule for a peak at an already-listed code
+        phase (a data transition inside the epoch splits one emitter into twins
+        at its own code phase on other tiles; such a peak is held for one dwell
+        and listed only if it is still there, at the same tile, on the next).
+        Each listed peak is one record from push(), all of a dwell's sharing
+        samples_consumed and noise_est; a held twin takes one of the n slots
+        that dwell but is not reported. The threshold does not change with n.
+        Raises ValueError outside 1..64. Clears the held candidates.
+
+        Forwards to acq_set_max_peaks() on the embedded engine (see its doc
+        comment in acq_core.h): one is the classic gated maximum; more is the
+        list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the
+        same gate, strongest first, an exclusion zone of one Doppler bin by one
+        chip around each, and the two-epoch rule for a peak at an
+        already-listed code phase. Each listed peak is one result from push().
+
+        Parameters
+        ----------
+        n : int
+            1 … ACQ_MAX_PEAKS.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_max_peaks failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import BurstAcquisition
+        >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
+        >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
+        ...                      cn0_dbhz=50.0)
+        >>> b.set_max_peaks(4)
+        >>> b.max_peaks
+        4
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 
@@ -1489,6 +1597,12 @@ class BurstAcquisition:
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def max_peaks(self) -> int:
+        """The peak list's capacity per dwell (1 = the classic gated maximum);
+        set with set_max_peaks().
         """
 
     @property

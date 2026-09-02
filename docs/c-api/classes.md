@@ -68,6 +68,7 @@
 * [**ddcr\_state**](structddcr__state.md)
 * [**delay\_state\_t**](structdelay__state__t.md)
 * [**despreader\_state\_t**](structdespreader__state__t.md)
+* [**det\_peak\_t**](structdet__peak__t.md)
 * [**det\_result2d\_t**](structdet__result2d__t.md)
 * [**det\_result\_t**](structdet__result__t.md)
 * [**detector2d\_state\_t**](structdetector2d__state__t.md)

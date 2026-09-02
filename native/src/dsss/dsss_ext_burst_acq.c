@@ -514,6 +514,19 @@ BurstAcquisition_getprop_underpowered (BurstAcquisitionObject *self,
   return PyBool_FromLong ((long)(self->handle->engine->underpowered));
 }
 
+static PyObject *
+BurstAcquisition_getprop_max_peaks (BurstAcquisitionObject *self,
+                                    void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->engine->max_peaks));
+}
+
 static PyGetSetDef BurstAcquisition_getset[] = {
   { "code_bins", (getter)BurstAcquisition_getprop_code_bins, NULL,
     "Code-phase hypotheses searched (= sf*spc, one code period).\n", NULL },
@@ -580,6 +593,10 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "rather than failing; because C cannot raise a Python warning from a "
     "successful create, construction also emits a UserWarning in this case.\n",
     NULL },
+  { "max_peaks", (getter)BurstAcquisition_getprop_max_peaks, NULL,
+    "The peak list's capacity per dwell (1 = the classic gated maximum); set "
+    "with set_max_peaks().\n",
+    NULL },
   { NULL }
 };
 
@@ -611,6 +628,30 @@ BurstAcquisitionObj_exit (BurstAcquisitionObject *self, PyObject *args)
     {
       burst_acq_destroy (self->handle);
       self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+BurstAcquisitionObj_set_max_peaks (BurstAcquisitionObject *self,
+                                   PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "n", NULL };
+  unsigned long long n_raw     = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
+    return NULL;
+  size_t n   = (size_t)n_raw;
+  int    _rc = burst_acq_set_max_peaks (self->handle, n);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
+                    (long long)_rc);
+      return NULL;
     }
   Py_RETURN_NONE;
 }
@@ -795,6 +836,52 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "set_max_peaks", (PyCFunction)(void *)BurstAcquisitionObj_set_max_peaks,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_max_peaks(n) -> None\n"
+    "\n"
+    "How many peaks a dwell may report -- the peak list's capacity\n"
+    "(docs/design/async-dsss-receiver.md section 7.1). One (the default) is\n"
+    "the classic gated maximum. More lists every peak above the same gate,\n"
+    "strongest first, with an exclusion zone of one Doppler bin by one chip\n"
+    "around each (one emitter's main lobe, so its own shoulders are not the\n"
+    "next peak) and the two-epoch rule for a peak at an already-listed code\n"
+    "phase (a data transition inside the epoch splits one emitter into twins\n"
+    "at its own code phase on other tiles; such a peak is held for one dwell\n"
+    "and listed only if it is still there, at the same tile, on the next).\n"
+    "Each listed peak is one record from push(), all of a dwell's sharing\n"
+    "samples_consumed and noise_est; a held twin takes one of the n slots\n"
+    "that dwell but is not reported. The threshold does not change with n.\n"
+    "Raises ValueError outside 1..64. Clears the held candidates.\n"
+    "\n"
+    "Forwards to acq_set_max_peaks() on the embedded engine (see its doc\n"
+    "comment in acq_core.h): one is the classic gated maximum; more is the\n"
+    "list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the\n"
+    "same gate, strongest first, an exclusion zone of one Doppler bin by one\n"
+    "chip around each, and the two-epoch rule for a peak at an\n"
+    "already-listed code phase. Each listed peak is one result from push().\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    1 … ACQ_MAX_PEAKS.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_max_peaks failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import BurstAcquisition\n"
+    ">>> code = (np.arange(31) * 5 % 2).astype(np.uint8)\n"
+    ">>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,\n"
+    "...                      cn0_dbhz=50.0)\n"
+    ">>> b.set_max_peaks(4)\n"
+    ">>> b.max_peaks\n"
+    "4\n" },
   { NULL }
 };
 

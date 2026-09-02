@@ -65,6 +65,7 @@ _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._ [More...
 |  void | [**burst\_acq\_get\_state**](#function-burst_acq_get_state) (const [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**burst\_acq\_push**](#function-burst_acq_push) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
 |  void | [**burst\_acq\_reset**](#function-burst_acq_reset) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state) <br>_Drain the input ring and reset the coherent accumulator._  |
+|  int | [**burst\_acq\_set\_max\_peaks**](#function-burst_acq_set_max_peaks) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, size\_t n) <br>_How many peaks a dwell may report: the peak list's capacity._  |
 |  int | [**burst\_acq\_set\_state**](#function-burst_acq_set_state) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**burst\_acq\_state\_bytes**](#function-burst_acq_state_bytes) (const [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state) <br> |
 
@@ -385,6 +386,56 @@ Forwards to [**acq\_reset()**](acq__core_8h.md#function-acq_reset) on the embedd
 (0, 17)
 ```
  
+
+
+
+
+        
+
+<hr>
+
+
+
+### function burst\_acq\_set\_max\_peaks 
+
+_How many peaks a dwell may report: the peak list's capacity._ 
+```C++
+int burst_acq_set_max_peaks (
+    burst_acq_state_t * state,
+    size_t n
+) 
+```
+
+
+
+Forwards to [**acq\_set\_max\_peaks()**](acq__core_8h.md#function-acq_set_max_peaks) on the embedded engine (see its doc comment in [**acq\_core.h**](acq__core_8h.md)): one is the classic gated maximum; more is the list of docs/design/async-dsss-receiver.md §7.1  every peak above the same gate, strongest first, an exclusion zone of one Doppler bin by one chip around each, and the two-epoch rule for a peak at an already-listed code phase. Each listed peak is one result from push().
+
+
+
+
+**Parameters:**
+
+
+* `state` Allocated engine (non-NULL). 
+* `n` 1 … ACQ\_MAX\_PEAKS. 
+
+
+
+**Returns:**
+
+0, or -1 (engine untouched) when `n` is out of range. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import BurstAcquisition
+>>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
+>>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
+...                      cn0_dbhz=50.0)
+>>> b.set_max_peaks(4)
+>>> b.max_peaks
+4
+```
+ 
+
 
 
 

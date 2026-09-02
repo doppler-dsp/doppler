@@ -10,6 +10,7 @@
 
 _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detailed-description)
 
+* `#include <stdint.h>`
 * `#include <stdlib.h>`
 * `#include <string.h>`
 
@@ -27,6 +28,11 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 
 
 
+## Classes
+
+| Type | Name |
+| ---: | :--- |
+| struct | [**det\_peak\_t**](structdet__peak__t.md) <br> |
 
 
 
@@ -57,6 +63,7 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 | ---: | :--- |
 |  int | [**det\_cmp\_f32\_asc**](#function-det_cmp_f32_asc) (const void \* a, const void \* b) <br> |
 |  float | [**det\_noise\_estimate**](#function-det_noise_estimate) (const float \* mag, size\_t lo, size\_t hi, float \* scratch, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._  |
+|  size\_t | [**det\_peak\_list**](#function-det_peak_list) (const float \* surf, size\_t ny, size\_t nx, float gate, size\_t excl\_rows, size\_t excl\_cols, uint8\_t \* mask, [**det\_peak\_t**](structdet__peak__t.md) \* out, size\_t max\_peaks) <br>_The maximum of a surface, iterated with exclusion zones: every peak above a gate, strongest first, at most_ `max_peaks` _of them._ |
 |  dp\_f32\_t \* | [**det\_ring\_create**](#function-det_ring_create) (size\_t cap\_min) <br> |
 |  size\_t | [**next\_pow2**](#function-next_pow2) (size\_t n) <br> |
 
@@ -84,6 +91,11 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**DET\_PEAK\_T\_DEFINED**](det__private_8h.md#define-det_peak_t_defined)  <br> |
 
 ## Detailed Description
 
@@ -158,6 +170,61 @@ Aggregated noise estimate, or 0 if lo &gt; hi.
 
 
 
+### function det\_peak\_list 
+
+_The maximum of a surface, iterated with exclusion zones: every peak above a gate, strongest first, at most_ `max_peaks` _of them._
+```C++
+static size_t det_peak_list (
+    const float * surf,
+    size_t ny,
+    size_t nx,
+    float gate,
+    size_t excl_rows,
+    size_t excl_cols,
+    uint8_t * mask,
+    det_peak_t * out,
+    size_t max_peaks
+) 
+```
+
+
+
+The one argmax under both detectors (docs/design/async-dsss-receiver.md §7.1, §8 (a)). Each pick is the largest unmasked cell; if it is not above `gate` the list ends there (the gate is `eta` in the surface's own units, so a second peak is another draw from the same cells against the same union bound  the threshold does not change with the list). A pick's zone  `excl_rows` either side along the rows and `excl_cols` along the columns, CIRCULAR on both axes, since every surface this serves is an FFT bin axis by a circular correlation lag axis  is masked so the emitter just reported cannot be reported again from its own shoulders; outside the zone a second emitter has its own maximum. The zone is therefore the detector's resolution, and it is the caller's to size from the code and the dwell (one Doppler bin by one chip: the main lobe's first nulls).
+
+
+`mask` is the caller's, `ny * nx` bytes, initialised by the caller: 0 for a candidate cell, non-zero for one that is never a candidate (a Doppler band the engine does not search). On return every listed peak's zone is marked as well. Nothing here allocates, and the cost is `max_peaks` scans of the surface plus the zones  the duration rule of §5.1.
+
+
+
+
+**Parameters:**
+
+
+* `surf` The surface, row-major `ny x nx`. 
+* `ny` Its geometry. 
+* `gate` A peak must exceed this (strictly) to be listed. 
+* `excl_rows` Zone half-width along rows (0 = the row alone). 
+* `excl_cols` Zone half-width along columns (0 = the column alone). 
+* `mask` `ny * nx` bytes, 0 = candidate; updated in place. 
+* `out` Receives up to `max_peaks` peaks, strongest first. 
+* `max_peaks` Capacity of `out`. 
+
+
+
+**Returns:**
+
+Peaks listed (0 when nothing exceeds the gate). 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function det\_ring\_create 
 
 ```C++
@@ -179,6 +246,22 @@ static dp_f32_t * det_ring_create (
 static size_t next_pow2 (
     size_t n
 ) 
+```
+
+
+
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define DET\_PEAK\_T\_DEFINED 
+
+```C++
+#define DET_PEAK_T_DEFINED 
 ```
 
 

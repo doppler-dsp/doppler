@@ -44,6 +44,16 @@ typedef struct
   float test_stat;  
 } det_result2d_t;
 
+#ifndef DET_PEAK_T_DEFINED
+#define DET_PEAK_T_DEFINED
+typedef struct
+{
+  size_t row;   
+  size_t col;   
+  float  value; 
+} det_peak_t;
+#endif
+
 /* ── Detector2D state ───────────────────────────────────────────────────── */
 
 typedef struct
@@ -53,6 +63,7 @@ typedef struct
   float _Complex *out_buf;   
   float *mag_buf;           
   float *noise_scratch;     
+  uint8_t *peak_mask;       
   size_t ny;                
   size_t nx;                
   size_t n;                 

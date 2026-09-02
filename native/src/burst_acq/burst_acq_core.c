@@ -51,6 +51,12 @@ burst_acq_configure_search_raw (burst_acq_state_t *state, size_t doppler_bins,
   return acq_configure_search_raw (state->engine, doppler_bins, n_noncoh);
 }
 
+int
+burst_acq_set_max_peaks (burst_acq_state_t *state, size_t n)
+{
+  return acq_set_max_peaks (state->engine, n);
+}
+
 size_t
 burst_acq_state_bytes (const burst_acq_state_t *state)
 {

@@ -57,6 +57,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**ddcr\_state**](structddcr__state.md) _DdcR state — the real-to-complex front end, an LO and a cascade._     
 * **struct** [**delay\_state\_t**](structdelay__state__t.md) _Delay state._     
 * **struct** [**despreader\_state\_t**](structdespreader__state__t.md) _Despreader state._     
+* **struct** [**det\_peak\_t**](structdet__peak__t.md)     
 * **struct** [**det\_result2d\_t**](structdet__result2d__t.md) _Detection event returned by_ [_**detector2d\_push()**_](detector2d__core_8h.md#function-detector2d_push) _._    
 * **struct** [**det\_result\_t**](structdet__result__t.md) _Detection event returned by_ [_**detector\_push()**_](detector__core_8h.md#function-detector_push) _._    
 * **struct** [**detector2d\_state\_t**](structdetector2d__state__t.md) _2-D signal detector state._     

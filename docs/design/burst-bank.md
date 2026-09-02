@@ -515,17 +515,40 @@ decision rather than a given:
     bank, it is the capture's refine, transplanted.
 
 Everything else — the DDC, the tiling rule, the tracker, the hand-off
-record — is already there. And the channel itself may already exist: an
-`AsyncDsssReceiver` with `doppler_uncertainty = 0` behind a `DDC` *is* a
-one-span searcher-and-tracker, so the bank's channel is plausibly
-`DDC → AsyncDsssReceiver` and the bank is the pool around `K` of them.
+record — is already there.
+
+**Two rules from the maintainer (2026-09-02) fix the channel's shape:**
+
+- **It always has to be searching.** A channel never stops acquiring: the
+    emitter it just handed off keeps transmitting in its band while a
+    second one rises beside it, and the first one's loss has to be noticed
+    by something that is still looking. That rules out
+    `AsyncDsssReceiver` as the channel — its state machine *replaces* the
+    search with refining and then tracking, feeding every sample to the
+    tracker. In the bank, search and track are **concurrent** per channel:
+    the search engine runs on every block, and each hand-off spawns a
+    consumer that is fed the same samples beside it. Two things follow. A
+    channel that keeps searching re-detects the emitter it handed off at
+    every data-free window, so something must recognise "that one is
+    already handed off" — a suppression keyed by emitter (its Doppler and
+    code phase), the analogue of the capture's `suppress_until` keyed by
+    time — and that is the bank's, which settles the *minimum* of question
+    5\. And the per-channel cost in §11.2 is the search alone; each tracked
+    emitter adds a tracker's cost on top, on the application's threads.
+- **The hand-off logic is selectable.** What a detection becomes is a
+    policy, not a property of the channel: hand a `DetectionEvent` to a
+    tracker (this use case), capture a window for a frame demodulator (the
+    burst use case), or report and do nothing (surveillance). The channel
+    owns the search and the event; the policy owns what happens next and
+    is chosen per bank, possibly per channel. This answers question 1 —
+    the channel is `DDC → search`, and `BurstCapture`'s ring and refine are
+    one *policy's* apparatus, attached only when that policy is selected.
 
 ### 11.4 Questions this raises (open)
 
-1. **Hand-off target.** A tracking receiver seeded by the channel's
-    `DetectionEvent` (then the channel is `DDC → BurstAcquisition` and the
-    capture's ring is unnecessary), or a frame demodulator over a copied
-    window (then the channel is `DDC → BurstCapture` as designed)?
+1. ~~**Hand-off target.**~~ **Answered:** selectable — a policy on the
+    detection (track / capture a window / report), not a property of the
+    channel. The channel is `DDC → search`, always searching.
 1. ~~**One Gold code per signal.**~~ **Answered:** one Gold code, shared;
     emitters differ by Doppler. One bank; the multi-signal case is *within*
     it, across channels.
@@ -536,13 +559,12 @@ one-span searcher-and-tracker, so the bank's channel is plausibly
     so `reps = 1` and no coherent gain. Still open: the frame cadence — how
     often an emitter can be (re)acquired and how far it drifts (< 500 Hz/s)
     in between.
-1. **Who owns the lifecycle.** Once an emitter is handed to a tracker, does
-    the bank keep a record of it (so its channel can tell "the same
-    emitter, next window" from "a new emitter", and so loss is the bank's
-    to notice), or does the application own that table and the bank stays
-    a stateless acquirer that reports every window it sees? The first is
-    what makes the bank always-on in its own right; the second keeps it
-    thin and pushes the claim-across-time rule into the application.
+1. **Who owns the lifecycle.** *Partly answered:* because the channel
+    always searches, the bank must at least remember what it handed off
+    (an emitter keyed by Doppler and code phase) or it re-hands-off the
+    same emitter every window. Still open: whether the bank also owns the
+    tracker pool and notices loss, or reports "still there / gone" to an
+    application that owns the table.
 1. **How many emitters at once**, and how long an emitter is typically in
     view: the first sizes the tracker pool the application holds, the
     second is the soak the characterization runs — hours with emitters

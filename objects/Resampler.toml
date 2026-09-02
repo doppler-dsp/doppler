@@ -54,6 +54,10 @@ type = "size_t"
 name = "num_taps"
 type = "size_t"
 
+[[Resampler.properties]]
+name = "delay"
+type = "double"
+
 # gh-428 manual_stub: hand-written .pyi symbol (see status_allow rationale).
 [[Resampler.methods]]
 name = "execute_ctrl_max_out"

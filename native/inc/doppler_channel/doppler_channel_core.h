@@ -38,6 +38,14 @@
  * piecewise-constant ratio re-set once per block. No resampling math is
  * implemented here.
  *
+ * **The output is delayed by the resampler's group delay** --
+ * doppler_channel_get_delay_samples(), 10.5 samples for the built-in bank --
+ * on top of the dilation. Output sample `k`, at receive time `t = k/fs`,
+ * carries the input at time `t + excess(t) - delay/fs`. A receiver started at
+ * the INPUT's phase is that far from the peak: at two samples per chip, five
+ * chips, outside a DLL's pull-in and onto a Gold code's sidelobe
+ * (doppler-dsp/doppler#1189). Subtract it, or start the loop there.
+ *
  * Lifecycle: create -> `[execute / reset]*` -> destroy
  *
  * Example — a 2.5 GHz carrier seen at +20 ppm, ramping at 0.2 ppm/s:
@@ -271,6 +279,23 @@ double doppler_channel_get_elapsed_s(const doppler_channel_state_t *state);
 
 /** @brief Instantaneous carrier offset `fc*d(t)` in Hz at `elapsed_s`. */
 double doppler_channel_get_offset_hz(const doppler_channel_state_t *state);
+
+/**
+ * @brief The resampler's group delay, in samples (10.5 for the built-in bank).
+ *
+ * Constant, and in addition to the dilation: output `k` at receive time
+ * `t = k/fs` carries the input at `t + excess(t) - delay/fs`
+ * (doppler_channel_excess()). Input and receive samples differ by the ppm of
+ * Doppler, so the unit is either to that precision. resamp_get_delay() for
+ * the derivation.
+ *
+ * @code
+ * >>> from doppler.impairment import DopplerChannel
+ * >>> DopplerChannel(fs=1e6).delay_samples
+ * 10.5
+ * @endcode
+ */
+double doppler_channel_get_delay_samples(const doppler_channel_state_t *state);
 #ifdef __cplusplus
 }
 #endif

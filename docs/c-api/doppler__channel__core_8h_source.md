@@ -82,6 +82,8 @@ size_t doppler_channel_execute(doppler_channel_state_t *state, const float compl
 double doppler_channel_get_elapsed_s(const doppler_channel_state_t *state);
 
 double doppler_channel_get_offset_hz(const doppler_channel_state_t *state);
+
+double doppler_channel_get_delay_samples(const doppler_channel_state_t *state);
 #ifdef __cplusplus
 }
 #endif

@@ -1,4 +1,5 @@
 #include "doppler_channel/doppler_channel_core.h"
+#include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <complex.h>
@@ -223,6 +224,70 @@ main (void)
     DP_CHECK (dp_nearf (doppler_channel_get_elapsed_s (ch), 0.0, 1e-12f));
     free (y);
     doppler_channel_destroy (ch);
+  }
+
+  /* ---- 10. the output is delayed by delay_samples, on top of the ---- *
+   *          dilation: out[k] carries in[k + excess*fs - delay]            */
+  /* A random +/-1 sequence (the shipped bits) through the channel; the lag
+     of the cross-correlation peak between output and input, refined by a
+     parabola through the peak and its neighbours, against the closed form
+     the header states. Two points: no Doppler (lag = delay, 10.5 -- the
+     peak splits equally over 10 and 11, so the vertex is exact by
+     symmetry), and 20 ppm at the receive time where the dilation has
+     bought exactly half a sample (lag = delay - 0.5 = 10.0, symmetric
+     again). A delay off by the pipeline's one sample, or a truth line
+     with the dilation's sign wrong, misses by 1.0 and 1.0. */
+  {
+    const size_t   N = 65536, B = 2048;
+    float complex *seq = malloc (N * sizeof *seq);
+    DP_CHECK (seq != NULL);
+    uint32_t st = 0x5EEDu;
+    for (size_t i = 0; i < N; i++)
+      seq[i] = (float)dp_bit (&st) + 0.0f * I;
+    const double ppms[2] = { 0.0, T_PPM };
+    for (int c = 0; c < 2; c++)
+      {
+        /* Carrier 0: the pure time-dilation configuration the header names
+           for isolating a code loop -- a carrier on the output would
+           scramble a real cross-correlation. */
+        doppler_channel_state_t *ch
+            = doppler_channel_create (T_FS, 0.0, ppms[c], 0.0);
+        DP_CHECK (ch != NULL);
+        double D = doppler_channel_get_delay_samples (ch);
+        DP_CHECK (D > 1.0);
+        size_t         cap = doppler_channel_execute_max_out (ch);
+        float complex *y   = malloc (cap * sizeof *y);
+        size_t         n   = doppler_channel_execute (ch, seq, N, y, cap);
+        /* The block centre: where the dilation has bought half a sample
+           (k = 0.5 / (ppm*1e-6)), or the stream's middle without one. */
+        size_t k0 = c ? (size_t)(0.5 / (T_PPM * 1e-6)) : N / 2;
+        DP_CHECK (k0 + B + 32 < n);
+        double t    = ((double)k0 + 0.5 * B) / T_FS;
+        double e    = doppler_channel_excess (ch, t) * T_FS;
+        double want = D - e; /* out[k] ~ in[k - want] */
+        /* r(L) = sum out[k] in[k - L] over the block, L around want. */
+        double r[32];
+        int    L0 = (int)floor (want) - 8, best = 0;
+        for (int i = 0; i < 32; i++)
+          {
+            double acc = 0.0;
+            for (size_t k = k0; k < k0 + B; k++)
+              acc += crealf (y[k]) * crealf (seq[k - (size_t)(L0 + i)]);
+            r[i] = acc;
+            if (r[i] > r[best])
+              best = i;
+          }
+        DP_CHECK (best > 0 && best < 31);
+        double a = r[best - 1], b = r[best], cc = r[best + 1];
+        double vertex
+            = (double)(L0 + best) + 0.5 * (a - cc) / (a - 2.0 * b + cc);
+        printf ("  delay: %.0f ppm, lag %.3f samples, closed form %.3f\n",
+                ppms[c], vertex, want);
+        DP_CHECK (fabs (vertex - want) < 0.1);
+        free (y);
+        doppler_channel_destroy (ch);
+      }
+    free (seq);
   }
 
   free (x);

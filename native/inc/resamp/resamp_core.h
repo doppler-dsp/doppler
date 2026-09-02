@@ -312,6 +312,33 @@ extern "C"
   size_t resamp_get_num_phases (const resamp_state_t *state);
   size_t resamp_get_num_taps (const resamp_state_t *state);
 
+  /** @brief Group delay of the interpolator, in INPUT samples.
+   *
+   *  The prototype is a symmetric (linear-phase) Kaiser lowpass, so its
+   *  delay is its centre: `floor((num_phases * num_taps) | 1) / 2` prototype
+   *  taps, i.e. that over `num_phases` input samples -- 9.5 for the built-in
+   *  bank -- plus ONE input sample of pipeline: an output is formed from the
+   *  delay line as it stands, and only then is the next input loaded, so the
+   *  newest sample under the taps is the one before the sample being
+   *  offered. 10.5 for the built-in bank, on every entry point (the free,
+   *  ctrl and push forms agree; test_resamp_core.c §3 measures it by phase
+   *  differencing on each and holds it to this value).
+   *
+   *  What it is for: output `k` carries the input at index
+   *  `k * (1/rate) + (the accumulated ctrl) - delay`. A caller comparing the
+   *  output timeline with the input's -- a code loop fed through
+   *  doppler_channel, a test asserting where a chip lands -- subtracts this,
+   *  and a loop started at the input's phase without it is this far from the
+   *  peak (doppler-dsp/doppler#1189: 5 chips at 2 samples per chip, onto a
+   *  Gold sidelobe). Closed-form from the bank's geometry, so it is exact
+   *  for the built-in bank; a resamp_create_custom() bank is assumed
+   *  symmetric about the same centre.
+   *
+   *  @param state  Must be non-NULL.
+   *  @return       The delay in input samples (`>= 1`).
+   */
+  double resamp_get_delay (const resamp_state_t *state);
+
   /** @brief The control accumulator's fractional phase, in [0, 1).
    *
    *  This is the timing NCO's state, and observing it is the only way to see

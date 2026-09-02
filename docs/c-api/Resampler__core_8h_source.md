@@ -73,6 +73,8 @@ extern "C"
 
   size_t Resampler_get_num_taps (const Resampler_state_t *state);
 
+  double Resampler_get_delay (const Resampler_state_t *state);
+
 #ifdef __cplusplus
 }
 #endif

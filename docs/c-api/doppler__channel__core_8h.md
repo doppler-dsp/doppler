@@ -64,6 +64,7 @@ _Clock Doppler as a propagation impairment: dilate the time base and shift the c
 |  void | [**doppler\_channel\_destroy**](#function-doppler_channel_destroy) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Destroy a doppler\_channel instance and release all memory._  |
 |  size\_t | [**doppler\_channel\_execute**](#function-doppler_channel_execute) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Apply clock Doppler to a block of complex baseband._  |
 |  size\_t | [**doppler\_channel\_execute\_max\_out**](#function-doppler_channel_execute_max_out) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Upper bound on the output of one execute() call._  |
+|  double | [**doppler\_channel\_get\_delay\_samples**](#function-doppler_channel_get_delay_samples) (const [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_The resampler's group delay, in samples (10.5 for the built-in bank)._  |
 |  double | [**doppler\_channel\_get\_elapsed\_s**](#function-doppler_channel_get_elapsed_s) (const [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Receive time in seconds produced so far (_ `n_out/fs` _)._ |
 |  double | [**doppler\_channel\_get\_offset\_hz**](#function-doppler_channel_get_offset_hz) (const [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Instantaneous carrier offset_ `fc*d(t)` _in Hz at_`elapsed_s` _._ |
 |  void | [**doppler\_channel\_get\_state**](#function-doppler_channel_get_state) (const [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state, void \* blob) <br>_Serialize the running state (both clocks + the resampler's)._  |
@@ -135,6 +136,9 @@ Doppler is specified in **ppm of the nominal time base**, which makes it carrier
 
 
 The dilation is `resamp_execute_ctrl` (see `resamp_core.h`), whose per-sample rate deviation tracks the ramp exactly instead of approximating it with a piecewise-constant ratio re-set once per block. No resampling math is implemented here.
+
+
+**The output is delayed by the resampler's group delay**  [**doppler\_channel\_get\_delay\_samples()**](doppler__channel__core_8h.md#function-doppler_channel_get_delay_samples), 10.5 samples for the built-in bank  on top of the dilation. Output sample `k`, at receive time `t = k/fs`, carries the input at time `t + excess(t) - delay/fs`. A receiver started at the INPUT's phase is that far from the peak: at two samples per chip, five chips, outside a DLL's pull-in and onto a Gold code's sidelobe (doppler-dsp/doppler#1189). Subtract it, or start the loop there.
 
 
 Lifecycle: create -&gt; `[execute / reset]*` -&gt; destroy
@@ -305,6 +309,35 @@ size_t doppler_channel_execute_max_out (
 
 
 Assumes an input of at most `DOPPLER_CHANNEL_MAX_BLOCK` samples — see that macro for why the bound cannot depend on the actual input length. 
+
+
+        
+
+<hr>
+
+
+
+### function doppler\_channel\_get\_delay\_samples 
+
+_The resampler's group delay, in samples (10.5 for the built-in bank)._ 
+```C++
+double doppler_channel_get_delay_samples (
+    const doppler_channel_state_t * state
+) 
+```
+
+
+
+Constant, and in addition to the dilation: output `k` at receive time `t = k/fs` carries the input at `t + excess(t) - delay/fs` (doppler\_channel\_excess()). Input and receive samples differ by the ppm of Doppler, so the unit is either to that precision. [**resamp\_get\_delay()**](resamp__core_8h.md#function-resamp_get_delay) for the derivation.
+
+
+
+```C++
+>>> from doppler.impairment import DopplerChannel
+>>> DopplerChannel(fs=1e6).delay_samples
+10.5
+```
+ 
 
 
         

@@ -109,3 +109,9 @@ Resampler_get_num_taps (const Resampler_state_t *state)
 {
   return resamp_get_num_taps (state);
 }
+
+double
+Resampler_get_delay (const Resampler_state_t *state)
+{
+  return resamp_get_delay (state);
+}

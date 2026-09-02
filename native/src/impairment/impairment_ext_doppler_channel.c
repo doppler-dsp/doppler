@@ -328,27 +328,46 @@ DopplerChannel_getprop_offset_hz (DopplerChannelObject *self,
   return PyFloat_FromDouble (doppler_channel_get_offset_hz (self->handle));
 }
 
-static PyGetSetDef DopplerChannel_getset[]
-    = { { "fs", (getter)DopplerChannel_getprop_fs, NULL, "Fs.\n", NULL },
-        { "carrier_hz", (getter)DopplerChannel_getprop_carrier_hz, NULL,
-          "Carrier hz.\n", NULL },
-        { "doppler_ppm", (getter)DopplerChannel_getprop_doppler_ppm, NULL,
-          "Doppler ppm.\n", NULL },
-        { "doppler_rate_ppm_s",
-          (getter)DopplerChannel_getprop_doppler_rate_ppm_s, NULL,
-          "Doppler rate ppm s.\n", NULL },
-        { "elapsed_s", (getter)DopplerChannel_getprop_elapsed_s, NULL,
-          "Receive time in seconds consumed so far, the `t` every Doppler "
-          "quantity is evaluated at. Advances by `n/fs` per `execute(x)` call "
-          "and is zeroed by `reset()`.\n",
-          NULL },
-        { "offset_hz", (getter)DopplerChannel_getprop_offset_hz, NULL,
-          "Instantaneous carrier offset `fc * d(t)` in Hz at the current "
-          "`elapsed_s` -- the frequency a receiver would have to tune out "
-          "right now. Read-only diagnostic; with a non-zero "
-          "`doppler_rate_ppm_s` it ramps as the stream advances.\n",
-          NULL },
-        { NULL } };
+static PyObject *
+DopplerChannel_getprop_delay_samples (DopplerChannelObject *self,
+                                      void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (doppler_channel_get_delay_samples (self->handle));
+}
+
+static PyGetSetDef DopplerChannel_getset[] = {
+  { "fs", (getter)DopplerChannel_getprop_fs, NULL, "Fs.\n", NULL },
+  { "carrier_hz", (getter)DopplerChannel_getprop_carrier_hz, NULL,
+    "Carrier hz.\n", NULL },
+  { "doppler_ppm", (getter)DopplerChannel_getprop_doppler_ppm, NULL,
+    "Doppler ppm.\n", NULL },
+  { "doppler_rate_ppm_s", (getter)DopplerChannel_getprop_doppler_rate_ppm_s,
+    NULL, "Doppler rate ppm s.\n", NULL },
+  { "elapsed_s", (getter)DopplerChannel_getprop_elapsed_s, NULL,
+    "Receive time in seconds consumed so far, the `t` every Doppler "
+    "quantity is evaluated at. Advances by `n/fs` per `execute(x)` call "
+    "and is zeroed by `reset()`.\n",
+    NULL },
+  { "offset_hz", (getter)DopplerChannel_getprop_offset_hz, NULL,
+    "Instantaneous carrier offset `fc * d(t)` in Hz at the current "
+    "`elapsed_s` -- the frequency a receiver would have to tune out "
+    "right now. Read-only diagnostic; with a non-zero "
+    "`doppler_rate_ppm_s` it ramps as the stream advances.\n",
+    NULL },
+  { "delay_samples", (getter)DopplerChannel_getprop_delay_samples, NULL,
+    "The resampler's group delay in samples (10.5 for the built-in bank), "
+    "constant and in addition to the dilation: output `k` at receive time `t "
+    "= k/fs` carries the input at `t + excess(t) - delay_samples/fs`. A "
+    "receiver started at the input's phase is this far from the peak.\n",
+    NULL },
+  { NULL }
+};
 
 static PyObject *
 DopplerChannelObj_destroy (DopplerChannelObject *self,

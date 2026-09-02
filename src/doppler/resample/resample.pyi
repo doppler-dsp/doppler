@@ -229,6 +229,10 @@ class Resampler:
         branch.
         """
 
+    @property
+    def delay(self) -> float:
+        """Group delay of the interpolator, in input samples."""
+
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 

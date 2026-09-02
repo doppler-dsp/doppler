@@ -36,6 +36,11 @@ of it is re-derived here ([`burst-bank.md`](burst-bank.md) §11):
     normal event the searcher exists for. This answers `burst-bank.md`
     §11.4's question 6: the receiver pool is sized at ten plus release
     headroom (§5), and the soak's population is known (§6 step 7).
+- **The rate** (maintainer, 2026-09-02): all of it — the front end, the
+    searcher, every receiver, and the cancellation if it is built — must
+    run **comfortably at 30 MSa/s or more**, and running at exactly 30
+    MSa/s counts as slow. That is a budget every option below is priced
+    against (§1.4), not a benchmark to run at the end.
 
 The maintainer's description of the running system (2026-09-02) adds the
 lifecycle the policy serves, and it is the shape everything below is fitted
@@ -136,6 +141,50 @@ at a Doppler offset the correlation is partial-period and the bound does
 not apply as stated. And it is a *maximum* over lags — the RMS floor of a
 1023-chip code is nearer `1/√1023`, about −30 dB — so which of the two the
 detector experiences is a measurement (§6 step 1), not a lookup.
+
+### 1.4 The throughput floor
+
+At 30 MSa/s one core has **33 ns per input sample** for everything, and
+"comfortably" means a margin under that: this page takes **half** as the
+working target — the whole population inside 17 ns per input sample per
+core, across the cores the application gives it — and the margin is a
+number the benchmark reports, not one it assumes. Equality with 33 ns is
+a failure by the requirement's own words.
+
+The one measured number is already over it. `burst-bank.md` §10.4 put a
+`DDC → BurstCapture` channel at **47–51 ns per source sample**, so at 30
+MSa/s one such channel alone is **1.4× real time** on one core, before a
+single receiver runs. Three things follow for the shapes:
+
+- **One front-end DDC, shared.** There is one frequency channel, so the
+    only stage that runs at the input rate is one decimation to the
+    chip-rate multiple — `30 → 6.14` MSa/s at `spc = 2`, a factor of
+    about five. Everything after it, searcher and receivers alike, is
+    priced per *decimated* sample and lands on the input budget divided
+    by that factor. The receivers take chip-rate input already
+    (`AsyncDsssReceiver` ingests at `chip_rate · spc`), so they share the
+    front end rather than each owning one.
+- **The searcher is one window-tiled engine, not a DDC bank.** A bank of
+    35 `DDC → search` channels at 48 ns each is 50× real time at 30 MSa/s
+    on one core and does not fit on any node; the continuous engine's
+    own `window_bins` tiling covers ±50 kHz in one engine at the same
+    `D = 1` sensitivity (`burst-bank.md` §11.2), and with the peak list
+    inside it (§3 (a)) it lacks nothing the bank had for this use case.
+    That is a change to what §11.2 assumed, and the throughput floor is
+    what forces it.
+- **The receivers are the population's cost, and they parallelize; the
+    cancellation does not.** Twelve receivers at the decimated rate on
+    the application's threads scale across cores; the replicas on the
+    strong branch are subtracted on the searcher's path, serially, ten of
+    them per block — so (iii)'s coupling has a per-sample price on one
+    thread, and it is the searcher's.
+
+What is not known is every per-stage number at this rate: the front-end
+DDC per input sample, the searcher per decimated sample with the list,
+one receiver per decimated sample, one replica per decimated sample. §6
+step 8 measures them, and the bench that does it must count what it
+acquired and tracked beside the rate — a throughput that was reached by
+missing an emitter is not a throughput.
 
 ______________________________________________________________________
 
@@ -470,6 +519,18 @@ ______________________________________________________________________
     enough to count misses and false releases; the hours-long form with
     the memory and scratch checks is `burst-bank.md` §11.1's duration
     requirement and runs once the bank exists.
+1. **The budget, per stage, at 30 MSa/s.** Its own bench target, in
+    ns per input sample on one core, minimum of runs: the front-end DDC;
+    the window-tiled searcher with `max_peaks = 16`, per decimated sample
+    scaled to the input rate; one hand-off-mode receiver, tracking; one
+    replica subtraction. Then the whole population — the front end, the
+    searcher, ten receivers, and on the strong branch ten replicas — on
+    the core count the application gives, reported as the fraction of
+    real time at 30 MSa/s **beside the count of emitters acquired and
+    tracked** in the same run. Target: under 0.5. At 1.0 the requirement
+    is missed by its own words, and the stage that owns the excess is
+    the next thing to attack — §1.4's channel number says today's chain
+    already needs it.
 1. **Decide by the spread.** The application's operating spread
     (`burst-bank.md` §11.4 question 7) against step 3's knee: inside,
     branch one ships and (iii) is not built; beyond, (iii) is built and
@@ -478,8 +539,8 @@ ______________________________________________________________________
 Steps 1–4 are Python over the shipped engine plus the peak-list primitive,
 and are the same harness the burst characterization already runs. Steps
 5–6 need the hand-off-mode `AsyncDsssReceiver` (§1.1) with the lost state
-of §5 and, for step 5, a replica output it does not have today. Step 7
-needs the bank.
+of §5 and, for step 5, a replica output it does not have today. Steps 7–8
+need the orchestrator holding the population.
 
 ______________________________________________________________________
 

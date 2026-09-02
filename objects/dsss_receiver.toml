@@ -95,7 +95,7 @@ default = "100.0"
 
 # Dll's own tracking-robustness parameter -- independent of `sps` below,
 # bridged by an internal RateConverter, never coupled to it (this story's
-# own hard-won lesson; see docs/design/async-symbol-despreader.md §4).
+# own hard-won lesson; see docs/design/async-dsss-receiver.md §3.4).
 [[dsss_receiver.init_params]]
 name = "segments"
 type = "size_t"

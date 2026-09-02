@@ -52,7 +52,7 @@ rest of this design follows from.
 
 This is the requirement the component exists to satisfy, and it is stronger
 than "the demo works". It is the standard
-[`async-dsss-spec.md` §`DetectionEvent`](async-dsss-spec.md) already sets for
+[`async-dsss-receiver.md` §2.2](async-dsss-receiver.md) already sets for
 the continuous chain — "consumable by another process/service, not just
 another Python object in the same interpreter" — applied to bursts.
 
@@ -190,7 +190,7 @@ It is also the same stage
 [`dsss-use-cases.md`](../dev/contributing/dsss-use-cases.md) already calls for on
 the frequency axis ("refine only if needed: column-FFT over the reps within
 the winning coarse bin"), and the chain
-[`async-dsss-spec.md`](async-dsss-spec.md) records as validated end to end —
+[`async-dsss-receiver.md`](async-dsss-receiver.md) records as validated end to end —
 "search → handoff → **refine** → track". The burst path simply never grew
 one, which is why §6.1 looked like an open question instead of an absent
 component.
@@ -322,7 +322,7 @@ ______________________________________________________________________
 
 ## 4. What this means for `DetectionEvent`
 
-[`async-dsss-spec.md`](async-dsss-spec.md) specifies `DetectionEvent` with
+[`async-dsss-receiver.md`](async-dsss-receiver.md) specifies `DetectionEvent` with
 `chip_phase` (chips), `samples_consumed`, `doppler_hz_est`, `doppler_res_hz`,
 `cn0_dbhz_est` and three diagnostics. Measured against §3, that record is
 **sufficient for a tracking consumer and insufficient for a burst one**, and
@@ -421,7 +421,7 @@ ______________________________________________________________________
 - Not a replacement for the objects' individual use. A caller wiring them by
     hand stays supported; it just stops being the only option.
 - No transport. The event is a flat POD; who serializes it is the caller's
-    concern, exactly as `async-dsss-spec.md` has it.
+    concern, exactly as `async-dsss-receiver.md` has it.
 - **Not a continuous-stream receiver.** Bursts are *separated* — that is what
     makes them bursts, and the search, the look-back and the claim rules all
     assume it. A stream whose bursts abut with no gap at all is
@@ -583,7 +583,7 @@ push(x, n) ->
 ```
 
 The three stages are the point. `search → refine → demod` is the chain
-`async-dsss-spec.md` records as validated; the burst path had the first and
+`async-dsss-receiver.md` records as validated; the burst path had the first and
 last and was quietly asking acquisition to do refine's job with arithmetic.
 
 `CLAIM` is not a fourth stage so much as the bookkeeping between the first
@@ -828,7 +828,7 @@ ______________________________________________________________________
 
 - [Adding an algorithm — the lifecycle](../dev/contributing/adding-algorithms.md) — the
     phase order this document is phase 1 of
-- [`async-dsss-spec.md`](async-dsss-spec.md) — `DetectionEvent` and the
+- [`async-dsss-receiver.md`](async-dsss-receiver.md) — `DetectionEvent` and the
     service-boundary goals this extends to bursts
 - [DSSS use cases](../dev/contributing/dsss-use-cases.md) — the burst regime's
     geometry and why the 2-D roll fits it

@@ -8,7 +8,7 @@ Where
 `RateConverter` → `MpskReceiver` — to *show the mechanics*, this page
 drives the single packaged object that wraps that whole chain,
 [`dsss.AsyncDsssReceiver`](../api/python-dsss.md), against the literal
-waveform from [the async DSSS receiver spec](../design/async-dsss-spec.md):
+waveform from [the async DSSS receiver spec](../design/async-dsss-receiver.md):
 
 - CCSDS 415.0-G-1 command-link **Gold code, 1023 chips**, repeating
 - **3.069 Mcps** chip rate, asynchronous **BPSK at 2700 bps**

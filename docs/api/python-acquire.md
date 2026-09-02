@@ -37,6 +37,6 @@ independent of `dwell_target`.
 <!-- related-pages:start -->
 
 **Gallery** — [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Gallery](../gallery/index.md)
-**Design** — [DsssReceiver Specifications](../design/async-dsss-spec.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md)
+**Design** — [AsyncDsssReceiver — the continuous DSSS receiver, from spec to object](../design/async-dsss-receiver.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md)
 
 <!-- related-pages:end -->

@@ -40,7 +40,7 @@ Related: [carrier loop theory](../gallery/carrier-mpsk.md) (the
 decision-directed `CarrierMpsk` loop), [RateSync](../gallery/ratesync.md)
 (whose timing loop this receiver literally reuses), the
 [matched rate converter](../gallery/rate-converter.md), the async DSSS
-despreader ([design](async-symbol-despreader.md)) — DSSS-MPSK is the pipeline
+despreader ([design](async-dsss-receiver.md)) — DSSS-MPSK is the pipeline
 `Dll(segments) → MpskReceiver`, not a fused object.
 
 ______________________________________________________________________

@@ -15,7 +15,7 @@ serializable = "true"
 # condition needs and cannot have. Filed upstream; the warning is a documented
 # hand-patch in native/src/dsss/dsss_ext_burst_acq.c until that lands.
 # Composes acq's shared engine (acq_state_t/acq_core.c) -- this class is the
-# BURST front door (see docs/design/async-dsss-spec.md's Acquisition/
+# BURST front door (see docs/design/async-dsss-receiver.md's Acquisition/
 # BurstAcquisition split); today's existing pre-split Acquisition behavior,
 # unchanged, including its wideband fallback for doppler_uncertainty beyond
 # the native span (coherent depth structurally can't cover more than one

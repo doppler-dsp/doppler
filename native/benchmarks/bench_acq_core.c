@@ -1,6 +1,6 @@
 /* bench_acq_core.c — full C end-to-end wideband D=1 search: real acq_push(),
  * real n_noncoh non-coherent accumulation, at the SPEC-realistic waveform
- * this story settled on (docs/design/async-dsss-spec.md): Rc = 3.069
+ * this story settled on (docs/design/async-dsss-receiver.md): Rc = 3.069
  * Mcps Gold-1023 code (spc=2 -> code_bins=2046, native span = chip_rate/
  * (2*sf) = 1500 Hz exactly), +/-50 kHz Doppler uncertainty -> window_bins =
  * ceil(50000/1500) = 34 parallel roll-FFT frequency-window hypotheses per

@@ -177,7 +177,7 @@ main (void)
        (mean |Re prompt| well above 0; the code-phase tracking follows the
        sliding code phase without the integer-sample staircase). Threshold
        0.85, not the pre-redesign 0.9: the 2-samples/chip interpolated
-       replica (docs/design/async-despreader-working-design.md) is a
+       replica (docs/design/async-dsss-receiver.md §3.6) is a
        simpler point-sample model than the old dwell-width-aware exact
        matched-filter integral it replaced, and costs a small, expected
        amount of despread gain (observed ~0.87 here; ~0.88 in the Python

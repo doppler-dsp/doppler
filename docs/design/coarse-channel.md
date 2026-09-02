@@ -37,12 +37,15 @@ Everything below is judged against these two, and only these two.
 
 A wide-Doppler receiver in one process — a C++ application that brings its
 **own** threads or worker processes and expects to drive doppler from them.
-`±U` of uncertainty, `K` channels, and the reason it is parallel at all is
-the multi-signal case: several bursts in the air at once at different
-Dopplers, each landing in its own channel, each to be captured without
-waiting on the others. This is **not** the k8s case; nothing here ships a
-blob to a pod. Checkpointing is still wanted (a restart mid-pass), but as
-one blob for the whole bank.
+The signals are **continuous** DSSS with asynchronous data on 1023-chip Gold
+codes, each carrying a data-free period just before each frame sequence,
+and several are in the air at once at different Dopplers
+([`burst-bank.md` §11](burst-bank.md)). `±U` of uncertainty, `K` channels
+per code, and the reason it is parallel at all is that multi-signal case:
+each signal lands in its own channel and is acquired at its own data-free
+windows without waiting on the others. This is **not** the k8s case;
+nothing here ships a blob to a pod. Checkpointing is still wanted (a
+restart mid-pass), but as one blob for the whole bank.
 
 What this use case asks of the shape: that a channel is something the
 application's thread can hold and push **on its own** — a handle, not an

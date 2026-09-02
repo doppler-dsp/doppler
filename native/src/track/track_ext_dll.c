@@ -497,6 +497,19 @@ Dll_getprop_noise_est (DllObject *self, void *Py_UNUSED (closure))
   return PyFloat_FromDouble (dll_get_noise_est (self->handle));
 }
 
+static PyObject *
+Dll_getprop_symbol_window (DllObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dll_get_symbol_window (self->handle));
+}
+
 static PyGetSetDef Dll_getset[] = {
   { "bn", (getter)Dll_getprop_bn, (setter)Dll_setprop_bn,
     "loop noise bandwidth (retained).\n", NULL },
@@ -520,6 +533,10 @@ static PyGetSetDef Dll_getset[] = {
   { "noise_est", (getter)Dll_getprop_noise_est, NULL,
     "Current CFAR noise-power estimate E|O|^2 from the off-peak (noise) tap "
     "EMA.\n",
+    NULL },
+  { "symbol_window", (getter)Dll_getprop_symbol_window, NULL,
+    "The lock detector's coherent window in partials when set_symbol_period "
+    "is on (0 = off) -- size n_looks from it.\n",
     NULL },
   { NULL }
 };
@@ -550,6 +567,55 @@ DllObj_exit (DllObject *self, PyObject *args)
     {
       dll_destroy (self->handle);
       self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DllObj_set_symbol_period (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]           = { "partials_per_symbol", NULL };
+  double       partials_per_symbol = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist,
+                                    &partials_per_symbol))
+    return NULL;
+  int _rc = dll_set_symbol_period (self->handle, partials_per_symbol);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "set_symbol_period failed", (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+DllObj_set_lock_verify (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char  *_kwlist[]  = { "n_up", "n_down", NULL };
+  unsigned long n_up_raw   = 0UL;
+  unsigned long n_down_raw = 0UL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "kk", _kwlist, &n_up_raw,
+                                    &n_down_raw))
+    return NULL;
+  uint32_t n_up   = (uint32_t)n_up_raw;
+  uint32_t n_down = (uint32_t)n_down_raw;
+  int      _rc    = dll_set_lock_verify (self->handle, n_up, n_down);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_lock_verify failed",
+                    (long long)_rc);
+      return NULL;
     }
   Py_RETURN_NONE;
 }
@@ -1010,6 +1076,122 @@ static PyMethodDef DllObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "set_symbol_period", (PyCFunction)(void *)DllObj_set_symbol_period,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_symbol_period(partials_per_symbol) -> None\n"
+    "\n"
+    "Give the code-lock detector the data-symbol period in partials\n"
+    "(segments * chip_rate / (sf * symbol_rate); 0 = off), so its looks are\n"
+    "coherent over a symbol instead of a quarter-epoch partial. The\n"
+    "per-epoch max-power look-back lifted to the symbol scale: ceil(period)\n"
+    "boundary-phase hypotheses each own a transition-free window of L =\n"
+    "min(floor(period) - 1, 4 * segments) partials per symbol, the\n"
+    "hypothesis whose windows carry the most power (an EMA over ~32 symbols)\n"
+    "is the symbol timing, and its windows become the detector's looks --\n"
+    "7.8 dB more per look at 1.8 epochs per symbol and four partials per\n"
+    "epoch, and never across a transition. Size n_looks with\n"
+    "detection.det_n_noncoh over L * (sf * sps / segments) samples. Only the\n"
+    "detector's looks change: the discriminator keeps its per-epoch window\n"
+    "and the emitted partial stream is untouched. Raises ValueError when\n"
+    "segments <= 1 or the period is in (0, 2).\n"
+    "\n"
+    "In `segments > 1` mode every partial is a look for the code-lock\n"
+    "detector (dll_configure_lock()): the smallest integration the\n"
+    "asynchronous data allows when nothing is known about where its\n"
+    "transitions fall, and therefore the weakest. This is the same max-power\n"
+    "search the per-epoch look-back already runs, lifted to the symbol scale\n"
+    "once the symbol PERIOD is known: with `P = partials_per_symbol` the\n"
+    "transitions recur every `P` partials, so `ceil(P)` boundary-phase\n"
+    "hypotheses each define a transition-free window of `L = min(floor(P) -\n"
+    "1, 4 * segments)` partials per symbol. Each hypothesis accumulates the\n"
+    "power of its coherently summed windows (an EMA over the last ~32\n"
+    "symbols); the one with the most power IS the symbol timing, and its\n"
+    "windows become the detector's looks. A look then integrates `L`\n"
+    "partials coherently -- at SPEC's 1.8 epochs per symbol and four\n"
+    "partials per epoch, six partials instead of one, 7.8 dB more per look\n"
+    "-- and never straddles a transition. Size `n_looks` for it with\n"
+    "detection.det_n_noncoh() over `L * (sf * sps / segments)` samples.\n"
+    "\n"
+    "Only the lock detector's looks change. The code loop's discriminator\n"
+    "keeps its per-epoch look-back window, and the emitted partial stream is\n"
+    "untouched. The search is blind to WHICH hypothesis is right on any one\n"
+    "symbol -- it needs no decision and no external timing -- so it costs\n"
+    "nothing at cold start and follows a slowly drifting symbol clock by\n"
+    "itself. `L` is capped at four epochs of partials so a long symbol (a\n"
+    "low data rate) does not ask for coherence across more carrier than the\n"
+    "wipe-off holds.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "partials_per_symbol : float\n"
+    "    Data-symbol period in emitted partials, `segments * chip_rate / (sf\n"
+    "    * symbol_rate)`; >= 2. 0 disables (per-partial looks again).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_symbol_period failed``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import Dll\n"
+    ">>> code = (np.arange(63) * 7 % 2).astype(np.uint8)\n"
+    ">>> d = Dll(code, sps=2, segments=4)\n"
+    ">>> d.set_symbol_period(7.24)      # 1.81 epochs per symbol, 4 "
+    "partials/epoch\n"
+    ">>> d.symbol_window                # coherent partials per look\n"
+    "6\n"
+    ">>> d.set_symbol_period(0.0)       # back to per-partial looks\n"
+    ">>> d.symbol_window\n"
+    "0\n" },
+  { "set_lock_verify", (PyCFunction)(void *)DllObj_set_lock_verify,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_lock_verify(n_up, n_down) -> None\n"
+    "\n"
+    "Set the lock detector's verify counts, keeping its thresholds and\n"
+    "noise reference: n_up consecutive above-threshold decisions to declare,\n"
+    "n_down consecutive below-threshold decisions to drop. configure_lock\n"
+    "derives n_up from pfa and fixes n_down at 2; a caller that sized\n"
+    "n_looks for a target Pd knows the per-decision miss probability 1 - pd,\n"
+    "and detection.det_verify_count(1 - pd, budget) is the drop count that\n"
+    "holds the false-drop rate under a budget (3 for pd = 0.99 at 1e-6 per\n"
+    "decision). The running verify counter and the flag restart. Raises\n"
+    "ValueError when either count is 0.\n"
+    "\n"
+    "dll_configure_lock() derives the declare count from `pfa` and fixes the\n"
+    "drop count at 2. A caller that has sized `n_looks` for a target Pd\n"
+    "knows the per-decision miss probability `1 - pd`, and\n"
+    "det_verify_count(1 - pd, budget) is the drop count that holds the\n"
+    "false-drop rate under a budget -- three consecutive misses for pd =\n"
+    "0.99 at 1e-6 per decision. This sets both counts without touching the\n"
+    "thresholds or the noise reference; the running verify counter and the\n"
+    "flag restart.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n_up : int\n"
+    "    Consecutive above-threshold decisions to declare (>= 1).\n"
+    "n_down : int\n"
+    "    Consecutive below-threshold decisions to drop (>= 1).\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_lock_verify failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import Dll\n"
+    ">>> from doppler.detection import det_verify_count\n"
+    ">>> d = Dll(np.zeros(31, dtype=np.uint8), sps=2, segments=4)\n"
+    ">>> d.set_lock_verify(2, det_verify_count(0.01, 1e-6))\n"
+    ">>> d.locked\n"
+    "False\n" },
   { NULL }
 };
 

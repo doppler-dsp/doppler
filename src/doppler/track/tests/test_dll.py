@@ -410,3 +410,30 @@ def test_configure_lock_raw_independent_verify_counts():
     )
     d.steps(rx[: TE * 20])  # one n_looks-window's worth: a single decision
     assert d.locked is True
+
+
+def test_set_symbol_period_binding_faces():
+    # The binding delivers what test_dll_core.c §6b proves: the window is
+    # floor(period) - 1 partials, off is 0, and the two rejects raise.
+    code = _code(11)
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    assert d.symbol_window == 0
+    d.set_symbol_period(7.24)
+    assert d.symbol_window == 6
+    d.set_symbol_period(0.0)
+    assert d.symbol_window == 0
+    with pytest.raises(ValueError):
+        d.set_symbol_period(1.5)
+    single = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=1)
+    with pytest.raises(ValueError):
+        single.set_symbol_period(7.24)
+
+
+def test_set_lock_verify_binding_faces():
+    code = _code(11)
+    d = Dll(code, SPS, 0.0, 0.002, 0.707, 0.5, segments=4)
+    d.set_lock_verify(2, 3)
+    with pytest.raises(ValueError):
+        d.set_lock_verify(0, 3)
+    with pytest.raises(ValueError):
+        d.set_lock_verify(2, 0)

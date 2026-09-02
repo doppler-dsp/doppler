@@ -241,6 +241,6 @@ assert recs["value"].tolist() == [12.0, 13.0, 14.0, 15.0]
 <!-- related-pages:start -->
 
 **Gallery** — [Gallery](../gallery/index.md), [M-PSK Receiver — Sizing the Carrier Loop, and Riding a Doppler Profile](../gallery/mpsk-doppler-profile.md), [Capturing All Receiver Telemetry](../gallery/mpsk-telemetry-capture.md), [Full-Chain Lock-Up](../gallery/receiver-lock.md), [Telemetry: Many Emitters, One Consumer](../gallery/telemetry-fanin.md)
-**Design** — [Automatic Gain Control](../design/agc.md), [Design](../design/index.md), [Streaming — one envelope, six roles, two planes](../design/streaming.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md)
+**Design** — [Automatic Gain Control](../design/agc.md), [AsyncDsssReceiver — the continuous DSSS receiver, from spec to object](../design/async-dsss-receiver.md), [Design](../design/index.md), [Streaming — one envelope, six roles, two planes](../design/streaming.md), [Telemetry — zero-cost scalar taps for running pipelines](../design/telemetry.md)
 
 <!-- related-pages:end -->

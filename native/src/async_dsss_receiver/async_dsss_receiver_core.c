@@ -1,4 +1,5 @@
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
+#include "detection/detection_core.h"
 #include "util/util_core.h"
 #include <math.h>
 #include <stdlib.h>
@@ -179,6 +180,35 @@ adr_build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
   dll_state_t *dll
       = dp_xnn (dll_create (s->code, s->code_len, s->spc, chip_phase,
                             ASYNC_DSSS_RX_DLL_BN, 0.707, 0.5, segments));
+  /* The lock detector's looks, sized for THIS operating point rather than
+     left at the DLL's default 20 partials: the symbol period in partials is
+     known from configuration, so the detector's looks are the symbol-scale
+     max-power windows (dll_set_symbol_period, docs/design/
+     async-dsss-receiver.md §3.7), and n_looks is det_n_noncoh over the
+     window's coherent length at the design C/N0. Measured before this: at
+     Es/N0 5.7 dB the default detector read "unlocked" 96% of the time on a
+     loop that never lost the code (§12.3). A period under 2 partials (a
+     very fast data clock) keeps per-partial looks and only sizes them. */
+  if (segments > 1)
+    {
+      double partials_per_symbol = (double)segments * s->chip_rate
+                                   / ((double)s->code_len * s->symbol_rate);
+      (void)dll_set_symbol_period (dll, partials_per_symbol);
+      size_t win  = dll_get_symbol_window (dll);
+      size_t look = (win ? win : 1) * (s->tsamps / segments);
+      double amp  = sqrt (pow (10.0, s->cn0_dbhz / 10.0)
+                          / (s->chip_rate * (double)s->spc));
+      int    nl   = det_n_noncoh (amp, (int)look, 0.99, 1e-3, 4000);
+      if (nl >= 1)
+        {
+          (void)dll_configure_lock (dll, 1e-3, (size_t)nl, 0.0);
+          /* The drop count from the miss probability the sizing bought
+             (1 - 0.99) at a 1e-6 per-decision false-drop budget -- three,
+             against configure_lock's fixed two. */
+          (void)dll_set_lock_verify (dll, dll->lock.n_up,
+                                     (uint32_t)det_verify_count (0.01, 1e-6));
+        }
+    }
 
   /* Carrier->code aiding: the code-rate Doppler is coupled to the carrier
      offset through the same v/c, so feed the refined carrier estimate into

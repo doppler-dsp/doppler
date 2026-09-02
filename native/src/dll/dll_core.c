@@ -18,6 +18,12 @@
  * sub-threshold decisions (false-drop rate (1-pd_dec)^2 per window). The
  * C-only dll_configure_lock_raw() exposes it for callers that do know. */
 #define DLL_LOCK_DEFAULT_N_DOWN 2u
+/* Symbol-period aid: the coherent look is capped at this many EPOCHS of
+   partials (a long symbol must not ask for coherence across more carrier
+   than the wipe-off holds), and each hypothesis's window power is an EMA
+   over this many symbols. */
+#define DLL_AID_MAX_EPOCHS 4u
+#define DLL_AID_EMA_SYMBOLS 32.0
 
 /* xorshift32 — a tiny, deterministic PRNG for the lock-detector noise tap's
  * random offset.  Reproducible from a fixed seed so tests/benches are stable.
@@ -48,6 +54,19 @@ draw_offset (dll_state_t *s)
   s->off_chips = (double)(guard + xorshift32 (&s->rng) % span);
 }
 
+/* Clear the lock detector's running state (statistic, reference, verify
+ * counters); its configuration is untouched. */
+static void
+lock_clear (dll_state_t *s)
+{
+  s->noise_ema  = 0.0;
+  s->lock_sum   = 0.0;
+  s->lock_count = 0;
+  s->lock_nz    = 0;
+  s->lock_stat  = 0.0;
+  lockdet_reset (&s->lock);
+}
+
 /* Re-seed the loop to its create-time code phase + nominal rate, and clear the
  * correlator accumulators. The loop filter integrator is reset by the caller
  * (dll_init / dll_reset) before this runs. */
@@ -73,12 +92,17 @@ seed (dll_state_t *s)
   /* Clear the lock detector's running state; keep its config (threshold/
      n_looks/alpha) so reset() re-seeds the loop without re-tuning the
      detector. */
-  s->noise_ema  = 0.0;
-  s->lock_sum   = 0.0;
-  s->lock_count = 0;
-  s->lock_nz    = 0;
-  s->lock_stat  = 0.0;
-  lockdet_reset (&s->lock);
+  lock_clear (s);
+  /* The symbol-period aid keeps its config (period/window) but forgets what
+     it has seen: rings, per-hypothesis power, the chosen phase. */
+  s->aid_count = 0;
+  s->aid_best  = 0;
+  if (s->aid_ring_p)
+    {
+      memset (s->aid_ring_p, 0, s->aid_ring * sizeof (*s->aid_ring_p));
+      memset (s->aid_ring_o, 0, s->aid_ring * sizeof (*s->aid_ring_o));
+      memset (s->aid_power, 0, s->aid_nhyp * sizeof (*s->aid_power));
+    }
 }
 
 /* One non-coherent look: fold the offset (noise) sample into the noise
@@ -111,6 +135,50 @@ lock_look (dll_state_t *s, float _Complex prompt, float _Complex offset)
       (void)lockdet_step (&s->lock, s->lock_stat);
       s->lock_sum   = 0.0;
       s->lock_count = 0;
+    }
+}
+
+/* Symbol-timing-aided look (dll_set_symbol_period()): one partial arrives;
+ * the ring keeps the last `aid_ring` prompts and offset (noise) partials,
+ * and every boundary-phase hypothesis whose window ends on this partial
+ * sums its `aid_len` partials coherently. The window's power feeds that
+ * hypothesis's EMA; the best hypothesis's window is the look the detector
+ * sees. Hypothesis h places its n-th boundary at floor(h + n*P + 0.5), so a
+ * window [b, b + L) ends at partial i when b = i - L + 1 -- solved for n
+ * and checked exactly, never searched. */
+static void
+aid_look (dll_state_t *s, float complex part, float complex noise)
+{
+  const size_t   mask     = s->aid_ring - 1;
+  const uint64_t i        = s->aid_count++;
+  s->aid_ring_p[i & mask] = part;
+  s->aid_ring_o[i & mask] = noise;
+  if (i + 1 < s->aid_len)
+    return;
+  const double   P     = s->sym_period;
+  const uint64_t start = i + 1 - s->aid_len;
+  for (size_t h = 0; h < s->aid_nhyp; h++)
+    {
+      /* The n whose boundary could be `start`: round((start - h) / P). */
+      double nd = floor (((double)start - (double)h) / P + 0.5);
+      if (nd < 0.0)
+        continue;
+      uint64_t b = (uint64_t)floor ((double)h + nd * P + 0.5);
+      if (b != start)
+        continue;
+      float complex sp = 0.0f, so = 0.0f;
+      for (uint64_t k = start; k <= i; k++)
+        {
+          sp += s->aid_ring_p[k & mask];
+          so += s->aid_ring_o[k & mask];
+        }
+      double pw = (double)crealf (sp) * (double)crealf (sp)
+                  + (double)cimagf (sp) * (double)cimagf (sp);
+      s->aid_power[h] += s->aid_alpha * (pw - s->aid_power[h]);
+      if (s->aid_power[h] > s->aid_power[s->aid_best])
+        s->aid_best = h;
+      if (h == s->aid_best)
+        lock_look (s, sp, so);
     }
 }
 
@@ -207,6 +275,12 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
    * pointers. */
   s->chunk_p = s->chunk_e = s->chunk_l = s->sums = NULL;
   s->last_backward_p = s->last_e = s->last_l = NULL;
+  /* Likewise the symbol-period aid: off, no rings, for a caller-owned
+   * struct that was never calloc'd. */
+  s->aid_ring_p = s->aid_ring_o = NULL;
+  s->aid_power                  = NULL;
+  s->sym_period                 = 0.0;
+  s->aid_len = s->aid_nhyp = s->aid_ring = 0;
   /* In-place (stack-embedded) init: start detached — dll_create's calloc
    * gets this for free, a caller-owned struct would otherwise carry a
    * garbage telemetry pointer into the emit gates. */
@@ -234,6 +308,18 @@ alloc_segment_buffers (dll_state_t *s, size_t segments)
   s->last_l          = calloc (segments, sizeof (*s->last_l));
   return s->chunk_p && s->chunk_e && s->chunk_l && s->sums
          && s->last_backward_p && s->last_e && s->last_l;
+}
+
+static void
+free_aid_buffers (dll_state_t *s)
+{
+  free (s->aid_ring_p);
+  free (s->aid_ring_o);
+  free (s->aid_power);
+  s->aid_ring_p = s->aid_ring_o = NULL;
+  s->aid_power                  = NULL;
+  s->aid_ring = s->aid_nhyp = s->aid_len = 0;
+  s->sym_period                          = 0.0;
 }
 
 static void
@@ -289,6 +375,7 @@ dll_destroy (dll_state_t *state)
   if (state->owns_code)
     free ((void *)state->code);
   free_segment_buffers (state);
+  free_aid_buffers (state);
   free (state);
 }
 
@@ -368,11 +455,20 @@ dll_tlm_flush (const dll_state_t *s)
  * they're pointers, not part of the struct's own bytes. The borrowed
  * `code` pointer + its ownership are this instance's (config), restored
  * by create() and preserved here. */
+static size_t
+aid_bytes (const dll_state_t *s)
+{
+  return s->sym_period > 0.0 ? 2 * s->aid_ring * sizeof (*s->aid_ring_p)
+                                   + s->aid_nhyp * sizeof (*s->aid_power)
+                             : 0;
+}
+
 size_t
 dll_state_bytes (const dll_state_t *s)
 {
   size_t extra = s->segments > 1 ? 6 * s->segments * sizeof (*s->chunk_p) : 0;
-  return sizeof (dp_state_hdr_t) + sizeof (dll_state_t) + extra;
+  return sizeof (dp_state_hdr_t) + sizeof (dll_state_t) + extra
+         + aid_bytes (s);
 }
 
 void
@@ -393,6 +489,8 @@ dll_get_state (const dll_state_t *s, void *blob)
   tmp.owns_code   = 0;
   tmp.chunk_p = tmp.chunk_e = tmp.chunk_l = tmp.sums = NULL;
   tmp.last_backward_p = tmp.last_e = tmp.last_l = NULL;
+  tmp.aid_ring_p = tmp.aid_ring_o = NULL;
+  tmp.aid_power                   = NULL;
   memset (&tmp.tlm, 0, sizeof tmp.tlm);
   dp_w_bytes (&_w, &tmp, sizeof tmp);
   if (s->segments > 1)
@@ -404,6 +502,12 @@ dll_get_state (const dll_state_t *s, void *blob)
       dp_w_bytes (&_w, s->last_backward_p, n * sizeof (*s->last_backward_p));
       dp_w_bytes (&_w, s->last_e, n * sizeof (*s->last_e));
       dp_w_bytes (&_w, s->last_l, n * sizeof (*s->last_l));
+    }
+  if (s->sym_period > 0.0)
+    {
+      dp_w_bytes (&_w, s->aid_ring_p, s->aid_ring * sizeof (*s->aid_ring_p));
+      dp_w_bytes (&_w, s->aid_ring_o, s->aid_ring * sizeof (*s->aid_ring_o));
+      dp_w_bytes (&_w, s->aid_power, s->aid_nhyp * sizeof (*s->aid_power));
     }
 }
 
@@ -420,11 +524,29 @@ dll_set_state (dll_state_t *s, const void *blob)
    * the same way though never packed/restored from the blob body (pure
    * epoch-local scratch, rebuilt from chunk_p at the next epoch boundary
    * regardless of whatever was in it before this call). */
-  float _Complex *chunk_p = s->chunk_p, *chunk_e = s->chunk_e,
-                 *chunk_l = s->chunk_l, *sums = s->sums;
-  float _Complex *last_backward_p = s->last_backward_p, *last_e = s->last_e,
-                 *last_l = s->last_l;
+  float complex *chunk_p = s->chunk_p, *chunk_e = s->chunk_e,
+                *chunk_l = s->chunk_l, *sums = s->sums;
+  float complex *last_backward_p = s->last_backward_p, *last_e = s->last_e,
+                *last_l = s->last_l;
+  /* The aid rings are this instance's too, sized by ITS period: a blob from
+     a differently-configured instance is rejected, not resized from. */
+  float complex *aid_ring_p = s->aid_ring_p, *aid_ring_o = s->aid_ring_o;
+  double        *aid_power = s->aid_power;
+  const double   my_period = s->sym_period;
+  const size_t   my_ring = s->aid_ring, my_nhyp = s->aid_nhyp;
   dp_r_bytes (&_r, s, sizeof *s);
+  if ((s->sym_period > 0.0) != (my_period > 0.0)
+      || (s->sym_period > 0.0
+          && (s->aid_ring != my_ring || s->aid_nhyp != my_nhyp)))
+    {
+      s->aid_ring_p = aid_ring_p;
+      s->aid_ring_o = aid_ring_o;
+      s->aid_power  = aid_power;
+      return DP_ERR_INVALID;
+    }
+  s->aid_ring_p      = aid_ring_p;
+  s->aid_ring_o      = aid_ring_o;
+  s->aid_power       = aid_power;
   s->code            = code;
   s->owns_code       = owns;
   s->tlm             = tlm;
@@ -444,6 +566,12 @@ dll_set_state (dll_state_t *s, const void *blob)
       dp_r_bytes (&_r, s->last_backward_p, n * sizeof (*s->last_backward_p));
       dp_r_bytes (&_r, s->last_e, n * sizeof (*s->last_e));
       dp_r_bytes (&_r, s->last_l, n * sizeof (*s->last_l));
+    }
+  if (s->sym_period > 0.0)
+    {
+      dp_r_bytes (&_r, s->aid_ring_p, s->aid_ring * sizeof (*s->aid_ring_p));
+      dp_r_bytes (&_r, s->aid_ring_o, s->aid_ring * sizeof (*s->aid_ring_o));
+      dp_r_bytes (&_r, s->aid_power, s->aid_nhyp * sizeof (*s->aid_power));
     }
   return DP_OK;
 }
@@ -551,9 +679,12 @@ dll_steps_impl (dll_state_t *state, const float _Complex *x, size_t x_len,
              noise tap's own statistics aren't biased by a data transition),
              so this stays exactly as it was pre-redesign -- immediate,
              seg_norm-normalized. */
-          float _Complex part  = state->acc_p / (float)state->seg_norm;
-          float _Complex noise = state->acc_o / (float)state->seg_norm;
-          lock_look (state, part, noise);
+          float complex part  = state->acc_p / (float)state->seg_norm;
+          float complex noise = state->acc_o / (float)state->seg_norm;
+          if (state->sym_period > 0.0)
+            aid_look (state, part, noise);
+          else
+            lock_look (state, part, noise);
           state->chunk_p[state->seg_idx] = state->acc_p;
           state->chunk_e[state->seg_idx] = state->acc_e;
           state->chunk_l[state->seg_idx] = state->acc_l;
@@ -762,6 +893,62 @@ dll_set_rate_aid (dll_state_t *state, double rate_aid)
      update applies the aid. code_rate (the loop's own ratio observable) is
      left untouched. */
   state->rate_aid = rate_aid;
+}
+
+int
+dll_set_symbol_period (dll_state_t *state, double partials_per_symbol)
+{
+  if (partials_per_symbol <= 0.0)
+    {
+      free_aid_buffers (state);
+      lock_clear (state);
+      return DP_OK;
+    }
+  if (state->segments <= 1 || partials_per_symbol < 2.0)
+    return DP_ERR_INVALID;
+  size_t L   = (size_t)floor (partials_per_symbol) - 1;
+  size_t cap = DLL_AID_MAX_EPOCHS * state->segments;
+  if (L > cap)
+    L = cap;
+  size_t Q    = (size_t)ceil (partials_per_symbol);
+  size_t need = 2 * (L + Q) + 2;
+  size_t ring = 1;
+  while (ring < need)
+    ring <<= 1;
+  free_aid_buffers (state);
+  /* Fixed sizes from already-validated arguments: abort-on-OOM helpers,
+     so there is no unwind path nothing can reach. */
+  state->aid_ring_p = dp_xcalloc (ring, sizeof (*state->aid_ring_p));
+  state->aid_ring_o = dp_xcalloc (ring, sizeof (*state->aid_ring_o));
+  state->aid_power  = dp_xcalloc (Q, sizeof (*state->aid_power));
+  state->sym_period = partials_per_symbol;
+  state->aid_len    = L;
+  state->aid_nhyp   = Q;
+  state->aid_ring   = ring;
+  state->aid_best   = 0;
+  state->aid_count  = 0;
+  state->aid_alpha  = 1.0 / DLL_AID_EMA_SYMBOLS;
+  /* The looks change scale (L partials summed), so the detector's running
+     reference and statistic restart; its configuration stays. */
+  lock_clear (state);
+  return DP_OK;
+}
+
+size_t
+dll_get_symbol_window (const dll_state_t *state)
+{
+  return state->sym_period > 0.0 ? state->aid_len : 0;
+}
+
+int
+dll_set_lock_verify (dll_state_t *state, uint32_t n_up, uint32_t n_down)
+{
+  if (n_up == 0 || n_down == 0)
+    return DP_ERR_INVALID;
+  lockdet_init (&state->lock, state->lock.up_thresh, state->lock.down_thresh,
+                n_up, n_down);
+  lockdet_reset (&state->lock);
+  return DP_OK;
 }
 
 double

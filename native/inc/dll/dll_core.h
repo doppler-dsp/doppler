@@ -104,6 +104,13 @@ typedef struct {
     double inv_tsamps2;      /**< 1 / (sf*sps)^2 -- segments>1's ctrl scale. */
     double inv_tsamps_sf;    /**< 1 / (sf*sps*sf) -- segments<=1's kp*e/(sf)
                                   ctrl term's scale.                        */
+    double inv_upd;          /**< 1 / lf.t: one over the loop's update
+                                  interval in epochs (1 per epoch; the
+                                  symbol period in epochs once the aid is
+                                  on). The filter's output is a correction
+                                  per update; this turns it into the rate
+                                  held over the interval. Precomputed with
+                                  the gains, never in the loop.             */
     double spacing;          /**< early/late tap offset, chips (e.g. 0.5).  */
     double chip_pos;         /**< current prompt code phase, chips; DERIVED
                                   from code_nco.phase on every dll_accumulate,
@@ -170,16 +177,19 @@ typedef struct {
     size_t lock_nz;          /**< noise looks folded in (cumulative-mean boot).*/
     lockdet_state_t lock;    /**< decision rule: thresholds + verify counters
                                   stepped on R at each N-look decision.       */
-    /* ── symbol-timing-aided lock looks (segments>1 only; period 0 = off).
+    /* ── symbol-timing aid (segments>1 only; period 0 = off).
      *    The same max-power search the per-epoch look-back runs, lifted to
      *    the SYMBOL scale: with the data-symbol period known in partials,
      *    `aid_nhyp = ceil(period)` boundary-phase hypotheses each own a
      *    coherent window of `aid_len` partials per symbol; the hypothesis
      *    whose windows carry the most power (an EMA over symbols) is the
-     *    symbol timing, and ITS windows are the lock detector's looks --
-     *    coherent over most of a symbol instead of a quarter-epoch partial.
-     *    See dll_set_symbol_period(). Rings are heap-owned, sized at set
-     *    time, packed field-wise in the state blob like the chunk buffers. */
+     *    symbol timing, and ITS windows are both the lock detector's looks
+     *    and the code discriminator's windows -- coherent over most of a
+     *    symbol instead of a quarter-epoch partial, and the loop steers
+     *    once per symbol on them (the filter re-timed to that interval,
+     *    `inv_upd`). See dll_set_symbol_period(). Rings are heap-owned,
+     *    sized at set time, packed field-wise in the state blob like the
+     *    chunk buffers. */
     double  sym_period;      /**< data-symbol period, partials (0 = off).   */
     size_t  aid_len;         /**< coherent window length L, partials.       */
     size_t  aid_nhyp;        /**< boundary-phase hypotheses Q = ceil(P).    */
@@ -189,6 +199,8 @@ typedef struct {
     double  aid_alpha;       /**< EMA over symbols of each window's power.  */
     float complex *aid_ring_p; /**< last `aid_ring` partial prompts.        */
     float complex *aid_ring_o; /**< last `aid_ring` offset (noise) partials.*/
+    float complex *aid_ring_e; /**< last `aid_ring` early partials.         */
+    float complex *aid_ring_l; /**< last `aid_ring` late partials.          */
     double        *aid_power;  /**< per-hypothesis window-power EMA (Q).    */
     int owns_code;           /**< 1 if dll_destroy() frees `code`.         */
     dll_tlm_t tlm;           /**< live telemetry attachment; zeroed in blobs */
@@ -684,11 +696,13 @@ void dll_set_bn(dll_state_t *state, double val);
 void dll_set_rate_aid(dll_state_t *state, double rate_aid);
 
 /**
- * @brief Give the lock detector the data-symbol period, so its looks are
- *        coherent over a symbol instead of a quarter-epoch partial.
+ * @brief Give the loop the data-symbol period, so the lock detector's
+ *        looks and the code discriminator's windows are coherent over a
+ *        symbol instead of a quarter-epoch partial.
  *
  * In `segments > 1` mode every partial is a look for the code-lock detector
- * (dll_configure_lock()): the smallest integration the asynchronous data
+ * (dll_configure_lock()) and the discriminator sees one epoch through the
+ * per-epoch look-back: the smallest integrations the asynchronous data
  * allows when nothing is known about where its transitions fall, and
  * therefore the weakest. This is the same max-power search the per-epoch
  * look-back already runs, lifted to the symbol scale once the symbol
@@ -697,21 +711,33 @@ void dll_set_rate_aid(dll_state_t *state, double rate_aid);
  * transition-free window of `L = min(floor(P) - 1, 4 * segments)` partials
  * per symbol. Each hypothesis accumulates the power of its coherently
  * summed windows (an EMA over the last ~32 symbols); the one with the most
- * power IS the symbol timing, and its windows become the detector's looks.
- * A look then integrates `L` partials coherently -- at SPEC's 1.8 epochs
- * per symbol and four partials per epoch, six partials instead of one,
- * 7.8 dB more per look -- and never straddles a transition. Size `n_looks`
- * for it with detection.det_n_noncoh() over `L * (sf * sps / segments)`
- * samples.
+ * power IS the symbol timing, and its windows become the detector's looks
+ * and the discriminator's windows. A look then integrates `L` partials
+ * coherently -- at SPEC's 1.8 epochs per symbol and four partials per
+ * epoch, six partials instead of one, 7.8 dB more per look -- and never
+ * straddles a transition. Size `n_looks` for it with
+ * detection.det_n_noncoh() over `L * (sf * sps / segments)` samples.
  *
- * Only the lock detector's looks change. The code loop's discriminator
- * keeps its per-epoch look-back window, and the emitted partial stream is
- * untouched. The search is blind to WHICH hypothesis is right on any one
- * symbol -- it needs no decision and no external timing -- so it costs
- * nothing at cold start and follows a slowly drifting symbol clock by
- * itself. `L` is capped at four epochs of partials so a long symbol (a low
- * data rate) does not ask for coherence across more carrier than the
- * wipe-off holds.
+ * The code loop steers once per symbol, on the early/prompt/late sums over
+ * the winning window, instead of once per epoch on the look-back's: the
+ * same discriminator on a window half again as long and never across a
+ * transition. The loop filter is re-timed to the symbol interval, so `bn`
+ * keeps its per-epoch meaning and the tracked rate is continuous across
+ * the switch either way -- a loop that has pulled in a code Doppler keeps
+ * it when the aid is turned on or off. Measured against the per-epoch
+ * loop at the operating point (docs/design/async-dsss-receiver.md §12.5,
+ * `validate_dll_aid_jitter`): pull-in about 20% faster, and a code jitter
+ * 0.8x the per-epoch loop's above 45 dB-Hz -- where the look-back's own
+ * handling of the data transitions sets it -- and 1.2-1.4x at the 40
+ * dB-Hz floor, where the noise sets it and the window's unused partials
+ * cost more than its coherence buys; hundredths of a chip either way. The
+ * emitted partial stream is untouched: the look-back still supplies its
+ * normalisation. The search is blind to WHICH
+ * hypothesis is right on any one symbol -- it needs no decision and no
+ * external timing -- so it costs nothing at cold start and follows a
+ * slowly drifting symbol clock by itself. `L` is capped at four epochs of
+ * partials so a long symbol (a low data rate) does not ask for coherence
+ * across more carrier than the wipe-off holds.
  *
  * @param state               DLL state. Must be non-NULL.
  * @param partials_per_symbol Data-symbol period in emitted partials,
@@ -964,7 +990,10 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 8u /* v8: symbol-period aid fields + rings;
+#define DLL_STATE_VERSION 9u /* v9: the aid's early/late rings + inv_upd
+                                (the loop steers once per symbol on the
+                                aided window).
+                                v8: symbol-period aid fields + rings;
                                 v7: `rate_aid` carrier-aiding field added
                                 (whole-struct snapshot, so the blob grew).
                                 v6: `sums` scratch field added to the

@@ -975,7 +975,8 @@ class Dll:
         segments <= 1 or the period is in (0, 2).
 
         In `segments > 1` mode every partial is a look for the code-lock
-        detector (dll_configure_lock()): the smallest integration the
+        detector (dll_configure_lock()) and the discriminator sees one epoch
+        through the per-epoch look-back: the smallest integrations the
         asynchronous data allows when nothing is known about where its
         transitions fall, and therefore the weakest. This is the same max-power
         search the per-epoch look-back already runs, lifted to the symbol scale
@@ -985,20 +986,33 @@ class Dll:
         1, 4 * segments)` partials per symbol. Each hypothesis accumulates the
         power of its coherently summed windows (an EMA over the last ~32
         symbols); the one with the most power IS the symbol timing, and its
-        windows become the detector's looks. A look then integrates `L`
-        partials coherently -- at SPEC's 1.8 epochs per symbol and four
-        partials per epoch, six partials instead of one, 7.8 dB more per look
-        -- and never straddles a transition. Size `n_looks` for it with
-        detection.det_n_noncoh() over `L * (sf * sps / segments)` samples.
+        windows become the detector's looks and the discriminator's windows. A
+        look then integrates `L` partials coherently -- at SPEC's 1.8 epochs
+        per symbol and four partials per epoch, six partials instead of one,
+        7.8 dB more per look -- and never straddles a transition. Size
+        `n_looks` for it with detection.det_n_noncoh() over `L * (sf * sps /
+        segments)` samples.
 
-        Only the lock detector's looks change. The code loop's discriminator
-        keeps its per-epoch look-back window, and the emitted partial stream is
-        untouched. The search is blind to WHICH hypothesis is right on any one
-        symbol -- it needs no decision and no external timing -- so it costs
-        nothing at cold start and follows a slowly drifting symbol clock by
-        itself. `L` is capped at four epochs of partials so a long symbol (a
-        low data rate) does not ask for coherence across more carrier than the
-        wipe-off holds.
+        The code loop steers once per symbol, on the early/prompt/late sums
+        over the winning window, instead of once per epoch on the look-back's:
+        the same discriminator on a window half again as long and never across
+        a transition. The loop filter is re-timed to the symbol interval, so
+        `bn` keeps its per-epoch meaning and the tracked rate is continuous
+        across the switch either way -- a loop that has pulled in a code
+        Doppler keeps it when the aid is turned on or off. Measured against the
+        per-epoch loop at the operating point
+        (docs/design/async-dsss-receiver.md §12.5, `validate_dll_aid_jitter`):
+        pull-in about 20% faster, and a code jitter 0.8x the per-epoch loop's
+        above 45 dB-Hz -- where the look-back's own handling of the data
+        transitions sets it -- and 1.2-1.4x at the 40 dB-Hz floor, where the
+        noise sets it and the window's unused partials cost more than its
+        coherence buys; hundredths of a chip either way. The emitted partial
+        stream is untouched: the look-back still supplies its normalisation.
+        The search is blind to WHICH hypothesis is right on any one symbol --
+        it needs no decision and no external timing -- so it costs nothing at
+        cold start and follows a slowly drifting symbol clock by itself. `L` is
+        capped at four epochs of partials so a long symbol (a low data rate)
+        does not ask for coherence across more carrier than the wipe-off holds.
 
         Parameters
         ----------

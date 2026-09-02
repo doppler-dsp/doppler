@@ -101,6 +101,8 @@ seed (dll_state_t *s)
     {
       memset (s->aid_ring_p, 0, s->aid_ring * sizeof (*s->aid_ring_p));
       memset (s->aid_ring_o, 0, s->aid_ring * sizeof (*s->aid_ring_o));
+      memset (s->aid_ring_e, 0, s->aid_ring * sizeof (*s->aid_ring_e));
+      memset (s->aid_ring_l, 0, s->aid_ring * sizeof (*s->aid_ring_l));
       memset (s->aid_power, 0, s->aid_nhyp * sizeof (*s->aid_power));
     }
 }
@@ -138,48 +140,116 @@ lock_look (dll_state_t *s, float complex prompt, float complex offset)
     }
 }
 
+/* One loop update from a dumped discriminator triple, as powers on one
+ * common scale: the power-domain early-minus-late `0.5 (Ep - Lp) / Pp`
+ * (the prompt power is the "signal + noise" reference -- the validated
+ * design of docs/design/async-dsss-receiver.md §3.6), clamped, through the
+ * PI filter, then the NCO's sample-and-hold rate. Shared by the per-epoch
+ * path (the look-back window at every epoch boundary) and the symbol-aided
+ * path (the best hypothesis's window, once per symbol, from aid_look()).
+ *
+ * The filter's output is a phase correction PER UPDATE -- loop_filter_init's
+ * `t` is the update interval in epochs -- and the rate that delivers it
+ * over the interval is that correction divided by the interval, `inv_upd`.
+ * That is what lets `bn` keep its per-epoch meaning whichever cadence the
+ * updates come at (see set_update_period()). The FULL proportional+integral
+ * output is divided by tsamps^2 for a PURE per-sample phase_inc deviation --
+ * the validated form (the Python prototype this was ported from,
+ * despreader.py's module docstring point 2), not "integrator alone as the
+ * sustained rate, plus the proportional term spread over an extra factor of
+ * sf" (a scheme that diverges under long-run stress: last_error creeps and
+ * saturates DLL_DISC_CLAMP). The NCO free-runs at its own nominal rate
+ * (1/tsamps, set once in seed()); ctrl never involves that "1.0" nominal --
+ * only the final phase_inc combination does, as a separate additive term,
+ * so the carrier-aiding bias `rate_aid` (0 = off; scaled by the nominal
+ * per-sample rate so it rides the sample-and-hold phase_inc continuously)
+ * sums in without redefining what "nominal" means. code_rate stays a public
+ * ratio observable (1.0 = nominal) -- never fed back in. Nothing here
+ * divides: inv_tsamps/inv_tsamps2/inv_upd are precomputed at configuration.
+ * Static inline, like the statics the block kernel already calls: an extern
+ * call site inside its sample loop spills the register-cached state. */
+static inline void
+steer (dll_state_t *s, double ep, double lp, double pp)
+{
+  double e = 0.5 * (ep - lp) / (pp + DLL_EPS);
+  if (e > DLL_DISC_CLAMP)
+    e = DLL_DISC_CLAMP;
+  else if (e < -DLL_DISC_CLAMP)
+    e = -DLL_DISC_CLAMP;
+  s->last_error = e;
+  double lf_out = loop_filter_step (&s->lf, e) * s->inv_upd;
+  double ctrl   = lf_out * s->inv_tsamps2;
+  s->code_rate  = 1.0 + lf_out * s->inv_tsamps;
+  s->code_nco.phase_inc
+      = nco_norm_freq_to_inc (s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
+}
+
+/* Does hypothesis h's window start at partial `start`? h places its n-th
+ * boundary at floor(h + n*P + 0.5), so the n whose boundary could be
+ * `start` is round((start - h) / P) -- solved and checked exactly, never
+ * searched. */
+static inline int
+aid_window_starts (const dll_state_t *s, size_t h, uint64_t start)
+{
+  const double P  = s->sym_period;
+  double       nd = floor (((double)start - (double)h) / P + 0.5);
+  if (nd < 0.0)
+    return 0;
+  return (uint64_t)floor ((double)h + nd * P + 0.5) == start;
+}
+
 /* Symbol-timing-aided look (dll_set_symbol_period()): one partial arrives;
- * the ring keeps the last `aid_ring` prompts and offset (noise) partials,
- * and every boundary-phase hypothesis whose window ends on this partial
- * sums its `aid_len` partials coherently. The window's power feeds that
- * hypothesis's EMA; the best hypothesis's window is the look the detector
- * sees. Hypothesis h places its n-th boundary at floor(h + n*P + 0.5), so a
- * window [b, b + L) ends at partial i when b = i - L + 1 -- solved for n
- * and checked exactly, never searched. */
+ * the rings keep the last `aid_ring` prompt, offset (noise), early and late
+ * partials, and every boundary-phase hypothesis whose window ends on this
+ * partial sums its `aid_len` prompts coherently and feeds the window's
+ * power to its EMA. When the BEST hypothesis's window ends here, that
+ * window is both the look the lock detector sees and the discriminator's
+ * window: the loop steers once per symbol on the coherent E/P/L sums over
+ * it -- longer than the per-epoch look-back's window, and never across a
+ * data transition. Two passes: the EMAs and the argmax over every
+ * hypothesis first, then one look and one steer for the winner, so a
+ * change of winner on this very partial fires one update, not two (two
+ * hypotheses end a window on the same partial whenever P is not an
+ * integer). */
 static void
-aid_look (dll_state_t *s, float complex part, float complex noise)
+aid_look (dll_state_t *s, float complex part, float complex noise,
+          float complex early, float complex late)
 {
   const size_t   mask     = s->aid_ring - 1;
   const uint64_t i        = s->aid_count++;
   s->aid_ring_p[i & mask] = part;
   s->aid_ring_o[i & mask] = noise;
+  s->aid_ring_e[i & mask] = early;
+  s->aid_ring_l[i & mask] = late;
   if (i + 1 < s->aid_len)
     return;
-  const double   P     = s->sym_period;
   const uint64_t start = i + 1 - s->aid_len;
   for (size_t h = 0; h < s->aid_nhyp; h++)
     {
-      /* The n whose boundary could be `start`: round((start - h) / P). */
-      double nd = floor (((double)start - (double)h) / P + 0.5);
-      if (nd < 0.0)
+      if (!aid_window_starts (s, h, start))
         continue;
-      uint64_t b = (uint64_t)floor ((double)h + nd * P + 0.5);
-      if (b != start)
-        continue;
-      float complex sp = 0.0f, so = 0.0f;
+      float complex sp = 0.0f;
       for (uint64_t k = start; k <= i; k++)
-        {
-          sp += s->aid_ring_p[k & mask];
-          so += s->aid_ring_o[k & mask];
-        }
+        sp += s->aid_ring_p[k & mask];
       double pw = (double)crealf (sp) * (double)crealf (sp)
                   + (double)cimagf (sp) * (double)cimagf (sp);
       s->aid_power[h] += s->aid_alpha * (pw - s->aid_power[h]);
       if (s->aid_power[h] > s->aid_power[s->aid_best])
         s->aid_best = h;
-      if (h == s->aid_best)
-        lock_look (s, sp, so);
     }
+  if (!aid_window_starts (s, s->aid_best, start))
+    return;
+  float complex sp = 0.0f, so = 0.0f, se = 0.0f, sl = 0.0f;
+  for (uint64_t k = start; k <= i; k++)
+    {
+      sp += s->aid_ring_p[k & mask];
+      so += s->aid_ring_o[k & mask];
+      se += s->aid_ring_e[k & mask];
+      sl += s->aid_ring_l[k & mask];
+    }
+  lock_look (s, sp, so);
+  float me = cabsf (se), ml = cabsf (sl), mp = cabsf (sp);
+  steer (s, (double)me * me, (double)ml * ml, (double)mp * mp);
 }
 
 /* Composition faces of the lock detector (dll_core.h): thin extern
@@ -236,6 +306,7 @@ configure_geometry (dll_state_t *s, size_t code_len, size_t sps,
      late sit `spacing` chips out, so guard a couple chips beyond that. */
   s->noise_guard = spacing + 2.0;
   loop_filter_init (&s->lf, bn, zeta, 1.0); /* updates once per period */
+  s->inv_upd = 1.0;
   set_segments (s,
                 1); /* default: coherent full-epoch (dll_create overrides) */
   (void)dll_configure_lock (s, DLL_LOCK_DEFAULT_PFA, DLL_LOCK_DEFAULT_N,
@@ -278,6 +349,7 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
   /* Likewise the symbol-period aid: off, no rings, for a caller-owned
    * struct that was never calloc'd. */
   s->aid_ring_p = s->aid_ring_o = NULL;
+  s->aid_ring_e = s->aid_ring_l = NULL;
   s->aid_power                  = NULL;
   s->sym_period                 = 0.0;
   s->aid_len = s->aid_nhyp = s->aid_ring = 0;
@@ -315,8 +387,11 @@ free_aid_buffers (dll_state_t *s)
 {
   free (s->aid_ring_p);
   free (s->aid_ring_o);
+  free (s->aid_ring_e);
+  free (s->aid_ring_l);
   free (s->aid_power);
   s->aid_ring_p = s->aid_ring_o = NULL;
+  s->aid_ring_e = s->aid_ring_l = NULL;
   s->aid_power                  = NULL;
   s->aid_ring = s->aid_nhyp = s->aid_len = 0;
   s->sym_period                          = 0.0;
@@ -458,7 +533,7 @@ dll_tlm_flush (const dll_state_t *s)
 static size_t
 aid_bytes (const dll_state_t *s)
 {
-  return s->sym_period > 0.0 ? 2 * s->aid_ring * sizeof (*s->aid_ring_p)
+  return s->sym_period > 0.0 ? 4 * s->aid_ring * sizeof (*s->aid_ring_p)
                                    + s->aid_nhyp * sizeof (*s->aid_power)
                              : 0;
 }
@@ -490,6 +565,7 @@ dll_get_state (const dll_state_t *s, void *blob)
   tmp.chunk_p = tmp.chunk_e = tmp.chunk_l = tmp.sums = NULL;
   tmp.last_backward_p = tmp.last_e = tmp.last_l = NULL;
   tmp.aid_ring_p = tmp.aid_ring_o = NULL;
+  tmp.aid_ring_e = tmp.aid_ring_l = NULL;
   tmp.aid_power                   = NULL;
   memset (&tmp.tlm, 0, sizeof tmp.tlm);
   dp_w_bytes (&_w, &tmp, sizeof tmp);
@@ -507,6 +583,8 @@ dll_get_state (const dll_state_t *s, void *blob)
     {
       dp_w_bytes (&_w, s->aid_ring_p, s->aid_ring * sizeof (*s->aid_ring_p));
       dp_w_bytes (&_w, s->aid_ring_o, s->aid_ring * sizeof (*s->aid_ring_o));
+      dp_w_bytes (&_w, s->aid_ring_e, s->aid_ring * sizeof (*s->aid_ring_e));
+      dp_w_bytes (&_w, s->aid_ring_l, s->aid_ring * sizeof (*s->aid_ring_l));
       dp_w_bytes (&_w, s->aid_power, s->aid_nhyp * sizeof (*s->aid_power));
     }
 }
@@ -531,6 +609,7 @@ dll_set_state (dll_state_t *s, const void *blob)
   /* The aid rings are this instance's too, sized by ITS period: a blob from
      a differently-configured instance is rejected, not resized from. */
   float complex *aid_ring_p = s->aid_ring_p, *aid_ring_o = s->aid_ring_o;
+  float complex *aid_ring_e = s->aid_ring_e, *aid_ring_l = s->aid_ring_l;
   double        *aid_power = s->aid_power;
   const double   my_period = s->sym_period;
   const size_t   my_ring = s->aid_ring, my_nhyp = s->aid_nhyp;
@@ -541,11 +620,15 @@ dll_set_state (dll_state_t *s, const void *blob)
     {
       s->aid_ring_p = aid_ring_p;
       s->aid_ring_o = aid_ring_o;
+      s->aid_ring_e = aid_ring_e;
+      s->aid_ring_l = aid_ring_l;
       s->aid_power  = aid_power;
       return DP_ERR_INVALID;
     }
   s->aid_ring_p      = aid_ring_p;
   s->aid_ring_o      = aid_ring_o;
+  s->aid_ring_e      = aid_ring_e;
+  s->aid_ring_l      = aid_ring_l;
   s->aid_power       = aid_power;
   s->code            = code;
   s->owns_code       = owns;
@@ -571,6 +654,8 @@ dll_set_state (dll_state_t *s, const void *blob)
     {
       dp_r_bytes (&_r, s->aid_ring_p, s->aid_ring * sizeof (*s->aid_ring_p));
       dp_r_bytes (&_r, s->aid_ring_o, s->aid_ring * sizeof (*s->aid_ring_o));
+      dp_r_bytes (&_r, s->aid_ring_e, s->aid_ring * sizeof (*s->aid_ring_e));
+      dp_r_bytes (&_r, s->aid_ring_l, s->aid_ring * sizeof (*s->aid_ring_l));
       dp_r_bytes (&_r, s->aid_power, s->aid_nhyp * sizeof (*s->aid_power));
     }
   return DP_OK;
@@ -581,7 +666,7 @@ dll_configure (dll_state_t *state, double bn, double zeta)
 {
   state->bn   = bn;
   state->zeta = zeta;
-  loop_filter_configure (&state->lf, bn, zeta, 1.0);
+  loop_filter_configure (&state->lf, bn, zeta, state->lf.t);
 }
 
 /* Output bound: emitted symbols <= x_len; the binding sizes the buffer to the
@@ -682,7 +767,9 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
           float complex part  = state->acc_p / (float)state->seg_norm;
           float complex noise = state->acc_o / (float)state->seg_norm;
           if (state->sym_period > 0.0)
-            aid_look (state, part, noise);
+            aid_look (state, part, noise,
+                      state->acc_e / (float)state->seg_norm,
+                      state->acc_l / (float)state->seg_norm);
           else
             lock_look (state, part, noise);
           state->chunk_p[state->seg_idx] = state->acc_p;
@@ -751,63 +838,38 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
                  winning window -- last_e/last_l's tail (best_widx chunks,
                  the borrowed previous-epoch tail) + this epoch's own
                  chunk_e/chunk_l head (w-best_widx chunks) -- trivial when
-                 best_widx == 0 (the natural window). */
-              float complex acc_e_tot = 0.0f, acc_l_tot = 0.0f;
-              if (best_widx > 0)
-                for (size_t k = w - best_widx; k < w; k++)
-                  {
-                    acc_e_tot += state->last_e[k];
-                    acc_l_tot += state->last_l[k];
-                  }
-              for (size_t k = 0; k < w - best_widx; k++)
+                 best_widx == 0 (the natural window) -- and steer the loop
+                 on it. With the symbol-period aid on, the loop steers from
+                 aid_look() instead, once per symbol on the best
+                 hypothesis's window; the look-back then only supplies the
+                 output normalisation below. */
+              if (state->sym_period <= 0.0)
                 {
-                  acc_e_tot += state->chunk_e[k];
-                  acc_l_tot += state->chunk_l[k];
+                  float complex acc_e_tot = 0.0f, acc_l_tot = 0.0f;
+                  if (best_widx > 0)
+                    for (size_t k = w - best_widx; k < w; k++)
+                      {
+                        acc_e_tot += state->last_e[k];
+                        acc_l_tot += state->last_l[k];
+                      }
+                  for (size_t k = 0; k < w - best_widx; k++)
+                    {
+                      acc_e_tot += state->chunk_e[k];
+                      acc_l_tot += state->chunk_l[k];
+                    }
+                  float me = cabsf (acc_e_tot), ml = cabsf (acc_l_tot);
+                  /* pp must be on the SAME raw (un-normalised) scale as
+                     ep/lp, which come straight from acc_e_tot/acc_l_tot --
+                     best_abs was divided by tsamps for the search
+                     comparison and the output denom below, so undo that
+                     here rather than mixing a tsamps-scaled pp against a
+                     raw ep/lp (that mismatch, off by roughly tsamps^2,
+                     pinned the discriminator at DLL_DISC_CLAMP on
+                     essentially every epoch). */
+                  double best_mag = best_abs * tsamps;
+                  steer (state, (double)me * me, (double)ml * ml,
+                         best_mag * best_mag);
                 }
-              float  me = cabsf (acc_e_tot), ml = cabsf (acc_l_tot);
-              double ep = (double)me * me, lp = (double)ml * ml;
-              /* pp must be on the SAME raw (un-normalised) scale as ep/lp,
-                 which come straight from acc_e_tot/acc_l_tot -- best_abs
-                 was divided by tsamps for the search comparison and the
-                 output denom below, so undo that here rather than mixing
-                 a tsamps-scaled pp against a raw ep/lp (that mismatch, off
-                 by roughly tsamps^2, pinned the discriminator at
-                 DLL_DISC_CLAMP on essentially every epoch). */
-              double best_mag = best_abs * tsamps;
-              double pp       = best_mag * best_mag;
-              double e        = 0.5 * (ep - lp) / (pp + DLL_EPS);
-              if (e > DLL_DISC_CLAMP)
-                e = DLL_DISC_CLAMP;
-              else if (e < -DLL_DISC_CLAMP)
-                e = -DLL_DISC_CLAMP;
-              state->last_error = e;
-              /* Divide the loop filter's FULL proportional+integral
-                 output by tsamps^2 to get a PURE per-sample phase_inc
-                 deviation -- the validated form (see the Python
-                 prototype this was ported from, despreader.py's module
-                 docstring point 2), not "integrator alone as the
-                 sustained rate, plus the proportional term spread over
-                 an extra factor of sf" (a scheme that diverges under
-                 long-run stress: last_error creeps and saturates
-                 DLL_DISC_CLAMP). The NCO free-runs at its own nominal
-                 rate (1/tsamps, set once in seed()); ctrl never
-                 involves that "1.0" nominal at all -- only the final
-                 phase_inc combination does, as a separate additive
-                 term, so a future second correction source (e.g. a
-                 carrier-aiding term) can sum in without redefining
-                 what "nominal" means. code_rate stays a public ratio
-                 observable (1.0 = nominal) -- never fed back in. Nor
-                 does this divide: inv_tsamps/inv_tsamps2 are
-                 precomputed once at construction
-                 (configure_geometry()), never here. */
-              double lf_out    = loop_filter_step (&state->lf, e);
-              double ctrl      = lf_out * state->inv_tsamps2;
-              state->code_rate = 1.0 + lf_out * state->inv_tsamps;
-              /* rate_aid (0 = off): the carrier-aiding rate bias, scaled by
-                 the nominal per-sample rate so it rides the sample-and-hold
-                 phase_inc continuously across the epoch (see dll_update()). */
-              state->code_nco.phase_inc = nco_norm_freq_to_inc (
-                  state->inv_tsamps * (1.0 + state->rate_aid) + ctrl);
 
               /* Output: this epoch's own natural chunk sums, normalized by
                  the clean power reference found above -- never the
@@ -895,6 +957,19 @@ dll_set_rate_aid (dll_state_t *state, double rate_aid)
   state->rate_aid = rate_aid;
 }
 
+/* Re-time the loop filter to `t` epochs per update without a transient:
+ * its integrator is a phase correction PER UPDATE, so it scales with the
+ * interval, and code_rate -- the per-epoch rate it implies -- is unchanged
+ * by the switch. loop_filter_configure keeps integ and recomputes the
+ * gains from bn*t (loop_filter_core.h: keep bn*t <= 0.0112). */
+static void
+set_update_period (dll_state_t *s, double t)
+{
+  s->lf.integ *= t / s->lf.t;
+  loop_filter_configure (&s->lf, s->bn, s->zeta, t);
+  s->inv_upd = 1.0 / t;
+}
+
 int
 dll_set_symbol_period (dll_state_t *state, double partials_per_symbol)
 {
@@ -902,6 +977,7 @@ dll_set_symbol_period (dll_state_t *state, double partials_per_symbol)
     {
       free_aid_buffers (state);
       lock_clear (state);
+      set_update_period (state, 1.0);
       return DP_OK;
     }
   if (state->segments <= 1 || partials_per_symbol < 2.0)
@@ -920,6 +996,8 @@ dll_set_symbol_period (dll_state_t *state, double partials_per_symbol)
      so there is no unwind path nothing can reach. */
   state->aid_ring_p = dp_xcalloc (ring, sizeof (*state->aid_ring_p));
   state->aid_ring_o = dp_xcalloc (ring, sizeof (*state->aid_ring_o));
+  state->aid_ring_e = dp_xcalloc (ring, sizeof (*state->aid_ring_e));
+  state->aid_ring_l = dp_xcalloc (ring, sizeof (*state->aid_ring_l));
   state->aid_power  = dp_xcalloc (Q, sizeof (*state->aid_power));
   state->sym_period = partials_per_symbol;
   state->aid_len    = L;
@@ -931,6 +1009,10 @@ dll_set_symbol_period (dll_state_t *state, double partials_per_symbol)
   /* The looks change scale (L partials summed), so the detector's running
      reference and statistic restart; its configuration stays. */
   lock_clear (state);
+  /* The loop now updates once per symbol -- P partials, P/segments epochs
+     -- so the filter is re-timed to that interval and bn keeps its
+     per-epoch meaning. */
+  set_update_period (state, partials_per_symbol / (double)state->segments);
   return DP_OK;
 }
 

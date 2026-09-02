@@ -644,9 +644,17 @@ transition: six instead of one here, 7.8 dB more per look, and
 instead of 161. The search needs no decision and no external timing, so it
 costs nothing at cold start and follows a drifting symbol clock by itself.
 An external phase from the demodulator can be accepted later as an
-additive hook; it was not needed to reach the result. Only the detector's
-looks change — the discriminator keeps its per-epoch window, which §12.4
-shows was never the problem — and the emitted partial stream is untouched.
+additive hook; it was not needed to reach the result.
+
+The code discriminator runs on the same window. The loop steers once per
+symbol on the early/prompt/late sums over the winning window, its filter
+re-timed to the symbol interval so `bn` keeps its per-epoch meaning and
+the tracked rate is continuous when the aid is switched on or off. What
+that buys and costs is measured in §12.5: a loop about 20% faster to pull
+in and tighter above 45 dB-Hz, and 1.2–1.4× the jitter at the floor,
+where the noise sets it and the window's unused partials cost more than
+its coherence buys — hundredths of a chip either way. The emitted partial
+stream is untouched: the look-back still supplies its normalisation.
 
 The receiver applies it at chain build: `dll_set_symbol_period` from its
 configuration, `n_looks` from `det_n_noncoh` over the window at its
@@ -654,7 +662,10 @@ configuration, `n_looks` from `det_n_noncoh` over the window at its
 three consecutive misses, against the DLL's fixed two — so the verify
 hysteresis is a budget, not a constant. Pinned by `test_dll_core.c` §6b
 (per-partial looks up 35% of the time, aided 100%, the chosen phase within
-one partial of the truth, sabotage-proven) and measured in §12.4.
+one partial of the truth) and §6c (the loop steers on the window; the two
+modes' step transients agree, which a filter left at its per-epoch gains
+fails; the rate is continuous across the switch), both sabotage-proven,
+and measured in §12.4 and §12.5.
 
 ______________________________________________________________________
 
@@ -1969,6 +1980,57 @@ What it settles:
     because a fade still takes any CFAR flag down for its duration; what
     changes is that the "both down" clock now starts within milliseconds
     of a real loss and never on a healthy signal.
+
+### 12.5 What was measured (2026-09-02) — the discriminator on the aided window
+
+`native/validation/dll_aid_jitter.c` (`make validate-c`; its `--check` is
+in the C suite): the receiver's DLL alone (`bn 0.002`, half-chip spacing,
+four partials per epoch) fed the shipped synth's continuous DSSS at the
+operating point with the shipped `awgn`, one epoch per call, its tracked
+code phase against the generator's after every block; the per-epoch
+look-back and the symbol-aided window on the same stream. One seed per
+cell, 12 000 epochs measured after 3 000 settling, so a ratio is good to
+about 8%.
+
+| C/N0 (Es/N0) | jitter, per-epoch | jitter, aided | ratio | pull-in from 0.25 / 0.5 / 0.75 chip, per-epoch | aided           |
+| ------------ | ----------------- | ------------- | ----- | ---------------------------------------------- | --------------- |
+| 50 (15.7 dB) | 0.0078 chips      | 0.0062        | 0.79  |                                                |                 |
+| 45 (10.7 dB) | 0.0132            | 0.0136        | 1.03  | 179 / 234 / 251 ms, 10 of 10 each              | 145 / 202 / 222 |
+| 42 (7.7 dB)  | 0.0173            | 0.0225        | 1.30  |                                                |                 |
+| 40 (5.7 dB)  | 0.0208            | 0.0289        | 1.39  | 249 / 298 / 328 ms, 10 of 10 each              | 204 / 238 / 258 |
+| 38 (3.7 dB)  | 0.0341            | 0.0371        | 1.09  |                                                |                 |
+| 36 (1.7 dB)  | 0.0421            | 0.0524        | 1.25  |                                                |                 |
+| 34 (−0.3 dB) | 0.0606            | 0.0650        | 1.07  |                                                |                 |
+
+Neither loop lost the code in any cell, and both read a code rate of
+1.000000. Both discriminators zero at the same code phase (−0.004 chips,
+clean, both).
+
+What it settles:
+
+- **Above 45 dB-Hz the aided loop is tighter, and the reason is the
+    look-back.** On a data-free stream the per-epoch loop reads 0.0060
+    chips at 50 dB-Hz; with data, 0.0088. Its handling of the transitions
+    — a window borrowed from the previous epoch at the previous phase, and
+    a transition in the first partial that no candidate can exclude — is
+    what sets its jitter there. The aided window pays nothing for the data.
+- **At the floor the noise sets the jitter, and the aided window's unused
+    partials cost.** The window is six of the 7.24 partials a symbol
+    spans; the transition partial and the slack are left out. With the
+    hypothesis pinned at the truth the aided loop reads 0.025 chips at 40
+    dB-Hz, with its own argmax 0.027–0.030, the per-epoch loop 0.022. A
+    power EMA four times longer, or a window one partial shorter, moves
+    it by less than the trial spread; a hypothesis a partial off reads
+    0.04–0.06. So the loss is the window, not its choice.
+- **Pull-in is 15–20% faster in every cell**, and the loop gain is the
+    same: under a 100 ppm code-rate step the two modes' integrators agree
+    to under 1% of the step mid-transient (`test_dll_core.c` §6c), where a
+    filter left at its per-epoch gains reads 1.8× slower.
+- **What it means for the receiver: hundredths of a chip either way.** A
+    0.03-chip RMS code error is under 0.1 dB of despreading loss. The
+    receiver keeps the one declaration — the symbol period aids the looks
+    and the loop — and the number to beat, should this be revisited, is
+    0.022 chips at 40 dB-Hz.
 
 ______________________________________________________________________
 

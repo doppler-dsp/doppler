@@ -383,6 +383,22 @@ target_compile_options(validate_async_dsss_receiver_release
 add_test(NAME validate_async_dsss_receiver_release
          COMMAND validate_async_dsss_receiver_release --check)
 
+# The code loop on the symbol-aided window against the per-epoch look-back:
+# jitter, pull-in and the loop gain under a code-rate ramp at the continuous
+# async-DSSS operating point (docs/design/async-dsss-receiver.md §3.7, §12.5).
+# The emitter is the shipped continuous-DSSS synth, the noise the shipped
+# awgn, the ramp the shipped doppler_channel; native/tests is reached for
+# dp_test.h's assertions only.
+add_executable(validate_dll_aid_jitter
+               ${CMAKE_CURRENT_SOURCE_DIR}/dll_aid_jitter.c)
+target_include_directories(validate_dll_aid_jitter
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_dll_aid_jitter PRIVATE doppler_lib_static m)
+target_compile_options(validate_dll_aid_jitter PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_dll_aid_jitter
+         COMMAND validate_dll_aid_jitter --check)
+
 # So `sweep` is what a sanitizer suite excludes (`ctest -LE sweep`). The spot
 # check still runs on every PR in the ordinary C suite, which is where it is
 # cheap and where it was always the point.

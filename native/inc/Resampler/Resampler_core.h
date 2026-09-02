@@ -249,6 +249,21 @@ extern "C"
    */
   size_t Resampler_get_num_taps (const Resampler_state_t *state);
 
+  /**
+   * @brief Group delay of the interpolator, in input samples.
+   *
+   * The prototype's centre plus the one input the pipeline holds back
+   * (resamp_get_delay()): output `k` carries the input at
+   * `k / rate + (accumulated ctrl) - delay`. 10.5 for the built-in bank.
+   *
+   * @code
+   * >>> from doppler.resample import Resampler
+   * >>> Resampler(rate=1.0).delay
+   * 10.5
+   * @endcode
+   */
+  double Resampler_get_delay (const Resampler_state_t *state);
+
 #ifdef __cplusplus
 }
 #endif

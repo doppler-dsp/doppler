@@ -195,6 +195,14 @@ class DopplerChannel:
         """
 
     @property
+    def delay_samples(self) -> float:
+        """The resampler's group delay in samples (10.5 for the built-in bank),
+        constant and in addition to the dilation: output `k` at receive time `t
+        = k/fs` carries the input at `t + excess(t) - delay_samples/fs`. A
+        receiver started at the input's phase is this far from the peak.
+        """
+
+    @property
     def offset_hz(self) -> float:
         """Instantaneous carrier offset `fc * d(t)` in Hz at the current
         `elapsed_s` -- the frequency a receiver would have to tune out right

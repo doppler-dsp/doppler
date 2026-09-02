@@ -137,6 +137,8 @@ extern "C"
   size_t resamp_get_num_phases (const resamp_state_t *state);
   size_t resamp_get_num_taps (const resamp_state_t *state);
 
+  double resamp_get_delay (const resamp_state_t *state);
+
   double resamp_get_ctrl_acc (const resamp_state_t *state);
 
   double resamp_dc_gain (const resamp_state_t *state);

@@ -155,6 +155,12 @@ doppler_channel_get_offset_hz (const doppler_channel_state_t *state)
          * (state->doppler_ppm + state->doppler_rate_ppm_s * t) * 1e-6;
 }
 
+double
+doppler_channel_get_delay_samples (const doppler_channel_state_t *state)
+{
+  return resamp_get_delay (state->rs);
+}
+
 /* ---- state serialization ------------------------------------------------ */
 
 /* Running state only: the two sample clocks plus the resampler's own blob

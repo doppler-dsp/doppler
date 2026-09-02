@@ -4,7 +4,8 @@
  * Tests cover:
  *   §1  Lifecycle and properties (create, rate, num_phases, num_taps)
  *   §2  set_rate and reset read back (literals only — see §15, §16)
- *   §3  R == 1 is a one-arm all-pass: flat |H|, constant group delay
+ *   §3  R == 1 is a one-arm all-pass: flat |H|, constant group delay --
+ *       and the delay is resamp_get_delay(), on both entry points
  *   §4  A resampled pure tone is still a pure tone, 10 rates × both paths
  *   §5  Output counts for 2× decimation, 2× interpolation, unity ctrl
  *   §6  Serializable state round-trip, decimating / interpolating / fractional
@@ -1112,11 +1113,13 @@ main (void)
 
      The invariant is flat |H| and CONSTANT group delay -- not out == in,
      which is what the deleted memcpy used to provide and what this test
-     used to assert.  Constancy is asserted against the MEAN rather than a
-     literal, because the nominal legitimately differs by one sample
-     between the two entry points: the block form emits before it loads,
-     the push form is handed its input first.  Both are self-consistent;
-     only a frequency-DEPENDENT delay would be a defect.
+     used to assert.  Constancy is asserted against the MEAN, and the mean
+     against resamp_get_delay(): the prototype's centre plus the one input
+     the pipeline holds back, 10.5 for the built-in bank. Both entry points
+     read the same value (the push form once loaded on entry and sat one
+     sample apart; that was the gh-fix the header's push-form note records,
+     and this is the gate that would see it return). Until the accessor
+     existed this was pinned only at literals, 8 to 12.
 
      Group delay by adjacent-frequency phase differencing, so there is
      nothing to unwrap.  Thresholds come from the bank's own design (a 60 dB
@@ -1155,7 +1158,12 @@ main (void)
                use_ctrl ? "ctrl" : "free", worst_h, mean, spread);
       DP_CHECK (worst_h < 5e-3); /* all-pass */
       DP_CHECK (spread < 2e-2);  /* PURE delay: no frequency dependence */
-      DP_CHECK (mean > 8.0 && mean < 12.0); /* and it is the filter's own */
+      /* and it is the one the accessor states, to a twentieth of a sample
+         (the differencing itself is good to ~6e-3 here) */
+      resamp_state_t *ref = resamp_create (1.0);
+      DP_CHECK (ref != NULL);
+      DP_CHECK (fabs (mean - resamp_get_delay (ref)) < 0.05);
+      resamp_destroy (ref);
     }
 
   /* ---- a resampled pure tone must still be a pure tone ----

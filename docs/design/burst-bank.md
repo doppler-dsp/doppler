@@ -241,6 +241,38 @@ Steps 1–2 are Python over the shipped engine (the sweep scripts from #1183
 do most of it). Steps 3–5 are the bank's characterization subject, written
 once and run with each option switched in.
 
+### 9.4 What was measured (2026-09-01)
+
+Steps 1–5 of §9.3, on the engine with #1183 applied, 55 dB-Hz, 400 trials
+per row with the target uniform across the centre channel and both of its
+boundaries:
+
+|                                        | D=4: off by ≥ 4 bins   | D=8: off by ≥ 4 bins | note                                                                                                              |
+| -------------------------------------- | ---------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| baseline (`2·span`, keep the stronger) | **8.5%**               | **5.2%**             | every error is exactly one spacing (4 bins at D=4, 8 at D=8)                                                      |
+| (i) resolve the pair to the boundary   | 6.8%                   | 7.0%                 | helps only when BOTH neighbours detected; alone they are a coin toss                                              |
+| (ii) overlap at `(D−1)/D·2·span`       | 2.8%                   | 2.2%                 | the neighbour sees the strip at full amplitude; residual is the noise on "stronger"                               |
+| **(i) + (ii)**                         | 3.7%                   | **0.5%**             | the pair is always there to resolve, and the boundary is the higher report                                        |
+| (iii) odd depth                        | D=3: 0% but 23% missed | D=7: 4.8%            | **does not remove the fold**: at ×2 interpolation an odd D has an interpolated row at exactly ±span, and it folds |
+
+Two facts the sweep exposed that §9.1 did not know:
+
+- The strip on a single channel starts at `span − res/2` at D=8 exactly as
+    predicted — but the reason it is a whole half-bin wide is that
+    `acq_core.c` divides the peak row by `interp` before reporting, so the
+    **Doppler estimate is quantized to native bins** even though the search
+    runs on the interpolated surface. Reporting the interpolated row's
+    frequency instead would halve the strip to `res/4`, halve every Doppler
+    error the demodulator is seeded with, and cost nothing — option **(vi)**,
+    the one to try first, because it helps the single-channel pod too.
+- The fold always reports **low** (`dp_fftfreq` gives the Nyquist bin as
+    `−span`), which is what makes (i) implementable as "the boundary is the
+    higher of the two reports"; the first prototype took the midpoint and
+    made things worse.
+
+The recommendation is therefore (vi) in the engine, then (i)+(ii) in the
+bank, measured again; (iii) is withdrawn.
+
 ## 10. Question 3 — parallelism, and what it is for
 
 ### 10.1 Three motivations, three different requirements
@@ -262,7 +294,10 @@ not ask for the same thing:
     work must be addressable alone and its state must travel.
 
 - **Multiple simultaneous signals at different Dopplers.** Two bursts, two
-    channels, at the same time. This is an *independence* requirement: a
+    channels, at the same time — in a C++ application that brings its own
+    threads or worker processes, not in a fleet of pods
+    ([`coarse-channel.md`](coarse-channel.md) §2.1). This is an
+    *independence* requirement: a
     capture in channel `k` must not suppress, delay or share a queue with a
     capture in channel `j`, and the dedup must collapse only detections that
     are the same target — same code phase, Doppler within one `res` — and
@@ -288,17 +323,21 @@ must thread at all, load balancing decides what the unit of work is.
 
 ### 10.2 The options
 
-|                                                    | mechanism                                                                                       | fits                                                                                | cost                                                                                                                                                                       |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **(a) serial `push`; parallelism is the caller's** | the Python pool over per-channel handles, as today; a C caller writes its own loop              | load balancing (channels are handles); span coverage only if the caller threads     | needs the channel to be addressable — shape B of `coarse-channel.md`; a C caller gets no scaling for free                                                                  |
-| **(b) `dp_parallel_for` inside `push`, opt-in**    | `burst_bank_set_threads(n)`; `push` fans channels across up to `n` workers, serial when `n ≤ 1` | span coverage for every caller; bit-identical to serial by `dp_parallel`'s contract | `dp_parallel_for` creates its workers **per call** — there is no pool — so each push pays `n` thread creations; at a 4096-sample block that is a real fraction of the work |
-| **(c) a separate `push_parallel`**                 | two entry points, one contract                                                                  | as (b)                                                                              | two faces of one function; a caller has to choose per call                                                                                                                 |
+|                                                    | mechanism                                                                                                      | fits                                                                                                                                  | cost                                                                                                                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **(a) serial `push`; parallelism is the caller's** | the Python pool over per-channel handles, as today; the C++ application pushes channel `k` from its thread `k` | the primary consumer exactly (§10.1's third motivation is an application with its own threads); load balancing (channels are handles) | needs the channel to be addressable — shape B of `coarse-channel.md`; a caller that does not want to schedule gets no scaling from the bank alone                          |
+| **(b) `dp_parallel_for` inside `push`, opt-in**    | `burst_bank_set_threads(n)`; `push` fans channels across up to `n` workers, serial when `n ≤ 1`                | span coverage for every caller; bit-identical to serial by `dp_parallel`'s contract                                                   | `dp_parallel_for` creates its workers **per call** — there is no pool — so each push pays `n` thread creations; at a 4096-sample block that is a real fraction of the work |
+| **(c) a separate `push_parallel`**                 | two entry points, one contract                                                                                 | as (b)                                                                                                                                | two faces of one function; a caller has to choose per call                                                                                                                 |
 
-(b) over (c): a thread count is configuration, not a verb, and the serial
-fallback is already inside `dp_parallel_for`. The open question is not the
-API but whether per-call thread creation is affordable at the block sizes
-the link uses — and if it is not, whether the bank grows a persistent pool
-(the repository's first) or leaves scaling to the caller's pool, as (a).
+(a) is not optional: the primary consumer brings its own threads, so the
+channel must be pushable alone regardless of what the bank's `push` does.
+The question is only whether the bank's own `push` ALSO fans out — (b) over
+(c) if it does: a thread count is configuration, not a verb, and the serial
+fallback is already inside `dp_parallel_for`. That turns on whether
+per-call thread creation is affordable at the block sizes the link uses —
+and if it is not, whether the bank grows a persistent pool (the
+repository's first) or stays serial and leaves scaling to the caller, as
+(a) already provides.
 
 ### 10.3 The work that answers it
 
@@ -326,6 +365,38 @@ the link uses — and if it is not, whether the bank grows a persistent pool
 
 Steps 1–2 are the bank's benchmarks, which the standard owes anyway. Step 3
 is arithmetic on published numbers. Steps 4–5 are C pins.
+
+### 10.4 What was measured (2026-09-01)
+
+Steps 1–3 of §10.3, on an 8-core build box, minimum of runs:
+
+- **The per-call tax of `dp_parallel_for`**: ~15 µs per worker created —
+    28 µs at 2 workers, 62 at 4, 123 at 8, 247 at 16. A push that fans 8
+    channels pays 123 µs before any work.
+- **The per-channel cost** (DDC at rate 1 plus the capture's push) is flat
+    at **47–51 ns per source sample** across block sizes and `K`. At a
+    4096-sample block that is ~200 µs per channel, so an 8-worker tax is
+    60% of the work; at 65,536 samples it is 4%. **Break-even for (b) is a
+    block of roughly 25,000 samples** (tax at 10%); below it, the caller's
+    persistent pool wins.
+- **The Python pool** (persistent threads, kernels releasing the GIL):
+    speedup over serial 2.2–2.9× at `K = 3`, 2.8–5.0× at `K = 9`, 2.9–5.8×
+    at `K = 27` from 4096 to 262,144-sample blocks — 73% of 8 cores at the
+    large block, and still 2–3× at the small one where per-call threads
+    would have paid 60%.
+- **Keep-up, at the envelope's two ends**, from 48 ns/sample: at 4 MSa/s
+    one channel is 19% of real time, so a serial bank keeps up to `K = 5`
+    and the pool to `K ≈ 30`. At the high-rate end — 1 Msym/s × 50
+    chips/symbol × 4 samples/chip = 200 MSa/s — one channel is **9.6×
+    real time**: no single node keeps up with even one channel at the
+    per-channel cost measured, and the fleet (or a 10× cheaper channel) is
+    not optional. At the low-rate end — 50 sym/s, 10 kSa/s — one channel is
+    0.05% of real time and hundreds of channels run serially inside 10%.
+
+So: (a) is the primary path and it already scales; (b) is worth having for
+a C caller with no pool of its own, gated on block size; the high-rate end
+is a per-channel-cost problem before it is a threading one, and that number
+belongs in the bank's C benchmark from the first commit.
 
 ## 11. See also
 

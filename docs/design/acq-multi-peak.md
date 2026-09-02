@@ -52,8 +52,8 @@ supersede `burst-bank.md` §11.2's, which were the async spec's waveform:
 | chip rate                      | **5 Mcps**                                            | given                                                       |
 | code                           | 1023 chips → one epoch is **204.6 µs**                | given                                                       |
 | coherent depth                 | **`D = 1`** — one epoch, no slow-time FFT             | given                                                       |
-| DDC input                      | **13 MSa/s**                                          | given                                                       |
-| DDC output                     | **2× chip rate = 10 MSa/s** (`spc = 2`)               | given; decimation is only 1.3×                              |
+| DDC input                      | **13 MSa/s**                                          | given — chosen to force the arbitrary-ratio path (§1.4)     |
+| DDC output                     | **2× chip rate = 10 MSa/s** (`spc = 2`)               | given; the ratio 1.3 has no integer factor                  |
 | samples per epoch              | 2046                                                  | `1023 · spc`                                                |
 | Doppler tile                   | `1/T_epoch` = **4.89 kHz**, a tile spans ±2.44 kHz    | at `D = 1` the Doppler axis is the `window_bins` tile index |
 | tiles over ±50 kHz             | 23                                                    | `2·ceil(50/4.89)+1`, *if* the uncertainty stays the spec's  |
@@ -187,11 +187,20 @@ one core at 13 MSa/s and 1.4× real time at 30, for one channel and no
 receiver; which is enough to say the chain is priced near the budget
 before the population is on it. Three things follow for the shapes:
 
-- **One front-end DDC, shared.** There is one frequency channel, so the
-    only stage at the input rate is one decimation, 13 to 10 MSa/s. The
-    receivers take chip-rate input already (`AsyncDsssReceiver` ingests
-    at `chip_rate · spc`), so they share the front end rather than each
-    owning one.
+- **One front-end DDC, shared, on its slowest path — on purpose.** There
+    is one frequency channel, so the only stage at the input rate is one
+    conversion, 13 to 10 MSa/s. That ratio was chosen for the budget, not
+    the radio (maintainer, 2026-09-02): the `DDC`'s `RateConverter`
+    builds the cheapest cascade the ratio allows — CIC, halfband, then a
+    polyphase resampler — and 1.3 has no integer factor, so no CIC or
+    halfband stage exists and the whole conversion runs through the
+    **polyphase arbitrary resampler**, the most expensive sample the front
+    end can produce. The budget is therefore priced with the slow path
+    baked in; a deployment whose rate happens to give an integer factor
+    can only be cheaper, and a bench that ran at a convenient ratio would
+    have measured the wrong front end. The receivers take chip-rate input
+    already (`AsyncDsssReceiver` ingests at `chip_rate · spc`), so they
+    share this one front end rather than each owning one.
 - **The searcher is one window-tiled engine, not a DDC bank.** A bank of
     23 `DDC → search` channels at anything like 48 ns each is 14× real
     time at the operating point on one core and fits on no node; the
@@ -558,7 +567,9 @@ ______________________________________________________________________
     requirement and runs once the bank exists.
 1. **The budget, per stage.** Its own bench target, on one core,
     minimum of runs, at the operating point's numbers (§1.1): the
-    front-end DDC in ns per input sample at 13 MSa/s; then, in ns per
+    front-end DDC in ns per input sample at 13 MSa/s — confirmed to be on
+    the polyphase arbitrary path, not a cascade the bench's ratio let it
+    shortcut (§1.4); then, in ns per
     output sample at 10 MSa/s, the window-tiled searcher with 23 tiles
     and `max_peaks = 16`, one hand-off-mode receiver tracking, and one
     replica subtraction. Then the whole population — the front end, the

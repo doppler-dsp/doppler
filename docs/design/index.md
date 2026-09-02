@@ -45,6 +45,7 @@ instead.)
 - [Async DSSS Receiver Spec](async-dsss-spec.md) — the target waveform and receiver specification (CCSDS Gold-1023, 3.069 Mcps, 2700 bps, ±50 kHz, \<500 Hz/s) the async DSSS receiver is built against
 - [DsssBurstReceiver](dsss-burst-receiver.md) — the burst chain composed in C: the three-stage `search → refine → demod` shape, why the hand-off needs a never-late epoch, and what a burst `DetectionEvent` must carry to stand alone
 - [BurstCapture](burst-capture.md) — acquisition's output turned into aligned burst samples: why the period-resolving refine and the look-back need a home outside the receiver, why the object owns its own engine rather than taking foreign detections, and the one behaviour that changes
+- [BurstBank](burst-bank.md) — the coarse-Doppler bank as one C object: why its cross-channel claim rule belongs beside the capture's, the layout rule now that the engine searches to its edge, rings named by centre so a pod can hold one channel, and the unknowns the characterization measures
 - [Asynchronous Symbol Despreader](async-symbol-despreader.md) — despreading when the data-symbol rate is asynchronous to the code-epoch rate
 - [Asynchronous Data on a Repeating PN Code](async-despreader-working-design.md) — the working design behind the async despreader, assuming at most one data transition per code epoch
 - [Automatic Gain Control](agc.md) — the log-domain level loop every receiver

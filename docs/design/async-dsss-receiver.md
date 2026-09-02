@@ -34,7 +34,7 @@ The waveform and the receiver requirements, as given:
     applications.
 - Complete Python receiver, the same object through the binding.
 
-What the application wants from it (maintainer, 2026-09-02): **continuous**
+What the application wants from it: **continuous**
 reception — tracking loops that run for the life of a pass, not bounded
 bursts — and **parallelism on one server, not a cluster**. The server has
 many cores, and the design should use as many processes and threads as
@@ -242,7 +242,6 @@ ______________________________________________________________________
 
 ## 3. The asynchronous despreader
 
-**Status:** draft / validated architecture
 **Scope:** the receive-side despreader when the **data-symbol rate is on the
 order of the code-epoch rate but asynchronous** to it. This is theory, the
 failure mechanism, and a validated robust architecture that composes existing
@@ -671,8 +670,7 @@ onto the same signal, only back to the hunt. Both are serializable
     `Acquisition` search in front (see the
     [DsssReceiver](../gallery/dsss-receiver.md) gallery page,
     `src/doppler/examples/dsss_receiver_demo.py`).
-    One correction to this section's own guidance surfaced doing so: `K=4`
-    (§3.3.3's sweet spot) is tuned for the DLL's own code-discriminator
+    Note that `K=4` (§3.3.3) is tuned for the DLL's own code-discriminator
     variance, not for feeding a downstream matched filter — each partial is
     `K`-times weaker than a full coherent epoch, so a downstream receiver
     needs a much larger `K` (34, in the validated example) to reconstruct
@@ -696,10 +694,11 @@ ______________________________________________________________________
 
 ## 5. The continuous case — the C++ application's waveform
 
-*Written 2026-09-02 from the maintainer's description, in `burst-bank.md`
-until that page was cut back to bursts; the numbers are derived from §1's
-waveform and the measurements in `burst-bank.md` §10.4, and the questions at
-the end are open or answered in the sections that follow.*
+*The use case as the maintainer described it, 2026-09-02, and every
+"settled" or "answered" item on this page below traces to that description;
+the numbers are derived from §1's waveform and the measurements in
+`burst-bank.md` §10.4, and the questions at the end are open or answered
+in the sections that follow.*
 
 The C++ application does not receive bursts. It receives **continuous**
 DSSS with asynchronous data — the CCSDS command-link shape
@@ -710,9 +709,7 @@ emitters are in the air at once on the **same** Gold code, and what tells
 them apart is Doppler: each emitter's frequency difference *is* its
 Doppler. There is **one frequency channel**: every emitter is in the same
 band on the same code, and what distinguishes them is **code phase, power
-and Doppler**. *(Maintainer, 2026-09-02: "one Gold code period; each
-emitter frequency difference is Doppler"; "ONE frequency channel, emitters
-are distinguished by code phase, power, and Doppler.")*
+and Doppler**.
 
 ### 5.1 What the data-free window changes
 
@@ -877,7 +874,7 @@ record — is already there.
     bank also owns the tracker pool and the assigned table, or reports
     "still there / gone" to an application that owns them.
 1. ~~**How many emitters at once**, and how long an emitter is typically
-    in view.~~ **Answered** (maintainer, 2026-09-02): at least one always
+    in view.~~ **Answered**: at least one always
     on, up to 10 at once, each on for 5 to 15 minutes on average. The pool
     and the soak follow in §6.1,
     §5 and §6.
@@ -917,7 +914,7 @@ of it is re-derived here (§5):
     tracker and stops; search and track are concurrent.
 - **The hand-off is a policy** — track, capture a window, or report — chosen
     per bank, and not a property of the channel.
-- **The population** (maintainer, 2026-09-02): **at least one emitter is
+- **The population**: **at least one emitter is
     always on**, there may be **up to 10 at once**, and each is on for **5
     to 15 minutes** on average. So the surface never has fewer than one
     peak, has up to ten, and an emitter rises or sets about once a minute
@@ -926,7 +923,7 @@ of it is re-derived here (§5):
     normal event the searcher exists for. This answers `burst-bank.md`
     §11.4's question 6: the receiver pool is sized at ten plus release
     headroom (§10), and the soak's population is known (§12 step 7).
-- **The rate** (maintainer, 2026-09-02): all of it — the front end, the
+- **The rate**: all of it — the front end, the
     searcher, every receiver, and the cancellation if it is built — must
     run **comfortably at 30 MSa/s or more**, and running at exactly 30
     MSa/s counts as slow. That is the machinery's floor; the waveform's
@@ -934,7 +931,7 @@ of it is re-derived here (§5):
     page prices every option at both (§6.4), not as a benchmark to run
     at the end.
 
-The numbers the page is worked at (maintainer, 2026-09-02) — these
+The numbers the page is worked at — these
 supersede §5.2's, which were the async spec's waveform:
 
 | quantity                       | value                                                                                                                                         | from                                                                                                                                            |
@@ -976,7 +973,7 @@ validated `search → refine → track` chain in one C object: its searching
 stage feeds an embedded `Acquisition`, a hit is turned into a hand-off by
 `acq_build_handoff()`, and that hand-off seeds the refine stage. What the
 lifecycle needs from it is two things and no new receiver
-(maintainer, 2026-09-02): **an acquisition input** — the searcher's
+\: **an acquisition input** — the searcher's
 detection arrives from outside as the hand-off — and **an internal
 acquisition bypass** for that mode, so the object starts in refining from
 the given seed and its own `Acquisition` never runs. That is a difference
@@ -1091,7 +1088,7 @@ expectations:
 - **One front-end DDC, shared, on its slowest path — on purpose.** There
     is one frequency channel, so the only stage at the input rate is one
     conversion, 13 to 10 MSa/s. That ratio was chosen for the budget, not
-    the radio (maintainer, 2026-09-02): the `DDC`'s `RateConverter`
+    the radio: the `DDC`'s `RateConverter`
     builds the cheapest cascade the ratio allows — CIC, halfband, then a
     polyphase resampler — and 1.3 has no integer factor, so no CIC or
     halfband stage exists and the whole conversion runs through the
@@ -1384,7 +1381,7 @@ application's threads beside the searcher's own cost (`burst-bank.md`
 
 **The read-back.** Whoever holds the pool needs to know, for each
 receiver, which signal it is tracking, for how long, and in what
-condition (maintainer, 2026-09-02). The facts have two owners, and the
+condition. The facts have two owners, and the
 split falls out of who produced each one:
 
 - **The orchestrator owns the assignment.** It handed the seed to the
@@ -1436,7 +1433,7 @@ per channel that never stops, and one `AsyncDsssReceiver` per emitter,
 — never stopped, never re-seeded, never doubled up by the searcher. Up to ten
 emitters at once, each on the air for 5 to 15 minutes, on one Gold code, on a
 stream the whole pool must consume at 30 MSa/s comfortably. The receiver of §4
-is the right object for that (maintainer, 2026-09-02) and needs five things,
+is the right object for that and needs five things,
 none of which is a new receiver. Each is a Phase-1 design here and an
 implementation item in
 [adding an algorithm](../dev/contributing/adding-algorithms.md)'s order; the
@@ -1799,11 +1796,6 @@ Four things this settles:
     is the operating floor everywhere; the data-free window buys the
     emitter its own clean, single peak, not a clean surface.
 
-A first pass of this harness built the emitter's samples by hand and gave
-the same numbers to within 0.5 dB on every clean row; the shipped generator
-is what is kept, because a harness that measures a surface has no business
-rendering its own waveform.
-
 ### 12.3 What was measured (2026-09-02) — step 6, the release
 
 `native/validation/async_dsss_receiver_release.c` (`make validate-c`; its
@@ -1857,9 +1849,7 @@ What it settles, and what it overturned:
     hand a fresh receiver an emitter one is already tracking. That is the
     false release the interval is sized against.
 
-Both sweeps of this harness — a first pass that built the emitter by hand,
-and the kept one on the shipped synth — agree on every number above to
-within the trial-to-trial spread. Not measured yet: the false-release
+Not measured yet: the false-release
 rate over an hour rather than half a minute (the both-down rate at 5.7 dB
 is 0.5% of blocks in runs of tens of milliseconds; whether a run ever
 reaches seconds is what an hour would say), and any of this on the

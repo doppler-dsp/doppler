@@ -359,7 +359,8 @@ add_test(NAME validate_wfmgen_certify COMMAND validate_wfmgen_certify --check)
 add_executable(validate_acq_emitter_floor
                ${CMAKE_CURRENT_SOURCE_DIR}/acq_emitter_floor.c)
 target_include_directories(validate_acq_emitter_floor
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_acq_emitter_floor PRIVATE doppler_lib_static m)
 target_compile_options(validate_acq_emitter_floor PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_acq_emitter_floor
@@ -368,12 +369,13 @@ add_test(NAME validate_acq_emitter_floor
 # The tracking receiver's release: samples from switch-off, fade and phase
 # step to each lock flag dropping, and the per-block miss rate while on
 # (docs/design/async-dsss-receiver.md §10, §12 step 6). The emitter is the
-# shipped continuous-DSSS synth and the noise the shipped awgn; nothing from
-# native/tests is needed.
+# shipped continuous-DSSS synth and the noise the shipped awgn; native/tests
+# is reached for dp_test.h's assertions only.
 add_executable(validate_async_dsss_receiver_release
                ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_receiver_release.c)
 target_include_directories(validate_async_dsss_receiver_release
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_async_dsss_receiver_release
                       PRIVATE doppler_lib_static m)
 target_compile_options(validate_async_dsss_receiver_release

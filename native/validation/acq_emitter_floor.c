@@ -44,6 +44,7 @@
  *                                         maximum is the Gold bound
  */
 #include "acq/acq_core.h"
+#include "dp_test.h"
 #include "gold/gold_core.h"
 #include "wfm_synth/wfm_synth_core.h"
 #include <complex.h>
@@ -237,32 +238,20 @@ main (int argc, char **argv)
   if (check)
     {
       floor_t f;
-      if (measure (code, 5.0e6, 0.0, 0, 0.0, 1, 1u, &f))
-        return 1;
-      int fail = 0;
+      DP_REQUIRE (measure (code, 5.0e6, 0.0, 0, 0.0, 1, 1u, &f) == 0);
       /* The synth's chip 0 sits TAU0 samples before the epoch start, so the
          engine reports the code phase nx - TAU0 (its own convention: the
          offset of the replica's start within the pushed epoch). */
-      if (f.peak_row != TILE || f.peak_col != (NX - TAU0) % NX)
-        {
-          printf ("FAIL peak at (%zu,%zu), injected (%u,%u)\n", f.peak_row,
-                  f.peak_col, TILE, (NX - TAU0) % NX);
-          fail = 1;
-        }
+      DP_CHECK (f.peak_row == TILE);
+      DP_CHECK (f.peak_col == (NX - TAU0) % NX);
       /* Same tile, other lags, centred, no data: the Gold three-valued bound
          exactly -- integer-chip lags ARE {-1,-65,63}/1023 and half-chip
          lags are their means. */
-      if (fabs (f.max_db[0] - GOLD_BOUND_DB) > 0.3)
-        {
-          printf ("FAIL same-tile off-peak max %.2f dB, Gold bound %.2f\n",
-                  f.max_db[0], GOLD_BOUND_DB);
-          fail = 1;
-        }
-      if (!fail)
-        printf ("acq_emitter_floor: OK (same-tile max %.2f dB vs Gold %.2f; "
-                "reference %.1f dB below peak)\n",
-                f.max_db[0], GOLD_BOUND_DB, db (f.noise_est / f.peak_mag));
-      return fail;
+      DP_CHECK_NEAR (f.max_db[0], GOLD_BOUND_DB, 0.3);
+      printf ("  same-tile max %.2f dB vs Gold %.2f; reference %.1f dB below "
+              "peak\n",
+              f.max_db[0], GOLD_BOUND_DB, db (f.noise_est / f.peak_mag));
+      DP_TEST_END ("validate_acq_emitter_floor");
     }
 
   printf ("one emitter on the engine's own surface, dB below its peak\n");

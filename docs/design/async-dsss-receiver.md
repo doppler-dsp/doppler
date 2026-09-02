@@ -1,13 +1,15 @@
 # AsyncDsssReceiver — the continuous DSSS receiver, from spec to object
 
-*One page, consolidated 2026-09-02 from three: the receiver specification
-(`async-dsss-spec.md`), the asynchronous despreader (`async-symbol-despreader.md`)
-and the despreader's original working design (`async-despreader-working-design.md`).
-§1–§4 are those pages' content under one numbering, edited only where a
-cross-reference had to move. §5 is new: what the tracking receiver must gain
-to serve the multi-emitter, always-searching use case that
-[`acq-multi-peak.md`](acq-multi-peak.md) designs — the C++ application's
-continuous waveform of [`burst-bank.md`](burst-bank.md) §11.*
+*One page for continuous asynchronous DSSS, consolidated 2026-09-02 from
+five: the receiver specification (`async-dsss-spec.md`, §1–§2), the
+asynchronous despreader (`async-symbol-despreader.md`, §3) and its original
+working design (`async-despreader-working-design.md`, §3.6), the continuous
+use case that had grown inside [`burst-bank.md`](burst-bank.md) as its §11
+(§5), and the searcher design written for it (`acq-multi-peak.md`, §6–§10,
+§12–§13). §4 is the receiver as built; §11 is what it must gain for the
+multi-emitter, always-searching use case. What the spec said about bursts
+and about fleet service boundaries is not this receiver's concern and was
+cut (git has it); `burst-bank.md` is bursts only.*
 
 ______________________________________________________________________
 
@@ -28,74 +30,19 @@ The waveform and the receiver requirements, as given:
 
 ### 1.1 Target implementations
 
-- Complete C DsssReceiver available in libdoppler.{a,so} to compile into
-    C/C++ applications <sup>[(3)](#note-3)</sup>
-- Complete Python DsssReceiver to include in Python applications
-- Set of stateless (serialized state passing) composable blocks
-    deployable as k8s microservices <sup>[(4)](#note-4)</sup>
-    - Digital Down-Conversion (DDC) -- absorbed into BurstAcquisition;
-        see "Service boundaries" below
-    - Code and Coarse Carrier Acquisition (BurstAcquisition)
-    - Frame Demodulation (BurstDemod)
+- Complete C receiver in `libdoppler.{a,so}`, to compile into C/C++
+    applications <sup>[(3)](#note-3)</sup>.
+- Complete Python receiver, the same object through the binding.
 
-#### Service boundaries: which blocks are HPA-friendly
-
-This microservices target is specifically the BURST counterparts
-(`BurstAcquisition`/`BurstDemod` -- `DsssBurstReceiver`, task #80,
-filed but not yet composed) -- not the continuous chain the rest of
-this spec and this project's current C work is about. Continuous
-tracking (Dll + Costas, inside the monolithic "Complete C DsssReceiver"
-above) is a long-lived, per-pass STATEFUL process; it doesn't decompose
-into independent stateless hops the way a bounded, feedforward burst
-does, so it stays part of the monolithic library target rather than
-being split into k8s hops.
-
-Both burst blocks are HPA-friendly, and for the same underlying reason:
-neither has a tracking loop. `BurstAcquisition` forwards straight onto
-the shared `acq_core.c` engine (no separate algorithm, `acq_create_ burst()`) and completes one bounded detection attempt, then is done.
-`BurstDemod` is explicitly feedforward -- preamble estimate, dechirp,
-despread the data section, frame sync, slice bits, verify CRC -- no
-loops, one bounded pass per burst. Any replica can pick up any
-detection attempt or any burst; classic HPA (queue depth/CPU-driven
-replica count) applies to both.
-
-Two things worth being precise about here (an earlier draft of this
-section conflated these while thinking through the continuous case):
-
-- **The internal search parallelism and the HPA replica axis are
-    different, and stay different here too.** `BurstAcquisition`'s own
-    `coherent_bins`/`reps` sizing is internal to ONE detection attempt
-    (bounded by the burst/preamble's own length; no documented ceiling
-    beyond `>= 1`). The HPA axis is dispatching independent detection
-    attempts (different candidate windows, or independent uplink
-    sessions) across replicas -- not parallelizing within one attempt.
-- **DDC is genuinely stateless throughout this chain, no caveat
-    needed.** Nothing in the burst path closes a loop:
-    `BurstAcquisition`'s Doppler estimate is a fixed, one-shot value per
-    attempt, so any DDC correction applied is a pure function of sample
-    index throughout, not evolving state -- unlike a continuous
-    tracking loop's own continuously-updated NCO, which would NOT be
-    stateless. The one real implementation cost that remains: a
-    block-parallel DDC still needs a few samples of the PRECEDING block
-    to seed its decimation filter's delay line correctly (the standard
-    overlap-save technique) -- a small, genuine data dependency between
-    adjacent workers, not zero-coordination independence.
-
-DDC is absorbed into `BurstAcquisition` rather than kept as its own hop
-for the same reason `RateConverter` may be absorbed elsewhere in a
-composed pipeline: it has no consumer besides `BurstAcquisition` in
-this chain (`BurstDemod` works from the already-corrected burst-sample
-window `BurstAcquisition`'s own handoff identifies, not a second DDC
-tap), and the two always co-scale 1:1 -- a separate hop would just add
-serialization overhead for nothing. One real trade-off worth naming
-rather than assuming away: if multiple independent detection replicas
-process overlapping time windows of the same physical feed, each
-redundantly re-runs its own DDC over the shared samples -- normal for a
-fan-out sharding pattern, but a genuine, not-free duplication.
-
-**Not yet built**: `DsssBurstReceiver` (composing `BurstAcquisition` ->
-`BurstDemod`, task #80) is filed but not implemented -- neither object
-calls the other today, and neither composes DDC internally yet.
+What the application wants from it (maintainer, 2026-09-02): **continuous**
+reception — tracking loops that run for the life of a pass, not bounded
+bursts — and **parallelism by threads on one multi-core server**. The
+searcher runs on one thread, each assigned receiver on another, all fed
+from one stream in one process (§5, §11). There are no pods and no
+serialized-state hops in this use case: the receiver's `get_state`/
+`set_state` remain for a checkpoint and restart mid-pass, not for scaling.
+The fleet and per-burst service shapes the original spec also described
+belong to the burst chain and are not this page's concern.
 
 ### 1.2 Footnotes
 
@@ -131,25 +78,8 @@ limit, until that's actually tried.
 Frequency Refinement (`CarrierAcquisition`) as a stage between
 Acquisition's coarse handoff and Dll/Costas tracking -- motivated
 directly by task #99's still-open 4-5dB pull-in cliff (see the Es/N0
-footnote above). This is real, separate work from the k8s microservices
-target below: `CarrierAcquisition` is an internal composition detail of
-the monolithic continuous receiver, not a k8s hop, since the continuous
-receiver's own tracking (Dll+Costas) is a long-lived, stateful,
-per-pass process that doesn't decompose into independent stateless hops
-the way a bounded burst does (see "Service boundaries" below). A C
-object (`doppler.acquire.CarrierAcquisition`) already exists and is
-serializable/stateless-resumable; it is not yet composed into the C
-`DsssReceiver`'s own pipeline, nor validated end-to-end in C against
-this spec's real async/wide-uncertainty scenario the way the Python
-prototype now is -- that C port is the immediately next task.
-
-<a id="note-4"></a>**(4)** This target is for the BURST counterparts
-specifically (`BurstAcquisition`/`BurstDemod`, task #80's filed
-`DsssBurstReceiver`), not the continuous chain this project's current C
-work is building. Continuous tracking is inherently a long-lived,
-per-pass stateful process (see "Service boundaries" below), so it stays
-part of the monolithic Complete C DsssReceiver above rather than being
-split into k8s hops.
+footnote above). **Built:** that stage is §4's *refining* state, the C
+port of the Python prototype that validated it.
 
 ### 1.3 Derived: tracking loop bandwidths (all loops: code DLL, Costas/CarrierMpsk carrier, FLL-assist)
 
@@ -184,8 +114,7 @@ numbers — a 1023-chip Gold code at **2 to 5 Mcps**, a DDC from **13 MSa/s** to
 twice the chip rate, `D = 1`, ±50 kHz to start and likely ±5 kHz after
 Doppler pre-compensation, up to ten emitters on one code at once — and a
 throughput floor of 30 MSa/s, comfortably. Those numbers, and what they do to
-the search and the receiver pool, are worked in
-[`acq-multi-peak.md`](acq-multi-peak.md) §1.1 and §1.4; this page's §5 is the
+the search and the receiver pool, are worked in §6.1 and §6.4; §11 is the
 receiver's side of them.
 
 ______________________________________________________________________
@@ -250,23 +179,11 @@ Sensitivity margin comes entirely from auto-selected `n_noncoh`.
 
 #### `BurstAcquisition`
 
-`doppler_bins` here is the `coherent_bins` mechanism, auto-sized in
-`[1, reps]` for coherent gain (today's existing `Acquisition`
-behavior) -- assumes an unmodulated (or preamble) acquisition window,
-so there's no data-bit-straddle loss to price and no `symbol_rate` to
-supply.
-
-| Parameter             | Type                                   | Default      | Description                                                                                                                                                   |
-| --------------------- | -------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `code`                | `NDArray[uint8]`                       | *(required)* | Binary (0/1) code, segment, or preamble chips to search for; sets `sf = len(code)`.                                                                           |
-| `reps`                | `int`                                  | `1`          | `doppler_bins` ceiling -- the coherent-depth axis (>= 1).                                                                                                     |
-| `spc`                 | `int`                                  | `4`          | Samples per chip (>= 1).                                                                                                                                      |
-| `chip_rate`           | `float`                                | `1e6`        | Chip rate in Hz (> 0).                                                                                                                                        |
-| `cn0_dbhz`            | `float`                                | `50.0`       | Carrier-to-noise density in dB-Hz (> 0) -- the sensitivity used to size the search.                                                                           |
-| `doppler_uncertainty` | `float`                                | `0.0`        | One-sided Doppler search half-range in Hz; `0` = full native span (one `doppler_bin`). Tiles into `doppler_bins` windows whenever it exceeds one native span. |
-| `pfa`                 | `float`                                | `1e-3`       | Target system (max-of-N) false-alarm probability, in `(0,1)`.                                                                                                 |
-| `pd`                  | `float`                                | `0.9`        | Target detection probability, in `(0,1)`.                                                                                                                     |
-| `noise_mode`          | `Literal["mean","median","min","max"]` | `"mean"`     | CFAR reference-cell aggregation mode.                                                                                                                         |
+The burst front door over the same engine — `doppler_bins` there is the
+`coherent_bins` mechanism, auto-sized in `[1, reps]` for coherent gain over
+an unmodulated preamble. It is not this receiver's concern; its parameters
+and the burst chain are in
+[`dsss-burst-receiver.md`](dsss-burst-receiver.md).
 
 **Removed from today's shipped API**: `doppler_resolution`,
 `doppler_rate`. Both existed to size a coherent-depth (`coherent_bins`)
@@ -290,12 +207,6 @@ is the ONLY sensitivity lever, so a cap defaulting to "don't use it"
 would silently underpower it). `n_noncoh` becomes a purely derived
 output (already exposed as a read-only property) on both classes.
 
-*2026-09-01:* this auto-selection is the **continuous** engine's. The burst
-engine no longer escalates `n_noncoh` at all — a burst's preamble fills one
-look, so extra looks add noise and move the hit's anchor past the capture's
-refine reach ([#1181](https://github.com/doppler-dsp/doppler/issues/1181),
-`burst-capture.md` §11.1); its C/N0 is a design point and optional.
-
 This does NOT remove the need for an internal ceiling, though -- just
 moves it out of the user-facing API. The semi-analytical `pd_predicted`
 model itself is only reliable up to a point: this exact geometry's own
@@ -317,11 +228,10 @@ discover and tune correctly.
 handing it to the next block/service); the two aren't the same thing,
 naming them separately on purpose.
 
-Per the target-implementations goal above ("stateless composable
-blocks deployable as k8s microservices"), `Acquisition`/
-`BurstAcquisition`'s detection output has to be consumable by another
-process/service, not just another Python object in the same
-interpreter -- so it can't be the raw grid-relative indices
+The detection output has to be consumable by another thread or process
+— the orchestrator of §5 and §11, a C++ application — not just another
+Python object in the same interpreter, so it can't be the raw
+grid-relative indices
 (`doppler_bin`, `code_phase`) alone, since those are meaningless
 without also shipping the emitting object's own config (`spc`,
 `doppler_res_hz`, ...) alongside. Every field below is already
@@ -370,7 +280,7 @@ the coupled-tracker roadmap) doesn't exist as a C struct/function yet
 sample-domain engines, no I/O) -- the `dp_sample_clock_t` anchor comes
 from whatever upstream source (DDC, a real front end) is actually
 feeding them samples, and gets threaded through by the composing layer
-(`DsssReceiver`, or the k8s block wrapper), not owned by `Acquisition`
+(`DsssReceiver`, or the orchestrator), not owned by `Acquisition`
 itself.
 
 This gap wasn't specific to `Acquisition` -- `dp_tlm_rec_t`'s own doc
@@ -970,9 +880,720 @@ onto the same signal, only back to the hunt. Both are serializable
 
 ______________________________________________________________________
 
-## 5. What the multi-emitter use case needs from the tracking receiver
+## 5. The continuous case — the C++ application's waveform
 
-[`acq-multi-peak.md`](acq-multi-peak.md) fixes the lifecycle: a **searcher**
+*Written 2026-09-02 from the maintainer's description, in `burst-bank.md`
+until that page was cut back to bursts; the numbers are derived from §1's
+waveform and the measurements in `burst-bank.md` §10.4, and the questions at
+the end are open or answered in the sections that follow.*
+
+The C++ application does not receive bursts. It receives **continuous**
+DSSS with asynchronous data — the CCSDS command-link shape
+[`async-dsss-receiver.md`](async-dsss-receiver.md) already specifies (a 1023-chip
+Gold code, 3.069 Mcps, ±50 kHz) — and the stream carries a **data-free
+period of one code period just before each frame sequence**. Several
+emitters are in the air at once on the **same** Gold code, and what tells
+them apart is Doppler: each emitter's frequency difference *is* its
+Doppler. There is **one frequency channel**: every emitter is in the same
+band on the same code, and what distinguishes them is **code phase, power
+and Doppler**. *(Maintainer, 2026-09-02: "one Gold code period; each
+emitter frequency difference is Doppler"; "ONE frequency channel, emitters
+are distinguished by code phase, power, and Doppler.")*
+
+### 5.1 What the data-free window changes
+
+Everything the burst family assumes about a preamble holds for that window
+and for nothing else in the stream:
+
+- **There is no coherent gain to buy.** The data-free window is one code
+    period, so `reps = 1` and the coherent depth is one epoch — exactly the
+    continuous `Acquisition` engine's search (`D = 1`, sensitivity from
+    non-coherent looks, `dsss-acquisition.md`'s warning). The window buys
+    one clean epoch without a data transition inside it, which the
+    continuous engine already prices as a straddle loss and survives. The
+    bank's reason to exist in this use case is therefore **not** gain —
+    §5.3 says what it is.
+- **The hand-off is to a tracking receiver, not to a frame demodulator.**
+    A burst ends; a continuous signal is tracked from the seed onward
+    (`carrier_acq → Dll + Costas`, the monolithic C receiver). So the
+    channel's product is the `DetectionEvent` the async spec defines —
+    Doppler, code epoch, C/N0 — and the window copy `BurstCapture` makes is
+    not needed for the signal's sake. What may still be needed is the
+    capture's **refine**: the frame begins where the data-free window ends,
+    so *which* code period the window ended on is the frame epoch, and
+    acquisition alone cannot say (§3.1 of the receiver design). Whether
+    the tracking receiver's own frame sync makes that redundant is
+    question 3 below.
+- **The channel repeats.** A burst is acquired once; a continuous signal
+    is re-acquired at every data-free window, and between windows it drifts
+    (< 500 Hz/s in the spec). The claim rule across windows is then
+    "same signal, next frame", not "same preamble".
+- **Emitters come and go, at their own frequencies, and the bank is
+    always on the air.** An emitter rises into the band at some Doppler,
+    is acquired at its next data-free window, is handed to a tracker, keeps
+    transmitting while others rise and set around it, and eventually
+    leaves. The bank never stops searching: a channel that has handed one
+    emitter off must go on watching its band for the next, and an emitter
+    that drops out must be noticed and re-acquired when it returns. That is
+    a **lifecycle** — searching → acquired → tracked → lost → searching —
+    the burst family has no state for; a `BurstCapture` is done when the
+    window is out. It is also a **duration** requirement: the process runs
+    for hours or days, so nothing in the bank may grow with time
+    (`samples_fed` is 64-bit; the per-push scratch reaches its high-water
+    mark and stays; the rings are fixed) and a checkpoint is for a restart
+    mid-pass, taken while everything is live.
+
+### 5.2 The numbers, from the spec and `burst-bank.md` §10.4
+
+- Native span `3.069e6 / (2·1023)` = **1.5 kHz**; channel spacing 3.0 kHz;
+    covering ±50 kHz takes `2·ceil(50/3)+1` = **35 channels** — one bank,
+    since there is one code.
+- At `spc = 2` the source is 6.14 MSa/s; at `burst-bank.md` §10.4's 48 ns/sample a channel
+    is **0.29× real time**, so the bank is **~10× real time** — eight cores
+    at the measured 5.8× pool speedup do not keep up. Two things follow:
+    the C++ application's own threads (`burst-bank.md` §10.1, the primary path) are not
+    optional, and the per-channel cost is the number to attack first — 48
+    ns/sample was measured for `DDC → BurstCapture`, and a channel that
+    hands off a `DetectionEvent` rather than a window needs neither the
+    capture's ring nor its refine.
+- The continuous engine's own `window_bins` tiling covers ±50 kHz in
+    **one** engine at the same `D = 1` — the same tiling this bank does
+    with DDCs, at the same sensitivity. What the single engine cannot do is
+    §5.3's first item, and that, not gain, is what the `K`-fold cost buys.
+
+### 5.3 The async tools, and what the bank adds to them
+
+The continuous chain exists and is the thing to compose, not to rebuild.
+`AsyncDsssReceiver` is one object with a three-state machine — **searching**
+(the continuous `Acquisition`, window-tiled over the uncertainty),
+**refining** (`acq_build_handoff` → a frozen-carrier `Dll` →
+`CarrierAcquisition`), **tracking** (Costas → `Dll` → `RateConverter` →
+`MpskReceiver`) — and it is the validated C port of the search → refine →
+track prototypes. `DsssReceiver` is the same without the refining stage.
+Both cover the whole ±50 kHz in one engine at `D = 1`.
+
+So the C++ application's channel is not `DDC → BurstCapture`. Against what
+already exists, the bank adds exactly three things, and each is a design
+decision rather than a given:
+
+- **Resolution on the (Doppler × code phase) surface.** Every emitter
+    is a peak on the same 2-D surface a channel already computes, at its
+    own Doppler bin and code phase, with its own power. A Doppler bank
+    partitions one axis of that surface: emitters more than a span apart
+    land in different channels and are found independently, with
+    independent CFAR references. But emitters *within* a span — the normal
+    case, since there is one band and only Doppler separates them — share a
+    surface, and a detector that takes the **maximum** of it reports one
+    of them per dwell, the strongest, and masks the rest. So the channel's
+    detector must report **every** peak above threshold in a dwell, each
+    with an exclusion zone around it (a bin in Doppler, a chip in code
+    phase) so one emitter is not reported as several — a multi-peak report
+    the engine does not make today. Then **power**: a 1023-chip Gold code's
+    cross-correlation floor is about −24 dB, so an emitter that much weaker
+    than the strongest in the same surface sits under the strongest one's
+    sidelobes and is found only by cancelling the strong one first
+    (successive interference cancellation) — and two emitters at the same
+    Doppler *and* code phase within a chip are one peak, distinguishable by
+    nothing. Question 7 is therefore answered: emitters do share a span,
+    and the bank's channel count buys parallel surfaces and independent
+    references but not resolution; the resolution is the detector's, per
+    surface, and it is the piece to design.
+- **Many emitters, one band.** One `AsyncDsssReceiver` tracks one signal;
+    its state machine has no "lost" state and no second emitter. The bank
+    is what holds the pool: which emitters are up, which channel each is
+    in, which tracker it went to, and when it stopped being heard. That is
+    §5.3's question 5, and the tools do not answer it today.
+- **The frame epoch.** The refining stage recovers carrier, not which code
+    period the frame started on; if the application needs that from the
+    bank, it is the capture's refine, transplanted.
+
+Everything else — the DDC, the tiling rule, the tracker, the hand-off
+record — is already there.
+
+**Two rules from the maintainer (2026-09-02) fix the channel's shape:**
+
+- **It always has to be searching.** A channel never stops acquiring: the
+    emitter it just handed off keeps transmitting in its band while a
+    second one rises beside it, and the first one's loss has to be noticed
+    by something that is still looking. That rules out
+    `AsyncDsssReceiver` as the channel — its state machine *replaces* the
+    search with refining and then tracking, feeding every sample to the
+    tracker. In the bank, search and track are **concurrent** per channel:
+    the search engine runs on every block, and each hand-off spawns a
+    consumer that is fed the same samples beside it. Two things follow. A
+    channel that keeps searching re-detects the emitter it handed off at
+    every data-free window, so something must recognise "that one is
+    already handed off" — a suppression keyed by emitter (its Doppler and
+    code phase), the analogue of the capture's `suppress_until` keyed by
+    time — and that is the bank's, which settles the *minimum* of question
+    5\. And the per-channel cost in §5.2 is the search alone; each tracked
+    emitter adds a tracker's cost on top, on the application's threads.
+- **The hand-off logic is selectable.** What a detection becomes is a
+    policy, not a property of the channel: hand a `DetectionEvent` to a
+    tracker (this use case), capture a window for a frame demodulator (the
+    burst use case), or report and do nothing (surveillance). The channel
+    owns the search and the event; the policy owns what happens next and
+    is chosen per bank, possibly per channel. This answers question 1 —
+    the channel is `DDC → search`, and `BurstCapture`'s ring and refine are
+    one *policy's* apparatus, attached only when that policy is selected.
+
+### 5.4 Questions this raises (open)
+
+1. ~~**Hand-off target.**~~ **Answered:** selectable — a policy on the
+    detection (track / capture a window / report), not a property of the
+    channel. The channel is `DDC → search`, always searching.
+1. ~~**One Gold code per signal.**~~ **Answered:** one Gold code, shared;
+    emitters differ by Doppler. One bank; the multi-signal case is *within*
+    it, across channels.
+1. **The frame epoch.** Does the tracking chain's own frame sync recover
+    where the frame starts, or does the channel owe the refined code epoch
+    (the capture's refine, at `1023·spc`-sample periods)?
+1. ~~**The data-free window's length.**~~ **Answered:** one code period,
+    so `reps = 1` and no coherent gain. Still open: the frame cadence — how
+    often an emitter can be (re)acquired and how far it drifts (< 500 Hz/s)
+    in between.
+1. **Who owns the lifecycle.** *Partly answered:* because the channel
+    always searches, the bank must at least remember what it handed off
+    (an emitter keyed by Doppler and code phase) or it re-hands-off the
+    same emitter every window. The receiver's half — how "gone" is
+    decided and what it releases — is designed in
+    §10. Still open: whether the
+    bank also owns the tracker pool and the assigned table, or reports
+    "still there / gone" to an application that owns them.
+1. ~~**How many emitters at once**, and how long an emitter is typically
+    in view.~~ **Answered** (maintainer, 2026-09-02): at least one always
+    on, up to 10 at once, each on for 5 to 15 minutes on average. The pool
+    and the soak follow in §6.1,
+    §5 and §6.
+1. ~~**Can two emitters sit within one span of each other?**~~
+    **Answered: yes** — one frequency channel, one code; emitters are
+    separated by code phase, power and Doppler on one surface. A channel
+    therefore needs a multi-peak report per dwell with exclusion zones, and
+    the engine has none. Open in its place: the **power spread** between
+    emitters that are up at once — inside the Gold code's ~−24 dB
+    cross-correlation floor a multi-peak report suffices; beyond it the
+    weak ones need the strong ones cancelled first, which is a different
+    object.
+
+______________________________________________________________________
+
+## 6. The searcher — every emitter on one surface
+
+*The searcher's design, written 2026-09-02 as its own page and folded in
+here the same day. Nothing in §6–§10 and §12 is implemented, and nothing
+has been measured; §12 is the work that would measure it. Follow
+[adding an algorithm](../dev/contributing/adding-algorithms.md).*
+
+### 6.1 What is settled, and what the page is for
+
+The C++ application's waveform fixes the frame this page works in, and none
+of it is re-derived here (§5):
+
+- **One Gold code, one frequency channel.** Every emitter is on the same
+    1023-chip code in the same band; what tells them apart is Doppler, code
+    phase and power — three coordinates on **one** (Doppler × code phase)
+    surface, the surface a channel already computes.
+- **`reps = 1`.** The data-free window is one code period, so the search is
+    the continuous engine's: coherent depth one, sensitivity from
+    non-coherent looks, no coherent gain to buy.
+- **The channel always searches.** It never hands its samples over to a
+    tracker and stops; search and track are concurrent.
+- **The hand-off is a policy** — track, capture a window, or report — chosen
+    per bank, and not a property of the channel.
+- **The population** (maintainer, 2026-09-02): **at least one emitter is
+    always on**, there may be **up to 10 at once**, and each is on for **5
+    to 15 minutes** on average. So the surface never has fewer than one
+    peak, has up to ten, and an emitter rises or sets about once a minute
+    at the full population — every data-free window of every emitter is a
+    re-acquisition opportunity, and a rise between two of them is the
+    normal event the searcher exists for. This answers `burst-bank.md`
+    §11.4's question 6: the receiver pool is sized at ten plus release
+    headroom (§10), and the soak's population is known (§12 step 7).
+- **The rate** (maintainer, 2026-09-02): all of it — the front end, the
+    searcher, every receiver, and the cancellation if it is built — must
+    run **comfortably at 30 MSa/s or more**, and running at exactly 30
+    MSa/s counts as slow. That is the machinery's floor; the waveform's
+    own operating point is below it (13 MSa/s in, next table), and the
+    page prices every option at both (§6.4), not as a benchmark to run
+    at the end.
+
+The numbers the page is worked at (maintainer, 2026-09-02) — these
+supersede §5.2's, which were the async spec's waveform:
+
+| quantity                       | value                                                                                                                                         | from                                                                   |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| chip rate                      | **2 to 5 Mcps** — design to the worst case, which is per quantity: 5 Mcps for anything priced per sample, 2 Mcps for anything priced per tile | given                                                                  |
+| code                           | 1023 chips → one epoch is **204.6 µs** at 5 Mcps, **511.5 µs** at 2                                                                           | given                                                                  |
+| coherent depth                 | **`D = 1`** — one epoch, no slow-time FFT                                                                                                     | given                                                                  |
+| DDC input                      | **13 MSa/s**                                                                                                                                  | given — chosen to force the arbitrary-ratio path (§6.4)                |
+| DDC output                     | **2× chip rate**: 10 MSa/s at 5 Mcps, 4 at 2 (`spc = 2`)                                                                                      | given; the ratios 1.3 and 3.25 both lack an integer factor             |
+| samples per epoch              | 2046, at every rate                                                                                                                           | `1023 · spc`                                                           |
+| Doppler tile                   | `1/T_epoch` = **4.89 kHz** at 5 Mcps, **1.96 kHz** at 2; a tile spans ± half that                                                             | at `D = 1` the Doppler axis is the `window_bins` tile index            |
+| uncertainty                    | **±50 kHz to start**; Doppler pre-compensation will likely bring it to **±5 kHz**                                                             | given — design at the full width, and record what the narrow one saves |
+| tiles over ±50 kHz             | **23** at 5 Mcps, **53** at 2                                                                                                                 | `2·ceil(U/tile)+1`; the searcher's worst case is the low rate          |
+| tiles over ±5 kHz              | 3 at 5 Mcps, 7 at 2                                                                                                                           | same rule, after pre-compensation                                      |
+| budget, one core, operating    | **77 ns per input sample**; per output sample **100 ns** at 5 Mcps, 250 at 2                                                                  | `1/13e6`, `1/10e6`, `1/4e6`                                            |
+| budget, one core, at the floor | **33 ns per input sample**; 43 per output at 5 Mcps                                                                                           | `1/30e6`, same ratio                                                   |
+
+The maintainer's description of the running system (2026-09-02) adds the
+lifecycle the policy serves, and it is the shape everything below is fitted
+to:
+
+> The acquisition part continuously looks for signals, and async receivers
+> track them as they are found, until they are gone. A receiver does not
+> stop tracking once it has been assigned.
+
+So there are two kinds of thing on the air side of the bank. A **searcher**
+per channel (`DDC → search`), which runs on every block for the whole life
+of the process. And a pool of **async receivers**, one per emitter, each
+spawned by the track policy from one detection, fed the same samples as the
+searcher, and living from that hand-off until *its own* loss decision — the
+searcher never stops one, never re-seeds one, and never assigns a second
+receiver to an emitter that already has one. The searcher's product is
+therefore not "the strongest signal present"; it is **every emitter present
+that is not yet assigned**, per dwell.
+
+The receiver is the object that exists. `AsyncDsssReceiver`
+(`native/inc/async_dsss_receiver/async_dsss_receiver_core.h`) is the
+validated `search → refine → track` chain in one C object: its searching
+stage feeds an embedded `Acquisition`, a hit is turned into a hand-off by
+`acq_build_handoff()`, and that hand-off seeds the refine stage. What the
+lifecycle needs from it is two things and no new receiver
+(maintainer, 2026-09-02): **an acquisition input** — the searcher's
+detection arrives from outside as the hand-off — and **an internal
+acquisition bypass** for that mode, so the object starts in refining from
+the given seed and its own `Acquisition` never runs. That is a difference
+in constructor, not in method, so it is the `ddc`/`MatchedDDC` shape: a
+second `create` over the same state, a view in the manifest, the chain
+past the seed shared verbatim. The receiver already carries a symbol lock
+detector (`lockdet`, hysteretic, on the emitted symbols), which is where
+"until they are gone" is decided — what it lacks is the transition that
+decision drives (§10).
+
+### 6.2 What one maximum per dwell loses
+
+Today's detector reports one cell. `det_result2d_t`
+(`native/inc/detector2d/detector2d_core.h`) is one `(row, col, peak_mag,   noise_est, test_stat)`, and the acquisition engine's `acq_compute_stat`
+(`native/src/acq/acq_core.c`) takes the same two maxima
+[`dsss-acquisition.md`](dsss-acquisition.md) §9.1 describes — the
+interpolated one to gate, the native one to report — and stops. The argmax
+itself is a private loop in each of the two objects; only the CFAR
+reference under it, `det_noise_estimate`, is shared through
+`det_private.h`. There is no exclusion zone and no second peak, in either.
+
+With `K` emitters up, the surface has `K` peaks, and a maximum reports the
+strongest. The rest are not below threshold; they are simply not looked
+at. In the burst use case that costs little — bursts are short and rarely
+overlap in one channel. In the continuous case the strongest emitter is up
+for hours, and every dwell for those hours reports it and nothing else, so
+a second emitter rising beside it is **never** acquired while the first is
+on the air. Nor does hand-off help: the assigned receiver goes on tracking
+the first emitter, the searcher goes on re-detecting it at every data-free
+window (the suppression-by-emitter §5.3 asks the bank
+for), and after the suppression drops that re-detection the dwell has
+reported nothing at all. **The single maximum is the gap, and it is the
+searcher's, not the bank's** — the bank's channel count partitions Doppler
+into spans, but emitters within one span share a surface, and that is the
+normal case here.
+
+### 6.3 What the power spread decides
+
+Two emitters at different Dopplers or code phases are two peaks on the
+surface, and a detector that reports every peak above threshold finds
+both — provided the second *is* a peak above threshold. A strong emitter
+does not only put one peak on the surface: a 1023-chip Gold code's
+cross-correlation with itself at every other lag is not zero, and the
+maintainer's figure for that floor is **about −24 dB** below the peak
+(§5.3, not re-derived here). That floor
+lies across the whole surface — every Doppler bin, every code phase — so an
+emitter weaker than the strongest by more than the floor plus the
+detection margin is under the strongest one's sidelobes: it is not a peak,
+and no peak detector reports it.
+
+Two things follow, and they are why the mechanism forks on the spread:
+
+- **The CFAR reference is right to rise.** `det_noise_estimate` measures
+    the surface's floor, and with a strong emitter present that floor *is*
+    the strong emitter's sidelobes. The threshold moves up with it, which
+    is what CFAR means — the weak emitter is genuinely below the floor of
+    the surface as it stands.
+- **Only removing the strong emitter lowers that floor.** A peak list
+    cannot; that needs cancellation, and cancellation needs a replica of
+    the strong emitter — which is a different object with a different
+    information source (§7.2).
+
+So the decision is the emitters' **power spread**, §5.4's
+question 7, and it is open. Inside the floor a peak list suffices; beyond
+it the weak emitters need the strong ones cancelled first. This page
+covers both branches (§9), so that whichever way the number falls the page
+already says what to build.
+
+Two cautions about the number itself, for the work in §12. The −24 dB is
+the three-valued bound for a full-period, zero-Doppler cross-correlation;
+at a Doppler offset the correlation is partial-period and the bound does
+not apply as stated. And it is a *maximum* over lags — the RMS floor of a
+1023-chip code is nearer `1/√1023`, about −30 dB — so which of the two the
+detector experiences is a measurement (§12 step 1), not a lookup.
+
+### 6.4 The throughput floor
+
+At the operating point one core has **100 ns per DDC-output sample** for
+everything after the front end, and **77 ns per input sample** for the
+front end itself; at the 30 MSa/s floor those are 43 and 33 ns.
+"Comfortably" means a margin under that, and this page takes **half** as
+the working target — the whole population inside 50 ns per output sample
+per core at the operating point, 21 at the floor, across the cores the
+application gives it — with the margin a number the benchmark reports,
+not one it assumes. Equality with the budget is a failure by the
+requirement's own words.
+
+The decimation is only 1.3× at the top of the rate range, and that is
+the fact that shapes the cost: **nothing runs at a fraction of the input
+rate.** At 5 Mcps the searcher and every receiver run at 10 MSa/s,
+three-quarters of what the front end sees, so the population's cost is
+`(searcher + 12 receivers + 10 replicas)` per output sample, not that
+divided by anything. The rate range splits the worst case in two. Every
+receiver and every replica is priced per output sample, so their worst
+case is **5 Mcps**. The searcher is priced per tile per output sample,
+and tiles go up as the rate comes down — 23 at 5 Mcps, 53 at 2 — so its
+tile-samples per second are nearly the same at both ends (230 M against
+212 M over ±50 kHz) and its worst case is **the low rate, by a small
+margin, at the full uncertainty**. Doppler pre-compensation to ±5 kHz
+takes the searcher to 3 or 7 tiles, an eightfold cut in its cost and none
+in anyone else's; the page designs at ±50 kHz and step 8 records both.
+
+The one measured number is an order of magnitude, not a price.
+`burst-bank.md` §10.4 put a `DDC → BurstCapture` channel at **47–51 ns
+per source sample** — but on the 3.069 Mcps waveform, with its own
+decimation, and with the front end's share of it unmeasured, so it does
+not transfer to this rate as a figure. Taken as it stands it is 62% of
+one core at 13 MSa/s and 1.4× real time at 30, for one channel and no
+receiver; which is enough to say the chain is priced near the budget
+before the population is on it. Three things follow for the shapes:
+
+- **One front-end DDC, shared, on its slowest path — on purpose.** There
+    is one frequency channel, so the only stage at the input rate is one
+    conversion, 13 to 10 MSa/s. That ratio was chosen for the budget, not
+    the radio (maintainer, 2026-09-02): the `DDC`'s `RateConverter`
+    builds the cheapest cascade the ratio allows — CIC, halfband, then a
+    polyphase resampler — and 1.3 has no integer factor, so no CIC or
+    halfband stage exists and the whole conversion runs through the
+    **polyphase arbitrary resampler**, the most expensive sample the front
+    end can produce. The budget is therefore priced with the slow path
+    baked in; a deployment whose rate happens to give an integer factor
+    can only be cheaper, and a bench that ran at a convenient ratio would
+    have measured the wrong front end. The receivers take chip-rate input
+    already (`AsyncDsssReceiver` ingests at `chip_rate · spc`), so they
+    share this one front end rather than each owning one.
+- **The searcher is one window-tiled engine, not a DDC bank.** A bank of
+    23 to 53 `DDC → search` channels at anything like 48 ns each is 14
+    to 33× real time at the operating point on one core and fits on no
+    node; the
+    continuous engine's own `window_bins` tiling covers the uncertainty
+    in one engine at the same `D = 1` sensitivity (`burst-bank.md`
+    §11.2), and with the peak list inside it (§8 (a)) it lacks nothing
+    the bank had for this use case. That is a change to what §11.2
+    assumed, and the throughput floor is what forces it.
+- **The receivers are the population's cost, and they parallelize; the
+    cancellation does not.** Twelve receivers at 10 MSa/s on the
+    application's threads scale across cores; the replicas on the strong
+    branch are subtracted on the searcher's path, serially, ten of them
+    per block — so (iii)'s coupling has a per-sample price on one
+    thread, and it is the searcher's.
+
+What is not known is every per-stage number at this rate: the front-end
+DDC per input sample; the searcher per output sample with the list at
+both ends of the rate range; one receiver per output sample; one replica
+per output sample.
+§12 step 8 measures them, and the bench that does it must count what it
+acquired and tracked beside the rate — a throughput that was reached by
+missing an emitter is not a throughput.
+
+______________________________________________________________________
+
+## 7. The two mechanisms
+
+### 7.1 The peak list with exclusion zones
+
+The list is the maximum, iterated:
+
+```text
+repeat up to max_peaks times
+  take the maximum of the surface
+  if it is below eta · noise_est: stop
+  report it (at its native row where the surface is interpolated)
+  exclude ±1 Doppler bin × ±1 chip around it
+```
+
+At `D = 1` the surface is the native one: the engine interpolates only
+the slow-time axis, and there is none, so the interpolated-vs-native
+split of `dsss-acquisition.md` §9.1 collapses and the gate and the report
+read the same cells. The Doppler axis is the `window_bins` tile index,
+one row per tile, `1/T_epoch` apart — 4.89 kHz at 5 Mcps, 1.96 at 2.
+
+**Why one bin and one chip.** They are the widths of one emitter's main
+lobe: an epoch's frequency response is the `sinc` of a one-epoch
+rectangle, whose first nulls fall one tile (`1/T_epoch`) either side, and
+the code's autocorrelation triangle reaches zero one chip either side of
+its apex. Inside that zone the surface belongs to the emitter just reported —
+its own shoulders would otherwise be the next "peak" — and outside it a
+second emitter has its own maximum. The zone is therefore also the
+detector's **resolution**: two emitters within one bin *and* one chip of
+each other are one peak, distinguishable by nothing on this surface
+(§5.3), and that is a property of the code and the dwell,
+not of the detector. In surface units the zone is `±interp` rows (one
+row at `D = 1`) and `±spc` columns — two, here — circular in code phase;
+on the native report it is `±1`
+and `±spc`.
+
+**The threshold does not change.** `eta` is sized from `N = searched_bins · code_bins` cells (`dsss-acquisition.md` §9.1); it counts the noise's
+chances over the *surface*, and a second reported peak is another draw
+from the same cells against the same gate, so the per-dwell false-alarm
+event — *any* reported peak is false — is bounded by the same union.
+Exclusion zones remove a few cells from the count, in the safe direction
+and negligibly. What does change is the floor under a strong emitter
+(§6.3): the reference rises, so does `eta·noise_est`, and false peaks in
+the strong emitter's sidelobes are what §12 step 4 measures.
+
+**Fixed size.** `max_peaks` is configuration, the result is an array of
+that many `(doppler_bin, code_phase, peak_mag, test_stat)` entries plus a
+count, ordered by `test_stat`; nothing allocates per dwell and nothing
+grows with time — the duration rule of §5.1. Today's
+single-peak result is the same array at `max_peaks = 1`. The population
+sizes it: on the branch where the searcher sees every emitter (§9) the
+list must hold all ten plus the false peaks the gate admits, so
+`max_peaks` is of order 16; on the branch where assigned emitters are
+cancelled it holds only what rose since the last window, a few.
+
+### 7.2 Cancellation
+
+Cancellation subtracts a replica of a strong emitter so the surface
+underneath it can be searched. The replica needs the emitter's code phase,
+Doppler, amplitude and **carrier phase** — and, for any epoch that is not
+that emitter's own data-free window, its **data**. That last item decides
+the shape, because emitters' frames are not aligned: while emitter A is in
+its data-free window, emitter B is carrying data, and B's contribution to
+A's dwell is a data-modulated, straddle-lossed correlation whose sign flips
+at a place the searcher does not know.
+
+Where the replica's information comes from is therefore the design axis:
+
+- **From the peak** (acquisition-side). The detection gives code phase and
+    Doppler to within a cell; amplitude and phase must be estimated from
+    the complex peak; the data is unknown. Exact only in the strong
+    emitter's own data-free epoch — which is not, in general, the epoch
+    being searched.
+- **From the assigned receiver** (decision-directed). The receiver already
+    tracking the strong emitter knows its chips, its carrier, its
+    amplitude, and its decided bits, block by block, and refines all of
+    them continuously. Its replica is exact to the tracker's own error,
+    data included.
+
+And where the subtraction happens is the second axis: on the **surface**
+(subtract the emitter's known response, the code's autocorrelation across
+lag times a `sinc` across Doppler, scaled by the complex peak — the radio
+astronomer's CLEAN) or on the **samples** (regenerate the chip stream,
+subtract, correlate again).
+
+______________________________________________________________________
+
+## 8. The shapes — where each piece lives
+
+The peak list has one place it belongs and two it could be put:
+
+|                                                 | mechanism                                                                                                                                                                                | fits                                                                                                                                                   | cost                                                                                                                                                   |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **(a) one primitive under both detectors**      | a peak-list function beside `det_noise_estimate` in `det_private.h`: `(mag, ny, nx, gate, excl_rows, excl_cols, out[], max_peaks) → count`; both callers use it at `max_peaks = 1` today | one argmax instead of the two private copies; `CorrDetector2D` gains the list for free; the interpolated/native split stays where it is, in the caller | both result structs become an array plus a count, and every consumer of `acq_result_t` sees `n_peaks`                                                  |
+| **(b) inside `acq_compute_stat` only**          | the engine's loop iterates with exclusion; `detector2d` stays single-peak                                                                                                                | the engine alone changes                                                                                                                               | a third private copy of the pick, and the two detectors' behaviours diverge on the same surface                                                        |
+| **(c) a second pass over the surface, outside** | the bank asks the engine for its surface and picks peaks itself                                                                                                                          | no engine change                                                                                                                                       | the surface is the engine's scratch, not a product — exporting it is a copy of `ny·nx·interp` floats per dwell, and the gate's `eta` leaves the engine |
+
+(a) is the repository's rule applied — fix it where the primitive is
+defined, once — and the only one under which the burst detector and the
+acquisition engine keep agreeing.
+
+Cancellation is a separate object, and its shape follows its information
+source:
+
+|                                                             | mechanism                                                                                                                                                                                                                                       | fits                                                                                                                                                                                                                      | cost                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **(i) surface CLEAN, from the peak**                        | subtract `A·acf(τ − τ_i)·sinc(f − f_i)` from the *complex* surface for each strong peak, then re-pick                                                                                                                                           | no second correlation; stays inside the engine                                                                                                                                                                            | needs the complex surface where the engine keeps `\|·\|`; the response is exact only in the strong emitter's own data-free epoch, and a data transition inside the dwell leaves a residual the model does not have                                   |
+| **(ii) sample SIC, from the peak**                          | regenerate the strong emitter from its detection, subtract from the epoch, correlate again                                                                                                                                                      | one object, no dependency on the tracker pool                                                                                                                                                                             | one extra correlation per cancelled emitter per dwell; the same unknown-data residual as (i); amplitude and phase from a single cell's estimate                                                                                                      |
+| **(iii) sample cancellation fed by the assigned receivers** | `DDC → cancel(assigned) → search`: each assigned receiver publishes its replica for the block (or the estimates that make one: code phase, Doppler, amplitude, phase, decided chips); the searcher subtracts every replica before it correlates | the only replica that is right through data; makes the searcher see **exactly what is not assigned**, which retires the suppress-by-emitter table (§5.3) — an assigned emitter is not re-detected because it is not there | couples the searcher to the receiver pool on the push path; a receiver that has lost lock publishes a wrong replica, so the subtraction must be lock-gated; one replica per assigned emitter per block; and the *receivers* still see the raw stream |
+
+(iii) is the shape the lifecycle already asks for. The receivers own the
+emitters and keep tracking them regardless of what the searcher does; the
+searcher wants to see only what they do not own; and only they know the
+data — `AsyncDsssReceiver`'s track stage holds exactly the replica's
+ingredients per block: the live carrier loop's phase and frequency, the
+`Dll`'s code phase, the despreader's amplitude, and the decided symbols.
+It is also the option that makes the two branches of §9 one mechanism at
+two settings. Its cost is a real coupling — whoever holds the receiver
+pool must also stand on the searcher's push path — which is why
+§5.4's question 5 (who owns the lifecycle) becomes
+load-bearing the moment the strong branch is chosen, and not before.
+
+A refinement (iii) opens but this page does not take: a receiver can be
+fed the stream with every *other* assigned emitter cancelled, which lowers
+its own floor as well. That is the receivers' concern, on their own path,
+and it changes nothing about the searcher.
+
+______________________________________________________________________
+
+## 9. The two branches
+
+Both branches share the peak list (a) and the assigned-emitter table the
+bank keeps in any case: which emitters have a receiver, at what Doppler
+and code phase **now** (the receiver's estimate, since an emitter drifts at
+up to 500 Hz/s between windows, not the detection's). The branches differ
+in what the searcher is allowed to see.
+
+**Spread inside the floor — the list is enough.** The searcher sees every
+emitter, assigned or not, and reports every peak above `eta`. The bank
+drops any peak within one exclusion zone of an assigned emitter's current
+estimate and hands the rest to the policy. An assigned receiver is never
+touched by a re-detection of its own emitter. What has to hold: no
+unassigned emitter above the floor is missed while a stronger one is up
+(§12 steps 2–3), and the re-detection of an assigned emitter never becomes
+a second receiver (§12 step 7).
+
+**Spread beyond the floor — cancel, then list.** The searcher's input has
+every lock-gated assigned replica subtracted (iii), and then runs the same
+list. The assigned table does the same job as before, now only as a guard
+against the residual: a cancelled emitter that is imperfectly cancelled
+leaves a peak at its own coordinates, and the zone around the receiver's
+estimate is what keeps that residual from becoming a detection. What has
+to hold: the residual after cancellation sits below the unassigned
+emitters the application needs to find (§12 step 5).
+
+The branch is chosen by one number — the application's operating spread
+against the knee §12 step 3 measures — and the second branch strictly
+contains the first, so building the list first is right either way.
+
+______________________________________________________________________
+
+## 10. The release — the lock detector decides "gone"
+
+"Until they are gone" is a decision the receiver makes about itself, and
+the pieces of it exist. `AsyncDsssReceiver` carries two de-chattered lock
+flags, each a `lockdet` — level hysteresis between a declare and a drop
+threshold, time hysteresis of consecutive looks either way, a NaN look
+counted as a miss (`native/inc/lockdet/lockdet_core.h`):
+
+- **Code lock**, `get_code_locked()`: the live `Dll`'s own CFAR-based,
+    verify-counted detector — "am I despreading". This is the fundamental
+    DSSS lock: an emitter that leaves takes its code with it, and the
+    correlation at the tracked code phase and Doppler falls to the floor.
+- **Symbol lock**, `get_locked()`: the BPSK statistic `cos(2φ)` over the
+    emitted symbols, SNR-weighted over a 30-symbol dwell, declared after
+    30 consecutive symbols at or above 0.5 and dropped after 15 consecutive
+    below 0.3 (`ASYNC_DSSS_RX_LOCK_*`). This is the health of the *carrier*
+    leg: a cycle slip or a deep fade drops it while the code is still
+    being despread.
+
+What is missing is the transition. Today a receiver whose flags fall keeps
+running its loops on noise, and the only exit is `reset()`, which returns
+to *searching* — a state the hand-off mode of §6.1 does not have.
+
+**The rule.** An emitter is gone when **code lock drops and stays
+dropped** for a confirm interval; symbol lock alone is a degrade, not a
+release. Code lock is the right flag because it is the one that measures
+presence rather than quality: a receiver can lose the carrier and re-lock
+it on the same emitter (the loops are designed to pull in), but it cannot
+re-lock a code that is no longer on the air. Symbol lock stays on the
+record as health — a long stretch of code-locked but symbol-unlocked
+tracking is a receiver reporting that it is holding an emitter it cannot
+decode, which the application may want to know and this page does not
+decide.
+
+**The transition.** Hand-off mode adds a fourth state, **lost**, beside
+searching / refining / tracking, and the receiver enters it on the rule
+above. In it the loops stop updating, the replica (§8 (iii)) is no longer
+published — the lock gate that (iii) already needs is the same flag, so
+publication stops at the *drop*, before the confirm interval has run —
+and the receiver reports lost to whoever holds the pool. The holder then
+**releases the assignment**: the emitter leaves the assigned table, so the
+searcher may report those coordinates again, and the receiver is reset to
+the hand-off mode's idle — *waiting for a seed*, not searching — for the
+pool to reuse. Nothing else moves: the searcher was never told to stop
+looking there and the other receivers are untouched. The one
+re-assignment the lifecycle permits is this one: an emitter released while
+in fact still present is re-detected at its next data-free window and
+seeded into a fresh receiver, which is a recovery, not a hand-back.
+
+**What the interval costs, and what it buys.** Against on-times of 5 to
+15 minutes, release latency is nothing: the symbol detector's drop is 15
+symbols — milliseconds at any data rate in the thousands of symbols per
+second — and any confirm interval under a second is well under 1% of the
+shortest on-time. The number that matters
+is the other one, the **false release**. A receiver that releases an
+emitter still on the air loses that emitter's data until the next
+data-free window plus a refine (the cadence of §5.4
+question 4), and on the cancellation branch its replica leaves the
+searcher's input for the same interval, so the floor rises under every
+weaker emitter for a frame. The confirm interval is therefore sized from
+a false-release budget — far rarer than once per on-time, per receiver —
+in exactly the vocabulary `lockdet` documents: at the per-look miss
+probability the tracked C/N0 gives, `n_down` consecutive misses set the
+false-drop rate, and `det_verify_count()` sizes `n_down` against the
+budget. Both the miss probability and the resulting interval are
+measurements (§12 step 6).
+
+**The pool.** Ten emitters at once plus the receivers still inside a
+confirm interval on emitters that have just left: at one departure a
+minute and a confirm interval of a second, the headroom is one. A pool of
+about twelve hand-off-mode receivers, each a tracker chain on the
+application's threads beside the searcher's own cost (`burst-bank.md`
+§11.2), is the whole population.
+
+**The read-back.** Whoever holds the pool needs to know, for each
+receiver, which signal it is tracking, for how long, and in what
+condition (maintainer, 2026-09-02). The facts have two owners, and the
+split falls out of who produced each one:
+
+- **The orchestrator owns the assignment.** It handed the seed to the
+    receiver, so it holds the `DetectionEvent` verbatim — `timestamp_ns`,
+    `samples_consumed`, `chip_phase`, `doppler_hz_est`, `cn0_dbhz_est` —
+    beside the receiver it went to. It fed every sample since, so it holds
+    the sample count at assignment and the count now; duration is their
+    difference over the rate, the repository's `dp_sample_clock_t`
+    arithmetic, replay-safe. And it recorded the state changes it was
+    told about — refining to tracking, tracking to lost — with the sample
+    count at each. Nothing here needs the receiver to remember its own
+    history, which keeps the receiver thin: it tracks; the orchestrator
+    keeps the books. This is the assigned table of §9 with three more
+    columns, and it is what question 5's holder holds.
+- **The receiver owns its condition.** Only it knows where the emitter
+    is now — the live carrier loop's Doppler, the `Dll`'s code phase, the
+    C/N0 the despreader sees (the drift since the seed is that against
+    the orchestrator's row) — and its health: the state it is in, both
+    lock flags, the symbol-lock metric against its declare threshold, the
+    residual carrier errors the header already exposes, and, in lost, the
+    samples since the code flag dropped. Today that is a scatter of
+    getters — `get_locked`, `get_code_locked`, `get_lock_metric`,
+    `get_car_nco_freq`, and the rest — each a separate call, so a reader
+    that wants one consistent picture across a `push` on another thread
+    cannot get one. The shape that fits is **one status record, returned
+    by value** — the `measure` objects' `single` record (`ToneMetrics`), a
+    jm-generated structseq over a C struct — read on demand and never
+    pushed.
+
+The orchestrator's *now* columns are refreshed from the receiver's record
+at whatever cadence it reads, and the exclusion zone of §9 is keyed on
+those, not on the seed. So one read per receiver per window is the
+minimum, and the table is the join of the two owners' facts.
+
+The record is a read of live state, distinct from `get_state()`: the
+bytes triplet is for resuming the receiver elsewhere, the record is for
+describing it here, and the two must not be confused — a record that
+tried to be both would be a serialized blob a human cannot read. On the
+cancellation branch the replica output is a third thing again, per block
+and on the push path, and rides neither.
+
+______________________________________________________________________
+
+## 11. What the multi-emitter use case needs from the tracking receiver
+
+§6–§10 fix the lifecycle: a **searcher**
 per channel that never stops, and one `AsyncDsssReceiver` per emitter,
 **assigned once** from a detection and tracking until *its own* loss decision
 — never stopped, never re-seeded, never doubled up by the searcher. Up to ten
@@ -982,9 +1603,9 @@ is the right object for that (maintainer, 2026-09-02) and needs five things,
 none of which is a new receiver. Each is a Phase-1 design here and an
 implementation item in
 [adding an algorithm](../dev/contributing/adding-algorithms.md)'s order; the
-measurements that size them are `acq-multi-peak.md` §6.
+measurements that size them are §12.
 
-### 5.1 The hand-off mode: an acquisition input, and an internal bypass
+### 11.1 The hand-off mode: an acquisition input, and an internal bypass
 
 Today the only way in is the receiver's own search. In the pool the search is
 the searcher's, so the receiver needs to **take a detection from outside** —
@@ -1010,13 +1631,13 @@ shared verbatim. Two consequences follow:
     idle are consumed and discarded, so the feeding loop has no special case,
     and the pool reuses the object without reallocating.
 
-### 5.2 The lost state, and the release
+### 11.2 The lost state, and the release
 
 "Until they are gone" is the receiver's decision, and §4's two lock flags are
 the pieces of it; what is missing is the transition. Today a receiver whose
 flags fall keeps running its loops on noise, and the only exit is `reset()`.
 
-The rule, argued in `acq-multi-peak.md` §5: an emitter is gone when **code
+The rule, argued in §10: an emitter is gone when **code
 lock drops and stays dropped** for a confirm interval. Code lock measures
 presence — an emitter that leaves takes its code with it — where symbol lock
 measures the carrier leg's health, which a cycle slip or a fade can take down
@@ -1025,7 +1646,7 @@ Symbol lock alone is therefore a **degrade**, reported and not acted on.
 
 Hand-off mode adds a fourth state, **lost**, beside searching / refining /
 tracking. On the rule above the receiver enters it: the loops stop updating,
-the replica of §5.4 stops being published — at the *drop*, before the confirm
+the replica of §11.4 stops being published — at the *drop*, before the confirm
 interval has run, on the same flag — and `get_lost()` reports it. The holder
 of the pool then releases the assignment and calls `reset()`, which in this
 mode goes to idle. The confirm interval is `n_down` consecutive misses in the
@@ -1034,14 +1655,14 @@ budget**, because against 5-to-15-minute on-times release latency costs nothing
 and a false release costs a frame of that emitter's data plus, on the
 cancellation branch, a frame of raised floor under every weaker emitter. Both
 the per-look miss probability and the interval it gives are measurements
-(`acq-multi-peak.md` §6 step 6) — and whether the code flag really rides
+(§12 step 6) — and whether the code flag really rides
 through a 20 dB fade for a second is what that step decides, so the rule is
 written as the expectation the measurement confirms or corrects.
 
-### 5.3 The status record
+### 11.3 The status record
 
 The holder of the pool needs to ask each receiver what it is doing. The facts
-split by who owns them (`acq-multi-peak.md` §5): the **orchestrator** made the
+split by who owns them (§10): the **orchestrator** made the
 assignment and fed the samples, so it holds the seed event verbatim, the sample
 counts at assignment and at each state change, and the duration they give by
 the `dp_sample_clock_t` arithmetic — nothing the receiver has to remember. The
@@ -1064,9 +1685,9 @@ on the receiver's current estimate, not the seed. The record is a read of live
 state and is not `get_state()`: the bytes triplet resumes the receiver
 elsewhere, the record describes it here.
 
-### 5.4 The replica output
+### 11.4 The replica output
 
-On the strong branch of `acq-multi-peak.md` §4 — emitters more than the Gold
+On the strong branch of §9 — emitters more than the Gold
 code's ~−24 dB cross-correlation floor apart in power — the searcher cancels
 every assigned emitter from its input before it correlates, and the only
 replica that is right through data modulation is the assigned receiver's: it
@@ -1081,7 +1702,7 @@ Three things about it are design, not detail:
 
 - **It is lock-gated on code lock.** A receiver that is not code-locked
     publishes nothing, so a wrong replica is never subtracted; that is the
-    same flag §5.2 releases on, read at the drop.
+    same flag §11.2 releases on, read at the drop.
 - **It lags by the decision latency.** The data on a block's chips is known
     only once the matched filter and the symbol timing have decided the
     symbols under it, some symbols after the block was pushed. The replica for
@@ -1091,35 +1712,141 @@ Three things about it are design, not detail:
     the raw stream, live.
 - **It is per output sample, on the searcher's thread.** Ten replicas
     subtracted serially per block is the cancellation's price, priced in
-    `acq-multi-peak.md` §1.4, and the reason the pool's holder stands on the
+    §6.4, and the reason the pool's holder stands on the
     searcher's push path on this branch and not otherwise.
 
 The replica is not needed on the weak-spread branch, and this item is built
-only if `acq-multi-peak.md` §6 step 3's knee says so.
+only if §12 step 3's knee says so.
 
-### 5.5 The cost
+### 11.5 The cost
 
 Twelve receivers at twice the chip rate — 10 MSa/s at the top of the range —
 on the application's threads, beside one searcher and one front-end DDC; the
 budget is 100 ns per output sample per core at the operating point and 43 at
-the 30 MSa/s floor, half of that as the working margin (`acq-multi-peak.md`
-§1.4). What that asks of the receiver: nothing allocates per `push()` or per
+the 30 MSa/s floor, half of that as the working margin (§6.4). What that asks of the receiver: nothing allocates per `push()` or per
 state change (the pool runs for hours), the replica writes into a caller
 buffer, the status record is by value, and one receiver's cost per output
-sample is a number the bench of `acq-multi-peak.md` §6 step 8 reports beside
+sample is a number the bench of §12 step 8 reports beside
 the count of emitters it kept.
 
 ______________________________________________________________________
 
-## 6. See also
+## 12. The work that answers it
 
-- [`acq-multi-peak.md`](acq-multi-peak.md) — the searcher this receiver is
-    paired with: the peak list, the cancellation, the release rule, the
-    population and the throughput floor.
-- [`burst-bank.md`](burst-bank.md) — §11, the continuous use case, and its
-    open questions.
+1. **Measure the floor one emitter puts on the surface.** One emitter,
+    no noise, design C/N0; tabulate the surface's maximum and RMS relative
+    to the peak over `(Δf, Δτ)` — at zero Doppler across every lag, and at
+    Doppler offsets of 0.5, 1, 2, 4 bins — with and without a data
+    transition inside the epoch. Beside it, `noise_est` with and without
+    the emitter present: how far the CFAR reference rises. Expected: the
+    three-valued −24 dB at zero Doppler, something between that and −30 dB
+    elsewhere. This is the number the branch decision uses, and it is the
+    engine's, so it belongs in `acq`'s characterization.
+1. **Separability of two equal emitters.** Two emitters at the design
+    C/N0 separated by `Δf ∈ {0.5, 1, 2, 4}` bins and
+    `Δτ ∈ {0.5, 1, 2, 4}` chips, 200 trials per cell: Pd of *both* under
+    the list, and the coordinates each is reported at. Expected: both
+    found outside the exclusion zone, one found inside it, and no cell
+    where the second is reported off its own coordinates by more than a
+    cell. This pins the zone's edges as the resolution.
+1. **The power-spread knee, list only.** Strong emitter fixed at the
+    design C/N0, weak stepped from 0 to −40 dB below it in 3 dB, 200
+    trials each, at a `Δf`/`Δτ` well outside the zone: Pd(weak). Expected
+    a knee at the floor plus the detection margin. **The knee is the
+    decision** — an operating spread inside it means branch one and no
+    cancellation object.
+1. **Pfa under the list.** Pure noise, `max_peaks ∈ {1, 4, 8}`, the same
+    frame count `dsss-acquisition.md` §9.1 used: realized per-dwell Pfa
+    against configured. Expected unchanged, since `N` counts cells, not
+    peaks. Then with one strong emitter present: the rate of false peaks
+    in its sidelobes — if it is not the configured rate, the reference is
+    not tracking the raised floor and that is a CFAR finding, not a
+    list finding.
+1. **Cancellation depth, (iii).** An assigned receiver locked on the
+    strong emitter; measure the residual after subtraction, relative to
+    the strong peak, against C/N0 and against the receiver's steady-state
+    phase and timing error; then re-run step 3 with cancellation on. The
+    residual is the new floor and the distance it moves the knee is what
+    the object buys. Run it once with (ii) as the control: the gap
+    between the two is the price of not knowing the data.
+1. **The release.** A hand-off-mode receiver locked on one emitter at the
+    design C/N0; the emitter is switched off mid-track, faded 10 and 20 dB
+    for a second, and given one carrier cycle slip, 100 trials each:
+    the time from the event to code-lock drop and to symbol-lock drop, and
+    whether the code flag survives the fade and the slip. Then, with the
+    emitter left on for the length of an on-time, the per-look miss
+    probability of each flag — the number `det_verify_count()` turns into
+    the confirm interval for a false-release budget. Expected: the code
+    flag rides through the slip, both flags drop within tens of
+    milliseconds of switch-off, and the deep fade is the case that
+    decides the interval.
+1. **The lifecycle soak.** The population of §6.1 — one emitter always
+    on, up to ten, on-times drawn around 5 to 15 minutes — at random
+    Dopplers within one span and a spread on each side of the knee: each
+    is acquired once, assigned once, tracked by the same receiver until
+    it leaves, released by the rule of §10, and re-acquired on return; no
+    receiver is ever assigned twice to a live emitter, no emitter above
+    the floor is missed while others are up, and the pool never exceeds
+    twelve. An hour sees about sixty arrivals at the full population,
+    enough to count misses and false releases; the hours-long form with
+    the memory and scratch checks is §5.1's duration
+    requirement and runs once the bank exists.
+1. **The budget, per stage.** Its own bench target, on one core,
+    minimum of runs, at the operating point's numbers (§6.1): the
+    front-end DDC in ns per input sample at 13 MSa/s — confirmed to be on
+    the polyphase arbitrary path, not a cascade the bench's ratio let it
+    shortcut (§6.4); then, in ns per
+    output sample, the window-tiled searcher with `max_peaks = 16` at
+    both ends of the rate range — 23 tiles at 5 Mcps and 53 at 2 over
+    ±50 kHz, then 3 and 7 over the ±5 kHz pre-compensation leaves — one
+    hand-off-mode receiver tracking at 5 Mcps, and one
+    replica subtraction. Then the whole population — the front end, the
+    searcher, ten receivers, and on the strong branch ten replicas — on
+    the core count the application gives, reported as the fraction of
+    real time **beside the count of emitters acquired and tracked** in
+    the same run, twice: at the operating point and at the 30 MSa/s
+    floor (the same chain fed 2.3× faster). Target: under 0.5 at both.
+    At 1.0 the requirement is missed by its own words, and the stage that
+    owns the excess is the next thing to attack — §6.4's channel number
+    says today's chain is already priced near it.
+1. **Decide by the spread.** The application's operating spread
+    (§5.4 question 7) against step 3's knee: inside,
+    branch one ships and (iii) is not built; beyond, (iii) is built and
+    step 5's residual is the number its characterization pins.
+
+Steps 1–4 are Python over the shipped engine plus the peak-list primitive,
+and are the same harness the burst characterization already runs. Steps
+5–6 need the hand-off-mode `AsyncDsssReceiver` (§6.1) with the lost state
+of §10 and, for step 5, a replica output it does not have today. Steps 7–8
+need the orchestrator holding the population.
+
+______________________________________________________________________
+
+## 13. What this page does not settle
+
+Of §5.4's open questions, this page answers 6 (the
+population, §6.1) and designs the receiver half of 5 (the release, §10).
+Still open, and none of them blocking the list: the frame epoch (3), the
+frame cadence (4) — which is what a false release costs, so it prices §10's
+budget — and the other half of 5, who holds the pool and the assigned
+table. That holder becomes load-bearing only on the strong branch, because
+(iii) puts it on the searcher's push path. What the receiver still lacks
+is implementation, not design: the hand-off-mode constructor (§6.1), the
+lost state and the idle it resets to, the status record (§10), and, for
+the strong branch, a replica output.
+
+______________________________________________________________________
+
+## 14. See also
+
+- [`burst-bank.md`](burst-bank.md) — the burst bank this page's continuous
+    case was split from; §9–§10 there for the fold and the parallelism
+    measurements §5 and §6 lean on.
+- [`coarse-channel.md`](coarse-channel.md) — the channel as an object, which
+    is what carries the searcher.
 - [`dsss-acquisition.md`](dsss-acquisition.md) — the acquisition engine
-    under §2: the tiling, the CFAR vocabulary, the roadmap.
+    under §2 and §6: the tiling, the CFAR vocabulary (`dsss-acquisition.md`
+    §9.1, which §7 uses), the roadmap.
 - [`dsss-burst-receiver.md`](dsss-burst-receiver.md) — the burst chain, which
     shares §2.2's `DetectionEvent`.
 - [AsyncDsssReceiver: the SPEC waveform](../gallery/async-dsss-receiver-spec.md)

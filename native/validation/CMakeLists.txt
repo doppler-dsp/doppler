@@ -352,6 +352,35 @@ target_include_directories(validate_wfmgen_certify
 target_link_libraries(validate_wfmgen_certify PRIVATE doppler_lib_static m)
 add_test(NAME validate_wfmgen_certify COMMAND validate_wfmgen_certify --check)
 
+# One emitter on the acquisition engine's own surface: the sidelobe floor
+# per tile distance and the CFAR reference it sets -- the number the
+# continuous async-DSSS design forks on (docs/design/async-dsss-receiver.md
+# §6.3, §12 step 1). Reads the engine's mag_buf after a single-look dwell.
+add_executable(validate_acq_emitter_floor
+               ${CMAKE_CURRENT_SOURCE_DIR}/acq_emitter_floor.c)
+target_include_directories(validate_acq_emitter_floor
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_acq_emitter_floor PRIVATE doppler_lib_static m)
+target_compile_options(validate_acq_emitter_floor PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_acq_emitter_floor
+         COMMAND validate_acq_emitter_floor --check)
+
+# The tracking receiver's release: samples from switch-off, fade and phase
+# step to each lock flag dropping, and the per-block miss rate while on
+# (docs/design/async-dsss-receiver.md §10, §12 step 6). The emitter is the
+# shipped continuous-DSSS synth and the noise the shipped awgn; nothing from
+# native/tests is needed.
+add_executable(validate_async_dsss_receiver_release
+               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_receiver_release.c)
+target_include_directories(validate_async_dsss_receiver_release
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+target_link_libraries(validate_async_dsss_receiver_release
+                      PRIVATE doppler_lib_static m)
+target_compile_options(validate_async_dsss_receiver_release
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_async_dsss_receiver_release
+         COMMAND validate_async_dsss_receiver_release --check)
+
 # So `sweep` is what a sanitizer suite excludes (`ctest -LE sweep`). The spot
 # check still runs on every PR in the ordinary C suite, which is where it is
 # cheap and where it was always the point.

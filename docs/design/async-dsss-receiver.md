@@ -2048,6 +2048,82 @@ What it settles:
     and the loop — and the number to beat, should this be revisited, is
     0.022 chips at 40 dB-Hz.
 
+### 12.6 What was measured (2026-09-02) — steps 2–4, the peak list
+
+`native/validation/acq_peak_list.c` (`make validate-c`; its `--check` is
+in the C suite): the continuous engine at 5 Mcps, ±50 kHz (21 tiles),
+sized by its own physics at a design C/N0 (15 looks per dwell at 45
+dB-Hz), one shipped synth per emitter with PRBS data at 2700 sym/s, the
+shipped `awgn` at the strong emitter's C/N0, `max_peaks = 4`; 200 scenes
+per cell, two dwells each and the second scored, since the two-epoch rule
+lists a same-code-phase emitter from the second dwell on.
+
+**Step 2, separability** (two equal emitters at 45 dB-Hz; P(both listed)):
+
+| Δτ \\ Δf | 0.5 tile | 1 tile | 2 tiles | 4 tiles |
+| -------- | -------- | ------ | ------- | ------- |
+| 0.5 chip | 0.00     | 0.00   | 1.00    | 1.00    |
+| 1 chip   | 0.00     | 0.07   | 1.00    | 1.00    |
+| 2 chips  | 0.95     | 1.00   | 1.00    | 1.00    |
+| 4 chips  | 0.94     | 1.00   | 1.00    | 1.00    |
+
+Inside one tile and one chip the two are one peak, as §7.1 says the zone
+makes them; outside it both are listed in every dwell, including the
+same-code-phase pairs the twin rule holds for one dwell. Half a tile off
+costs 5%, the straddle. Every listed peak was on its emitter's tile and
+within a chip of its code phase; no false peak in 3 200 dwells.
+
+**Step 3, the knee** (strong emitter fixed, weak stepped down 4 tiles and
+100 chips away, the engine sized at the *weak* emitter's C/N0 so the floor
+decides rather than the sizing; the weak emitter alone as the control):
+
+| strong   | spread | weak C/N0 | looks  | P(weak, with strong) | P(weak alone) |
+| -------- | ------ | --------- | ------ | -------------------- | ------------- |
+| 55 dB-Hz | 3–15   | 52–40     | 2–88   | 0.98–1.00            | 1.00          |
+|          | 18     | 37        | 256    | 1.00                 | 1.00          |
+|          | **21** | 34        | 256    | **0.12**             | 0.66          |
+|          | 24     | 31        | 256    | 0.00                 | 0.03          |
+| 45 dB-Hz | 0–9    | 45–36     | 15–256 | 1.00                 | 0.99–1.00     |
+|          | 12     | 33        | 256    | 0.24                 | 0.27          |
+|          | 15     | 30        | 256    | 0.01                 | 0.00          |
+
+The knee is where the two curves part: at a 55 dB-Hz strong emitter,
+between 18 and 21 dB of spread — deeper than §12.2's −13 to −16 dB
+single-look floor, because the non-coherent sum favours the weak
+emitter's consistent peak over the strong one's data-dependent sidelobes.
+At 45 dB-Hz the weak emitter is noise-limited before the floor reaches
+it: the two curves fall together from 12 dB, and no floor-limited miss is
+seen down to 33 dB-Hz. The fork of §6.3 stays at −13 dB as the single-look
+worst case; a receiver that integrates buys a few dB past it.
+
+**Step 4, pfa under the list** (pure noise, engine sized at 45 dB-Hz,
+configured pfa 1e-2, 20 000 dwells): reported dwells 0.0091 / 0.0102 /
+0.0085 at `max_peaks` 1 / 4 / 8, one peak per reported dwell — the list
+does not change the false-alarm rate, and on the same noise the same
+dwells report at 1 and at 4 (the `--check` pins that). With one strong
+emitter present at 45 dB-Hz, false peaks at other code phases run at
+0.0005 per dwell, the configured 1e-3 pfa or under; the emitter is listed
+in 2 000 of 2 000 dwells with no twin listed.
+
+**What it settles, and the one thing it raised:**
+
+- The zone is the resolution and costs nothing outside it; the twin rule
+    costs one dwell for a real same-code-phase emitter and nothing else.
+- The rule's table must carry every pick of the previous dwell, listed or
+    held: two equal emitters at one code phase swap places as the
+    strongest, and holding only the held ones listed both in 30% of dwells
+    (measured before the fix; 100% after).
+- **Under long non-coherent integration a strong emitter's same-code-phase
+    sidelobes persist and pass the rule.** At 256 looks (52 ms) a 55 dB-Hz
+    emitter lists 1.8 twins per dwell at its own code phase on other tiles:
+    the sum averages the data-free window away, so "still there next
+    dwell" no longer separates a twin from a second emitter. A power
+    rule would — a same-code-phase peak more than the floor below its
+    parent is the parent's, and an emitter that far under is the
+    cancellation branch's anyway (§6.3) — and it is open
+    ([#1190](https://github.com/doppler-dsp/doppler/issues/1191)). At the
+    operating point's 15 looks no twin was listed in 2 000 dwells.
+
 ______________________________________________________________________
 
 ## 13. What this page does not settle
@@ -2069,9 +2145,10 @@ shipped objects; the **power spread** the application will actually see
 is still the maintainer's to supply, and it is the one number that picks
 the branch against the measured −13 dB. Two things the measurements
 raised and this page only names: the peak list's same-code-phase rule
-(§7.1) is a two-epoch rule and has no Pfa figure yet, and the false-release
-rate of the both-flags-down rule is bounded only over half a minute, not
-the hour an on-time deserves.
+(§7.1) passes a strong emitter's persistent sidelobes under long
+non-coherent integration (§12.6, #1191), and the false-release rate of the
+both-flags-down rule is bounded only over half a minute, not the hour an
+on-time deserves.
 
 ______________________________________________________________________
 

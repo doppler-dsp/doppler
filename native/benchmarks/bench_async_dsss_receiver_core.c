@@ -23,24 +23,39 @@
  *           What a continuous receiver pays per sample once up.
  *
  * Timing is MIN over rounds, not mean, after a WARMUP_S settle.
+ *
+ * Two waveforms. The first is the toy the rows were first recorded on (a
+ * 7-chip code, SF 7). The second is the continuous async-DSSS operating
+ * point (docs/design/async-dsss-receiver.md §6.1): a 1023-chip code at
+ * 5 Mcps, 2 samples per chip -- the top of the 2-5 Mcps range, which is
+ * the receiver's worst case because it is priced per output sample. Its
+ * warm row is what one assigned receiver costs per sample in the pool,
+ * against the 100 ns-per-sample budget of §6.4.
  */
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
 #include "jm_bench.h"
 #include <complex.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#define SF 7
-#define SPC 4
-#define CHIP_RATE 1.0e6
-#define SYM_RATE 35714.29
 #define N_SYM 400
 #define ITERATIONS 20
 #define WARMUP_S 0.25
 
-static const uint8_t CODE7[SF] = { 1, 1, 1, 0, 1, 0, 0 };
+typedef struct
+{
+  const char    *tag; /* row suffix; "" keeps the original names */
+  const uint8_t *code;
+  size_t         sf;
+  size_t         spc;
+  double         chip_rate;
+  double         sym_rate;
+} wf_t;
+
+static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 
 static double
 elapsed_sec (struct timespec *t0, struct timespec *t1)
@@ -59,16 +74,26 @@ min_sec (const double *t, int n)
   return m;
 }
 
+static uint32_t
+xorshift32 (uint32_t *s)
+{
+  *s ^= *s << 13;
+  *s ^= *s >> 17;
+  *s ^= *s << 5;
+  return *s;
+}
+
 /* A DSSS capture built here rather than pulled from native/tests's
    dp_dsss_capture(): a benchmark that includes a test header acquires a
    dependency on the test tree's build wiring, and this is 15 lines. */
 static size_t
-build_capture (float complex **out, size_t *pre_out)
+build_capture (const wf_t *w, float complex **out, size_t *pre_out)
 {
-  const size_t   tsym = (size_t)(CHIP_RATE * SPC / SYM_RATE + 0.5); /* 112 */
-  const size_t   pre  = SF * SPC * 5 + 3;
-  const size_t   n    = pre + N_SYM * tsym;
-  float complex *x    = malloc (n * sizeof *x);
+  const size_t tsym
+      = (size_t)(w->chip_rate * (double)w->spc / w->sym_rate + 0.5);
+  const size_t   pre = w->sf * w->spc * 5 + 3;
+  const size_t   n   = pre + N_SYM * tsym;
+  float complex *x   = malloc (n * sizeof *x);
   if (!x)
     return 0;
 
@@ -83,8 +108,8 @@ build_capture (float complex **out, size_t *pre_out)
       float a = (lfsr & 1u) ? -1.0f : 1.0f;
       for (size_t i = 0; i < tsym; i++)
         {
-          size_t chip = (i / SPC) % SF;
-          x[p++]      = a * (CODE7[chip] ? -1.0f : 1.0f);
+          size_t chip = (i / w->spc) % w->sf;
+          x[p++]      = a * (w->code[chip] ? -1.0f : 1.0f);
         }
     }
   *out     = x;
@@ -93,27 +118,27 @@ build_capture (float complex **out, size_t *pre_out)
 }
 
 static async_dsss_receiver_state_t *
-make_rx (void)
+make_rx (const wf_t *w)
 {
-  return async_dsss_receiver_create (CODE7, SF, CHIP_RATE, SYM_RATE, SPC, 2,
-                                     70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 100.0, 4,
-                                     14.0, 32, 8, false, 100000, 0.0);
+  return async_dsss_receiver_create (
+      w->code, w->sf, w->chip_rate, w->sym_rate, w->spc, 2, 70.0, 1e-2, 0.9,
+      500.0, 4, 8, 0, 100.0, 4, 14.0, 32, 8, false, 100000, 0.0);
 }
 
-int
-main (void)
+static int
+run_waveform (jm_bench_t *bench, const wf_t *w)
 {
   struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
-  volatile size_t sink   = 0;
+  volatile size_t sink = 0;
+  char            name[JM_BENCH_NAME_LEN];
 
   float complex *x   = NULL;
   size_t         pre = 0;
-  size_t         n   = build_capture (&x, &pre);
+  size_t         n   = build_capture (w, &x, &pre);
   if (n == 0)
     return 1;
 
-  async_dsss_receiver_state_t *probe = make_rx ();
+  async_dsss_receiver_state_t *probe = make_rx (w);
   if (!probe)
     {
       (void)fprintf (stderr, "bench_async_dsss_receiver: create NULL\n");
@@ -133,17 +158,18 @@ main (void)
   if (got == 0 || trk != 1)
     {
       (void)fprintf (stderr,
-                     "bench_async_dsss_receiver: emitted %zu symbols, "
+                     "bench_async_dsss_receiver%s: emitted %zu symbols, "
                      "tracking=%d — the timings below would measure a "
                      "receiver that never acquired\n",
-                     got, trk);
+                     w->tag, got, trk);
       return 1;
     }
   async_dsss_receiver_destroy (probe);
 
-  printf ("=== async_dsss_receiver benchmark ===\n");
-  printf ("SF %d, spc %d, %d symbols, %zu samples, %d rounds\n\n", SF, SPC,
-          N_SYM, n, ITERATIONS);
+  printf ("=== async_dsss_receiver benchmark%s ===\n", w->tag);
+  printf ("SF %zu, spc %zu, chip_rate %.3g, %d symbols, %zu samples, %d "
+          "rounds\n\n",
+          w->sf, w->spc, w->chip_rate, N_SYM, n, ITERATIONS);
 
   /* Cold: a fresh receiver each round, over the whole capture. */
   static double t_cold[ITERATIONS];
@@ -152,7 +178,7 @@ main (void)
     clock_gettime (CLOCK_MONOTONIC, &w0);
     do
       {
-        async_dsss_receiver_state_t *rx = make_rx ();
+        async_dsss_receiver_state_t *rx = make_rx (w);
         sink += async_dsss_receiver_steps (rx, x, n, out, cap);
         async_dsss_receiver_destroy (rx);
         clock_gettime (CLOCK_MONOTONIC, &w1);
@@ -161,31 +187,32 @@ main (void)
 
     for (int r = 0; r < ITERATIONS; r++)
       {
-        async_dsss_receiver_state_t *rx = make_rx ();
+        async_dsss_receiver_state_t *rx = make_rx (w);
         clock_gettime (CLOCK_MONOTONIC, &t0);
         sink += async_dsss_receiver_steps (rx, x, n, out, cap);
         clock_gettime (CLOCK_MONOTONIC, &t1);
         t_cold[r] = elapsed_sec (&t0, &t1);
         async_dsss_receiver_destroy (rx);
       }
-    jm_bench_add (&_bench, "steps[cold]", t_cold, ITERATIONS, (int)n);
+    (void)snprintf (name, sizeof name, "steps[cold%s]", w->tag);
+    jm_bench_add (bench, name, t_cold, ITERATIONS, (int)n);
     double sec = min_sec (t_cold, ITERATIONS);
-    printf ("  %-16s %8.3f ms/capture  %7.2f ns/sample  %8.3f Msym/s\n",
-            "steps[cold]", sec * 1e3, sec / (double)n * 1e9,
-            (double)N_SYM / sec / 1e6);
+    printf ("  %-20s %8.3f ms/capture  %7.2f ns/sample  %8.3f Msym/s\n", name,
+            sec * 1e3, sec / (double)n * 1e9, (double)N_SYM / sec / 1e6);
   }
 
   /* Warm: one receiver, already tracking, re-fed the tracking half. */
   static double t_warm[ITERATIONS];
   {
-    async_dsss_receiver_state_t *rx = make_rx ();
+    async_dsss_receiver_state_t *rx = make_rx (w);
     sink += async_dsss_receiver_steps (rx, x, n, out, cap);
     if (async_dsss_receiver_get_tracking (rx) != 1)
       {
         (void)fprintf (stderr,
-                       "bench_async_dsss_receiver: warm receiver is not "
+                       "bench_async_dsss_receiver%s: warm receiver is not "
                        "tracking — the rows below would not be steady "
-                       "state\n");
+                       "state\n",
+                       w->tag);
         return 1;
       }
     const size_t    half = n / 2;
@@ -205,23 +232,51 @@ main (void)
         clock_gettime (CLOCK_MONOTONIC, &t1);
         t_warm[r] = elapsed_sec (&t0, &t1);
       }
-    jm_bench_add (&_bench, "steps[warm]", t_warm, ITERATIONS, (int)(n - half));
+    (void)snprintf (name, sizeof name, "steps[warm%s]", w->tag);
+    jm_bench_add (bench, name, t_warm, ITERATIONS, (int)(n - half));
     double sec = min_sec (t_warm, ITERATIONS);
-    printf ("  %-16s %8.3f ms/block    %7.2f ns/sample\n", "steps[warm]",
-            sec * 1e3, sec / (double)(n - half) * 1e9);
+    printf ("  %-20s %8.3f ms/block    %7.2f ns/sample  %6.2fx real time "
+            "on one core\n",
+            name, sec * 1e3, sec / (double)(n - half) * 1e9,
+            sec / (double)(n - half) * w->chip_rate * (double)w->spc);
     async_dsss_receiver_destroy (rx);
   }
 
   printf ("\n  cold/warm per sample = %.2fx. The difference is acquisition\n"
           "  and refinement, paid once per burst; the warm row is what a\n"
           "  continuous receiver pays for as long as it holds lock. Sizing\n"
-          "  either job on the other number is off by that factor.\n",
+          "  either job on the other number is off by that factor.\n\n",
           (min_sec (t_cold, ITERATIONS) / (double)n)
               / (min_sec (t_warm, ITERATIONS) / (double)(n - n / 2)));
 
   (void)sink;
   free (x);
   free (out);
+  return 0;
+}
+
+int
+main (void)
+{
+  jm_bench_t _bench = { 0 };
+
+  /* A synthetic 1023-chip code: a real Gold code's exact chips do not
+     matter for a cost benchmark (bench_acq_core.c makes the same choice),
+     and using one keeps this executable off the gold component's link
+     line. */
+  static uint8_t code1023[1023];
+  uint32_t       cseed = 7;
+  for (size_t c = 0; c < 1023; c++)
+    code1023[c] = (uint8_t)(xorshift32 (&cseed) & 1u);
+
+  const wf_t waveforms[] = {
+    { "", CODE7, 7, 4, 1.0e6, 35714.29 },
+    { ",op5M", code1023, 1023, 2, 5.0e6, 2700.0 },
+  };
+  for (size_t i = 0; i < sizeof waveforms / sizeof waveforms[0]; i++)
+    if (run_waveform (&_bench, &waveforms[i]) != 0)
+      return 1;
+
   jm_bench_write_json (&_bench, "async_dsss_receiver");
   return 0;
 }

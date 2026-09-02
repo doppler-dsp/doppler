@@ -1123,20 +1123,20 @@ of it is re-derived here (§5):
 The numbers the page is worked at (maintainer, 2026-09-02) — these
 supersede §5.2's, which were the async spec's waveform:
 
-| quantity                       | value                                                                                                                                         | from                                                                   |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| chip rate                      | **2 to 5 Mcps** — design to the worst case, which is per quantity: 5 Mcps for anything priced per sample, 2 Mcps for anything priced per tile | given                                                                  |
-| code                           | 1023 chips → one epoch is **204.6 µs** at 5 Mcps, **511.5 µs** at 2                                                                           | given                                                                  |
-| coherent depth                 | **`D = 1`** — one epoch, no slow-time FFT                                                                                                     | given                                                                  |
-| DDC input                      | **13 MSa/s**                                                                                                                                  | given — chosen to force the arbitrary-ratio path (§6.4)                |
-| DDC output                     | **2× chip rate**: 10 MSa/s at 5 Mcps, 4 at 2 (`spc = 2`)                                                                                      | given; the ratios 1.3 and 3.25 both lack an integer factor             |
-| samples per epoch              | 2046, at every rate                                                                                                                           | `1023 · spc`                                                           |
-| Doppler tile                   | `1/T_epoch` = **4.89 kHz** at 5 Mcps, **1.96 kHz** at 2; a tile spans ± half that                                                             | at `D = 1` the Doppler axis is the `window_bins` tile index            |
-| uncertainty                    | **±50 kHz to start**; Doppler pre-compensation will likely bring it to **±5 kHz**                                                             | given — design at the full width, and record what the narrow one saves |
-| tiles over ±50 kHz             | **23** at 5 Mcps, **53** at 2                                                                                                                 | `2·ceil(U/tile)+1`; the searcher's worst case is the low rate          |
-| tiles over ±5 kHz              | 3 at 5 Mcps, 7 at 2                                                                                                                           | same rule, after pre-compensation                                      |
-| budget, one core, operating    | **77 ns per input sample**; per output sample **100 ns** at 5 Mcps, 250 at 2                                                                  | `1/13e6`, `1/10e6`, `1/4e6`                                            |
-| budget, one core, at the floor | **33 ns per input sample**; 43 per output at 5 Mcps                                                                                           | `1/30e6`, same ratio                                                   |
+| quantity                       | value                                                                                                                                         | from                                                                                                                                            |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| chip rate                      | **2 to 5 Mcps** — design to the worst case, which is per quantity: 5 Mcps for anything priced per sample, 2 Mcps for anything priced per tile | given                                                                                                                                           |
+| code                           | 1023 chips → one epoch is **204.6 µs** at 5 Mcps, **511.5 µs** at 2                                                                           | given                                                                                                                                           |
+| coherent depth                 | **`D = 1`** — one epoch, no slow-time FFT                                                                                                     | given                                                                                                                                           |
+| DDC input                      | **13 MSa/s**                                                                                                                                  | given — chosen to force the arbitrary-ratio path (§6.4)                                                                                         |
+| DDC output                     | **2× chip rate**: 10 MSa/s at 5 Mcps, 4 at 2 (`spc = 2`)                                                                                      | given; the ratios 1.3 and 3.25 both lack an integer factor                                                                                      |
+| samples per epoch              | 2046, at every rate                                                                                                                           | `1023 · spc`                                                                                                                                    |
+| Doppler tile                   | `1/T_epoch` = **4.89 kHz** at 5 Mcps, **1.96 kHz** at 2; a tile spans ± half that                                                             | at `D = 1` the Doppler axis is the `window_bins` tile index                                                                                     |
+| uncertainty                    | **±50 kHz to start**; Doppler pre-compensation will likely bring it to **±5 kHz**                                                             | given — design at the full width, and record what the narrow one saves                                                                          |
+| tiles over ±50 kHz             | **21** at 5 Mcps, **53** at 2                                                                                                                 | the engine's own rule, `acq_cover_window_bins`: `2·ceil((U − span)/(2·span)) + 1`, measured in §12.1; the searcher's worst case is the low rate |
+| tiles over ±5 kHz              | 3 at 5 Mcps, 7 at 2                                                                                                                           | same rule, after pre-compensation                                                                                                               |
+| budget, one core, operating    | **77 ns per input sample**; per output sample **100 ns** at 5 Mcps, 250 at 2                                                                  | `1/13e6`, `1/10e6`, `1/4e6`                                                                                                                     |
+| budget, one core, at the floor | **33 ns per input sample**; 43 per output at 5 Mcps                                                                                           | `1/30e6`, same ratio                                                                                                                            |
 
 The maintainer's description of the running system (2026-09-02) adds the
 lifecycle the policy serves, and it is the shape everything below is fitted
@@ -1258,8 +1258,8 @@ three-quarters of what the front end sees, so the population's cost is
 divided by anything. The rate range splits the worst case in two. Every
 receiver and every replica is priced per output sample, so their worst
 case is **5 Mcps**. The searcher is priced per tile per output sample,
-and tiles go up as the rate comes down — 23 at 5 Mcps, 53 at 2 — so its
-tile-samples per second are nearly the same at both ends (230 M against
+and tiles go up as the rate comes down — 21 at 5 Mcps, 53 at 2 — so its
+tile-samples per second are nearly the same at both ends (210 M against
 212 M over ±50 kHz) and its worst case is **the low rate, by a small
 margin, at the full uncertainty**. Doppler pre-compensation to ±5 kHz
 takes the searcher to 3 or 7 tiles, an eightfold cut in its cost and none
@@ -1289,7 +1289,7 @@ before the population is on it. Three things follow for the shapes:
     already (`AsyncDsssReceiver` ingests at `chip_rate · spc`), so they
     share this one front end rather than each owning one.
 - **The searcher is one window-tiled engine, not a DDC bank.** A bank of
-    23 to 53 `DDC → search` channels at anything like 48 ns each is 14
+    21 to 53 `DDC → search` channels at anything like 48 ns each is 14
     to 33× real time at the operating point on one core and fits on no
     node; the
     continuous engine's own `window_bins` tiling covers the uncertainty
@@ -1800,7 +1800,7 @@ ______________________________________________________________________
     the polyphase arbitrary path, not a cascade the bench's ratio let it
     shortcut (§6.4); then, in ns per
     output sample, the window-tiled searcher with `max_peaks = 16` at
-    both ends of the rate range — 23 tiles at 5 Mcps and 53 at 2 over
+    both ends of the rate range — 21 tiles at 5 Mcps and 53 at 2 over
     ±50 kHz, then 3 and 7 over the ±5 kHz pre-compensation leaves — one
     hand-off-mode receiver tracking at 5 Mcps, and one
     replica subtraction. Then the whole population — the front end, the
@@ -1822,6 +1822,67 @@ and are the same harness the burst characterization already runs. Steps
 5–6 need the hand-off-mode `AsyncDsssReceiver` (§6.1) with the lost state
 of §10 and, for step 5, a replica output it does not have today. Steps 7–8
 need the orchestrator holding the population.
+
+### 12.1 What was measured (2026-09-02) — step 8, the budget
+
+Three component benches gained operating-point rows and were run on an
+8-core build box, one core, minimum of rounds (`bench_ddc_core`,
+`bench_acq_core`, `bench_async_dsss_receiver_core`; `make bench` runs all
+three; the rows are `rate=0.77`, `op5M_*`/`op2M_*` and `*,op5M`):
+
+| stage                                   | ns per sample      | of one core, operating | of one core, 30 MSa/s floor |
+| --------------------------------------- | ------------------ | ---------------------- | --------------------------- |
+| front-end DDC, 13 → 10 MSa/s            | **13.6** per input | 0.18                   | 0.41                        |
+| searcher, 5 Mcps, ±50 kHz, **21** tiles | **214** per output | **2.14**               | 4.9                         |
+| searcher, 2 Mcps, ±50 kHz, **53** tiles | **523** per output | **2.09**               | 4.8                         |
+| searcher, 5 Mcps, ±5 kHz, 3 tiles       | 36 per output      | 0.36                   | 0.83                        |
+| searcher, 2 Mcps, ±5 kHz, 7 tiles       | 75 per output      | 0.30                   | 0.69                        |
+| one receiver, tracking (warm), 5 Mcps   | **44** per output  | 0.44                   | 1.0                         |
+| one receiver, cold (search + refine)    | 89 per output      | —                      | —                           |
+
+Five things this settles, and one it corrects:
+
+- **The arbitrary-ratio front end is 4.2× the integer cascades** — 13.6 ns
+    against 2.4–4.0 for rates 0.05–0.5 — so choosing 13 MSa/s to force it
+    (§6.4) priced the front end at its real cost; it is still under a fifth
+    of a core at the operating point.
+- **The searcher over ±50 kHz does not fit on one core at any chip rate:
+    2.1× real time at both ends of the range.** Its cost is ~10 ns per tile
+    per output sample, and the tile count rises exactly as the rate falls,
+    so the tile-samples per second — and the core count — are the same at 2
+    and 5 Mcps. That confirms §6.4's arithmetic and turns its third bullet
+    into a requirement: **the tiles must be partitioned across cores**,
+    three at the operating point, five at the floor, before any margin.
+    The tiles are independent inverse FFTs off one shared forward FFT, so
+    the split is either inside the engine (a parallel-for over tiles per
+    epoch, which keeps one forward FFT) or across engines each given a slice
+    of the uncertainty (which repeats the forward FFT per slice but needs
+    no threading inside the engine and matches the "processes as needed"
+    shape of §1.1). Which one is the next thing to measure, and it belongs
+    in the shapes table of §8.
+- **Doppler pre-compensation is worth 6–7× on the searcher** — 0.36 and
+    0.30 of a core over ±5 kHz — and nothing on anyone else. With it the
+    searcher fits on one core with room; without it the partition above is
+    mandatory.
+- **One tracking receiver is 0.44 of a core**, so the pool of twelve is
+    5.3 cores at the operating point and 12 at the floor — the largest
+    single line in the budget, and the one that scales across the
+    application's threads by construction.
+- **The population, one process, ±50 kHz, 5 Mcps: about 7.6 cores** at
+    the operating point (0.18 + 2.14 + 12 × 0.44), **17.5 at the floor**;
+    with pre-compensation 5.8 and 13.4. At the 2× margin §6.4 asks for,
+    that is 15 and 35 cores without pre-compensation, 12 and 27 with. The
+    server "will have a lot"; this is what a lot means.
+- **Correction:** the engine's tile rule gives **21** tiles at 5 Mcps over
+    ±50 kHz, not the 23 this page derived from `burst-bank.md`'s channel
+    formula; the table in §6.1 now carries the engine's number. Nothing
+    else moved.
+
+Not measured here: the searcher with the peak list (it does not exist;
+the pick is one pass over the surface and will not move the ~10 ns per
+tile), a replica subtraction (no replica output yet), and the whole
+population as one run with its detection count beside the rate — that
+needs the orchestrator, and is what step 8 still owes.
 
 ______________________________________________________________________
 

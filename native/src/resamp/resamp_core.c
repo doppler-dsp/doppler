@@ -366,6 +366,17 @@ resamp_get_num_taps (const resamp_state_t *s)
 }
 
 double
+resamp_get_delay (const resamp_state_t *s)
+{
+  /* The prototype's centre (resamp_build_bank makes the length odd, so
+     halflen is exact) over the phases, plus the one input the pipeline
+     holds back: the output is formed before the offered sample loads. */
+  size_t proto   = (s->num_phases * s->num_taps) | 1u;
+  size_t halflen = proto / 2;
+  return (double)halflen / (double)s->num_phases + 1.0;
+}
+
+double
 resamp_dc_gain (const resamp_state_t *s)
 {
   double sum = 0.0;

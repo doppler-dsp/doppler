@@ -66,6 +66,7 @@ _Continuously-variable polyphase resampler for CF32 IQ._ [More...](#detailed-des
 |  size\_t | [**resamp\_execute\_ctrl**](#function-resamp_execute_ctrl) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, const float \_Complex \* in, const double \* ctrl, size\_t num\_in, float \_Complex \* out, size\_t max\_out) <br>_Resample with per-sample additive rate deviation._  |
 |  size\_t | [**resamp\_execute\_ctrl\_push**](#function-resamp_execute_ctrl_push) ([**resamp\_state\_t**](structresamp__state__t.md) \* state, float \_Complex x, double ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push one input at an instantaneous rate deviation; emit any outputs._  |
 |  double | [**resamp\_get\_ctrl\_acc**](#function-resamp_get_ctrl_acc) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_The control accumulator's fractional phase, in [0, 1)._  |
+|  double | [**resamp\_get\_delay**](#function-resamp_get_delay) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br>_Group delay of the interpolator, in INPUT samples._  |
 |  size\_t | [**resamp\_get\_num\_phases**](#function-resamp_get_num_phases) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
 |  size\_t | [**resamp\_get\_num\_taps**](#function-resamp_get_num_taps) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
 |  double | [**resamp\_get\_rate**](#function-resamp_get_rate) (const [**resamp\_state\_t**](structresamp__state__t.md) \* state) <br> |
@@ -430,6 +431,46 @@ Reports the CONTROL accumulator, so it stays 0.0 for a caller driving this objec
 
 
 Pinned by test\_resamp\_core.c §10 (the arm, read off the output at four rates), §11 (the wrap's unit, against the counting law) and §12. 
+
+
+        
+
+<hr>
+
+
+
+### function resamp\_get\_delay 
+
+_Group delay of the interpolator, in INPUT samples._ 
+```C++
+double resamp_get_delay (
+    const resamp_state_t * state
+) 
+```
+
+
+
+The prototype is a symmetric (linear-phase) Kaiser lowpass, so its delay is its centre: `floor((num_phases * num_taps) | 1) / 2` prototype taps, i.e. that over `num_phases` input samples  9.5 for the built-in bank  plus ONE input sample of pipeline: an output is formed from the delay line as it stands, and only then is the next input loaded, so the newest sample under the taps is the one before the sample being offered. 10.5 for the built-in bank, on every entry point (the free, ctrl and push forms agree; test\_resamp\_core.c §3 measures it by phase differencing on each and holds it to this value).
+
+
+What it is for: output `k` carries the input at index `k * (1/rate) + (the accumulated ctrl) - delay`. A caller comparing the output timeline with the input's  a code loop fed through doppler\_channel, a test asserting where a chip lands  subtracts this, and a loop started at the input's phase without it is this far from the peak (doppler-dsp/doppler#1189: 5 chips at 2 samples per chip, onto a Gold sidelobe). Closed-form from the bank's geometry, so it is exact for the built-in bank; a [**resamp\_create\_custom()**](resamp__core_8h.md#function-resamp_create_custom) bank is assumed symmetric about the same centre.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+**Returns:**
+
+The delay in input samples (`>= 1`). 
+
+
+
 
 
         

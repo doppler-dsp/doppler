@@ -65,6 +65,7 @@ _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-descri
 |  size\_t | [**Resampler\_execute\_ctrl\_max\_out**](#function-resampler_execute_ctrl_max_out) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
 |  size\_t | [**Resampler\_execute\_max\_out**](#function-resampler_execute_max_out) ([**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
 |  double | [**Resampler\_get\_ctrl\_acc**](#function-resampler_get_ctrl_acc) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Number of polyphase branches in the filter bank. Always a power of two. The built-in bank has 4096 phases giving sub-sample timing resolution of 1/4096 of an input sample period._  |
+|  double | [**Resampler\_get\_delay**](#function-resampler_get_delay) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Group delay of the interpolator, in input samples._  |
 |  size\_t | [**Resampler\_get\_num\_phases**](#function-resampler_get_num_phases) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br> |
 |  size\_t | [**Resampler\_get\_num\_taps**](#function-resampler_get_num_taps) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Taps per polyphase branch. Total prototype filter length is num\_phases \* num\_taps - 1. The built-in bank uses 19 taps per branch._  |
 |  double | [**Resampler\_get\_rate**](#function-resampler_get_rate) (const [**Resampler\_state\_t**](Resampler__core_8h.md#typedef-resampler_state_t) \* state) <br>_Get / set the output-to-input sample rate ratio. The setter recomputes the phase increment immediately; the delay line and phase accumulator are preserved so in-stream rate changes are glitch-free. Switching sign of (rate - 1) (i.e. crossing the boundary between interp and decim modes) requires a fresh create()._  |
@@ -429,6 +430,35 @@ Reports the CONTROL accumulator, so it stays 0.0 unless you are driving this obj
 >>> from doppler.resample import Resampler
 >>> Resampler(rate=1.0).ctrl_acc
 0.0
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function Resampler\_get\_delay 
+
+_Group delay of the interpolator, in input samples._ 
+```C++
+double Resampler_get_delay (
+    const Resampler_state_t * state
+) 
+```
+
+
+
+The prototype's centre plus the one input the pipeline holds back ([**resamp\_get\_delay()**](resamp__core_8h.md#function-resamp_get_delay)): output `k` carries the input at `k / rate + (accumulated ctrl) - delay`. 10.5 for the built-in bank.
+
+
+
+```C++
+>>> from doppler.resample import Resampler
+>>> Resampler(rate=1.0).delay
+10.5
 ```
  
 

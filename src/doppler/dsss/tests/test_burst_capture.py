@@ -83,7 +83,11 @@ def test_geometry_is_derived_not_asked_for():
     assert cap.burst_len == BURST_LEN
     assert cap.refine_span > 0
     assert cap.retain_span == cap.refine_span + BURST_LEN
-    assert cap.doppler_res_hz == 0.0  # nothing captured yet
+    # The bin width is the ENGINE's, readable before anything is captured:
+    # a composing bank sizes its cross-channel dedup from it at construction,
+    # and this used to read the last event's mirror -- 0.0 here -- which
+    # collapsed that dedup to exact equality (doppler#1174).
+    assert cap.doppler_res_hz == cap.doppler_span_hz * 2.0 / cap.doppler_bins
 
 
 def test_a_bad_parameter_names_itself():

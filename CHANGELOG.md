@@ -13,6 +13,807 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.46.0] — 2026-09-02
+
+### Added
+
+- **`BurstCapture.release(i)` — a window that was not a burst gives its
+    span back.** Detections inside an emitted window's span are HELD rather
+    than dropped; a consumer whose error detection failed the frame releases
+    it and the held detections are searched again. `DsssBurstReceiver` does
+    this itself and reads back `frame_valid` (scalar and per event row), so
+    a decoy ahead of a real burst no longer swallows it — the promise of
+    #1004, restored under the capture.
+    [#1181](https://github.com/doppler-dsp/doppler/issues/1181).
+
+- **`BurstCapture` — the look-back and the refine get a home.** Acquisition's
+    `code_phase` is a lag MODULO one code period, so it never says WHICH
+    preamble repetition a burst began in. Resolving that, and reaching back to
+    a start already gone past, existed once — inside `DsssBurstReceiver`. The
+    new object searches, refines, retains and emits the burst's SAMPLES, for a
+    recorder, a corpus, or a second consumer.
+    Design: [`burst-capture.md`](docs/design/burst-capture.md).
+    Refs [#1166](https://github.com/doppler-dsp/doppler/issues/1166).
+
+- **`PersistentBurstCapture` — the look-back in a file.** The ring's pages are
+    a `MAP_SHARED` mapping of a path, so the samples ARE the file's contents:
+    no mirror buffer, no flusher, no second copy. The checkpoint stops carrying
+    the history — 16.68 MB → 21.6 kB at an 8029-symbol frame — and the
+    look-back outlives the process, so a restored capture reaches back across
+    a restart into a burst that began before it.
+    See [`burst-capture.md` §9](docs/design/burst-capture.md).
+
+- **The search under a capture is visible, and an unmeetable `pd` says so.**
+    `BurstCapture` forwarded one of the engine's 27 read-backs and hardcoded
+    the CFAR mode. It now carries the numbers that decide what gets captured —
+    `doppler_bins`, `n_noncoh`, `code_bins`, `doppler_span_hz`, both detection
+    gates and `straddle_loss` — plus `noise_mode` as a choice and
+    `underpowered` as a **declared** warning, which the sibling
+    `BurstAcquisition` can only hand-patch. Required configuration is still
+    one parameter: `BurstCapture(code)`.
+
+- **`BurstDemod.symbols()` — the constellation the LLRs are the real part
+    of.** The object built the derotated, unit-normalised complex symbols
+    either way (the LLR projection and the noise estimate are both made from
+    them) and then freed them unread. After derotation the real axis carries
+    the signal and the imaginary axis carries noise alone, so a
+    phase-coherence problem lands in Q and **nowhere else**: an untracked
+    Doppler rate raises Q/I 41x while `est_snr_db`, `est_rate_hz` and the
+    decoded bits are all unchanged. `est_n0` is now a read-back too, so the
+    LLR scale can be undone rather than just documented.
+    [#1087](https://github.com/doppler-dsp/doppler/issues/1087).
+
+- **`example-projects/burst-pipeline/` — a downstream project to copy**, taking
+    a burst waveform the whole way: a caller-built frame, a sixty-burst train,
+    a 24-point SNR sweep, out to BLUE and back through a consumer, with both
+    halves timed. It **measures** what it teaches — that sixty listed segments
+    all carry *identical* noise while `repeats` draws fresh noise per instance,
+    that the gap carries the floor so burst-over-gap power recovers the
+    declared SNR, that a prepared `Plan` beats re-composing every point, and
+    that cf32 through BLUE is byte-exact. `make burst-pipeline-check` builds
+    and runs it in both link modes against a scratch install, in CI.
+
+- **`Gold` is certified** — the 32nd object and the wfm module's last: 17
+    limits, 4 findings. The subject is the family, and the header's count of it
+    was wrong in both directions — it said 1024, where only **1023** codes are
+    reachable (a zero seed is refused) out of a true family of **1025** (the
+    two constituent m-sequences are unreachable, since the generator always
+    XORs both registers). Corrected and pinned. Also quantified: the
+    three-valued set `{-1, -65, 63}` is the theoretical `{-1, -t, t-2}` at
+    `t = 2^((n+2)/2)+1 = 65`, costing **23.9 dB** of peak-to-sidelobe margin
+    against a plain m-sequence's 60.2 dB — the price of having a family at
+    all. [Evidence](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/gold/results.md).
+
+- **`PN` is certified** — the 31st object: 16 limits, 4 findings, none open.
+    The subject is the table. `pn_mls_poly()` declares a primitive polynomial
+    for every width 2..64 and the header calls them verified, but across both
+    suites that was pinned at **six of sixty-three** — a wrong entry is not a
+    crash but a short-period spreading code. All 63 now checked in both
+    realizations, by an order test whose transition matrix is probed out of
+    the shipped library and cross-checked against brute-force stepping.
+    Also pinned: the two-valued autocorrelation, shift-and-add closure, and
+    `fib[i] == gal[(P-i) % P]`. [Evidence](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/pn/results.md).
+
+- **`Composer` is certified** — the 29th object and wfm's composition, so its
+    subject is the SEAM rather than a re-run of the parts: 15 limits, 4
+    findings. Two functions whose only job is that the standalone and
+    composed faces agree had zero C coverage, and nothing anywhere compared
+    the two faces — the C suite deferred it to Python and Python's
+    "three faces" test compares three spellings of the composer path.
+    [Evidence](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_compose/results.md).
+
+- **`Frame` is certified** — the 28th object, and the one that answers "are
+    we CCSDS-locked?" with evidence: arbitrary frames containing nothing
+    CCSDS build and self-check, and a CADU is the same three calls with
+    different covers declared. 16 limits, 4 findings. Certifying it produced
+    [#1125](https://github.com/doppler-dsp/doppler/issues/1125) — the open
+    stage kind the design is staked on is unusable from Python.
+    [Evidence](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_frame/results.md).
+
+- **`Plan` is certified** — the 30th object and wfm's last, a cache over the
+    Composer, so its subject is INDISTINGUISHABILITY: 17 limits, 4 findings.
+    Every override axis reproduces a full `compose()` bit for bit, and
+    superposition holds to 5e-07. Two findings a caller should know: a
+    ranged-gap scene draws a different length for every seed while
+    `render()`'s docstring promises `len()`, which breaks both rectangular
+    Monte-Carlo idioms ([#1128](https://github.com/doppler-dsp/doppler/issues/1128)); and nothing can observe whether a
+    restore took its cached fast path, so a silent fall back to full rebuild
+    would pass every test in both suites ([#1129](https://github.com/doppler-dsp/doppler/issues/1129)).
+    [Evidence](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_plan/results.md).
+
+- **`Reader` is certified** — the 27th object, and wfm's third: 12 limits,
+    all holding, 4 findings. The inventory found fifteen entry points with no
+    C coverage, and they were almost exactly the set the Python binding
+    calls — the C suite reached the same state through a different function
+    every time. Certifying it produced
+    [#1123](https://github.com/doppler-dsp/doppler/issues/1123).
+    [Evidence](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_reader/results.md).
+
+- **`Synth` is certified** — the wfmgen ladder's first object through the
+    validation process, and the 25th overall: 19 limits, all holding, 6
+    findings. The claim inventory found the header's own SSOT untested —
+    `wfm_synth_snr_over_fs`, `wfm_synth_bps`, `wfm_synth_set_dsss_chips`,
+    `wfm_synth_reseed_noise` and all ten accessors had zero mentions in any
+    C test. [Evidence](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_synth/results.md).
+
+- **`Writer` is certified** — the 26th object, and wfm's second: 16 limits,
+    all holding, 5 findings. Certifying it found
+    [#1120](https://github.com/doppler-dsp/doppler/issues/1120) — the writer
+    records a raw capture's sample type in a sidecar the reader does not
+    read, so an untold raw capture comes back as `cf32` with garbage values
+    and no error. [Evidence](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_writer/results.md).
+
+- **Clock Doppler reaches JSON, Python and `wfmgen`** (#942). `doppler` /
+    `doppler_rate` (ranged, `LO:HI` or a `(lo, hi)` tuple), `carrier_hz` and
+    `doppler_lifetime` are scene keys, `Segment`/`Synth` kwargs and
+    `--doppler` / `--doppler-rate` / `--carrier-hz` / `--doppler-lifetime`.
+    Omitted at their defaults, so every recorded spec is byte-unchanged.
+    `wfm_compose_draws()` and the SigMF sidecar report the **drawn** value per
+    instance, so a ranged pass records its span and its flights separately.
+    Guide: [Clock Doppler](../guide/wfmgen/doppler.md). `Plan.prepare()`
+    refuses a Doppler source outright — a cached on-time carries no channel
+    history, measured against `compose()`; the fix is #1109.
+
+- **`draws(scene)` — the ground truth of a ranged scene** (#1112). A ranged
+    field is re-picked per instance, so the scene declares a span while each
+    burst flies one value out of it; scoring a receiver needs *which* value,
+    and the span cannot say. The drawn rows were reachable from C and from a
+    capture's SigMF metadata but not from Python, so an in-process
+    `compose()` could only recover its own truth by emitting metadata as a
+    side effect. `draws()` returns one record per source per instance —
+    placement plus the drawn `freq`/`f_end`/`snr`/`level`/`doppler` — read
+    through the same `wfm_compose_draws()` the metadata uses, and a test
+    pins the two to each other.
+
+- **`cvt` gains the six conversions a frame field is built from**, all
+    jm-generated and callable from Python: `int_to_bin` / `bin_to_int` for a
+    literal that fits in 64 bits, `hex_to_bin` / `bin_to_hex` for one that
+    does not or that arrives as text, and `bin_to_nrz` / `nrz_to_bin` for the
+    bit-to-symbol map. Bit order is numpy's `bitorder`, deliberately not the
+    BLUE writer's `endian` (`EEEI`/`IEEE`) — bit order and byte order are two
+    axes that share a word. The NRZ sign convention is not restated here: its
+    home is BPSK in `mpsk_core.h`, and the C test asserts the two agree.
+
+- **A frame description can be built by name**: `wfm_frame_add_field`,
+    `wfm_frame_add_derived` and `wfm_frame_add_stage(kind, "payload", "crc")`
+    append in wire order instead of filling indices positionally. `add_stage`
+    wires a derived field's producer itself, which applies the invariant the
+    layout already enforces rather than letting a caller state it a second,
+    different way. The bounds rise 8 → 16 fields and 6 → 8 stages: the deepest
+    description doppler builds today is six fields, so the old ceiling left
+    room for two, and the descriptor is still a 2 KB stack local.
+
+- **A frame can be described by name from Python**: `add_hex("asm",   "1ACFFC1D")`, `add_value("sync", 0xABC, 12)`, `add_derived("crc", 16)`,
+    `add_stage_over(0, "payload", "crc")`, plus `field_index` and
+    `name_field`. jm generates the binding; the hex and value expansions are
+    `cvt`'s `hex_to_bin` / `int_to_bin` rather than a second parser, so a
+    marker cannot be expanded two ways. This is where the 38-argument
+    constructor stops being the only way to describe a frame.
+
+- **The general frame descriptor now has evidence of its own, not CCSDS's.**
+    `wfm_frame_check`, `wfm_frame_ops_t` and `WFM_STAGE_INTERLEAVE` had zero
+    mentions in `test_wfm_frame.c` and were exercised only through
+    `test_ccsds_tm_frame.c`; `wfm_frame_desc_crc_ok` and the "carries no check
+    returns −1, not 1" rule were asserted nowhere in the tree. Six sections
+    now pin them over a synthetic two-stage kernel table — CCSDS is one
+    configuration of the descriptor, so it cannot also be the thing that
+    proves it. Each proven by sabotage; the order and non-identity
+    preconditions are what stop two of them passing vacuously.
+
+- **A frame field can carry a name**, and one lookup resolves it:
+    `wfm_frame_field_index(d, "payload")`. Optional and behaviour-neutral — an
+    unnamed description lays out identically, and every index-taking entry
+    point is unchanged. It is the groundwork for addressing a stage's cover by
+    name: `derived_by`, `first_field` and `n_fields` are all indices into the
+    field array today, which is why a frame's every parameter has to be passed
+    positionally and why `frame_create()` takes 38 arguments.
+
+- **The generated sequence kinds are pinned to the generators they claim to
+    be, on the face a user-defined frame is built through.** That face carried
+    only DOTTED and LITERAL fields, so no PN or Gold field reached it was
+    checked; Gold was pinned only differentially, which a swapped
+    `taps_a`/`taps_b` satisfies. And "a repeated generated field repeats its
+    period" was prose — every repeated one was DOTTED, which is identical
+    redrawn. Replacing the repeat with a redraw leaves 155 of 156 C tests
+    passing. See [#762](https://github.com/doppler-dsp/doppler/issues/762).
+
+- **A header's example must now call the functions in that header with the
+    right number of arguments.** Nothing compiled a header `@code` block —
+    `docs/**` fences are built `-Werror`, but a header's is only rendered by
+    doxygen, published to `docs/c-api/**` and transplanted by jm into the
+    `.pyi` — so examples drifted from their own signatures silently:
+    `mpsk_receiver_create()`'s passed 16 arguments to 15 parameters and
+    `ber_meter_score()`'s passes 11 to 5. Arity only, no compiler; Python
+    doctest blocks are skipped on their `>>>`. The 11 that predate it are
+    ratcheted and may only shrink.
+    See [#1082](https://github.com/doppler-dsp/doppler/issues/1082).
+
+- **The `Segment(frame=…)` sugar now has an acceptance test that fires by
+    itself.** It waits on
+    [just-makeit#1224](https://github.com/just-buildit/just-makeit/issues/1224)
+    (an `init_param` cannot take another generated object), so it is a strict
+    xfail: when jm ships the feature and the manifest declares the field, it
+    XPASSes and reddens CI until the marker goes. The bar it asserts is
+    byte-identity with the JSON route, not merely that the call succeeds.
+
+- **The acquisition bank captures bursts, not just detections.**
+    `Acquirer(..., burst_len=N, ring_dir=...)` makes every channel a
+    `DDC → BurstCapture`; `process()` still returns the detections and
+    `bursts()` returns each channel's aligned windows. A file-backed bank
+    resumes across a pod restart over the same ring directory.
+    [#1174](https://github.com/doppler-dsp/doppler/issues/1174),
+    [#1180](https://github.com/doppler-dsp/doppler/pull/1180).
+
+- **The docstring ratchet now fails per SYMBOL, not just per module.** A
+    symbol recorded as documented may never stop being documented, however
+    much improved elsewhere; the per-module incomplete count stays, as what
+    catches *new* undocumented surface. Adopting just-makeit 0.70.0,
+    `doppler.track` read 1 → 1 while `BpskReceiver` gained a description and
+    `MpskReceiverR` lost one — a count cannot represent a pair that cancels.
+    A face the build never exposed is a third state (`?`), so an unbuilt
+    module reads unscored rather than regressed. See
+    `scripts/check_docstring_coverage.py`'s `face_flags`.
+
+- **A source can carry clock Doppler (C API).** `doppler` (ppm),
+    `doppler_rate` (ppm/s) and `carrier_hz` on `wfm_source_t`, ranged like
+    `freq`/`snr`, rendered through `impairment/doppler_channel`. Per source:
+    two transmitters in one `sum` are on different geometries. Unlike a `freq`
+    offset it rescales the received time base, so symbol and chip rates move
+    with the carrier and a timing loop sees the error a carrier-only offset
+    hides. The channel runs through gaps too — on the noise floor — so
+    `doppler_rate` is per second, not per unit of on-time. Lifetime is
+    declared, and `Plan` refuses a Doppler source: a cached on-time carries
+    no channel history (#1109). C-only so far; the faces are #942.
+
+- **A generated sequence survives `--record` → `--from-file`.** A PN or Gold
+    sequence has no bit array, so the field vanished from the record and
+    `--from-file` rebuilt an *unframed* waveform at exit 0. It is recorded
+    under a `_gen` key now — six numbers reproduce a million-symbol sync word
+    — and the DSSS chip path expands one instead of dereferencing its NULL or
+    refusing it for having no array. Both spellings of one field, an unknown
+    `kind`, or a bad register width are **refused**, not ignored.
+    Step 3 of [#762](https://github.com/doppler-dsp/doppler/issues/762).
+
+- **The scene JSON carries a caller's frame, both ways.** A `frame` key on a
+    source round-trips a `wfm_frame_desc_t` through `--record` /
+    `--from-file` — and through `Composer.to_json` / `from_json`, which are
+    the same C code, so **Python reaches a carried frame without any new
+    binding**. A stage's kind is written as its name when doppler has one and
+    as its integer when it does not, which is the only encoding that can carry
+    a caller's own kind from `WFM_STAGE_USER` up. Closes
+    [#1140](https://github.com/doppler-dsp/doppler/issues/1140).
+
+- **`snr_mode` and `modulation` are named in C, not spelled as integers.**
+    A downstream setting `wfm_source_t` had to write `snr_mode = 3` from a
+    comment — and the scale a dB figure is quoted on moves the noise by
+    10log10(sps). `wfm_snr_mode_t` and `wfm_bitmod_t` join `wfm_type` and the
+    rest under `make lint-wfm-enum-tables`, which holds every C enum's indices
+    to the `[[enum]]` manifest and the `wfm_names.h` table.
+
+- **A `wfm_source_t` can carry the frame a caller built.** The new optional
+    `frame` field hands `wfm_frame_desc_t` straight to wfmgen, so a caller can
+    name their own fields, spans and stage kinds instead of being limited to
+    the thirteen flat framing and coding fields — which stay, as sugar that
+    builds the same description. Kernels stay in C: a description names a
+    stage's kind, and `wfm_frame_ops_t` supplies the code that runs it.
+
+- **A source's sequence KIND now reaches the wire — a PN or Gold sync is
+    finally spellable.** The frame layer has always materialised all four
+    `wfm_seq_t` kinds, but `wfm_source_describe_frame` rebuilt every field as
+    a fresh `WFM_SEQ_LITERAL`, discarding the kind one call before the
+    descriptor could see it. It passes the caller's sequence through now, and
+    `wfm_source_has_frame` tests `sync.len` rather than `sync.bits`: a
+    generated sequence has no array, so a PN sync read as *unframed* and the
+    payload went out bare. Pinned against `pn_generate` of the same three
+    numbers — external truth, not a round trip.
+    Step 2 of [#762](https://github.com/doppler-dsp/doppler/issues/762).
+
+- **wfmgen's C API is now pinned against the CLI and Python, byte-for-byte.**
+    The design doc promises one scene renders identically from all four APIs
+    and calls C the primary one, but only Python↔CLI and JSON↔CLI were
+    tested; what stood in for the C leg composed a scene twice in one process,
+    which is determinism, not cross-API agreement.
+    `native/validation/wfmgen_certify.c` renders through the struct API for
+    `test_c_api_byte_parity_vs_wfmgen` to compare. All three legs agree.
+
+- **The wfmgen byte-parity tests can no longer skip themselves.** They used a
+    private copy of the CLI locator that returned `None` into a `skipif`, so
+    the only evidence for that promise could report green having run nothing;
+    they now use the shared `cli._runnable()`, which fails with the path.
+
+- **wfmgen is certified.** `src/doppler/tests/validation/wfmgen/results.md`
+    is the evidence: the design page's nine goals, each verified by running
+    the gate it names rather than reading the annotation, and 11 limits over
+    the three-way render. It is the first TOOL the campaign has certified, so
+    `validation.md` gains a "certifying a tool" substitution and
+    `check_validation_reports.py` learns to accept a validation harness as
+    the C-level pin when there is no component header at all.
+
+- **The frame a caller builds is documented and worked through.**
+    `wfm_source_t.frame` and the scene JSON's `frame` key shipped with tests
+    and a schema entry and nothing a reader could find. Now a C demo with 16
+    self-validating checks, a [gallery page](https://github.com/doppler-dsp/doppler/blob/main/docs/gallery/wfmgen-carried-frame.md), and the scenes
+    guide's *A frame the caller built* — the C, JSON and Python routes, and
+    the flat framing flags proven byte-identical to the description they
+    build.
+
+- **A derived frame field that names no producing stage is accepted**, and
+    generates a different waveform: 40 bits rather than 56, exit 0, nothing on
+    stderr. Documented with the measurement; the C builder cannot reach that
+    state ([#1155](https://github.com/doppler-dsp/doppler/issues/1155)).
+
+- **The wfmgen flags nobody runs can no longer grow in number.** The gate has
+    printed "53 of 67 flags exercised" as its second line since it was
+    written, and nothing read it. That count is now a ratchet checked both
+    ways: a documented-but-unrun flag fails unless it is waived, and a waiver
+    that outlives its defect fails too. Closes
+    [#1143](https://github.com/doppler-dsp/doppler/issues/1143); paying the
+    debt down is [#1149](https://github.com/doppler-dsp/doppler/issues/1149).
+
+- **`wfmgen` can finally ask for a generated sequence.** `wfm_seq_t` has
+    carried PN/Gold/Dotted since it existed and the frame layer materialised
+    all three, but every route in flattened the kind to LITERAL, so no command
+    line could spell one. `--acq-code-gen`, `--data-code-gen` and `--sync-gen`
+    take `KIND:LEN[:...]` — one flag per sequence with the kind as data, the
+    same vocabulary the record uses. A 1023-chip sync word is six numbers now
+    instead of a 1023-character string. Giving a field both spellings is
+    **refused in either order**: accepting it wrote a record that this tool's
+    own `--from-file` could not read.
+    Step 4 of [#762](https://github.com/doppler-dsp/doppler/issues/762).
+
+- **A payload can be generated, or just bounded.** The payload is a sequence
+    like its three siblings now, so `--payload-gen pn:65535:16` records six
+    numbers instead of a 65k-character string — and the frame descriptor's
+    payload field was the last place gh-762's flattening to `WFM_SEQ_LITERAL`
+    survived. `--payload-len N` bounds it at N bits filled from the source's
+    own PN, which **retires #755's refusal**: `--type bpsk|qpsk|pn` with frame
+    flags used to exit 2, because their data is an endless LFSR and nothing
+    said where the payload stopped.
+    Closes [#762](https://github.com/doppler-dsp/doppler/issues/762).
+
+### Changed
+
+- **wfmgen's frames are described by name, not through a CCSDS spec struct.**
+    `wfm_source_describe_frame` filled `ccsds_tm_frame_spec_t` and asked
+    `ccsds_tm` to translate it, which made a standard's vocabulary the only
+    vocabulary — a frame doppler had never seen had to be spelled in CCSDS's
+    slots or not at all. It now builds through the general by-name builder.
+    `ccsds_tm` keeps what was always the right direction: the kernels, and
+    the marker's one expansion. Pinned by assembling both ways over nine
+    source shapes and comparing the bits.
+
+- **The burst family's `cn0_dbhz` is a DESIGN C/N0, and optional.**
+    `BurstAcquisition`, `BurstCapture`, `PersistentBurstCapture` and
+    `DsssBurstReceiver` default it to 0 = none given: the search then
+    integrates the whole preamble in one look with the threshold set by
+    `pfa` alone; `pd` is a target only with a design point, and without
+    one `pd_predicted` is NaN and `underpowered` never asserts. The old
+    silent default of 50 dB-Hz is what sized the wrong grid.
+    [#1181](https://github.com/doppler-dsp/doppler/issues/1181).
+
+- **A frame stage's `kind` is now an open `uint32_t`, so a caller can add a
+    stage without editing doppler's header.** It was a closed
+    `wfm_stage_kind_t`, which made "a mission that is not CCSDS" a pull
+    request against `wfm/wfm_frame.h` rather than a configuration — the
+    opposite of what the description exists for. Kinds from
+    `WFM_STAGE_USER` (0x1000) up are reserved for callers and doppler will
+    never allocate there; the kernel arrives through `wfm_frame_ops_t` as
+    before, and an unrecognised kind is still a refusal, never a silent skip.
+    Source-compatible: every `WFM_STAGE_*` constant keeps its value.
+
+- **just-makeit pinned 0.69.2 → 0.70.1.** A struct field documented in a block
+    *above* its declaration now derives its property docstring on both faces
+    (jm gh-1167) — previously only the trailing `int span; /**< … */` form was
+    read, so prose already in the sacred header had to be restated in a
+    manifest `doc` and maintained twice. 0.70.1 also carries jm#1177, a
+    doppler-filed regression in 0.70.0 where a view stopped inheriting its
+    parent's `create()` `@param` prose: params inherit, the summary does not.
+    Also lands `error_on_empty` (gh-1159), so a `variable_output` kernel that
+    writes nothing can refuse instead of returning an empty array.
+
+- **just-makeit pin 0.70.1 → 0.71.0.** Brings `c_ptr` / `c_len`
+    (just-buildit/just-makeit#1184, filed from here): a composer source's
+    `bytes` field can name its own C storage instead of being hardcoded to
+    `src.<name>` / `src.n_<name>`, which is what lets `wfm_source_t` carry
+    `wfm_seq_t` rather than flattening ten generator parameters per sequence
+    — the blocker on [#762](https://github.com/doppler-dsp/doppler/issues/762).
+    Zero codegen drift once `[acq]`'s manifest `doc` was dropped: it silently
+    disagreed with `acq_create_continuous`'s header `@brief` and, now that jm
+    delivers a manifest doc to the stub, would have replaced the specific text
+    with a generic one. The header stays the single source for that prose.
+
+- **just-makeit pin 0.71.0 → 0.71.1.** It carries
+    [just-makeit#1191](https://github.com/just-buildit/just-makeit/issues/1191),
+    filed from here: a manifest `doc` edit never reached a sacred fragment's
+    runtime slot once that slot held content, so `help()` and a type checker
+    could tell a reader different things. Verified with the sentinel that
+    diagnosed it — under 0.71.0 it reached only the `.pyi`, under 0.71.1 it
+    reaches both. `jm apply` then corrected 26 fragments, one of which had
+    been advertising `steps(x)` for a method that takes `steps(x, out)`.
+
+- **just-makeit pin 0.71.1 → 0.73.0.** It carries
+    [just-makeit#1224](https://github.com/just-buildit/just-makeit/issues/1224),
+    filed from here — an `init_param` can now name another generated class
+    (`object = "frame.FrameDesc"`) instead of spelling the capsule string at
+    both ends — plus gh-1219, which matters here: the impl provenance marker
+    was emitted as one 132-column line into a `native/inc/**` header that
+    `c_format_command` excludes, so a project at this repo's 79 columns could
+    alternate between clean and STALE forever.
+
+- **just-makeit pin 0.73.0 → 0.73.1**, and ten `tlm` init-params adopt
+    gh-1224's `object = "dp_tlm"` in place of a capsule name spelled at both
+    ends with nothing checking they agree. 0.73.1 carries
+    [just-makeit#1234](https://github.com/just-buildit/just-makeit/issues/1234),
+    filed from here, plus gh-1229 — 20 `[module.X]` keys the validator accepted
+    and the writer silently dropped on the next mutating command, `capsule`
+    among them.
+
+- **`DsssBurstReceiver` composes `BurstCapture`.** The ring, the refine stage,
+    the retention rule and the claim rule moved out to the object certified for
+    them; what is left is driving the demodulator and owning the frame. The
+    public API is unchanged and the output is **bit-identical** — every payload
+    bit, event field and LLR, across single-call, blocked and mid-preamble
+    resume. Its blob nests the capture's (`STATE_VERSION` 4 → 5), and
+    `reset()`'s ring bug is gone by construction.
+    Closes [#1169](https://github.com/doppler-dsp/doppler/issues/1169).
+
+- **The waveform enum name tables have one C home, gated.** `just-makeit.toml`
+    has claimed since gh-285 to be their single source; measured, that was true
+    of the Python binding only, while `wfmgen.c` declared twelve of its own and
+    `wfm_json.c` seven. One pair had already drifted into OPPOSITE orders — the
+    `--data` sources — harmless only because one file compared its lookup
+    result where the other assigned it. All nineteen now live in
+    `native/inc/wfm/wfm_names.h`, each annotated with the `[[enum]]` that owns
+    it, and `make lint-wfm-enum-tables` holds the header, the manifest and the
+    C enums to each other. List order IS the enum value, so a copy that drifts
+    maps a flag to the wrong waveform. Design: `docs/design/waveform-enum-ssot.md`
+
+- **A waveform source carries `wfm_seq_t` for its preamble, spreading code
+    and sync word, instead of three pointer/length pairs.** Those pairs could
+    only ever describe a literal run of bits; `wfm_seq_t` already names a run
+    of bits *however produced*, so it subsumes them — the literal case is
+    `kind = WFM_SEQ_LITERAL`, which is what every caller already meant. This
+    is the carrier for the generated PN/Gold kinds, not yet a face that can
+    spell one: **behaviour-neutral**, with `wfmgen_flag_matrix.json`
+    byte-identical and 27 of its 35 cases replayed from their own `--record`.
+    Enabled by just-makeit 0.71.0's `c_ptr`/`c_len`.
+    Step 1 of [#762](https://github.com/doppler-dsp/doppler/issues/762).
+
+- **The wfmgen guide is four pages, not twelve** — one page per question a
+    reader actually has: what the model is and how to run it (index), what you
+    can generate (waveforms), how to put it in time and sweep it (scenes), and
+    how to do it from Python. All 67 flags are still documented, now across 4
+    pages instead of 12, and every removed page's anchors redirect. The
+    **recipes now execute**: they had been exempt from the doc gate because two
+    of the eight shared a fence with a `--continuous` command, and one of them
+    (`--symbols-file qam16.cf32`) referenced a file nothing created, so it could
+    not be copy-pasted at all.
+
+- **wfmgen's `--acq-code-hex` / `--data-code-hex` parse through `cvt`.** The
+    digit loop in `parse_hex_string` was a second statement of a conversion
+    `hex_to_bin` already owns — same MSB-first order, same four bits per
+    digit, same refusal on a bad char. Two copies of that is how a marker
+    comes to be expanded one way by the generator and another by a receiver.
+    The allocation stays at the call site, because the caller owns the array.
+
+- **The wfmgen guide now says what a source is, and that Python calls it a
+    `Synth`.** The pages spoke different dialects — `scenes.md` said "source"
+    34 times and never "Synth", `python.md` the reverse — and the two were
+    equated on one line inside a table cell. The guide index opens with the
+    distinction (*a source is WHAT plays, a segment is WHEN*), a diagram
+    showing sources stacking and segments sequencing, and a table of the same
+    thing's four names across C, JSON, CLI and Python.
+
+### Fixed
+
+- **The full-band acquisition search never looked at its outermost native
+    bin at an even coherent depth.** 1/D of a uniform Doppler prior was
+    undetectable at any C/N0 — the hole the coarse-Doppler bank fell into
+    between two channels. Fixed; the Pd model now derates scalloping over
+    the interpolated bin the search samples (0.47 → 0.63 predicted, 0.72
+    measured at D=8, 50 dB-Hz).
+    [#1183](https://github.com/doppler-dsp/doppler/issues/1183),
+    [#1179](https://github.com/doppler-dsp/doppler/issues/1179).
+
+- **`BurstCapture` refined to the wrong code period at its default sizing.**
+    The burst sizer escalated `n_noncoh` past refine's reach, so a
+    default-built capture reported `preamble_start` 9 and 3 periods late
+    on a 34 dB burst, with a margin that read *better* than a correct one.
+    A burst engine now never buys non-coherent looks (a burst has one
+    frame of preamble), and the capture refuses a pinned grid beyond its
+    reach. [#1181](https://github.com/doppler-dsp/doppler/issues/1181).
+
+- **`reset()` no longer leaves the history ring behind the stream.** The ring's
+    `head`/`tail` are monotonic ABSOLUTE counters, so emptying it by consuming
+    everything left them at the stream's last position while `samples_fed`
+    restarted at 0 — nothing was reachable, refine never ran, and writes were
+    refused. Measured on `DsssBurstReceiver`, from which this code was moved: a
+    second pass over the SAME capture returned nothing, with `dropped=67992`.
+    The receiver's own copy is
+    [#1169](https://github.com/doppler-dsp/doppler/issues/1169).
+
+- **A header example called a function that does not exist.**
+    `burst_despreader_core.h` showed `burst_despreader_step(obj, x)` — there is
+    no scalar step, because the object despreads a *block*: one prompt per
+    spread symbol, so a single input chip is not a symbol. The `@brief`
+    lifecycle line named it too. Invisible to the arity gate by construction,
+    which compares calls against functions *declared in the same header*;
+    found by compiling every `@code` block under `native/inc`, which is
+    [#1082](https://github.com/doppler-dsp/doppler/issues/1082)'s other half.
+
+- **A standalone chirp's sweep depends on how you read it**
+    ([#1115](https://github.com/doppler-dsp/doppler/issues/1115)) — `step()`
+    never pins the span, so it emits a constant tone at `--freq`. The CLI and
+    `Segment`/`Composer` pin up front and are unaffected; the waveform guide
+    now warns where a Python caller meets it.
+
+- **`wfmgen --detached` refuses what it cannot honour, instead of dropping
+    it.** It selects BLUE's detached-header format (`<out>.hdr` + `<out>.det`),
+    and only one destination honoured it — so `--realtime` was silently
+    ignored, and `--detached` itself was discarded for any other `--file-type`
+    or a `nats://` output. All four now exit 2 with a specific message.
+    Refusing rather than pacing settles gh-725: the `.hdr` carries the final
+    sample count and cannot be written until the drain ends, so nothing can
+    read the pair while it is paced. The tool's own `--help` had called it
+    "a detached background process" and filed it under REAL-TIME, which is
+    what made `--realtime` look applicable; it now sits under OUTPUT.
+
+- **Doc face parity covers properties now, and nine were already stale.** The
+    check compared methods only, so a property's `.pyi` could move while its
+    runtime `__doc__` sat unchanged — `help()` and a type checker telling a
+    reader different things, with every gate green. Found by walking into it:
+    `refine_span`'s correction reached the stub and not the fragment, and the
+    gate reported OK across the divergence. Properties are compared whole
+    (prose has no numpy sections to compare) with whitespace normalised, so
+    only the words count.
+    [#1090](https://github.com/doppler-dsp/doppler/issues/1090).
+
+- **A frame description whose derived field names no producing stage is now
+    refused, with the reason** — it used to generate a *different waveform* in
+    silence: 40 bits rather than 56, the unclaimed field dropped to zero
+    length, the payload's own bits overwritten, exit 0 and nothing on stderr.
+    Refused in `wfm_frame_desc_layout()`, where geometry is already decided,
+    so one check covers the C API, the scene JSON, the CLI and Python
+    ([#1155](https://github.com/doppler-dsp/doppler/issues/1155)).
+
+- **A spec's refused frame reaches the CLI as a sentence.**
+    `wfm_compose_from_json()` answers failure with a NULL, which can teach
+    nothing; `wfm_compose_from_json_why()` carries the frame rule's message
+    across, so `wfmgen --from-file` now names the missing `derived_by`
+    instead of printing "could not build the waveform spec".
+
+- **An emitting stage must cover the whole frame, and a description may hold
+    at most one.** `wfm_frame_desc_layout` sized `out_bits` from the stage's
+    cover while `wfm_frame_assemble` hands the kernel the whole frame, so a
+    partial cover laid out cleanly with every offset right and could then
+    never assemble — reported as a bare 0, indistinguishable from bad data.
+    Both are refused where the geometry is decided. Nothing in the tree
+    changes shape; all three emitting stages already cover everything.
+    See [frame-description.md](../../docs/design/frame-description.md).
+
+- **The header-example arity gate now actually runs.** It was in `LINT_TOOLS`
+    and in nothing else — no pre-commit hook, no CI step — and `make lint` runs
+    pre-commit, so the only way to execute it was to type
+    `make lint-header-example-arity` by hand. Nobody did, for the life of the
+    gate, and its 11-finding ratchet was never enforced. Verified by putting a
+    deliberate arity error in a header: `make lint` did not run the check at
+    all. With the hook it fails, naming both counts. Third instance of a gate
+    with no execution home in this repo; see doppler#1104 for the check that
+    would catch a fourth.
+
+- **The stream tests' work-queue cleanup is idempotent** — the teardown added
+    with the queue-residue fix deleted unconditionally, and a broker answers
+    `Not Found` for a stream already gone, so a *passing* test became a CI
+    ERROR against whichever test used the fixture last: **1 error beside 3369
+    passes**, on one interpreter of six, green on re-run ([#1147](https://github.com/doppler-dsp/doppler/issues/1147)).
+    Cleanup now tolerates the already-absent case only — a stream that exists
+    and cannot be deleted still fails the run, so the 40 GB regression
+    [#1136](https://github.com/doppler-dsp/doppler/issues/1136) gated for would still be caught.
+
+- **A work queue no longer grows without bound** — it was created file-backed
+    with `jsStreamConfig_Init` defaults (no MaxAge/MaxBytes/MaxMsgs) and nothing
+    ever deleted it; a work queue drops a frame only when a consumer *acks* it,
+    so a producer with no consumer was an unbounded disk sink — **40 GB** of
+    residue from repeated test runs ([#1136](https://github.com/doppler-dsp/doppler/issues/1136)). Auto-created queues now
+    carry a one-hour age bound (pre-provision the stream to choose your own),
+    and `Push.delete_stream()` lets a caller that owns the queue's lifetime end
+    it — never automatic, since outliving one producer is the point. A failed
+    send now also names the transport's error instead of a bare `"Send error"`.
+
+- **A new validator is now gated the moment its folder exists, as the process
+    page always claimed.** The tree-wide limits gate carried a hand-written
+    registry while `make validate-check` globbed, so a validator could render
+    its report, pass both the staleness and report-format gates, and have
+    every one of its limits asserted by nobody — three green gates and an
+    unasserted envelope. It discovers by glob now, and fails loudly on an
+    empty match. Closes
+    [#1144](https://github.com/doppler-dsp/doppler/issues/1144).
+
+- **The scene schema is linked from the page that owns scenes.** `scenes.md`
+    described the JSON schema in prose and never pointed at it; four other
+    pages named `docs/schema/wfmgen.schema.json` as a path in backticks, which
+    a reader cannot click and which says nothing about the file being
+    published. It is, at `schema/wfmgen.schema.json` in the built site, so the
+    normative description of every scene key is now one link from the guide.
+    Last item of the wfmgen pre-release review (PR 7).
+
+- **A markdown table that does not render is caught now**
+    (`scripts/check_md_tables.py`). A GFM header and its `| --- |` separator
+    must declare the same number of columns; when they disagree the block
+    ships as a paragraph of literal pipes. Nothing saw it — `mdformat`
+    reformats a mismatched table happily and the strict docs build has no
+    opinion — so it was found by a person reading the page. The gate also
+    catches a body row with the wrong cell count, which GFM drops silently.
+    Runs in `make docs-check` and `make lint`; clean across 309 files.
+
+- **Diagrams are legible in the dark theme, which is the default one** — three
+    pinned `fill:#ede7f6,color:#000`, so in `slate` they drew near-white text on
+    a near-white box; no stylesheet could fix it, because each diagram renders
+    into a closed shadow root. Fill and text now come from the palette, and
+    `scripts/check_mermaid_theme.py` fails any diagram that pins either
+    ([#1149](https://github.com/doppler-dsp/doppler/issues/1149)).
+
+- **The wfmgen guide's model is one timeline** — the index drew the
+    source/segment distinction and the object ladder as two pictures that
+    repeated each other; it is now a single left-to-right read of the sample
+    clock ([#1149](https://github.com/doppler-dsp/doppler/issues/1149)).
+
+- **The 13 wfmgen flags the docs described but never ran now have runnable
+    lines**, each on the page already explaining it and each carrying the number
+    it produces. Flag exercise goes **53 → 66 of 67**; the last entry, `-o`, is
+    unexercisable by construction, not undocumented ([#1149](https://github.com/doppler-dsp/doppler/issues/1149)).
+
+- **`min_gap`: the object derives the burst spacing a caller must leave.** The
+    documented rule was `max(0, refine_span - burst_len)` — short by the whole
+    detection-lag term, 32 samples against 528. It is now
+    `refine_span + reps*code_period - burst_len`, derived from the claim rule
+    and read back from `BurstCapture` and `DsssBurstReceiver`, so a caller
+    applies no rule at all. Checked on four geometries, each predicting a
+    different bound.
+    Closes [#1172](https://github.com/doppler-dsp/doppler/issues/1172).
+
+- **`MpskReceiverR` has a runnable example of its own.** It was the one
+    public class whose stub carried none — it had looked documented only by
+    inheriting its parent's docstring, which just-makeit 0.70.1 correctly
+    stopped a view doing. jm synthesises a "Create with defaults" doctest for
+    a constructor with no example block and renders the block when there is
+    one, so the C example on `mpsk_receiver_create_real()` was not an extra —
+    it *replaced* the Python one. That C usage now sits in the header's file
+    comment beside the parent's, where doxygen still shows it and jm never
+    looks; docstring coverage goes 1670 → 1671 and the C API loses nothing.
+
+- **Leftover JetStream work queues are now purged, and counted.** Every
+    `Push(endpoint)` provisions a durable `DP_WORK_<endpoint>` stream and
+    nothing removed one; `nats-down` only cleaned a broker this repo started,
+    while `start-nats.sh` reuses one already on 4222. One dev box had reached
+    **5,236 streams / 40.8 GiB**, and because a work queue is keyed by a
+    repeating endpoint, a run opened onto the previous era's queue — 174,133
+    unreadable frames — failing a compose test there while CI stayed green.
+    `nats-down` now purges first, `make nats-purge` is the remedy, and
+    `nats-up` fails above 500 — about 25 suite runs, at the measured 20 leaked
+    per run — rather than letting it reach four figures unseen.
+
+- **The acquisition bank calls the library's Doppler fold instead of spelling
+    it out.** `orchestrator._abs_doppler` carried its own copy of
+    `bin_to_signed`. It agreed with the canonical form at every grid size —
+    checked exhaustively for `n < 40` — which is exactly why it was worth
+    removing: this arithmetic has already surfaced as a receiver reporting
+    `tracking == 1` while decoding noise, when a search and its own hand-off
+    spelled it differently.
+    Closes [#1168](https://github.com/doppler-dsp/doppler/issues/1168).
+
+- **A Plan rendered a framed scene with no noise at all, at any SNR.**
+    `wfm_plan` kept a *borrowed* `frame` pointer into the composer
+    `plan_build()` destroys, and the read-after-free made every noise draw
+    fail silently — full sample count, exit 0, clean waveform. Caught by ASan;
+    found by `example-projects/burst-pipeline`, whose "28x once prepared" was
+    mostly the missing AWGN.
+    [#1158](https://github.com/doppler-dsp/doppler/issues/1158)
+
+- **One unparseable frame no longer ends a PULL work queue for good.** The
+    JetStream tier acks explicitly, so a frame destroyed without an ack stayed
+    pending, redelivered every `AckWait`, and held one of the consumer's 1000
+    `MaxAckPending` slots — measured on a queue carrying an older wire version
+    (`SIGS`/v1 vs today's `DPST`/v2): exactly **1000** failures, then
+    `DP_ERR_TIMEOUT` permanently, with 997k frames stacked behind it. Such a
+    frame is now `natsMsg_Term`'d — not acked, it was never processed — so the
+    queue moves past it while `recv` still reports the error rather than
+    silently skipping corruption.
+
+- **`refine_span` is start-to-start separation, not dead air.** Both sides of
+    the coalescing test are burst STARTS, so the two readings differ by a whole
+    burst — and reading it as the gap between bursts made a caller reserve ~9%
+    airtime for a constraint that was never there. The gap actually required is
+    `max(0, refine_span - burst_len)`, which is 0 for any realistic payload.
+    Behaviour is unchanged and was already correct; the docstring was not, on
+    all three faces. Reported with a reproducer in
+    [#1085](https://github.com/doppler-dsp/doppler/issues/1085).
+
+- **Re-vendored `standard.mk`, which now carries `gates-home-check`.** Upstream
+    added the converse of `gates-check`: a target sitting in `GATES_DEPS` that
+    no workflow runs used to pass without a word, so the repo could declare a
+    gate that guarded no pull request — the failure doppler recorded twice and
+    then found in `test-ubsan`/`test-tsan`, which had run on no PR ever. The
+    vendored copy being behind failed `standard-check` on every branch.
+    doppler passes the new gate: 26 gates, all with an execution home.
+
+- **Re-vendored `standard.mk` again.** Upstream widened what
+    `GATES_LOCAL_ONLY` documents — an aggregate target whose work already gates
+    a merge under other names now qualifies, alongside the original "cannot run
+    on a runner" case. Comment-only; `gates-check` still covers all 33 CI
+    make-targets and `gates-home-check` still finds 26 gates with an execution
+    home. The vendored copy being behind failed `standard-check` on every
+    branch, which is why this is its own change.
+
+- **The SigMF annotation reports what was rendered, not the range's `lo`.**
+    Each row took its timing from a replay of the ranged draws and its
+    frequency and SNR straight off the source struct — exact about *when* and
+    wrong about *what*, which is the half nobody audits. Measured against the
+    capture: up to **1224 Hz and 6.0 dB** out, a different operating point
+    entirely. Both halves come from one `wfm_compose_draws()` row now, a new
+    C API that reports each instance's drawn `freq`/`f_end`/`snr`/`level`
+    alongside its timing, and the composer renders through the same helpers.
+    `wfmgen:level_db` is new — a drawn `--level` had no key at all.
+    [#1086](https://github.com/doppler-dsp/doppler/issues/1086).
+
+- **`StreamSink`'s gain/peak/clip surface is tested now** — six of its ten
+    public entry points (`available`, `send_eos`, `set_gain`, `peak`,
+    `clip_fraction`, `track_clipping`) were mentioned in no C test anywhere,
+    so the whole reason the object has an API beyond open/send/close was
+    uncertified. Each new section is proven by sabotage. Certifying it
+    produced [#1117](https://github.com/doppler-dsp/doppler/issues/1117)
+    (three private float→int copies truncate, costing 6.0 dB) and
+    [#1118](https://github.com/doppler-dsp/doppler/issues/1118).
+
+- **The stream tests wait for readiness instead of guessing at it** — the
+    push/pull, pub/sub and req/rep fixtures replaced a fixed `time.sleep` with a
+    probe that proves the endpoint actually carries a frame, which is what the
+    sleep was standing in for ([#1131](https://github.com/doppler-dsp/doppler/issues/1131)). Three helpers, because the
+    patterns differ: a work queue persists so the probe is sent once, core NATS
+    drops a publish with no subscriber so it is repeated and drained, and
+    request/reply has to complete a round trip because a delivered-but-unanswered
+    request leaves both ends mid-exchange. The seven remaining sleeps each state
+    why they are not readiness waits.
+
+- **`make validate-check` tells a stale report apart from a validator that
+    never ran.** Any non-zero exit read as STALE and was answered with
+    `run 'make validate'` — but the common case is a fresh worktree where the
+    Python extensions are not built, and re-rendering a report cannot fix an
+    import. Staleness now has its own exit status (an uncaught exception also
+    exits 1, which is why the two were indistinguishable), a crash is reported
+    verbatim and names `make pyext`, and the classification moved into a
+    script so it can be sabotaged.
+    See [#1074](https://github.com/doppler-dsp/doppler/issues/1074).
+
+- **A wfm default is declared once and rendered for C**, so the CLI, a C
+    caller and Python cannot disagree about one. `wfmgen.c` restated the
+    eleven values as a struct literal whose own comment said it *mirrored*
+    the manifest, with no gate between them — and `modulation`/`crc` were
+    restated as enum **indices**, so prepending an entry to `[[enum]] bitmod`
+    would have changed a default with nothing failing.
+    `scripts/gen_wfm_defaults.py` renders `wfm_defaults.h` from the manifest,
+    resolving an enum default through the field's own declared `enum`.
+    Closes [#1142](https://github.com/doppler-dsp/doppler/issues/1142).
+
+- **All three wfmgen faces are asserted bit-identical again.** The CLI was
+    compared to a float32 tolerance while [#1003](https://github.com/doppler-dsp/doppler/issues/1003)
+    stood — up to 32 ULP once a scene carried noise. It does not reproduce:
+    bit-identical at the commit the issue was filed against, at every commit
+    since, and with the CLI built `-O2 -fno-fast-math` against an
+    `-O3 -ffast-math` extension, which was the obvious mechanism and is not
+    the one. The strong claim is back, so a divergence anywhere reports
+    itself rather than being tolerated.
+
+- **A page citing a `wfmgen` flag the parser rejects is caught now.** The gate
+    asked one direction — every accepted flag is documented — so a renamed or
+    deleted flag left the docs telling readers to type something the tool
+    refuses. The reverse was left out because a prose scan cannot tell whose
+    flag `--build` is; asking the question only of tokens inside a **wfmgen
+    invocation** gives ownership for free. Measured first, as the issue asked:
+    49 of 63 flags (78%) appear in such a fence, so the check sees most of the
+    surface rather than a corner.
+    [#1054](https://github.com/doppler-dsp/doppler/issues/1054).
+
 ## [0.45.0] — 2026-08-28
 
 ### Added
@@ -12134,6 +12935,7 @@ ______________________________________________________________________
 [0.43.2]: https://github.com/doppler-dsp/doppler/compare/v0.43.1...v0.43.2
 [0.44.0]: https://github.com/doppler-dsp/doppler/compare/v0.43.2...v0.44.0
 [0.45.0]: https://github.com/doppler-dsp/doppler/compare/v0.44.0...v0.45.0
+[0.46.0]: https://github.com/doppler-dsp/doppler/compare/v0.45.0...v0.46.0
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.6...v0.5.0
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
@@ -12144,4 +12946,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.45.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.46.0...HEAD

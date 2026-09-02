@@ -66,7 +66,8 @@ lower now. Treat 5 dB as the current floor, not a settled limit.
 
 ### 1.3 Derived: tracking loop bandwidths
 
-Every tracking loop — code DLL, Costas / carrier, FLL assist — is sized to
+Every tracking loop — the code DLL and the Costas carrier loop; there is
+no FLL — is sized to
 a loop SNR `rho ≥ 20 dB` at the Es/N0 floor, using the PLL relation
 `rho(dB) = Es/N0(dB) − 10·log10(2·bn)`, where `bn` is the loop's noise
 bandwidth normalised to its own update rate (`doppler.track.LoopFilter`'s
@@ -186,7 +187,7 @@ underlying engine):
 | `chip_phase`       | `float`    | Code phase in CHIPS (not raw samples) -- the code-tracking seed for the next stage.                                                                                                                                                                                                                                                                 |
 | `doppler_hz_est`   | `float`    | Coarse Doppler estimate in Hz, already folded/signed/scaled from the raw `doppler_bin` index.                                                                                                                                                                                                                                                       |
 | `doppler_res_hz`   | `float`    | Width of that estimate -- the remaining uncertainty (±`doppler_res_hz`/2) a downstream refine/tracking stage still has to close.                                                                                                                                                                                                                    |
-| `cn0_dbhz_est`     | `float`    | Estimated carrier-to-noise density (dB-Hz) -- informs downstream loop-bandwidth/dwell sizing (e.g. `fll_block_epochs`, still an open question in the plan).                                                                                                                                                                                         |
+| `cn0_dbhz_est`     | `float`    | Estimated carrier-to-noise density (dB-Hz) -- informs downstream loop-bandwidth and dwell sizing.                                                                                                                                                                                                                                                   |
 | `peak_mag`         | `float`    | Raw CFAR peak magnitude -- diagnostic/observability passthrough, not needed for tracking math.                                                                                                                                                                                                                                                      |
 | `noise_est`        | `float`    | Raw CFAR noise-floor estimate -- diagnostic passthrough.                                                                                                                                                                                                                                                                                            |
 | `test_stat`        | `float`    | Raw CFAR gating statistic -- diagnostic passthrough.                                                                                                                                                                                                                                                                                                |

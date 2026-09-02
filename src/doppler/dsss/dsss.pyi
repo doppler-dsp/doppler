@@ -1066,8 +1066,8 @@ class Acquisition:
         two-epoch rule for a peak at an already-listed code phase -- a data
         transition inside the epoch splits one emitter into twins at its own
         code phase on other tiles, so such a peak is held for one dwell and
-        listed only if it is still there, at the same tile, on the next. Each
-        listed peak is one acq_result_t from acq_push(), all of a dwell's
+        listed only if it was there, at the same tile, on the previous one.
+        Each listed peak is one acq_result_t from acq_push(), all of a dwell's
         sharing its `samples_consumed` and `noise_est`. A held twin takes a
         slot of the `n` for that dwell but is not reported. The threshold does
         not change: a second peak is another draw from the same cells against

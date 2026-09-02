@@ -734,7 +734,21 @@ double burst_capture_get_doppler_span_hz (const burst_capture_state_t *state);
 size_t burst_capture_state_bytes (const burst_capture_state_t *state);
 /** @brief Serialize into @p blob, which must be state_bytes() long. */
 void burst_capture_get_state (const burst_capture_state_t *state, void *blob);
-/** @brief Restore from @p blob. @return DP_OK or DP_ERR_INVALID. */
+/**
+ * @brief Restore from @p blob. @return DP_OK or DP_ERR_INVALID.
+ *
+ * A wrong-object, wrong-version, wrong-size or foreign-endian blob is
+ * refused, never reinterpreted; so is a blob from the other flavour (a
+ * backed and an in-RAM capture have different `state_bytes()`). A backed
+ * capture restores POSITIONS only -- the samples are the file's -- so it
+ * also refuses a blob whose retained span the file cannot hold: a file
+ * create() made fresh that this capture has not written that far into,
+ * or a span the ring has since wrapped past (more than the ring's
+ * capacity pushed since the checkpoint). A capture restoring a checkpoint
+ * it took itself is the normal case and is accepted (doppler#1190):
+ * `set_state(blob) -> push(chunk) -> get_state()` per call is a service
+ * shape this object supports, on both flavours.
+ */
 int burst_capture_set_state (burst_capture_state_t *state, const void *blob);
 
 uint64_t burst_capture_get_preamble_start(const burst_capture_state_t *state);

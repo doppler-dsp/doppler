@@ -1380,6 +1380,121 @@ test_history_survives_destroying_the_capture (void)
 }
 
 /**
+ * The live capture restores its own checkpoint (doppler#1190).
+ *
+ * The object that CREATED the file is the one whose `recovered` is zero, and
+ * it used to refuse every blob it took after a push -- the samples the blob
+ * named were in the file, in the bytes it had written itself. A fresh object
+ * over the same file accepted the same blob. `set_state -> push -> get_state`
+ * per call is the service shape a downstream demo runs, so: a checkpoint
+ * taken mid-preamble is restored at once by the SAME object, which then
+ * finds the burst at the right start; a checkpoint taken after the capture
+ * restores after a further push that stays inside the ring. One taken
+ * before any push is accepted too, as it always was.
+ */
+static int
+test_the_live_capture_restores_its_own_checkpoint (void)
+{
+  char path[256];
+  scratch_path (path, sizeof path, "self");
+  remove (path);
+
+  static float complex cap[200000];
+  const size_t         at    = 60000u;
+  const size_t         n_cap = sizeof cap / sizeof *cap;
+  build_capture (cap, n_cap, &at, 1u, 0.02, 3u);
+  const size_t cut = at + 2u * ACQ_SF * SPC; /* inside the preamble */
+
+  burst_capture_state_t *a = burst_capture_create_backed (
+      path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
+      0.9, 0);
+  DP_REQUIRE (a != NULL);
+  DP_CHECK (a->recovered == 0); /* the file did not exist yet */
+
+  size_t cb    = burst_capture_state_bytes (a);
+  void  *empty = malloc (cb);
+  void  *blob  = malloc (cb);
+  DP_REQUIRE (empty != NULL && blob != NULL);
+  burst_capture_get_state (a, empty); /* before any push */
+
+  static float complex out[4 * BURST_LEN];
+  DP_CHECK (burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out)
+            == 0);
+  burst_capture_get_state (a, blob); /* mid-preamble, history in the file */
+  /* The issue's case: the same object, its own post-push blob, at once --
+     then the burst is found at the right start, from the bytes this object
+     wrote. */
+  DP_CHECK (burst_capture_set_state (a, blob) == DP_OK);
+  DP_CHECK (a->samples_fed == cut);
+  DP_CHECK (burst_capture_push (a, cap + cut, n_cap - cut, out,
+                                sizeof out / sizeof *out)
+            == BURST_LEN);
+  DP_CHECK (a->preamble_start == at);
+  /* A checkpoint after the capture, restored after a further push that
+     stays inside the ring: the same object, later in its life. */
+  burst_capture_get_state (a, blob);
+  DP_CHECK (burst_capture_push (a, cap, 1000u, out, sizeof out / sizeof *out)
+            == 0);
+  DP_CHECK (burst_capture_set_state (a, blob) == DP_OK);
+  DP_CHECK (a->samples_fed == n_cap);
+  /* And the pre-push checkpoint, which names no history, still restores. */
+  DP_CHECK (burst_capture_set_state (a, empty) == DP_OK);
+  DP_CHECK (a->samples_fed == 0);
+
+  free (empty);
+  free (blob);
+  burst_capture_destroy (a);
+  remove (path);
+  return 0;
+}
+
+/**
+ * A span the ring has wrapped past is refused: the file no longer holds it.
+ *
+ * The same object, having pushed more than the ring's capacity beyond a
+ * checkpoint, cannot restore it -- the bytes the blob names have been
+ * overwritten, and a resume there would read the wrong stream's samples as
+ * history. Sibling of the fresh-file refusal below; both are the one rule,
+ * "the file must hold the span the blob names".
+ */
+static int
+test_a_span_the_ring_wrapped_past_is_refused (void)
+{
+  char path[256];
+  scratch_path (path, sizeof path, "wrap");
+  remove (path);
+
+  static float complex cap[200000];
+  const size_t         at    = 60000u;
+  const size_t         n_cap = sizeof cap / sizeof *cap;
+  build_capture (cap, n_cap, &at, 1u, 0.02, 3u);
+  const size_t cut = at + 2u * ACQ_SF * SPC;
+
+  burst_capture_state_t *a = burst_capture_create_backed (
+      path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
+      0.9, 0);
+  DP_REQUIRE (a != NULL);
+  static float complex out[4 * BURST_LEN];
+  burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out);
+  size_t cb   = burst_capture_state_bytes (a);
+  void  *blob = malloc (cb);
+  DP_REQUIRE (blob != NULL);
+  burst_capture_get_state (a, blob);
+
+  /* Push on past the ring's capacity from the checkpoint's span. */
+  const size_t capacity = a->hist->capacity;
+  DP_REQUIRE (n_cap - cut > capacity);
+  burst_capture_push (a, cap + cut, n_cap - cut, out,
+                      sizeof out / sizeof *out);
+  DP_CHECK (burst_capture_set_state (a, blob) == DP_ERR_INVALID);
+
+  free (blob);
+  burst_capture_destroy (a);
+  remove (path);
+  return 0;
+}
+
+/**
  * A blob claiming retained history, restored against a file that has none, is
  * REFUSED rather than resumed into silence.
  *
@@ -1527,6 +1642,10 @@ main (void)
   if (test_history_survives_destroying_the_capture ())
     return 1;
   if (test_a_blob_without_its_file_is_refused ())
+    return 1;
+  if (test_the_live_capture_restores_its_own_checkpoint ())
+    return 1;
+  if (test_a_span_the_ring_wrapped_past_is_refused ())
     return 1;
   if (test_backed_rejects_a_bad_path ())
     return 1;

@@ -382,12 +382,18 @@ separates.
     `state_bytes()` differs, so jm's length check rejects it. They are
     different configurations, and silently accepting one for the other would
     resume a capture whose history was somewhere else entirely.
-- **A blob claiming retained history, restored against a file that has none,
-    is refused.** `create()` reports whether it adopted a ring of exactly this
-    geometry or made a fresh (zeroed) one. Without that check the positions
-    would be perfectly valid and the samples would be zeros, so the capture
-    would simply never find another burst — indistinguishable from a quiet
-    stream, which is the failure this object exists to prevent.
+- **A blob claiming retained history the file cannot hold is refused.** The
+    file holds the span a blob names when `create()` adopted a ring of
+    exactly this geometry with history in it, or when this capture wrote it
+    itself — its ring head is its own stream position — and in either case
+    only while the span is still inside the ring. Without that check the
+    positions would be perfectly valid and the samples would be zeros or
+    another stream's, so the capture would simply never find another burst
+    — indistinguishable from a quiet stream, which is the failure this
+    object exists to prevent. What is *not* refused: a live capture
+    restoring a checkpoint it took itself, after any number of pushes
+    (#1190) — `set_state → push → get_state` per call is a supported
+    service shape on both flavours.
 
 ### 9.4 Why a view rather than an argument
 

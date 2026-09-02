@@ -997,10 +997,10 @@ int burst_capture_set_state (
 
 **Returns:**
 
-DP\_OK or DP\_ERR\_INVALID. 
+DP\_OK or DP\_ERR\_INVALID.
 
 
-
+A wrong-object, wrong-version, wrong-size or foreign-endian blob is refused, never reinterpreted; so is a blob from the other flavour (a backed and an in-RAM capture have different `state_bytes()`). A backed capture restores POSITIONS only  the samples are the file's  so it also refuses a blob whose retained span the file cannot hold: a file create() made fresh that this capture has not written that far into, or a span the ring has since wrapped past (more than the ring's capacity pushed since the checkpoint). A capture restoring a checkpoint it took itself is the normal case and is accepted (doppler#1190): `set_state(blob) -> push(chunk) -> get_state()` per call is a service shape this object supports, on both flavours. 
 
 
         

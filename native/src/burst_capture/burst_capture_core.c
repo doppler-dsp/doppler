@@ -1194,14 +1194,30 @@ burst_capture_set_state (burst_capture_state_t *s, const void *blob)
          read at an absolute sample index lands where the saving capture had
          it, in the very bytes it wrote.
 
-         Unless the file was not there. create() reports whether it adopted a
-         ring of this exact geometry or made a fresh (zeroed) one, and a blob
-         that claims retained history against a fresh file is a resume into
-         silence: the positions would be right and the samples would be zeros,
-         so every later burst would simply not be found. Refuse it. */
-      if (n && !s->recovered)
-        return DP_ERR_INVALID;
+         Unless the file does not hold them. The file holds the span the blob
+         names, `[head - n, head)`, in two cases: create() adopted a ring of
+         this exact geometry with history in it (`recovered`), or THIS object
+         wrote it -- its ring head is its own stream position, so a span
+         ending at or before it is in the file in the very bytes it put
+         there, which is what lets a live capture restore its own checkpoint
+         (doppler#1190: the object that created the file has `recovered`
+         zero for ever, and used to refuse every blob it took after a push,
+         while a fresh object over the same file accepted them). Either way
+         the span must still be inside the ring: past the capacity it has
+         been overwritten. A blob that claims retained history the file
+         cannot hold is a resume into silence -- the positions would be
+         right and the samples zeros or someone else's, so every later burst
+         would simply not be found. Refuse it. */
       uint64_t head = s->samples_fed;
+      {
+        const uint64_t from = head - (uint64_t)n;
+        const uint64_t mine = DP_LOAD_ACQ (&s->hist->head);
+        const int      have = s->recovered || mine >= head;
+        const int      overwritten
+            = mine > from && mine - from > (uint64_t)s->hist->capacity;
+        if (n && (!have || overwritten))
+          return DP_ERR_INVALID;
+      }
       DP_STORE_REL (&s->hist->tail, (size_t)(head - (uint64_t)n));
       DP_STORE_REL (&s->hist->head, (size_t)head);
     }

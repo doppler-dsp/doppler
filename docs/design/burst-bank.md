@@ -170,8 +170,167 @@ validation report), document (header `@code` on every public function, a C
 example and a Python example — the Python one with a coverage figure for a
 gallery page — and both benchmarks), land.
 
-## 8. See also
+## 9. Question 2 — the sign fold at the exact boundary
 
+### 9.1 Context: what the fold is, and how wide
+
+At an even coherent depth `D` the slow-time DFT has a Nyquist bin, and
+`dp_fftfreq` reports it as `−span` — the one fold this repository keeps in
+one place. A target whose residual Doppler in channel `k` lies in the upper
+half of that bin, `[span − res/2, span]`, is therefore reported at `−span`
+and lands at an absolute Doppler of `f_k − span`: **wrong by `2·span`, one
+channel spacing.** Channel `k+1` sees the same target at a residual of
+`−span − ε`, which the periodic slow-time transform aliases into its own
+Nyquist bin and reports as `−span`, so `f_{k+1} − span = f_k + span`:
+**right, to within half a bin.** Both neighbours see it at `sinc(0.5)`,
+−3.9 dB, so the dedup's *keep the stronger* is a coin toss between a right
+answer and one that is `D` bins off.
+
+The strip is half a bin wide per boundary and every boundary has one, so a
+uniform Doppler prior puts `1/(2D)` of all targets in a strip and about
+half of those come out wrong: **~`1/(4D)` of acquisitions** — 6% at
+`D = 4`, 3% at `D = 8`. The demodulator pulls in a seed error of 4 bins and
+fails at 8 ([§3.3](dsss-burst-receiver.md)), so at `D = 8` every one of
+those is a lost burst, and at `D = 4` it is a coin toss on top of a coin
+toss. Odd `D` has no Nyquist bin and no fold; the outermost bin is reported
+at `±(span − res/2)`, sign right.
+
+None of this existed before #1183 — the strip was simply not searched, and
+the target was lost outright instead of mis-reported. Fixing the hole
+exposed the fold.
+
+### 9.2 The options
+
+|                                              | mechanism                                                                                                                                                                             | cost                                                                                                                             | what it does not fix                                                      |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| **(i) resolve in the dedup**                 | two detections with the same code phase whose Dopplers differ by exactly one spacing are one target *on the boundary*; report the boundary                                            | none in channels or gain; needs BOTH neighbours to have detected (each at −3.9 dB)                                               | a boundary target seen by one neighbour only is still a coin toss         |
+| **(ii) overlap the channels**                | space at `(D−1)/D · 2·span`: the strip of channel `k` sits a full bin inside channel `k+1`, which sees it at full amplitude while `k` sees it at −3.9 dB, so *stronger wins* is right | `D/(D−1)` more channels: +33% at `D = 4`, +14% at `D = 8`                                                                        | nothing, if the dedup window is one `res`                                 |
+| **(iii) prefer an odd depth**                | with no design point size `D = reps` if odd, `reps − 1` if even; with one, let the sizer skip even depths                                                                             | up to `10·log10(D/(D−1))` of coherent gain: 1.2 dB at 4, 0.6 dB at 8; and a link with `reps = 4` loses a quarter of its preamble | nothing — there is no fold to fix                                         |
+| **(iv) report the Nyquist bin as ambiguous** | the engine flags a hit in the Nyquist bin; the channel reports a Doppler magnitude of `span` with a sign the bank resolves from the neighbour                                         | an engine API change and a flag through the capture's event                                                                      | the single-channel pod (`coarse-channel.md` §2.2) has no neighbour to ask |
+
+(i) and (ii) compose: overlap makes the strip's owner unambiguous, and the
+dedup rule then only has to keep the stronger. (iii) is the only one that
+helps the single-channel pod, because it is the only one that removes the
+ambiguity *inside* a channel.
+
+### 9.3 The work that answers it
+
+1. **Confirm the strip and its width on the engine**, single channel,
+    `D = 4` and `8`: sweep residual Doppler across `[span − res, span]` in
+    `res/8` steps, 40 trials each, and tabulate the reported sign and the
+    absolute error. Expected: a clean step at `span − res/2` from right to
+    `−2·span`. This is the sweep `acq`'s report should carry as a
+    characterization row, since the fold is the engine's.
+1. **Measure the rate at the bank**, `K = 3`, targets uniform over the bank's
+    width, `reps ∈ {4, 8}`, 600 trials: the fraction of dedup'd detections
+    whose Doppler is off by more than 4 bins. Expected ~`1/(4D)`. This is
+    the number the options are judged against.
+1. **Implement (i) as a pure function** over `(doppler_hz, code_phase,  test_stat)` tuples — the fleet aggregator needs it in that form anyway
+    ([`coarse-channel.md`](coarse-channel.md) §2.2) — and re-measure step 2.
+1. **Re-measure step 2 with (ii)**, spacing at `(D−1)/D · 2·span`, and
+    record the channel count.
+1. **Re-measure step 2 with (iii)** at `reps = 4 → D = 3` and `reps = 8 → D  = 7`, and record the Pd at the design point beside it — the gain given
+    up is only a cost if it moves Pd at the C/N0 the link runs at.
+1. **Decide by the demodulator's number**: the option, or pair, that gets
+    the >4-bin error rate below the design `pfa` (a mis-reported Doppler is
+    a false burst as far as the demodulator is concerned) at the smallest
+    channel count wins; (iii) is adopted for the single-channel pod
+    regardless if its cost in Pd is below the report's resolution.
+
+Steps 1–2 are Python over the shipped engine (the sweep scripts from #1183
+do most of it). Steps 3–5 are the bank's characterization subject, written
+once and run with each option switched in.
+
+## 10. Question 3 — parallelism, and what it is for
+
+### 10.1 Three motivations, three different requirements
+
+The maintainer named four reasons the bank runs in parallel, and they do
+not ask for the same thing:
+
+- **Frequency-span coverage.** `K = ceil(U / 2·span)`, and `span =   chip_rate / (2·sf)` runs from tens of Hz at 50 sym/s to tens of kHz at
+    1 Msym/s. At the low-rate end a modest uncertainty is *hundreds* of
+    channels, each a DDC and a capture over the same stream. This is a
+    throughput requirement: the bank must keep up with the source at `K`
+    times the per-channel cost, and the only way it does is by putting
+    channels on cores.
+
+- **Resource and load balancing.** Channels are independent, equal-cost
+    units of work with no shared state, which makes them the natural unit
+    to place — across the cores of one node, or across the pods of a fleet
+    (`coarse-channel.md` §2.2). This is a *shape* requirement: the unit of
+    work must be addressable alone and its state must travel.
+
+- **Multiple simultaneous signals at different Dopplers.** Two bursts, two
+    channels, at the same time. This is an *independence* requirement: a
+    capture in channel `k` must not suppress, delay or share a queue with a
+    capture in channel `j`, and the dedup must collapse only detections that
+    are the same target — same code phase, Doppler within one `res` — and
+    never two signals that happen to overlap in time. Each capture already
+    owns its own ring, queue and suppression span; the bank must not
+    introduce anything shared between them on the push path.
+
+- **Speed.** Distinct from coverage: coverage sets `K`, speed is whether
+    one block's work across all `K` finishes inside the block's own duration
+    — real-time keep-up at the high-rate end, where the source is tens of
+    MSa/s and even `K = 3` is three DDCs and three searches per block — and
+    the latency from a burst's last sample to its window, which a serial
+    bank stretches by `K` times the per-channel cost. This is the
+    requirement the benchmark measures directly, and the one where per-call
+    thread creation (option (b) below) can cost more than it buys at small
+    blocks.
+
+The third is a correctness property the design already has and the
+characterization must pin (two bursts, overlapping in time, three channels
+apart: both captured, neither delayed). The other three are what the
+mechanism question is about — coverage and speed decide whether the bank
+must thread at all, load balancing decides what the unit of work is.
+
+### 10.2 The options
+
+|                                                    | mechanism                                                                                       | fits                                                                                | cost                                                                                                                                                                       |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **(a) serial `push`; parallelism is the caller's** | the Python pool over per-channel handles, as today; a C caller writes its own loop              | load balancing (channels are handles); span coverage only if the caller threads     | needs the channel to be addressable — shape B of `coarse-channel.md`; a C caller gets no scaling for free                                                                  |
+| **(b) `dp_parallel_for` inside `push`, opt-in**    | `burst_bank_set_threads(n)`; `push` fans channels across up to `n` workers, serial when `n ≤ 1` | span coverage for every caller; bit-identical to serial by `dp_parallel`'s contract | `dp_parallel_for` creates its workers **per call** — there is no pool — so each push pays `n` thread creations; at a 4096-sample block that is a real fraction of the work |
+| **(c) a separate `push_parallel`**                 | two entry points, one contract                                                                  | as (b)                                                                              | two faces of one function; a caller has to choose per call                                                                                                                 |
+
+(b) over (c): a thread count is configuration, not a verb, and the serial
+fallback is already inside `dp_parallel_for`. The open question is not the
+API but whether per-call thread creation is affordable at the block sizes
+the link uses — and if it is not, whether the bank grows a persistent pool
+(the repository's first) or leaves scaling to the caller's pool, as (a).
+
+### 10.3 The work that answers it
+
+1. **Measure the per-push cost floor.** Time `dp_parallel_for` with an
+    empty body for `n ∈ {2, 4, 8, 16}` workers: that is the thread-creation
+    tax per push, in microseconds, on the build box and on a CI runner.
+1. **Bench the bank three ways** at `K ∈ {3, 9, 27}` and block sizes
+    `{4096, 65536, 1M}`: serial; `dp_parallel_for` with `n = K` and `n =  cores`; the Python pool over channel handles. `make bench-interleaved`
+    across the three, minimum-of-runs, as `benchmarking.md` requires.
+    Report speedup against serial and the block size at which (b) breaks
+    even with (a).
+1. **Compute the keep-up requirement** for the two ends of the envelope:
+    `K` and the per-channel cost per source sample at 50 sym/s and 1 Msym/s
+    (the per-channel cost is the DDC plus the capture's push, both already
+    benchmarked), against the source rate, and the window latency
+    `K · t_channel(block)` beside it. That says whether a single node keeps
+    up serially, with (b), or not at all — the last is the case where the
+    fleet (load balancing) is not optional — and whether the latency at the
+    link's block size is inside what a downstream demodulator tolerates.
+1. **Pin independence.** Two bursts overlapping in time at Dopplers three
+    channels apart: both captured, each at its exact sample, neither
+    channel's `pending` moved by the other. A C test, sabotage-proven by
+    sharing one queue.
+1. **TSan.** `make test-tsan` over the bank's C test with (b) enabled at `n  = K`; a race is a defect, not a flake.
+
+Steps 1–2 are the bank's benchmarks, which the standard owes anyway. Step 3
+is arithmetic on published numbers. Steps 4–5 are C pins.
+
+## 11. See also
+
+- [`coarse-channel.md`](coarse-channel.md) — question 1: is the channel
+    an object or a slice of the bank.
 - [`burst-capture.md`](burst-capture.md) — what each channel is, §11 for the
     sizing contract and hold/release.
 - [`dsss-acquisition.md`](dsss-acquisition.md) — the engine, and the

@@ -992,7 +992,9 @@ decision rather than a given:
     with an exclusion zone around it (a bin in Doppler, a chip in code
     phase) so one emitter is not reported as several — a multi-peak report
     the engine does not make today. Then **power**: a 1023-chip Gold code's
-    cross-correlation floor is about −24 dB, so an emitter that much weaker
+    cross-correlation floor is about −24 dB — on the searcher's actual
+    surface, with data and a Doppler straddle, **−13 to −16 dB** (§12.2) —
+    so an emitter that much weaker
     than the strongest in the same surface sits under the strongest one's
     sidelobes and is found only by cancelling the strong one first
     (successive interference cancellation) — and two emitters at the same
@@ -1073,10 +1075,11 @@ record — is already there.
     separated by code phase, power and Doppler on one surface. A channel
     therefore needs a multi-peak report per dwell with exclusion zones, and
     the engine has none. Open in its place: the **power spread** between
-    emitters that are up at once — inside the Gold code's ~−24 dB
-    cross-correlation floor a multi-peak report suffices; beyond it the
-    weak ones need the strong ones cancelled first, which is a different
-    object.
+    emitters that are up at once — inside the floor a multi-peak report
+    suffices; beyond it the weak ones need the strong ones cancelled first,
+    which is a different object. The floor is measured: −13 dB in the
+    operating case, not the Gold bound's −24 (§12.2). Still open: the
+    spread itself.
 
 ______________________________________________________________________
 
@@ -1207,7 +1210,9 @@ both — provided the second *is* a peak above threshold. A strong emitter
 does not only put one peak on the surface: a 1023-chip Gold code's
 cross-correlation with itself at every other lag is not zero, and the
 maintainer's figure for that floor is **about −24 dB** below the peak
-(§5.3, not re-derived here). That floor
+(§5.3), and §12.2 measured it on the engine's own surface: exactly that
+where the bound applies, and **−13 dB** once the emitter carries data and
+sits off its tile's centre — the operating case. That floor
 lies across the whole surface — every Doppler bin, every code phase — so an
 emitter weaker than the strongest by more than the floor plus the
 detection margin is under the strongest one's sidelobes: it is not a peak,
@@ -1231,12 +1236,11 @@ it the weak emitters need the strong ones cancelled first. This page
 covers both branches (§9), so that whichever way the number falls the page
 already says what to build.
 
-Two cautions about the number itself, for the work in §12. The −24 dB is
-the three-valued bound for a full-period, zero-Doppler cross-correlation;
-at a Doppler offset the correlation is partial-period and the bound does
-not apply as stated. And it is a *maximum* over lags — the RMS floor of a
-1023-chip code is nearer `1/√1023`, about −30 dB — so which of the two the
-detector experiences is a measurement (§12 step 1), not a lookup.
+The −24 dB is the three-valued bound for a full-period, zero-Doppler
+cross-correlation, and §12.2 shows why it is not the design number: a
+data transition inside the epoch or a half-tile Doppler offset — the
+searcher's normal case — raises the worst cell at another code phase to
+−16 dB, and both together to −13. The fork below is at **−13 dB**.
 
 ### 6.4 The throughput floor
 
@@ -1265,14 +1269,13 @@ margin, at the full uncertainty**. Doppler pre-compensation to ±5 kHz
 takes the searcher to 3 or 7 tiles, an eightfold cut in its cost and none
 in anyone else's; the page designs at ±50 kHz and step 8 records both.
 
-The one measured number is an order of magnitude, not a price.
-`burst-bank.md` §10.4 put a `DDC → BurstCapture` channel at **47–51 ns
-per source sample** — but on the 3.069 Mcps waveform, with its own
-decimation, and with the front end's share of it unmeasured, so it does
-not transfer to this rate as a figure. Taken as it stands it is 62% of
-one core at 13 MSa/s and 1.4× real time at 30, for one channel and no
-receiver; which is enough to say the chain is priced near the budget
-before the population is on it. Three things follow for the shapes:
+The per-stage numbers are measured (§12.1): the searcher over ±50 kHz is
+**2.1× real time on one core** at either chip rate, one tracking receiver
+is **0.44 of a core**, and the arbitrary-ratio front end is 0.18 — so the
+chain is over the budget on one core before the population is on it, and
+the population is about 7.6 cores at the operating point. Three things
+follow for the shapes, and the first two are now requirements rather than
+expectations:
 
 - **One front-end DDC, shared, on its slowest path — on purpose.** There
     is one frequency channel, so the only stage at the input rate is one
@@ -1710,8 +1713,8 @@ elsewhere, the record describes it here.
 
 ### 11.4 The replica output
 
-On the strong branch of §9 — emitters more than the Gold
-code's ~−24 dB cross-correlation floor apart in power — the searcher cancels
+On the strong branch of §9 — emitters more than the measured floor
+(−13 dB, §12.2) apart in power — the searcher cancels
 every assigned emitter from its input before it correlates, and the only
 replica that is right through data modulation is the assigned receiver's: it
 holds the live carrier's phase and frequency, the `Dll`'s code phase, the
@@ -1768,6 +1771,11 @@ ______________________________________________________________________
     three-valued −24 dB at zero Doppler, something between that and −30 dB
     elsewhere. This is the number the branch decision uses, and it is the
     engine's, so it belongs in `acq`'s characterization.
+    **Done (§12.2):** the Gold bound exactly where it applies; −16 dB with
+    a data transition or a half-tile offset, −13 with both; the reference
+    does not rise. The Doppler-offset axis was taken at 0 and 0.5 tile,
+    not the four values planned — the twin peaks a transition makes
+    settled the question before the rest of the sweep was needed.
 1. **Separability of two equal emitters.** Two emitters at the design
     C/N0 separated by `Δf ∈ {0.5, 1, 2, 4}` bins and
     `Δτ ∈ {0.5, 1, 2, 4}` chips, 200 trials per cell: Pd of *both* under
@@ -1839,6 +1847,10 @@ ______________________________________________________________________
     At 1.0 the requirement is missed by its own words, and the stage that
     owns the excess is the next thing to attack — §6.4's channel number
     says today's chain is already priced near it.
+    **Done, per stage (§12.1):** DDC 0.18 of a core, searcher 2.1 at ±50
+    kHz, one receiver 0.44, slicing +6–11%, receivers add linearly. Not
+    done: the whole population as one run with its detection count
+    beside the rate, which needs the orchestrator.
 1. **Decide by the spread.** The application's operating spread
     (§5.4 question 7) against step 3's knee: inside,
     branch one ships and (iii) is not built; beyond, (iii) is built and
@@ -2056,6 +2068,16 @@ table. That holder becomes load-bearing only on the strong branch, because
 is implementation, not design: the hand-off-mode constructor (§6.1), the
 lost state and the idle it resets to, the status record (§10), and, for
 the strong branch, a replica output.
+
+Of the numbers, three are now measured and one is not: the budget
+(§12.1), the floor (§12.2) and the release (§12.3) are settled on the
+shipped objects; the **power spread** the application will actually see
+is still the maintainer's to supply, and it is the one number that picks
+the branch against the measured −13 dB. Two things the measurements
+raised and this page only names: the peak list's same-code-phase rule
+(§7.1) is a two-epoch rule and has no Pfa figure yet, and the false-release
+rate of the both-flags-down rule is bounded only over half a minute, not
+the hour an on-time deserves.
 
 ______________________________________________________________________
 

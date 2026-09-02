@@ -85,6 +85,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  double | [**dll\_get\_noise\_est**](#function-dll_get_noise_est) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Current CFAR noise-power estimate E\|O\|^2 (offset-tap EMA)._  |
 |  size\_t | [**dll\_get\_segments**](#function-dll_get_segments) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
 |  void | [**dll\_get\_state**](#function-dll_get_state) (const [**dll\_state\_t**](structdll__state__t.md) \* state, void \* blob) <br> |
+|  size\_t | [**dll\_get\_symbol\_window**](#function-dll_get_symbol_window) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br>_The lock detector's coherent window, in partials (0 when the symbol-period aid is off). Size_ `n_looks` _from it._ |
 |  void | [**dll\_init**](#function-dll_init) ([**dll\_state\_t**](structdll__state__t.md) \* s, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_chip, double bn, double zeta, double spacing) <br>_Initialise a DLL in place (no allocation); BORROWS_ `code` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_lock\_accumulate**](#function-dll_lock_accumulate) ([**dll\_state\_t**](structdll__state__t.md) \* s, float \_Complex d) <br>_Per-sample offset (noise) tap for the always-on lock detector._  |
 |  void | [**dll\_lock\_epoch**](#function-dll_lock_epoch) ([**dll\_state\_t**](structdll__state__t.md) \* s) <br>_Per-epoch lock-detector housekeeping: re-draw the noise offset._  |
@@ -93,8 +94,10 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_replica**](#function-dll_replica) (const [**dll\_state\_t**](structdll__state__t.md) \* s, double c) <br>_Sub-chip code replica at fractional code phase_ `c` _(one tap)._ |
 |  void | [**dll\_reset**](#function-dll_reset) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Re-seed the loop to its create-time code phase; keep config._  |
 |  void | [**dll\_set\_bn**](#function-dll_set_bn) ([**dll\_state\_t**](structdll__state__t.md) \* state, double val) <br> |
+|  int | [**dll\_set\_lock\_verify**](#function-dll_set_lock_verify) ([**dll\_state\_t**](structdll__state__t.md) \* state, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's verify counts, keeping its thresholds._  |
 |  void | [**dll\_set\_rate\_aid**](#function-dll_set_rate_aid) ([**dll\_state\_t**](structdll__state__t.md) \* state, double rate\_aid) <br>_Set the carrier-aiding code-rate deviation (ratio; 0 = off)._  |
 |  int | [**dll\_set\_state**](#function-dll_set_state) ([**dll\_state\_t**](structdll__state__t.md) \* state, const void \* blob) <br> |
+|  int | [**dll\_set\_symbol\_period**](#function-dll_set_symbol_period) ([**dll\_state\_t**](structdll__state__t.md) \* state, double partials\_per\_symbol) <br>_Give the lock detector the data-symbol period, so its looks are coherent over a symbol instead of a quarter-epoch partial._  |
 |  int | [**dll\_set\_telemetry**](#function-dll_set_telemetry) ([**dll\_state\_t**](structdll__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers four probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**dll\_state\_bytes**](#function-dll_state_bytes) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
 |  size\_t | [**dll\_steps**](#function-dll_steps) ([**dll\_state\_t**](structdll__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._  |
@@ -681,6 +684,33 @@ void dll_get_state (
 
 
 
+### function dll\_get\_symbol\_window 
+
+_The lock detector's coherent window, in partials (0 when the symbol-period aid is off). Size_ `n_looks` _from it._
+```C++
+size_t dll_get_symbol_window (
+    const dll_state_t * state
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dll\_init 
 
 _Initialise a DLL in place (no allocation); BORROWS_ `code` _._
@@ -960,6 +990,57 @@ void dll_set_bn (
 
 
 
+### function dll\_set\_lock\_verify 
+
+_Set the lock detector's verify counts, keeping its thresholds._ 
+```C++
+int dll_set_lock_verify (
+    dll_state_t * state,
+    uint32_t n_up,
+    uint32_t n_down
+) 
+```
+
+
+
+[**dll\_configure\_lock()**](dll__core_8h.md#function-dll_configure_lock) derives the declare count from `pfa` and fixes the drop count at 2. A caller that has sized `n_looks` for a target Pd knows the per-decision miss probability `1 - pd`, and det\_verify\_count(1 - pd, budget) is the drop count that holds the false-drop rate under a budget  three consecutive misses for pd = 0.99 at 1e-6 per decision. This sets both counts without touching the thresholds or the noise reference; the running verify counter and the flag restart.
+
+
+
+
+**Parameters:**
+
+
+* `state` DLL state. Must be non-NULL. 
+* `n_up` Consecutive above-threshold decisions to declare (&gt;= 1). 
+* `n_down` Consecutive below-threshold decisions to drop (&gt;= 1). 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when either count is 0. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import Dll
+>>> from doppler.detection import det_verify_count
+>>> d = Dll(np.zeros(31, dtype=np.uint8), sps=2, segments=4)
+>>> d.set_lock_verify(2, det_verify_count(0.01, 1e-6))
+>>> d.locked
+False
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dll\_set\_rate\_aid 
 
 _Set the carrier-aiding code-rate deviation (ratio; 0 = off)._ 
@@ -1023,6 +1104,61 @@ int dll_set_state (
 
 
 
+
+<hr>
+
+
+
+### function dll\_set\_symbol\_period 
+
+_Give the lock detector the data-symbol period, so its looks are coherent over a symbol instead of a quarter-epoch partial._ 
+```C++
+int dll_set_symbol_period (
+    dll_state_t * state,
+    double partials_per_symbol
+) 
+```
+
+
+
+In `segments > 1` mode every partial is a look for the code-lock detector ([**dll\_configure\_lock()**](dll__core_8h.md#function-dll_configure_lock)): the smallest integration the asynchronous data allows when nothing is known about where its transitions fall, and therefore the weakest. This is the same max-power search the per-epoch look-back already runs, lifted to the symbol scale once the symbol PERIOD is known: with `P = partials_per_symbol` the transitions recur every `P` partials, so `ceil(P)` boundary-phase hypotheses each define a transition-free window of `L = min(floor(P) - 1, 4 * segments)` partials per symbol. Each hypothesis accumulates the power of its coherently summed windows (an EMA over the last ~32 symbols); the one with the most power IS the symbol timing, and its windows become the detector's looks. A look then integrates `L` partials coherently  at SPEC's 1.8 epochs per symbol and four partials per epoch, six partials instead of one, 7.8 dB more per look  and never straddles a transition. Size `n_looks` for it with detection.det\_n\_noncoh() over `L * (sf * sps / segments)` samples.
+
+
+Only the lock detector's looks change. The code loop's discriminator keeps its per-epoch look-back window, and the emitted partial stream is untouched. The search is blind to WHICH hypothesis is right on any one symbol  it needs no decision and no external timing  so it costs nothing at cold start and follows a slowly drifting symbol clock by itself. `L` is capped at four epochs of partials so a long symbol (a low data rate) does not ask for coherence across more carrier than the wipe-off holds.
+
+
+
+
+**Parameters:**
+
+
+* `state` DLL state. Must be non-NULL. 
+* `partials_per_symbol` Data-symbol period in emitted partials, `segments * chip_rate / (sf * symbol_rate)`; &gt;= 2. 0 disables (per-partial looks again). 
+
+
+
+**Returns:**
+
+DP\_OK; DP\_ERR\_INVALID when `segments <= 1` or the period is in (0, 2). 
+```C++
+>>> import numpy as np
+>>> from doppler.track import Dll
+>>> code = (np.arange(63) * 7 % 2).astype(np.uint8)
+>>> d = Dll(code, sps=2, segments=4)
+>>> d.set_symbol_period(7.24)      # 1.81 epochs per symbol, 4 partials/epoch
+>>> d.symbol_window                # coherent partials per look
+6
+>>> d.set_symbol_period(0.0)       # back to per-partial looks
+>>> d.symbol_window
+0
+```
+ 
+
+
+
+
+
+        
 
 <hr>
 

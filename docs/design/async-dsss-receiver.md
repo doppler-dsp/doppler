@@ -609,6 +609,53 @@ while signal_buffer,more_data:
 
 ```
 
+### 3.7 Symbol-timing-aided lock looks — the max-power search at symbol scale
+
+*Designed and built 2026-09-02, after §12.3 measured the code-lock flag
+reading "unlocked" 96% of the time at Es/N0 5.7 dB on a loop that never
+lost the code, and the telemetry showed why (§12.4).*
+
+The partial-and-non-coherent form of §3.3 is forced by the data: a
+full-epoch coherent look collapses on a transition, so the code-lock
+detector's look was the quarter-epoch partial, the smallest integration
+the asynchronous data allows when nothing is known about where its
+transitions fall. That is also the weakest look. At the operating point a
+partial carries −2.9 dB per look at Es/N0 5.7 dB, and the detector's
+default 20 looks, sized for nothing in particular, sat below threshold.
+
+The look-back of §3.6 already knows how to find a transition-free window:
+it picks, per epoch, the one-epoch window with the most power. What it
+does not know is the symbol *period*, and the receiver does — it is
+`segments · chip_rate / (sf · symbol_rate)` partials, 7.24 here. With the
+period the same search lifts to the symbol scale:
+
+- `ceil(P)` boundary-phase hypotheses, each placing a boundary every `P`
+    partials and owning a window of `L = min(floor(P) − 1, 4 · segments)`
+    partials after it — short enough to sit inside one symbol under the
+    hypothesis's quantisation, capped so a slow data clock never asks for
+    coherence across more carrier than the wipe-off holds;
+- each hypothesis sums its window coherently and keeps an EMA of the
+    window's power over ~32 symbols; the hypothesis with the most power
+    **is** the symbol timing, and its windows are the detector's looks.
+
+A look then integrates `L` partials coherently and never straddles a
+transition: six instead of one here, 7.8 dB more per look, and
+`det_n_noncoh` sizes the detector at 10 looks for Pd 0.99 at the floor
+instead of 161. The search needs no decision and no external timing, so it
+costs nothing at cold start and follows a drifting symbol clock by itself.
+An external phase from the demodulator can be accepted later as an
+additive hook; it was not needed to reach the result. Only the detector's
+looks change — the discriminator keeps its per-epoch window, which §12.4
+shows was never the problem — and the emitted partial stream is untouched.
+
+The receiver applies it at chain build: `dll_set_symbol_period` from its
+configuration, `n_looks` from `det_n_noncoh` over the window at its
+`cn0_dbhz`, and the drop count from `det_verify_count(1 − pd, 1e-6)` —
+three consecutive misses, against the DLL's fixed two — so the verify
+hysteresis is a budget, not a constant. Pinned by `test_dll_core.c` §6b
+(per-partial looks up 35% of the time, aided 100%, the chosen phase within
+one partial of the truth, sabotage-proven) and measured in §12.4.
+
 ______________________________________________________________________
 
 ## 4. The receiver as built
@@ -1323,29 +1370,26 @@ running its loops on noise, and the only exit is `reset()`, which returns
 to *searching* — a state the hand-off mode of §6.1 does not have.
 
 **The rule.** An emitter is gone when **both flags are down, continuously,
-for longer than the longest fade the link must ride.** This page first
-argued the opposite division of labour — code lock as the presence flag,
-symbol lock as health — and §12.3 measured it the other way round: on a
-healthy signal code lock dips for a block or two about three times a
-second while symbol lock never moved in thirty seconds; a 10 dB fade drops
-code lock in 2 ms, the same as a switch-off; and a phase step that symbol
-lock rides through takes code lock down 400 ms later. Code lock is a
-CFAR detector on the prompt power, so anything that lowers that power for
-one decision trips it; symbol lock is a 30-symbol dwell with hysteresis
-and does not chatter. So neither flag alone is the release: code lock
-alone releases on every fade, symbol lock alone is slow (25–40 ms) and
-holds through a carrier disturbance the code has already lost. **Both
-down at once** is what a switch-off produces within 40 ms and never
-reverses, and what a fade produces for its own duration and then
-reverses — which is why the confirm interval is set by the fade, not by
-the detectors.
+for longer than the longest fade the link must ride.** §12.3 first
+measured code lock chattering three times a second on a healthy signal
+and off 96% of the time at the floor, which looked like the wrong flag;
+§12.4 traced that to the detector's looks — 20 quarter-epoch partials,
+sized for nothing — and §3.7 fixed it: sized for the C/N0 and coherent
+over a symbol, code lock drops within 4–12 ms of a real loss, holds
+through a phase step, and never dips on a healthy signal. It is the
+presence flag. Symbol lock, a 30-symbol dwell with hysteresis, is the
+carrier leg's health. Both are still CFAR flags on power, so a fade takes
+both down for its duration and brings both back — which is why the
+release is **both down, for longer than the fade**, and why the confirm
+interval is set by the fade the link must ride, not by the detectors.
 
 **The transition.** Hand-off mode adds a fourth state, **lost**, beside
 searching / refining / tracking, and the receiver enters it on the rule
 above. In it the loops stop updating, the replica (§8 (iii)) is no longer
-published — its gate is *symbol* lock, the flag that does not chatter, so
-publication stops at that drop, before the confirm interval has run — and
-the receiver reports lost to whoever holds the pool. The holder then
+published — its gate is code lock, which after §3.7 drops within
+milliseconds of a real loss and not otherwise, so publication stops at
+that drop, before the confirm interval has run — and the receiver reports
+lost to whoever holds the pool. The holder then
 **releases the assignment**: the emitter leaves the assigned table, so the
 searcher may report those coordinates again, and the receiver is reset to
 the hand-off mode's idle — *waiting for a seed*, not searching — for the
@@ -1356,7 +1400,7 @@ in fact still present is re-detected at its next data-free window and
 seeded into a fresh receiver, which is a recovery, not a hand-back.
 
 **What the interval costs, and what it buys.** Against on-times of 5 to
-15 minutes, release latency is nothing: both flags are down within 40 ms
+15 minutes, release latency is nothing: both flags are down within 25 ms
 of a switch-off (§12.3), and a confirm interval of even two seconds —
 longer than the one-second fades measured — is under 1% of the shortest
 on-time. The number that matters
@@ -1474,16 +1518,18 @@ flags fall keeps running its loops on noise, and the only exit is `reset()`.
 
 The rule, argued in §10 and measured in §12.3: an emitter is gone when
 **both flags are down continuously for longer than the longest fade the
-link must ride.** Code lock alone is not it — it is a per-decision CFAR
-flag that dips a few times a second on a healthy signal and drops on any
-fade as fast as on a switch-off; symbol lock alone is not it either — it
-rides a carrier disturbance the code has lost. One flag down is a
-**degrade**, reported and not acted on; both down is the clock starting.
+link must ride.** With the detector sized and symbol-aided (§3.7), code
+lock is the presence flag — off within milliseconds of a real loss, held
+through a carrier disturbance, never dipping on a healthy signal — and
+symbol lock the carrier leg's health; but a fade takes both down for its
+duration and returns both, so neither alone is the release. One flag down
+is a **degrade**, reported and not acted on; both down is the clock
+starting.
 
 Hand-off mode adds a fourth state, **lost**, beside searching / refining /
 tracking. On the rule above the receiver enters it: the loops stop updating,
-the replica of §11.4 stops being published — at the *symbol-lock* drop,
-before the confirm interval has run — and `get_lost()` reports it. The holder
+the replica of §11.4 stops being published — at the code-lock drop, before
+the confirm interval has run — and `get_lost()` reports it. The holder
 of the pool then releases the assignment and calls `reset()`, which in this
 mode goes to idle. The confirm interval is a **time**, not a verify count:
 the measured fades take both flags down for their whole duration and bring
@@ -1535,12 +1581,12 @@ decisions — into a caller buffer, for the searcher to subtract.
 
 Three things about it are design, not detail:
 
-- **It is lock-gated on symbol lock.** A receiver whose symbol lock is
-    down publishes nothing, so a wrong replica is never subtracted. Symbol
-    lock, not code lock, because §12.3 measured code lock dipping a few
-    times a second on a healthy signal — a gate on it would drop the
-    replica, and raise the searcher's floor, several times a second for
-    nothing.
+- **It is lock-gated on code lock.** A receiver whose code lock is down
+    publishes nothing, so a wrong replica is never subtracted. That is
+    safe only because §3.7 made the flag honest: before the fix it dipped a
+    few times a second on a healthy signal, and a gate on it would have
+    dropped the replica, and raised the searcher's floor, that often for
+    nothing (§12.3, §12.4).
 - **It lags by the decision latency.** The data on a block's chips is known
     only once the matched filter and the symbol timing have decided the
     symbols under it, some symbols after the block was pushed. The replica for
@@ -1850,11 +1896,79 @@ What it settles, and what it overturned:
     hand a fresh receiver an emitter one is already tracking. That is the
     false release the interval is sized against.
 
+**After the fix (§3.7, §12.4) — the same sweep, the receiver's detector
+sized and symbol-aided:**
+
+| C/N0 (Es/N0)       | event           | code lock off        | symbol lock off            | both off         | back by 1.5 s (code / symbol) |
+| ------------------ | --------------- | -------------------- | -------------------------- | ---------------- | ----------------------------- |
+| 45 dB-Hz (10.7 dB) | switch-off      | **3.5 ms** (max 4.3) | 25 ms                      | 25 ms, stays off | 0 / 0 of 30                   |
+|                    | 10 dB fade, 1 s | 3.7 ms               | 44 ms                      | for 0.56 s       | **30** / 29                   |
+|                    | 20 dB fade, 1 s | 3.5 ms               | 26 ms                      | for 1.12 s       | 29 / 27                       |
+|                    | π/2 phase step  | **held, 30 of 30**   | held in 29 of 30           | never            | 30 / 30                       |
+|                    | nothing, 30 s   | **never**            | never                      | never            |                               |
+| 40 dB-Hz (5.7 dB)  | switch-off      | **11.5 ms** (max 15) | 20 ms                      | 20 ms, stays off | 0 / 0                         |
+|                    | 10 dB fade, 1 s | 12 ms                | 22 ms                      | for 0.99 s       | **30** / 23                   |
+|                    | 20 dB fade, 1 s | 11.5 ms              | 20 ms                      | for 1.48 s       | 24 / 17                       |
+|                    | π/2 phase step  | **held, 30 of 30**   | 9 ms, held in 17 of 30     | never            | 30 / 30                       |
+|                    | nothing, 27 s   | **never**            | 0.5% of blocks, 4 episodes | never            |                               |
+
+Code lock is the presence flag the page first wanted, once its looks are
+sized and symbol-aligned: off within 4 ms of a switch-off at 10.7 dB and
+12 ms at the floor, held through a phase step in every trial, back after
+every fade at 10.7 dB and after 24 of 30 deep fades at the floor, and not
+one dip in 57 s of on-time across both C/N0s. Symbol lock is now the one
+that moves on a carrier disturbance. The rule of §10 keeps its shape —
+both flags down for longer than the fade — because a fade still takes both
+down for its duration; what the fix buys is a clock that starts within
+milliseconds of a real loss and never starts on a healthy signal.
+
 Not measured yet: the false-release
 rate over an hour rather than half a minute (the both-down rate at 5.7 dB
 is 0.5% of blocks in runs of tens of milliseconds; whether a run ever
 reaches seconds is what an hour would say), and any of this on the
 hand-off-mode receiver, which does not exist.
+
+### 12.4 What was measured (2026-09-02) — the DLL's telemetry, and the aid
+
+The receiver's DLL alone (`bn 0.002, segments 4`), fed the shipped synth's
+continuous DSSS at the operating point with a `Telemetry` context attached
+(`receiver_lock_demo.py`'s pattern), 2 s per run; `code.lock` against its
+threshold, `code.locked`, the discriminator and the tracked rate, for three
+detectors on the same signal
+(`src/doppler/dsss/tests/characterization/dll_lock/`):
+
+| Es/N0   | detector                        | per-look Es/N0 | looks  | R vs eta       | miss per decision | off     | drops per s | code rate |
+| ------- | ------------------------------- | -------------- | ------ | -------------- | ----------------- | ------- | ----------- | --------- |
+| 10.7 dB | 20 partials (default)           | 2.1 dB         | 20     | 9.5 vs 8.7     | 5.1%              | 1.4%    | 4.5         | 1.000000  |
+|         | partials sized (`det_n_noncoh`) | 2.1 dB         | 25     | above          | 1.7%              | 0.4%    | 1.0         | 1.000000  |
+|         | **symbol-aided, sized**         | 10.7 dB        | **3**  | well above     | **0.0%**          | 0.1%    | **0**       | 1.000000  |
+| 5.7 dB  | 20 partials (default)           | −2.9 dB        | 20     | **7.5 vs 8.7** | 86%               | **97%** | 11          | 1.000000  |
+|         | partials sized                  | −2.9 dB        | 161    | 22 vs 20       | 2.2%              | 1.6%    | 0.5         | 1.000000  |
+|         | **symbol-aided, sized**         | 5.7 dB         | **10** | well above     | **0.4%**          | 0.2%    | **0**       | 1.000000  |
+
+What it settles:
+
+- **The loop was never the problem.** In every run the tracked code rate
+    is 1.000000 within 3 ppm and the discriminator is zero-mean with no
+    drift, including the run where the flag read "unlocked" 97% of the
+    time. §12.3's chatter and 96% were the detector's default integration
+    — 20 quarter-epoch partials, 1 ms, sized for nothing — sitting under
+    its own threshold at the floor and grazing it at 10.7 dB.
+- **Sizing alone fixes the 96%; the aid fixes the margin.** Sized
+    partials need 161 looks at the floor and still miss 2% of decisions;
+    the symbol-aided look needs 10 and misses 0.4%, with the statistic
+    well clear of its threshold at both C/N0s and no drop in 2 s.
+- **The hysteresis is now a budget.** At the aided miss rate,
+    `det_verify_count(0.01, 1e-6)` gives three consecutive misses to drop,
+    which the receiver sets; at two, the floor's 0.4% would have produced
+    a false drop about every four minutes of decisions.
+- **What this does to the release rule (§10).** Code lock is a usable
+    presence flag again — §12.3's post-fix sweep shows it off within 4–12
+    ms of a switch-off, held through a phase step in every trial, and not
+    dipping once in 57 s of on-time. The both-flags-down rule stands
+    because a fade still takes any CFAR flag down for its duration; what
+    changes is that the "both down" clock now starts within milliseconds
+    of a real loss and never on a healthy signal.
 
 ______________________________________________________________________
 

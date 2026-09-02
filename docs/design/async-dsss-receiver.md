@@ -1840,7 +1840,7 @@ three; the rows are `rate=0.77`, `op5M_*`/`op2M_*` and `*,op5M`):
 | one receiver, tracking (warm), 5 Mcps   | **44** per output  | 0.44                   | 1.0                         |
 | one receiver, cold (search + refine)    | 89 per output      | —                      | —                           |
 
-Five things this settles, and one it corrects:
+Seven things this settles, and one it corrects:
 
 - **The arbitrary-ratio front end is 4.2× the integer cascades** — 13.6 ns
     against 2.4–4.0 for rates 0.05–0.5 — so choosing 13 MSa/s to force it
@@ -1858,16 +1858,25 @@ Five things this settles, and one it corrects:
     epoch, which keeps one forward FFT) or across engines each given a slice
     of the uncertainty (which repeats the forward FFT per slice but needs
     no threading inside the engine and matches the "processes as needed"
-    shape of §1.1). Which one is the next thing to measure, and it belongs
-    in the shapes table of §8.
+    shape of §1.1). **Measured, the same day:** one engine over a third of
+    ±50 kHz (`op5M_U17k`, 7 tiles; `op2M_U17k`, 19) costs 75 and 192 ns
+    per output sample, so three of them are 225 and 576 against the single
+    engine's 213 and 520 — **6% and 11% for the slice**, the forward FFT
+    repeated per slice being worth about one tile. The split across
+    engines needs nothing new inside the engine and is the shape to take;
+    a slice engine needs its slice's centre mixed to zero in front of it,
+    which is an LO at rate 1, a few ns more.
 - **Doppler pre-compensation is worth 6–7× on the searcher** — 0.36 and
     0.30 of a core over ±5 kHz — and nothing on anyone else. With it the
     searcher fits on one core with room; without it the partition above is
     mandatory.
-- **One tracking receiver is 0.44 of a core**, so the pool of twelve is
-    5.3 cores at the operating point and 12 at the floor — the largest
-    single line in the budget, and the one that scales across the
-    application's threads by construction.
+- **One tracking receiver is 0.44 of a core, and receivers add.** The
+    pool of twelve is 5.3 cores at the operating point and 12 at the floor
+    — the largest single line in the budget. Run as concurrent processes on
+    the 8-core box, the warm row went from 43 ns alone to 46 with four
+    running and 46–55 with eight (the top of that spread is the core the
+    operating system was also using), so **cores add nearly linearly** for
+    the receivers and the memory system is not the limit at this scale.
 - **The population, one process, ±50 kHz, 5 Mcps: about 7.6 cores** at
     the operating point (0.18 + 2.14 + 12 × 0.44), **17.5 at the floor**;
     with pre-compensation 5.8 and 13.4. At the 2× margin §6.4 asks for,

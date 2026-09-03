@@ -19,6 +19,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**agc\_tlm\_t**](structagc__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM); telemetry is observation, not DSP state that migrates._ 
 * **struct** [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md) 
 * **struct** [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) _Composed receiver state._ 
+* **struct** [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) _One consistent picture of what the receiver is doing, by value._ 
 * **struct** [**awgn\_state\_t**](structawgn__state__t.md) 
 * **struct** [**ber\_align\_t**](structber__align__t.md) _Where the recovered stream sits against truth, and how sure._ 
 * **struct** [**ber\_interval\_t**](structber__interval__t.md) _A rate with its exact interval. Assert on_ `lo` _, never on_`p_hat` _._

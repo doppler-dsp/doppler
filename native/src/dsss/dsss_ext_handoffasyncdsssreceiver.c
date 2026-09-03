@@ -712,12 +712,12 @@ static PyGetSetDef HandoffAsyncDsssReceiver_getset[] = {
   { "n", (getter)HandoffAsyncDsssReceiver_getprop_n, NULL,
     "MpskReceiver's own carrier-arm count.\n", NULL },
   { "chip_phase", (getter)HandoffAsyncDsssReceiver_getprop_chip_phase, NULL,
-    "Chips, Dll's own instantaneous-phase convention (the mirror image of "
-    "acq_result_t::code_phase's correlation-lag convention -- see "
-    "acq_build_handoff()'s doc comment).\n",
+    "Live Dll code phase in chips, Dll's own instantaneous-phase convention "
+    "(the mirror image of acq_result_t::code_phase's correlation-lag "
+    "convention -- see acq_build_handoff()'s doc comment).\n",
     NULL },
   { "code_rate", (getter)HandoffAsyncDsssReceiver_getprop_code_rate, NULL,
-    "chips advanced per nominal chip (~1.0).\n", NULL },
+    "Live Dll code rate: chips advanced per nominal chip (~1.0).\n", NULL },
   { "lock", (getter)HandoffAsyncDsssReceiver_getprop_lock, NULL,
     "decision rule on lock_metric: thresholds + verify counters, stepped per "
     "symbol.\n",
@@ -804,6 +804,75 @@ HandoffAsyncDsssReceiverObj_exit (HandoffAsyncDsssReceiverObject *self,
       self->handle = NULL;
     }
   Py_RETURN_NONE;
+}
+
+static PyStructSequence_Field HandoffAsyncDsssReceiverObj_status_fields[] = {
+  { "state", "One of the ASYNC_DSSS_RX_SEARCHING .. _LOST values." },
+  { "doppler_hz",
+    "Where the emitter is NOW: the live carrier loop's estimate, Hz (the seed "
+    "while refining, 0 when idle, frozen where it was when lost)." },
+  { "chip_phase", "Live Dll code phase, chips." },
+  { "code_rate", "Live Dll code rate, chips/sample." },
+  { "cn0_dbhz_est", "Cached from the winning acquisition hit." },
+  { "code_locked", "Presence flag: the Dll's lock detector." },
+  { "locked", "Health flag: the symbol-lock detector." },
+  { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
+  { "lock_threshold", "`locked` latches above this." },
+  { "car_last_error", "Pre-despread Costas residual, rad." },
+  { "mpsk_last_error", "Post-despread carrier residual, rad." },
+  { "state_samples",
+    "Running: samples fed since the current state was entered." },
+  { "both_down_samples", "Running: consecutive samples fed while tracking "
+                         "with BOTH lock flags down -- the release clock." },
+  { NULL, NULL },
+};
+static PyStructSequence_Desc HandoffAsyncDsssReceiverObj_status_desc
+    = { "doppler.dsss.ReceiverStatus",
+        "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 "
+        "tracking, 3 idle, 4 lost), the live estimates, both lock flags, and "
+        "the two clocks in input samples.",
+        HandoffAsyncDsssReceiverObj_status_fields, 13 };
+static PyTypeObject *HandoffAsyncDsssReceiverObj_status_type = NULL;
+
+static PyObject *
+HandoffAsyncDsssReceiverObj_status (HandoffAsyncDsssReceiverObject *self,
+                                    PyObject                       *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  if (!HandoffAsyncDsssReceiverObj_status_type)
+    {
+      HandoffAsyncDsssReceiverObj_status_type = PyStructSequence_NewType (
+          &HandoffAsyncDsssReceiverObj_status_desc);
+      if (!HandoffAsyncDsssReceiverObj_status_type)
+        return NULL;
+    }
+  async_dsss_receiver_status_t _r = async_dsss_receiver_status (self->handle);
+  PyObject                    *_o
+      = PyStructSequence_New (HandoffAsyncDsssReceiverObj_status_type);
+  if (!_o)
+    return NULL;
+  PyStructSequence_SET_ITEM (_o, 0, PyLong_FromLong ((long)_r.state));
+  PyStructSequence_SET_ITEM (_o, 1, PyFloat_FromDouble (_r.doppler_hz));
+  PyStructSequence_SET_ITEM (_o, 2, PyFloat_FromDouble (_r.chip_phase));
+  PyStructSequence_SET_ITEM (_o, 3, PyFloat_FromDouble (_r.code_rate));
+  PyStructSequence_SET_ITEM (_o, 4, PyFloat_FromDouble (_r.cn0_dbhz_est));
+  PyStructSequence_SET_ITEM (_o, 5, PyLong_FromLong ((long)_r.code_locked));
+  PyStructSequence_SET_ITEM (_o, 6, PyLong_FromLong ((long)_r.locked));
+  PyStructSequence_SET_ITEM (_o, 7, PyFloat_FromDouble (_r.lock_metric));
+  PyStructSequence_SET_ITEM (_o, 8, PyFloat_FromDouble (_r.lock_threshold));
+  PyStructSequence_SET_ITEM (_o, 9, PyFloat_FromDouble (_r.car_last_error));
+  PyStructSequence_SET_ITEM (_o, 10, PyFloat_FromDouble (_r.mpsk_last_error));
+  PyStructSequence_SET_ITEM (
+      _o, 11,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.state_samples));
+  PyStructSequence_SET_ITEM (
+      _o, 12,
+      PyLong_FromUnsignedLongLong ((unsigned long long)_r.both_down_samples));
+  return _o;
 }
 
 static PyMethodDef HandoffAsyncDsssReceiverObj_methods[] = {
@@ -1171,6 +1240,48 @@ static PyMethodDef HandoffAsyncDsssReceiverObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "status", (PyCFunction)HandoffAsyncDsssReceiverObj_status, METH_VARARGS,
+    "status() -> ReceiverStatus record (state, doppler_hz, chip_phase, "
+    "code_rate, cn0_dbhz_est, code_locked, locked, lock_metric, "
+    "lock_threshold, car_last_error, mpsk_last_error, state_samples, "
+    "both_down_samples)\n"
+    "\n"
+    "One consistent picture of the receiver, by value (design section\n"
+    "11.3): state, where the emitter is now (live Doppler, chip phase, code\n"
+    "rate, C/N0), both lock flags with the symbol-lock metric and threshold,\n"
+    "both residual carrier errors, and the two clocks in input samples\n"
+    "(since the state was entered; both flags down without a break). Read on\n"
+    "demand by the holder of a pool -- the one-at-a-time properties are the\n"
+    "same fields' other face. No timestamp: the holder owns the sample clock\n"
+    "and stamps it.\n"
+    "\n"
+    "Cheap and allocation-free: every field is a read of live state. The\n"
+    "one-at-a-time getters below report the same fields; this is the face a\n"
+    "pool holder uses.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "ReceiverStatus\n"
+    "    The record, by value.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import HandoffAsyncDsssReceiver\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> rx = HandoffAsyncDsssReceiver(code, chip_rate=3.069e6,\n"
+    "...                               symbol_rate=2700.0, spc=2)\n"
+    ">>> st = rx.status()\n"
+    ">>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # idle\n"
+    "(3, 0.0, 0, 0)\n"
+    ">>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)\n"
+    ">>> st = rx.status()\n"
+    ">>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining\n"
+    "(1, -250.0, 50.0)\n"
+    ">>> _ = rx.steps(np.zeros(2046, np.complex64))\n"
+    ">>> rx.status().state_samples                             # since seed\n"
+    "2046\n" },
   { NULL }
 };
 

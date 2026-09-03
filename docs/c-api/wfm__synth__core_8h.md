@@ -96,6 +96,7 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**wfm\_synth\_set\_dsss**](#function-wfm_synth_set_dsss) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, const uint8\_t \* sync, size\_t sync\_len, const uint8\_t \* payload, size\_t payload\_len, int crc) <br>_Build and attach a two-code DSSS burst to a type=dsss synth (no-op otherwise)._  |
 |  int | [**wfm\_synth\_set\_dsss\_chips**](#function-wfm_synth_set_dsss_chips) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* chips, size\_t n\_chips) <br>_Install an already-assembled DSSS burst as the chip pattern._  |
 |  int | [**wfm\_synth\_set\_dsss\_cont**](#function-wfm_synth_set_dsss_cont) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* code, size\_t code\_len, double chips\_per\_symbol, int data\_mode, const uint8\_t \* data, size\_t n\_data) <br>_Configure a type=dsss synth for CONTINUOUS ASYNCHRONOUS generation._  |
+|  int | [**wfm\_synth\_set\_dsss\_window**](#function-wfm_synth_set_dsss_window) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, size\_t code\_only\_epochs, size\_t frame\_epochs) <br>_Give the continuous DSSS stream a frame with a pure-code window._  |
 |  void | [**wfm\_synth\_set\_nsps**](#function-wfm_synth_set_nsps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, int val) <br>_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos); set sym\_pos=0 as well when changing sps mid-stream._  |
 |  int | [**wfm\_synth\_set\_rrc**](#function-wfm_synth_set_rrc) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const float \* taps, size\_t ntaps) <br>_Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits)._  |
 |  int | [**wfm\_synth\_set\_state**](#function-wfm_synth_set_state) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const void \* blob) <br> |
@@ -141,7 +142,7 @@ _Synth component API._ [More...](#detailed-description)
 | ---: | :--- |
 | define  | [**WFM\_SYNTH\_SNR\_CLEAN**](wfm__synth__core_8h.md#define-wfm_synth_snr_clean)  `100.0`<br> |
 | define  | [**WFM\_SYNTH\_STATE\_MAGIC**](wfm__synth__core_8h.md#define-wfm_synth_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('W','F','M','S')`<br> |
-| define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `2u /\* v2: + continuous-DSSS chip/symbol clocks \*/`<br> |
+| define  | [**WFM\_SYNTH\_STATE\_VERSION**](wfm__synth__core_8h.md#define-wfm_synth_state_version)  `3u /\* v3: + data\_n, the payload cursor          \*/`<br> |
 
 ## Detailed Description
 
@@ -293,6 +294,9 @@ JM_FORCEINLINE float wfm_synth_cont_dsss_chip (
 
 
 The per-chip kernel shared by `wfm_synth_step` and `wfm_synth_steps` (and the manifest `impl`), so the single-sample and block paths cannot diverge — they call the SAME function rather than each inlining the arithmetic. Advances the code clock (`n % n_code`) and the INDEPENDENT symbol clock (`floor(n / chips_per_symbol)`) off one running chip counter; at each symbol boundary it refreshes the data bit from the configured source (constant 0 for code-only, the cycled payload, or the next PN bit). Non-integer `chips_per_symbol` is what makes symbol edges land mid-epoch — the asynchronicity.
+
+
+With a frame set (`wfm_synth_set_dsss_window`), each frame of `frame_epochs` code periods opens with `code_only_epochs` of the pure code — data 0, the symbol source untouched — and the data section's symbol clock restarts at its first chip, so a frame's symbols are aligned to it; the payload cursor (`data_n`) runs on across frames, so the bits are contiguous, and the next window cuts the section's last partial symbol. `frame_epochs == 0` is the windowless stream, bit for bit.
 
 
 Requires `chips_per_symbol >= 1` (chip rate &gt;= symbol rate, always true for a real DSSS waveform), so the symbol index advances by 0 or 1 per chip and the PN is never asked to skip. 
@@ -1030,6 +1034,47 @@ The burst frame parameters have no meaning here (no preamble, sync, or CRC); the
 
 
 
+### function wfm\_synth\_set\_dsss\_window 
+
+_Give the continuous DSSS stream a frame with a pure-code window._ 
+```C++
+int wfm_synth_set_dsss_window (
+    wfm_synth_state_t * state,
+    size_t code_only_epochs,
+    size_t frame_epochs
+) 
+```
+
+
+
+Every `frame_epochs` code periods, the first `code_only_epochs` carry the pure spreading code and no data, and the rest carry the data symbols with their symbol clock aligned to the section's first chip and the payload continuing from the previous frame (see wfm\_synth\_cont\_dsss\_chip). This is the multi-emitter waveform's frame — 500 code-only epochs then 5000 of data in the application it was written for — and the searcher's coherent depth is what the window makes possible. Configuration, not running state: it is kept by reset() and is not serialized. The order against [**wfm\_synth\_set\_dsss\_cont()**](wfm__synth__core_8h.md#function-wfm_synth_set_dsss_cont) does not matter.
+
+
+
+
+**Parameters:**
+
+
+* `state` Synth (no-op unless `wtype == WFM_SYNTH_DSSS`). 
+* `code_only_epochs` Pure-code epochs opening each frame, at most `frame_epochs`. Equal to it means code only, for ever. 
+* `frame_epochs` Frame length in code periods; **0 means no window** — the stream exactly as without this call. 
+
+
+
+**Returns:**
+
+0 on success (and for a non-dsss synth); -1 if `code_only_epochs` exceeds a non-zero `frame_epochs`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_synth\_set\_nsps 
 
 _Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos); set sym\_pos=0 as well when changing sps mid-stream._ 
@@ -1463,7 +1508,7 @@ void wfm_synth_steps (
 ### define WFM\_SYNTH\_STATE\_VERSION 
 
 ```C++
-#define WFM_SYNTH_STATE_VERSION `2u /* v2: + continuous-DSSS chip/symbol clocks */`
+#define WFM_SYNTH_STATE_VERSION `3u /* v3: + data_n, the payload cursor          */`
 ```
 
 

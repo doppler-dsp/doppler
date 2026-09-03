@@ -49,11 +49,14 @@ _Synth state._ [More...](#detailed-description)
 |  double | [**chirp\_ph**](#variable-chirp_ph)  <br> |
 |  size\_t | [**chirp\_span**](#variable-chirp_span)  <br> |
 |  uint8\_t \* | [**code**](#variable-code)  <br> |
+|  size\_t | [**code\_only\_epochs**](#variable-code_only_epochs)  <br> |
 |  uint8\_t | [**cur\_data**](#variable-cur_data)  <br> |
 |  float | [**cur\_im**](#variable-cur_im)  <br> |
 |  float | [**cur\_re**](#variable-cur_re)  <br> |
 |  int | [**data\_mode**](#variable-data_mode)  <br> |
+|  uint64\_t | [**data\_n**](#variable-data_n)  <br> |
 |  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir**](#variable-fir)  <br> |
+|  size\_t | [**frame\_epochs**](#variable-frame_epochs)  <br> |
 |  [**lo\_state\_t**](structlo__state__t.md) \* | [**lo**](#variable-lo)  <br> |
 |  size\_t | [**n\_bits**](#variable-n_bits)  <br> |
 |  size\_t | [**n\_code**](#variable-n_code)  <br> |
@@ -292,6 +295,19 @@ uint8_t* wfm_synth_state_t::code;
 
 
 
+### variable code\_only\_epochs 
+
+```C++
+size_t wfm_synth_state_t::code_only_epochs;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable cur\_data 
 
 ```C++
@@ -344,10 +360,36 @@ int wfm_synth_state_t::data_mode;
 
 
 
+### variable data\_n 
+
+```C++
+uint64_t wfm_synth_state_t::data_n;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable fir 
 
 ```C++
 fir_state_t* wfm_synth_state_t::fir;
+```
+
+
+
+
+<hr>
+
+
+
+### variable frame\_epochs 
+
+```C++
+size_t wfm_synth_state_t::frame_epochs;
 ```
 
 

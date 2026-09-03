@@ -875,3 +875,40 @@ def test_crc_alone_does_not_frame_an_unframed_pattern():
     crc_only = np.asarray(Synth(**common, crc="crc16").steps(64))
 
     np.testing.assert_array_equal(plain, crc_only)
+
+
+def test_dsss_window_opens_each_frame_with_the_pure_code():
+    """The continuous stream's frame: every ``frame_epochs`` code periods
+    open with ``code_only_epochs`` of the pure code and no data, the rest
+    carry data; ``frame_epochs=0`` is the windowless stream, bit for bit; a
+    window longer than the frame is refused."""
+    from doppler.wfm import _SynthEngine
+
+    rng = np.random.default_rng(3)
+    code = rng.integers(0, 2, 31, dtype=np.uint8)
+    sps, sf, cps = 4, 31, 12.7
+    W, F, frames = 3, 8, 3
+
+    def engine():
+        e = _SynthEngine(type="dsss", fs=1.0, freq=0.0, snr=100.0, sps=sps)
+        e.set_dsss_cont(code, cps, data="prbs")
+        return e
+
+    n = frames * F * sf * sps
+    plain = engine().steps(n)
+    off = engine()
+    off.set_dsss_window(0, 0)
+    assert np.array_equal(off.steps(n), plain)
+
+    win = engine()
+    with pytest.raises(ValueError):
+        win.set_dsss_window(F + 1, F)
+    win.set_dsss_window(code_only_epochs=W, frame_epochs=F)
+    x = win.steps(n)
+    # chip c at its chip start, as a data bit: sign flipped against the code
+    chips = (x.real[::sps] < 0).astype(np.uint8)
+    bits = chips ^ np.resize(code, chips.size)
+    epochs = bits.reshape(frames * F, sf)
+    pos = np.arange(frames * F) % F
+    assert not epochs[pos < W].any(), "the window is the pure code"
+    assert epochs[pos >= W].any(), "the data section carries data"

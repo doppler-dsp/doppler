@@ -374,6 +374,39 @@ _SynthEngine_set_dsss_cont (_SynthEngineObject *self, PyObject *args,
   Py_RETURN_NONE;
 }
 
+/* set_dsss_window(code_only_epochs, frame_epochs) — give the continuous
+ * stream a frame: the first code_only_epochs code periods of every
+ * frame_epochs carry the pure code, the rest the data. frame_epochs=0 is no
+ * window at all. */
+static PyObject *
+_SynthEngine_set_dsss_window (_SynthEngineObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *kwlist[] = { "code_only_epochs", "frame_epochs", NULL };
+  Py_ssize_t   w = 0, f = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "nn", kwlist, &w, &f))
+    return NULL;
+  if (w < 0 || f < 0)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "set_dsss_window: epoch counts must be >= 0");
+      return NULL;
+    }
+  if (wfm_synth_set_dsss_window (self->handle, (size_t)w, (size_t)f) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "set_dsss_window: code_only_epochs must not exceed a "
+                       "non-zero frame_epochs");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 /* set_symbols(symbols) — attach a user complex-symbol stream to a
  * type=symbols synth. symbols is any array-like coerced to complex64; each
  * element is the constellation point itself (no bit->symbol mapping). */
@@ -708,6 +741,17 @@ static PyMethodDef _SynthEngine_methods[] = {
     "data selects the symbol source: 'none' (code only, pure +code), 'prbs'\n"
     "(the synth's seeded PN, reproducible via doppler.wfm.PN), or 'bits'\n"
     "(the payload array, cycled). Supplying payload forces 'bits'.\n" },
+  { "set_dsss_window", (PyCFunction)_SynthEngine_set_dsss_window,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_dsss_window(code_only_epochs, frame_epochs) -> None\n"
+    "\n"
+    "Give the continuous DSSS stream a frame: every frame_epochs code\n"
+    "periods open with code_only_epochs of the pure code and no data; the\n"
+    "rest carry the data symbols, their symbol clock aligned to the\n"
+    "section's first chip and the payload continuing across frames.\n"
+    "frame_epochs=0 is no window at all -- the stream exactly as before.\n"
+    "code_only_epochs may not exceed a non-zero frame_epochs "
+    "(ValueError).\n" },
   { "set_bits", (PyCFunction)_SynthEngine_set_bits, METH_VARARGS,
     "set_bits(pattern, modulation=1) -> None\n"
     "\n"

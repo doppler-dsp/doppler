@@ -104,8 +104,11 @@ typedef struct {
     uint8_t * code;          /* config: spreading code (0/1), owned          */
     size_t n_code;           /* config: spreading code length in chips        */
     int data_mode;           /* config: WFM_DSSS_DATA_{NONE,BITS,PRBS}        */
+    size_t code_only_epochs; /* config: pure-code epochs opening each frame    */
+    size_t frame_epochs;     /* config: frame length in epochs; 0 = no window  */
     uint64_t chip_n;         /* running: chips emitted so far                 */
     uint64_t sym_idx;        /* running: current data-symbol index            */
+    uint64_t data_n;         /* running: data symbols latched (payload cursor) */
     uint8_t cur_data;        /* running: data bit latched for this symbol      */
     fir_state_t * fir;       /* dense RRC FIR (non-power-of-two sps fallback)  */
     /* Polyphase RRC pulse shaper: a resamp interpolate-by-sps view over the
@@ -139,18 +142,33 @@ wfm_synth_bit_symbol(wfm_synth_state_t *s)
 JM_FORCEINLINE float
 wfm_synth_cont_dsss_chip(wfm_synth_state_t *s)
 {
-    uint64_t n   = s->chip_n;
-    uint64_t sym = (uint64_t)((double)n / s->chips_per_symbol);
-    if (n == 0 || sym != s->sym_idx) {
-        s->sym_idx = sym;
-        if (s->data_mode == WFM_DSSS_DATA_PRBS)
-            s->cur_data = s->pn ? pn_step(s->pn) : 0u;
-        else if (s->data_mode == WFM_DSSS_DATA_BITS)
-            s->cur_data = (s->bits && s->n_bits)
-                              ? (uint8_t)(s->bits[sym % s->n_bits] & 1u)
-                              : 0u;
-        else
-            s->cur_data = 0u; /* code-only: the pure code, +code polarity */
+    uint64_t n     = s->chip_n;
+    uint64_t epoch = n / s->n_code;
+    uint64_t frame_pos   = s->frame_epochs ? epoch % s->frame_epochs : 0u;
+    if (s->frame_epochs && frame_pos < s->code_only_epochs) {
+        /* The pure-code window. UINT64_MAX marks "no current symbol", so the
+           data section's first chip latches whatever its index is. */
+        s->cur_data = 0u;
+        s->sym_idx  = UINT64_MAX;
+    } else {
+        /* The data section's first chip: the frame's start plus the window.
+           Windowless, that is chip 0 and this is the original symbol clock. */
+        uint64_t base = s->frame_epochs
+                            ? (epoch - frame_pos + s->code_only_epochs) * s->n_code
+                            : 0u;
+        uint64_t sym = (uint64_t)((double)(n - base) / s->chips_per_symbol);
+        if (n == base || sym != s->sym_idx) {
+            s->sym_idx = sym;
+            if (s->data_mode == WFM_DSSS_DATA_PRBS)
+                s->cur_data = s->pn ? pn_step(s->pn) : 0u;
+            else if (s->data_mode == WFM_DSSS_DATA_BITS)
+                s->cur_data = (s->bits && s->n_bits)
+                                  ? (uint8_t)(s->bits[s->data_n % s->n_bits] & 1u)
+                                  : 0u;
+            else
+                s->cur_data = 0u; /* code-only: the pure code, +code polarity */
+            s->data_n++;
+        }
     }
     uint8_t code_bit = (uint8_t)(s->code[n % s->n_code] & 1u);
     s->chip_n        = n + 1;
@@ -235,6 +253,9 @@ int wfm_synth_set_dsss_chips(wfm_synth_state_t *state, const uint8_t *chips,
 int wfm_synth_set_dsss_cont(wfm_synth_state_t *state, const uint8_t *code,
                             size_t code_len, double chips_per_symbol,
                             int data_mode, const uint8_t *data, size_t n_data);
+
+int wfm_synth_set_dsss_window(wfm_synth_state_t *state,
+                              size_t code_only_epochs, size_t frame_epochs);
 
 int wfm_synth_set_symbols(wfm_synth_state_t *state,
                           const float _Complex *symbols, size_t n);
@@ -408,7 +429,7 @@ void wfm_synth_set_cur_im(wfm_synth_state_t *state, float val);
  * composition of optional fir/lo/awgn/pn children (presence-flagged) +
  * running waveform-position scalars; bits/config restored by create. */
 #define WFM_SYNTH_STATE_MAGIC DP_FOURCC ('W','F','M','S')
-#define WFM_SYNTH_STATE_VERSION 2u /* v2: + continuous-DSSS chip/symbol clocks */
+#define WFM_SYNTH_STATE_VERSION 3u /* v3: + data_n, the payload cursor          */
 size_t wfm_synth_state_bytes (const wfm_synth_state_t *state);
 void wfm_synth_get_state (const wfm_synth_state_t *state, void *blob);
 int wfm_synth_set_state (wfm_synth_state_t *state, const void *blob);

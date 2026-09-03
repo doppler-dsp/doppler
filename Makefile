@@ -971,8 +971,21 @@ LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
 # This does not hide a real loss of data: if profiles genuinely stopped being
 # written, the numbers collapse and `coverage-gate`'s threshold fails, which
 # is the gate that exists for exactly that.
+# The test executables are objects too, not only the libraries. A `static`
+# function in a header (det_private.h's det_peak_list, dp_state.h's cursors)
+# is instantiated per translation unit and carries that unit's name in the
+# profile, so the copy a C test calls DIRECTLY never merges into the
+# library's copies -- and an export over the libraries alone reports the
+# test's calls as never made. Measured on #1210: two early returns proven
+# by test_acq_core.c showed DA:0 in the export and 89% in the test binary's
+# own report, and the patch gate failed at 88% on lines that had a test. The
+# test SOURCES stay out of the report through COV_IGNORE; only what they
+# exercised in library headers is added.
 @objs="$(COV_DIR)/libdoppler.so $$(ls $(COV_DIR)/pkg/doppler/*/*.so \
-    2>/dev/null | sed 's/^/-object /' | tr '\n' ' ')"; \
+    2>/dev/null | sed 's/^/-object /' | tr '\n' ' ') \
+    $$(find $(COV_DIR)/native -type f -perm -u+x \
+         \( -name 'test_*' -o -name 'validate_*' \) \
+       | sed 's/^/-object /' | tr '\n' ' ')"; \
 $(COV_ENV) $(LLVM_PROFDATA) merge -sparse -failure-mode=all $(COV_DIR)/prof/*.profraw \
     -o $(COV_DIR)/doppler.profdata; \
 $(COV_ENV) $(LLVM_COV) report $$objs -instr-profile=$(COV_DIR)/doppler.profdata \

@@ -277,6 +277,61 @@ def test_handoff_state_roundtrip_is_flavor_keyed():
     assert rx2.tracking == 1
 
 
+# ── The status record (design section 11.3) ──────────────────────────────
+
+
+def test_status_record_is_the_getters_other_face():
+    x, _data = _make_ramp_signal(70.0, seed=21)
+    rx = _new_handoff(70.0, lost_confirm_s=0.02)
+    st = rx.status()
+    # The record type is created lazily by the binding and is not a module
+    # attribute (the measure records are the same; jm gap, see the PR).
+    assert type(st).__name__ == "ReceiverStatus"
+    assert (st.state, st.doppler_hz, st.code_locked, st.locked) == (
+        3,
+        0.0,
+        0,
+        0,
+    )
+    assert (st.state_samples, st.both_down_samples) == (0, 0)
+
+    rx.seed(12.5, -321.0, 48.0)
+    st = rx.status()
+    assert st.state == 1
+    assert st.doppler_hz == pytest.approx(-321.0)
+    assert st.cn0_dbhz_est == 48.0
+    rx.reset()
+
+    rx.seed(0.0, 0.0, 70.0)
+    _feed(rx, x[PRE_SILENCE:])
+    st = rx.status()
+    assert st.state == 2
+    assert (st.code_locked, st.locked) == (1, 1)
+    assert st.chip_phase == rx.chip_phase
+    assert st.code_rate == rx.code_rate
+    assert st.lock_metric == rx.lock_metric
+    assert st.lock_threshold == rx.lock_threshold
+    assert st.car_last_error == rx.car_last_error
+    assert st.mpsk_last_error == rx.mpsk_last_error
+    assert st.state_samples > 0
+    assert st.both_down_samples == 0
+    # The live estimate follows the ramp: 500 Hz/s for the signal's duration
+    # (2430 symbols at 2700 sym/s is ~0.9 s, so ~450 Hz). The seed-time
+    # property is the refined seed and stays near 0.
+    t_end = (len(x) - PRE_SILENCE) / FS
+    assert st.doppler_hz == pytest.approx(RATE_HZ_PER_S * t_end, abs=30.0)
+    assert abs(rx.doppler_hz) < 100.0
+
+    off = _noise(int(0.2 * FS), 70.0, seed=99)
+    lost, _run = _feed_until_lost(rx, off, 4096)
+    assert lost
+    st = rx.status()
+    assert st.state == 4
+    assert st.both_down_samples > 0.02 * FS
+    # The base flavor reports the same record, starting from searching.
+    assert _new_receiver(70.0).status().state == 0
+
+
 def test_create_defaults():
     rx = _new_receiver(55.0)
     assert rx.tracking == 0

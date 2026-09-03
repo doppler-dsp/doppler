@@ -252,6 +252,31 @@ params = [
 ]
 
 [[async_dsss_receiver.methods]]
+name = "status"
+doc = "One consistent picture of the receiver, by value (design section 11.3): state, where the emitter is now (live Doppler, chip phase, code rate, C/N0), both lock flags with the symbol-lock metric and threshold, both residual carrier errors, and the two clocks in input samples (since the state was entered; both flags down without a break). Read on demand by the holder of a pool -- the one-at-a-time properties are the same fields' other face. No timestamp: the holder owns the sample clock and stamps it."
+arg_type = "void"
+return_type = "async_dsss_receiver_status_t"
+result_fields = [
+    { name = "state", type = "int" },
+    { name = "doppler_hz", type = "double" },
+    { name = "chip_phase", type = "double" },
+    { name = "code_rate", type = "double" },
+    { name = "cn0_dbhz_est", type = "double" },
+    { name = "code_locked", type = "int" },
+    { name = "locked", type = "int" },
+    { name = "lock_metric", type = "double" },
+    { name = "lock_threshold", type = "double" },
+    { name = "car_last_error", type = "double" },
+    { name = "mpsk_last_error", type = "double" },
+    { name = "state_samples", type = "uint64_t" },
+    { name = "both_down_samples", type = "uint64_t" },
+]
+single = true
+record_name = "ReceiverStatus"
+record_doc = "AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2 tracking, 3 idle, 4 lost), the live estimates, both lock flags, and the two clocks in input samples."
+record_module = "doppler.dsss"
+
+[[async_dsss_receiver.methods]]
 name = "configure_search_raw"
 doc = "Pin the embedded Acquisition's search grid directly, bypassing the symbol_rate-driven auto-sizing. Only meaningful while searching."
 arg_type = "void"
@@ -338,10 +363,12 @@ type = "int"
 [[async_dsss_receiver.properties]]
 name = "chip_phase"
 type = "double"
+doc = "Live Dll code phase in chips, Dll's own instantaneous-phase convention (the mirror image of acq_result_t::code_phase's correlation-lag convention -- see acq_build_handoff()'s doc comment)."
 
 [[async_dsss_receiver.properties]]
 name = "code_rate"
 type = "double"
+doc = "Live Dll code rate: chips advanced per nominal chip (~1.0)."
 
 [[async_dsss_receiver.properties]]
 name = "lock"

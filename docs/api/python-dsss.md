@@ -327,6 +327,23 @@ for an end-to-end decode through physically-coupled Doppler.
 
 ::: doppler.dsss.AsyncDsssReceiver
 
+## `HandoffAsyncDsssReceiver` — the same receiver, seeded from outside
+
+The pool shape of the
+[continuous multi-emitter design](../design/async-dsss-receiver.md) (§11):
+one searcher finds every emitter on a channel, and one of these per emitter
+tracks it. It is `AsyncDsssReceiver` with no search of its own — a view over
+the same core — so it starts `idle`, takes the searcher's detection through
+`seed(chip_phase, doppler_hz_est, cn0_dbhz_est)` (assigned once: a second
+seed is refused until `reset()`, which returns to idle), and runs the same
+refine → track chain. Its release rule is the design's §11.2: both lock flags
+down, continuously, for longer than `lost_confirm_s` sets `lost`, stops the
+loops, and leaves the holder to `reset()` it for its next seed. `seed()`,
+`idle` and `lost` exist on `AsyncDsssReceiver` too (an outside hit beats its
+own search); only the constructor differs.
+
+::: doppler.dsss.HandoffAsyncDsssReceiver
+
 ## `bin_to_signed` — read an FFT grid the way numpy does
 
 Maps a reported Doppler **bin index** to its **signed** frequency index —

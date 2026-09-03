@@ -111,10 +111,20 @@ extern "C"
 #define ASYNC_DSSS_RX_LOCK_N_UP 30u
 #define ASYNC_DSSS_RX_LOCK_N_DOWN 15u
 
+/* The state machine's values (`state` below, also the first byte of a
+ * serialized blob's extra record). Searching -> refining -> tracking is the
+ * searching flavor's path; hand-off mode starts at idle and seed() puts it
+ * at refining; lost is reached from tracking by the release rule and left
+ * only by reset(). */
+#define ASYNC_DSSS_RX_SEARCHING 0
+#define ASYNC_DSSS_RX_REFINING 1
+#define ASYNC_DSSS_RX_TRACKING 2
+#define ASYNC_DSSS_RX_IDLE 3
+#define ASYNC_DSSS_RX_LOST 4
+
   typedef struct
   {
-    acq_state_t *acq;
-
+    acq_state_t *acq; 
     /* Refine stage: a frozen-carrier collection Dll feeding
      * CarrierAcquisition via a RateConverter. Rebuilt on every real
      * acquisition hit and on reset(); otherwise untouched. */
@@ -181,6 +191,10 @@ extern "C"
     size_t refine_max_n_blocks;
     double carrier_freq_hz; 
     int state; 
+    double   lost_confirm_s;       
+    uint64_t lost_confirm_samples; 
+    uint64_t state_samples;        
+    uint64_t both_down_samples;    
     double   seed_chip_phase;     
     double   seed_doppler_hz_est; 
     double   doppler_hz_est;      
@@ -205,7 +219,18 @@ extern "C"
       int differential, double refine_max_error_db,
       size_t refine_samples_per_symbol, double refine_design_margin_db,
       size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
-      size_t refine_max_n_blocks, double carrier_freq_hz);
+      size_t refine_max_n_blocks, double carrier_freq_hz,
+      double lost_confirm_s);
+
+  async_dsss_receiver_state_t *async_dsss_receiver_create_handoff (
+      const uint8_t *code, size_t code_len, double chip_rate,
+      double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
+      double pd, size_t segments, size_t sps, int differential,
+      double refine_max_error_db, size_t refine_samples_per_symbol,
+      double refine_design_margin_db, size_t refine_n_fft,
+      size_t refine_zero_pad, bool refine_sequential,
+      size_t refine_max_n_blocks, double carrier_freq_hz,
+      double lost_confirm_s);
 
   void async_dsss_receiver_destroy (async_dsss_receiver_state_t *state);
 
@@ -216,6 +241,14 @@ extern "C"
   size_t async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
                                     const float _Complex *x, size_t x_len,
                                     float _Complex *out, size_t max_out);
+
+  int async_dsss_receiver_seed (async_dsss_receiver_state_t *state,
+                                double chip_phase, double doppler_hz_est,
+                                double cn0_dbhz_est);
+
+  int async_dsss_receiver_get_idle (const async_dsss_receiver_state_t *state);
+
+  int async_dsss_receiver_get_lost (const async_dsss_receiver_state_t *state);
 
   int async_dsss_receiver_configure_search_raw (
       async_dsss_receiver_state_t *state, size_t doppler_bins,
@@ -269,13 +302,16 @@ extern "C"
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car_frozen + refine_dll + refine_rc + ca + car +
-   * dll + rc + rx, always all nine (a fixed shape, DsssReceiver's own
-   * rationale). segments/sps/n/refine_segments are the layout key. */
+   * dll + rc + rx, always all nine in the searching flavor and the eight
+   * without acq in hand-off mode (a fixed shape per flavor, DsssReceiver's
+   * own rationale). segments/sps/n/refine_segments and the flavor are the
+   * layout key. */
 
   typedef struct
   {
     uint8_t  state;
-    uint8_t  _pad[7];
+    uint8_t  handoff; 
+    uint8_t  _pad[6];
     double   seed_chip_phase;
     double   seed_doppler_hz_est;
     double   doppler_hz_est;
@@ -286,6 +322,8 @@ extern "C"
     uint64_t refine_segments;
     uint64_t refine_samples_fed;
     uint64_t car_carry_len;
+    uint64_t state_samples;
+    uint64_t both_down_samples;
     double   lock_num;  
     double   lock_den;  
     double   lock_metric;         
@@ -293,7 +331,7 @@ extern "C"
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 2u
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 3u
 
   size_t async_dsss_receiver_state_bytes (
       const async_dsss_receiver_state_t *state);

@@ -122,7 +122,7 @@ make_rx (const wf_t *w)
 {
   return async_dsss_receiver_create (
       w->code, w->sf, w->chip_rate, w->sym_rate, w->spc, 2, 70.0, 1e-2, 0.9,
-      500.0, 4, 8, 0, 100.0, 4, 14.0, 32, 8, false, 100000, 0.0);
+      500.0, 4, 8, 0, 100.0, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
 }
 
 static int

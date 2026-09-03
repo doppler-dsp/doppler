@@ -54,6 +54,27 @@
  *     coupled Doppler (offset AND 500 Hz/s ramp), so despreading is coherent
  *     and MpskReceiver is left only a small residual. (Pure PLL -- no FLL
  *     anywhere, see the `ASYNC_DSSS_RX_BN_CARRIER` comment.)
+ *   - **idle** (`get_idle() == 1`, hand-off mode only): waiting for a seed.
+ *     Samples are consumed and discarded, so a feeding loop needs no
+ *     special case.
+ *   - **lost** (`get_lost() == 1`): the emitter is gone. Entered from
+ *     tracking when BOTH lock flags have been down, without a break, for
+ *     longer than `lost_confirm_s` (docs/design/async-dsss-receiver.md
+ *     section 11.2); the loops stop updating and samples are discarded
+ *     until `reset()`. One flag down is a degrade, reported by the flags
+ *     and not acted on. `lost_confirm_s = 0` (the searching flavor's
+ *     default) never enters it.
+ *
+ * **Hand-off mode** (`async_dsss_receiver_create_handoff()`) is the same
+ * object with NO embedded `Acquisition`: the search is somebody else's --
+ * a searcher covering one channel for every emitter on it -- and the
+ * receiver takes its detection from outside through
+ * `async_dsss_receiver_seed()`, exactly the record its own hit would have
+ * produced. It starts idle, `reset()` returns it to idle, and the searching
+ * branch of `steps()` is unreachable. `seed()` is a method of BOTH flavors
+ * (a hit is a seed the object made for itself), and it refuses on a
+ * receiver that already holds one: "assigned once" is enforced here, not
+ * by the caller's discipline.
  *
  * Both the refine and track stages share ONE carrier-wipe scratch/carry
  * buffer set (`car_wiped_buf`/`car_carry_buf`/`car_carry_len`, sized
@@ -67,8 +88,9 @@
  *                                      // doppler_uncertainty
  *     4, 8, 0,                         // segments, sps, differential
  *     0.5, 4, 14.0, 64, 8, false, 100000,  // refine_* tuning
- *     0.0);                            // carrier_freq_hz (0 = aiding off)
- * float _Complex syms[4096];
+ *     0.0,                             // carrier_freq_hz (0 = aiding off)
+ *     0.0);                            // lost_confirm_s (0 = never lost)
+ * float complex syms[4096];
  * size_t n = async_dsss_receiver_steps(rx, x, x_len, syms, 4096);
  * async_dsss_receiver_destroy(rx);
  * @endcode
@@ -175,6 +197,17 @@ extern "C"
 #define ASYNC_DSSS_RX_LOCK_N_UP 30u
 #define ASYNC_DSSS_RX_LOCK_N_DOWN 15u
 
+/* The state machine's values (`state` below, also the first byte of a
+ * serialized blob's extra record). Searching -> refining -> tracking is the
+ * searching flavor's path; hand-off mode starts at idle and seed() puts it
+ * at refining; lost is reached from tracking by the release rule and left
+ * only by reset(). */
+#define ASYNC_DSSS_RX_SEARCHING 0
+#define ASYNC_DSSS_RX_REFINING 1
+#define ASYNC_DSSS_RX_TRACKING 2
+#define ASYNC_DSSS_RX_IDLE 3
+#define ASYNC_DSSS_RX_LOST 4
+
   /**
    * @brief Composed receiver state.
    *
@@ -187,7 +220,9 @@ extern "C"
    */
   typedef struct
   {
-    acq_state_t *acq;
+    acq_state_t *acq; /**< The embedded search; NULL in hand-off mode
+                           (async_dsss_receiver_create_handoff()), where
+                           the seed comes from outside. */
 
     /* Refine stage: a frozen-carrier collection Dll feeding
      * CarrierAcquisition via a RateConverter. Rebuilt on every real
@@ -270,7 +305,15 @@ extern "C"
                                  carrier->code rate aiding, 0 = off (config,
                                  not running state -- restored by create). */
 
-    int state; /**< 0 = searching, 1 = refining, 2 = tracking.           */
+    int state; /**< One of the ASYNC_DSSS_RX_SEARCHING .. _LOST values.  */
+    double   lost_confirm_s;       /**< Config: both flags down for longer
+                                        than this is "gone"; 0 = never.  */
+    uint64_t lost_confirm_samples; /**< lost_confirm_s at the input rate. */
+    uint64_t state_samples;        /**< Running: samples fed since the
+                                        current state was entered.       */
+    uint64_t both_down_samples;    /**< Running: consecutive samples fed
+                                        while tracking with BOTH lock
+                                        flags down -- the release clock. */
     double   seed_chip_phase;     /**< Original handoff chip phase --
                                         reused verbatim to seed the FRESH
                                         live-tracking Dll, not wherever the
@@ -385,6 +428,19 @@ extern "C"
    *                                   at low SNR. Set to the receiver's own
    *                                   downlink RF frequency for a
    *                                   physically-coupled Doppler capture.
+   * @param lost_confirm_s             Release rule: both lock flags down,
+   *                                   continuously, for longer than this
+   *                                   many seconds puts the receiver in
+   *                                   the lost state (see get_lost()).
+   *                                   Size it past the longest fade the
+   *                                   link must ride. The clock also runs
+   *                                   from the first tracking sample,
+   *                                   when neither flag is up yet, so a
+   *                                   hand-off that never locks within the
+   *                                   interval is released the same way
+   *                                   as an emitter that leaves. Default
+   *                                   0.0 = never -- the searching
+   *                                   flavor's exit is reset(), as before.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import AsyncDsssReceiver
@@ -436,19 +492,155 @@ extern "C"
       int differential, double refine_max_error_db,
       size_t refine_samples_per_symbol, double refine_design_margin_db,
       size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
-      size_t refine_max_n_blocks, double carrier_freq_hz);
+      size_t refine_max_n_blocks, double carrier_freq_hz,
+      double lost_confirm_s);
+
+  /**
+   * @brief Create a receiver in hand-off mode: idle, with no search of its
+   *        own.
+   *
+   * The pool shape of docs/design/async-dsss-receiver.md section 11.1: one
+   * searcher finds every emitter on the channel, and one of these per
+   * emitter tracks it from the searcher's detection. No `Acquisition` is
+   * built (a 20-to-50-tile engine per receiver, a dozen times over, is
+   * memory and work nothing would use), so there is no
+   * `doppler_uncertainty` and `configure_search_raw()` returns -1. The
+   * receiver starts idle and consumes samples without effect until
+   * async_dsss_receiver_seed() gives it a detection, after which the
+   * refine -> track chain is the searching flavor's, verbatim.
+   *
+   * Every parameter is async_dsss_receiver_create()'s, minus the search
+   * half-range; `pfa`/`pd` still size `CarrierAcquisition`. The one
+   * default that differs is `lost_confirm_s`: 2.0 s, so an emitter that
+   * leaves is reported gone (get_lost()) and the holder can release the
+   * receiver -- against 5-to-15-minute on-times, two seconds past the
+   * measured fades costs nothing (section 12.3).
+   *
+   * @param code            Spreading code, 0/1 chips (see
+   *                        async_dsss_receiver_create()).
+   * @param code_len        Chips in `code`.
+   * @param chip_rate       Chip rate, Hz. Required.
+   * @param symbol_rate     Data-symbol rate, Hz. Required.
+   * @param spc             Samples/chip; default 2.
+   * @param m               PSK order, 2/4/8; default 2.
+   * @param cn0_dbhz        Design C/N0, dB-Hz; default 55.0 (derated by
+   *                        `refine_design_margin_db` into
+   *                        CarrierAcquisition's design_snr).
+   * @param pfa             CarrierAcquisition's false-alarm target;
+   *                        default 1e-3.
+   * @param pd              CarrierAcquisition's detection target;
+   *                        default 0.9.
+   * @param segments        Live-tracking Dll's segments; default 4.
+   * @param sps             MpskReceiver's samples/symbol; default 8.
+   * @param differential    MpskReceiver's differential demap; default 0.
+   * @param refine_max_error_db        As async_dsss_receiver_create().
+   * @param refine_samples_per_symbol  As async_dsss_receiver_create().
+   * @param refine_design_margin_db    As async_dsss_receiver_create().
+   * @param refine_n_fft               As async_dsss_receiver_create().
+   * @param refine_zero_pad            As async_dsss_receiver_create().
+   * @param refine_sequential          As async_dsss_receiver_create().
+   * @param refine_max_n_blocks        As async_dsss_receiver_create().
+   * @param carrier_freq_hz  Nominal RF carrier for carrier->code aiding;
+   *                         0.0 (default) = off.
+   * @param lost_confirm_s   Release rule, seconds of both flags down;
+   *                         default 2.0. 0 = never lost.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition, HandoffAsyncDsssReceiver
+   * >>> from doppler.dsss import bin_to_signed
+   * >>> from doppler.dsss.handoff import dll_init_chip_from_acq
+   * >>> from doppler.wfm import Gold
+   * >>> sf, chip, sym, spc = 1023, 3.069e6, 2700.0, 2
+   * >>> fs, te, tsym = chip * spc, sf * spc, chip * spc / sym
+   * >>> code = np.asarray(Gold().generate(sf)).astype(np.uint8)
+   * >>> csign = np.where(code & 1, -1.0, 1.0)
+   * >>> rng = np.random.default_rng(21)
+   * >>> n = int(600 * tsym) + 4 * te            # 600 async BPSK symbols
+   * >>> idx = np.arange(n)
+   * >>> data = (rng.integers(0, 2, 604) * 2 - 1).astype(float)
+   * >>> si = np.clip((idx / tsym).astype(int), 0, 603)
+   * >>> t = idx / fs
+   * >>> sig = (data[si] * csign[(idx // spc) % sf]
+   * ...        * np.exp(1j * 2 * np.pi * 0.5 * 500.0 * t * t))
+   * >>> cn0 = 20.0 + 10 * np.log10(sym)         # Es/N0 = 20 dB
+   * >>> sigma = np.sqrt(fs / 10 ** (cn0 / 10))
+   * >>> pre = 5 * te                            # noise-only lead-in
+   * >>> noise = (sigma / np.sqrt(2)) * (rng.standard_normal(pre + n)
+   * ...          + 1j * rng.standard_normal(pre + n))
+   * >>> x = (np.concatenate([np.zeros(pre), sig]).astype(np.complex64)
+   * ...      + noise.astype(np.complex64))
+   *
+   * The search is a separate object -- in a pool, one searcher per
+   * channel serves every receiver on it. Its hit is a correlation lag and
+   * a Doppler bin; the two documented helpers turn those into the seed:
+   *
+   * >>> acq = Acquisition(code, spc=spc, chip_rate=chip, symbol_rate=sym,
+   * ...                   cn0_dbhz=cn0, doppler_uncertainty=500.0)
+   * >>> for p in range(0, len(x) - te, te):
+   * ...     hits = acq.push(x[p:p + te])
+   * ...     if hits:
+   * ...         break
+   * >>> d_bin, lag, _, _, _, cn0_est, consumed = hits[0]
+   * >>> chip_phase = dll_init_chip_from_acq(lag, spc, sf)
+   * >>> res_hz = acq.doppler_res_hz
+   * >>> doppler_hz = bin_to_signed(d_bin, acq.doppler_bins) * res_hz
+   *
+   * The receiver never searched: it waits idle, takes the seed, and the
+   * samples from the hit onwards go to it.
+   *
+   * >>> rx = HandoffAsyncDsssReceiver(
+   * ...     code, chip_rate=chip, symbol_rate=sym, spc=spc, cn0_dbhz=cn0)
+   * >>> rx.idle
+   * 1
+   * >>> rx.seed(chip_phase, doppler_hz, cn0_est)
+   * >>> (rx.idle, rx.refining)
+   * (0, 1)
+   * >>> syms = [rx.steps(x[p:p + te])
+   * ...         for p in range(int(consumed), len(x) - te, te)]
+   * >>> syms = np.concatenate([s for s in syms if len(s)])
+   * >>> rx.tracking                  # refined and tracking, no search
+   * 1
+   * >>> len(syms) > 300
+   * True
+   * >>> bool(np.mean(syms.real**2) > 10 * np.mean(syms.imag**2))
+   * True
+   *
+   * Assigned once: a second seed is refused until reset(), which in this
+   * mode returns to idle, not to searching.
+   *
+   * >>> rx.seed(0.0, 0.0, cn0)  # doctest: +ELLIPSIS
+   * Traceback (most recent call last):
+   *     ...
+   * ValueError: seed refused: ...
+   * >>> rx.reset()
+   * >>> rx.idle
+   * 1
+   *
+   * @endcode
+   */
+  async_dsss_receiver_state_t *async_dsss_receiver_create_handoff (
+      const uint8_t *code, size_t code_len, double chip_rate,
+      double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
+      double pd, size_t segments, size_t sps, int differential,
+      double refine_max_error_db, size_t refine_samples_per_symbol,
+      double refine_design_margin_db, size_t refine_n_fft,
+      size_t refine_zero_pad, bool refine_sequential,
+      size_t refine_max_n_blocks, double carrier_freq_hz,
+      double lost_confirm_s);
 
   /** @brief Destroy a receiver and release every child.
    *  @param state May be NULL. */
   void async_dsss_receiver_destroy (async_dsss_receiver_state_t *state);
 
   /**
-   * @brief Return to the searching state.
-   * Resets the embedded Acquisition and rebuilds both the refine-stage and
-   * live-tracking chains back to their placeholder seed (phase 0, no
-   * Doppler). A receiver that has locked cannot be "reset back to tracking
-   * the same signal," only back to searching — matching every other
-   * object's reset() semantics in this codebase.
+   * @brief Return to the searching state -- or, in hand-off mode, to idle.
+   * Resets the embedded Acquisition (if any) and rebuilds both the
+   * refine-stage and live-tracking chains back to their placeholder seed
+   * (phase 0, no Doppler). A receiver that has locked cannot be "reset back
+   * to tracking the same signal," only back to searching — matching every
+   * other object's reset() semantics in this codebase. In hand-off mode
+   * there is no search to return to, so this is how the holder of a pool
+   * releases a lost receiver for its next seed, with no reallocation.
    * @param state Must be non-NULL.
    * @code
    * >>> import numpy as np
@@ -476,7 +668,11 @@ extern "C"
    * sharpens the coarse Doppler estimate, and only once it is ready (or
    * gives up) is the live tracking chain built and demodulation begins.
    * Accepts any block size; state carries across calls, so a capture can be
-   * fed in frames of any length with no seam. Under SPEC's coupled offset +
+   * fed in frames of any length with no seam. Idle (hand-off mode, before a
+   * seed) and lost (after the release rule fires) consume the samples and
+   * emit nothing, so the feeding loop is the same in every state; while
+   * tracking, the release clock runs on the two lock flags after every
+   * call (see `lost_confirm_s`). Under SPEC's coupled offset +
    * 500 Hz/s Doppler ramp the pre-despread Costas removes the full carrier
    * dynamics before the code loop, so the recovered constellation lands
    * cleanly on the BPSK real axis.
@@ -537,6 +733,78 @@ extern "C"
                                     float _Complex *out, size_t max_out);
 
   /**
+   * @brief Take a detection from outside and start refining from it.
+   *
+   * The hand-off of docs/design/async-dsss-receiver.md section 11.1: the
+   * three numbers a searcher's hit carries that this receiver uses --
+   * `acq_handoff_t`'s `chip_phase`, `doppler_hz_est` and `cn0_dbhz_est` --
+   * exactly as its own hit would have produced them (the searching flavor's
+   * `steps()` calls this on its own hit). `chip_phase` is the code's
+   * instantaneous phase in chips, Dll's convention, at the FIRST sample of
+   * the next `steps()` call; the Python-side conversion from a lag is
+   * `doppler.dsss.handoff`. The refine chain is rebuilt from the seed and
+   * the state becomes refining; the unconsumed tail is the caller's to feed.
+   *
+   * Refused (`DP_ERR_INVALID`, nothing changes) on a receiver that is not
+   * waiting for one -- refining, tracking or lost -- because "assigned once"
+   * is a property of the object, not of the caller's bookkeeping; `reset()`
+   * releases it. Accepted while idle (hand-off mode) or searching (the
+   * searching flavor: an outside hit simply beats its own). Also refused
+   * for a `chip_phase` outside `[0, code_len)` or a non-finite value.
+   *
+   * @param state          Must be non-NULL.
+   * @param chip_phase     Code phase at the next sample, chips, in
+   *                       `[0, code_len)`.
+   * @param doppler_hz_est Coarse Doppler estimate, Hz (the refine stage
+   *                       sharpens it).
+   * @param cn0_dbhz_est   The hit's C/N0 estimate, dB-Hz; reported back by
+   *                       get_cn0_dbhz_est() until tracking refreshes it.
+   * @return `DP_OK`, or `DP_ERR_INVALID` when refused.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import HandoffAsyncDsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = HandoffAsyncDsssReceiver(code, chip_rate=3.069e6,
+   * ...                               symbol_rate=2700.0, spc=2)
+   * >>> rx.seed(chip_phase=512.25, doppler_hz_est=-1500.0,
+   * ...         cn0_dbhz_est=48.0)
+   * >>> (rx.idle, rx.refining, rx.doppler_hz, rx.cn0_dbhz_est)
+   * (0, 1, -1500.0, 48.0)
+   *
+   * Already assigned -- refused until reset():
+   *
+   * >>> rx.seed(0.0, 0.0, 48.0)      # doctest: +ELLIPSIS
+   * Traceback (most recent call last):
+   *     ...
+   * ValueError: seed refused: ...
+   * >>> rx.reset()
+   *
+   * A chip phase must be inside the code, `[0, code_len)`:
+   *
+   * >>> rx.seed(1023.0, 0.0, 48.0)   # doctest: +ELLIPSIS
+   * Traceback (most recent call last):
+   *     ...
+   * ValueError: seed refused: ...
+   *
+   * @endcode
+   */
+  int async_dsss_receiver_seed (async_dsss_receiver_state_t *state,
+                                double chip_phase, double doppler_hz_est,
+                                double cn0_dbhz_est);
+
+  /** @brief 1 while waiting for a seed (hand-off mode, before seed() or
+   * after reset()); 0 in every other state. */
+  int async_dsss_receiver_get_idle (const async_dsss_receiver_state_t *state);
+
+  /** @brief 1 once the release rule has fired: both lock flags were down,
+   * continuously, for longer than `lost_confirm_s` while tracking -- an
+   * emitter that left, or a seed that never locked. The loops have stopped;
+   * the holder releases the assignment and calls reset(). 0 in every other
+   * state, and always 0 with `lost_confirm_s = 0`. */
+  int async_dsss_receiver_get_lost (const async_dsss_receiver_state_t *state);
+
+  /**
    * @brief Pin the embedded Acquisition's search grid directly.
    * Forwards to `acq_configure_search_raw()` — the escape hatch under this
    * object's `symbol_rate`-driven auto-sizing, for a power user who wants a
@@ -550,7 +818,8 @@ extern "C"
    * @param n_noncoh      Non-coherent looks accumulated per grid cell
    *                      (1..256); more looks buys sensitivity at the cost
    *                      of dwell, replacing the auto-sized count.
-   * @return 0 on success, -1 on invalid grid (see acq_configure_search_raw).
+   * @return 0 on success, -1 on invalid grid (see acq_configure_search_raw)
+   *         or in hand-off mode, which has no search to pin.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import AsyncDsssReceiver
@@ -700,13 +969,17 @@ extern "C"
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car_frozen + refine_dll + refine_rc + ca + car +
-   * dll + rc + rx, always all nine (a fixed shape, DsssReceiver's own
-   * rationale). segments/sps/n/refine_segments are the layout key. */
+   * dll + rc + rx, always all nine in the searching flavor and the eight
+   * without acq in hand-off mode (a fixed shape per flavor, DsssReceiver's
+   * own rationale). segments/sps/n/refine_segments and the flavor are the
+   * layout key. */
 
   typedef struct
   {
     uint8_t  state;
-    uint8_t  _pad[7];
+    uint8_t  handoff; /**< 1 = no acq child in the blob (hand-off mode); a
+                           blob does not travel between the flavors.    */
+    uint8_t  _pad[6];
     double   seed_chip_phase;
     double   seed_doppler_hz_est;
     double   doppler_hz_est;
@@ -717,6 +990,8 @@ extern "C"
     uint64_t refine_segments;
     uint64_t refine_samples_fed;
     uint64_t car_carry_len;
+    uint64_t state_samples;
+    uint64_t both_down_samples;
     double   lock_num;  /**< symbol-lock EMAs + hysteretic detector: the */
     double   lock_den;  /**< running state that survives a checkpoint    */
     double   lock_metric;         /**< (config -- alpha, thresholds -- is */
@@ -724,7 +999,7 @@ extern "C"
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 2u
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 3u
 
   size_t async_dsss_receiver_state_bytes (
       const async_dsss_receiver_state_t *state);

@@ -119,23 +119,29 @@ roll-tiled axis is not computed non-coherently, and "non-coherent" here
 means `n_noncoh` — repeated dwells accumulated for SNR at a fixed
 hypothesis set, an axis that composes with either mechanism.
 
-**No `doppler_resolution`, `doppler_rate` or `max_noncoh`.** The first two
-existed to size a coherent depth safely under continuous data, and there
-is no such thing: coherent combining under asynchronous data is a
-structural mislock, not a trade-off, so the continuous class has no
-coherent-depth axis for them to tune. `n_noncoh` is auto-selected to meet
-`pd` at `pfa` and exposed read-only; its only bound is an internal safety
-valve (`ACQ_N_NONCOH_SAFETY_CEILING`, 256 looks) because the
-semi-analytical `pd_predicted` model turns non-monotonic past that — a
-modelling limit, not a sensitivity one.
+**Two sizing inputs for the coherent depth: `code_only_epochs` and
+`doppler_rate`.** The continuous class runs a coherent depth `D` in blocks
+inside the waveform's pure-code window (§2.3), and `D` is auto-sized as
+the smaller of two bounds: `⌊(code_only_epochs + 1)/2⌋`, so a whole block
+always fits in the window, and `f_epoch/√1000` from `doppler_rate`, so
+the drift over one block stays inside half a slow-time bin.
+`code_only_epochs` **defaults to 1**, which is `D = 1` and exactly the
+engine as it ran before — a waveform with no window loses nothing and
+sets nothing. Nothing else sizes it — no `doppler_resolution`, no
+`max_noncoh`. `n_noncoh`
+is auto-selected to meet `pd` at `pfa` and exposed read-only; its only
+bound is an internal safety valve (`ACQ_N_NONCOH_SAFETY_CEILING`, 256
+looks) because the semi-analytical `pd_predicted` model turns
+non-monotonic past that — a modelling limit, not a sensitivity one.
 
 #### `Acquisition` (continuous)
 
-`doppler_bins` here is the `window_bins` mechanism (roll-tiled): no
-coherent multi-epoch combining is ever attempted, closing the aliasing
-footgun (task #67: coherent combining is not a graceful-loss
-trade-off under continuous async data, it's a structural mislock).
-Sensitivity margin comes entirely from auto-selected `n_noncoh`.
+`doppler_bins` here is the `window_bins` mechanism (roll-tiled) for the
+span, with the slow-time `coherent_bins` axis *inside* each tile for the
+resolution and the gain — the two mechanisms together, which is what the
+window of §2.3 makes sound. Coherent combining across *data* is a
+structural mislock (task #67), and the block stride of §2.3 is what keeps
+the combined epochs inside the window.
 
 | Parameter             | Type                                   | Default      | Description                                                                                                                                                   |
 | --------------------- | -------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -212,13 +218,28 @@ keeps the engine usable by a baseband-only caller with no carrier at all.
     `D` is — more bins subdivide the same range, they never widen it. At
     3.069 Mcps and 1023 chips that is `chip_rate/sf` = 3.0 kHz per bin,
     a half-span of 1.5 kHz; the spec's ±50 kHz is 33 of them.
-- **`D = 1`, always, for continuous data.** Coherent multi-epoch
-    combining under asynchronous data aliases the data's own spectrum
-    across the Doppler axis and mislocks structurally
-    ([`dsss-acquisition.md`](dsss-acquisition.md)); with one epoch there
-    is no multi-epoch axis to alias across. Sensitivity comes from
-    non-coherent accumulation over `n_noncoh` epochs, which sums
-    magnitudes and is immune to data sign flips.
+- **`D > 1`, in blocks, inside the pure-code window (decided
+    2026-09-03).** Coherent multi-epoch combining across data aliases the
+    data's own spectrum across the Doppler axis and mislocks structurally
+    ([`dsss-acquisition.md`](dsss-acquisition.md)). The waveform carries a
+    **500-epoch pure-code window every 5500 epochs** (§5.4), and inside it
+    there is nothing to alias. The searcher does not know any emitter's
+    window phase, so it sums **non-overlapping blocks of `D` epochs**, one
+    coherent surface per block, detected per block: a window of `W`
+    epochs holds a whole block whatever its phase once `W ≥ 2D − 1`, and
+    holds `⌊W/D⌋` of them in a row for `n_noncoh` to accumulate — `W` is
+    the engine's `code_only_epochs`, and `D` never exceeds what it holds
+    (§2.1). A block
+    that straddles data spreads that emitter over its `D` rows, about
+    `10·log10 D` below an aligned block's peak at the same code phase — a
+    weaker copy of an emitter the assigned table already excludes, not a
+    mislock. `D` is bounded by the Doppler rate (§2.1): under 500 Hz/s the
+    drift over a block stays inside half a bin while `D ≤ f_epoch/√1000`
+    — **61** at 2 Mcps, **154** at 5 — which is a bin of **32 Hz** and a
+    gain of **18–22 dB** at either end of the range, 8 and 3 aligned
+    blocks per window, and the same 3.2 k Doppler hypotheses at both
+    rates. The floor inside an aligned block is the transition-free one
+    (§12.2's −21 dB), not the −13 the data case measured.
 - **The uncertainty is tiled by rolling one spectrum, not by a mixer
     bank.** One forward FFT of the epoch, then the spectrum rolled by `k`
     bins per hypothesis against one precomputed replica spectrum: one
@@ -234,10 +255,45 @@ keeps the engine usable by a baseband-only caller with no carrier at all.
     point of §6.1; the number is about 10 ns per tile per output sample
     (§12.1), which is what makes the searcher's cost the same at 2 and 5
     Mcps and over a core at ±50 kHz.
-- **Open:** the `n_noncoh` sizing against epochs that straddle a data
-    transition — a graceful per-epoch loss on some of the `nc` epochs,
-    not a mislock, and not separately quantified for the continuous
-    engine.
+- **Why the roll still carries the tiles at `D > 1`.**
+    [`dsss-acquisition.md`](dsss-acquisition.md) §4 marks the roll OUT
+    wherever coherent integration is viable, because a mixer bank *with*
+    the slow-time transform does everything a roll *without* it does, plus
+    the gain and a finer step. That compared the roll bare. Rolling by `k`
+    bins is mixing by `k/nx` (the same page), so the roll *with* the
+    slow-time transform inside each tile is the mixer bank with one forward
+    transform shared across the tiles instead of one per tile — the 1.2–1.55×
+    it measured at `D = 1` — and the `D` rows per tile are the fine step. A
+    bank of DDC-fed engines is not a third option on this signal: a tile
+    is a Doppler hypothesis on a spread signal 2–5 MHz wide against 50 kHz
+    of uncertainty, so a per-tile DDC cannot decimate and only adds a
+    mixer per tile (§6.4's 14–33× real time). The comparison is a count
+    until §12 step 14 makes it a number.
+- **A roll per thread (decided 2026-09-03).** The tiles are independent
+    after the one forward transform: each reads the shared spectrum and
+    writes its own rows of the surface, so the tile loop is a
+    `dp_parallel_for` over tiles, one inverse transform and, at `D > 1`,
+    one slow-time transform per tile on whichever thread takes it. The
+    plan carries scratch, so each thread owns an inverse plan and a product
+    buffer — a few KB — and nothing else is shared. This keeps the one
+    forward transform the slice across engines repeated (§12.1's 6–11%),
+    needs no LO in front of a slice, and keeps the peak list and the twin
+    rule (§7.1) on **one** surface, where a slice boundary would have cut
+    an exclusion zone in two. The workers are **persistent** — pthreads
+    created once at `create()` and parked between pushes, a persistent
+    form of `dp_parallel.h`'s bounded parallel-for beside the per-call one
+    its two callers use — so the fan costs a hand-off per push, not a
+    thread creation per worker, and the granularity of a push is the
+    coherence's choice (§2.3), not the threading's. Thread count is the
+    engine's parameter, default the core count; the noise estimate and
+    the list stay serial after the fan.
+- **What it costs, before it is measured.** The slow-time transform
+    runs once per block per tile, so per epoch it is of the order of the
+    epoch transform it sits behind; the searcher's cost stays near §12.1's
+    number until §12 step 14 says otherwise. The state is `D` epochs per
+    tile: 53 MB per channel at either end of the range. `n_noncoh` across
+    a window edge accumulates data blocks — a graceful loss, bounded by
+    the `10·log10 D`, not a mislock.
 
 ______________________________________________________________________
 
@@ -820,9 +876,9 @@ and for nothing else in the stream:
     (< 500 Hz/s in the spec). The claim rule across windows is then
     "same signal, next frame", not "same preamble".
 - **Emitters come and go, at their own frequencies, and the bank is
-    always on the air.** An emitter rises into the band at some Doppler,
+    always on the air.** An emitter comes into view in the band at some Doppler,
     is acquired at its next data-free window, is handed to a tracker, keeps
-    transmitting while others rise and set around it, and eventually
+    transmitting while others come into and leave view around it, and eventually
     leaves. The bank never stops searching: a channel that has handed one
     emitter off must go on watching its band for the next, and an emitter
     that drops out must be noticed and re-acquired when it returns. That is
@@ -907,7 +963,7 @@ record — is already there.
 
 - **It always has to be searching.** A channel never stops acquiring: the
     emitter it just handed off keeps transmitting in its band while a
-    second one rises beside it, and the first one's loss has to be noticed
+    second one comes into view beside it, and the first one's loss has to be noticed
     by something that is still looking. That rules out
     `AsyncDsssReceiver` as the channel — its state machine *replaces* the
     search with refining and then tracking, feeding every sample to the
@@ -938,21 +994,20 @@ record — is already there.
 1. ~~**One Gold code per signal.**~~ **Answered:** one Gold code, shared;
     emitters differ by Doppler. One bank; the multi-signal case is *within*
     it, across channels.
-1. **The frame epoch.** Does the tracking chain's own frame sync recover
-    where the frame starts, or does the channel owe the refined code epoch
-    (the capture's refine, at `1023·spc`-sample periods)?
-1. ~~**The data-free window's length.**~~ **Answered:** one code period,
-    so `reps = 1` and no coherent gain. Still open: the frame cadence — how
-    often an emitter can be (re)acquired and how far it drifts (< 500 Hz/s)
-    in between.
-1. **Who owns the lifecycle.** *Partly answered:* because the channel
-    always searches, the bank must at least remember what it handed off
-    (an emitter keyed by Doppler and code phase) or it re-hands-off the
-    same emitter every window. The receiver's half — how "gone" is
-    decided and what it releases — is designed in
-    §10. Still open: whether the
-    bank also owns the tracker pool and the assigned table, or reports
-    "still there / gone" to an application that owns them.
+1. **The frame epoch.** *Partly answered:* the block that detects an
+    emitter lies inside its window, which locates the window to within
+    `D` epochs; the exact boundary is the tracking chain's to find, and
+    the receiver is not told it (§8.2).
+1. ~~**The data-free window's length.**~~ **Answered (2026-09-03):**
+    **500 epochs of code only, then 5000 epochs of data** — a frame of
+    5500 epochs, so one (re)acquisition opportunity every 1.1 s at 5 Mcps
+    and 2.8 s at 2, and up to 0.56–1.4 kHz of drift between them at
+    500 Hz/s. The window is long enough for any coherent depth the
+    Doppler rate allows (§2.3), and it is why the searcher has one.
+1. ~~**Who owns the lifecycle.**~~ **Answered (2026-09-03):** a C
+    object in doppler, the pool of §8.2, owns the receivers and the
+    assigned table; the receiver's half — how "gone" is decided and what
+    it releases — is §10.
 1. ~~**How many emitters at once**, and how long an emitter is typically
     in view.~~ **Answered**: at least one always
     on, up to 10 at once, each on for 5 to 15 minutes on average. The pool
@@ -966,8 +1021,10 @@ record — is already there.
     emitters that are up at once — inside the floor a multi-peak report
     suffices; beyond it the weak ones need the strong ones cancelled first,
     which is a different object. The floor is measured: −13 dB in the
-    operating case, not the Gold bound's −24 (§12.2). Still open: the
-    spread itself.
+    operating case, not the Gold bound's −24 (§12.2), and −21 inside the
+    pure-code window the searcher now detects in. **The spread is 10 dB**
+    (maintainer, 2026-09-03): inside the floor, so the list branch ships
+    and no cancellation object is built (§9).
 
 ______________________________________________________________________
 
@@ -987,9 +1044,10 @@ of it is re-derived here (§5):
     1023-chip code in the same band; what tells them apart is Doppler, code
     phase and power — three coordinates on **one** (Doppler × code phase)
     surface, the surface a channel already computes.
-- **`reps = 1`.** The data-free window is one code period, so the search is
-    the continuous engine's: coherent depth one, sensitivity from
-    non-coherent looks, no coherent gain to buy.
+- **A 500-epoch pure-code window every 5500 epochs.** The search is
+    the continuous engine's, run in coherent blocks inside that window
+    (§2.3): 18–22 dB of coherent gain, a 32 Hz Doppler bin, and the
+    transition-free floor, at a cost the engine already pays per tile.
 - **The channel always searches.** It never hands its samples over to a
     tracker and stops; search and track are concurrent.
 - **The hand-off is a policy** — track, capture a window, or report — chosen
@@ -997,10 +1055,15 @@ of it is re-derived here (§5):
 - **The population**: **at least one emitter is
     always on**, there may be **up to 10 at once**, and each is on for **5
     to 15 minutes** on average. So the surface never has fewer than one
-    peak, has up to ten, and an emitter rises or sets about once a minute
-    at the full population — every data-free window of every emitter is a
-    re-acquisition opportunity, and a rise between two of them is the
-    normal event the searcher exists for. This answers `burst-bank.md`
+    peak, has up to ten, and an emitter comes into or leaves view about once a minute
+    at the full population. **An emitter transmits continuously, and coming into view is not
+    powering up** (maintainer, 2026-09-03): it appears at whatever point of its frame it has reached, mid-payload as
+    often as not, and its first window arrives at its own phase,
+    uniformly within one frame — so the acquisition latency after an emitter appears
+    is bounded by a frame (1.1 s at 5 Mcps, 2.8 at 2) and averages half
+    of one. Every window of every emitter is a re-acquisition
+    opportunity, and an emitter appearing between two of them is the normal event the
+    searcher exists for. This answers `burst-bank.md`
     §11.4's question 6: the receiver pool is sized at ten plus release
     headroom (§10), and the soak's population is known (§12 step 7).
 - **The rate**: all of it — the front end, the
@@ -1018,14 +1081,17 @@ supersede §5.2's, which were the async spec's waveform:
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | chip rate                      | **2 to 5 Mcps** — design to the worst case, which is per quantity: 5 Mcps for anything priced per sample, 2 Mcps for anything priced per tile | given                                                                                                                                           |
 | code                           | 1023 chips → one epoch is **204.6 µs** at 5 Mcps, **511.5 µs** at 2                                                                           | given                                                                                                                                           |
-| coherent depth                 | **`D = 1`** — one epoch, no slow-time FFT                                                                                                     | given                                                                                                                                           |
+| pure-code window / frame       | **500 / 5500 epochs** — 102 ms / 1.13 s at 5 Mcps, 256 ms / 2.81 s at 2                                                                       | given (2026-09-03)                                                                                                                              |
+| coherent depth                 | **`D ≤ f_epoch/√1000`** in non-overlapping blocks: **154** at 5 Mcps, **61** at 2 — a 32 Hz bin, 3 and 8 aligned blocks per window            | the Doppler rate (< 500 Hz/s) over one block, §2.3                                                                                              |
 | DDC input                      | **13 MSa/s**                                                                                                                                  | given — chosen to force the arbitrary-ratio path (§6.4)                                                                                         |
 | DDC output                     | **2× chip rate**: 10 MSa/s at 5 Mcps, 4 at 2 (`spc = 2`)                                                                                      | given; the ratios 1.3 and 3.25 both lack an integer factor                                                                                      |
 | samples per epoch              | 2046, at every rate                                                                                                                           | `1023 · spc`                                                                                                                                    |
-| Doppler tile                   | `1/T_epoch` = **4.89 kHz** at 5 Mcps, **1.96 kHz** at 2; a tile spans ± half that                                                             | at `D = 1` the Doppler axis is the `window_bins` tile index                                                                                     |
+| chip pulse                     | **rectangular** — no pulse shaping on the chips                                                                                               | given (2026-09-03); every §12 harness renders rect chips and correlates against a rect replica                                                  |
+| Doppler tile                   | `1/T_epoch` = **4.89 kHz** at 5 Mcps, **1.96 kHz** at 2; a tile spans ± half that, subdivided into `D` rows of 32 Hz                          | the `window_bins` tile index × the slow-time row                                                                                                |
 | uncertainty                    | **±50 kHz to start**; Doppler pre-compensation will likely bring it to **±5 kHz**                                                             | given — design at the full width, and record what the narrow one saves                                                                          |
 | tiles over ±50 kHz             | **21** at 5 Mcps, **53** at 2                                                                                                                 | the engine's own rule, `acq_cover_window_bins`: `2·ceil((U − span)/(2·span)) + 1`, measured in §12.1; the searcher's worst case is the low rate |
 | tiles over ±5 kHz              | 3 at 5 Mcps, 7 at 2                                                                                                                           | same rule, after pre-compensation                                                                                                               |
+| cores                          | **at least 48** on the one server                                                                                                             | given (2026-09-03) — the population's ~7.6 cores at the operating point and ~17 at the floor (§12.1) are a third of the box, not a fit          |
 | budget, one core, operating    | **77 ns per input sample**; per output sample **100 ns** at 5 Mcps, 250 at 2                                                                  | `1/13e6`, `1/10e6`, `1/4e6`                                                                                                                     |
 | budget, one core, at the floor | **33 ns per input sample**; 43 per output at 5 Mcps                                                                                           | `1/30e6`, same ratio                                                                                                                            |
 
@@ -1081,7 +1147,7 @@ strongest. The rest are not below threshold; they are simply not looked
 at. In the burst use case that costs little — bursts are short and rarely
 overlap in one channel. In the continuous case the strongest emitter is up
 for hours, and every dwell for those hours reports it and nothing else, so
-a second emitter rising beside it is **never** acquired while the first is
+a second emitter appearing beside it is **never** acquired while the first is
 on the air. Nor does hand-off help: the assigned receiver goes on tracking
 the first emitter, the searcher goes on re-detecting it at every data-free
 window (the suppression-by-emitter §5.3 asks the bank
@@ -1233,11 +1299,12 @@ same code phase stays at its tile. So the rule holds a same-phase peak for
 one epoch rather than dropping it, and costs no resolution at other code
 phases, where the adjacent tiles remain candidates.
 
-At `D = 1` the surface is the native one: the engine interpolates only
-the slow-time axis, and there is none, so the interpolated-vs-native
-split of `dsss-acquisition.md` §9.1 collapses and the gate and the report
-read the same cells. The Doppler axis is the `window_bins` tile index,
-one row per tile, `1/T_epoch` apart — 4.89 kHz at 5 Mcps, 1.96 at 2.
+The Doppler axis is the `window_bins` tile index, `1/T_epoch` apart —
+4.89 kHz at 5 Mcps, 1.96 at 2 — with `D` slow-time rows inside each tile
+(§2.3), so the interpolated-vs-native split of `dsss-acquisition.md` §9.1
+applies as on the burst engine: the gate reads the interpolated slow-time
+axis and the report is the native row. (§12.6 measured the list at
+`D = 1`, where the two collapse.)
 
 **Why one bin and one chip.** They are the widths of one emitter's main
 lobe: an epoch's frequency response is the `sinc` of a one-epoch
@@ -1429,6 +1496,64 @@ one does and reports `t0_source` `"sigmf"` where it used to report
 being wrong by hours looks authoritative in a way that reporting nothing
 does not.
 
+### 8.2 The pool — one object holds the population (decided 2026-09-03)
+
+*Decided by the maintainer 2026-09-03; the surfaces it composes are the
+shipped ones of §4.1, §7.1 and §8.1.*
+
+The other half of §5.4's question 5 is answered the way this library
+answers it: the holder is a **C object**, `async_dsss_pool`, and the Python
+face is glue. It is the one composition on the air side of the bank, and
+**nothing about this waveform or this population is baked into it**:
+every number below is a create parameter whose default is the operating
+point of §6.1, the searcher's and the receivers' own parameters pass
+through it untouched, and the pool knows only what it was given —
+another code, another frame, another population is another `create()`.
+Everything it holds is sized once, at create:
+
+- **One searcher** — `Acquisition` in continuous mode with the block
+    coherence of §2.3 and `max_peaks` of order 16 (§7.1) — its tiles fanned
+    a roll per thread across the threads the pool is given, the forward
+    transform and the list on the calling thread.
+- **`n_slots` hand-off receivers** — twelve here, §10's ten plus release
+    headroom — created
+    idle. An idle or lost receiver consumes and discards what it is fed,
+    so every receiver is fed every block and the feed has no per-state
+    branch; the receivers run under `dp_parallel.h` across the thread
+    count the application gives (§6.4: they are the population's cost,
+    and they parallelize).
+- **The assigned table**: one row per slot — the seed's coordinates, and
+    the receiver's *current* Doppler and chip phase, refreshed from
+    `status()` before every dwell is read (§9: an emitter drifts up to
+    1.4 kHz between windows, so the seed is the wrong key).
+- **The clock and the event log**, borrowed at create (the
+    `dp_tlm_capture` shape): the pool is the one component that stamps,
+    and it stages the slot, the Doppler, the chip phase and the C/N0 on
+    every transition it logs.
+
+One `push()` per block does, in order: feed the searcher; refresh the
+table; drop every peak inside one exclusion zone (§7.1) of a live row;
+for each survivor, `acq_build_handoff()` and `seed()` into a free slot,
+or count it dropped when there is none; feed every receiver; then, for
+each slot whose receiver reports `lost`, clear the row, `reset()` the
+receiver to idle, and log `released`. `seed()`'s own refusal while a
+receiver is live is the second guard behind the table (§11.1), so a
+bookkeeping error cannot become a double assignment. The transitions —
+`seeded`, `tracking`, `degrade`, `lost`, `released`, `dropped` — are the
+event log's annotations, at the sample the receiver's record reports.
+
+What comes out, per slot and by index, the `burst_capture` shape: the
+status record by value, and the symbols the receiver decided on this
+push, borrowed by pointer from a buffer sized at create by
+`steps_max_out()`. Nothing allocates per push or per transition, the
+pool never exceeds `n_slots`, and a released emitter still on the air is a
+new detection at its next window into whichever slot is free — the one
+re-assignment the lifecycle permits. Replay and live runs produce the
+same records, because nothing below the pool sees a time.
+
+The pool is off the searcher's push path: the spread is 10 dB (§5.4),
+inside the floor, so no replica is subtracted and §11.4 is not built.
+
 ______________________________________________________________________
 
 ## 9. The two branches
@@ -1458,8 +1583,11 @@ to hold: the residual after cancellation sits below the unassigned
 emitters the application needs to find (§12 step 5).
 
 The branch is chosen by one number — the application's operating spread
-against the knee §12 step 3 measures — and the second branch strictly
-contains the first, so building the list first is right either way.
+against the knee §12 step 3 measures — and it is chosen: **10 dB**, inside
+the 18–21 dB knee measured at `D = 1` (§12.6) and further inside it in
+the coherent blocks, where the floor is −21. The list branch ships; the
+cancellation branch strictly contains it and stays designed here (§7.2,
+§11.4) for a waveform whose spread is not this one.
 
 ______________________________________________________________________
 
@@ -1716,8 +1844,8 @@ Three things about it are design, not detail:
     §6.4, and the reason the pool's holder stands on the
     searcher's push path on this branch and not otherwise.
 
-The replica is not needed on the weak-spread branch, and this item is built
-only if §12 step 3's knee says so.
+The replica is not needed on the weak-spread branch, which is the branch
+the 10 dB spread picks (§9); it is not built.
 
 ### 11.5 The cost
 
@@ -1792,7 +1920,11 @@ ______________________________________________________________________
     rewritten to both flags down for longer than the fade.
 1. **The lifecycle soak.** The population of §6.1 — one emitter always
     on, up to ten, on-times drawn around 5 to 15 minutes — at random
-    Dopplers within one span and a spread on each side of the knee: each
+    Dopplers within one span and a spread on each side of the knee. Each
+    emitter's synth runs for the whole soak and visibility is a gain of 1
+    or 0 at the sum, so an emitter appears at a random frame phase and nothing
+    in the source restarts (§6.1); the phase at first sight is a random
+    burn-in, the way the harnesses already set code phase. Each
     is acquired once, assigned once, tracked by the same receiver until
     it leaves, released by the rule of §10, and re-acquired on return; no
     receiver is ever assigned twice to a live emitter, no emitter above
@@ -1812,7 +1944,7 @@ ______________________________________________________________________
     hand-off-mode receiver tracking at 5 Mcps, and one
     replica subtraction. Then the whole population — the front end, the
     searcher, ten receivers, and on the strong branch ten replicas — on
-    the core count the application gives, reported as the fraction of
+    the 48 cores the application gives (§6.1), reported as the fraction of
     real time **beside the count of emitters acquired and tracked** in
     the same run, twice: at the operating point and at the 30 MSa/s
     floor (the same chain fed 2.3× faster). Target: under 0.5 at both.
@@ -1827,12 +1959,44 @@ ______________________________________________________________________
     (§5.4 question 7) against step 3's knee: inside,
     branch one ships and (iii) is not built; beyond, (iii) is built and
     step 5's residual is the number its characterization pins.
+    **Done (2026-09-03): 10 dB, inside; branch one, no replica.**
+1. **The stimulus with the window.** `wfm_synth`'s continuous DSSS
+    gains the frame of §5.4 as two parameters, `code_only_epochs` and
+    `frame_epochs`: `W` epochs of pure code every `F` epochs, at each
+    emitter's own phase — 500 and 5500 here, and 0 is today's waveform,
+    no window at all. C first, in the synth,
+    so every harness below renders the same waveform the application
+    sends.
+1. **The block-coherent searcher.** The continuous engine with
+    `coherent_bins = D` inside the roll-tiled span, sized from
+    `doppler_rate` as §2.1 says, summed in non-overlapping blocks and
+    detected per block (§2.3). Then steps 1, 3 and 4 again on it: the
+    floor in an aligned block (expected −21 dB, the transition-free
+    number), the knee, and Pfa per block; and the sensitivity against
+    `D` at the design C/N0 — the gain is 18–22 dB on paper and a number
+    here.
+1. **The tracker through the window.** A hand-off receiver locked at
+    the design C/N0 across ten frames: the symbol-lock flag through 500
+    epochs without a transition (the symbol clock is unobservable there
+    and coasts), the code flag, and the pull-in after the data resumes.
+    Expected: code lock holds, the symbol flag may drop and recovers
+    within its dwell, and no release fires — one flag down is a degrade.
+    If the flag reads a pure-code stretch as unhealthy, that is a
+    detector finding to fix, not a rule to loosen.
+1. **The searcher's cost with `D`, and its scaling across threads.**
+    Step 8's per-tile number again with the block transform in it, at both
+    ends of the rate range and both uncertainties, beside the memory per
+    channel; then the same push at 1, 2, 4 and 8 threads with a roll per
+    thread — the fraction of the tiles' cost that scales, and the
+    persistent pool's hand-off per push beside the per-call creation it
+    replaces.
 
 Steps 1–4 are Python over the shipped engine plus the peak-list primitive,
 and are the same harness the burst characterization already runs. Steps
 5–6 need the hand-off-mode `AsyncDsssReceiver` (§6.1) with the lost state
 of §10 and, for step 5, a replica output it does not have today. Steps 7–8
-need the orchestrator holding the population.
+need the pool of §8.2, which needs steps 10–11 first: the population it
+holds is acquired in the window.
 
 ### 12.1 What was measured (2026-09-02) — step 8, the budget
 
@@ -1873,10 +2037,13 @@ Seven things this settles, and one it corrects:
     ±50 kHz (`op5M_U17k`, 7 tiles; `op2M_U17k`, 19) costs 75 and 192 ns
     per output sample, so three of them are 225 and 576 against the single
     engine's 213 and 520 — **6% and 11% for the slice**, the forward FFT
-    repeated per slice being worth about one tile. The split across
-    engines needs nothing new inside the engine and is the shape to take;
-    a slice engine needs its slice's centre mixed to zero in front of it,
-    which is an LO at rate 1, a few ns more.
+    repeated per slice being worth about one tile. **Superseded
+    (2026-09-03): the split is a roll per thread inside the engine, on
+    persistent workers** — see the bullet below §2.3 and §8.2. The slice
+    was the shape to take while the only parallel-for created its workers
+    per call at ~15 µs each (`burst-bank.md` §10.4) against a 205–512 µs
+    epoch — 25–60% of the work for eight workers. A persistent pool pays
+    that once.
 - **Doppler pre-compensation is worth 6–7× on the searcher** — 0.36 and
     0.30 of a core over ±5 kHz — and nothing on anyone else. With it the
     searcher fits on one core with room; without it the partition above is
@@ -2218,26 +2385,24 @@ ______________________________________________________________________
 
 ## 13. What this page does not settle
 
-Of §5.4's open questions, this page answers 6 (the
-population, §6.1) and designs the receiver half of 5 (the release, §10).
-Still open, and none of them blocking the list: the frame epoch (3), the
-frame cadence (4) — which is what a false release costs, so it prices §10's
-budget — and the other half of 5, who holds the pool and the assigned
-table. That holder becomes load-bearing only on the strong branch, because
-(iii) puts it on the searcher's push path. Of what the receiver lacked, the
+Of §5.4's open questions, one is still open: the frame epoch (3) — a
+detecting block locates the window to within `D` epochs, and the exact
+boundary is the tracker's to find. Everything else is answered: the
+window and the cadence (4), the holder (5, the pool of §8.2) and the
+spread (7, 10 dB — branch one). Of what the receiver lacked, the
 hand-off-mode constructor, `seed()`, the lost state, the idle it resets
 to and the status record are shipped (§4.1); still implementation, not
-design: the holder of §8.1 (the clock, the event log, the pool) and, for
-the strong branch, a replica output (§11.4).
+design: the stimulus with the window, the block-coherent searcher, the
+pool (§12 steps 10–14).
 
-Of the numbers, three are now measured and one is not: the budget
-(§12.1), the floor (§12.2) and the release (§12.3) are settled on the
-shipped objects; the **power spread** the application will actually see
-is still the maintainer's to supply, and it is the one number that picks
-the branch against the measured −13 dB. Two things the measurements
-raised and this page only names: the peak list's same-code-phase rule
-(§7.1) passes a strong emitter's persistent sidelobes under long
-non-coherent integration (§12.6, #1191), and the false-release rate of the
+Of the numbers, the budget (§12.1), the floor (§12.2), the release
+(§12.3) and the knee (§12.6) are measured on the shipped objects **at
+`D = 1`**, and the coherent blocks move three of them: the floor, the
+knee and the searcher's cost are re-measured by §12 steps 11 and 14
+before anything is priced on them. Two things the measurements raised
+and this page only names: the peak list's same-code-phase rule (§7.1)
+passes a strong emitter's persistent sidelobes under long non-coherent
+integration (§12.6, #1191), and the false-release rate of the
 both-flags-down rule is bounded only over half a minute, not the hour an
 on-time deserves.
 

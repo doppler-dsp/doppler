@@ -1769,13 +1769,35 @@ gen-c-api: ## Regenerate docs/c-api/ from the headers (mkdoxy, CI's doxygen)
 	   rm -rf $$shim; exit $$rc; \
 	 fi
 
+# The committed tree is replaced only by a COMPLETE render. mkdoxy builds into
+# .mkdoxy while $(CAPI_OUT) stays in place; the hand-written index.md (which
+# mkdoxy does not emit) is carried over from the tree itself, not from git --
+# a commit hook is mid-way through git's state; and the swap is two renames.
+# A build that fails leaves the tree exactly as it was.
+#
+# It did not, once: this target used to `rm -rf docs/c-api` FIRST, and on
+# 2026-09-02 a `uv sync` running concurrently (a `make pyext` beside a `git
+# commit` whose pre-commit hook runs this) broke the mkdocs build between the
+# wipe and the restore -- 594 pages gone, index.md with them, and the
+# `git checkout` restore failed too because the deletions were by then
+# staged. Nothing was lost, but a note would not stop the next one:
+# test_gen_c_api_atomic.py drives this recipe with CAPI_BUILD=false against a
+# scratch copy and requires the copy untouched.
+#
+# CAPI_BUILD / CAPI_OUT are parameters for that test, not knobs: the render
+# and the tree it replaces are the same recipe either way.
+CAPI_CONFIG ?= mkdocs-capi.yml
+CAPI_OUT    ?= docs/c-api
+CAPI_BUILD  ?= uv run --group docs mkdocs build -f $(CAPI_CONFIG)
 gen-c-api-run: ## gen-c-api proper (re-entered with CI's doxygen on PATH)
-	rm -rf docs/c-api .mkdoxy .capi-site
-	uv run --group docs mkdocs build -f mkdocs-capi.yml
-	cp -r .mkdoxy/doppler/c-api docs/c-api
-	# index.md is a hand-written landing page mkdoxy doesn't emit — restore it
-	# after the regen wipes it (matches the CI docs.yml step).
-	git checkout -- docs/c-api/index.md
+	rm -rf .mkdoxy .capi-site
+	$(CAPI_BUILD)
+	test -d .mkdoxy/doppler/c-api
+	cp $(CAPI_OUT)/index.md .mkdoxy/doppler/c-api/index.md
+	rm -rf $(CAPI_OUT).new
+	mv .mkdoxy/doppler/c-api $(CAPI_OUT).new
+	rm -rf $(CAPI_OUT)
+	mv $(CAPI_OUT).new $(CAPI_OUT)
 	# `latex/` too: the repo's Doxyfile sets GENERATE_LATEX = NO, but mkdoxy
 	# builds its OWN config dict and does not, so every run drops an untracked
 	# latex/ in the repo root. Cleaned here rather than gitignored — it is

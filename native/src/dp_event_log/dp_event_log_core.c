@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h> /* fstat: a device is not an event log */
 
 #include "cJSON.h"
 #include "dp_event_log/dp_event_log_core.h"
@@ -273,6 +274,13 @@ dp_event_log_append (dp_event_log_t *log, uint64_t sample_start,
   cJSON_Delete (a);
   if (!line)
     return DP_ERR_MEMORY;
+  /* The one number the reader also holds: a line this long is refused here
+     so that no file this writer produced can ever be refused there. */
+  if (strlen (line) >= DP_EVENT_LOG_LINE_MAX)
+    {
+      free (line);
+      return DP_ERR_INVALID;
+    }
 
   int rc = DP_OK;
   if (fprintf (log->fp, "%s\n", line) < 0)
@@ -329,12 +337,13 @@ build_extra_global (const char *dataset, const char *telemetry)
   return out;
 }
 
-/* Read the flat log into an array of NUL-terminated lines.  A line is
-   unbounded in principle (a caller can stage sixteen long string fields), so
-   the buffer grows rather than assuming a maximum, and `*n_out` counts the
-   non-empty ones.  Allocation goes through the abort-on-OOM helpers like the
-   rest of this file, so the only way back is success: an unreadable file is
-   the caller's business and is handled before this is reached. */
+/* Read the flat log into an array of NUL-terminated lines; `*n_out` counts
+   the non-empty ones.  A line grows on demand up to DP_EVENT_LOG_LINE_MAX --
+   the writer never emits one that long, so reaching it means this is not an
+   event log, and the answer is NULL rather than a buffer that keeps doubling
+   over whatever the file turns out to be.  Allocation goes through the
+   abort-on-OOM helpers like the rest of this file; an unreadable file is the
+   caller's business and is handled before this is reached. */
 static char **
 read_lines (FILE *f, size_t *n_out)
 {
@@ -349,6 +358,15 @@ read_lines (FILE *f, size_t *n_out)
       c = fgetc (f);
       if (c != EOF && c != '\n')
         {
+          if (blen + 1u >= DP_EVENT_LOG_LINE_MAX)
+            {
+              for (size_t i = 0; i < n; i++)
+                free (lines[i]);
+              free (lines);
+              free (buf);
+              *n_out = 0;
+              return NULL;
+            }
           if (blen + 1u >= bcap)
             {
               bcap = bcap ? bcap * 2u : 256u;
@@ -394,9 +412,21 @@ dp_event_log_write_meta (const char *log_path, const char *meta_path,
   FILE *f = fopen (log_path, "r");
   if (!f)
     return DP_ERR_SEND;
+  /* Only a regular file can be an event log. A character device reads as an
+     endless stream -- `/dev/full` is NUL bytes forever -- and the line cap
+     below would catch that too, but a file that is not a file is refused on
+     its type, before a byte of it is read. */
+  struct stat st;
+  if (fstat (fileno (f), &st) != 0 || !S_ISREG (st.st_mode))
+    {
+      fclose (f);
+      return DP_ERR_INVALID;
+    }
   size_t n     = 0;
   char **lines = read_lines (f, &n);
   fclose (f);
+  if (!lines)
+    return DP_ERR_INVALID;
 
   char *extra = build_extra_global (dataset, telemetry);
   char *json  = extra ? wfm_sigmf_meta_json_ex (sample_type, endian, fs, fc,

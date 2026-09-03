@@ -1202,8 +1202,9 @@ class EventLog:
         ------
         OSError
             If the C call returns a non-zero status. The exception message is
-            ``append: the event could not be written (the log is closed, or the
-            write failed)``, with the return code appended (gh-869).
+            ``append: the event could not be written (the log is closed, the
+            write failed, or the event renders to 16 KiB or more)``, with the
+            return code appended (gh-869).
 
         Examples
         --------
@@ -1254,8 +1255,9 @@ class EventLog:
         ------
         OSError
             If the C call returns a non-zero status. The exception message is
-            ``finalize: the event file could not be read or the sidecar could
-            not be written``, with the return code appended (gh-869).
+            ``finalize: the event file could not be read, is not an event log
+            (not a regular file, or a line of 16 KiB or more), or the sidecar
+            could not be written``, with the return code appended (gh-869).
 
         Examples
         --------

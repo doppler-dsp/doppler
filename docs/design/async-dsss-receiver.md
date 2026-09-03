@@ -1085,6 +1085,7 @@ supersede §5.2's, which were the async spec's waveform:
 | uncertainty                    | **±50 kHz to start**; Doppler pre-compensation will likely bring it to **±5 kHz**                                                             | given — design at the full width, and record what the narrow one saves                                                                          |
 | tiles over ±50 kHz             | **21** at 5 Mcps, **53** at 2                                                                                                                 | the engine's own rule, `acq_cover_window_bins`: `2·ceil((U − span)/(2·span)) + 1`, measured in §12.1; the searcher's worst case is the low rate |
 | tiles over ±5 kHz              | 3 at 5 Mcps, 7 at 2                                                                                                                           | same rule, after pre-compensation                                                                                                               |
+| cores                          | **at least 48** on the one server                                                                                                             | given (2026-09-03) — the population's ~7.6 cores at the operating point and ~17 at the floor (§12.1) are a third of the box, not a fit          |
 | budget, one core, operating    | **77 ns per input sample**; per output sample **100 ns** at 5 Mcps, 250 at 2                                                                  | `1/13e6`, `1/10e6`, `1/4e6`                                                                                                                     |
 | budget, one core, at the floor | **33 ns per input sample**; 43 per output at 5 Mcps                                                                                           | `1/30e6`, same ratio                                                                                                                            |
 
@@ -1933,7 +1934,7 @@ ______________________________________________________________________
     hand-off-mode receiver tracking at 5 Mcps, and one
     replica subtraction. Then the whole population — the front end, the
     searcher, ten receivers, and on the strong branch ten replicas — on
-    the core count the application gives, reported as the fraction of
+    the 48 cores the application gives (§6.1), reported as the fraction of
     real time **beside the count of emitters acquired and tracked** in
     the same run, twice: at the operating point and at the 30 MSa/s
     floor (the same chain fed 2.3× faster). Target: under 0.5 at both.

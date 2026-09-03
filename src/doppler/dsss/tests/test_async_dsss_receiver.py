@@ -16,7 +16,7 @@ generic `test_state_serialization.py` matrix.
 import numpy as np
 import pytest
 
-from doppler.dsss import AsyncDsssReceiver
+from doppler.dsss import AsyncDsssReceiver, HandoffAsyncDsssReceiver
 from doppler.wfm import Gold
 
 SF = 1023
@@ -85,6 +85,196 @@ def _new_receiver(cn0_dbhz, **kwargs):
     return AsyncDsssReceiver(
         CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE, spc=SPC, **kwargs
     )
+
+
+def _new_handoff(cn0_dbhz, **kwargs):
+    kwargs.setdefault("cn0_dbhz", cn0_dbhz)
+    kwargs.setdefault("segments", 4)
+    kwargs.setdefault("sps", 8)
+    return HandoffAsyncDsssReceiver(
+        CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE, spc=SPC, **kwargs
+    )
+
+
+def _feed(rx, x):
+    out = [rx.steps(x[pos : pos + TE]) for pos in range(0, len(x) - TE, TE)]
+    out = [s for s in out if len(s)]
+    return np.concatenate(out) if out else np.zeros(0, np.complex64)
+
+
+def _noise(n, cn0_dbhz, seed):
+    rng = np.random.default_rng(seed)
+    sigma = 1.0 / np.sqrt(10.0 ** (cn0_dbhz / 10.0) / FS)
+    return (
+        (sigma / np.sqrt(2.0))
+        * (rng.standard_normal(n) + 1j * rng.standard_normal(n))
+    ).astype(np.complex64)
+
+
+# ── Hand-off mode (design section 11.1) ───────────────────────────────────
+
+
+def test_handoff_starts_idle_with_no_search():
+    rx = _new_handoff(70.0)
+    assert (rx.idle, rx.refining, rx.tracking, rx.lost) == (1, 0, 0, 0)
+    # No embedded search: neither its half-range nor its raw grid exist.
+    assert not hasattr(rx, "configure_search_raw")
+    with pytest.raises(TypeError):
+        _new_handoff(70.0, doppler_uncertainty=500.0)
+    # The parent keeps both, and is not idle: it is searching.
+    base = _new_receiver(70.0)
+    assert base.idle == 0
+    assert hasattr(base, "configure_search_raw")
+
+
+def test_handoff_idle_discards_then_seed_refines_and_decodes():
+    x, data = _make_ramp_signal(70.0, seed=21)
+    rx = _new_handoff(70.0)
+    # Idle consumes and discards -- the lead-in AND the start of the signal.
+    assert len(rx.steps(x[: PRE_SILENCE + 3 * TE])) == 0
+    assert rx.idle == 1
+    assert rx.chip_phase == 0.0
+
+    # The seed is the truth here: the capture puts chip 0 on its first signal
+    # sample and the ramp starts at 0 Hz.
+    rx.seed(0.0, 0.0, 70.0)
+    assert (rx.idle, rx.refining, rx.tracking) == (0, 1, 0)
+    assert rx.doppler_hz == 0.0
+    assert rx.cn0_dbhz_est == 70.0
+
+    syms = _feed(rx, x[PRE_SILENCE:])
+    assert rx.tracking == 1
+    assert len(syms) > 200
+    assert _best_ber(syms, data) < 0.05
+
+    # Assigned once: refused while it holds one, released by reset() -- to
+    # idle, since there is no search to return to.
+    with pytest.raises(ValueError, match="seed refused"):
+        rx.seed(0.0, 0.0, 70.0)
+    assert rx.tracking == 1
+    rx.reset()
+    assert (rx.idle, rx.tracking, rx.refining) == (1, 0, 0)
+    assert rx.chip_phase == 0.0
+    # ... and the same object takes its next seed.
+    rx.seed(0.0, 0.0, 70.0)
+    assert rx.refining == 1
+
+
+@pytest.mark.parametrize("chip_phase", [-0.5, float(SF), float("nan")])
+def test_seed_refuses_a_phase_outside_the_code(chip_phase):
+    rx = _new_handoff(70.0)
+    with pytest.raises(ValueError, match="seed refused"):
+        rx.seed(chip_phase, 0.0, 70.0)
+    assert rx.idle == 1
+    rx.seed(float(SF) - 0.5, 0.0, 70.0)  # the last chip is inside
+    assert rx.refining == 1
+
+
+def test_seed_on_the_searching_flavor_beats_its_own_search():
+    x, data = _make_ramp_signal(70.0, seed=21)
+    rx = _new_receiver(70.0)
+    rx.seed(0.0, 0.0, 70.0)
+    assert rx.refining == 1
+    syms = _feed(rx, x[PRE_SILENCE:])
+    assert rx.tracking == 1
+    assert _best_ber(syms, data) < 0.05
+    rx.reset()
+    assert rx.idle == 0  # this flavor goes back to searching
+
+
+# ── The release rule (design section 11.2) ────────────────────────────────
+
+
+def _feed_until_lost(rx, x, chunk):
+    """Feed in chunks; return (lost, both_down_run) where the run is the
+    receiver's own book -- consecutive samples with both flags down -- kept
+    from outside, at the moment lost first reads 1 (or at the end)."""
+    run = 0
+    for pos in range(0, len(x), chunk):
+        rx.steps(x[pos : pos + chunk])
+        take = min(chunk, len(x) - pos)
+        run = 0 if (rx.code_locked or rx.locked) else run + take
+        if rx.lost:
+            return True, run
+    return False, run
+
+
+def test_lost_after_switch_off_then_reset_to_idle():
+    x, _data = _make_ramp_signal(70.0, seed=21)
+    confirm_s = 0.02
+    off = _noise(int(0.2 * FS), 70.0, seed=99)
+
+    rx = _new_handoff(70.0, lost_confirm_s=confirm_s)
+    rx.seed(0.0, 0.0, 70.0)
+    _feed(rx, x[PRE_SILENCE:])
+    assert (rx.tracking, rx.code_locked, rx.locked, rx.lost) == (1, 1, 1, 0)
+
+    lost, run = _feed_until_lost(rx, off, 4096)
+    assert lost
+    assert run > confirm_s * FS  # not a sample before the interval
+    assert rx.tracking == 0
+
+    # Lost is inert until reset(): samples discarded, seed refused, state in
+    # the blob, and reset() hands the object back idle.
+    chip_before = rx.chip_phase
+    assert len(rx.steps(x[PRE_SILENCE : PRE_SILENCE + 4 * TE])) == 0
+    assert rx.lost == 1
+    assert rx.chip_phase == chip_before
+    with pytest.raises(ValueError, match="seed refused"):
+        rx.seed(0.0, 0.0, 70.0)
+    rx2 = _new_handoff(70.0, lost_confirm_s=confirm_s)
+    rx2.set_state(rx.get_state())
+    assert rx2.lost == 1
+    rx.reset()
+    assert (rx.lost, rx.idle) == (0, 1)
+    rx.seed(0.0, 0.0, 70.0)
+    assert rx.refining == 1
+
+
+def test_lost_confirm_zero_never_releases():
+    x, _data = _make_ramp_signal(70.0, seed=21)
+    off = _noise(int(0.2 * FS), 70.0, seed=99)
+    rx = _new_handoff(70.0, lost_confirm_s=0.0)
+    rx.seed(0.0, 0.0, 70.0)
+    _feed(rx, x[PRE_SILENCE:])
+    assert rx.tracking == 1
+    lost, run = _feed_until_lost(rx, off, 4096)
+    assert not lost
+    assert run > 0.05 * FS  # the flags did drop; the rule was off
+    assert (rx.tracking, rx.lost) == (1, 0)
+
+
+def test_handoff_state_roundtrip_is_flavor_keyed():
+    x, _data = _make_ramp_signal(70.0, seed=21)
+    rx = _new_handoff(70.0)
+    # Idle: the blob the pool checkpoints most.
+    rx2 = _new_handoff(70.0)
+    rx2.set_state(rx.get_state())
+    assert rx2.idle == 1
+
+    rx.seed(0.0, 0.0, 70.0)
+    split = PRE_SILENCE + 300 * TE
+    _feed(rx, x[PRE_SILENCE:split])
+    assert rx.tracking == 1
+    blob = rx.get_state()
+    rx2.set_state(blob)
+    assert (rx2.tracking, rx2.idle) == (1, 0)
+    assert rx2.chip_phase == pytest.approx(rx.chip_phase)
+    # Bit-exact resume: the rest of the stream decodes identically.
+    a = _feed(rx, x[split:])
+    b = _feed(rx2, x[split:])
+    assert len(a) == len(b) > 20
+    assert np.array_equal(a, b)
+
+    # Across flavors the blob is refused both ways: the search engine is in
+    # one and not the other.
+    base = _new_receiver(70.0)
+    with pytest.raises(ValueError):
+        base.set_state(blob)
+    assert base.tracking == 0
+    with pytest.raises(ValueError):
+        rx2.set_state(base.get_state())
+    assert rx2.tracking == 1
 
 
 def test_create_defaults():

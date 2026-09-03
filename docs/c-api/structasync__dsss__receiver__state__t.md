@@ -37,6 +37,7 @@ _Composed receiver state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq**](#variable-acq)  <br> |
+|  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  [**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* | [**ca**](#variable-ca)  <br> |
 |  [**costas\_state\_t**](structcostas__state__t.md) | [**car**](#variable-car)  <br> |
 |  float complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
@@ -56,6 +57,8 @@ _Composed receiver state._ [More...](#detailed-description)
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  double | [**lock\_num**](#variable-lock_num)  <br> |
+|  double | [**lost\_confirm\_s**](#variable-lost_confirm_s)  <br> |
+|  uint64\_t | [**lost\_confirm\_samples**](#variable-lost_confirm_samples)  <br> |
 |  int | [**m**](#variable-m)  <br> |
 |  int | [**n**](#variable-n)  <br> |
 |  double | [**pd**](#variable-pd)  <br> |
@@ -84,6 +87,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  size\_t | [**sps**](#variable-sps)  <br> |
 |  int | [**state**](#variable-state)  <br> |
+|  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
 |  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  size\_t | [**tsamps**](#variable-tsamps)  <br> |
@@ -151,6 +155,27 @@ acq_state_t* async_dsss_receiver_state_t::acq;
 
 
 
+The embedded search; NULL in hand-off mode ([**async\_dsss\_receiver\_create\_handoff()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create_handoff)), where the seed comes from outside. 
+
+
+        
+
+<hr>
+
+
+
+### variable both\_down\_samples 
+
+```C++
+uint64_t async_dsss_receiver_state_t::both_down_samples;
+```
+
+
+
+Running: consecutive samples fed while tracking with BOTH lock flags down  the release clock. 
+
+
+        
 
 <hr>
 
@@ -421,6 +446,41 @@ double async_dsss_receiver_state_t::lock_num;
 
 
 
+
+<hr>
+
+
+
+### variable lost\_confirm\_s 
+
+```C++
+double async_dsss_receiver_state_t::lost_confirm_s;
+```
+
+
+
+Config: both flags down for longer than this is "gone"; 0 = never. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable lost\_confirm\_samples 
+
+```C++
+uint64_t async_dsss_receiver_state_t::lost_confirm_samples;
+```
+
+
+
+lost\_confirm\_s at the input rate. 
+
+
+        
 
 <hr>
 
@@ -832,7 +892,25 @@ int async_dsss_receiver_state_t::state;
 
 
 
-0 = searching, 1 = refining, 2 = tracking. 
+One of the ASYNC\_DSSS\_RX\_SEARCHING .. \_LOST values. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable state\_samples 
+
+```C++
+uint64_t async_dsss_receiver_state_t::state_samples;
+```
+
+
+
+Running: samples fed since the current state was entered. 
  
 
 

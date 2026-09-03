@@ -739,6 +739,19 @@ onto the same signal, only back to the hunt. Both are serializable
     `code_phase`; `MpskReceiver`'s `init_norm_freq` is cycles per its own
     *partial-rate* input, not per raw ADC sample) — see the example's
     docstring for the exact formulas.
+- **Shipped — hand-off mode and the release (§11.1, §11.2).**
+    `HandoffAsyncDsssReceiver`, a `[[views]]` entry over the same core with
+    no embedded `Acquisition`: starts idle, `seed(chip_phase, doppler_hz_est,   cn0_dbhz_est)` starts the refine → track chain (a method of both flavors;
+    refused on a receiver that already holds one), `reset()` returns to idle.
+    The lost state: both flags down, continuously, for longer than
+    `lost_confirm_s` (a constructor parameter; 2 s on the hand-off flavor, 0
+    = never on the searching one) stops the loops and sets `lost` until
+    `reset()`; one flag down is a degrade and does not run the clock. The
+    clock also runs from the first tracking sample, so a seed that never
+    locks within the interval is released the same way. Pinned in
+    `test_async_dsss_receiver_core.c` (hand-off decode, refusals, the rule
+    firing not a sample early, one-flag-down never firing, the flavor-keyed
+    blob) and `test_async_dsss_receiver.py`.
 
 #### Possible refinements
 
@@ -2134,10 +2147,10 @@ Still open, and none of them blocking the list: the frame epoch (3), the
 frame cadence (4) — which is what a false release costs, so it prices §10's
 budget — and the other half of 5, who holds the pool and the assigned
 table. That holder becomes load-bearing only on the strong branch, because
-(iii) puts it on the searcher's push path. What the receiver still lacks
-is implementation, not design: the hand-off-mode constructor (§6.1), the
-lost state and the idle it resets to, the status record (§10), and, for
-the strong branch, a replica output.
+(iii) puts it on the searcher's push path. Of what the receiver lacked, the
+hand-off-mode constructor, `seed()`, the lost state and the idle it resets
+to are shipped (§4.1); still implementation, not design: the status record
+(§11.3) and, for the strong branch, a replica output (§11.4).
 
 Of the numbers, three are now measured and one is not: the budget
 (§12.1), the floor (§12.2) and the release (§12.3) are settled on the

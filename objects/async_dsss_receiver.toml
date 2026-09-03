@@ -215,6 +215,18 @@ name = "carrier_freq_hz"
 type = "double"
 default = "0.0"
 
+# The release rule (docs/design/async-dsss-receiver.md section 11.2): both
+# lock flags down, continuously, for longer than this many seconds while
+# tracking puts the receiver in the lost state (`lost` == 1, loops stopped,
+# samples discarded until reset()). One flag down is a degrade, not a
+# release. 0.0 (this flavor's default) never enters lost -- the searching
+# receiver's exit is reset(), as before; the hand-off flavor defaults to 2.0,
+# past the measured fades (section 12.3).
+[[async_dsss_receiver.init_params]]
+name = "lost_confirm_s"
+type = "double"
+default = "0.0"
+
 [[async_dsss_receiver.methods]]
 name = "steps"
 doc = "Stream raw cf32 samples through the receiver. While searching, samples feed the embedded Acquisition and nothing is emitted. On a hit, the refine stage (a frozen-carrier Dll collection feeding CarrierAcquisition) is built and seeded from it, and the unconsumed tail of this call is handed straight to it -- no samples dropped. Once CarrierAcquisition reports ready (or its own give-up cap is reached), the live tracking chain (Dll + per-partial Costas + RateConverter + MpskReceiver) is built fresh, seeded from the ORIGINAL handoff chip phase and the refined-or-unrefined Doppler estimate, and demodulated symbols are returned from then on. Accepts any block size; state carries across calls."
@@ -224,6 +236,20 @@ variable_output = true
 pass_capacity = true
 nogil = true
 params = [{ name = "x", type = "float _Complex[]" }]
+
+[[async_dsss_receiver.methods]]
+name = "seed"
+doc = "Take a detection from outside and start refining from it: the hit's chip phase (Dll's instantaneous convention, at the next sample fed), coarse Doppler estimate and C/N0 estimate -- exactly what the searching flavor's own hit produces. Accepted while idle (hand-off flavor) or searching; refused on a receiver that already holds a seed (refining, tracking or lost -- reset() releases it) and for a chip_phase outside [0, code_len)."
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "seed refused: the receiver already holds an assignment (refining, tracking or lost -- reset() releases it), or chip_phase is outside [0, code_len)"
+params = [
+    { name = "chip_phase", type = "double" },
+    { name = "doppler_hz_est", type = "double" },
+    { name = "cn0_dbhz_est", type = "double" },
+]
 
 [[async_dsss_receiver.methods]]
 name = "configure_search_raw"
@@ -277,6 +303,16 @@ doc = "1 once the live tracking chain is built and demodulating; 0 while searchi
 name = "refining"
 type = "int"
 doc = "1 while the refine stage (CarrierAcquisition collection) is active; 0 while searching or tracking."
+
+[[async_dsss_receiver.properties]]
+name = "idle"
+type = "int"
+doc = "1 while waiting for a seed (the hand-off flavor before seed() or after reset()); 0 in every other state."
+
+[[async_dsss_receiver.properties]]
+name = "lost"
+type = "int"
+doc = "1 once the release rule has fired: both lock flags were down, continuously, for longer than lost_confirm_s while tracking. The loops have stopped and samples are discarded; the holder releases the assignment and calls reset(). Always 0 with lost_confirm_s = 0."
 
 [[async_dsss_receiver.properties]]
 name = "doppler_hz"
@@ -355,3 +391,39 @@ doc = "MpskReceiver carrier phase discriminator (rad): the residual carrier phas
 name = "code_locked"
 type = "int"
 doc = "Binary code-lock flag from the live tracking Dll's own verify-counted (pfa-tuned) lock detector -- the fundamental DSSS \"am I despreading\" lock, de-chattered by up/down hysteresis."
+
+# ── Hand-off mode: the same receiver with no search of its own ─────────────
+#
+# The pool shape of docs/design/async-dsss-receiver.md section 11.1: one
+# searcher finds every emitter on the channel; one of these per emitter takes
+# the searcher's detection through seed() and tracks it until its own release
+# rule says gone. A difference in CONSTRUCTOR is a view (the ddc/MatchedDDC
+# shape): no embedded Acquisition (so no doppler_uncertainty and no
+# configure_search_raw), starts idle, reset() returns to idle; the chain past
+# the seed and every other method and property are the parent's verbatim.
+[[async_dsss_receiver.views]]
+class_name = "HandoffAsyncDsssReceiver"
+create_fn = "async_dsss_receiver_create_handoff"
+exclude_methods = ["configure_search_raw"]
+init_params = [
+    { name = "code", type = "uint8_t[]" },
+    { name = "chip_rate", type = "double", default = "1000000.0" },
+    { name = "symbol_rate", type = "double", default = "1000.0" },
+    { name = "spc", type = "size_t", default = "2" },
+    { name = "m", type = "int", default = "2" },
+    { name = "cn0_dbhz", type = "double", default = "55.0" },
+    { name = "pfa", type = "double", default = "1e-3" },
+    { name = "pd", type = "double", default = "0.9" },
+    { name = "segments", type = "size_t", default = "4" },
+    { name = "sps", type = "size_t", default = "8" },
+    { name = "differential", type = "int", default = "0" },
+    { name = "refine_max_error_db", type = "double", default = "0.5" },
+    { name = "refine_samples_per_symbol", type = "size_t", default = "4" },
+    { name = "refine_design_margin_db", type = "double", default = "14.0" },
+    { name = "refine_n_fft", type = "size_t", default = "64" },
+    { name = "refine_zero_pad", type = "size_t", default = "8" },
+    { name = "refine_sequential", type = "bool", default = "false" },
+    { name = "refine_max_n_blocks", type = "size_t", default = "100000" },
+    { name = "carrier_freq_hz", type = "double", default = "0.0" },
+    { name = "lost_confirm_s", type = "double", default = "2.0" },
+]

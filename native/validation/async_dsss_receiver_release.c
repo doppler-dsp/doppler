@@ -128,7 +128,7 @@ make_rx (const uint8_t *code, double cn0_dbhz)
 {
   return async_dsss_receiver_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 500.0, 4, 8,
-      0, 100.0, 4, 14.0, 32, 8, false, 100000, 0.0);
+      0, 100.0, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
 }
 
 static int

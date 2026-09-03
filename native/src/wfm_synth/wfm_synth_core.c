@@ -321,6 +321,19 @@ wfm_synth_set_dsss_cont (wfm_synth_state_t *state, const uint8_t *code,
 }
 
 int
+wfm_synth_set_dsss_window (wfm_synth_state_t *state, size_t code_only_symbols,
+                           size_t frame_symbols)
+{
+  if (state->wtype != WFM_SYNTH_DSSS)
+    return 0; /* no-op for every other type, same as set_dsss_cont */
+  if (frame_symbols && code_only_symbols > frame_symbols)
+    return -1;
+  state->code_only_symbols = code_only_symbols;
+  state->frame_symbols     = frame_symbols;
+  return 0;
+}
+
+int
 wfm_synth_set_symbols (wfm_synth_state_t *state, const float _Complex *symbols,
                        size_t n)
 {

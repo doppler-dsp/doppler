@@ -49,11 +49,13 @@ _Synth state._ [More...](#detailed-description)
 |  double | [**chirp\_ph**](#variable-chirp_ph)  <br> |
 |  size\_t | [**chirp\_span**](#variable-chirp_span)  <br> |
 |  uint8\_t \* | [**code**](#variable-code)  <br> |
+|  size\_t | [**code\_only\_symbols**](#variable-code_only_symbols)  <br> |
 |  uint8\_t | [**cur\_data**](#variable-cur_data)  <br> |
 |  float | [**cur\_im**](#variable-cur_im)  <br> |
 |  float | [**cur\_re**](#variable-cur_re)  <br> |
 |  int | [**data\_mode**](#variable-data_mode)  <br> |
 |  [**fir\_state\_t**](structfir__state__t.md) \* | [**fir**](#variable-fir)  <br> |
+|  size\_t | [**frame\_symbols**](#variable-frame_symbols)  <br> |
 |  [**lo\_state\_t**](structlo__state__t.md) \* | [**lo**](#variable-lo)  <br> |
 |  size\_t | [**n\_bits**](#variable-n_bits)  <br> |
 |  size\_t | [**n\_code**](#variable-n_code)  <br> |
@@ -292,6 +294,19 @@ uint8_t* wfm_synth_state_t::code;
 
 
 
+### variable code\_only\_symbols 
+
+```C++
+size_t wfm_synth_state_t::code_only_symbols;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable cur\_data 
 
 ```C++
@@ -348,6 +363,19 @@ int wfm_synth_state_t::data_mode;
 
 ```C++
 fir_state_t* wfm_synth_state_t::fir;
+```
+
+
+
+
+<hr>
+
+
+
+### variable frame\_symbols 
+
+```C++
+size_t wfm_synth_state_t::frame_symbols;
 ```
 
 

@@ -621,6 +621,173 @@ main (void)
       wfm_synth_destroy (a);
     }
 
+    /* the pure-code window, on the DATA clock: of every F symbols the first
+     * W carry the pure code and the rest the payload, running on across
+     * frames; the symbol clock is the stream's own free-running one, so a
+     * frame edge falls at no particular chip phase; F = 0 is the windowless
+     * stream, bit for bit; and a state split inside a data section resumes
+     * exactly into the next frame. */
+    {
+      const size_t W   = 3,
+                   F   = 8; /* a small frame: 3 code-only symbols, 5 data */
+      const size_t nfr = 3;
+      /* chips covering nfr frames: every chip's symbol floor(c/cps) < nfr*F */
+      const size_t       nchips = (size_t)floor ((double)(nfr * F) * cps);
+      const size_t       n      = nchips * spc;
+      wfm_synth_state_t *plain  = wfm_synth_create (
+          WFM_SYNTH_DSSS, fs, 0.0, 100.0, 1, 9, (int)spc, 7, 0, 0, 0.0);
+      wfm_synth_state_t *off = wfm_synth_create (
+          WFM_SYNTH_DSSS, fs, 0.0, 100.0, 1, 9, (int)spc, 7, 0, 0, 0.0);
+      wfm_synth_state_t *win = wfm_synth_create (
+          WFM_SYNTH_DSSS, fs, 0.0, 100.0, 1, 9, (int)spc, 7, 0, 0, 0.0);
+      DP_REQUIRE (plain && off && win);
+      DP_CHECK (wfm_synth_set_dsss_cont (plain, code, sf, cps,
+                                         WFM_DSSS_DATA_BITS, pay, 5)
+                == 0);
+      DP_CHECK (wfm_synth_set_dsss_cont (off, code, sf, cps,
+                                         WFM_DSSS_DATA_BITS, pay, 5)
+                == 0);
+      DP_CHECK (wfm_synth_set_dsss_cont (win, code, sf, cps,
+                                         WFM_DSSS_DATA_BITS, pay, 5)
+                == 0);
+      DP_CHECK (wfm_synth_set_dsss_window (win, F + 1, F) == -1); /* W > F */
+      DP_CHECK (wfm_synth_set_dsss_window (win, W, F) == 0);
+      DP_CHECK (wfm_synth_set_dsss_window (off, 0, 0) == 0);
+
+      float _Complex *a = malloc (n * sizeof *a);
+      float _Complex *b = malloc (n * sizeof *b);
+      DP_REQUIRE (a && b);
+      wfm_synth_steps (plain, a, n);
+      wfm_synth_steps (off, b, n);
+      int same = 1;
+      for (size_t i = 0; i < n; i++)
+        if (a[i] != b[i])
+          same = 0;
+      DP_CHECK_MSG (same, "frame_symbols = 0 must be the windowless stream");
+
+      wfm_synth_steps (win, a, n);
+      /* chip c of the stream, sampled at its chip start, as a data bit. */
+#define CHIP_BIT(c) ((crealf (a[(c) * spc]) < 0.0f) ^ (code[(c) % sf] & 1u))
+      /* every chip belongs to symbol floor(c / cps) of the free-running
+       * clock -- the windowless clock, which the window must not move */
+      int pure = 1, has_data = 0, contiguous = 1;
+      for (size_t c = 0; c < nchips; c++)
+        {
+          size_t pos = (size_t)((double)c / cps) % F;
+          if (pos < W)
+            {
+              if (CHIP_BIT (c))
+                pure = 0;
+            }
+          else if (CHIP_BIT (c))
+            has_data = 1;
+        }
+      DP_CHECK_MSG (pure, "the window carries the pure code and nothing else");
+      DP_CHECK_MSG (has_data, "the data section carries data");
+      /* The free clock and contiguity: symbol j of the stream starts at chip
+       * ceil(j * cps) -- the same edge with or without a window -- and the
+       * data symbols, counted over every frame, carry pay[0], pay[1], ... */
+      size_t seen = 0;
+      for (size_t j = 0; j < nfr * F; j++)
+        {
+          if (j % F < W)
+            continue;
+          size_t start = (size_t)ceil ((double)j * cps);
+          if (start >= nchips)
+            break;
+          uint8_t want = pay[seen % 5] & 1u;
+          if (CHIP_BIT (start) != want)
+            contiguous = 0;
+          seen++;
+        }
+      DP_CHECK_MSG (contiguous, "symbol edges are the free clock's and the "
+                                "payload runs on across frames");
+
+      /* a split inside frame 0's data section, resumed into frame 1 */
+      const size_t cut = ((size_t)ceil ((double)W * cps) + 17) * spc;
+      wfm_synth_reset (win);
+      wfm_synth_steps (win, b, cut);
+      size_t nb   = wfm_synth_state_bytes (win);
+      void  *blob = malloc (nb);
+      wfm_synth_get_state (win, blob);
+      wfm_synth_state_t *c = wfm_synth_create (WFM_SYNTH_DSSS, fs, 0.0, 100.0,
+                                               1, 9, (int)spc, 7, 0, 0, 0.0);
+      DP_CHECK (wfm_synth_set_dsss_cont (c, code, sf, cps, WFM_DSSS_DATA_BITS,
+                                         pay, 5)
+                == 0);
+      DP_CHECK (wfm_synth_set_dsss_window (c, W, F) == 0);
+      DP_CHECK (wfm_synth_set_state (c, blob) == 0);
+      wfm_synth_steps (c, b + cut, n - cut);
+      int resumed = 1;
+      for (size_t i = 0; i < n; i++)
+        if (a[i] != b[i])
+          resumed = 0;
+      DP_CHECK_MSG (resumed, "part ++ cont == ref across a split in the data "
+                             "section, into the next frame");
+#undef CHIP_BIT
+      free (blob);
+      free (a);
+      free (b);
+      wfm_synth_destroy (plain);
+      wfm_synth_destroy (off);
+      wfm_synth_destroy (win);
+      wfm_synth_destroy (c);
+    }
+
+    /* No seam, at a NON-integer chips-per-symbol. On the data clock the frame
+     * is nothing but a data pattern, so a windowed synth must equal, byte for
+     * byte, a windowless synth whose payload spells the frame out -- W zeros
+     * then the next F-W payload bits, per frame -- through the same RRC
+     * shaper, with the LO on, across three frames. A symbol clock restarted
+     * at the data section (the frame edge would then sit on a chip), a
+     * payload indexed by the frame position, a shaper or LO restart at a
+     * window edge, or a PN re-seed all break it. */
+    {
+      const size_t W = 3, F = 9, nfr = 3; /* 6 data symbols a frame: not a
+                                             multiple of the 5-bit payload,
+                                             so a cursor rewind shows */
+      const float  taps[5] = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
+      const size_t nchips  = (size_t)floor ((double)(nfr * F) * cps);
+      const size_t n       = nchips * spc;
+      /* the windowless payload: W zeros then the next F-W bits of `pay`,
+       * per frame, the cursor running on across frames */
+      uint8_t spelled[3 * 9];
+      size_t  cur = 0;
+      for (size_t f = 0; f < nfr; f++)
+        for (size_t j = 0; j < F; j++)
+          spelled[f * F + j] = (j < W) ? 0u : (uint8_t)(pay[cur++ % 5] & 1u);
+
+      wfm_synth_state_t *win = wfm_synth_create (
+          WFM_SYNTH_DSSS, fs, 0.01 * fs, 100.0, 1, 9, (int)spc, 7, 0, 0, 0.0);
+      wfm_synth_state_t *flat = wfm_synth_create (
+          WFM_SYNTH_DSSS, fs, 0.01 * fs, 100.0, 1, 9, (int)spc, 7, 0, 0, 0.0);
+      DP_REQUIRE (win && flat);
+      DP_CHECK (wfm_synth_set_dsss_cont (win, code, sf, cps,
+                                         WFM_DSSS_DATA_BITS, pay, 5)
+                == 0);
+      DP_CHECK (wfm_synth_set_dsss_window (win, W, F) == 0);
+      DP_CHECK (wfm_synth_set_dsss_cont (flat, code, sf, cps,
+                                         WFM_DSSS_DATA_BITS, spelled, nfr * F)
+                == 0);
+      DP_CHECK (wfm_synth_set_rrc (win, taps, 5) == 0);
+      DP_CHECK (wfm_synth_set_rrc (flat, taps, 5) == 0);
+      float _Complex *a = malloc (n * sizeof *a);
+      float _Complex *b = malloc (n * sizeof *b);
+      DP_REQUIRE (a && b);
+      wfm_synth_steps (win, a, n);
+      wfm_synth_steps (flat, b, n);
+      int identical = 1;
+      for (size_t i = 0; i < n; i++)
+        if (a[i] != b[i])
+          identical = 0;
+      DP_CHECK_MSG (identical, "a windowed synth equals a windowless one "
+                               "spelling the same frame -- no seam");
+      free (a);
+      free (b);
+      wfm_synth_destroy (win);
+      wfm_synth_destroy (flat);
+    }
+
     /* geometry rejects: no code; cps < 1; prbs with a bad pn_length (no PN);
      * BITS with no payload; no-op on a non-dsss synth. */
     {

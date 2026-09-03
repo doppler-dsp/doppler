@@ -1684,6 +1684,7 @@
 * **wfm\_synth\_set\_dsss** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_set\_dsss\_chips** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_set\_dsss\_cont** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
+* **wfm\_synth\_set\_dsss\_window** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_set\_nsps** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_set\_rrc** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **wfm\_synth\_set\_state** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))

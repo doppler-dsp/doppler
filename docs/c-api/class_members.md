@@ -171,6 +171,7 @@
 * **chirp\_n** ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
 * **chirp\_ph** ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
 * **chirp\_span** ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
+* **code\_only\_symbols** ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
 * **cur\_data** ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
 * **cur\_im** ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
 * **cur\_re** ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
@@ -330,6 +331,7 @@
 * **freq\_hi** ([**wfm\_source\_t**](structwfm__source__t.md))
 * **first\_field** ([**wfm\_stage\_t**](structwfm__stage__t.md))
 * **fir** ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
+* **frame\_symbols** ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
 
 
 ## g

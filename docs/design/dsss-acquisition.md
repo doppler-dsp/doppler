@@ -119,13 +119,14 @@ ______________________________________________________________________
 
 ## 4. Computational decompositions — placement verdicts
 
-| Method                              | Wins when                                          | Doppler resolution | Stateless | Verdict                                                 |
-| ----------------------------------- | -------------------------------------------------- | ------------------ | --------- | ------------------------------------------------------- |
-| **Mixer + slow-time FFT** (current) | Doppler within one slow-time Nyquist; low dynamics | `1/(ny·nx)` (fine) | after P0  | **IN — P0 coherent kernel**                             |
-| **2-D spectral roll**               | single-epoch coarse sweep, no integration          | `1/nx` (coarse)    | yes       | **OUT for `ny>1` regimes; IN — D=1 async-data widener** |
-| **Sub-block chop**                  | wide Doppler with integration intact               | `1/(ny·nx)` (same) | yes       | **IN — P2 widener**                                     |
-| **Direct mix-and-correlate**        | reference truth                                    | any                | yes       | **OUT — test ground truth**                             |
-| **Doppler-rate de-chirp grid**      | acceleration / long `T_coh`                        | adds rate bins     | yes       | **IN — P3 dynamics axis**                               |
+| Method                                | Wins when                                                | Doppler resolution | Stateless | Verdict                                                                                                                                                     |
+| ------------------------------------- | -------------------------------------------------------- | ------------------ | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Mixer + slow-time FFT** (current)   | Doppler within one slow-time Nyquist; low dynamics       | `1/(ny·nx)` (fine) | after P0  | **IN — P0 coherent kernel**                                                                                                                                 |
+| **2-D spectral roll**                 | single-epoch coarse sweep, no integration                | `1/nx` (coarse)    | yes       | **OUT for `ny>1` regimes; IN — D=1 async-data widener**                                                                                                     |
+| **2-D spectral roll + slow-time FFT** | a pure-code window of `≥ 2D−1` epochs in continuous data | `1/(D·nx)` (fine)  | yes       | **IN — the async searcher's `D>1` mode** ([`async-dsss-receiver.md`](async-dsss-receiver.md) §2.3): the mixer bank with one forward FFT shared across tiles |
+| **Sub-block chop**                    | wide Doppler with integration intact                     | `1/(ny·nx)` (same) | yes       | **IN — P2 widener**                                                                                                                                         |
+| **Direct mix-and-correlate**          | reference truth                                          | any                | yes       | **OUT — test ground truth**                                                                                                                                 |
+| **Doppler-rate de-chirp grid**        | acceleration / long `T_coh`                              | adds rate bins     | yes       | **IN — P3 dynamics axis**                                                                                                                                   |
 
 **Mixer + slow-time FFT — the core.** Reframe `(ny, nx)`, FFT down the columns
 for Doppler, correlate rows against the code, integrate `dwell` frames. It is the

@@ -290,7 +290,8 @@ Opaque reader handle. Opaque reader state; the layout is private to wfm\_reader\
 ```C++
 enum wfm_t0_source_t {
     WFM_T0_NONE = 0,
-    WFM_T0_BLUE_TIMECODE
+    WFM_T0_BLUE_TIMECODE,
+    WFM_T0_SIGMF
 };
 ```
 

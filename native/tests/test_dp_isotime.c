@@ -247,6 +247,104 @@ emit (int argc, char **argv)
   return 0;
 }
 
+/* ── parsing: the inverse, and what it refuses ────────────────────────── */
+
+/* The round trip is the check that cannot go stale: whatever the formatter
+   writes, the parser must read back to the same instant. Doing it in both
+   spellings and at every fraction covers the separator handling and the
+   nanosecond scaling together. */
+static int
+test_parse_round_trips_the_formatter (void)
+{
+  static const int64_t SECS[] = { 0, 1, T_2026, -1, -86400, 951782400 };
+  static const int     FRACS[]
+      = { DP_ISOTIME_SEC, DP_ISOTIME_MSEC, DP_ISOTIME_USEC, DP_ISOTIME_NSEC };
+  static const int STYLES[] = { DP_ISOTIME_BASIC, DP_ISOTIME_EXTENDED };
+  char             buf[DP_ISOTIME_MAX];
+  for (size_t i = 0; i < sizeof SECS / sizeof *SECS; i++)
+    for (size_t f = 0; f < sizeof FRACS / sizeof *FRACS; f++)
+      for (size_t y = 0; y < sizeof STYLES / sizeof *STYLES; y++)
+        {
+          const uint32_t nsec = 123456789u;
+          DP_REQUIRE (dp_isotime_format_as (buf, sizeof buf, SECS[i], nsec,
+                                            FRACS[f], STYLES[y])
+                      > 0);
+          int64_t  gsec;
+          uint32_t gnsec;
+          DP_CHECK_MSG (dp_isotime_parse (buf, &gsec, &gnsec) == 0,
+                        "the parser refused what the formatter wrote");
+          DP_CHECK (gsec == SECS[i]);
+          /* The formatter truncates to its precision, so the parser must
+             read back exactly the truncated value -- not the original. */
+          uint32_t want = 0u;
+          if (FRACS[f] == DP_ISOTIME_MSEC)
+            want = (nsec / 1000000u) * 1000000u;
+          else if (FRACS[f] == DP_ISOTIME_USEC)
+            want = (nsec / 1000u) * 1000u;
+          else if (FRACS[f] == DP_ISOTIME_NSEC)
+            want = nsec;
+          DP_CHECK (gnsec == want);
+        }
+  return 0;
+}
+
+/* The one vector that pins the epoch itself: if the civil-date arithmetic
+   were off by a day, every round trip above would still agree with itself. */
+static int
+test_parse_absolute_vectors (void)
+{
+  int64_t  sec;
+  uint32_t nsec;
+  DP_REQUIRE (dp_isotime_parse ("1970-01-01T00:00:00Z", &sec, &nsec) == 0);
+  DP_CHECK (sec == 0 && nsec == 0u);
+  DP_REQUIRE (dp_isotime_parse ("2000-01-01T00:00:00Z", &sec, &nsec) == 0);
+  DP_CHECK (sec == 946684800);
+  DP_REQUIRE (dp_isotime_parse ("1969-12-31T23:59:59Z", &sec, &nsec) == 0);
+  DP_CHECK (sec == -1);
+  /* A fraction is a FRACTION: ".5" is half a second, not five nanoseconds. */
+  DP_REQUIRE (dp_isotime_parse ("1970-01-01T00:00:00.5Z", &sec, &nsec) == 0);
+  DP_CHECK (sec == 0 && nsec == 500000000u);
+  /* An offset is applied, not ignored: 01:00+01:00 is midnight UTC. */
+  DP_REQUIRE (dp_isotime_parse ("1970-01-01T01:00:00+01:00", &sec, &nsec)
+              == 0);
+  DP_CHECK (sec == 0);
+  DP_REQUIRE (dp_isotime_parse ("1969-12-31T23:00:00-0100", &sec, &nsec) == 0);
+  DP_CHECK (sec == 0);
+  return 0;
+}
+
+static int
+test_parse_rejects (void)
+{
+  int64_t  sec;
+  uint32_t nsec;
+  DP_CHECK (dp_isotime_parse (NULL, &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2026-08-05T04:15:30Z", NULL, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2026-08-05T04:15:30Z", &sec, NULL) != 0);
+  /* NO ZONE. The one refusal that is a decision rather than a syntax check:
+     read as UTC, a local stamp is wrong by hours and looks authoritative. */
+  DP_CHECK_MSG (dp_isotime_parse ("2026-08-05T04:15:30", &sec, &nsec) != 0,
+                "a zone-less stamp must be refused, not assumed UTC");
+  DP_CHECK (dp_isotime_parse ("", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2026-08-05", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2026-13-05T00:00:00Z", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2026-08-32T00:00:00Z", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2026-08-05T24:00:00Z", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2026-08-05T00:60:00Z", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2026-08-05T00:00:61Z", &sec, &nsec) != 0);
+  /* Half-separated is not a spelling: s[4] decides, and the rest must agree.
+   */
+  DP_CHECK (dp_isotime_parse ("2026-0805T00:00:00Z", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("20260805T00:00:00Z", &sec, &nsec) != 0);
+  /* Trailing junk is a different timestamp, not this one. */
+  DP_CHECK (dp_isotime_parse ("2026-08-05T00:00:00Zx", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2026-08-05T00:00:00.Z", &sec, &nsec) != 0);
+  DP_CHECK (dp_isotime_parse ("2026-08-05T00:00:00+99:00", &sec, &nsec) != 0);
+  /* A leap second is a real instant on the wire and is accepted. */
+  DP_CHECK (dp_isotime_parse ("2016-12-31T23:59:60Z", &sec, &nsec) == 0);
+  return 0;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -263,6 +361,9 @@ main (int argc, char **argv)
   test_styles_agree ();
   test_rejects_bad_style ();
   test_now_is_wellformed ();
+  (void)test_parse_round_trips_the_formatter ();
+  (void)test_parse_absolute_vectors ();
+  (void)test_parse_rejects ();
 
   DP_TEST_END ("test_dp_isotime");
 }

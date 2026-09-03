@@ -81,6 +81,11 @@ char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
                           double t0_unix_sec, const wfm_segment_t *segs,
                           size_t n_segs);
 
+char *wfm_sigmf_meta_json_ex(int sample_type, int endian, double fs, double fc,
+                             double t0_unix_sec, const wfm_segment_t *segs,
+                             size_t n_segs, const char *extra_global_json,
+                             const char *const *annotations, size_t n_ann);
+
 /* No wfm_writer_reset: the object declares `no_reset` (gh-542), so jm emits no
    reset() binding and no call site. A writer has nothing coherent to reset --
    the samples are on disk and the written count drives the BLUE data_size patch

@@ -189,6 +189,11 @@ static const char *const _enum_Reader_fs_source[] = {
 static const char *const _enum_Reader_t0_source[] = {
   "none",
   "timecode",
+  /* Hand-added: `jm apply` reconciles a sacred fragment member by member and
+     does NOT re-render this table when an [[enum]] gains a value, so a
+     regenerated one would be silently short and the getter would index past
+     its end. Keep it in step with just-makeit.toml's `t0_source` enum. */
+  "sigmf",
   NULL,
 };
 
@@ -1111,16 +1116,20 @@ static PyGetSetDef Reader_getset[] = {
     "`t0` of `t = t0 + n/fs`: hand it to a `SampleClock` via `track()` and a "
     "replayed capture's timeline lands where the samples were taken, not "
     "where they are being replayed. BLUE carries it as a J1950 `timecode` in "
-    "the header, converted here to the UNIX epoch.\n",
+    "the header, converted here to the UNIX epoch; SigMF carries it as an ISO "
+    "8601 `core:datetime` string in `captures[0]`.\n",
     NULL },
   { "t0_source", (getter)Reader_getprop_t0_source, NULL,
     "Where `t0` was read from -- `\"timecode\"` for a BLUE header that "
-    "declares one, or `\"none\"`. **`\"none\"` is the common answer and the "
-    "one that matters**: a zero BLUE timecode means the field was never set, "
-    "not 1950-01-01, and doppler's own writer leaves it zero -- so a caller "
-    "that skips this check dates every doppler-written capture to 1950. "
-    "SigMF's `core:datetime` is an ISO 8601 string this reader does not parse "
-    "yet, so a SigMF capture also reports `\"none\"` rather than a guess.\n",
+    "declares one, `\"sigmf\"` for a sidecar's "
+    "`captures[0].\"core:datetime\"`, or `\"none\"`. **`\"none\"` is the "
+    "common answer and the one that matters**: a zero BLUE timecode means the "
+    "field was never set, not 1950-01-01, and doppler's own writer leaves it "
+    "zero -- so a caller that skips this check dates every doppler-written "
+    "capture to 1950. A SigMF stamp that is malformed, or that carries no "
+    "timezone, also reads as `\"none\"`: taking a zone-less local time for "
+    "UTC is wrong by hours and looks authoritative, where reporting nothing "
+    "does not.\n",
     NULL },
   { "num_samples", (getter)Reader_getprop_num_samples, NULL,
     "Total samples in the capture, or 0 when the file type cannot say. BLUE "

@@ -1,0 +1,159 @@
+# dp_event_log — a run's events as SigMF annotations (design §8.1).
+#
+# The component is named after the C prefix, like dp_tlm and dp_tlm_capture, so
+# not one function is renamed; `class_name` puts the Python face beside
+# Telemetry and Capture in doppler.telemetry, which is where its caller already
+# is — the holder that owns the clock stamps the telemetry AND writes the
+# events, and one sidecar indexes both.
+
+[dp_event_log]
+class_name = "EventLog"
+# An opaque file-backed object with an open/close lifecycle and no sample path
+# at all: events arrive from the holder, never from a signal. Nothing to reset
+# either — a log is finished, not rewound (gh-542).
+no_state = "true"
+no_step = "true"
+no_reset = "true"
+arg_type = "float _Complex"
+return_type = "float _Complex"
+create_fn = "dp_event_log_open"
+
+# A NULL from open() is a path that could not be opened far more often than it
+# is OOM, and MemoryError would send the caller looking in the wrong place.
+create_error = "OSError"
+create_error_message = "event log could not be opened: the path must be non-empty and writable (the file is truncated if it exists)"
+
+# The emitter, and the ONLY reason this component links anything: finalize
+# renders through wfm_sigmf_meta_json_ex() rather than spelling `global` and
+# `captures` a second time. wfm_writer_core PUBLIC-links wfm_cjson_core, so the
+# annotation builder gets cJSON.h from the same edge.
+[[dp_event_log.depends_on]]
+name = "wfm_writer"
+link = true
+
+[[dp_event_log.init_params]]
+name = "path"
+type = "path"
+required = true
+doc = "Flat event file, truncated if it exists. One JSON object per line, flushed per event, so it can be tailed while the run is live and a crash costs at most the event being written."
+
+[[dp_event_log.init_params]]
+name = "fc"
+type = "double"
+default = "0.0"
+doc = "Channel centre frequency (Hz), or 0.0 when the input does not state one — a NATS stream, typically. It decides two things together, which is why it is one argument: whether an event can carry absolute core:freq_lower_edge/upper_edge keys, and what captures[0] reports as core:frequency. Unknown means OMITTED, never guessed."
+
+# ── methods ─────────────────────────────────────────────────────────────────
+
+# The two field faces. `status_return`: the int carries nothing but status, so
+# "non-zero raises" is exactly right, and the failures are all caller error —
+# an over-long name, a 17th field, a NaN.
+[[dp_event_log.methods]]
+name = "field"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "field: the name is empty or longer than 31 bytes, the value is not finite (JSON has no NaN), or 16 fields are already staged"
+params = [
+  { name = "name", type = "const char *" },
+  { name = "value", type = "double" },
+]
+
+[[dp_event_log.methods]]
+name = "field_str"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "field_str: the name is empty or longer than 31 bytes, the value is longer than 63 bytes, or 16 fields are already staged"
+params = [
+  { name = "name", type = "const char *" },
+  { name = "value", type = "const char *" },
+]
+
+# sample_count 0 is an INSTANT and omits the key; bandwidth 0.0 states no band
+# and omits the frequency keys. Both defaults are therefore the honest one for
+# an event that has neither — a state change, a stream gap — and a caller that
+# has a span or a band says so.
+[[dp_event_log.methods]]
+name = "append"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "OSError"
+error_message = "append: the event could not be written (the log is closed, the write failed, or the event renders to 16 KiB or more)"
+params = [
+  { name = "sample_start", type = "uint64_t" },
+  { name = "label", type = "const char *" },
+  { name = "sample_count", type = "uint64_t", default = "0" },
+  { name = "freq_hz", type = "double", default = "0.0" },
+  { name = "bandwidth_hz", type = "double", default = "0.0" },
+]
+
+[[dp_event_log.methods]]
+name = "finalize"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "OSError"
+error_message = "finalize: the event file could not be read, is not an event log (not a regular file, or a line of 16 KiB or more), or the sidecar could not be written"
+params = [
+  # `const char *`, not `path`: jm's `path` pseudo-type reaches only
+  # init_params and handle-method args (gh-515 fixed _build_no_state_init_ctx
+  # and nothing else), so on an object METHOD it is a KeyError in
+  # _build_params_parse. The cost is that finalize takes `str` where the
+  # constructor takes os.PathLike. Filed upstream.
+  { name = "meta_path", type = "const char *" },
+  { name = "sample_type", type = "int", enum = "stype", default = "cf32" },
+  { name = "endian", type = "int", enum = "endian", default = "le" },
+  { name = "fs", type = "double", default = "0.0" },
+  { name = "t0", type = "double", default = "0.0" },
+]
+
+# The dataset and the telemetry file are properties of the RUN, not of a
+# sidecar: a long run writes one an hour and neither name changes between
+# them. Set once, used by every finalize.
+#
+# It is also the shape jm can express. A `const char *` param cannot carry a
+# default -- `default = ""` is read as "no default" (_join_fmt_with_optional
+# tests truthiness) and `default = "NULL"` reaches the stub verbatim as
+# `dataset: str = NULL`, a SyntaxError in the .pyi -- so an OPTIONAL string
+# argument does not exist. Filed upstream; these two would be `= None`
+# arguments on finalize if it did.
+[[dp_event_log.methods]]
+name = "set_dataset"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [{ name = "name", type = "const char *" }]
+
+[[dp_event_log.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [{ name = "path", type = "const char *" }]
+
+# close() is NOT the destructor: a close can fail (the last bytes meeting a
+# full disk) and a caller is entitled to hear about it, where a destructor
+# cannot return. Idempotent, so `with` exit and an explicit close agree.
+[[dp_event_log.methods]]
+name = "close"
+arg_type = "void"
+return_type = "int"
+status_return = true
+error = "OSError"
+error_message = "close: an event failed to reach the disk during this run (the error is sticky — an earlier append reports here)"
+
+[dp_event_log.destroy]
+returns = "int"
+exit = "close"
+
+# ── properties ──────────────────────────────────────────────────────────────
+
+[[dp_event_log.properties]]
+name = "count"
+type = "size_t"
+expr = "dp_event_log_count(self->handle)"
+doc = "Events appended so far, counting only the ones that reached the disk."

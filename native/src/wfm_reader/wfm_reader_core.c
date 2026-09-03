@@ -17,6 +17,7 @@
 #include <time.h>
 
 #include "cJSON.h"
+#include "dp_isotime.h"
 #include "wfm/wfm_keywords.h"
 #include "wfm/wfm_path.h"
 
@@ -651,13 +652,15 @@ sigmf_datatype (const char *dt, int *stype, int *mode, int *endian)
   return -1;
 }
 
-/* Parse a SigMF .sigmf-meta sidecar for type/endian/fs/fc. Returns 0 on ok.
-   @p has_fc distinguishes a sidecar that declares `core:frequency` from one
-   that omits it -- both leave *fc at 0.0, and only the first of those is a
-   reading. */
+/* Parse a SigMF .sigmf-meta sidecar for type/endian/fs/fc/t0. Returns 0 on
+   ok.  @p has_fc distinguishes a sidecar that declares `core:frequency` from
+   one that omits it -- both leave *fc at 0.0, and only the first of those is
+   a reading.  @p has_t0 does the same for `core:datetime`, where the stakes
+   are higher: 0.0 there is 1970, and a capture dated 1970 by default is a
+   confident wrong answer. */
 static int
 parse_sigmf_meta (const char *meta_path, int *stype, int *mode, int *endian,
-                  double *fs, double *fc, int *has_fc)
+                  double *fs, double *fc, int *has_fc, double *t0, int *has_t0)
 {
   FILE *mf = fopen (meta_path, "rb");
   if (!mf)
@@ -694,6 +697,8 @@ parse_sigmf_meta (const char *meta_path, int *stype, int *mode, int *endian,
       *fs         = (sr && cJSON_IsNumber (sr)) ? sr->valuedouble : 0.0;
       *fc         = 0.0;
       *has_fc     = 0;
+      *t0         = 0.0;
+      *has_t0     = 0;
       cJSON *caps = cJSON_GetObjectItem (root, "captures");
       if (caps && cJSON_GetArraySize (caps) > 0)
         {
@@ -703,6 +708,23 @@ parse_sigmf_meta (const char *meta_path, int *stype, int *mode, int *endian,
             {
               *fc     = fr->valuedouble;
               *has_fc = 1;
+            }
+          /* `core:datetime` is the capture's start instant, as extended ISO
+             8601. dp_isotime_parse() is the inverse of the formatter the
+             writer renders it with, so the two faces of this library agree
+             by construction rather than by two conventions. A stamp it
+             refuses -- malformed, or carrying no zone -- leaves *has_t0 at
+             0, which reads as "not found" rather than as 1970. */
+          cJSON *dtm = cJSON_GetObjectItem (c0, "core:datetime");
+          if (dtm && cJSON_IsString (dtm))
+            {
+              int64_t  isec;
+              uint32_t insec;
+              if (dp_isotime_parse (dtm->valuestring, &isec, &insec) == 0)
+                {
+                  *t0     = (double)isec + (double)insec * 1e-9;
+                  *has_t0 = 1;
+                }
             }
         }
       rc = 0;
@@ -821,9 +843,10 @@ count_csv (wfm_reader_state_t *r)
 static int
 open_sigmf (wfm_reader_state_t *r, const char *path, const char *meta)
 {
-  int has_fc = 0;
+  int    has_fc = 0, has_t0 = 0;
+  double t0 = 0.0;
   if (parse_sigmf_meta (meta, &r->sample_type, &r->mode, &r->endian, &r->fs,
-                        &r->fc, &has_fc)
+                        &r->fc, &has_fc, &t0, &has_t0)
       != 0)
     return -1;
   if (has_fc)
@@ -831,11 +854,13 @@ open_sigmf (wfm_reader_state_t *r, const char *path, const char *meta)
   /* `core:sample_rate` is optional, so parse_sigmf_meta leaves fs at 0.0 when
      it is absent -- non-zero is exactly "the metadata declared one". */
   r->fs_source = (r->fs != 0.0) ? WFM_FS_SIGMF : WFM_FS_NONE;
-  /* `core:datetime` is an ISO 8601 STRING and this reader has no parser for
-     one, so a SigMF capture reports WFM_T0_NONE rather than a guess. Wiring
-     it up is a parser away, not a redesign. */
-  r->t0_source = WFM_T0_NONE;
-  r->file_type = WFM_FT_SIGMF;
+  /* `core:datetime`, through dp_isotime_parse() -- the inverse of the
+     formatter the writer's sidecar is rendered with. Absent, malformed, or
+     carrying no zone leaves this WFM_T0_NONE, which is the honest answer:
+     0.0 here would be 1970 and would look like a reading. */
+  r->t0_unix_sec = has_t0 ? t0 : 0.0;
+  r->t0_source   = has_t0 ? WFM_T0_SIGMF : WFM_T0_NONE;
+  r->file_type   = WFM_FT_SIGMF;
   if (r->fp)
     fclose (r->fp);
   r->fp = fopen (path, "rb");

@@ -385,6 +385,38 @@ char *wfm_sigmf_meta_json(int sample_type, int endian, double fs, double fc,
                           double t0_unix_sec, const wfm_segment_t *segs,
                           size_t n_segs);
 
+/**
+ * @brief wfm_sigmf_meta_json() plus the two things a caller can add to it.
+ *
+ * The same document, from the same code — this IS the implementation and
+ * wfm_sigmf_meta_json() is the call with both extras absent. It exists so an
+ * events sidecar (dp_event_log/dp_event_log_core.h) is this emitter with
+ * annotations of its own, rather than a second builder free to spell
+ * `global` and `captures`, and their omit-when-unknown rules, differently.
+ *
+ * @param sample_type       wire type (wavegen order) -> `core:datatype`.
+ * @param endian            0 little, 1 big.
+ * @param fs                sample rate (Hz); 0.0 derives from @p segs or is
+ *                          omitted -- see wfm_sigmf_meta_json().
+ * @param fc                centre frequency (Hz) -> `captures[0]`.
+ * @param t0_unix_sec       capture start, or ::WFM_TIMECODE_UNSET.
+ * @param segs              composer segments to annotate, or NULL for none.
+ * @param n_segs            number of entries in @p segs.
+ * @param extra_global_json a JSON OBJECT whose members are merged into
+ *                          `global`, or NULL. A member replaces a key already
+ *                          there rather than duplicating it. Text that is not
+ *                          a JSON object is ignored.
+ * @param annotations       JSON object strings appended to `annotations`
+ *                          after the segments', or NULL. A string that does
+ *                          not parse as an object is skipped, not fatal.
+ * @param n_ann             number of entries in @p annotations.
+ * @return malloc'd JSON string (caller frees), or NULL on allocation failure.
+ */
+char *wfm_sigmf_meta_json_ex(int sample_type, int endian, double fs, double fc,
+                             double t0_unix_sec, const wfm_segment_t *segs,
+                             size_t n_segs, const char *extra_global_json,
+                             const char *const *annotations, size_t n_ann);
+
 /* No wfm_writer_reset: the object declares `no_reset` (gh-542), so jm emits no
    reset() binding and no call site. A writer has nothing coherent to reset --
    the samples are on disk and the written count drives the BLUE data_size patch

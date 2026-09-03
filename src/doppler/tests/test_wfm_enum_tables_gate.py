@@ -221,6 +221,64 @@ def test_a_generated_binding_is_not_called_a_duplicate(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stdout
 
 
+def test_a_stale_binding_table_fails(tmp_path: Path) -> None:
+    """Rule 6: not being a duplicate is not the same as being correct.
+
+    The case that put this rule here (2026-09-03): a third value was added to
+    the `t0_source` enum, and the manifest, the C enum and the `.pyi` all took
+    it while the SACRED `wfm_reader_ext_wfm_reader.c` fragment did not -- jm
+    reconciles such a fragment member by member and never re-renders its
+    tables. The getter then indexed one past the array's own NULL for the new
+    value, which is a read of whatever follows it rather than a wrong string.
+    """
+    _seed(
+        tmp_path,
+        sources={
+            "wfm_reader/wfm_reader_ext_wfm_reader.c": (
+                "static const char *const _enum_Reader_wfm_type[]"
+                ' = { "tone", "noise", NULL };\n'
+            )
+        },
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "_enum_Reader_wfm_type[] is ['tone', 'noise']" in r.stdout
+    assert "NOT re-rendered" in r.stdout
+
+
+def test_a_reordered_binding_table_fails(tmp_path: Path) -> None:
+    """Same length, wrong order — the half a length check cannot see."""
+    _seed(
+        tmp_path,
+        sources={
+            "wfm_reader/wfm_reader_ext_wfm_reader.c": (
+                "static const char *const _enum_Reader_ftype[]"
+                ' = { "csv", "raw", NULL };\n'
+            )
+        },
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "_enum_Reader_ftype[]" in r.stdout
+
+
+def test_a_binding_table_naming_no_enum_fails(tmp_path: Path) -> None:
+    """Fail-closed: a table this gate cannot resolve is not a table it may
+    quietly skip, or a rename becomes a way out of the check."""
+    _seed(
+        tmp_path,
+        sources={
+            "wfm_reader/wfm_reader_ext_wfm_reader.c": (
+                "static const char *const _enum_Reader_whence[]"
+                ' = { "tone", "noise", "pn", NULL };\n'
+            )
+        },
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 1
+    assert "matches no [[enum]]" in r.stdout
+
+
 def test_a_manifest_side_edit_fails(tmp_path: Path) -> None:
     """The declaration can drift from the header just as the header can."""
     _seed(

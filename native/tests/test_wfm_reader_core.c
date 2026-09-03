@@ -1046,6 +1046,216 @@ test_sigmf_pair_from_create (void)
   return 0;
 }
 
+/* ── SigMF core:datetime: the writer's stamp, read back ──────────────────
+ *
+ * The pair above proves the datatype/fs/fc path. This proves the one that
+ * used to be missing: `core:datetime` is an ISO 8601 string, the reader had
+ * no parser for one, and every SigMF capture therefore reported
+ * WFM_T0_NONE -- a BLUE replay landed on its own timeline and a SigMF replay
+ * landed on the machine replaying it.
+ *
+ * Written by the writer rather than by hand, so the check is against the
+ * spelling this library actually emits, and it goes red if either face
+ * changes. The refusal case IS hand-written, because the writer cannot
+ * produce it.
+ */
+static int
+test_sigmf_datetime_round_trips (void)
+{
+  const char *path     = "dp_reader_t0.sigmf-data";
+  float _Complex xs[4] = { 0 };
+  /* 2026-08-05T04:15:30Z, the same instant test_dp_isotime.c pins. */
+  const double        t0 = 1785903330.0;
+  wfm_writer_state_t *w  = wfm_writer_create (path, 2e6, WFM_FT_SIGMF, 0, 0,
+                                              1.2e9, 4, 0.0, t0, true);
+  DP_REQUIRE_MSG (w, "writer create");
+  DP_REQUIRE_MSG (wfm_writer_write (w, xs, 4) == 4, "write");
+  DP_REQUIRE_MSG (wfm_writer_close (w) == 0, "close");
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+  DP_REQUIRE_MSG (r, "reader open");
+  wfm_reader_info_t info;
+  wfm_reader_info (r, &info);
+  DP_REQUIRE_MSG (info.t0_source == WFM_T0_SIGMF,
+                  "core:datetime must be attributed to the sidecar");
+  /* The sidecar renders microseconds, so the round trip is exact to 1 us. */
+  DP_REQUIRE_MSG (dp_near (info.t0_unix_sec, t0, 1e-6),
+                  "the instant must survive the round trip");
+  wfm_reader_destroy (r);
+
+  /* A stamp with no timezone: refused, and the capture reports "not found"
+     rather than a time that is wrong by however many hours the writer was
+     from UTC. Everything else in the sidecar still reads. */
+  const char *mpath = "dp_reader_t0.sigmf-meta";
+  FILE       *mf    = fopen (mpath, "w");
+  DP_REQUIRE (mf != NULL);
+  fputs ("{\"global\":{\"core:datatype\":\"cf32_le\","
+         "\"core:version\":\"1.0.0\"},"
+         "\"captures\":[{\"core:sample_start\":0,"
+         "\"core:datetime\":\"2026-08-05T04:15:30\"}],"
+         "\"annotations\":[]}",
+         mf);
+  DP_REQUIRE (fclose (mf) == 0);
+  r = wfm_reader_create (path, 0, 0);
+  DP_REQUIRE_MSG (r, "reader open with the hand-written sidecar");
+  wfm_reader_info (r, &info);
+  DP_REQUIRE_MSG (info.t0_source == WFM_T0_NONE,
+                  "a zone-less stamp must read as not-found, not as UTC");
+  DP_REQUIRE (info.t0_unix_sec == 0.0);
+  DP_REQUIRE_MSG (info.sample_type == 0,
+                  "the rest of the sidecar still reads");
+  wfm_reader_destroy (r);
+
+  remove (path);
+  remove (mpath);
+  return 0;
+}
+
+/* ── Every spelling of core:datetime the parser accepts, and refuses ─────
+ *
+ * These belong HERE, not only in test_dp_isotime.c, and the reason is
+ * measurable rather than stylistic: the coverage build attributes C lines to
+ * `libdoppler.so` alone (see COV_IGNORE in the Makefile), so a `static
+ * inline` in a header is measured only through the LIBRARY translation units
+ * that call it. `dp_isotime_parse` has exactly one such caller —
+ * wfm_reader_core.c — so its branches are covered by what a capture can say,
+ * and by nothing else. The unit test proves the arithmetic; this proves the
+ * shipped path reaches every branch of it.
+ *
+ * Each case writes one sidecar beside a real `.sigmf-data` body and opens it.
+ * An accepted stamp reports WFM_T0_SIGMF and its instant; a refused one
+ * reports WFM_T0_NONE and 0.0, and the rest of the sidecar still reads.
+ */
+static int
+open_with_datetime (const char *path, const char *datetime, double *t0_out,
+                    int *src_out)
+{
+  char  mpath[256];
+  FILE *mf;
+  snprintf (mpath, sizeof mpath, "%.*s.sigmf-meta", (int)(strlen (path) - 11),
+            path); /* strip .sigmf-data */
+  mf = fopen (mpath, "w");
+  if (!mf)
+    return -1;
+  fprintf (mf, "{\"global\":{\"core:datatype\":\"cf32_le\","
+               "\"core:version\":\"1.0.0\"},"
+               "\"captures\":[{\"core:sample_start\":0");
+  if (datetime)
+    fprintf (mf, ",\"core:datetime\":\"%s\"", datetime);
+  fprintf (mf, "}],\"annotations\":[]}");
+  if (fclose (mf) != 0)
+    return -1;
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+  if (!r)
+    return -1;
+  wfm_reader_info_t info;
+  wfm_reader_info (r, &info);
+  *t0_out  = info.t0_unix_sec;
+  *src_out = info.t0_source;
+  /* The datatype is read from the same sidecar, so a case that got this far
+     proves the document parsed and only the stamp was in question. */
+  int ok = (info.sample_type == 0);
+  wfm_reader_destroy (r);
+  remove (mpath);
+  return ok ? 0 : -1;
+}
+
+static int
+test_sigmf_datetime_every_spelling (void)
+{
+  const char *path     = "dp_reader_dt.sigmf-data";
+  float _Complex xs[4] = { 0 };
+  FILE *df             = fopen (path, "wb");
+  DP_REQUIRE (df != NULL);
+  DP_REQUIRE (fwrite (xs, sizeof xs[0], 4, df) == 4);
+  DP_REQUIRE (fclose (df) == 0);
+
+  /* 2026-08-05T04:15:30Z, the instant test_dp_isotime.c pins. */
+  const double T = 1785903330.0;
+  struct
+  {
+    const char *stamp;
+    double      want; /* the instant, when accepted */
+  } ok_cases[] = {
+    { "1970-01-01T00:00:00Z", 0.0 },
+    { "2026-08-05T04:15:30Z", T },
+    { "20260805T041530Z", T },             /* basic spelling      */
+    { "2026-08-05T04:15:30.5Z", T + 0.5 }, /* one fraction digit  */
+    { "2026-08-05T04:15:30.123456Z", T + 0.123456 },
+    { "2026-08-05T04:15:30.1234567891Z", T + 0.123456789 }, /* >9, cut   */
+    { "2026-08-05T04:15:30,25Z", T + 0.25 },  /* comma fraction      */
+    { "2026-08-05t04:15:30Z", T },            /* lowercase T         */
+    { "2026-08-05 04:15:30Z", T },            /* space separator     */
+    { "2026-08-05T05:15:30+01:00", T },       /* offset, applied     */
+    { "2026-08-05T03:15:30-0100", T },        /* basic offset        */
+    { "2026-08-05T04:15:30z", T },            /* lowercase zone      */
+    { "2016-12-31T23:59:60Z", 1483228800.0 }, /* leap second         */
+  };
+  for (size_t i = 0; i < sizeof ok_cases / sizeof *ok_cases; i++)
+    {
+      double t0  = -1.0;
+      int    src = -1;
+      DP_REQUIRE_MSG (open_with_datetime (path, ok_cases[i].stamp, &t0, &src)
+                          == 0,
+                      "the sidecar did not parse");
+      DP_REQUIRE_MSG (src == WFM_T0_SIGMF, ok_cases[i].stamp);
+      DP_REQUIRE_MSG (dp_near (t0, ok_cases[i].want, 1e-6), ok_cases[i].stamp);
+    }
+
+  /* Refused, every one reporting "not found" rather than a plausible time.
+     The first is the decision rather than a syntax check: a zone-less stamp
+     read as UTC is wrong by however many hours the writer was from it. */
+  const char *bad_cases[] = {
+    "2026-08-05T04:15:30",   /* NO ZONE — refused, never assumed          */
+    "",                      /* shorter than any legal stamp              */
+    "2026-08-05",            /* a date is not an instant                  */
+    "2026-13-05T00:00:00Z",  /* month                                     */
+    "2026-08-32T00:00:00Z",  /* day                                       */
+    "2026-08-05T24:00:00Z",  /* hour                                      */
+    "2026-08-05T00:60:00Z",  /* minute                                    */
+    "2026-08-05T00:00:61Z",  /* second, past the leap                     */
+    "2026-0805T00:00:00Z",   /* half-separated is not a spelling          */
+    "20260805T00:00:00Z",    /* nor is the other half                     */
+    "2026-08-0XT00:00:00Z",  /* a non-digit where a digit belongs         */
+    "2026-08-05T00:00:00Zx", /* trailing junk is a different timestamp    */
+    "2026-08-05T00:00:00.Z", /* a fraction point with no fraction         */
+    "2026-08-05T00:00:00+99:00", /* an offset no zone has                 */
+    "2026-08-05T00:00:00+0X",    /* a non-digit in the offset hour        */
+    "2026-08-05T00:00:00+01:0X", /* ... and in its minute                 */
+    "20X6-08-05T00:00:00Z",      /* a non-digit in the year               */
+    "2026x08-05T00:00:00Z",      /* the first separator                   */
+    "2026-0X-05T00:00:00Z",      /* the month                             */
+    "2026-08-0XT00:00:00Z",      /* the day                               */
+    "2026-08-05X00:00:00Z",      /* the date/time separator               */
+    "2026-08-05TXX:00:00Z",      /* the hour                              */
+    "2026-08-05T00x00:00Z",      /* the separator after it                */
+    "2026-08-05T00:00x00Z",      /* and after the minute                  */
+    "2026-08-05T00:00:XXZ",      /* the second                            */
+  };
+  for (size_t i = 0; i < sizeof bad_cases / sizeof *bad_cases; i++)
+    {
+      double t0  = -1.0;
+      int    src = -1;
+      DP_REQUIRE_MSG (open_with_datetime (path, bad_cases[i], &t0, &src) == 0,
+                      "the sidecar did not parse");
+      DP_REQUIRE_MSG (src == WFM_T0_NONE, bad_cases[i]);
+      DP_REQUIRE_MSG (t0 == 0.0, bad_cases[i]);
+    }
+
+  /* And a sidecar with no core:datetime at all — the common case. */
+  {
+    double t0  = -1.0;
+    int    src = -1;
+    DP_REQUIRE (open_with_datetime (path, NULL, &t0, &src) == 0);
+    DP_REQUIRE (src == WFM_T0_NONE);
+    DP_REQUIRE (t0 == 0.0);
+  }
+
+  remove (path);
+  return 0;
+}
+
 /* ── Following a capture that is still being written ──────────────────────
  * docs/design/end-of-capture.md sections 2a and 2b. Both were measured
  * defects before read_follow existed, and both are SILENT: the first
@@ -1736,6 +1946,10 @@ main (void)
   if (test_trailing_bytes ())
     return 1;
   if (test_detects_by_content_not_extension ())
+    return 1;
+  if (test_sigmf_datetime_round_trips ())
+    return 1;
+  if (test_sigmf_datetime_every_spelling ())
     return 1;
   if (test_sigmf_pair_from_create ())
     return 1;

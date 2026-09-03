@@ -1405,10 +1405,29 @@ one of two sources. The decisions, and the reasons:
     emitter, not a second one; the holder calls it from Python today and
     from the application's C++ tomorrow.
 
+**As built.** `dp_event_log`
+(`native/inc/dp_event_log/dp_event_log_core.h`, `telemetry.EventLog`) is
+that object. `append()` renders one annotation as a line of JSON and
+flushes it, so the file is tail-able live and a kill costs at most the
+event being written; `finalize()` collects the lines into
+`wfm_sigmf_meta_json_ex()` — the writer's emitter, extended to take extra
+`global` members and extra annotations, with `wfm_sigmf_meta_json()` now
+the call with both absent, so there is still exactly one place that
+spells `global` and `captures`. The `doppler:` fields are staged before
+an append from a fixed table, which is what keeps the object ignorant of
+any particular receiver's record and allocation-free per event. A run's
+flat file can also be rendered afterwards, by another process, with
+`dp_event_log_write_meta()` — which is what the crash-safe half is for.
+
 What this asks of the receiver is what §11.3 built: a record with the
-state and the clocks in samples and no time in it. One gap on the reader's
-side follows from the first decision — SigMF's `core:datetime` is not
-parsed yet, so a SigMF replay anchors to no time where a BLUE one does.
+state and the clocks in samples and no time in it. The gap the first
+decision opened on the reader's side is closed: `dp_isotime_parse()` — the
+inverse of the formatter that header already owns — reads SigMF's
+`core:datetime`, so a SigMF capture anchors on its own timeline as a BLUE
+one does and reports `t0_source` `"sigmf"` where it used to report
+`"none"`. A stamp carrying no timezone is refused rather than read as UTC:
+being wrong by hours looks authoritative in a way that reporting nothing
+does not.
 
 ______________________________________________________________________
 

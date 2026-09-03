@@ -807,6 +807,19 @@ LLVM_PROFDATA ?= llvm-profdata
 LLVM_COV      ?= llvm-cov
 COV_BASE      ?= origin/main
 COV_PATCH_MIN ?= 90
+# The build and the three suites run under a memory ceiling where the host
+# can hold one (scripts/mem-guard.sh: a systemd user scope with MemoryMax,
+# proved enforced before it is trusted, else unguarded and said so). A
+# runaway on a small VM does not fail, it takes the machine down: three WSL
+# kills here, the last a C test that read /dev/full without end. This target
+# runs everything the repo has, instrumented, eight-wide, so it is where a
+# runaway has the most company to take with it. `COV_GUARD=` disables;
+# `MEM_GUARD_MAX=4G` overrides the 3/4-of-RAM default. The probe's
+# interpreter is exported rather than prefixed, because the ctest phase
+# runs from inside $(COV_DIR) and reaches the script through $(CURDIR)/ --
+# a prefix there would be taken for the path.
+COV_GUARD     ?= scripts/mem-guard.sh
+export MEM_GUARD_PYTHON ?= $(PYTHON_EXECUTABLE)
 # Excluded from the report: vendored code, jm-generated binding aggregators
 # (`<mod>_ext.c`) and per-object fragments, and the test/bench harnesses — only
 # first-party _core.c counts. `native/src/app/` (the wfmgen CLI) is excluded
@@ -868,7 +881,7 @@ $(CMAKE) -B $(COV_DIR) -S . \
     -DPYTHON_PACKAGE_DIR=$(CURDIR)/$(COV_DIR)/pkg/doppler \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
     $(CMAKE_ARGS)
-$(CMAKE) --build $(COV_DIR) --parallel $(NPROC)
+$(COV_GUARD) $(CMAKE) --build $(COV_DIR) --parallel $(NPROC)
 mkdir -p $(COV_DIR)/pkg/doppler
 # The extract below is ADDITIVE -- it overwrites what it carries and leaves
 # everything else -- so a test deleted or renamed in src/ lingered here and
@@ -915,7 +928,7 @@ rm -rf $(COV_DIR)/prof && mkdir -p $(COV_DIR)/prof
 # and the merge below is unaffected -- the profile format is what makes this
 # safe, not luck.
 cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
-    $(CTEST) --output-on-failure -j $(NPROC)
+    $(CURDIR)/$(COV_GUARD) $(CTEST) --output-on-failure -j $(NPROC)
 # -n auto for the same reason as ctest above: 486s serial in CI, 102s here.
 # The per-process profile argument is identical -- xdist workers are separate
 # processes and %p gives each its own .profraw.
@@ -947,11 +960,11 @@ LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
     PYTHONPATH="$(CURDIR)/$(COV_DIR)/pkg" \
     DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
     PATH="$(CURDIR)/$(COV_DIR)/pkg/doppler/wfm/_bin:$(dir $(PYTHON_EXECUTABLE)):$$PATH" \
-    $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
+    $(COV_GUARD) $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
     -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' -n auto
 -DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
     LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/rs-%p-%m.profraw" \
-    cargo test --manifest-path $(RUST_DIR)/Cargo.toml
+    $(COV_GUARD) cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 # -failure-mode=all, because a partial .profraw here is EXPECTED, not damage.
 # Two tests spawn a child that imports the instrumented extension and is then
 # terminated rather than allowed to exit -- test_server_ws.py kills the server

@@ -30,6 +30,12 @@ So this gate makes the SSOT claim a check rather than a comment:
 4. **The C enums that fix the indices agree.** Where a table names a `cenum=`,
    that C enum's Nth enumerator must have the explicit value N.
 5. **The `count=` macros match** the tables they size.
+6. **jm's own `_enum_*` tables match their `[[enum]]`.** Rule 1 skips the
+   binding files because jm renders their tables from the manifest -- but a
+   *sacred* `<module>_ext_<obj>.c` fragment is reconciled member by member and
+   never re-rendered, so a new enum value reaches the manifest, the C enum and
+   the `.pyi` while that table stays short. The getter then indexes past its
+   own NULL. Fail-closed: a table matching no `[[enum]]` is an error too.
 
 The annotation is a plain `/* ... */` comment -- doxygen reads only `/**` and
 `/*!`, so it is invisible to the C API docs -- placed anywhere between the
@@ -75,9 +81,19 @@ MANIFEST_REL = "just-makeit.toml"
 
 #: Hand-written C scanned for rule 1. jm owns the `*_ext*.c` bindings and
 #: renders its own `_enum_*` tables into them from the same `[[enum]]` blocks,
-#: so gating those would report the manifest's own output as a duplicate.
+#: so gating those for DUPLICATION would report the manifest's own output as a
+#: duplicate. They are gated for AGREEMENT instead -- see rule 6, and the
+#: reason the two rules had to be split.
 SCAN_ROOTS = ("native/src", "native/inc")
 GENERATED_RE = re.compile(r"_ext(_[a-z0-9_]+)?\.c$")
+
+#: jm's own tables, in the binding files rule 1 skips. `_enum_stype` is the
+#: bare form and `_enum_Reader_t0_source` the per-property one; both end in
+#: the manifest name that owns them.
+_JM_TABLE_RE = re.compile(
+    r"static\s+const\s+char\s*\*\s*const\s+_enum_(\w+)\s*\[[^\]]*\]"
+    r"\s*=\s*\{(?P<body>[^}]*)\}"
+)
 
 _TABLE_RE = re.compile(
     r"static\s+const\s+char\s*\*\s*const\s+(\w+)\s*\[[^\]]*\]\s*=\s*\{"
@@ -305,6 +321,55 @@ def check(root: Path) -> list[str]:
                 f"{rel}: {local.name}[] re-declares {owner}[] from"
                 f" wfm/wfm_names.h. Include that header and use {owner}."
             )
+
+    # Rule 6 -- jm's OWN tables still have to agree with the manifest.
+    #
+    # The comment on GENERATED_RE used to be the whole argument for skipping
+    # these: jm renders them from the same [[enum]], so they cannot drift.
+    # That is true of a file jm re-renders and FALSE of a sacred
+    # `<module>_ext_<obj>.c` fragment, which `jm apply` reconciles member by
+    # member and never re-renders. Measured 2026-09-03: adding a third value
+    # to the `t0_source` enum updated the manifest, the C enum and the `.pyi`,
+    # and left `_enum_Reader_t0_source[]` two entries long -- so the getter
+    # indexed one past its own NULL terminator for the new value, which is not
+    # a wrong string but a read of whatever follows the array.
+    #
+    # Fail-closed: a table whose name matches no [[enum]] is an error, because
+    # the alternative is a table this gate silently does not check. All 23 in
+    # the tree resolve today.
+    for path in sorted((root / "native" / "src").rglob("*.c")):
+        if not GENERATED_RE.search(path.name):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        rel = path.relative_to(root).as_posix()
+        for m in _JM_TABLE_RE.finditer(text):
+            name = m.group(1)
+            values = _STR_RE.findall(m.group("body"))
+            # Longest suffix wins: `_enum_Reader_fs_source` must resolve to
+            # `fs_source` and not to a shorter name that happens to end it.
+            owned = sorted(
+                (e for e in enums if name == e or name.endswith("_" + e)),
+                key=len,
+                reverse=True,
+            )
+            if not owned:
+                errs.append(
+                    f"{rel}: _enum_{name}[] matches no [[enum]] in"
+                    f" {MANIFEST_REL}, so nothing checks it. Name the table"
+                    " after the manifest enum that owns it."
+                )
+                continue
+            want = enums[owned[0]]
+            if values != want:
+                errs.append(
+                    f"{rel}: _enum_{name}[] is {values}, but [[enum]]"
+                    f" {owned[0]} is {want}. A sacred fragment is reconciled"
+                    " member by member and this table is NOT re-rendered:"
+                    " edit it by hand to match."
+                )
     return errs
 
 

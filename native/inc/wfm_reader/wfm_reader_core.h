@@ -117,11 +117,14 @@ extern "C"
    *  1950. */
   typedef enum
   {
-    WFM_T0_NONE = 0,     /**< no start time found; `t0_unix_sec` is 0.0. */
-    WFM_T0_BLUE_TIMECODE /**< BLUE header `timecode`, converted from J1950. */
-    /* SigMF `core:datetime` is an ISO 8601 STRING and needs a parser this
-       reader does not have yet; such a capture reports WFM_T0_NONE rather
-       than a guess. */
+    WFM_T0_NONE = 0,      /**< no start time found; `t0_unix_sec` is 0.0. */
+    WFM_T0_BLUE_TIMECODE, /**< BLUE header `timecode`, from J1950. */
+    WFM_T0_SIGMF          /**< SigMF `captures[0]["core:datetime"]`. */
+    /* The SigMF spelling is an ISO 8601 string, parsed by
+       dp_isotime_parse(). A stamp carrying no zone is REFUSED there rather
+       than read as UTC, so such a capture still reports WFM_T0_NONE: being
+       wrong by hours looks authoritative in a way that reporting nothing
+       does not. */
   } wfm_t0_source_t;
 
   /** Why a following read came back empty.

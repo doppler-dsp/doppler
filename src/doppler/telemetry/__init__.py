@@ -1,4 +1,4 @@
-"""Telemetry: lightweight in-band probes (Telemetry) that record loop internals -- error, control, lock -- to a sink for offline analysis.
+"""Telemetry: lightweight in-band probes (Telemetry) that record loop internals -- error, control, lock -- to a sink for offline analysis, and the run's events (EventLog) as SigMF annotations beside them.
 
 Examples
 --------
@@ -15,6 +15,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .telemetry import Telemetry, MemoryCapture, Capture, TelemetryStats  # noqa: E402
+from .telemetry import Telemetry, MemoryCapture, Capture, TelemetryStats, EventLog  # noqa: E402
 
-__all__ = ["Telemetry", "MemoryCapture", "Capture", "TelemetryStats"]
+__all__ = ["Telemetry", "MemoryCapture", "Capture", "TelemetryStats", "EventLog"]

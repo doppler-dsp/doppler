@@ -24,6 +24,16 @@ name: CI image
 # merge across legs in a way that is documented as unreliable and fails by
 # silently pinning one base twice. Sequential costs a few minutes on a
 # workflow nobody waits for.
+#
+# EACH BASE IS ALSO MULTI-PLATFORM (linux/amd64 + linux/arm64, the latter
+# under QEMU emulation) -- the same buildx/QEMU pattern release.yml already
+# uses to publish the runtime/SDK/downstream-jm images. Without this, the
+# pinned digest only ever named an amd64 image, so `docker run
+# $(CI_IMAGE)` -- and `container:` in ci.yml, which pins the identical
+# digest -- failed outright ("exec format error") on an arm64 dev box or
+# runner. A multi-platform build cannot `--load` into the local daemon, so
+# the smoke step below runs against the PUSHED image, split by platform;
+# see its own comment for what that trades away.
 
 on:
   push:
@@ -68,6 +78,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # The emulator only ever executes the arm64 smoke checks below (a few
+      # `--version` calls and the fingerprint file, not a compile) plus
+      # whatever `jbx install-deps`/apt do under emulation during the build
+      # itself -- never a `make build` C compile, which stays native-only.
+      # Same trade-off release.yml's SDK/downstream-jm images already make.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
       - name: Build, smoke, and push both bases
         id: publish
         shell: bash
@@ -82,31 +105,65 @@ jobs:
             tag="$image:$slug"
             echo "::group::$base"
 
-            # --provenance/--sbom off on purpose: with them buildx pushes a
-            # manifest LIST plus an attestation manifest, so the digest a
-            # `container:` pins is a list digest rather than the image's own.
-            docker build -f deploy/docker/Dockerfile.ci \
+            # --provenance/--sbom off on purpose: the index this produces
+            # names exactly the two platform manifests below and nothing
+            # else, so the digest a `container:` pins resolves straight to
+            # a real image on whichever platform pulls it -- the same
+            # standard OCI manifest-list mechanism that already makes
+            # `container: image: node:20` work on any runner architecture.
+            #
+            # A multi-platform build cannot `--load` into the local daemon
+            # (buildx only supports that for a single platform), so there
+            # is no local image left to `docker inspect` or to smoke before
+            # pushing -- both happen below, against the pushed tag instead.
+            meta="/tmp/meta-$key.json"
+            docker buildx build -f deploy/docker/Dockerfile.ci \
                 --build-arg "BASE=$base" \
+                --platform linux/amd64,linux/arm64 \
                 --provenance=false --sbom=false \
-                -t "$tag" .
+                --metadata-file "$meta" \
+                --push -t "$tag" .
+            digest="$(jq -r '."containerimage.digest"' "$meta")"
 
             # The image states what it contains; ask it rather than
-            # recomputing the answer outside it.
-            fp="$(docker run --rm "$tag" cat /etc/doppler-ci-fingerprint)"
+            # recomputing the answer outside it. Native platform: this also
+            # doubles as the first proof the push landed at all.
+            fp="$(docker run --rm --platform linux/amd64 "$tag" \
+                  cat /etc/doppler-ci-fingerprint)"
 
-            # Smoke the toolchain BEFORE publishing. An image that cannot
-            # build the tree is worse than no image: every job would fail
-            # inside it, far from this file. As the runner user, so the
+            # Smoke AFTER push now -- buildx left nothing local to smoke
+            # before it -- split by platform, since only one of the two
+            # runs at native speed.
+            #
+            # Native (amd64): the full toolchain smoke, unchanged from
+            # before this file went multi-arch. An image that cannot build
+            # the tree is worse than no image: every job would fail inside
+            # it, far from this file. As the runner user, so the
             # bind-mounted checkout does not fill with root-owned output.
-            docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w "$tag" \
+            docker run --rm --platform linux/amd64 \
+                -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w "$tag" \
                 make build BUILD_DIR=build-ci-smoke
-            docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w "$tag" \
+            docker run --rm --platform linux/amd64 \
+                -u "$(id -u):$(id -g)" -v "$PWD":/w -w /w "$tag" \
                 bash scripts/start-nats.sh
             rm -rf build-ci-smoke
 
-            docker push "$tag"
-            digest="$(docker inspect --format='{{index .RepoDigests 0}}' "$tag" \
-                      | cut -d@ -f2)"
+            # Emulated (arm64): a full `make build` C compile under QEMU
+            # would multiply this already-sequential, two-base workflow's
+            # runtime for a leg nobody is waiting on -- doubly so on the
+            # nightly schedule. This still catches "the arm64 layer is
+            # fundamentally broken" (every toolchain binary actually
+            # executes for that platform) without paying for an emulated
+            # compile on every run.
+            docker run --rm --platform linux/arm64 "$tag" bash -c '
+                set -euo pipefail
+                cc --version
+                cmake --version
+                doxygen --version
+                nats-server --version
+                cat /etc/doppler-ci-fingerprint
+            '
+
             echo "digest_$key=$digest" >> "$GITHUB_OUTPUT"
             echo "fingerprint_$key=$fp" >> "$GITHUB_OUTPUT"
             printf '### %s\n```\n%s@%s\nfingerprint %s\n```\n' \

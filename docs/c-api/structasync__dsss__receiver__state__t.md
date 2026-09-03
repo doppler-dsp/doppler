@@ -176,7 +176,8 @@ uint64_t async_dsss_receiver_state_t::both_down_samples;
 
 
 
-Running: consecutive samples fed while tracking with BOTH lock flags down  the release clock. 
+Running: consecutive samples fed while tracking with BOTH lock flags down  the release clock; lost keeps it counting. 
+ 
 
 
         

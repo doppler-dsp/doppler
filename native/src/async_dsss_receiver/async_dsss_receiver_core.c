@@ -39,9 +39,13 @@ adr_reset_lock (async_dsss_receiver_state_t *s)
 static void
 adr_enter (async_dsss_receiver_state_t *s, int state)
 {
-  s->state             = state;
-  s->state_samples     = 0;
-  s->both_down_samples = 0;
+  s->state         = state;
+  s->state_samples = 0;
+  /* Lost KEEPS the release clock and goes on counting it (section 11.3:
+   * "in lost, since the code flag dropped"); every other entry restarts
+   * it. */
+  if (state != ASYNC_DSSS_RX_LOST)
+    s->both_down_samples = 0;
 }
 
 /* Allocate a fresh refine-stage chain (frozen carrier + collection Dll +
@@ -786,6 +790,8 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
     return 0;
   state->state_samples += x_len;
 
+  if (state->state == ASYNC_DSSS_RX_LOST)
+    state->both_down_samples += x_len; /* since the flags dropped */
   if (state->state == ASYNC_DSSS_RX_IDLE || state->state == ASYNC_DSSS_RX_LOST)
     return 0; /* consumed and discarded: the feeding loop has no case */
 
@@ -947,6 +953,45 @@ async_dsss_receiver_get_refining (const async_dsss_receiver_state_t *state)
 {
   return state->state == ASYNC_DSSS_RX_REFINING;
 }
+async_dsss_receiver_status_t
+async_dsss_receiver_status (const async_dsss_receiver_state_t *s)
+{
+  /* Where the emitter is NOW. The live loop owns the estimate once
+   * tracking (and holds it where it was in lost); while refining the frozen
+   * carrier IS the seed; idle has no emitter. Both loops are seeded in
+   * cycles per front-end sample, so one scale serves. */
+  double fs = s->chip_rate * (double)s->spc;
+  double doppler_hz;
+  switch (s->state)
+    {
+    case ASYNC_DSSS_RX_TRACKING:
+    case ASYNC_DSSS_RX_LOST:
+      doppler_hz = costas_get_norm_freq (&s->car) * fs;
+      break;
+    case ASYNC_DSSS_RX_REFINING:
+      doppler_hz = costas_get_norm_freq (&s->car_frozen) * fs;
+      break;
+    default:
+      doppler_hz = 0.0;
+    }
+  async_dsss_receiver_status_t r = {
+    .state             = s->state,
+    .doppler_hz        = doppler_hz,
+    .chip_phase        = async_dsss_receiver_get_chip_phase (s),
+    .code_rate         = async_dsss_receiver_get_code_rate (s),
+    .cn0_dbhz_est      = s->cn0_dbhz_est,
+    .code_locked       = async_dsss_receiver_get_code_locked (s),
+    .locked            = async_dsss_receiver_get_locked (s),
+    .lock_metric       = s->lock_metric,
+    .lock_threshold    = async_dsss_receiver_get_lock_threshold (s),
+    .car_last_error    = async_dsss_receiver_get_car_last_error (s),
+    .mpsk_last_error   = async_dsss_receiver_get_mpsk_last_error (s),
+    .state_samples     = s->state_samples,
+    .both_down_samples = s->both_down_samples,
+  };
+  return r;
+}
+
 int
 async_dsss_receiver_get_idle (const async_dsss_receiver_state_t *state)
 {

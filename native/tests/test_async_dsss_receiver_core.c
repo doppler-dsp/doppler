@@ -1105,6 +1105,139 @@ _test_handoff_state_roundtrip (void)
   return 0;
 }
 
+/* The status record (section 11.3) is the getters' other face: every field
+ * equals its getter in every state, the live Doppler follows the loop that
+ * owns it (nothing idle, the seed while refining, the live carrier loop
+ * once tracking), and the two clocks are the ones the release rule runs. */
+static int
+_test_status_record (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs          = 1.0e6 * (double)spc;
+  const double sym_rate    = 35714.29;
+  const double tsym        = fs / sym_rate;
+  const size_t te          = sf * spc;
+  const size_t n_sym       = 400;
+  const size_t pre_silence = te * 5 + 3;
+  const double cn0         = 70.0;
+
+  float complex *x;
+  size_t         n;
+  double        *data;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
+                   &x, &n, &data);
+
+  async_dsss_receiver_state_t *rx = _handoff_rx (cn0, 0.02);
+  DP_CHECK (rx != NULL);
+  if (!rx)
+    {
+      free (x);
+      free (data);
+      return 1;
+    }
+
+  /* Idle: nothing to report but the state and the clock. */
+  async_dsss_receiver_status_t st = async_dsss_receiver_status (rx);
+  DP_CHECK (st.state == ASYNC_DSSS_RX_IDLE);
+  DP_CHECK (st.doppler_hz == 0.0);
+  DP_CHECK (st.code_locked == 0 && st.locked == 0);
+  DP_CHECK (st.state_samples == 0 && st.both_down_samples == 0);
+  float complex tmp[64];
+  (void)async_dsss_receiver_steps (rx, x, 37, tmp, 64);
+  DP_CHECK (async_dsss_receiver_status (rx).state_samples == 37);
+
+  /* Refining: the seed IS the estimate, and the clock restarted. */
+  DP_CHECK (async_dsss_receiver_seed (rx, 2.5, -1234.0, 51.0) == DP_OK);
+  st = async_dsss_receiver_status (rx);
+  DP_CHECK (st.state == ASYNC_DSSS_RX_REFINING);
+  DP_CHECK (fabs (st.doppler_hz + 1234.0) < 1e-6);
+  DP_CHECK (st.cn0_dbhz_est == 51.0);
+  DP_CHECK (st.state_samples == 0);
+  async_dsss_receiver_reset (rx);
+
+  /* Tracking on the real capture: every field equals its getter, and the
+   * live Doppler is the carrier loop's, in Hz at the front-end rate. */
+  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  float complex *syms;
+  size_t n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
+  free (syms);
+  DP_CHECK (n_syms > 20);
+  st = async_dsss_receiver_status (rx);
+  DP_CHECK (st.state == ASYNC_DSSS_RX_TRACKING);
+  DP_CHECK (st.chip_phase == async_dsss_receiver_get_chip_phase (rx));
+  DP_CHECK (st.code_rate == async_dsss_receiver_get_code_rate (rx));
+  DP_CHECK (st.cn0_dbhz_est == async_dsss_receiver_get_cn0_dbhz_est (rx));
+  DP_CHECK (st.code_locked == async_dsss_receiver_get_code_locked (rx));
+  DP_CHECK (st.locked == async_dsss_receiver_get_locked (rx));
+  DP_CHECK (st.code_locked == 1 && st.locked == 1);
+  DP_CHECK (st.lock_metric == async_dsss_receiver_get_lock_metric (rx));
+  DP_CHECK (st.lock_threshold == async_dsss_receiver_get_lock_threshold (rx));
+  DP_CHECK (st.car_last_error == async_dsss_receiver_get_car_last_error (rx));
+  DP_CHECK (st.mpsk_last_error
+            == async_dsss_receiver_get_mpsk_last_error (rx));
+  DP_CHECK (st.doppler_hz == costas_get_norm_freq (&rx->car) * fs);
+  DP_CHECK (fabs (st.doppler_hz) < 50.0); /* the capture has no Doppler */
+  DP_CHECK (st.state_samples == rx->state_samples && st.state_samples > 0);
+  DP_CHECK (st.both_down_samples == 0); /* both flags up */
+
+  /* The two flags are two fields: pin the code detector out of reach and
+   * feed more signal, so code lock is down while symbol lock holds. */
+  float complex *x2;
+  size_t         n2;
+  double        *data2;
+  dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, 0, 11, &x2, &n2,
+                   &data2);
+  {
+    async_dsss_receiver_state_t *rd = _handoff_rx (cn0, 0.0);
+    DP_CHECK (rd != NULL);
+    if (rd)
+      {
+        DP_CHECK (async_dsss_receiver_seed (rd, 0.0, 0.0, cn0) == DP_OK);
+        float complex *sd;
+        size_t n_sd = _stream (rd, x + pre_silence, n - pre_silence, te, &sd);
+        free (sd);
+        DP_CHECK (n_sd > 20);
+        async_dsss_receiver_configure_lock_raw (rd, 1e30, 1e30, 8, 0.1, 1, 1);
+        n_sd = _stream (rd, x2, n2, 1024, &sd);
+        free (sd);
+        async_dsss_receiver_status_t sd_st = async_dsss_receiver_status (rd);
+        DP_CHECK (sd_st.state == ASYNC_DSSS_RX_TRACKING);
+        DP_CHECK (sd_st.code_locked == 0 && sd_st.locked == 1);
+        DP_CHECK (sd_st.code_locked
+                  == async_dsss_receiver_get_code_locked (rd));
+        DP_CHECK (sd_st.locked == async_dsss_receiver_get_locked (rd));
+        async_dsss_receiver_destroy (rd);
+      }
+  }
+  free (x2);
+  free (data2);
+
+  /* Lost: the record says so, the estimate is frozen where it was, and the
+   * release clock reports how long it ran. */
+  float complex *off = _noise_tail ((size_t)(0.25 * fs), fs, cn0, 99);
+  uint64_t       run = 0, fed = 0;
+  double         doppler_before = st.doppler_hz;
+  DP_CHECK (_feed_until_lost (rx, off, (size_t)(0.25 * fs), 1024, &run, &fed));
+  st = async_dsss_receiver_status (rx);
+  DP_CHECK (st.state == ASYNC_DSSS_RX_LOST);
+  DP_CHECK (st.both_down_samples > rx->lost_confirm_samples);
+  DP_CHECK (st.both_down_samples == rx->both_down_samples);
+  DP_CHECK (st.code_locked == 0 && st.locked == 0);
+  /* Frozen: more input changes nothing the record reports. */
+  (void)async_dsss_receiver_steps (rx, off, 1024, tmp, 64);
+  async_dsss_receiver_status_t st2 = async_dsss_receiver_status (rx);
+  DP_CHECK (st2.doppler_hz == st.doppler_hz);
+  DP_CHECK (st2.both_down_samples == st.both_down_samples + 1024);
+  DP_CHECK (st2.state_samples == st.state_samples + 1024);
+  (void)doppler_before;
+
+  free (off);
+  free (x);
+  free (data);
+  async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
 static int
 _test_accessor_coverage (void)
 {
@@ -1159,6 +1292,7 @@ main (void)
   (void)_test_lost_after_switch_off ();
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_handoff_state_roundtrip ();
+  (void)_test_status_record ();
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

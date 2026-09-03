@@ -138,6 +138,7 @@
 * **async\_dsss\_receiver\_seed** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **async\_dsss\_receiver\_set\_state** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **async\_dsss\_receiver\_state\_bytes** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
+* **async\_dsss\_receiver\_status** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **async\_dsss\_receiver\_steps** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **async\_dsss\_receiver\_steps\_max\_out** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **awgn** ([**awgn\_core.h**](awgn__core_8h.md))

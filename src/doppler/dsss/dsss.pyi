@@ -31,6 +31,101 @@ class PolynomialPhaseEstimate(tuple[float, float, float]):
         """winning-row peak-to-mean (rough confidence)."""
 
 @final
+class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, float, float, float, int, int]):
+    """AsyncDsssReceiver's status record: state (0 searching, 1 refining, 2
+    tracking, 3 idle, 4 lost), the live estimates, both lock flags, and the two
+    clocks in input samples.
+
+    Attributes
+    ----------
+    state : int
+        One of the ASYNC_DSSS_RX_SEARCHING .. _LOST values.
+    doppler_hz : float
+        Signed coarse Doppler, folded, Hz.
+    chip_phase : float
+        Chips, Dll's own instantaneous-phase convention (the mirror image of acq_result_t::code_phase's correlation-lag convention -- see acq_build_handoff()'s doc comment).
+    code_rate : float
+        chips advanced per nominal chip (~1.0).
+    cn0_dbhz_est : float
+        C/N0 lower bound from the hit, dB-Hz.
+    code_locked : int
+        Presence flag: the Dll's lock detector.
+    locked : int
+        Health flag: the symbol-lock detector.
+    lock_metric : float
+        mean of |Re P|/|P| over the burst (~1 locked, ~2/pi with no carrier).
+    lock_threshold : float
+        `locked` latches above this.
+    car_last_error : float
+        Pre-despread Costas residual, rad.
+    mpsk_last_error : float
+        Post-despread carrier residual, rad.
+    state_samples : int
+        Running: samples fed since the current state was entered.
+    both_down_samples : int
+        Running: consecutive samples fed while tracking with BOTH lock flags down -- the release clock; lost keeps it counting.
+    """
+
+    @property
+    def state(self) -> int:
+        """One of the ASYNC_DSSS_RX_SEARCHING .. _LOST values."""
+
+    @property
+    def doppler_hz(self) -> float:
+        """Signed coarse Doppler, folded, Hz."""
+
+    @property
+    def chip_phase(self) -> float:
+        """Chips, Dll's own instantaneous-phase convention (the mirror image of
+        acq_result_t::code_phase's correlation-lag convention -- see
+        acq_build_handoff()'s doc comment).
+        """
+
+    @property
+    def code_rate(self) -> float:
+        """chips advanced per nominal chip (~1.0)."""
+
+    @property
+    def cn0_dbhz_est(self) -> float:
+        """C/N0 lower bound from the hit, dB-Hz."""
+
+    @property
+    def code_locked(self) -> int:
+        """Presence flag: the Dll's lock detector."""
+
+    @property
+    def locked(self) -> int:
+        """Health flag: the symbol-lock detector."""
+
+    @property
+    def lock_metric(self) -> float:
+        """mean of |Re P|/|P| over the burst (~1 locked, ~2/pi with no
+        carrier).
+        """
+
+    @property
+    def lock_threshold(self) -> float:
+        """`locked` latches above this."""
+
+    @property
+    def car_last_error(self) -> float:
+        """Pre-despread Costas residual, rad."""
+
+    @property
+    def mpsk_last_error(self) -> float:
+        """Post-despread carrier residual, rad."""
+
+    @property
+    def state_samples(self) -> int:
+        """Running: samples fed since the current state was entered."""
+
+    @property
+    def both_down_samples(self) -> int:
+        """Running: consecutive samples fed while tracking with BOTH lock flags
+        down -- the release clock; lost keeps it counting.
+        """
+
+@final
 class Despreader:
     """Create a continuous DSSS despreader (COPIES code).
 
@@ -4480,6 +4575,46 @@ class AsyncDsssReceiver:
 
         """
 
+    def status(self) -> ReceiverStatus:
+        """One consistent picture of the receiver, by value (design section
+        11.3): state, where the emitter is now (live Doppler, chip phase, code
+        rate, C/N0), both lock flags with the symbol-lock metric and threshold,
+        both residual carrier errors, and the two clocks in input samples
+        (since the state was entered; both flags down without a break). Read on
+        demand by the holder of a pool -- the one-at-a-time properties are the
+        same fields' other face. No timestamp: the holder owns the sample clock
+        and stamps it.
+
+        Cheap and allocation-free: every field is a read of live state. The
+        one-at-a-time getters below report the same fields; this is the face a
+        pool holder uses.
+
+        Returns
+        -------
+        ReceiverStatus
+            The record, by value.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import HandoffAsyncDsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = HandoffAsyncDsssReceiver(code, chip_rate=3.069e6,
+        ...                               symbol_rate=2700.0, spc=2)
+        >>> st = rx.status()
+        >>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # idle
+        (3, 0.0, 0, 0)
+        >>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)
+        >>> st = rx.status()
+        >>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining
+        (1, -250.0, 50.0)
+        >>> _ = rx.steps(np.zeros(2046, np.complex64))
+        >>> rx.status().state_samples                             # since seed
+        2046
+
+        """
+
     def configure_search_raw(self, doppler_bins: int, n_noncoh: int) -> None:
         """Pin the embedded Acquisition's search grid directly, bypassing the
         symbol_rate-driven auto-sizing. Only meaningful while searching.
@@ -4726,14 +4861,15 @@ class AsyncDsssReceiver:
 
     @property
     def chip_phase(self) -> float:
-        """Chips, Dll's own instantaneous-phase convention (the mirror image of
-        acq_result_t::code_phase's correlation-lag convention -- see
-        acq_build_handoff()'s doc comment).
+        """Live Dll code phase in chips, Dll's own instantaneous-phase
+        convention (the mirror image of acq_result_t::code_phase's
+        correlation-lag convention -- see acq_build_handoff()'s doc
+        comment).
         """
 
     @property
     def code_rate(self) -> float:
-        """chips advanced per nominal chip (~1.0)."""
+        """Live Dll code rate: chips advanced per nominal chip (~1.0)."""
 
     @property
     def lock(self) -> float:
@@ -5183,6 +5319,46 @@ class HandoffAsyncDsssReceiver:
 
         """
 
+    def status(self) -> ReceiverStatus:
+        """One consistent picture of the receiver, by value (design section
+        11.3): state, where the emitter is now (live Doppler, chip phase, code
+        rate, C/N0), both lock flags with the symbol-lock metric and threshold,
+        both residual carrier errors, and the two clocks in input samples
+        (since the state was entered; both flags down without a break). Read on
+        demand by the holder of a pool -- the one-at-a-time properties are the
+        same fields' other face. No timestamp: the holder owns the sample clock
+        and stamps it.
+
+        Cheap and allocation-free: every field is a read of live state. The
+        one-at-a-time getters below report the same fields; this is the face a
+        pool holder uses.
+
+        Returns
+        -------
+        ReceiverStatus
+            The record, by value.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import HandoffAsyncDsssReceiver
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> rx = HandoffAsyncDsssReceiver(code, chip_rate=3.069e6,
+        ...                               symbol_rate=2700.0, spc=2)
+        >>> st = rx.status()
+        >>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # idle
+        (3, 0.0, 0, 0)
+        >>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)
+        >>> st = rx.status()
+        >>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining
+        (1, -250.0, 50.0)
+        >>> _ = rx.steps(np.zeros(2046, np.complex64))
+        >>> rx.status().state_samples                             # since seed
+        2046
+
+        """
+
     def configure_lock_raw(
         self,
         up_thresh: float,
@@ -5394,14 +5570,15 @@ class HandoffAsyncDsssReceiver:
 
     @property
     def chip_phase(self) -> float:
-        """Chips, Dll's own instantaneous-phase convention (the mirror image of
-        acq_result_t::code_phase's correlation-lag convention -- see
-        acq_build_handoff()'s doc comment).
+        """Live Dll code phase in chips, Dll's own instantaneous-phase
+        convention (the mirror image of acq_result_t::code_phase's
+        correlation-lag convention -- see acq_build_handoff()'s doc
+        comment).
         """
 
     @property
     def code_rate(self) -> float:
-        """chips advanced per nominal chip (~1.0)."""
+        """Live Dll code rate: chips advanced per nominal chip (~1.0)."""
 
     @property
     def lock(self) -> float:

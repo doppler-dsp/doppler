@@ -752,6 +752,14 @@ onto the same signal, only back to the hunt. Both are serializable
     `test_async_dsss_receiver_core.c` (hand-off decode, refusals, the rule
     firing not a sample early, one-flag-down never firing, the flavor-keyed
     blob) and `test_async_dsss_receiver.py`.
+- **Shipped — the status record (§11.3).** `status()` on both flavors, a
+    by-value `ReceiverStatus` record (the `single = true` shape `ToneMetrics`
+    uses): state, the live Doppler (the carrier loop's estimate once
+    tracking, the seed while refining, frozen in lost), chip phase, code
+    rate, C/N0, both flags with the symbol-lock metric and threshold, both
+    residual carrier errors, and the two clocks in input samples. No
+    timestamp, by §8.1's rule. Pinned field-by-field against the getters in
+    every state in `test_async_dsss_receiver_core.c`.
 
 #### Possible refinements
 
@@ -1351,6 +1359,56 @@ A refinement (iii) opens but this page does not take: a receiver can be
 fed the stream with every *other* assigned emitter cancelled, which lowers
 its own floor as well. That is the receivers' concern, on their own path,
 and it changes nothing about the searcher.
+
+### 8.1 The holder — time, events, telemetry (decided 2026-09-02)
+
+The searcher, the receivers and their records are sample-domain and
+clock-agnostic (§2.2): every record carries a stream position, never a
+time. The **holder** of the pool — the orchestrator, whichever language it
+is written in — is the one component that owns a clock, and it is fed by
+one of two sources. The decisions, and the reasons:
+
+- **The feeder owns the clock; nothing below it sees a timestamp.** One
+    `dp_sample_clock_t` per stream, anchored from the source's own metadata
+    and stamping every record as `stamp_at(n)`. A **live BLUE file** (the
+    reader's `read_follow()`) anchors from the header's `timecode` and
+    `xdelta` when they are present, and from the wall clock at open —
+    flagged as such through the reader's provenance enums — when they are
+    not. A **NATS stream** anchors from the first frame that carries a
+    `timestamp_ns` and then counts samples; a `sequence` gap is an *event*,
+    not a re-anchor, because the sample count is what the DSP consumed and
+    a per-frame re-anchor would move every record under it. One replay and
+    one live run then produce identical records, and stamping is one
+    function at the edge.
+- **Events are SigMF annotations, appended live, finalized at close.** A
+    transition — seeded, tracking, degrade, lost, released, a sequence gap —
+    is an annotation: sample-indexed (`core:sample_start`,
+    `core:sample_count`), which is exactly the rule above, with the
+    receiver's fields under a `doppler:` namespace. A `.sigmf-meta` is one
+    JSON document, which a streaming writer cannot keep rewriting, so the
+    run appends annotation objects to a flat, tail-able, crash-safe file,
+    and a finalize step writes the proper sidecar — `global`, `captures`,
+    `annotations` — the same way the writer already produces its sidecar
+    at close. For a BLUE input the sidecar names that file as the dataset;
+    for NATS it names whatever the recorder wrote, or is metadata-only.
+    `core:freq_lower_edge`/`upper_edge` need the channel's `fc`, which a
+    BLUE header carries and a NATS frame does not: **omitted when
+    unknown**, never guessed.
+- **Telemetry stays the flat record file, and the sidecar points at it.**
+    `dp_tlm` records are a time series at thousands per second, stamped
+    by the same clock; that is the wrong shape for annotations and the
+    right one for `np.fromfile`. A `doppler:telemetry` global field carries
+    the path and the record dtype, so one sidecar indexes the dataset, the
+    events and the telemetry, each in the format that suits its rate.
+- **C first, one emitter.** The event log is a C object — append an
+    annotation, finalize to SigMF — over the writer's existing JSON
+    emitter, not a second one; the holder calls it from Python today and
+    from the application's C++ tomorrow.
+
+What this asks of the receiver is what §11.3 built: a record with the
+state and the clocks in samples and no time in it. One gap on the reader's
+side follows from the first decision — SigMF's `core:datetime` is not
+parsed yet, so a SigMF replay anchors to no time where a BLUE one does.
 
 ______________________________________________________________________
 
@@ -2148,9 +2206,10 @@ frame cadence (4) — which is what a false release costs, so it prices §10's
 budget — and the other half of 5, who holds the pool and the assigned
 table. That holder becomes load-bearing only on the strong branch, because
 (iii) puts it on the searcher's push path. Of what the receiver lacked, the
-hand-off-mode constructor, `seed()`, the lost state and the idle it resets
-to are shipped (§4.1); still implementation, not design: the status record
-(§11.3) and, for the strong branch, a replica output (§11.4).
+hand-off-mode constructor, `seed()`, the lost state, the idle it resets
+to and the status record are shipped (§4.1); still implementation, not
+design: the holder of §8.1 (the clock, the event log, the pool) and, for
+the strong branch, a replica output (§11.4).
 
 Of the numbers, three are now measured and one is not: the budget
 (§12.1), the floor (§12.2) and the release (§12.3) are settled on the

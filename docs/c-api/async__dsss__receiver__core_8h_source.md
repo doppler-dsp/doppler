@@ -255,6 +255,26 @@ extern "C"
                                 double chip_phase, double doppler_hz_est,
                                 double cn0_dbhz_est);
 
+  typedef struct
+  {
+    int state; 
+    double doppler_hz; 
+    double chip_phase; 
+    double code_rate;  
+    double cn0_dbhz_est; 
+    int    code_locked;  
+    int    locked;       
+    double lock_metric;  
+    double lock_threshold; 
+    double car_last_error; 
+    double mpsk_last_error; 
+    uint64_t state_samples; 
+    uint64_t both_down_samples; 
+  } async_dsss_receiver_status_t;
+
+  async_dsss_receiver_status_t async_dsss_receiver_status (
+      const async_dsss_receiver_state_t *state);
+
   int async_dsss_receiver_get_idle (const async_dsss_receiver_state_t *state);
 
   int async_dsss_receiver_get_lost (const async_dsss_receiver_state_t *state);

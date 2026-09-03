@@ -322,7 +322,8 @@ extern "C"
                                         current state was entered.       */
     uint64_t both_down_samples;    /**< Running: consecutive samples fed
                                         while tracking with BOTH lock
-                                        flags down -- the release clock. */
+                                        flags down -- the release clock;
+                                        lost keeps it counting.          */
     double   seed_chip_phase;     /**< Original handoff chip phase --
                                         reused verbatim to seed the FRESH
                                         live-tracking Dll, not wherever the
@@ -801,6 +802,74 @@ extern "C"
   int async_dsss_receiver_seed (async_dsss_receiver_state_t *state,
                                 double chip_phase, double doppler_hz_est,
                                 double cn0_dbhz_est);
+
+  /**
+   * @brief One consistent picture of what the receiver is doing, by value.
+   *
+   * The status record of docs/design/async-dsss-receiver.md section 11.3:
+   * the holder of a pool reads it on demand -- once per data-free window
+   * at least, because the searcher's exclusion zone is keyed on the
+   * receiver's CURRENT estimate, not on its seed -- and gets every field
+   * from one call, so a reader on another thread never assembles a picture
+   * across a `steps()` from the one-at-a-time getters (which remain the
+   * same fields' other face). It is a read of live state, not `get_state()`:
+   * the bytes triplet resumes the receiver elsewhere, this describes it
+   * here. No timestamp: the counters are in input samples, and the holder,
+   * which owns the sample clock, stamps them (section 2.2's rule).
+   */
+  typedef struct
+  {
+    int state; /**< ASYNC_DSSS_RX_SEARCHING .. _LOST -- where it is.      */
+    double doppler_hz; /**< Where the emitter is NOW: the live carrier
+                            loop's estimate, Hz (the seed while refining,
+                            0 when idle, frozen where it was when lost). */
+    double chip_phase; /**< Live Dll code phase, chips.                     */
+    double code_rate;  /**< Live Dll code rate, chips/sample.               */
+    double cn0_dbhz_est; /**< C/N0 estimate, dB-Hz (the hit's).             */
+    int    code_locked;  /**< Presence flag: the Dll's lock detector.        */
+    int    locked;       /**< Health flag: the symbol-lock detector.         */
+    double lock_metric;  /**< cos(2*phi) over the symbols, drives `locked`.  */
+    double lock_threshold; /**< `locked` latches above this.                */
+    double car_last_error; /**< Pre-despread Costas residual, rad.          */
+    double mpsk_last_error; /**< Post-despread carrier residual, rad.       */
+    uint64_t state_samples; /**< Input samples since `state` was entered.   */
+    uint64_t both_down_samples; /**< Input samples both flags have been down
+                                     without a break (the release clock);
+                                     in lost it keeps counting -- samples
+                                     since the flags dropped.             */
+  } async_dsss_receiver_status_t;
+
+  /**
+   * @brief Read the status record (see async_dsss_receiver_status_t).
+   *
+   * Cheap and allocation-free: every field is a read of live state. The
+   * one-at-a-time getters below report the same fields; this is the face a
+   * pool holder uses.
+   *
+   * @param state Must be non-NULL.
+   * @return The record, by value.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import HandoffAsyncDsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = HandoffAsyncDsssReceiver(code, chip_rate=3.069e6,
+   * ...                               symbol_rate=2700.0, spc=2)
+   * >>> st = rx.status()
+   * >>> (st.state, st.doppler_hz, st.code_locked, st.locked)   # idle
+   * (3, 0.0, 0, 0)
+   * >>> rx.seed(chip_phase=100.0, doppler_hz_est=-250.0, cn0_dbhz_est=50.0)
+   * >>> st = rx.status()
+   * >>> (st.state, round(st.doppler_hz, 6), st.cn0_dbhz_est)  # refining
+   * (1, -250.0, 50.0)
+   * >>> _ = rx.steps(np.zeros(2046, np.complex64))
+   * >>> rx.status().state_samples                             # since seed
+   * 2046
+   *
+   * @endcode
+   */
+  async_dsss_receiver_status_t async_dsss_receiver_status (
+      const async_dsss_receiver_state_t *state);
 
   /** @brief 1 while waiting for a seed (hand-off mode, before seed() or
    * after reset()); 0 in every other state. */

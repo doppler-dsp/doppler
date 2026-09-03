@@ -197,10 +197,10 @@ typedef struct {
     size_t  aid_best;        /**< current best hypothesis (the timing).     */
     uint64_t aid_count;      /**< partials seen since enable (ring index). */
     double  aid_alpha;       /**< EMA over symbols of each window's power.  */
-    float complex *aid_ring_p; /**< last `aid_ring` partial prompts.        */
-    float complex *aid_ring_o; /**< last `aid_ring` offset (noise) partials.*/
-    float complex *aid_ring_e; /**< last `aid_ring` early partials.         */
-    float complex *aid_ring_l; /**< last `aid_ring` late partials.          */
+    float _Complex *aid_ring_p; /**< last `aid_ring` partial prompts.        */
+    float _Complex *aid_ring_o; /**< last `aid_ring` offset (noise) partials.*/
+    float _Complex *aid_ring_e; /**< last `aid_ring` early partials.         */
+    float _Complex *aid_ring_l; /**< last `aid_ring` late partials.          */
     double        *aid_power;  /**< per-hypothesis window-power EMA (Q).    */
     int owns_code;           /**< 1 if dll_destroy() frees `code`.         */
     dll_tlm_t tlm;           /**< live telemetry attachment; zeroed in blobs */

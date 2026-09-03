@@ -238,8 +238,8 @@ main (void)
      again). A delay off by the pipeline's one sample, or a truth line
      with the dilation's sign wrong, misses by 1.0 and 1.0. */
   {
-    const size_t   N = 65536, B = 2048;
-    float complex *seq = malloc (N * sizeof *seq);
+    const size_t    N = 65536, B = 2048;
+    float _Complex *seq = malloc (N * sizeof *seq);
     DP_CHECK (seq != NULL);
     uint32_t st = 0x5EEDu;
     for (size_t i = 0; i < N; i++)
@@ -255,9 +255,9 @@ main (void)
         DP_CHECK (ch != NULL);
         double D = doppler_channel_get_delay_samples (ch);
         DP_CHECK (D > 1.0);
-        size_t         cap = doppler_channel_execute_max_out (ch);
-        float complex *y   = malloc (cap * sizeof *y);
-        size_t         n   = doppler_channel_execute (ch, seq, N, y, cap);
+        size_t          cap = doppler_channel_execute_max_out (ch);
+        float _Complex *y   = malloc (cap * sizeof *y);
+        size_t          n   = doppler_channel_execute (ch, seq, N, y, cap);
         /* The block centre: where the dilation has bought half a sample
            (k = 0.5 / (ppm*1e-6)), or the stream's middle without one. */
         size_t k0 = c ? (size_t)(0.5 / (T_PPM * 1e-6)) : N / 2;

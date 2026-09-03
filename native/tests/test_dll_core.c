@@ -36,9 +36,10 @@
  * complex Gaussian noise of that per-rail std (0 = clean). The stream 6b
  * and 6c share. */
 static void
-make_async_signal (float complex *rx, size_t N, const uint8_t *code, size_t sf,
-                   size_t sps, double delta, double tsym, double phi,
-                   double sigma_rail, uint32_t dseed, uint32_t nseed)
+make_async_signal (float _Complex *rx, size_t N, const uint8_t *code,
+                   size_t sf, size_t sps, double delta, double tsym,
+                   double phi, double sigma_rail, uint32_t dseed,
+                   uint32_t nseed)
 {
   uint32_t ds = dseed, ns = nseed;
   int      data = 1;
@@ -364,9 +365,9 @@ main (void)
     const double a    = sqrt (0.5 / (double)(te / K));
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 11u);
-    size_t         N   = (size_t)(nsym * tsym) + 2 * te;
-    float complex *rx  = malloc (N * sizeof (*rx));
-    float complex *out = malloc (N * sizeof (*out));
+    size_t          N   = (size_t)(nsym * tsym) + 2 * te;
+    float _Complex *rx  = malloc (N * sizeof (*rx));
+    float _Complex *out = malloc (N * sizeof (*out));
     make_async_signal (rx, N, code, sf, sps, 0.0, tsym, phi,
                        1.0 / a / sqrt (2.0), 7u, 99u);
     /* Feed one epoch per call and count the epochs the flag was up. */
@@ -464,9 +465,9 @@ main (void)
     const size_t mid  = 300; /* inside the settling: 5/bn is 1000 epochs */
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 11u);
-    size_t         N   = (nep + post) * te;
-    float complex *rx  = malloc (N * sizeof (*rx));
-    float complex *out = malloc (te * sizeof (*out));
+    size_t          N   = (nep + post) * te;
+    float _Complex *rx  = malloc (N * sizeof (*rx));
+    float _Complex *out = malloc (te * sizeof (*out));
     make_async_signal (rx, N, code, sf, sps, d0, tsym, phi, 0.0, 7u, 0u);
     dll_state_t *d   = dll_create (code, sf, sps, 0.0, bn, 0.707, 0.5, K);
     dll_state_t *d0_ = dll_create (code, sf, sps, 0.0, bn, 0.707, 0.5, K);

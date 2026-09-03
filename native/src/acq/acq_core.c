@@ -1350,7 +1350,7 @@ static uint32_t *
 acq_state_twins (void *blob, const acq_state_t *st)
 {
   return (uint32_t *)((char *)blob + ACQ_BODY_OFF
-                      + st->ring_cap * sizeof (float complex)
+                      + st->ring_cap * sizeof (float _Complex)
                       + (st->n_noncoh > 1 ? st->n_surf * sizeof (float) : 0));
 }
 

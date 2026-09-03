@@ -1399,9 +1399,9 @@ test_the_live_capture_restores_its_own_checkpoint (void)
   scratch_path (path, sizeof path, "self");
   remove (path);
 
-  static float complex cap[200000];
-  const size_t         at    = 60000u;
-  const size_t         n_cap = sizeof cap / sizeof *cap;
+  static float _Complex cap[200000];
+  const size_t at    = 60000u;
+  const size_t n_cap = sizeof cap / sizeof *cap;
   build_capture (cap, n_cap, &at, 1u, 0.02, 3u);
   const size_t cut = at + 2u * ACQ_SF * SPC; /* inside the preamble */
 
@@ -1417,7 +1417,7 @@ test_the_live_capture_restores_its_own_checkpoint (void)
   DP_REQUIRE (empty != NULL && blob != NULL);
   burst_capture_get_state (a, empty); /* before any push */
 
-  static float complex out[4 * BURST_LEN];
+  static float _Complex out[4 * BURST_LEN];
   DP_CHECK (burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out)
             == 0);
   burst_capture_get_state (a, blob); /* mid-preamble, history in the file */
@@ -1464,9 +1464,9 @@ test_a_span_the_ring_wrapped_past_is_refused (void)
   scratch_path (path, sizeof path, "wrap");
   remove (path);
 
-  static float complex cap[200000];
-  const size_t         at    = 60000u;
-  const size_t         n_cap = sizeof cap / sizeof *cap;
+  static float _Complex cap[200000];
+  const size_t at    = 60000u;
+  const size_t n_cap = sizeof cap / sizeof *cap;
   build_capture (cap, n_cap, &at, 1u, 0.02, 3u);
   const size_t cut = at + 2u * ACQ_SF * SPC;
 
@@ -1474,7 +1474,7 @@ test_a_span_the_ring_wrapped_past_is_refused (void)
       path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
       0.9, 0);
   DP_REQUIRE (a != NULL);
-  static float complex out[4 * BURST_LEN];
+  static float _Complex out[4 * BURST_LEN];
   burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out);
   size_t cb   = burst_capture_state_bytes (a);
   void  *blob = malloc (cb);

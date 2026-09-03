@@ -129,10 +129,10 @@ typedef struct {
     size_t  aid_best;        
     uint64_t aid_count;      
     double  aid_alpha;       
-    float complex *aid_ring_p; 
-    float complex *aid_ring_o; 
-    float complex *aid_ring_e; 
-    float complex *aid_ring_l; 
+    float _Complex *aid_ring_p; 
+    float _Complex *aid_ring_o; 
+    float _Complex *aid_ring_e; 
+    float _Complex *aid_ring_l; 
     double        *aid_power;  
     int owns_code;           
     dll_tlm_t tlm;           

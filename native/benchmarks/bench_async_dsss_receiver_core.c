@@ -87,13 +87,13 @@ xorshift32 (uint32_t *s)
    dp_dsss_capture(): a benchmark that includes a test header acquires a
    dependency on the test tree's build wiring, and this is 15 lines. */
 static size_t
-build_capture (const wf_t *w, float complex **out, size_t *pre_out)
+build_capture (const wf_t *w, float _Complex **out, size_t *pre_out)
 {
   const size_t tsym
       = (size_t)(w->chip_rate * (double)w->spc / w->sym_rate + 0.5);
-  const size_t   pre = w->sf * w->spc * 5 + 3;
-  const size_t   n   = pre + N_SYM * tsym;
-  float complex *x   = malloc (n * sizeof *x);
+  const size_t    pre = w->sf * w->spc * 5 + 3;
+  const size_t    n   = pre + N_SYM * tsym;
+  float _Complex *x   = malloc (n * sizeof *x);
   if (!x)
     return 0;
 
@@ -132,9 +132,9 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
   volatile size_t sink = 0;
   char            name[JM_BENCH_NAME_LEN];
 
-  float complex *x   = NULL;
-  size_t         pre = 0;
-  size_t         n   = build_capture (w, &x, &pre);
+  float _Complex *x   = NULL;
+  size_t          pre = 0;
+  size_t          n   = build_capture (w, &x, &pre);
   if (n == 0)
     return 1;
 

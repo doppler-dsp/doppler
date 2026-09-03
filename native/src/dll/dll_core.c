@@ -212,8 +212,8 @@ aid_window_starts (const dll_state_t *s, size_t h, uint64_t start)
  * hypotheses end a window on the same partial whenever P is not an
  * integer). */
 static void
-aid_look (dll_state_t *s, float complex part, float complex noise,
-          float complex early, float complex late)
+aid_look (dll_state_t *s, float _Complex part, float _Complex noise,
+          float _Complex early, float _Complex late)
 {
   const size_t   mask     = s->aid_ring - 1;
   const uint64_t i        = s->aid_count++;
@@ -228,7 +228,7 @@ aid_look (dll_state_t *s, float complex part, float complex noise,
     {
       if (!aid_window_starts (s, h, start))
         continue;
-      float complex sp = 0.0f;
+      float _Complex sp = 0.0f;
       for (uint64_t k = start; k <= i; k++)
         sp += s->aid_ring_p[k & mask];
       double pw = (double)crealf (sp) * (double)crealf (sp)
@@ -239,7 +239,7 @@ aid_look (dll_state_t *s, float complex part, float complex noise,
     }
   if (!aid_window_starts (s, s->aid_best, start))
     return;
-  float complex sp = 0.0f, so = 0.0f, se = 0.0f, sl = 0.0f;
+  float _Complex sp = 0.0f, so = 0.0f, se = 0.0f, sl = 0.0f;
   for (uint64_t k = start; k <= i; k++)
     {
       sp += s->aid_ring_p[k & mask];
@@ -602,17 +602,17 @@ dll_set_state (dll_state_t *s, const void *blob)
    * the same way though never packed/restored from the blob body (pure
    * epoch-local scratch, rebuilt from chunk_p at the next epoch boundary
    * regardless of whatever was in it before this call). */
-  float complex *chunk_p = s->chunk_p, *chunk_e = s->chunk_e,
-                *chunk_l = s->chunk_l, *sums = s->sums;
-  float complex *last_backward_p = s->last_backward_p, *last_e = s->last_e,
-                *last_l = s->last_l;
+  float _Complex *chunk_p = s->chunk_p, *chunk_e = s->chunk_e,
+                 *chunk_l = s->chunk_l, *sums = s->sums;
+  float _Complex *last_backward_p = s->last_backward_p, *last_e = s->last_e,
+                 *last_l = s->last_l;
   /* The aid rings are this instance's too, sized by ITS period: a blob from
      a differently-configured instance is rejected, not resized from. */
-  float complex *aid_ring_p = s->aid_ring_p, *aid_ring_o = s->aid_ring_o;
-  float complex *aid_ring_e = s->aid_ring_e, *aid_ring_l = s->aid_ring_l;
-  double        *aid_power = s->aid_power;
-  const double   my_period = s->sym_period;
-  const size_t   my_ring = s->aid_ring, my_nhyp = s->aid_nhyp;
+  float _Complex *aid_ring_p = s->aid_ring_p, *aid_ring_o = s->aid_ring_o;
+  float _Complex *aid_ring_e = s->aid_ring_e, *aid_ring_l = s->aid_ring_l;
+  double         *aid_power = s->aid_power;
+  const double    my_period = s->sym_period;
+  const size_t    my_ring = s->aid_ring, my_nhyp = s->aid_nhyp;
   dp_r_bytes (&_r, s, sizeof *s);
   if ((s->sym_period > 0.0) != (my_period > 0.0)
       || (s->sym_period > 0.0
@@ -764,8 +764,8 @@ dll_steps_impl (dll_state_t *state, const float _Complex *x, size_t x_len,
              noise tap's own statistics aren't biased by a data transition),
              so this stays exactly as it was pre-redesign -- immediate,
              seg_norm-normalized. */
-          float complex part  = state->acc_p / (float)state->seg_norm;
-          float complex noise = state->acc_o / (float)state->seg_norm;
+          float _Complex part  = state->acc_p / (float)state->seg_norm;
+          float _Complex noise = state->acc_o / (float)state->seg_norm;
           if (state->sym_period > 0.0)
             aid_look (state, part, noise,
                       state->acc_e / (float)state->seg_norm,
@@ -845,7 +845,7 @@ dll_steps_impl (dll_state_t *state, const float _Complex *x, size_t x_len,
                  output normalisation below. */
               if (state->sym_period <= 0.0)
                 {
-                  float complex acc_e_tot = 0.0f, acc_l_tot = 0.0f;
+                  float _Complex acc_e_tot = 0.0f, acc_l_tot = 0.0f;
                   if (best_widx > 0)
                     for (size_t k = w - best_widx; k < w; k++)
                       {

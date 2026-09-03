@@ -170,7 +170,7 @@ extern "C"
 
   int acq_set_max_peaks (acq_state_t *state, size_t n);
 
-  size_t acq_push (acq_state_t *state, const float complex *x, size_t n_in,
+  size_t acq_push (acq_state_t *state, const float _Complex *x, size_t n_in,
                    acq_result_t *result, size_t max_results);
 
   typedef struct

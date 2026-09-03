@@ -507,8 +507,34 @@ PyInit_wfm (void)
     return NULL;
   if (PyType_Ready (&FrameObjType) < 0)
     return NULL;
+  if (!FrameObj_layout_type)
+    {
+      FrameObj_layout_type = PyStructSequence_NewType (&FrameObj_layout_desc);
+      if (!FrameObj_layout_type)
+        return NULL;
+    }
+  if (!FrameObj_check_type)
+    {
+      FrameObj_check_type = PyStructSequence_NewType (&FrameObj_check_desc);
+      if (!FrameObj_check_type)
+        return NULL;
+    }
   if (PyType_Ready (&FrameDescObjType) < 0)
     return NULL;
+  if (!FrameDescObj_layout_type)
+    {
+      FrameDescObj_layout_type
+          = PyStructSequence_NewType (&FrameDescObj_layout_desc);
+      if (!FrameDescObj_layout_type)
+        return NULL;
+    }
+  if (!FrameDescObj_check_type)
+    {
+      FrameDescObj_check_type
+          = PyStructSequence_NewType (&FrameDescObj_check_desc);
+      if (!FrameDescObj_check_type)
+        return NULL;
+    }
   PyObject *m = PyModule_Create (&wfm_moduledef);
   if (!m)
     return NULL;
@@ -541,10 +567,39 @@ PyInit_wfm (void)
       Py_DECREF (m);
       return NULL;
     }
+  if (PyModule_AddObject (m, "FrameLayout", (PyObject *)FrameObj_layout_type)
+      < 0)
+    {
+      Py_DECREF (FrameObj_layout_type);
+      Py_DECREF (m);
+      return NULL;
+    }
+  if (PyModule_AddObject (m, "FrameCheck", (PyObject *)FrameObj_check_type)
+      < 0)
+    {
+      Py_DECREF (FrameObj_check_type);
+      Py_DECREF (m);
+      return NULL;
+    }
   Py_INCREF (&FrameDescObjType);
   if (PyModule_AddObject (m, "FrameDesc", (PyObject *)&FrameDescObjType) < 0)
     {
       Py_DECREF (&FrameDescObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  if (PyModule_AddObject (m, "FrameLayout",
+                          (PyObject *)FrameDescObj_layout_type)
+      < 0)
+    {
+      Py_DECREF (FrameDescObj_layout_type);
+      Py_DECREF (m);
+      return NULL;
+    }
+  if (PyModule_AddObject (m, "FrameCheck", (PyObject *)FrameDescObj_check_type)
+      < 0)
+    {
+      Py_DECREF (FrameDescObj_check_type);
       Py_DECREF (m);
       return NULL;
     }

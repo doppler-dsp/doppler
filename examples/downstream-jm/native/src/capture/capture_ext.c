@@ -32,16 +32,34 @@ PyInit_capture(void)
 {
     import_array();
     if (PyType_Ready(&CaptureObjType) < 0) return NULL;
+    if (!CaptureObj_summary_type) {
+        CaptureObj_summary_type = PyStructSequence_NewType(&CaptureObj_summary_desc);
+        if (!CaptureObj_summary_type) return NULL;
+    }
     if (PyType_Ready(&RawCaptureObjType) < 0) return NULL;
+    if (!RawCaptureObj_summary_type) {
+        RawCaptureObj_summary_type = PyStructSequence_NewType(&RawCaptureObj_summary_desc);
+        if (!RawCaptureObj_summary_type) return NULL;
+    }
     PyObject *m = PyModule_Create(&capture_moduledef);
     if (!m) return NULL;
     Py_INCREF(&CaptureObjType);
     if (PyModule_AddObject(m, "Capture", (PyObject *)&CaptureObjType) < 0) {
         Py_DECREF(&CaptureObjType); Py_DECREF(m); return NULL;
     }
+    if (PyModule_AddObject(m, "CaptureSummary", (PyObject *)CaptureObj_summary_type) < 0) {
+        Py_DECREF(CaptureObj_summary_type);
+        Py_DECREF(m);
+        return NULL;
+    }
     Py_INCREF(&RawCaptureObjType);
     if (PyModule_AddObject(m, "RawCapture", (PyObject *)&RawCaptureObjType) < 0) {
         Py_DECREF(&RawCaptureObjType); Py_DECREF(m); return NULL;
+    }
+    if (PyModule_AddObject(m, "CaptureSummary", (PyObject *)RawCaptureObj_summary_type) < 0) {
+        Py_DECREF(RawCaptureObj_summary_type);
+        Py_DECREF(m);
+        return NULL;
     }
     return m;
 }

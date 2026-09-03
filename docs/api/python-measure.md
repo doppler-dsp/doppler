@@ -114,13 +114,19 @@ ______________________________________________________________________
 
 ::: doppler.measure.ToneMeasure
 
+::: doppler.measure.TimeStats
+
 ______________________________________________________________________
 
 ::: doppler.measure.IMDMeasure
 
+::: doppler.measure.IMDMetrics
+
 ______________________________________________________________________
 
 ::: doppler.measure.NPRMeasure
+
+::: doppler.measure.NPRMetrics
 
 ______________________________________________________________________
 

@@ -16,7 +16,11 @@ generic `test_state_serialization.py` matrix.
 import numpy as np
 import pytest
 
-from doppler.dsss import AsyncDsssReceiver, HandoffAsyncDsssReceiver
+from doppler.dsss import (
+    AsyncDsssReceiver,
+    HandoffAsyncDsssReceiver,
+    ReceiverStatus,
+)
 from doppler.wfm import Gold
 
 SF = 1023
@@ -284,9 +288,7 @@ def test_status_record_is_the_getters_other_face():
     x, _data = _make_ramp_signal(70.0, seed=21)
     rx = _new_handoff(70.0, lost_confirm_s=0.02)
     st = rx.status()
-    # The record type is created lazily by the binding and is not a module
-    # attribute (the measure records are the same; jm gap, see the PR).
-    assert type(st).__name__ == "ReceiverStatus"
+    assert isinstance(st, ReceiverStatus)
     assert (st.state, st.doppler_hz, st.code_locked, st.locked) == (
         3,
         0.0,

@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from doppler.measure import ToneMeasure
+from doppler.measure import ToneMeasure, ToneMetrics
 
 
 def _cos(cycles: float, amp: float, n: int = 4096) -> np.ndarray:
@@ -139,7 +139,7 @@ def test_time_stats():
 def test_named_result_fields_and_unpacking():
     m = ToneMeasure(n=4096, dynamic_range_db=90.0)
     r = m.analyze(_cos(300, 1.0))
-    assert type(r).__name__ == "ToneMetrics"
+    assert isinstance(r, ToneMetrics)
     assert type(r).__module__ == "doppler.measure"
     # attribute access and tuple unpacking both work
     assert isinstance(r.snr, float)

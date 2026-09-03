@@ -123,6 +123,13 @@ PyInit_dsss (void)
     return NULL;
   if (PyType_Ready (&PolynomialPhaseEstimatorObjType) < 0)
     return NULL;
+  if (!PolynomialPhaseEstimatorObj_estimate_type)
+    {
+      PolynomialPhaseEstimatorObj_estimate_type = PyStructSequence_NewType (
+          &PolynomialPhaseEstimatorObj_estimate_desc);
+      if (!PolynomialPhaseEstimatorObj_estimate_type)
+        return NULL;
+    }
   if (PyType_Ready (&BurstDemodObjType) < 0)
     return NULL;
   if (PyType_Ready (&BurstCaptureObjType) < 0)
@@ -131,12 +138,26 @@ PyInit_dsss (void)
     return NULL;
   if (PyType_Ready (&AsyncDsssReceiverObjType) < 0)
     return NULL;
+  if (!AsyncDsssReceiverObj_status_type)
+    {
+      AsyncDsssReceiverObj_status_type
+          = PyStructSequence_NewType (&AsyncDsssReceiverObj_status_desc);
+      if (!AsyncDsssReceiverObj_status_type)
+        return NULL;
+    }
   if (PyType_Ready (&DsssBurstReceiverObjType) < 0)
     return NULL;
   if (PyType_Ready (&PersistentBurstCaptureObjType) < 0)
     return NULL;
   if (PyType_Ready (&HandoffAsyncDsssReceiverObjType) < 0)
     return NULL;
+  if (!HandoffAsyncDsssReceiverObj_status_type)
+    {
+      HandoffAsyncDsssReceiverObj_status_type = PyStructSequence_NewType (
+          &HandoffAsyncDsssReceiverObj_status_desc);
+      if (!HandoffAsyncDsssReceiverObj_status_type)
+        return NULL;
+    }
   PyObject *m = PyModule_Create (&dsss_moduledef);
   if (!m)
     return NULL;
@@ -182,6 +203,15 @@ PyInit_dsss (void)
       Py_DECREF (m);
       return NULL;
     }
+  if (PyModule_AddObject (
+          m, "PolynomialPhaseEstimate",
+          (PyObject *)PolynomialPhaseEstimatorObj_estimate_type)
+      < 0)
+    {
+      Py_DECREF (PolynomialPhaseEstimatorObj_estimate_type);
+      Py_DECREF (m);
+      return NULL;
+    }
   Py_INCREF (&BurstDemodObjType);
   if (PyModule_AddObject (m, "BurstDemod", (PyObject *)&BurstDemodObjType) < 0)
     {
@@ -214,6 +244,14 @@ PyInit_dsss (void)
       Py_DECREF (m);
       return NULL;
     }
+  if (PyModule_AddObject (m, "ReceiverStatus",
+                          (PyObject *)AsyncDsssReceiverObj_status_type)
+      < 0)
+    {
+      Py_DECREF (AsyncDsssReceiverObj_status_type);
+      Py_DECREF (m);
+      return NULL;
+    }
   Py_INCREF (&DsssBurstReceiverObjType);
   if (PyModule_AddObject (m, "DsssBurstReceiver",
                           (PyObject *)&DsssBurstReceiverObjType)
@@ -238,6 +276,14 @@ PyInit_dsss (void)
       < 0)
     {
       Py_DECREF (&HandoffAsyncDsssReceiverObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  if (PyModule_AddObject (m, "ReceiverStatus",
+                          (PyObject *)HandoffAsyncDsssReceiverObj_status_type)
+      < 0)
+    {
+      Py_DECREF (HandoffAsyncDsssReceiverObj_status_type);
       Py_DECREF (m);
       return NULL;
     }

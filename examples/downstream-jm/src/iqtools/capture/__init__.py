@@ -6,6 +6,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .capture import Capture, RawCapture  # noqa: E402
+from .capture import Capture, CaptureSummary, RawCapture  # noqa: E402
 
-__all__ = ["Capture", "RawCapture"]
+__all__ = ["Capture", "CaptureSummary", "RawCapture"]

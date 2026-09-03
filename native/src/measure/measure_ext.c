@@ -197,10 +197,38 @@ PyInit_measure (void)
   import_array ();
   if (PyType_Ready (&ToneMeasureObjType) < 0)
     return NULL;
+  if (!ToneMeasureObj_analyze_type)
+    {
+      ToneMeasureObj_analyze_type
+          = PyStructSequence_NewType (&ToneMeasureObj_analyze_desc);
+      if (!ToneMeasureObj_analyze_type)
+        return NULL;
+    }
+  if (!ToneMeasureObj_time_stats_type)
+    {
+      ToneMeasureObj_time_stats_type
+          = PyStructSequence_NewType (&ToneMeasureObj_time_stats_desc);
+      if (!ToneMeasureObj_time_stats_type)
+        return NULL;
+    }
   if (PyType_Ready (&NPRMeasureObjType) < 0)
     return NULL;
+  if (!NPRMeasureObj_analyze_type)
+    {
+      NPRMeasureObj_analyze_type
+          = PyStructSequence_NewType (&NPRMeasureObj_analyze_desc);
+      if (!NPRMeasureObj_analyze_type)
+        return NULL;
+    }
   if (PyType_Ready (&IMDMeasureObjType) < 0)
     return NULL;
+  if (!IMDMeasureObj_analyze_type)
+    {
+      IMDMeasureObj_analyze_type
+          = PyStructSequence_NewType (&IMDMeasureObj_analyze_desc);
+      if (!IMDMeasureObj_analyze_type)
+        return NULL;
+    }
   PyObject *m = PyModule_Create (&measure_moduledef);
   if (!m)
     return NULL;
@@ -212,6 +240,22 @@ PyInit_measure (void)
       Py_DECREF (m);
       return NULL;
     }
+  if (PyModule_AddObject (m, "ToneMetrics",
+                          (PyObject *)ToneMeasureObj_analyze_type)
+      < 0)
+    {
+      Py_DECREF (ToneMeasureObj_analyze_type);
+      Py_DECREF (m);
+      return NULL;
+    }
+  if (PyModule_AddObject (m, "TimeStats",
+                          (PyObject *)ToneMeasureObj_time_stats_type)
+      < 0)
+    {
+      Py_DECREF (ToneMeasureObj_time_stats_type);
+      Py_DECREF (m);
+      return NULL;
+    }
   Py_INCREF (&NPRMeasureObjType);
   if (PyModule_AddObject (m, "NPRMeasure", (PyObject *)&NPRMeasureObjType) < 0)
     {
@@ -219,10 +263,26 @@ PyInit_measure (void)
       Py_DECREF (m);
       return NULL;
     }
+  if (PyModule_AddObject (m, "NPRMetrics",
+                          (PyObject *)NPRMeasureObj_analyze_type)
+      < 0)
+    {
+      Py_DECREF (NPRMeasureObj_analyze_type);
+      Py_DECREF (m);
+      return NULL;
+    }
   Py_INCREF (&IMDMeasureObjType);
   if (PyModule_AddObject (m, "IMDMeasure", (PyObject *)&IMDMeasureObjType) < 0)
     {
       Py_DECREF (&IMDMeasureObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  if (PyModule_AddObject (m, "IMDMetrics",
+                          (PyObject *)IMDMeasureObj_analyze_type)
+      < 0)
+    {
+      Py_DECREF (IMDMeasureObj_analyze_type);
       Py_DECREF (m);
       return NULL;
     }

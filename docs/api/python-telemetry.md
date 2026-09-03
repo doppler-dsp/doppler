@@ -236,6 +236,10 @@ assert recs["n"].tolist() == [0, 4096, 8192, 12288]
 assert recs["value"].tolist() == [12.0, 13.0, 14.0, 15.0]
 ```
 
+`Telemetry.stats()` returns a `TelemetryStats` record by value: the counters the ring keeps.
+
+::: doppler.telemetry.TelemetryStats
+
 ## Related pages
 
 <!-- related-pages:start -->

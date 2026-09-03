@@ -257,6 +257,15 @@ extern "C"
     dll_state_t           *dll;
     RateConverter_state_t *rc;
     mpsk_receiver_state_t *rx;
+    /* Scratch, not state -- sized at every track-chain (re)build and never
+     * in the steps() hot path (#1192, the section 11.5 rule): the live
+     * Dll's partials for ONE code period, then rc's resampled output for
+     * it. The chain runs a period at a time, so both are fixed by tsamps
+     * and rc->rate; they only ever grow. */
+    float complex *track_dll_out_buf;
+    size_t         track_dll_out_cap;
+    float complex *track_rc_out_buf;
+    size_t         track_rc_out_cap;
 
     /* Shared carrier-wipe scratch/carry -- refine and track stages never
      * run concurrently and both wipe in whole `tsamps`-sample periods, so

@@ -592,7 +592,7 @@
 * **pd** ([**acq\_state\_t**](structacq__state__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **pd\_predicted** ([**acq\_state\_t**](structacq__state__t.md))
 * **peak\_col** ([**acq\_state\_t**](structacq__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md))
-* **peak\_mask** ([**acq\_state\_t**](structacq__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md))
+* **peak\_mask** ([**acq\_state\_t**](structacq__state__t.md))
 * **peak\_row** ([**acq\_state\_t**](structacq__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md))
 * **peaks** ([**acq\_state\_t**](structacq__state__t.md))
 * **pfa** ([**acq\_state\_t**](structacq__state__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md), [**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md))

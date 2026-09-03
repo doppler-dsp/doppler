@@ -1095,6 +1095,50 @@ main (void)
     DP_CHECK (n == 2 && out[1].col == 3);
   }
 
+  /* ── one peak, NULL mask: the argmax, and the SAME pick as the masked loop
+   *    (doppler#1208 -- the detector's default path pays for no mask) ──── */
+  {
+    enum
+    {
+      NY = 7,
+      NX = 10 /* 70 cells: not 1 mod 4, so an unrolled loop has a tail */
+    };
+    float    surf[NY * NX];
+    uint8_t  mask[NY * NX];
+    uint32_t rng  = 0x1234567u;
+    int      same = 1, ties_seen = 0;
+    for (int trial = 0; trial < 200; trial++)
+      {
+        /* Small integer surfaces so ties are common and the first-max rule
+           is exercised, not just the value. */
+        for (int k = 0; k < NY * NX; k++)
+          {
+            surf[k] = (float)(dp_xs32 (&rng) % 5);
+          }
+        det_peak_t a, b;
+        memset (mask, 0, sizeof mask);
+        size_t na = det_peak_list (surf, NY, NX, -1.0f, 1, 1, mask, &a, 1);
+        size_t nb = det_peak_list (surf, NY, NX, -1.0f, 1, 1, NULL, &b, 1);
+        if (na != 1 || nb != 1 || a.row != b.row || a.col != b.col
+            || a.value != b.value)
+          same = 0;
+        int dup = 0;
+        for (int k = 0; k < NY * NX; k++)
+          if (surf[k] == a.value && (size_t)k != a.row * NX + a.col)
+            dup = 1;
+        ties_seen += dup;
+      }
+    DP_CHECK_MSG (same, "NULL mask at one peak picks what the masked loop "
+                        "picks, ties included");
+    DP_CHECK_MSG (ties_seen > 100, "the surfaces actually carried ties");
+    /* The gate still ends the list, and an empty surface lists nothing. */
+    det_peak_t g;
+    for (int k = 0; k < NY * NX; k++)
+      surf[k] = 1.0f;
+    DP_CHECK (det_peak_list (surf, NY, NX, 1.0f, 0, 0, NULL, &g, 1) == 0);
+    DP_CHECK (det_peak_list (surf, 0, NX, -1.0f, 0, 0, NULL, &g, 1) == 0);
+  }
+
   /* ── the engine's face: max_peaks bounds, and the held twins in the blob ──
    */
   {

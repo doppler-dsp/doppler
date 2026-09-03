@@ -63,7 +63,6 @@ typedef struct
   float _Complex *out_buf;   
   float *mag_buf;           
   float *noise_scratch;     
-  uint8_t *peak_mask;       
   size_t ny;                
   size_t nx;                
   size_t n;                 

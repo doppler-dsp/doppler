@@ -27,9 +27,8 @@ detector2d_compute_stat_2d (detector2d_state_t *state)
   /* The one argmax under both detectors (det_peak_list, at one peak and
      no gate: the maximum, as this detector has always reported it). */
   det_peak_t pk;
-  memset (state->peak_mask, 0, n);
-  (void)det_peak_list (state->mag_buf, state->ny, state->nx, -1.0f, 0, 0,
-                       state->peak_mask, &pk, 1);
+  (void)det_peak_list (state->mag_buf, state->ny, state->nx, -1.0f, 0, 0, NULL,
+                       &pk, 1);
   state->peak_row = pk.row;
   state->peak_col = pk.col;
   state->peak_mag = pk.value;
@@ -93,8 +92,6 @@ detector2d_create (const float _Complex *ref, size_t ny, size_t nx,
   if (!state->noise_scratch)
     goto fail;
 
-  state->peak_mask = (uint8_t *)dp_xmalloc (n); /* fixed, trusted */
-
   return state;
 
 fail:
@@ -114,7 +111,6 @@ detector2d_destroy (detector2d_state_t *state)
   free (state->out_buf);
   free (state->mag_buf);
   free (state->noise_scratch);
-  free (state->peak_mask);
   free (state);
 }
 

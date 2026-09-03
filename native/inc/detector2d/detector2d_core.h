@@ -97,7 +97,6 @@ typedef struct
   float _Complex *out_buf;   /**< Corr2D output (ny*nx complex samples).     */
   float *mag_buf;           /**< |out_buf&#91;k&#93;|, ny*nx floats.               */
   float *noise_scratch;     /**< Scratch for median sort.                   */
-  uint8_t *peak_mask;       /**< det_peak_list's working mask (ny*nx).      */
   size_t ny;                /**< Number of rows.                            */
   size_t nx;                /**< Number of columns.                         */
   size_t n;                 /**< ny * nx — total frame length.              */

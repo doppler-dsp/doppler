@@ -70,13 +70,15 @@ PolynomialPhaseEstimatorObj_reset (PolynomialPhaseEstimatorObject *self,
 }
 
 static PyStructSequence_Field PolynomialPhaseEstimatorObj_estimate_fields[] = {
-  { "freq_norm", NULL },
-  { "rate_norm", NULL },
-  { "snr_db", NULL },
+  { "freq_norm", "frequency, cycles/sample, in [-0.5, 0.5)." },
+  { "rate_norm", "chirp rate, cycles/sample^2." },
+  { "snr_db", "winning-row peak-to-mean (rough confidence)." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc PolynomialPhaseEstimatorObj_estimate_desc
-    = { "doppler.dsss.PolynomialPhaseEstimate", NULL,
+    = { "doppler.dsss.PolynomialPhaseEstimate",
+        "Polynomial-phase estimate: carrier frequency, chirp rate, and a "
+        "rough SNR confidence.",
         PolynomialPhaseEstimatorObj_estimate_fields, 3 };
 static PyTypeObject *PolynomialPhaseEstimatorObj_estimate_type = NULL;
 

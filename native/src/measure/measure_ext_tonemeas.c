@@ -78,34 +78,36 @@ ToneMeasureObj_reset (ToneMeasureObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyStructSequence_Field ToneMeasureObj_analyze_fields[] = {
-  { "snr", NULL },
-  { "sinad", NULL },
-  { "thd", NULL },
-  { "thd_pct", NULL },
-  { "thd_n", NULL },
-  { "sfdr_dbc", NULL },
-  { "sfdr_dbfs", NULL },
-  { "enob", NULL },
-  { "enob_fs", NULL },
-  { "noise_floor_dbfs", NULL },
-  { "fund_freq", NULL },
-  { "fund_dbfs", NULL },
-  { "worst_spur_freq", NULL },
-  { "worst_spur_dbc", NULL },
-  { "worst_spur_is_harm", NULL },
-  { "rbw_hz", NULL },
-  { "enbw_hz", NULL },
-  { "bin_hz", NULL },
-  { "lobe_bins", NULL },
-  { "n_noise_bins", NULL },
-  { "proc_gain_db", NULL },
-  { "amp_uncert_db", NULL },
-  { "floor_uncert_db", NULL },
+  { "snr", "SNR = 10log10(P_fund / P_noise) (dB)." },
+  { "sinad", "SINAD = 10log10(fund/(noise+harm)) (dB)." },
+  { "thd", "THD = 10log10(P_harm / P_fund) (dBc)." },
+  { "thd_pct", "THD = 100 sqrt(P_harm / P_fund) (%)." },
+  { "thd_n", "THD+N = 10log10((noise+harm)/fund) = -SINAD." },
+  { "sfdr_dbc", "SFDR: fundamental - worst spur (dBc)." },
+  { "sfdr_dbfs", "SFDR: full scale - worst spur (dBFS)." },
+  { "enob", "ENOB = (SINAD - 1.76)/6.02." },
+  { "enob_fs", "Full-scale-corrected ENOB." },
+  { "noise_floor_dbfs", "Mean per-bin noise power (dBFS)." },
+  { "fund_freq", "Fundamental frequency (Hz)." },
+  { "fund_dbfs", "Fundamental level (dBFS)." },
+  { "worst_spur_freq", "Worst spur frequency (Hz)." },
+  { "worst_spur_dbc", "Worst spur level vs the fundamental (dBc)." },
+  { "worst_spur_is_harm", "1 if the worst spur is a harmonic, else 0." },
+  { "rbw_hz", "Resolution bandwidth = enbw*fs/n (Hz)." },
+  { "enbw_hz", "Equivalent noise bandwidth (Hz) (= rbw_hz)." },
+  { "bin_hz", "FFT bin spacing = fs/nfft (Hz)." },
+  { "lobe_bins", "Window main-lobe half-width L (bins)." },
+  { "n_noise_bins", "Number of bins counted as noise." },
+  { "proc_gain_db", "FFT processing gain = 10log10(nfft/2) (dB)." },
+  { "amp_uncert_db", "Amplitude-read uncertainty bound (dB)." },
+  { "floor_uncert_db", "Noise-floor standard error (dB)." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc ToneMeasureObj_analyze_desc
-    = { "doppler.measure.ToneMetrics", NULL, ToneMeasureObj_analyze_fields,
-        23 };
+    = { "doppler.measure.ToneMetrics",
+        "Single-tone ADC/converter dynamic metrics (SNR, SINAD, THD, SFDR, "
+        "ENOB) plus the analysis-grid accuracy fields.",
+        ToneMeasureObj_analyze_fields, 23 };
 static PyTypeObject *ToneMeasureObj_analyze_type = NULL;
 
 static PyObject *
@@ -177,33 +179,35 @@ ToneMeasureObj_analyze (ToneMeasureObject *self, PyObject *args)
 }
 
 static PyStructSequence_Field ToneMeasureObj_analyze_complex_fields[] = {
-  { "snr", NULL },
-  { "sinad", NULL },
-  { "thd", NULL },
-  { "thd_pct", NULL },
-  { "thd_n", NULL },
-  { "sfdr_dbc", NULL },
-  { "sfdr_dbfs", NULL },
-  { "enob", NULL },
-  { "enob_fs", NULL },
-  { "noise_floor_dbfs", NULL },
-  { "fund_freq", NULL },
-  { "fund_dbfs", NULL },
-  { "worst_spur_freq", NULL },
-  { "worst_spur_dbc", NULL },
-  { "worst_spur_is_harm", NULL },
-  { "rbw_hz", NULL },
-  { "enbw_hz", NULL },
-  { "bin_hz", NULL },
-  { "lobe_bins", NULL },
-  { "n_noise_bins", NULL },
-  { "proc_gain_db", NULL },
-  { "amp_uncert_db", NULL },
-  { "floor_uncert_db", NULL },
+  { "snr", "SNR = 10log10(P_fund / P_noise) (dB)." },
+  { "sinad", "SINAD = 10log10(fund/(noise+harm)) (dB)." },
+  { "thd", "THD = 10log10(P_harm / P_fund) (dBc)." },
+  { "thd_pct", "THD = 100 sqrt(P_harm / P_fund) (%)." },
+  { "thd_n", "THD+N = 10log10((noise+harm)/fund) = -SINAD." },
+  { "sfdr_dbc", "SFDR: fundamental - worst spur (dBc)." },
+  { "sfdr_dbfs", "SFDR: full scale - worst spur (dBFS)." },
+  { "enob", "ENOB = (SINAD - 1.76)/6.02." },
+  { "enob_fs", "Full-scale-corrected ENOB." },
+  { "noise_floor_dbfs", "Mean per-bin noise power (dBFS)." },
+  { "fund_freq", "Fundamental frequency (Hz)." },
+  { "fund_dbfs", "Fundamental level (dBFS)." },
+  { "worst_spur_freq", "Worst spur frequency (Hz)." },
+  { "worst_spur_dbc", "Worst spur level vs the fundamental (dBc)." },
+  { "worst_spur_is_harm", "1 if the worst spur is a harmonic, else 0." },
+  { "rbw_hz", "Resolution bandwidth = enbw*fs/n (Hz)." },
+  { "enbw_hz", "Equivalent noise bandwidth (Hz) (= rbw_hz)." },
+  { "bin_hz", "FFT bin spacing = fs/nfft (Hz)." },
+  { "lobe_bins", "Window main-lobe half-width L (bins)." },
+  { "n_noise_bins", "Number of bins counted as noise." },
+  { "proc_gain_db", "FFT processing gain = 10log10(nfft/2) (dB)." },
+  { "amp_uncert_db", "Amplitude-read uncertainty bound (dB)." },
+  { "floor_uncert_db", "Noise-floor standard error (dB)." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc ToneMeasureObj_analyze_complex_desc
-    = { "doppler.measure.ToneMetrics", NULL,
+    = { "doppler.measure.ToneMetrics",
+        "Single-tone ADC/converter dynamic metrics (SNR, SINAD, THD, SFDR, "
+        "ENOB) plus the analysis-grid accuracy fields.",
         ToneMeasureObj_analyze_complex_fields, 23 };
 static PyTypeObject *ToneMeasureObj_analyze_complex_type = NULL;
 
@@ -276,13 +280,18 @@ ToneMeasureObj_analyze_complex (ToneMeasureObject *self, PyObject *args)
 }
 
 static PyStructSequence_Field ToneMeasureObj_time_stats_fields[] = {
-  { "rms", NULL },     { "peak", NULL },      { "crest_db", NULL },
-  { "papr_db", NULL }, { "dc_offset", NULL }, { "fs_util_pct", NULL },
+  { "rms", "Root-mean-square amplitude (DC included)." },
+  { "peak", "Peak deviation, max|x - DC|." },
+  { "crest_db", "Crest factor, 20log10(peak_ac / rms_ac) (dB)." },
+  { "papr_db", "Peak-to-average power ratio (= crest) (dB)." },
+  { "dc_offset", "DC offset, mean(x)." },
+  { "fs_util_pct", "Full-scale use, 100*max|x|/full_scale (%)." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc ToneMeasureObj_time_stats_desc
-    = { "doppler.measure.TimeStats", NULL, ToneMeasureObj_time_stats_fields,
-        6 };
+    = { "doppler.measure.TimeStats",
+        "AC-coupled time-domain capture statistics (crest factor / PAPR).",
+        ToneMeasureObj_time_stats_fields, 6 };
 static PyTypeObject *ToneMeasureObj_time_stats_type = NULL;
 
 static PyObject *

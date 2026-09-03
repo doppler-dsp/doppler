@@ -71,14 +71,25 @@ IMDMeasureObj_reset (IMDMeasureObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyStructSequence_Field IMDMeasureObj_analyze_fields[] = {
-  { "f1", NULL },        { "f2", NULL },           { "p1_dbfs", NULL },
-  { "p2_dbfs", NULL },   { "imd2_dbc", NULL },     { "imd3_dbc", NULL },
-  { "imd2_freq", NULL }, { "imd3_lo_freq", NULL }, { "imd3_hi_freq", NULL },
-  { "toi_dbfs", NULL },  { "soi_dbfs", NULL },     { "rbw_hz", NULL },
+  { "f1", "Lower tone frequency (Hz)." },
+  { "f2", "Upper tone frequency (Hz)." },
+  { "p1_dbfs", "Lower tone level (dBFS)." },
+  { "p2_dbfs", "Upper tone level (dBFS)." },
+  { "imd2_dbc", "2nd-order product (f2-f1) vs mean tone (dBc)." },
+  { "imd3_dbc", "Worst 3rd-order product vs mean tone (dBc)." },
+  { "imd2_freq", "2nd-order product frequency (Hz)." },
+  { "imd3_lo_freq", "3rd-order (2f1-f2) product frequency (Hz)." },
+  { "imd3_hi_freq", "3rd-order (2f2-f1) product frequency (Hz)." },
+  { "toi_dbfs", "Third-order intercept (dBFS)." },
+  { "soi_dbfs", "Second-order intercept (dBFS)." },
+  { "rbw_hz", "Resolution bandwidth = enbw*fs/n (Hz)." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc IMDMeasureObj_analyze_desc
-    = { "doppler.measure.IMDMetrics", NULL, IMDMeasureObj_analyze_fields, 12 };
+    = { "doppler.measure.IMDMetrics",
+        "Two-tone intermodulation metrics (IMD2, IMD3, second/third-order "
+        "intercepts).",
+        IMDMeasureObj_analyze_fields, 12 };
 static PyTypeObject *IMDMeasureObj_analyze_type = NULL;
 
 static PyObject *

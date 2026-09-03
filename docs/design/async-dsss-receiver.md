@@ -1056,9 +1056,15 @@ of it is re-derived here (§5):
     always on**, there may be **up to 10 at once**, and each is on for **5
     to 15 minutes** on average. So the surface never has fewer than one
     peak, has up to ten, and an emitter rises or sets about once a minute
-    at the full population — every data-free window of every emitter is a
-    re-acquisition opportunity, and a rise between two of them is the
-    normal event the searcher exists for. This answers `burst-bank.md`
+    at the full population. **An emitter transmits continuously; a rise
+    is visibility, not power-up** (maintainer, 2026-09-03): it comes into
+    view at whatever point of its frame it has reached, mid-payload as
+    often as not, and its first window arrives at its own phase,
+    uniformly within one frame — so the acquisition latency after a rise
+    is bounded by a frame (1.1 s at 5 Mcps, 2.8 at 2) and averages half
+    of one. Every window of every emitter is a re-acquisition
+    opportunity, and a rise between two of them is the normal event the
+    searcher exists for. This answers `burst-bank.md`
     §11.4's question 6: the receiver pool is sized at ten plus release
     headroom (§10), and the soak's population is known (§12 step 7).
 - **The rate**: all of it — the front end, the
@@ -1915,7 +1921,11 @@ ______________________________________________________________________
     rewritten to both flags down for longer than the fade.
 1. **The lifecycle soak.** The population of §6.1 — one emitter always
     on, up to ten, on-times drawn around 5 to 15 minutes — at random
-    Dopplers within one span and a spread on each side of the knee: each
+    Dopplers within one span and a spread on each side of the knee. Each
+    emitter's synth runs for the whole soak and visibility is a gain of 1
+    or 0 at the sum, so a rise lands at a random frame phase and nothing
+    in the source restarts (§6.1); the phase at first sight is a random
+    burn-in, the way the harnesses already set code phase. Each
     is acquired once, assigned once, tracked by the same receiver until
     it leaves, released by the rule of §10, and re-acquired on return; no
     receiver is ever assigned twice to a live emitter, no emitter above

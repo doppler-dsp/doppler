@@ -37,9 +37,11 @@
 | Type | Name |
 | ---: | :--- |
 |  uint8\_t | [**\_pad**](#variable-_pad)  <br> |
+|  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  uint64\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
+|  uint8\_t | [**handoff**](#variable-handoff)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  double | [**lock\_num**](#variable-lock_num)  <br> |
@@ -51,6 +53,7 @@
 |  uint64\_t | [**segments**](#variable-segments)  <br> |
 |  uint64\_t | [**sps**](#variable-sps)  <br> |
 |  uint8\_t | [**state**](#variable-state)  <br> |
+|  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
 |  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
 
 
@@ -104,7 +107,20 @@
 ### variable \_pad 
 
 ```C++
-uint8_t async_dsss_receiver_extra_t::_pad[7];
+uint8_t async_dsss_receiver_extra_t::_pad[6];
+```
+
+
+
+
+<hr>
+
+
+
+### variable both\_down\_samples 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::both_down_samples;
 ```
 
 
@@ -148,6 +164,24 @@ double async_dsss_receiver_extra_t::doppler_hz_est;
 
 
 
+
+<hr>
+
+
+
+### variable handoff 
+
+```C++
+uint8_t async_dsss_receiver_extra_t::handoff;
+```
+
+
+
+1 = no acq child in the blob (hand-off mode); a blob does not travel between the flavors. 
+ 
+
+
+        
 
 <hr>
 
@@ -300,6 +334,19 @@ uint64_t async_dsss_receiver_extra_t::sps;
 
 ```C++
 uint8_t async_dsss_receiver_extra_t::state;
+```
+
+
+
+
+<hr>
+
+
+
+### variable state\_samples 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::state_samples;
 ```
 
 

@@ -255,10 +255,24 @@ keeps the engine usable by a baseband-only caller with no carrier at all.
     point of §6.1; the number is about 10 ns per tile per output sample
     (§12.1), which is what makes the searcher's cost the same at 2 and 5
     Mcps and over a core at ±50 kHz.
+- **Why the roll still carries the tiles at `D > 1`.**
+    [`dsss-acquisition.md`](dsss-acquisition.md) §4 marks the roll OUT
+    wherever coherent integration is viable, because a mixer bank *with*
+    the slow-time transform does everything a roll *without* it does, plus
+    the gain and a finer step. That compared the roll bare. Rolling by `k`
+    bins is mixing by `k/nx` (the same page), so the roll *with* the
+    slow-time transform inside each tile is the mixer bank with one forward
+    transform shared across the tiles instead of one per tile — the 1.2–1.55×
+    it measured at `D = 1` — and the `D` rows per tile are the fine step. A
+    bank of DDC-fed engines is not a third option on this signal: a tile
+    is a Doppler hypothesis on a spread signal 2–5 MHz wide against 50 kHz
+    of uncertainty, so a per-tile DDC cannot decimate and only adds a
+    mixer per tile (§6.4's 14–33× real time). The comparison is a count
+    until §12 step 14 makes it a number.
 - **What it costs, before it is measured.** The slow-time transform
     runs once per block per tile, so per epoch it is of the order of the
     epoch transform it sits behind; the searcher's cost stays near §12.1's
-    number until §12 step 10 says otherwise. The state is `D` epochs per
+    number until §12 step 14 says otherwise. The state is `D` epochs per
     tile: 53 MB per channel at either end of the range. `n_noncoh` across
     a window edge accumulates data blocks — a graceful loss, bounded by
     the `10·log10 D`, not a mislock.

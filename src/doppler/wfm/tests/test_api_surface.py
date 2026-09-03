@@ -74,6 +74,9 @@ COVERAGE: dict[str, str] = {
     # the frame descriptor — dedicated suite in test_frame.py
     "Frame": "test_frame.py",
     "FrameDesc": "test_frame.py",
+    # single=true records, module attributes since jm 0.75.3 (jm#1264)
+    "FrameCheck": "test_frame.py",
+    "FrameLayout": "test_frame.py",
     # transport / IO handles
     "Writer": "TestReaderWriter",
     "Reader": "TestReaderWriter",

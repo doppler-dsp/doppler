@@ -116,6 +116,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**dll\_core.h**](dll__core_8h.md) _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._     
         * **dir** [**doppler\_channel**](dir_597302de6cb0d177e5e89858f2abab7e.md)     
             * **file** [**doppler\_channel\_core.h**](doppler__channel__core_8h.md) _Clock Doppler as a propagation impairment: dilate the time base and shift the carrier, coherently, from one physical parameter._     
+        * **dir** [**dp\_event\_log**](dir_f94295323d6f0149be6a261903cfcf6a.md)     
+            * **file** [**dp\_event\_log\_core.h**](dp__event__log__core_8h.md) _A run's events as SigMF annotations: appended live, finalized at close._     
         * **dir** [**dp\_interrupt\_guard**](dir_001936014fd0d8bf32545bf8d71a57c6.md)     
             * **file** [**dp\_interrupt\_guard\_core.h**](dp__interrupt__guard__core_8h.md)     
             * **file** [**dp\_interrupt\_guard\_procglobal.h**](dp__interrupt__guard__procglobal_8h.md)     

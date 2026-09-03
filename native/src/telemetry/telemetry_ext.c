@@ -1,7 +1,7 @@
 /*
  * telemetry_ext.c — Python extension module telemetry
  *
- * Objects: Telemetry, MemoryCapture, Capture
+ * Objects: Telemetry, MemoryCapture, EventLog, Capture
  * GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
  */
 
@@ -12,6 +12,7 @@
 #include <numpy/arrayobject.h>
 
 #include "telemetry_ext_capture.c"
+#include "telemetry_ext_dp_event_log.c"
 #include "telemetry_ext_dp_tlm.c"
 #include "telemetry_ext_dp_tlm_capture.c"
 
@@ -24,7 +25,8 @@ static PyModuleDef telemetry_moduledef = {
   .m_name = "telemetry",
   .m_doc
   = "Telemetry: lightweight in-band probes (Telemetry) that record loop "
-    "internals -- error, control, lock -- to a sink for offline analysis.\n"
+    "internals -- error, control, lock -- to a sink for offline analysis, and "
+    "the run's events (EventLog) as SigMF annotations beside them.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -50,6 +52,8 @@ PyInit_telemetry (void)
         return NULL;
     }
   if (PyType_Ready (&MemoryCaptureObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&EventLogObjType) < 0)
     return NULL;
   if (PyType_Ready (&CaptureObjType) < 0)
     return NULL;
@@ -77,6 +81,13 @@ PyInit_telemetry (void)
       < 0)
     {
       Py_DECREF (&MemoryCaptureObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&EventLogObjType);
+  if (PyModule_AddObject (m, "EventLog", (PyObject *)&EventLogObjType) < 0)
+    {
+      Py_DECREF (&EventLogObjType);
       Py_DECREF (m);
       return NULL;
     }

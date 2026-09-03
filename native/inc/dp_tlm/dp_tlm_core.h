@@ -90,6 +90,21 @@ typedef char dp_tlm_rec_fits_slot[sizeof (dp_tlm_rec_t)
                                       ? 1
                                       : -1];
 
+/**
+ * @brief ::dp_tlm_rec_t as a numpy-style dtype, in JSON, for a sidecar.
+ *
+ * A record file is just these 16 bytes repeated, so the dtype is what makes
+ * it self-describing — `np.fromfile` needs nothing else and no doppler code
+ * at all.  It is a macro rather than a string in each writer because there
+ * are two of them (dp_tlm_capture's `<path>-meta`, and the
+ * `doppler:telemetry` global dp_event_log puts in a SigMF sidecar), and two
+ * spellings of one struct's layout is a drift waiting for the day a field
+ * moves.
+ */
+#define DP_TLM_REC_DTYPE_JSON                                                 \
+  "[[\"n\", \"<u8\"], [\"value\", \"<f4\"], [\"probe\", \"<u2\"], "         \
+  "[\"flags\", \"<u2\"]]"
+
 /** Maximum probes per context.  Registration fails once full. */
 #define DP_TLM_MAX_PROBES 64
 /** Maximum probe-name length including the NUL terminator. */

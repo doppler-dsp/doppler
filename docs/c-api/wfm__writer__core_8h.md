@@ -63,6 +63,7 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 | ---: | :--- |
 |  int | [**wfm\_blue\_write\_hcb**](#function-wfm_blue_write_hcb) (FILE \* fp, int sample\_type, int endian, double fs, double fc, double data\_start, size\_t total\_samples, int detached, double t0\_unix\_sec) <br>_Write a complete 512-byte BLUE/Platinum type-1000 Header Control Block._  |
 |  char \* | [**wfm\_sigmf\_meta\_json**](#function-wfm_sigmf_meta_json) (int sample\_type, int endian, double fs, double fc, double t0\_unix\_sec, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs) <br>_Build a SigMF_ `.sigmf-meta` _JSON document for a generated capture._ |
+|  char \* | [**wfm\_sigmf\_meta\_json\_ex**](#function-wfm_sigmf_meta_json_ex) (int sample\_type, int endian, double fs, double fc, double t0\_unix\_sec, const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, const char \* extra\_global\_json, const char \*const \* annotations, size\_t n\_ann) <br>[_**wfm\_sigmf\_meta\_json()**_](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json) _plus the two things a caller can add to it._ |
 |  int | [**wfm\_writer\_add\_keyword**](#function-wfm_writer_add_keyword) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* w, const char \* tag, char type, const void \* value, size\_t count) <br>_Attach a BLUE extended-header keyword (a tag/value pair)._  |
 |  double | [**wfm\_writer\_clip\_fraction**](#function-wfm_writer_clip_fraction) (const [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* w) <br> |
 |  int | [**wfm\_writer\_close**](#function-wfm_writer_close) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* w) <br>_Flush, patch the BLUE data\_size from the actual count (if seekable), write any attached extended-header keywords, and free the writer (does not close the FILE\*)._  |
@@ -273,6 +274,61 @@ Both optional keys are OMITTED rather than defaulted when their input is unset. 
 * `t0_unix_sec` capture start in UNIX seconds, or [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset). Rendered as extended ISO 8601 (`core:datetime` requires the separators; doppler's filename stamps do not). 
 * `segs` composer segments to annotate, or NULL for none. 
 * `n_segs` number of entries in `segs`. 
+
+
+
+**Returns:**
+
+malloc'd JSON string (caller frees), or NULL on allocation failure. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_sigmf\_meta\_json\_ex 
+
+[_**wfm\_sigmf\_meta\_json()**_](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json) _plus the two things a caller can add to it._
+```C++
+char * wfm_sigmf_meta_json_ex (
+    int sample_type,
+    int endian,
+    double fs,
+    double fc,
+    double t0_unix_sec,
+    const wfm_segment_t * segs,
+    size_t n_segs,
+    const char * extra_global_json,
+    const char *const * annotations,
+    size_t n_ann
+) 
+```
+
+
+
+The same document, from the same code — this IS the implementation and [**wfm\_sigmf\_meta\_json()**](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json) is the call with both extras absent. It exists so an events sidecar ([**dp\_event\_log/dp\_event\_log\_core.h**](dp__event__log__core_8h.md)) is this emitter with annotations of its own, rather than a second builder free to spell `global` and `captures`, and their omit-when-unknown rules, differently.
+
+
+
+
+**Parameters:**
+
+
+* `sample_type` wire type (wavegen order) -&gt; `core:datatype`. 
+* `endian` 0 little, 1 big. 
+* `fs` sample rate (Hz); 0.0 derives from `segs` or is omitted  see [**wfm\_sigmf\_meta\_json()**](wfm__writer__core_8h.md#function-wfm_sigmf_meta_json). 
+* `fc` centre frequency (Hz) -&gt; `captures[0]`. 
+* `t0_unix_sec` capture start, or [**WFM\_TIMECODE\_UNSET**](wfm__time_8h.md#define-wfm_timecode_unset). 
+* `segs` composer segments to annotate, or NULL for none. 
+* `n_segs` number of entries in `segs`. 
+* `extra_global_json` a JSON OBJECT whose members are merged into `global`, or NULL. A member replaces a key already there rather than duplicating it. Text that is not a JSON object is ignored. 
+* `annotations` JSON object strings appended to `annotations` after the segments', or NULL. A string that does not parse as an object is skipped, not fatal. 
+* `n_ann` number of entries in `annotations`. 
 
 
 

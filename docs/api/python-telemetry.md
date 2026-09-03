@@ -122,6 +122,86 @@ print(f"{len(recs)} records, gain {recs['value'][0]:.1f} -> "
       f"{recs['value'][-1]:.1f} dB")
 ```
 
+## `EventLog` — the run's events, as SigMF annotations
+
+Telemetry is a time series at thousands of records a second. A run's
+**events** are the opposite shape: a handful a minute, each one a fact
+about a *span* of the sample stream — an emitter seeded at sample
+48 000, tracking from there, lost 40 seconds later. SigMF already has a
+vocabulary for exactly that, so an event is an annotation:
+`core:sample_start`, `core:sample_count`, and the holder's own fields
+under a `doppler:` namespace.
+
+A `.sigmf-meta` is one JSON document, which a run cannot keep rewriting
+for hours, so the two jobs are kept apart. During the run each event is
+one JSON object on one line of a flat file, flushed as it is written —
+tail it live, and a crash costs at most the event being written. At
+`finalize()` those lines become the `annotations` array of a proper
+sidecar, built by the same emitter every other doppler sidecar goes
+through, so `global` and `captures` come out spelled identically.
+
+| Member                                      | Purpose                                                |
+| ------------------------------------------- | ------------------------------------------------------ |
+| `field(name, value)`                        | Stage a number for the next event, as `doppler:<name>` |
+| `field_str(name, value)`                    | Stage a string for the next event                      |
+| `append(start, label, sample_count=0, …)`   | Write one event and consume the staged fields          |
+| `set_dataset(name)` / `set_telemetry(path)` | Name the sample file and the record file, once per run |
+| `finalize(meta_path, …)`                    | Write the `.sigmf-meta` sidecar; the log stays open    |
+| `close()`, `count`                          | Final verdict on the writes; events appended so far    |
+
+Three rules decide what reaches the document, and all three are the same
+rule: **state what is known, omit what is not.**
+
+- **A span of 0 is an instant**, and `core:sample_count` is left out. A
+    written `0` would claim a measured span of nothing.
+- **Absolute frequency edges need the channel's centre**, which a BLUE
+    header carries and a NATS frame does not. Give `EventLog` an `fc` and
+    an event's band becomes `core:freq_lower_edge` / `upper_edge`; leave
+    it unknown and the offset and width are still recorded as
+    `doppler:freq_hz` / `doppler:bandwidth_hz`, so nothing you knew is
+    lost and nothing you did not is invented.
+- **A run nobody recorded is `core:metadata_only`**, SigMF's own word for
+    it, rather than a missing `core:dataset` key a reader has to
+    interpret.
+
+```python
+import json
+import tempfile
+from pathlib import Path
+
+from doppler.telemetry import EventLog
+
+d = Path(tempfile.mkdtemp())
+
+log = EventLog(d / "run.events", fc=2.4e9)
+log.set_dataset("capture.sigmf-data")
+log.set_telemetry("run.tlm")
+
+log.field("emitter", 3)
+log.field("cn0_db_hz", 47.5)
+log.field_str("state", "tracking")
+log.append(48_000, "seeded", bandwidth_hz=4.0e6)
+
+log.field("emitter", 3)
+log.append(4_048_000, "lost", sample_count=1024)
+
+log.finalize(str(d / "run.sigmf-meta"), fs=1.0e7)
+log.close()
+
+meta = json.loads((d / "run.sigmf-meta").read_text())
+first = meta["annotations"][0]
+assert first["core:sample_start"] == 48_000
+assert first["doppler:emitter"] == 3
+assert first["core:freq_upper_edge"] == 2.4e9 + 2.0e6
+assert "core:sample_count" not in first  # an instant, not a span
+assert meta["global"]["doppler:telemetry"]["path"] == "run.tlm"
+```
+
+One sidecar therefore indexes all three products of a run — the samples,
+the events, the telemetry — each in the format that suits its rate. A
+finalize does not end the log: a run that lasts hours can emit a sidecar
+an hour and keep appending.
+
 ## Instrumented objects
 
 Every tracking loop (and the AGC) exposes

@@ -49,7 +49,17 @@
 # a claim about handlers that process never installed, so the triplet would
 # be actively wrong rather than merely absent. The flag it fronts is
 # process-wide and outlives any guard.
+# The event log — a WRITER of a run's record, not a stage in the signal
+# path. It owns an open FILE* whose meaning ends at the OS handle (the
+# wfm_reader/wfm_writer case exactly), and everything else it holds is either
+# config given at open (the centre frequency, the dataset and telemetry
+# names) or the fields staged for the event being written, which belong to
+# that event and are cleared by it. Nothing downstream reads it, so a resumed
+# pipeline is bit-identical whether or not it came back. Resume by opening a
+# new log and appending: the annotations already on disk are the record, and
+# a sidecar can be rendered over any number of them.
 burst_demod
+dp_event_log
 dp_interrupt_guard
 dp_tlm
 dp_tlm_capture

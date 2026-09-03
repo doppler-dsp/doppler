@@ -102,6 +102,8 @@
 
 #include "dp_tlm_capture/dp_tlm_capture_core.h"
 
+#include "dp_event_log/dp_event_log_core.h"
+
 #include "ddc/ddc_core.h"
 
 #include "ddcr/ddcr_core.h"

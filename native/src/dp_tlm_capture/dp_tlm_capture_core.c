@@ -286,8 +286,7 @@ write_sidecar (const dp_tlm_capture_t *c)
         fprintf (f, "  \"epoch_real_ns\": %llu,\n",
                  (unsigned long long)c->clock->epoch_real_ns);
     }
-  fprintf (f, "  \"dtype\": [[\"n\", \"<u8\"], [\"value\", \"<f4\"],"
-              " [\"probe\", \"<u2\"], [\"flags\", \"<u2\"]],\n");
+  fprintf (f, "  \"dtype\": %s,\n", DP_TLM_REC_DTYPE_JSON);
   fprintf (f, "  \"probes\": {");
   size_t np = dp_tlm_probe_count (c->tlm);
   for (size_t i = 0; i < np; i++)

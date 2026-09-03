@@ -1799,7 +1799,7 @@ no_generate = "true"
 
 [module.telemetry]
 doc = """
-Telemetry: lightweight in-band probes (Telemetry) that record loop internals -- error, control, lock -- to a sink for offline analysis.
+Telemetry: lightweight in-band probes (Telemetry) that record loop internals -- error, control, lock -- to a sink for offline analysis, and the run's events (EventLog) as SigMF annotations beside them.
 
 Examples
 --------
@@ -1809,7 +1809,12 @@ Examples
 0
 
 """
-objects = ["dp_tlm", "dp_tlm_capture"]
+objects = ["dp_tlm", "dp_tlm_capture", "dp_event_log"]
+
+# EventLog joins them because the run's EVENTS and the run's TELEMETRY have one
+# owner: the holder that stamps both off the same sample clock, and gets one
+# SigMF sidecar indexing both --- the events as annotations, the telemetry as a
+# `doppler:telemetry` global pointing at the record file (design 8.1).
 
 [module.stream]
 doc = """
@@ -2888,7 +2893,7 @@ values = ["none", "xdelta", "core:sample_rate"]
 # wfm_t0_source_t (wfm_reader_core.h).
 [[enum]]
 name = "t0_source"
-values = ["none", "timecode"]
+values = ["none", "timecode", "sigmf"]
 
 # How a following read ended (docs/design/end-of-capture.md). "none" is index
 # 0 and is the state while the capture is still live; the rest name the three

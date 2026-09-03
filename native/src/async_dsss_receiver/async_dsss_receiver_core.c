@@ -284,6 +284,30 @@ adr_free_track_chain (async_dsss_receiver_state_t *s)
   s->dll = NULL;
 }
 
+/* Size the track chain's per-period scratch for the chain just built. One
+ * output per input sample bounds the Dll; the resampler's output is that
+ * times its rate plus its own margin. Grow-only, so a regrid to a lower
+ * rate leaves the larger buffer in place rather than churning. */
+static void
+adr_size_track_scratch (async_dsss_receiver_state_t *s)
+{
+  size_t need_dll = s->tsamps;
+  size_t need_rc  = (size_t)((double)s->tsamps * s->rc->rate) + 64;
+  if (s->track_dll_out_cap < need_dll)
+    {
+      free (s->track_dll_out_buf);
+      s->track_dll_out_buf
+          = dp_xmalloc (need_dll * sizeof *s->track_dll_out_buf);
+      s->track_dll_out_cap = need_dll;
+    }
+  if (s->track_rc_out_cap < need_rc)
+    {
+      free (s->track_rc_out_buf);
+      s->track_rc_out_buf = dp_xmalloc (need_rc * sizeof *s->track_rc_out_buf);
+      s->track_rc_out_cap = need_rc;
+    }
+}
+
 static void
 adr_rebuild_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
                          double doppler_hz_est, size_t segments, size_t sps,
@@ -304,6 +328,7 @@ adr_rebuild_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
   s->sps           = sps;
   s->n             = n;
   s->car_carry_len = 0;
+  adr_size_track_scratch (s);
   adr_reset_lock (s); /* fresh symbol-lock per pass */
 }
 
@@ -450,9 +475,28 @@ adr_track_period (async_dsss_receiver_state_t *s, const float complex *period,
   return n_out;
 }
 
+/* One carrier-wiped code period through the live chain: the Dll's
+ * partials, resampled to MpskReceiver's rate, demodulated into `out`. Every
+ * stage streams (state carries across calls), so running the chain a period
+ * at a time is the same computation as a block at a time -- and it is what
+ * lets the scratch be sized once per build instead of per push (#1192).
+ * Returns the symbols written. */
 static size_t
-adr_track_carrier_dll (async_dsss_receiver_state_t *s, const float complex *x,
-                       size_t x_len, float complex *dll_out, size_t max_out)
+adr_track_period_chain (async_dsss_receiver_state_t *s,
+                        const float complex *period, float complex *out,
+                        size_t max_out)
+{
+  size_t n_dll = adr_track_period (s, period, s->track_dll_out_buf,
+                                   s->track_dll_out_cap);
+  size_t n_rc
+      = RateConverter_execute (s->rc, s->track_dll_out_buf, n_dll,
+                               s->track_rc_out_buf, s->track_rc_out_cap);
+  return mpsk_receiver_steps (s->rx, s->track_rc_out_buf, n_rc, out, max_out);
+}
+
+static size_t
+adr_track_chain (async_dsss_receiver_state_t *s, const float complex *x,
+                 size_t x_len, float complex *out, size_t max_out)
 {
   size_t emitted = 0;
   size_t pos     = 0;
@@ -466,15 +510,15 @@ adr_track_carrier_dll (async_dsss_receiver_state_t *s, const float complex *x,
       pos = take;
       if (s->car_carry_len < s->tsamps)
         return 0;
-      emitted += adr_track_period (s, s->car_carry_buf, dll_out + emitted,
-                                   max_out - emitted);
+      emitted += adr_track_period_chain (s, s->car_carry_buf, out + emitted,
+                                         max_out - emitted);
       s->car_carry_len = 0;
     }
 
   while (pos + s->tsamps <= x_len)
     {
-      emitted += adr_track_period (s, x + pos, dll_out + emitted,
-                                   max_out - emitted);
+      emitted += adr_track_period_chain (s, x + pos, out + emitted,
+                                         max_out - emitted);
       pos += s->tsamps;
     }
 
@@ -483,27 +527,6 @@ adr_track_carrier_dll (async_dsss_receiver_state_t *s, const float complex *x,
     memcpy (s->car_carry_buf, x + pos, leftover * sizeof (*x));
   s->car_carry_len = leftover;
 
-  return emitted;
-}
-
-static size_t
-adr_track_chain (async_dsss_receiver_state_t *s, const float complex *x,
-                 size_t x_len, float complex *out, size_t max_out)
-{
-  if (x_len == 0)
-    return 0;
-
-  float complex *dll_out = dp_xmalloc (x_len * sizeof *dll_out);
-  size_t         n_dll   = adr_track_carrier_dll (s, x, x_len, dll_out, x_len);
-
-  size_t         rc_cap = (size_t)((double)n_dll * s->rc->rate) + 64;
-  float complex *rc_out = dp_xmalloc (rc_cap * sizeof *rc_out);
-  size_t n_rc = RateConverter_execute (s->rc, dll_out, n_dll, rc_out, rc_cap);
-  free (dll_out);
-
-  size_t n_out = mpsk_receiver_steps (s->rx, rc_out, n_rc, out, max_out);
-  free (rc_out);
-
   /* Symbol-lock detector: per emitted symbol, integrate the BPSK phase-lock
    * signal (I^2-Q^2)/(I^2+Q^2) = cos(2*phi) as a POWER-WEIGHTED (i.e. SNR-
    * weighted) running mean -- separate EMAs of the numerator and the total
@@ -511,7 +534,7 @@ adr_track_chain (async_dsss_receiver_state_t *s, const float complex *x,
    * noise/transient one contributes little -- then step the hysteretic lockdet
    * on the ratio. dwell = 1/lock_alpha >= LOCK_DWELL. See the
    * ASYNC_DSSS_RX_LOCK_* defines. */
-  for (size_t i = 0; i < n_out; i++)
+  for (size_t i = 0; i < emitted; i++)
     {
       double re   = (double)crealf (out[i]);
       double im   = (double)cimagf (out[i]);
@@ -520,7 +543,7 @@ adr_track_chain (async_dsss_receiver_state_t *s, const float complex *x,
       s->lock_metric = (s->lock_den > 0.0) ? s->lock_num / s->lock_den : 0.0;
       (void)lockdet_step (&s->sym_lockdet, s->lock_metric);
     }
-  return n_out;
+  return emitted;
 }
 
 /* The one constructor behind both flavors. `with_search` decides whether
@@ -611,6 +634,7 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
   obj->sps           = sps;
   obj->n             = adr_derive_m_out (sps);
   obj->car_carry_len = 0; /* both placeholder builds share this buffer */
+  adr_size_track_scratch (obj);
 
   obj->seed_chip_phase     = 0.0;
   obj->seed_doppler_hz_est = 0.0;
@@ -670,6 +694,8 @@ async_dsss_receiver_destroy (async_dsss_receiver_state_t *state)
     return;
   adr_free_track_chain (state);
   adr_free_refine_chain (state);
+  free (state->track_dll_out_buf);
+  free (state->track_rc_out_buf);
   free (state->car_wiped_buf);
   free (state->car_carry_buf);
   acq_destroy (state->acq);

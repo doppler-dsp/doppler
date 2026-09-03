@@ -90,6 +90,10 @@ _Composed receiver state._ [More...](#detailed-description)
 |  uint64\_t | [**state\_samples**](#variable-state_samples)  <br> |
 |  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**sym\_lockdet**](#variable-sym_lockdet)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
+|  float complex \* | [**track\_dll\_out\_buf**](#variable-track_dll_out_buf)  <br> |
+|  size\_t | [**track\_dll\_out\_cap**](#variable-track_dll_out_cap)  <br> |
+|  float complex \* | [**track\_rc\_out\_buf**](#variable-track_rc_out_buf)  <br> |
+|  size\_t | [**track\_rc\_out\_cap**](#variable-track_rc_out_cap)  <br> |
 |  size\_t | [**tsamps**](#variable-tsamps)  <br> |
 
 
@@ -937,6 +941,58 @@ lockdet_state_t async_dsss_receiver_state_t::sym_lockdet;
 
 ```C++
 double async_dsss_receiver_state_t::symbol_rate;
+```
+
+
+
+
+<hr>
+
+
+
+### variable track\_dll\_out\_buf 
+
+```C++
+float complex* async_dsss_receiver_state_t::track_dll_out_buf;
+```
+
+
+
+
+<hr>
+
+
+
+### variable track\_dll\_out\_cap 
+
+```C++
+size_t async_dsss_receiver_state_t::track_dll_out_cap;
+```
+
+
+
+
+<hr>
+
+
+
+### variable track\_rc\_out\_buf 
+
+```C++
+float complex* async_dsss_receiver_state_t::track_rc_out_buf;
+```
+
+
+
+
+<hr>
+
+
+
+### variable track\_rc\_out\_cap 
+
+```C++
+size_t async_dsss_receiver_state_t::track_rc_out_cap;
 ```
 
 

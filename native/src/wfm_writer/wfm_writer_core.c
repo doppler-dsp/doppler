@@ -842,10 +842,52 @@ sigmf_datatype (int stype, int be, char *out, size_t cap)
     snprintf (out, cap, "%c%s_%s", pfx, ELEMNAME[k], be ? "be" : "le");
 }
 
+/* Merge one caller-supplied JSON object's members into `dst`, replacing a key
+   that is already there rather than adding a second copy of it -- cJSON is
+   happy to hold duplicates, and a document with two "core:dataset" keys is a
+   document whose meaning depends on which one the reader finds first. */
+static void
+merge_object (cJSON *dst, const char *json)
+{
+  if (!dst || !json || !*json)
+    return;
+  cJSON *extra = cJSON_Parse (json);
+  if (!extra || !cJSON_IsObject (extra))
+    {
+      cJSON_Delete (extra);
+      return;
+    }
+  cJSON *it = extra->child;
+  while (it)
+    {
+      cJSON *next = it->next;
+      cJSON *dup  = cJSON_Duplicate (it, 1);
+      if (dup)
+        {
+          if (cJSON_GetObjectItemCaseSensitive (dst, it->string))
+            cJSON_ReplaceItemInObjectCaseSensitive (dst, it->string, dup);
+          else
+            cJSON_AddItemToObject (dst, it->string, dup);
+        }
+      it = next;
+    }
+  cJSON_Delete (extra);
+}
+
 char *
 wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
                      double t0_unix_sec, const wfm_segment_t *segs,
                      size_t n_segs)
+{
+  return wfm_sigmf_meta_json_ex (sample_type, endian, fs, fc, t0_unix_sec,
+                                 segs, n_segs, NULL, NULL, 0);
+}
+
+char *
+wfm_sigmf_meta_json_ex (int sample_type, int endian, double fs, double fc,
+                        double t0_unix_sec, const wfm_segment_t *segs,
+                        size_t n_segs, const char *extra_global_json,
+                        const char *const *annotations, size_t n_ann)
 {
   cJSON *root = cJSON_CreateObject ();
   if (!root)
@@ -892,6 +934,12 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
   cJSON_AddStringToObject (g, "core:version", "1.0.0");
   cJSON_AddStringToObject (g, "core:description", "doppler wfmgen");
   cJSON_AddStringToObject (g, "core:author", "doppler wfmgen");
+  /* The caller's own `global` members -- a `core:dataset` naming the file
+     these annotations index, a `core:metadata_only` when nothing was
+     recorded, a `doppler:telemetry` pointing at the run's record file. They
+     go in HERE, through the one emitter, rather than in a second document
+     builder that would have to restate the omit rules above. */
+  merge_object (g, extra_global_json);
 
   cJSON *caps = cJSON_AddArrayToObject (root, "captures");
   cJSON *cap0 = cJSON_CreateObject ();
@@ -1025,6 +1073,22 @@ wfm_sigmf_meta_json (int sample_type, int endian, double fs, double fc,
       }
     }
   free (rows);
+
+  /* Annotations the caller already rendered (dp_event_log's flat file is one
+     JSON object per line). Appended AFTER the segments' so a document that
+     carries both reads in the order it was produced. A line cJSON rejects is
+     skipped rather than fatal: a killed run leaves a truncated last line, and
+     losing the whole run to it would be the wrong trade. */
+  for (size_t i = 0; annotations && i < n_ann; i++)
+    {
+      if (!annotations[i])
+        continue;
+      cJSON *a = cJSON_Parse (annotations[i]);
+      if (a && cJSON_IsObject (a))
+        cJSON_AddItemToArray (anns, a);
+      else
+        cJSON_Delete (a);
+    }
 
   char *out = cJSON_PrintUnformatted (root);
   cJSON_Delete (root);

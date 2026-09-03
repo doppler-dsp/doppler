@@ -130,6 +130,7 @@ _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed
 | define  | [**DP\_TLM**](dp__tlm__core_8h.md#define-dp_tlm) (ctx, id, v) `[**dp\_tlm\_emit**](dp__tlm__core_8h.md#function-dp_tlm_emit) ((ctx), (id), (v))`<br>_Probe-site wrapper around_ [_**dp\_tlm\_emit()**_](dp__tlm__core_8h.md#function-dp_tlm_emit) _._ |
 | define  | [**DP\_TLM\_MAX\_PROBES**](dp__tlm__core_8h.md#define-dp_tlm_max_probes)  `64`<br> |
 | define  | [**DP\_TLM\_NAME\_MAX**](dp__tlm__core_8h.md#define-dp_tlm_name_max)  `32`<br> |
+| define  | [**DP\_TLM\_REC\_DTYPE\_JSON**](dp__tlm__core_8h.md#define-dp_tlm_rec_dtype_json)  `/* multi line expression */`<br>[_**dp\_tlm\_rec\_t**_](structdp__tlm__rec__t.md) _as a numpy-style dtype, in JSON, for a sidecar._ |
 
 ## Detailed Description
 
@@ -1145,6 +1146,24 @@ Maximum probes per context. Registration fails once full.
 
 
 Maximum probe-name length including the NUL terminator. 
+
+
+        
+
+<hr>
+
+
+
+### define DP\_TLM\_REC\_DTYPE\_JSON 
+
+[_**dp\_tlm\_rec\_t**_](structdp__tlm__rec__t.md) _as a numpy-style dtype, in JSON, for a sidecar._
+```C++
+#define DP_TLM_REC_DTYPE_JSON `/* multi line expression */`
+```
+
+
+
+A record file is just these 16 bytes repeated, so the dtype is what makes it self-describing — `np.fromfile` needs nothing else and no doppler code at all. It is a macro rather than a string in each writer because there are two of them (dp\_tlm\_capture's `<path>-meta`, and the `doppler:telemetry` global dp\_event\_log puts in a SigMF sidecar), and two spellings of one struct's layout is a drift waiting for the day a field moves. 
 
 
         

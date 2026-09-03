@@ -56,9 +56,12 @@ _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for nam
 
 | Type | Name |
 | ---: | :--- |
+|  int64\_t | [**dp\_isotime\_days\_from\_civil\_**](#function-dp_isotime_days_from_civil_) (int64\_t y, unsigned m, unsigned d) <br>_Days since 1970-01-01 for a proleptic-Gregorian civil date._  |
+|  int | [**dp\_isotime\_digits\_**](#function-dp_isotime_digits_) (const char \*\* p, int n, int \* out) <br>_Reads_ `n` _decimal digits, advancing_`p` _. 0 on success._ |
 |  int | [**dp\_isotime\_format**](#function-dp_isotime_format) (char \* buf, size\_t cap, int64\_t sec, uint32\_t nsec, unsigned frac) <br> |
 |  int | [**dp\_isotime\_format\_as**](#function-dp_isotime_format_as) (char \* buf, size\_t cap, int64\_t sec, uint32\_t nsec, unsigned frac, int style) <br> |
 |  int | [**dp\_isotime\_now**](#function-dp_isotime_now) (char \* buf, size\_t cap, unsigned frac) <br> |
+|  int | [**dp\_isotime\_parse**](#function-dp_isotime_parse) (const char \* s, int64\_t \* sec, uint32\_t \* nsec) <br>_Parses an ISO 8601 UTC timestamp into UNIX seconds + nanoseconds._  |
 
 
 
@@ -124,6 +127,46 @@ Header-only, like `dp_crc16.h`, so no component grows a link-line dependency for
     
 ## Public Static Functions Documentation
 
+
+
+
+### function dp\_isotime\_days\_from\_civil\_ 
+
+_Days since 1970-01-01 for a proleptic-Gregorian civil date._ 
+```C++
+static inline int64_t dp_isotime_days_from_civil_ (
+    int64_t y,
+    unsigned m,
+    unsigned d
+) 
+```
+
+
+
+Howard Hinnant's `days_from_civil`, which is exact for every date and needs no timezone database. Written out rather than reached through `timegm`: that function is neither C nor POSIX, and the one thing this parser must never do is consult the ambient `TZ`. 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_isotime\_digits\_ 
+
+_Reads_ `n` _decimal digits, advancing_`p` _. 0 on success._
+```C++
+static inline int dp_isotime_digits_ (
+    const char ** p,
+    int n,
+    int * out
+) 
+```
+
+
+
+
+<hr>
 
 
 
@@ -255,6 +298,56 @@ As dp\_isotime\_format, or -1 if the clock read fails.
 
 
 
+
+
+        
+
+<hr>
+
+
+
+### function dp\_isotime\_parse 
+
+_Parses an ISO 8601 UTC timestamp into UNIX seconds + nanoseconds._ 
+```C++
+static inline int dp_isotime_parse (
+    const char * s,
+    int64_t * sec,
+    uint32_t * nsec
+) 
+```
+
+
+
+Accepts both spellings this file writes — extended (`2026-08-05T04:15:30.123456Z`) and basic (`20260805T041530Z`) — with an optional fraction of one to nine digits, and either `Z` or an explicit `+hh:mm` / `-hhmm` offset, which is applied.
+
+
+**A timestamp with NO zone is REFUSED.** It is the one input where guessing costs hours rather than nothing: read as UTC, a local-time stamp dates a capture wrong and looks authoritative doing it. A caller that cannot parse a start time has ways to say so (the reader reports WFM\_T0\_NONE); a caller holding a wrong one does not.
+
+
+
+
+**Parameters:**
+
+
+* `s` The timestamp. 
+* `sec` Receives UNIX seconds (may be negative, before 1970). 
+* `nsec` Receives the nanoseconds part, 0 when no fraction is given. 
+
+
+
+**Returns:**
+
+0 on success, -1 on a NULL argument or any malformed field.
+
+
+
+```C++
+int64_t  sec;
+uint32_t nsec;
+dp_isotime_parse ("1970-01-01T00:00:01Z", &sec, &nsec);  // sec == 1
+```
+ 
 
 
         

@@ -52,11 +52,14 @@ extern "C"
 
   typedef enum
   {
-    WFM_T0_NONE = 0,     
-    WFM_T0_BLUE_TIMECODE 
-    /* SigMF `core:datetime` is an ISO 8601 STRING and needs a parser this
-       reader does not have yet; such a capture reports WFM_T0_NONE rather
-       than a guess. */
+    WFM_T0_NONE = 0,      
+    WFM_T0_BLUE_TIMECODE, 
+    WFM_T0_SIGMF          
+    /* The SigMF spelling is an ISO 8601 string, parsed by
+       dp_isotime_parse(). A stamp carrying no zone is REFUSED there rather
+       than read as UTC, so such a capture still reports WFM_T0_NONE: being
+       wrong by hours looks authoritative in a way that reporting nothing
+       does not. */
   } wfm_t0_source_t;
 
   typedef enum

@@ -876,9 +876,9 @@ and for nothing else in the stream:
     (< 500 Hz/s in the spec). The claim rule across windows is then
     "same signal, next frame", not "same preamble".
 - **Emitters come and go, at their own frequencies, and the bank is
-    always on the air.** An emitter rises into the band at some Doppler,
+    always on the air.** An emitter comes into view in the band at some Doppler,
     is acquired at its next data-free window, is handed to a tracker, keeps
-    transmitting while others rise and set around it, and eventually
+    transmitting while others come into and leave view around it, and eventually
     leaves. The bank never stops searching: a channel that has handed one
     emitter off must go on watching its band for the next, and an emitter
     that drops out must be noticed and re-acquired when it returns. That is
@@ -963,7 +963,7 @@ record — is already there.
 
 - **It always has to be searching.** A channel never stops acquiring: the
     emitter it just handed off keeps transmitting in its band while a
-    second one rises beside it, and the first one's loss has to be noticed
+    second one comes into view beside it, and the first one's loss has to be noticed
     by something that is still looking. That rules out
     `AsyncDsssReceiver` as the channel — its state machine *replaces* the
     search with refining and then tracking, feeding every sample to the
@@ -1055,15 +1055,14 @@ of it is re-derived here (§5):
 - **The population**: **at least one emitter is
     always on**, there may be **up to 10 at once**, and each is on for **5
     to 15 minutes** on average. So the surface never has fewer than one
-    peak, has up to ten, and an emitter rises or sets about once a minute
-    at the full population. **An emitter transmits continuously; a rise
-    is visibility, not power-up** (maintainer, 2026-09-03): it comes into
-    view at whatever point of its frame it has reached, mid-payload as
+    peak, has up to ten, and an emitter comes into or leaves view about once a minute
+    at the full population. **An emitter transmits continuously, and coming into view is not
+    powering up** (maintainer, 2026-09-03): it appears at whatever point of its frame it has reached, mid-payload as
     often as not, and its first window arrives at its own phase,
-    uniformly within one frame — so the acquisition latency after a rise
+    uniformly within one frame — so the acquisition latency after an emitter appears
     is bounded by a frame (1.1 s at 5 Mcps, 2.8 at 2) and averages half
     of one. Every window of every emitter is a re-acquisition
-    opportunity, and a rise between two of them is the normal event the
+    opportunity, and an emitter appearing between two of them is the normal event the
     searcher exists for. This answers `burst-bank.md`
     §11.4's question 6: the receiver pool is sized at ten plus release
     headroom (§10), and the soak's population is known (§12 step 7).
@@ -1148,7 +1147,7 @@ strongest. The rest are not below threshold; they are simply not looked
 at. In the burst use case that costs little — bursts are short and rarely
 overlap in one channel. In the continuous case the strongest emitter is up
 for hours, and every dwell for those hours reports it and nothing else, so
-a second emitter rising beside it is **never** acquired while the first is
+a second emitter appearing beside it is **never** acquired while the first is
 on the air. Nor does hand-off help: the assigned receiver goes on tracking
 the first emitter, the searcher goes on re-detecting it at every data-free
 window (the suppression-by-emitter §5.3 asks the bank
@@ -1923,7 +1922,7 @@ ______________________________________________________________________
     on, up to ten, on-times drawn around 5 to 15 minutes — at random
     Dopplers within one span and a spread on each side of the knee. Each
     emitter's synth runs for the whole soak and visibility is a gain of 1
-    or 0 at the sum, so a rise lands at a random frame phase and nothing
+    or 0 at the sum, so an emitter appears at a random frame phase and nothing
     in the source restarts (§6.1); the phase at first sight is a random
     burn-in, the way the harnesses already set code phase. Each
     is acquired once, assigned once, tracked by the same receiver until

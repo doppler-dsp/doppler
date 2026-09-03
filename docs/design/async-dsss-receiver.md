@@ -269,6 +269,21 @@ keeps the engine usable by a baseband-only caller with no carrier at all.
     of uncertainty, so a per-tile DDC cannot decimate and only adds a
     mixer per tile (§6.4's 14–33× real time). The comparison is a count
     until §12 step 14 makes it a number.
+- **A roll per thread (decided 2026-09-03).** The tiles are independent
+    after the one forward transform: each reads the shared spectrum and
+    writes its own rows of the surface, so the tile loop is a
+    `dp_parallel_for` over tiles, one inverse transform and, at `D > 1`,
+    one slow-time transform per tile on whichever thread takes it. The
+    plan carries scratch, so each thread owns an inverse plan and a product
+    buffer — a few KB — and nothing else is shared. This keeps the one
+    forward transform the slice across engines repeated (§12.1's 6–11%),
+    needs no LO in front of a slice, and keeps the peak list and the twin
+    rule (§7.1) on **one** surface, where a slice boundary would have cut
+    an exclusion zone in two. It is the block mode that makes it cheap:
+    per-call worker creation is a few percent of a `D`-epoch push and
+    would have been a quarter to a half of an epoch's. Thread count is the
+    engine's parameter, default the core count; the noise estimate and the
+    list stay serial after the fan.
 - **What it costs, before it is measured.** The slow-time transform
     runs once per block per tile, so per epoch it is of the order of the
     epoch transform it sits behind; the searcher's cost stays near §12.1's
@@ -1487,8 +1502,9 @@ another code, another frame, another population is another `create()`.
 Everything it holds is sized once, at create:
 
 - **One searcher** — `Acquisition` in continuous mode with the block
-    coherence of §2.3 and `max_peaks` of order 16 (§7.1) — on the calling
-    thread.
+    coherence of §2.3 and `max_peaks` of order 16 (§7.1) — its tiles fanned
+    a roll per thread across the threads the pool is given, the forward
+    transform and the list on the calling thread.
 - **`n_slots` hand-off receivers** — twelve here, §10's ten plus release
     headroom — created
     idle. An idle or lost receiver consumes and discards what it is fed,
@@ -1953,9 +1969,12 @@ ______________________________________________________________________
     within its dwell, and no release fires — one flag down is a degrade.
     If the flag reads a pure-code stretch as unhealthy, that is a
     detector finding to fix, not a rule to loosen.
-1. **The searcher's cost with `D`.** Step 8's per-tile number again
-    with the block transform in it, at both ends of the rate range and
-    both uncertainties, beside the memory per channel.
+1. **The searcher's cost with `D`, and its scaling across threads.**
+    Step 8's per-tile number again with the block transform in it, at both
+    ends of the rate range and both uncertainties, beside the memory per
+    channel; then the same push at 1, 2, 4 and 8 threads with a roll per
+    thread — the fraction of the tiles' cost that scales, and the
+    per-push tax against the 31 ms block.
 
 Steps 1–4 are Python over the shipped engine plus the peak-list primitive,
 and are the same harness the burst characterization already runs. Steps
@@ -2003,10 +2022,14 @@ Seven things this settles, and one it corrects:
     ±50 kHz (`op5M_U17k`, 7 tiles; `op2M_U17k`, 19) costs 75 and 192 ns
     per output sample, so three of them are 225 and 576 against the single
     engine's 213 and 520 — **6% and 11% for the slice**, the forward FFT
-    repeated per slice being worth about one tile. The split across
-    engines needs nothing new inside the engine and is the shape to take;
-    a slice engine needs its slice's centre mixed to zero in front of it,
-    which is an LO at rate 1, a few ns more.
+    repeated per slice being worth about one tile. **Superseded
+    (2026-09-03): the split is a roll per thread inside the engine** —
+    see the bullet below §2.3 and §8.2. The slice was the shape to take
+    while the engine pushed one epoch at a time, because `dp_parallel_for`
+    creates its workers per call at ~15 µs each (`burst-bank.md` §10.4)
+    and an epoch is 205–512 µs: eight workers would have cost 25–60% of
+    the work. The block mode pushes `D` epochs at a time — 31 ms — and
+    the same tax is 0.4%.
 - **Doppler pre-compensation is worth 6–7× on the searcher** — 0.36 and
     0.30 of a core over ±5 kHz — and nothing on anyone else. With it the
     searcher fits on one core with room; without it the partition above is

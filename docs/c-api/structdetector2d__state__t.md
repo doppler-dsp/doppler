@@ -50,7 +50,6 @@ _2-D signal detector state._ [More...](#detailed-description)
 |  float \_Complex \* | [**out\_buf**](#variable-out_buf)  <br> |
 |  size\_t | [**peak\_col**](#variable-peak_col)  <br> |
 |  float | [**peak\_mag**](#variable-peak_mag)  <br> |
-|  uint8\_t \* | [**peak\_mask**](#variable-peak_mask)  <br> |
 |  size\_t | [**peak\_row**](#variable-peak_row)  <br> |
 |  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
 |  size\_t | [**ring\_cap**](#variable-ring_cap)  <br> |
@@ -339,24 +338,6 @@ float detector2d_state_t::peak_mag;
 
 
 
-
-<hr>
-
-
-
-### variable peak\_mask 
-
-```C++
-uint8_t* detector2d_state_t::peak_mask;
-```
-
-
-
-det\_peak\_list's working mask (ny\*nx). 
- 
-
-
-        
 
 <hr>
 

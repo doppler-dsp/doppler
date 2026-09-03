@@ -119,6 +119,26 @@ det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
 {
   const size_t n     = ny * nx;
   size_t       count = 0;
+  if (!mask)
+    {
+      /* One peak, no zone to carry: the argmax, and the same pick the
+         masked loop below makes (strict `>`, so the first maximum wins).
+         The plain loop on purpose: a four-lane unrolled form runs 4x
+         faster in isolation but moves detector2d::push by nothing
+         measurable (doppler#1208), so the simple one stays. */
+      if (n == 0)
+        return 0;
+      size_t best = 0;
+      for (size_t k = 1; k < n; k++)
+        if (surf[k] > surf[best])
+          best = k;
+      if (!(surf[best] > gate))
+        return 0;
+      out[0].row   = best / nx;
+      out[0].col   = best % nx;
+      out[0].value = surf[best];
+      return 1;
+    }
   while (count < max_peaks)
     {
       size_t best = n;

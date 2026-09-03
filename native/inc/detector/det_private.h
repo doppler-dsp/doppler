@@ -146,6 +146,15 @@ typedef struct
  * marked as well. Nothing here allocates, and the cost is `max_peaks`
  * scans of the surface plus the zones -- the duration rule of §5.1.
  *
+ * **`mask` may be NULL when `max_peaks` is 1.** The mask exists to carry a
+ * pick's zone to the next pick; with one pick there is no next, and every
+ * cell is a candidate. The call is then the classic detector's own loop --
+ * one pass, one compare per cell, nothing written -- rather than a mask
+ * cleared over the surface and read back once per cell for a zone that is
+ * never applied. Measured (doppler#1208): the masked form at one peak cost
+ * `detector2d::push` 22-43%. A NULL mask with `max_peaks > 1` is a caller
+ * error and lists one peak.
+ *
  * @param surf      The surface, row-major `ny x nx`.
  * @param ny, nx    Its geometry.
  * @param gate      A peak must exceed this (strictly) to be listed.
@@ -163,6 +172,26 @@ det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
 {
   const size_t n     = ny * nx;
   size_t       count = 0;
+  if (!mask)
+    {
+      /* One peak, no zone to carry: the argmax, and the same pick the
+         masked loop below makes (strict `>`, so the first maximum wins).
+         The plain loop on purpose: a four-lane unrolled form runs 4x
+         faster in isolation but moves detector2d::push by nothing
+         measurable (doppler#1208), so the simple one stays. */
+      if (n == 0)
+        return 0;
+      size_t best = 0;
+      for (size_t k = 1; k < n; k++)
+        if (surf[k] > surf[best])
+          best = k;
+      if (!(surf[best] > gate))
+        return 0;
+      out[0].row   = best / nx;
+      out[0].col   = best % nx;
+      out[0].value = surf[best];
+      return 1;
+    }
   while (count < max_peaks)
     {
       size_t best = n;

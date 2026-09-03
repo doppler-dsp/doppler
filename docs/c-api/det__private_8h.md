@@ -195,6 +195,9 @@ The one argmax under both detectors (docs/design/async-dsss-receiver.md §7.1, �
 `mask` is the caller's, `ny * nx` bytes, initialised by the caller: 0 for a candidate cell, non-zero for one that is never a candidate (a Doppler band the engine does not search). On return every listed peak's zone is marked as well. Nothing here allocates, and the cost is `max_peaks` scans of the surface plus the zones  the duration rule of §5.1.
 
 
+\*\*`mask` may be NULL when `max_peaks` is 1.\*\* The mask exists to carry a pick's zone to the next pick; with one pick there is no next, and every cell is a candidate. The call is then the classic detector's own loop  one pass, one compare per cell, nothing written  rather than a mask cleared over the surface and read back once per cell for a zone that is never applied. Measured (doppler#1208): the masked form at one peak cost `detector2d::push` 22-43%. A NULL mask with `max_peaks > 1` is a caller error and lists one peak.
+
+
 
 
 **Parameters:**

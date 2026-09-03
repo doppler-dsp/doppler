@@ -48,7 +48,7 @@ runs:
         echo "CCACHE_COMPILERCHECK=content" >> "$GITHUB_ENV"
 
     - name: Restore ccache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ github.workspace }}/.ccache
         # Rolling key: every run saves under its own SHA, and the prefix

@@ -103,6 +103,7 @@ _A run's events as SigMF annotations: appended live, finalized at close._ [More.
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**DP\_EVENT\_LOG\_LINE\_MAX**](dp__event__log__core_8h.md#define-dp_event_log_line_max)  `16384`<br> |
 | define  | [**DP\_EVENT\_LOG\_MAX\_FIELDS**](dp__event__log__core_8h.md#define-dp_event_log_max_fields)  `16`<br> |
 | define  | [**DP\_EVENT\_LOG\_NAME\_MAX**](dp__event__log__core_8h.md#define-dp_event_log_name_max)  `32`<br> |
 | define  | [**DP\_EVENT\_LOG\_STR\_MAX**](dp__event__log__core_8h.md#define-dp_event_log_str_max)  `64`<br> |
@@ -225,7 +226,7 @@ Writes one JSON object on one line and flushes it, so a reader tailing the file 
 
 **Returns:**
 
-[**DP\_OK**](clib__common_8h.md#define-dp_ok), [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) on NULL or a closed log, or [**DP\_ERR\_SEND**](clib__common_8h.md#define-dp_err_send) if the line could not be written.
+[**DP\_OK**](clib__common_8h.md#define-dp_ok), [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) on NULL, a closed log, or an event that renders to [**DP\_EVENT\_LOG\_LINE\_MAX**](dp__event__log__core_8h.md#define-dp_event_log_line_max) bytes or more, or [**DP\_ERR\_SEND**](clib__common_8h.md#define-dp_err_send) if the line could not be written.
 
 
 
@@ -699,6 +700,9 @@ The finalize step with no live log, which is what makes the flat file worth havi
 A line the parser rejects is SKIPPED, not fatal: a killed run leaves a truncated last line, and refusing to describe the hours before it would lose the whole run to its final millisecond.
 
 
+A file that is not an event log is REFUSED, not read: a path that is not a regular file (a device reads as an endless stream, and `/dev/full` once took a machine down through here), or a line reaching [**DP\_EVENT\_LOG\_LINE\_MAX**](dp__event__log__core_8h.md#define-dp_event_log_line_max) (a capture, a binary). Both return [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) before a sidecar is written.
+
+
 
 
 **Parameters:**
@@ -718,7 +722,7 @@ A line the parser rejects is SKIPPED, not fatal: a killed run leaves a truncated
 
 **Returns:**
 
-[**DP\_OK**](clib__common_8h.md#define-dp_ok), [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) on NULL arguments, [**DP\_ERR\_SEND**](clib__common_8h.md#define-dp_err_send) if the log could not be read or the sidecar written, or [**DP\_ERR\_MEMORY**](clib__common_8h.md#define-dp_err_memory). 
+[**DP\_OK**](clib__common_8h.md#define-dp_ok), [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) on NULL arguments or a file that is not an event log, [**DP\_ERR\_SEND**](clib__common_8h.md#define-dp_err_send) if the log could not be read or the sidecar written, or [**DP\_ERR\_MEMORY**](clib__common_8h.md#define-dp_err_memory). 
 
 
 
@@ -730,6 +734,23 @@ A line the parser rejects is SKIPPED, not fatal: a killed run leaves a truncated
 ## Macro Definition Documentation
 
 
+
+
+
+### define DP\_EVENT\_LOG\_LINE\_MAX 
+
+```C++
+#define DP_EVENT_LOG_LINE_MAX `16384`
+```
+
+
+
+Longest line, in bytes without the newline, that the writer will emit and the reader will accept. One number on both sides, applied where the line exists: [**dp\_event\_log\_append()**](dp__event__log__core_8h.md#function-dp_event_log_append) refuses a rendered event that reaches it, and [**dp\_event\_log\_write\_meta()**](dp__event__log__core_8h.md#function-dp_event_log_write_meta) treats a line that reaches it as proof the file is not an event log  a capture handed over by mistake, a device  and stops rather than growing a buffer without bound. A full staging table of worst-case JSON-escaped strings renders under 10 KiB, so nothing the writer can be asked to write comes near it. 
+
+
+        
+
+<hr>
 
 
 

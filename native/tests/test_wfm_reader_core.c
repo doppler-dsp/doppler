@@ -1132,15 +1132,14 @@ open_with_datetime (const char *path, const char *datetime, double *t0_out,
 {
   char  mpath[256];
   FILE *mf;
-  snprintf (mpath, sizeof mpath, "%.*s.sigmf-meta",
-            (int)(strlen (path) - 11), path); /* strip .sigmf-data */
+  snprintf (mpath, sizeof mpath, "%.*s.sigmf-meta", (int)(strlen (path) - 11),
+            path); /* strip .sigmf-data */
   mf = fopen (mpath, "w");
   if (!mf)
     return -1;
-  fprintf (mf,
-           "{\"global\":{\"core:datatype\":\"cf32_le\","
-           "\"core:version\":\"1.0.0\"},"
-           "\"captures\":[{\"core:sample_start\":0");
+  fprintf (mf, "{\"global\":{\"core:datatype\":\"cf32_le\","
+               "\"core:version\":\"1.0.0\"},"
+               "\"captures\":[{\"core:sample_start\":0");
   if (datetime)
     fprintf (mf, ",\"core:datetime\":\"%s\"", datetime);
   fprintf (mf, "}],\"annotations\":[]}");
@@ -1165,9 +1164,9 @@ open_with_datetime (const char *path, const char *datetime, double *t0_out,
 static int
 test_sigmf_datetime_every_spelling (void)
 {
-  const char    *path  = "dp_reader_dt.sigmf-data";
+  const char *path     = "dp_reader_dt.sigmf-data";
   float _Complex xs[4] = { 0 };
-  FILE          *df    = fopen (path, "wb");
+  FILE *df             = fopen (path, "wb");
   DP_REQUIRE (df != NULL);
   DP_REQUIRE (fwrite (xs, sizeof xs[0], 4, df) == 4);
   DP_REQUIRE (fclose (df) == 0);
@@ -1181,28 +1180,27 @@ test_sigmf_datetime_every_spelling (void)
   } ok_cases[] = {
     { "1970-01-01T00:00:00Z", 0.0 },
     { "2026-08-05T04:15:30Z", T },
-    { "20260805T041530Z", T },                    /* basic spelling      */
-    { "2026-08-05T04:15:30.5Z", T + 0.5 },        /* one fraction digit  */
+    { "20260805T041530Z", T },             /* basic spelling      */
+    { "2026-08-05T04:15:30.5Z", T + 0.5 }, /* one fraction digit  */
     { "2026-08-05T04:15:30.123456Z", T + 0.123456 },
     { "2026-08-05T04:15:30.1234567891Z", T + 0.123456789 }, /* >9, cut   */
-    { "2026-08-05T04:15:30,25Z", T + 0.25 },      /* comma fraction      */
-    { "2026-08-05t04:15:30Z", T },                /* lowercase T         */
-    { "2026-08-05 04:15:30Z", T },                /* space separator     */
-    { "2026-08-05T05:15:30+01:00", T },           /* offset, applied     */
-    { "2026-08-05T03:15:30-0100", T },            /* basic offset        */
-    { "2026-08-05T04:15:30z", T },                /* lowercase zone      */
-    { "2016-12-31T23:59:60Z", 1483228800.0 },     /* leap second         */
+    { "2026-08-05T04:15:30,25Z", T + 0.25 },  /* comma fraction      */
+    { "2026-08-05t04:15:30Z", T },            /* lowercase T         */
+    { "2026-08-05 04:15:30Z", T },            /* space separator     */
+    { "2026-08-05T05:15:30+01:00", T },       /* offset, applied     */
+    { "2026-08-05T03:15:30-0100", T },        /* basic offset        */
+    { "2026-08-05T04:15:30z", T },            /* lowercase zone      */
+    { "2016-12-31T23:59:60Z", 1483228800.0 }, /* leap second         */
   };
   for (size_t i = 0; i < sizeof ok_cases / sizeof *ok_cases; i++)
     {
-      double t0 = -1.0;
+      double t0  = -1.0;
       int    src = -1;
       DP_REQUIRE_MSG (open_with_datetime (path, ok_cases[i].stamp, &t0, &src)
                           == 0,
                       "the sidecar did not parse");
       DP_REQUIRE_MSG (src == WFM_T0_SIGMF, ok_cases[i].stamp);
-      DP_REQUIRE_MSG (dp_near (t0, ok_cases[i].want, 1e-6),
-                      ok_cases[i].stamp);
+      DP_REQUIRE_MSG (dp_near (t0, ok_cases[i].want, 1e-6), ok_cases[i].stamp);
     }
 
   /* Refused, every one reporting "not found" rather than a plausible time.
@@ -1237,7 +1235,7 @@ test_sigmf_datetime_every_spelling (void)
   };
   for (size_t i = 0; i < sizeof bad_cases / sizeof *bad_cases; i++)
     {
-      double t0 = -1.0;
+      double t0  = -1.0;
       int    src = -1;
       DP_REQUIRE_MSG (open_with_datetime (path, bad_cases[i], &t0, &src) == 0,
                       "the sidecar did not parse");
@@ -1247,7 +1245,7 @@ test_sigmf_datetime_every_spelling (void)
 
   /* And a sidecar with no core:datetime at all — the common case. */
   {
-    double t0 = -1.0;
+    double t0  = -1.0;
     int    src = -1;
     DP_REQUIRE (open_with_datetime (path, NULL, &t0, &src) == 0);
     DP_REQUIRE (src == WFM_T0_NONE);

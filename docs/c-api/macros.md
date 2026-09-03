@@ -169,6 +169,7 @@
 * **DOPPLER\_CHANNEL\_MAX\_BLOCK** ([**doppler\_channel\_core.h**](doppler__channel__core_8h.md))
 * **DOPPLER\_CHANNEL\_STATE\_MAGIC** ([**doppler\_channel\_core.h**](doppler__channel__core_8h.md))
 * **DOPPLER\_CHANNEL\_STATE\_VERSION** ([**doppler\_channel\_core.h**](doppler__channel__core_8h.md))
+* **DP\_EVENT\_LOG\_LINE\_MAX** ([**dp\_event\_log\_core.h**](dp__event__log__core_8h.md))
 * **DP\_EVENT\_LOG\_MAX\_FIELDS** ([**dp\_event\_log\_core.h**](dp__event__log__core_8h.md))
 * **DP\_EVENT\_LOG\_NAME\_MAX** ([**dp\_event\_log\_core.h**](dp__event__log__core_8h.md))
 * **DP\_EVENT\_LOG\_STR\_MAX** ([**dp\_event\_log\_core.h**](dp__event__log__core_8h.md))

@@ -25,6 +25,7 @@ extern "C" {
 #define DP_EVENT_LOG_MAX_FIELDS 16
 #define DP_EVENT_LOG_NAME_MAX 32
 #define DP_EVENT_LOG_STR_MAX 64
+#define DP_EVENT_LOG_LINE_MAX 16384
 
 typedef struct dp_event_log dp_event_log_t;
 

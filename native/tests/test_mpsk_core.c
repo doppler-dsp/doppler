@@ -54,7 +54,7 @@ bits_set (unsigned v)
  * broken slicer.
  */
 static unsigned
-nearest_index_by_distance (float complex y, int m)
+nearest_index_by_distance (float _Complex y, int m)
 {
   double   phi0 = mpsk_phi0 (m);
   double   best = 1e300;
@@ -148,7 +148,7 @@ main (void)
      * axis-separability stated as a measurement. */
     for (unsigned g = 0; g < 4u; g++)
       {
-        float complex p = mpsk_constellation (g, 4);
+        float _Complex p = mpsk_constellation (g, 4);
         DP_CHECK_NEAR (fabs ((double)crealf (p)), (double)r2, 1e-6);
         DP_CHECK_NEAR (fabs ((double)cimagf (p)), (double)r2, 1e-6);
       }
@@ -162,7 +162,7 @@ main (void)
       int m = M_ALL[mi];
       for (unsigned g = 0; g < (unsigned)m; g++)
         {
-          float complex p = mpsk_constellation (g, m);
+          float _Complex p = mpsk_constellation (g, m);
           /* Unit amplitude — the premise every downstream claim rests on:
            * ahat is a valid carrier error only because |ahat| == 1. */
           DP_CHECK_NEAR (cabsf (p), 1.0, 1e-6);
@@ -196,8 +196,8 @@ main (void)
       int m = M_ALL[mi];
       for (unsigned g = 0; g < (unsigned)m; g++)
         {
-          float complex ahat;
-          float complex p = mpsk_constellation (g, m);
+          float _Complex ahat;
+          float _Complex p = mpsk_constellation (g, m);
           DP_CHECK (mpsk_slice (p, m, &ahat) == g);
           DP_CHECK_NEAR (cabsf (ahat - p), 0.0, 1e-6);
         }
@@ -215,11 +215,11 @@ main (void)
       int m = M_ALL[mi];
       for (int i = 0; i < 512; i++)
         {
-          double        th = 2.0 * MPSK_PI * ((double)i + 0.25) / 512.0;
-          float complex y  = (float)cos (th) + (float)sin (th) * I;
-          float complex ahat;
-          unsigned      g  = mpsk_slice (y, m, &ahat);
-          unsigned      ki = mpsk_gray_decode (g);
+          double th        = 2.0 * MPSK_PI * ((double)i + 0.25) / 512.0;
+          float _Complex y = (float)cos (th) + (float)sin (th) * I;
+          float _Complex ahat;
+          unsigned g  = mpsk_slice (y, m, &ahat);
+          unsigned ki = mpsk_gray_decode (g);
           DP_CHECK (ki == nearest_index_by_distance (y, m));
           /* ahat is that nearest point, at unit amplitude. */
           DP_CHECK_NEAR (cabsf (ahat), 1.0, 1e-6);
@@ -239,9 +239,9 @@ main (void)
         {
           double th
               = mpsk_phi0 (m) + 2.0 * MPSK_PI * ((double)k + 0.5) / (double)m;
-          float complex y = (float)cos (th) + (float)sin (th) * I;
-          float complex ahat;
-          unsigned      ki = mpsk_gray_decode (mpsk_slice (y, m, &ahat));
+          float _Complex y = (float)cos (th) + (float)sin (th) * I;
+          float _Complex ahat;
+          unsigned ki = mpsk_gray_decode (mpsk_slice (y, m, &ahat));
           DP_CHECK (ki == (unsigned)k || ki == (unsigned)((k + 1) % m));
         }
     }
@@ -260,13 +260,13 @@ main (void)
         int m = M_ALL[mi];
         for (int t = 0; t < 64; t++)
           {
-            double        th = dp_uni (&rs) * 2.0 * MPSK_PI;
-            float complex u  = (float)cos (th) + (float)sin (th) * I;
-            float complex a0;
-            unsigned      g0 = mpsk_slice (u, m, &a0);
+            double th        = dp_uni (&rs) * 2.0 * MPSK_PI;
+            float _Complex u = (float)cos (th) + (float)sin (th) * I;
+            float _Complex a0;
+            unsigned g0 = mpsk_slice (u, m, &a0);
             for (size_t s = 0; s < sizeof SCALE / sizeof SCALE[0]; s++)
               {
-                float complex ahat;
+                float _Complex ahat;
                 DP_CHECK (mpsk_slice (SCALE[s] * u, m, &ahat) == g0);
                 /* The decision does not inherit the input's scale. */
                 DP_CHECK_NEAR (cabsf (ahat), 1.0, 1e-6);
@@ -289,27 +289,27 @@ main (void)
       double lim = MPSK_PI / (double)m; /* half a decision region */
       for (unsigned g = 0; g < (unsigned)m; g++)
         {
-          float complex p = mpsk_constellation (g, m);
-          float complex ahat;
+          float _Complex p = mpsk_constellation (g, m);
+          float _Complex ahat;
           mpsk_slice (p, m, &ahat);
           DP_CHECK_NEAR (cimagf (p * conjf (ahat)), 0.0, 1e-6);
 
           double prev = -1e300;
           for (int e = 1; e <= 4; e++)
             {
-              double        eps = 0.5 * lim * (double)e / 4.0;
-              float complex rot = (float)cos (eps) + (float)sin (eps) * I;
-              float complex yp  = p * rot;
-              float complex ap;
+              double eps         = 0.5 * lim * (double)e / 4.0;
+              float _Complex rot = (float)cos (eps) + (float)sin (eps) * I;
+              float _Complex yp  = p * rot;
+              float _Complex ap;
               mpsk_slice (yp, m, &ap);
               double err = (double)cimagf (yp * conjf (ap));
               DP_CHECK (err > 0.0);  /* sign follows the rotation      */
               DP_CHECK (err > prev); /* and grows monotonically with it */
               prev = err;
               /* The mirror rotation gives the opposite sign. */
-              float complex rn = (float)cos (-eps) + (float)sin (-eps) * I;
-              float complex yn = p * rn;
-              float complex an;
+              float _Complex rn = (float)cos (-eps) + (float)sin (-eps) * I;
+              float _Complex yn = p * rn;
+              float _Complex an;
               mpsk_slice (yn, m, &an);
               DP_CHECK ((double)cimagf (yn * conjf (an)) < 0.0);
             }
@@ -318,7 +318,7 @@ main (void)
 
   /* (f) The header's own C example, which nothing executed before now. */
   {
-    float complex ahat;
+    float _Complex ahat;
     DP_CHECK (mpsk_slice ((1.0f + 1.0f * I) * 0.70710678f, 4, &ahat) == 0);
   }
 
@@ -329,8 +329,8 @@ main (void)
    * the caller's buffer.
    */
   {
-    uint8_t       sym[8], back[8];
-    float complex pts[8];
+    uint8_t sym[8], back[8];
+    float _Complex pts[8];
     for (int mi = 0; mi < NM; mi++)
       {
         int m = M_ALL[mi];
@@ -354,9 +354,9 @@ main (void)
     {
       N = 64
     };
-    uint8_t       fwd[N], rev[N];
-    float complex pf[N], pr[N];
-    uint32_t      rs = 777u;
+    uint8_t fwd[N], rev[N];
+    float _Complex pf[N], pr[N];
+    uint32_t rs = 777u;
     for (int mi = 0; mi < NM; mi++)
       {
         int m = M_ALL[mi];
@@ -370,8 +370,8 @@ main (void)
           DP_CHECK (pf[i] == pr[N - 1 - i]);
 
         /* demap is memoryless too, and amplitude-invariant elementwise. */
-        uint8_t       df[N], dr[N];
-        float complex sf[N];
+        uint8_t df[N], dr[N];
+        float _Complex sf[N];
         for (int i = 0; i < N; i++)
           sf[i] = pf[i] * (float)(0.01 + 100.0 * dp_uni (&rs));
         mpsk_demap (sf, N, df, m);
@@ -396,9 +396,9 @@ main (void)
     {
       N = 16
     };
-    uint8_t       sym[N];
-    float complex pts[N + 2];
-    uint8_t       out[N + 2];
+    uint8_t sym[N];
+    float _Complex pts[N + 2];
+    uint8_t out[N + 2];
     for (int mi = 0; mi < NM; mi++)
       {
         int m = M_ALL[mi];
@@ -406,8 +406,8 @@ main (void)
           sym[i] = (uint8_t)(i % m);
         pts[N] = pts[N + 1] = 12345.0f + 6789.0f * I;
         mpsk_map (sym, N, pts, m);
-        DP_CHECK (pts[N] == (float complex) (12345.0f + 6789.0f * I));
-        DP_CHECK (pts[N + 1] == (float complex) (12345.0f + 6789.0f * I));
+        DP_CHECK (pts[N] == (float _Complex) (12345.0f + 6789.0f * I));
+        DP_CHECK (pts[N + 1] == (float _Complex) (12345.0f + 6789.0f * I));
 
         out[N] = out[N + 1] = 0xABu;
         mpsk_demap (pts, N, out, m);
@@ -432,9 +432,9 @@ main (void)
     {
       N = 300
     };
-    uint8_t       sym[N], back[N];
-    float complex pts[N];
-    uint32_t      rs = 4242u;
+    uint8_t sym[N], back[N];
+    float _Complex pts[N];
+    uint32_t rs = 4242u;
     for (int mi = 0; mi < NM; mi++)
       {
         int      m    = M_ALL[mi];
@@ -451,7 +451,7 @@ main (void)
         for (int i = 0; i < N; i++)
           {
             acc = (acc + mpsk_gray_decode (sym[i])) & mask;
-            float complex want
+            float _Complex want
                 = mpsk_constellation (mpsk_gray_encode (acc), m);
             DP_CHECK_NEAR (cabsf (pts[i] - want), 0.0, 1e-6);
           }
@@ -476,9 +476,9 @@ main (void)
     {
       N = 200
     };
-    uint8_t       sym[N], back[N];
-    float complex pts[N], rot[N];
-    uint32_t      rs = 99u;
+    uint8_t sym[N], back[N];
+    float _Complex pts[N], rot[N];
+    uint32_t rs = 99u;
     for (int mi = 0; mi < NM; mi++)
       {
         int m = M_ALL[mi];
@@ -489,9 +489,9 @@ main (void)
         for (int j = 0; j < m + 5; j++)
           {
             /* the m constellation rotations, then five arbitrary angles */
-            double phi      = (j < m) ? (2.0 * MPSK_PI * (double)j / (double)m)
-                                      : (0.137 + 0.911 * (double)(j - m));
-            float complex r = (float)cos (phi) + (float)sin (phi) * I;
+            double phi = (j < m) ? (2.0 * MPSK_PI * (double)j / (double)m)
+                                 : (0.137 + 0.911 * (double)(j - m));
+            float _Complex r = (float)cos (phi) + (float)sin (phi) * I;
             for (int i = 0; i < N; i++)
               rot[i] = pts[i] * r;
             mpsk_diff_demap (rot, N, back, m);
@@ -513,9 +513,9 @@ main (void)
     {
       N = 32
     };
-    uint8_t       fwd[N], rev[N];
-    float complex pf[N], pr[N];
-    uint32_t      rs = 31337u;
+    uint8_t fwd[N], rev[N];
+    float _Complex pf[N], pr[N];
+    uint32_t rs = 31337u;
     for (int mi = 0; mi < NM; mi++)
       {
         int m = M_ALL[mi];
@@ -565,10 +565,10 @@ main (void)
     {
       N = 4000
     };
-    static float complex y[N];
-    static float         llr[N * 3];
-    static uint8_t       hard[N];
-    const double         esn0_db[] = { -3.0, 0.0, 6.0, 20.0 };
+    static float _Complex y[N];
+    static float   llr[N * 3];
+    static uint8_t hard[N];
+    const double   esn0_db[] = { -3.0, 0.0, 6.0, 20.0 };
 
     for (int mi = 0; mi < NM; mi++)
       {
@@ -628,12 +628,12 @@ main (void)
     {
       N = 64
     };
-    float complex y[N];
-    float         llr[N * 2];
-    uint32_t      st  = 99991u;
-    const float   n0  = 0.37f;
-    const float   inv = 1.0f / n0;
-    const float   axq = (float)(4.0 / sqrt (2.0));
+    float _Complex y[N];
+    float       llr[N * 2];
+    uint32_t    st  = 99991u;
+    const float n0  = 0.37f;
+    const float inv = 1.0f / n0;
+    const float axq = (float)(4.0 / sqrt (2.0));
 
     for (int i = 0; i < N; i++)
       y[i] = 1.7f * dp_cgauss (&st); /* well off the unit circle, on purpose */
@@ -664,9 +664,9 @@ main (void)
     {
       N = 48
     };
-    float complex y[N];
-    float         a[N * 3], b[N * 3];
-    uint32_t      st = 5150u;
+    float _Complex y[N];
+    float    a[N * 3], b[N * 3];
+    uint32_t st = 5150u;
     for (int i = 0; i < N; i++)
       y[i] = 1.3f * dp_cgauss (&st);
 
@@ -704,9 +704,9 @@ main (void)
 
     for (int mi = 0; mi < NM; mi++)
       {
-        const int     m  = M_ALL[mi];
-        const int     nb = mpsk_bps (m);
-        float complex o  = 0.0f + 0.0f * I;
+        const int m      = M_ALL[mi];
+        const int nb     = mpsk_bps (m);
+        float _Complex o = 0.0f + 0.0f * I;
 
         mpsk_soft_demap (&o, 1, llr, (size_t)nb, m, 1.0f);
         for (int b = 0; b < nb; b++)
@@ -716,15 +716,15 @@ main (void)
 
         for (unsigned g = 0u; g < (unsigned)m; g++)
           {
-            const float complex a = mpsk_constellation (g, m);
-            float               prev[3];
+            const float _Complex a = mpsk_constellation (g, m);
+            float prev[3];
             for (int b = 0; b < nb; b++)
               prev[b] = 0.0f;
 
             /* strictly increasing along the ray, and correct at the end */
             for (int s = 1; s <= 4; s++)
               {
-                float complex ys = (float)(0.25 * s) * a;
+                float _Complex ys = (float)(0.25 * s) * a;
                 mpsk_soft_demap (&ys, 1, llr, (size_t)nb, m, 1.0f);
                 for (int b = 0; b < nb; b++)
                   {
@@ -756,9 +756,9 @@ main (void)
     {
       N = 4
     };
-    float complex y[N];
-    float         llr[N * 3];
-    uint32_t      st = 424242u;
+    float _Complex y[N];
+    float    llr[N * 3];
+    uint32_t st = 424242u;
     for (int i = 0; i < N; i++)
       y[i] = dp_cgauss (&st);
 

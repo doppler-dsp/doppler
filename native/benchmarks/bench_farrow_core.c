@@ -23,8 +23,8 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  float complex *x   = malloc (BENCH_N * sizeof (*x));
-  float complex *out = malloc (BENCH_N * sizeof (*out));
+  float _Complex *x   = malloc (BENCH_N * sizeof (*x));
+  float _Complex *out = malloc (BENCH_N * sizeof (*out));
   if (!x || !out)
     return 1;
   for (int i = 0; i < BENCH_N; i++)

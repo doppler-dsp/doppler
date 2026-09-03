@@ -29,7 +29,7 @@ extern "C" {
  * [(1+0j), (-1+0j), (1+0j), (-1+0j)]
  * @endcode
  */
-void bpsk_map(const uint8_t *bits, size_t bits_len, float complex *out);
+void bpsk_map(const uint8_t *bits, size_t bits_len, float _Complex *out);
 
 /**
  * @brief Map QPSK symbol indices {0, 1, 2, 3} to Gray-coded symbols (cf32).
@@ -54,7 +54,7 @@ void bpsk_map(const uint8_t *bits, size_t bits_len, float complex *out);
  * [0.7071, 0.7071, -0.7071, -0.7071]
  * @endcode
  */
-void qpsk_map(const uint8_t *syms, size_t syms_len, float complex *out);
+void qpsk_map(const uint8_t *syms, size_t syms_len, float _Complex *out);
 
 /**
  * @brief Compute the per-component AWGN amplitude for a target SNR.
@@ -142,7 +142,7 @@ uint64_t mls_poly(uint32_t n);
  */
 uint16_t crc16(const uint8_t *bits, size_t bits_len);
 void rrc_taps(double beta, int sps, int span, float *out);
-void dsss_spread(const float complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float complex *out);
+void dsss_spread(const float _Complex *syms, size_t syms_len, const uint8_t *code, size_t code_len, int sf, float _Complex *out);
 void rrc_h(const double *t, size_t t_len, double *out, double beta);
 void rc_h(const double *t, size_t t_len, double *out, double beta);
 /**

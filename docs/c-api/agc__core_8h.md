@@ -69,14 +69,14 @@ _Log-domain automatic gain control (AGC)._ [More...](#detailed-description)
 |  double | [**agc\_get\_applied\_gain\_db**](#function-agc_get_applied_gain_db) (const [**agc\_state\_t**](structagc__state__t.md) \* state) <br>_Return the gain (in dB) actually applied to the most recent sample. Computes_ `20*log10` _(g\_last), where_`g_last` _is the linear multiplier that was used on the most recently processed sample. This differs from_`gain_db` _(the loop integrator's current command) because the loop filter advances the command one step ahead after each sample: immediately after_[_**agc\_step()**_](agc__core_8h.md#function-agc_step) __`gain_db` _already reflects the updated command while_`applied_gain_db` _still reflects what the signal actually saw. At loop convergence the two values are numerically equal. At create/reset both are 0.0 dB (unity)._ |
 |  void | [**agc\_get\_state**](#function-agc_get_state) (const [**agc\_state\_t**](structagc__state__t.md) \* state, void \* blob) <br> |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**agc\_log10\_**](#function-agc_log10_) (double p) <br>_Fast log10(p) approximation for p &gt; 0 (~1e-3 absolute)._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**agc\_power\_**](#function-agc_power_) (float complex y) <br>_Power \|y\|^2 in the detector's working precision (double)._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**agc\_power\_**](#function-agc_power_) (float \_Complex y) <br>_Power \|y\|^2 in the detector's working precision (double)._  |
 |  void | [**agc\_reset**](#function-agc_reset) ([**agc\_state\_t**](structagc__state__t.md) \* state) <br>_Reset the AGC loop state to its post-create condition. Sets_ `gain_db` _back to 0 dB (unity), clears_`g_last` _, and re-seeds the power-detector EMA_`p_avg` _from the current_`ref_db` _so that the first post-reset block produces no transient. All configuration fields (_`ref_db` _,_`loop_bw` _,_`alpha` _,_`decim` _,_`clip_db` _) are left untouched. Use this to process a new, independent signal segment without re-allocating._ |
 |  int | [**agc\_set\_state**](#function-agc_set_state) ([**agc\_state\_t**](structagc__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**agc\_set\_telemetry**](#function-agc_set_telemetry) ([**agc\_state\_t**](structagc__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the AGC's probes on it. Registers two probes, both recorded once per gain-update event and further thinned by decim:_  |
 |  size\_t | [**agc\_settling\_samples**](#function-agc_settling_samples) (double loop\_bw, double alpha, double gain\_err\_db, double tol\_db) <br>_How many samples this loop needs to settle — the design query._  |
 |  size\_t | [**agc\_state\_bytes**](#function-agc_state_bytes) (const [**agc\_state\_t**](structagc__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**agc\_step**](#function-agc_step) ([**agc\_state\_t**](structagc__state__t.md) \* state, float complex x) <br>_Process one complex sample through the per-sample AGC loop. Applies the current gain, measures the output power via the EMA detector, advances the loop-filter integrator, then square-clips the returned sample to_ `clip_db` _. The clip is applied after the detector update, so clipping never disturbs convergence. With the default_`gain_update_period` _== 1 this is the exact per-sample reference path; with_`gain_update_period` _P &gt; 1 the detector and gain-apply still run every sample but the loop-filter command (and the exp10/log10 it needs) refreshes once per P samples — a zero-order hold on the gain that amortises the transcendentals on a sample-rate hot loop, the streaming analogue of_[_**agc\_steps()**_](agc__core_8h.md#function-agc_steps) _' decimation._[_**agc\_steps()**_](agc__core_8h.md#function-agc_steps) _is the faster block equivalent; neither is bit-identical to the P == 1 loop once decimated, but both converge to the same steady state._ |
-|  void | [**agc\_steps**](#function-agc_steps) ([**agc\_state\_t**](structagc__state__t.md) \* state, const float complex \* input, float complex \* output, size\_t n) <br>_Process a block of complex samples through the decimated AGC loop. Splits the input into chunks of_ `decim` _samples. Within each chunk the gain is linearly interpolated from the previous chunk's end value to the new loop-filter output (a first-order hold) so there is no inter-chunk gain staircase. The detector and loop filter run once per chunk on the chunk's mean power — O(n/decim) control-loop work versus O(n) for_[_**agc\_step()**_](agc__core_8h.md#function-agc_step) _. The output array may alias the input (in-place)._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**agc\_step**](#function-agc_step) ([**agc\_state\_t**](structagc__state__t.md) \* state, float \_Complex x) <br>_Process one complex sample through the per-sample AGC loop. Applies the current gain, measures the output power via the EMA detector, advances the loop-filter integrator, then square-clips the returned sample to_ `clip_db` _. The clip is applied after the detector update, so clipping never disturbs convergence. With the default_`gain_update_period` _== 1 this is the exact per-sample reference path; with_`gain_update_period` _P &gt; 1 the detector and gain-apply still run every sample but the loop-filter command (and the exp10/log10 it needs) refreshes once per P samples — a zero-order hold on the gain that amortises the transcendentals on a sample-rate hot loop, the streaming analogue of_[_**agc\_steps()**_](agc__core_8h.md#function-agc_steps) _' decimation._[_**agc\_steps()**_](agc__core_8h.md#function-agc_steps) _is the faster block equivalent; neither is bit-identical to the P == 1 loop once decimated, but both converge to the same steady state._ |
+|  void | [**agc\_steps**](#function-agc_steps) ([**agc\_state\_t**](structagc__state__t.md) \* state, const float \_Complex \* input, float \_Complex \* output, size\_t n) <br>_Process a block of complex samples through the decimated AGC loop. Splits the input into chunks of_ `decim` _samples. Within each chunk the gain is linearly interpolated from the previous chunk's end value to the new loop-filter output (a first-order hold) so there is no inter-chunk gain staircase. The detector and loop filter run once per chunk on the chunk's mean power — O(n/decim) control-loop work versus O(n) for_[_**agc\_step()**_](agc__core_8h.md#function-agc_step) _. The output array may alias the input (in-place)._ |
 |  size\_t | [**settling\_samples**](#function-settling_samples) (double loop\_bw, double alpha, double gain\_err\_db, double tol\_db) <br> |
 
 
@@ -224,7 +224,7 @@ Lifecycle: `agc_create -> (step / steps / reset)* -> agc_destroy`
 ```C++
 // Hold output power at 0 dB; slow loop, moderate detector smoothing.
 agc_state_t *agc = agc_create(0.0, 0.0025, 0.05);
-float complex y = agc_step(agc, 4.0f + 0.0f * I);  // loud input
+float _Complex y = agc_step(agc, 4.0f + 0.0f * I);  // loud input
 // ... feed more samples; gain_db converges so 10*log10(|y|^2) -> 0 dB
 agc_destroy(agc);
 ```
@@ -445,7 +445,7 @@ The floor is why silence reads as about `-300` dB rather than `-INF`, so that pr
 _Power \|y\|^2 in the detector's working precision (double)._ 
 ```C++
 JM_FORCEINLINE double agc_power_ (
-    float complex y
+    float _Complex y
 ) 
 ```
 
@@ -678,9 +678,9 @@ size_t agc_state_bytes (
 
 _Process one complex sample through the per-sample AGC loop. Applies the current gain, measures the output power via the EMA detector, advances the loop-filter integrator, then square-clips the returned sample to_ `clip_db` _. The clip is applied after the detector update, so clipping never disturbs convergence. With the default_`gain_update_period` _== 1 this is the exact per-sample reference path; with_`gain_update_period` _P &gt; 1 the detector and gain-apply still run every sample but the loop-filter command (and the exp10/log10 it needs) refreshes once per P samples — a zero-order hold on the gain that amortises the transcendentals on a sample-rate hot loop, the streaming analogue of_[_**agc\_steps()**_](agc__core_8h.md#function-agc_steps) _' decimation._[_**agc\_steps()**_](agc__core_8h.md#function-agc_steps) _is the faster block equivalent; neither is bit-identical to the P == 1 loop once decimated, but both converge to the same steady state._
 ```C++
-JM_FORCEINLINE  JM_HOT float complex agc_step (
+JM_FORCEINLINE  JM_HOT float _Complex agc_step (
     agc_state_t * state,
-    float complex x
+    float _Complex x
 ) 
 ```
 
@@ -730,8 +730,8 @@ _Process a block of complex samples through the decimated AGC loop. Splits the i
 ```C++
 void agc_steps (
     agc_state_t * state,
-    const float complex * input,
-    float complex * output,
+    const float _Complex * input,
+    float _Complex * output,
     size_t n
 ) 
 ```

@@ -70,10 +70,10 @@ main (void)
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 
-  uint8_t       *sym = malloc (BENCH_N);
-  uint8_t       *out = malloc (BENCH_N);
-  float complex *iq  = malloc (BENCH_N * sizeof *iq);
-  float         *llr = malloc ((size_t)BENCH_N * 3 * sizeof *llr);
+  uint8_t        *sym = malloc (BENCH_N);
+  uint8_t        *out = malloc (BENCH_N);
+  float _Complex *iq  = malloc (BENCH_N * sizeof *iq);
+  float          *llr = malloc ((size_t)BENCH_N * 3 * sizeof *llr);
   if (!sym || !out || !iq || !llr)
     return 1;
 

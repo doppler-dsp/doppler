@@ -7,7 +7,7 @@
 
 /* y[m] = exp(j2π(f·m + ½·r·m²)) — a unit-amplitude linear chirp. */
 static void
-synth_chirp (float complex *y, size_t L, double f, double r)
+synth_chirp (float _Complex *y, size_t L, double f, double r)
 {
   for (size_t m = 0; m < L; m++)
     {
@@ -27,7 +27,7 @@ main (void)
   DP_CHECK (ppe_create (2, 0.0) == NULL);   /* max_len < 4 */
   DP_CHECK (ppe_create (64, -1.0) == NULL); /* negative rate span */
 
-  float complex *y = malloc (L * sizeof *y);
+  float _Complex *y = malloc (L * sizeof *y);
   DP_CHECK (y != NULL);
 
   /* ── Doppler-only knob (max_rate = 0): a single FFT, rate forced to 0. ────
@@ -110,8 +110,8 @@ main (void)
    * length must add about 3 dB on the same input. A literal would pin the
    * noise draw as much as the estimator. */
   {
-    const size_t   la = 256, lb = 1024;
-    float complex *ya = malloc (lb * sizeof *ya);
+    const size_t    la = 256, lb = 1024;
+    float _Complex *ya = malloc (lb * sizeof *ya);
     DP_CHECK (ya != NULL);
     if (ya)
       {

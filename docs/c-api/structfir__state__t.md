@@ -36,12 +36,12 @@
 
 | Type | Name |
 | ---: | :--- |
-|  float complex \* | [**delay**](#variable-delay)  <br> |
+|  float \_Complex \* | [**delay**](#variable-delay)  <br> |
 |  size\_t | [**num\_taps**](#variable-num_taps)  <br> |
 |  float \* | [**rtaps**](#variable-rtaps)  <br> |
-|  float complex \* | [**scratch**](#variable-scratch)  <br> |
+|  float \_Complex \* | [**scratch**](#variable-scratch)  <br> |
 |  size\_t | [**scratch\_cap**](#variable-scratch_cap)  <br> |
-|  float complex \* | [**taps**](#variable-taps)  <br> |
+|  float \_Complex \* | [**taps**](#variable-taps)  <br> |
 
 
 
@@ -94,7 +94,7 @@
 ### variable delay 
 
 ```C++
-float complex* fir_state_t::delay;
+float _Complex* fir_state_t::delay;
 ```
 
 
@@ -133,7 +133,7 @@ float* fir_state_t::rtaps;
 ### variable scratch 
 
 ```C++
-float complex* fir_state_t::scratch;
+float _Complex* fir_state_t::scratch;
 ```
 
 
@@ -159,7 +159,7 @@ size_t fir_state_t::scratch_cap;
 ### variable taps 
 
 ```C++
-float complex* fir_state_t::taps;
+float _Complex* fir_state_t::taps;
 ```
 
 

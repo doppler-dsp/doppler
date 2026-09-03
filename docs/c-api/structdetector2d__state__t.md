@@ -47,7 +47,7 @@ _2-D signal detector state._ [More...](#detailed-description)
 |  float \* | [**noise\_scratch**](#variable-noise_scratch)  <br> |
 |  size\_t | [**nx**](#variable-nx)  <br> |
 |  size\_t | [**ny**](#variable-ny)  <br> |
-|  float complex \* | [**out\_buf**](#variable-out_buf)  <br> |
+|  float \_Complex \* | [**out\_buf**](#variable-out_buf)  <br> |
 |  size\_t | [**peak\_col**](#variable-peak_col)  <br> |
 |  float | [**peak\_mag**](#variable-peak_mag)  <br> |
 |  size\_t | [**peak\_row**](#variable-peak_row)  <br> |
@@ -302,7 +302,7 @@ Number of rows.
 ### variable out\_buf 
 
 ```C++
-float complex* detector2d_state_t::out_buf;
+float _Complex* detector2d_state_t::out_buf;
 ```
 
 

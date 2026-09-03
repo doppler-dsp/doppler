@@ -17,9 +17,9 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 static void
 bench_n (int n, int iters, jm_bench_t *bench)
 {
-  awgn_state_t  *g   = awgn_create (0, 1.0f);
-  float complex *buf = malloc ((size_t)n * sizeof *buf);
-  double         times[ITERATIONS];
+  awgn_state_t   *g   = awgn_create (0, 1.0f);
+  float _Complex *buf = malloc ((size_t)n * sizeof *buf);
+  double          times[ITERATIONS];
 
   awgn_generate (g, (size_t)n, buf, (size_t)n); /* warm up */
 

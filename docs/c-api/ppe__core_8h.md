@@ -64,7 +64,7 @@ _Feedforward polynomial-phase estimator (frequency + chirp rate)._ [More...](#de
 | ---: | :--- |
 |  [**ppe\_state\_t**](structppe__state__t.md) \* | [**ppe\_create**](#function-ppe_create) (size\_t max\_len, double max\_rate) <br>_Create a polynomial-phase estimator._  |
 |  void | [**ppe\_destroy**](#function-ppe_destroy) ([**ppe\_state\_t**](structppe__state__t.md) \* state) <br>_Destroy an estimator._  |
-|  [**ppe\_result\_t**](structppe__result__t.md) | [**ppe\_estimate**](#function-ppe_estimate) ([**ppe\_state\_t**](structppe__state__t.md) \* state, const float complex \* x, size\_t n\_in) <br>_Estimate the normalized frequency and chirp rate of a complex segment via the coherent (chirp-rate x frequency) surface._  |
+|  [**ppe\_result\_t**](structppe__result__t.md) | [**ppe\_estimate**](#function-ppe_estimate) ([**ppe\_state\_t**](structppe__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in) <br>_Estimate the normalized frequency and chirp rate of a complex segment via the coherent (chirp-rate x frequency) surface._  |
 |  void | [**ppe\_reset**](#function-ppe_reset) ([**ppe\_state\_t**](structppe__state__t.md) \* state) <br>_Do nothing — the estimator keeps no running state between calls._  |
 
 
@@ -190,7 +190,7 @@ _Estimate the normalized frequency and chirp rate of a complex segment via the c
 ```C++
 ppe_result_t ppe_estimate (
     ppe_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t n_in
 ) 
 ```

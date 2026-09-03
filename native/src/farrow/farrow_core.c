@@ -49,8 +49,8 @@ farrow_delay_max_out (farrow_state_t *state)
  * evaluate at `mu`.  out[i] is the input interpolated at i - group_delay + mu;
  * the first group_delay samples are the delay-line filling transient. */
 size_t
-farrow_delay (farrow_state_t *state, const float complex *x, size_t x_len,
-              double mu, float complex *out, size_t max_out)
+farrow_delay (farrow_state_t *state, const float _Complex *x, size_t x_len,
+              double mu, float _Complex *out, size_t max_out)
 {
   float  m = (float)mu;
   size_t k = 0;

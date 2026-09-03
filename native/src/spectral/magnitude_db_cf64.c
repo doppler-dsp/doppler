@@ -6,7 +6,7 @@
 #include <math.h>
 
 void
-magnitude_db_cf64 (const double complex *x, size_t x_len, float *out,
+magnitude_db_cf64 (const double _Complex *x, size_t x_len, float *out,
                    double lin_floor, float offset_db)
 {
   for (size_t k = 0; k < x_len; k++)

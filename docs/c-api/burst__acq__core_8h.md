@@ -63,7 +63,7 @@ _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._ [More...
 |  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_create**](#function-burst_acq_create) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine (forwards to_ [_**acq\_create\_burst()**_](acq__core_8h.md#function-acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._ |
 |  void | [**burst\_acq\_destroy**](#function-burst_acq_destroy) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state) <br>_Destroy and free an instance._  |
 |  void | [**burst\_acq\_get\_state**](#function-burst_acq_get_state) (const [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, void \* blob) <br> |
-|  size\_t | [**burst\_acq\_push**](#function-burst_acq_push) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, const float complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
+|  size\_t | [**burst\_acq\_push**](#function-burst_acq_push) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
 |  void | [**burst\_acq\_reset**](#function-burst_acq_reset) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state) <br>_Drain the input ring and reset the coherent accumulator._  |
 |  int | [**burst\_acq\_set\_state**](#function-burst_acq_set_state) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**burst\_acq\_state\_bytes**](#function-burst_acq_state_bytes) (const [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state) <br> |
@@ -294,7 +294,7 @@ _Stream raw samples; emit one event per CFAR dump above threshold._
 ```C++
 size_t burst_acq_push (
     burst_acq_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t n_in,
     acq_result_t * result,
     size_t max_results

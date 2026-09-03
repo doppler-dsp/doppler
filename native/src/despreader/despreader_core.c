@@ -169,15 +169,16 @@ despreader_set_state (despreader_state_t *s, const void *blob)
 /* Process one input sample. On a code-period boundary, dump the prompt, update
  * both loops, and return 1 with the normalised prompt in *prompt. */
 static int
-process_sample (despreader_state_t *ch, float complex x, float complex *prompt)
+process_sample (despreader_state_t *ch, float _Complex x,
+                float _Complex     *prompt)
 {
-  float complex d = costas_wipeoff (&ch->car, x); /* carrier wipe-off */
+  float _Complex d = costas_wipeoff (&ch->car, x); /* carrier wipe-off */
   dll_lock_accumulate (&ch->code, d); /* off-peak noise tap (lock det) */
   int wrapped = dll_accumulate (&ch->code, d); /* E/P/L correlate */
   if (!wrapped)
     return 0;
   /* code-period boundary */
-  float complex P = ch->code.acc_p;
+  float _Complex P = ch->code.acc_p;
   dll_update (&ch->code);      /* code loop on the early/late envelopes */
   costas_update (&ch->car, P); /* carrier loop on the prompt symbol */
   /* Fold this period into the code-lock detector (full-epoch look) and
@@ -198,8 +199,8 @@ despreader_steps_max_out (despreader_state_t *state)
 }
 
 size_t
-despreader_steps (despreader_state_t *state, const float complex *x,
-                  size_t x_len, float complex *out, size_t max_out)
+despreader_steps (despreader_state_t *state, const float _Complex *x,
+                  size_t x_len, float _Complex *out, size_t max_out)
 {
   size_t emitted = 0;
   /* The telemetry check is hoisted to loop entry (attach is setup-time
@@ -212,7 +213,7 @@ despreader_steps (despreader_state_t *state, const float complex *x,
     {
       for (size_t n = 0; n < x_len; n++)
         {
-          float complex prompt;
+          float _Complex prompt;
           if (process_sample (state, x[n], &prompt) && emitted < max_out)
             out[emitted++] = prompt;
         }
@@ -221,7 +222,7 @@ despreader_steps (despreader_state_t *state, const float complex *x,
     {
       for (size_t n = 0; n < x_len; n++)
         {
-          float complex prompt;
+          float _Complex prompt;
           if (process_sample (state, x[n], &prompt))
             {
               if (emitted < max_out)
@@ -237,7 +238,7 @@ despreader_steps (despreader_state_t *state, const float complex *x,
  * of periods_per_bit prompts completes. Returns 1 (and sets *bit) when a bit
  * is emitted. For periods_per_bit == 1 every prompt is a bit. */
 static int
-bit_sync (despreader_state_t *ch, float complex P, uint8_t *bit)
+bit_sync (despreader_state_t *ch, float _Complex P, uint8_t *bit)
 {
   size_t N  = ch->periods_per_bit;
   double re = (double)crealf (P);
@@ -288,7 +289,7 @@ despreader_bits_max_out (despreader_state_t *state)
 }
 
 size_t
-despreader_bits (despreader_state_t *state, const float complex *x,
+despreader_bits (despreader_state_t *state, const float _Complex *x,
                  size_t x_len, uint8_t *out, size_t max_out)
 {
   size_t emitted = 0;
@@ -297,7 +298,7 @@ despreader_bits (despreader_state_t *state, const float complex *x,
    * register-resident fast path to protect. */
   for (size_t n = 0; n < x_len; n++)
     {
-      float complex prompt;
+      float _Complex prompt;
       if (!process_sample (state, x[n], &prompt))
         continue;
       if (state->tlm_ctx)

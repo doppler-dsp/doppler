@@ -16,8 +16,8 @@
 typedef struct
 {
   PyObject_HEAD HalfbandDecimator_state_t *handle;
-  float complex *_execute_buf;     /* pre-allocated output for execute */
-  size_t         _execute_buf_cap; /* elements allocated above */
+  float _Complex *_execute_buf;     /* pre-allocated output for execute */
+  size_t          _execute_buf_cap; /* elements allocated above */
 } HalfbandDecimatorObject;
 
 static void
@@ -96,7 +96,7 @@ HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args)
       size_t _max = HalfbandDecimator_execute_max_out (self->handle);
       if (!_max)
         _max = (size_t)PyArray_SIZE (x_arr);
-      self->_execute_buf     = malloc (_max * sizeof (float complex));
+      self->_execute_buf     = malloc (_max * sizeof (float _Complex));
       self->_execute_buf_cap = _max;
       if (!self->_execute_buf)
         {
@@ -106,7 +106,7 @@ HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args)
         }
     }
   size_t n_out = HalfbandDecimator_execute (
-      self->handle, (const float complex *)PyArray_DATA (x_arr),
+      self->handle, (const float _Complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), self->_execute_buf,
       self->_execute_buf_cap);
   Py_DECREF (x_arr);
@@ -116,7 +116,7 @@ HalfbandDecimatorObj_execute (HalfbandDecimatorObject *self, PyObject *args)
   if (!out_arr)
     return NULL;
   memcpy (PyArray_DATA (out_arr), self->_execute_buf,
-          n_out * sizeof (float complex));
+          n_out * sizeof (float _Complex));
   return (PyObject *)out_arr;
 }
 

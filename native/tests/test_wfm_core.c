@@ -27,7 +27,7 @@ main (void)
   /* ── bpsk_map: antipodal, unit magnitude, LSB only ──────────────── */
   {
     const uint8_t bits[6] = { 0, 1, 0, 1, 0xFE, 0xFF };
-    float complex out[6];
+    float _Complex out[6];
 
     bpsk_map (bits, 6, out);
     DP_CHECK (crealf (out[0]) == 1.0f && cimagf (out[0]) == 0.0f);
@@ -42,7 +42,7 @@ main (void)
   /* ── qpsk_map: Gray-coded, so adjacent indices are adjacent points ─ */
   {
     const uint8_t idx[4] = { 0, 1, 2, 3 };
-    float complex out[4];
+    float _Complex out[4];
 
     qpsk_map (idx, 4, out);
 
@@ -231,10 +231,10 @@ main (void)
 
   /* ── dsss_spread: every symbol multiplied by the whole code ─────── */
   {
-    const float complex syms[2] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I };
-    const uint8_t       code[4] = { 0, 1, 1, 0 };
-    const int           sf      = 4;
-    float complex       out[8];
+    const float _Complex syms[2] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I };
+    const uint8_t code[4]        = { 0, 1, 1, 0 };
+    const int     sf             = 4;
+    float _Complex out[8];
 
     dsss_spread (syms, 2, code, 4, sf, out);
 
@@ -243,7 +243,7 @@ main (void)
     for (int s = 0; s < 2; s++)
       for (int c = 0; c < sf; c++)
         {
-          const float complex want = code[c] ? -syms[s] : syms[s];
+          const float _Complex want = code[c] ? -syms[s] : syms[s];
           DP_CHECK (cabsf (out[s * sf + c] - want) < 1e-6f);
         }
 
@@ -251,7 +251,7 @@ main (void)
        point, and the only claim a receiver depends on. */
     for (int s = 0; s < 2; s++)
       {
-        float complex acc = 0.0f;
+        float _Complex acc = 0.0f;
         for (int c = 0; c < sf; c++)
           acc += out[s * sf + c] * (code[c] ? -1.0f : 1.0f);
         DP_CHECK (cabsf (acc / (float)sf - syms[s]) < 1e-6f);

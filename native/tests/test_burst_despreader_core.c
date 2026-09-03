@@ -15,13 +15,13 @@
  * (rectangular hold), and optionally rotate by a per-sample carrier `f0`
  * (cycles/sample). Returns a malloc'd cf32 burst of nsym*sf*sps samples; fills
  * tx_bits. */
-static float complex *
+static float _Complex *
 make_burst (const uint8_t *code, size_t sf, size_t sps, size_t nsym, double f0,
             uint8_t *tx_bits, size_t *out_len)
 {
-  size_t         nsamp = nsym * sf * sps;
-  float complex *x     = malloc (nsamp * sizeof (*x));
-  size_t         k     = 0;
+  size_t          nsamp = nsym * sf * sps;
+  float _Complex *x     = malloc (nsamp * sizeof (*x));
+  size_t          k     = 0;
   for (size_t i = 0; i < nsym; i++)
     {
       uint8_t bit = (uint8_t)((i * 2654435761u) >> 31) & 1u; /* cheap PRBS */
@@ -32,7 +32,7 @@ make_burst (const uint8_t *code, size_t sf, size_t sps, size_t nsym, double f0,
           float chip = sym * ((code[j] & 1u) ? -1.0f : 1.0f);
           for (size_t s = 0; s < sps; s++, k++)
             {
-              float complex c
+              float _Complex c
                   = cexpf ((float)(2.0 * M_PI * f0 * (double)k) * I);
               x[k] = chip * c;
             }
@@ -71,7 +71,7 @@ main (void)
   size_t   blen = 0;
 
   /* (1) Genie: zero offset, no noise -> exact recovery. */
-  float complex *burst = make_burst (code, sf, sps, nsym, 0.0, tx, &blen);
+  float _Complex *burst = make_burst (code, sf, sps, nsym, 0.0, tx, &blen);
   burst_despreader_state_t *d
       = burst_despreader_create (code, sf, sf, sps, 0.0, 0.0, 0.05, 0.01);
   DP_CHECK (d != NULL);
@@ -172,7 +172,7 @@ main (void)
     uint8_t code[31];
     for (int i = 0; i < 31; i++)
       code[i] = (uint8_t)(i & 1);
-    float complex rx[256], sym[8];
+    float _Complex rx[256], sym[8];
     for (int i = 0; i < 256; i++)
       rx[i] = (float)(i % 5) - 2.0f + 0.2f * I;
     burst_despreader_state_t *a
@@ -212,8 +212,8 @@ main (void)
     DP_CHECK (d != NULL);
     if (d)
       {
-        size_t         n = nsyml * sfl * spsl;
-        float complex *x = malloc (n * sizeof *x);
+        size_t          n = nsyml * sfl * spsl;
+        float _Complex *x = malloc (n * sizeof *x);
         DP_CHECK (x != NULL);
         if (x)
           {
@@ -226,7 +226,7 @@ main (void)
                 double im = dp_gauss (&st);
                 x[k]      = (float)re + (float)im * I;
               }
-            float complex out[64];
+            float _Complex out[64];
             for (size_t off = 0; off + 64 <= n; off += 64)
               (void)burst_despreader_steps (d, x + off, 64, out, 64);
             double lm = burst_despreader_get_lock_metric (d);
@@ -263,8 +263,8 @@ main (void)
         DP_CHECK (burst_despreader_get_stat_n (d) == 0);
         DP_CHECK (burst_despreader_get_lock_stat (d) == 0.0);
 
-        size_t         n = nsyml * sfl * spsl;
-        float complex *x = malloc (n * sizeof *x);
+        size_t          n = nsyml * sfl * spsl;
+        float _Complex *x = malloc (n * sizeof *x);
         DP_CHECK (x != NULL);
         if (x)
           {
@@ -273,7 +273,7 @@ main (void)
                 uint8_t chip = c31[(k / spsl) % sfl];
                 x[k]         = (chip & 1u) ? -1.0f : 1.0f; /* Im exactly 0 */
               }
-            float complex out[64];
+            float _Complex out[64];
             for (size_t off = 0; off + 64 <= n; off += 64)
               (void)burst_despreader_steps (d, x + off, 64, out, 64);
             /* (b) payload folded, but the quadrature sum is exactly zero */
@@ -304,9 +304,9 @@ main (void)
     for (size_t i = 0; i < 16; i++)
       acq[i] = (uint8_t)(i & 1u);
 
-    const size_t   pre_n = areps * asf * spsl;
-    const size_t   pay_n = nsyml * sfl * spsl;
-    float complex *x     = malloc ((pre_n + pay_n) * sizeof *x);
+    const size_t    pre_n = areps * asf * spsl;
+    const size_t    pay_n = nsyml * sfl * spsl;
+    float _Complex *x     = malloc ((pre_n + pay_n) * sizeof *x);
     DP_CHECK (x != NULL);
     if (x)
       {
@@ -320,7 +320,7 @@ main (void)
             uint8_t chip = c31[(k / spsl) % sfl];
             x[pre_n + k] = (chip & 1u) ? -1.0f : 1.0f;
           }
-        float complex out[64];
+        float _Complex out[64];
 
         burst_despreader_state_t *a = burst_despreader_create (
             c31, sfl, sfl, spsl, 0.0, 0.0, 0.05, 0.01);

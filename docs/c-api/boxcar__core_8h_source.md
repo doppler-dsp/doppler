@@ -32,12 +32,12 @@ extern "C"
     double inv_len;    
     double gain;       
     float  scale;      
-    float complex acc; 
-    float complex ring[BOXCAR_MAX_LEN]; 
+    float _Complex acc; 
+    float _Complex ring[BOXCAR_MAX_LEN]; 
   } boxcar_state_t;
 
-  JM_FORCEINLINE JM_HOT float complex
-  boxcar_step (boxcar_state_t *s, float complex x)
+  JM_FORCEINLINE JM_HOT float _Complex
+  boxcar_step (boxcar_state_t *s, float _Complex x)
   {
     s->acc += x - s->ring[s->pos];
     s->ring[s->pos] = x;
@@ -67,8 +67,8 @@ extern "C"
 
   void boxcar_reset (boxcar_state_t *s);
 
-  void boxcar_steps (boxcar_state_t *s, const float complex *x,
-                     float complex *out, size_t n);
+  void boxcar_steps (boxcar_state_t *s, const float _Complex *x,
+                     float _Complex *out, size_t n);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h)
    * ────────── Pointer-free POD struct, so a whole-struct snapshot resumes

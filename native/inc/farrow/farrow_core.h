@@ -28,7 +28,7 @@
  * farrow_state_t f;
  * farrow_init(&f, FARROW_CUBIC);
  * for (size_t i = 0; i < n; i++) farrow_push(&f, x[i]);
- * float complex y = farrow_eval(&f, 0.3f);   // x interpolated 0.3 past tap[1]
+ * float _Complex y = farrow_eval(&f, 0.3f);   // x interpolated 0.3 past tap[1]
  * @endcode
  */
 #ifndef FARROW_CORE_H
@@ -59,7 +59,7 @@ enum {
  * internal (drive it through farrow_push / farrow_eval).
  */
 typedef struct {
-    float complex d[4]; /**< delay line, `d[3]` newest.                */
+    float _Complex d[4]; /**< delay line, `d[3]` newest.                */
     int order;          /**< FARROW_LINEAR / _PARABOLIC / _CUBIC.      */
 } farrow_state_t;
 
@@ -73,7 +73,7 @@ farrow_init (farrow_state_t *s, int order)
 
 /** @brief Push one input sample into the delay line (oldest drops out). */
 JM_FORCEINLINE JM_HOT void
-farrow_push (farrow_state_t *s, float complex x)
+farrow_push (farrow_state_t *s, float _Complex x)
 {
     s->d[0] = s->d[1];
     s->d[1] = s->d[2];
@@ -91,25 +91,25 @@ farrow_push (farrow_state_t *s, float complex x)
  * @param mu  Fractional offset in `[0,1)`.
  * @return The interpolated sample.
  */
-JM_FORCEINLINE JM_HOT float complex
+JM_FORCEINLINE JM_HOT float _Complex
 farrow_eval (const farrow_state_t *s, float mu)
 {
-    float complex d0 = s->d[0], d1 = s->d[1], d2 = s->d[2], d3 = s->d[3];
+    float _Complex d0 = s->d[0], d1 = s->d[1], d2 = s->d[2], d3 = s->d[3];
     if (s->order == FARROW_LINEAR)
         return d1 + mu * (d2 - d1);
     if (s->order == FARROW_PARABOLIC)
         {
             /* symmetric piecewise-parabolic (Farrow, α = 0.5): linear plus a
              * symmetric μ(μ-1) parabolic correction → no delay bias. */
-            float complex u  = d0 - d1 - d2 + d3;
-            float complex c2 = 0.5f * u;
-            float complex c1 = (d2 - d1) - c2;
+            float _Complex u  = d0 - d1 - d2 + d3;
+            float _Complex c2 = 0.5f * u;
+            float _Complex c1 = (d2 - d1) - c2;
             return (c2 * mu + c1) * mu + d1;
         }
     /* cubic */
-    float complex c3 = (1.0f / 6.0f) * (-d0 + 3.0f * d1 - 3.0f * d2 + d3);
-    float complex c2 = 0.5f * (d0 - 2.0f * d1 + d2);
-    float complex c1
+    float _Complex c3 = (1.0f / 6.0f) * (-d0 + 3.0f * d1 - 3.0f * d2 + d3);
+    float _Complex c2 = 0.5f * (d0 - 2.0f * d1 + d2);
+    float _Complex c1
         = (1.0f / 6.0f) * (-2.0f * d0 - 3.0f * d1 + 6.0f * d2 - d3);
     return ((c3 * mu + c2) * mu + c1) * mu + d1;
 }
@@ -185,7 +185,7 @@ size_t farrow_delay_max_out(farrow_state_t *state);
  *
  * @endcode
  */
-size_t farrow_delay(farrow_state_t *state, const float complex *x, size_t x_len, double mu, float complex *out, size_t max_out);
+size_t farrow_delay(farrow_state_t *state, const float _Complex *x, size_t x_len, double mu, float _Complex *out, size_t max_out);
 size_t farrow_get_group_delay(const farrow_state_t *state);
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Whole-struct POD snapshot (pointer-free); the 4-tap delay line + order resume exactly into an

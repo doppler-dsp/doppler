@@ -65,7 +65,7 @@ extern "C"
   void             capture_destroy (capture_state_t *state);
   void             capture_reset (capture_state_t *state);
 size_t capture_read_max_out(capture_state_t *state, size_t n);
-  size_t capture_read (capture_state_t *state, size_t n, float complex *out,
+  size_t capture_read (capture_state_t *state, size_t n, float _Complex *out,
                        size_t max_out);
   double capture_get_fs (const capture_state_t *state);
   double capture_get_fc (const capture_state_t *state);

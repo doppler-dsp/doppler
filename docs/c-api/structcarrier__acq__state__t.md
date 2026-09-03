@@ -36,7 +36,7 @@ _CarrierAcquisition state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  float complex \* | [**carry\_buf**](#variable-carry_buf)  <br> |
+|  float \_Complex \* | [**carry\_buf**](#variable-carry_buf)  <br> |
 |  size\_t | [**carry\_len**](#variable-carry_len)  <br> |
 |  [**detector\_state\_t**](structdetector__state__t.md) \* | [**det**](#variable-det)  <br> |
 |  size\_t | [**dwell\_target**](#variable-dwell_target)  <br> |
@@ -44,7 +44,7 @@ _CarrierAcquisition state._ [More...](#detailed-description)
 |  size\_t | [**n\_blocks**](#variable-n_blocks)  <br> |
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
 |  double | [**pfa**](#variable-pfa)  <br> |
-|  float complex \* | [**power\_buf**](#variable-power_buf)  <br> |
+|  float \_Complex \* | [**power\_buf**](#variable-power_buf)  <br> |
 |  [**psd\_state\_t**](structpsd__state__t.md) \* | [**psd**](#variable-psd)  <br> |
 |  float \* | [**pwr\_buf**](#variable-pwr_buf)  <br> |
 |  bool | [**ready**](#variable-ready)  <br> |
@@ -112,7 +112,7 @@ Allocate with [**carrier\_acq\_create()**](carrier__acq__core_8h.md#function-car
 ### variable carry\_buf 
 
 ```C++
-float complex* carrier_acq_state_t::carry_buf;
+float _Complex* carrier_acq_state_t::carry_buf;
 ```
 
 
@@ -240,7 +240,7 @@ double carrier_acq_state_t::pfa;
 ### variable power\_buf 
 
 ```C++
-float complex* carrier_acq_state_t::power_buf;
+float _Complex* carrier_acq_state_t::power_buf;
 ```
 
 

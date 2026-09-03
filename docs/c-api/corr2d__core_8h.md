@@ -60,13 +60,13 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**corr2d\_create**](#function-corr2d_create) (const float complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads, size\_t ny\_out, size\_t nx\_out) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**corr\_create()**_](corr__core_8h.md#function-corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
+|  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**corr2d\_create**](#function-corr2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads, size\_t ny\_out, size\_t nx\_out) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**corr\_create()**_](corr__core_8h.md#function-corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
 |  void | [**corr2d\_destroy**](#function-corr2d_destroy) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Destroy and free a corr2d instance._  |
-|  size\_t | [**corr2d\_execute**](#function-corr2d_execute) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out, size\_t max\_out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny\*nx ndarray, a no-dump returns None._ |
+|  size\_t | [**corr2d\_execute**](#function-corr2d_execute) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny\*nx ndarray, a no-dump returns None._ |
 |  size\_t | [**corr2d\_execute\_max\_out**](#function-corr2d_execute_max_out) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Maximum output samples per execute call (always == ny\*nx)._  |
 |  void | [**corr2d\_get\_state**](#function-corr2d_get_state) (const [**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, void \* blob) <br> |
 |  void | [**corr2d\_reset**](#function-corr2d_reset) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._  |
-|  int | [**corr2d\_set\_ref**](#function-corr2d_set_ref) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
+|  int | [**corr2d\_set\_ref**](#function-corr2d_set_ref) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
 |  int | [**corr2d\_set\_state**](#function-corr2d_set_state) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**corr2d\_state\_bytes**](#function-corr2d_state_bytes) (const [**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br> |
 
@@ -120,9 +120,9 @@ The reference spectrum is pre-computed at create time. The int-dump semantics ar
 
 Lifecycle: 
 ```C++
-float complex ref[NY * NX] = { ... };    // row-major 2-D reference
+float _Complex ref[NY * NX] = { ... };    // row-major 2-D reference
 corr2d_state_t *c = corr2d_create(ref, NY, NX, 4, 1);
-float complex out[NY * NX];
+float _Complex out[NY * NX];
 for (int i = 0; i < 4; i++) {
     size_t n_out = corr2d_execute(c, frame[i], NY*NX, out, NY*NX);
     if (n_out) process_2d(out, NY, NX);   // fires once, on i == 3
@@ -143,7 +143,7 @@ corr2d_destroy(c);
 _Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**corr\_create()**_](corr__core_8h.md#function-corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._
 ```C++
 corr2d_state_t * corr2d_create (
-    const float complex * ref,
+    const float _Complex * ref,
     size_t ny,
     size_t nx,
     size_t dwell,
@@ -226,9 +226,9 @@ _Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 
 ```C++
 size_t corr2d_execute (
     corr2d_state_t * state,
-    const float complex * in,
+    const float _Complex * in,
     size_t n_in,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```
@@ -345,7 +345,7 @@ _Replace the reference and recompute its spectrum._
 ```C++
 int corr2d_set_ref (
     corr2d_state_t * state,
-    const float complex * ref
+    const float _Complex * ref
 ) 
 ```
 

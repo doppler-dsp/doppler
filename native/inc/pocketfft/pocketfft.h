@@ -18,7 +18,7 @@ extern "C"
 
   /*
    * Execute 1D/2D.  in/out must point to an array of interleaved double
-   * pairs (real, imag) — i.e. double complex[] in C, std::complex<double>[]
+   * pairs (real, imag) — i.e. double _Complex[] in C, std::complex<double>[]
    * in C++.  Using void* keeps the header valid in both languages.
    */
   void pocketfft_execute_1d (pocketfft_plan *p, const void *in, void *out);
@@ -31,7 +31,7 @@ extern "C"
 
   /*
    * Integer-IQ 1D execute: `in` is interleaved int16 (ci16) or int8 (ci8)
-   * I/Q (2 ints per complex sample, length 2*n); `out` is float complex[n].
+   * I/Q (2 ints per complex sample, length 2*n); `out` is float _Complex[n].
    * The int->float scale (v/32768 for ci16, v/128 for ci8, matching the cvt
    * module's full-scale ±1.0 convention) is folded into the transform's input
    * read, so there is no separate conversion pass.  Native-float (PFFFT) on

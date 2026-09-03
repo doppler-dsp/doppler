@@ -93,8 +93,8 @@ CorrDetector2DObj_init (CorrDetector2DObject *self, PyObject *args,
   size_t ref_dim0 = (size_t)PyArray_DIM (ref_arr, 0);
   size_t ref_dim1 = (size_t)PyArray_DIM (ref_arr, 1);
   self->handle    = detector2d_create (
-      (const float complex *)PyArray_DATA (ref_arr), ref_dim0, ref_dim1, dwell,
-      noise_lo, noise_hi, noise_mode, threshold, nthreads);
+      (const float _Complex *)PyArray_DATA (ref_arr), ref_dim0, ref_dim1,
+      dwell, noise_lo, noise_hi, noise_mode, threshold, nthreads);
   Py_DECREF (ref_arr);
   if (!self->handle)
     {
@@ -134,9 +134,9 @@ CorrDetector2DObj_push (CorrDetector2DObject *self, PyObject *args)
     return NULL;
   size_t         n_in = (size_t)PyArray_SIZE (in_arr);
   det_result2d_t results[64];
-  size_t n_out = detector2d_push (self->handle,
-                                  (const float complex *)PyArray_DATA (in_arr),
-                                  n_in, results, 64);
+  size_t         n_out = detector2d_push (
+      self->handle, (const float _Complex *)PyArray_DATA (in_arr), n_in,
+      results, 64);
   Py_DECREF (in_arr);
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);
   if (!lst)

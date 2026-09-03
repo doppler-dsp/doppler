@@ -18,7 +18,7 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  double complex *in = malloc (BENCH_N * sizeof (double complex));
+  double _Complex *in = malloc (BENCH_N * sizeof (double _Complex));
   if (!in)
     {
       fprintf (stderr, "OOM\n");
@@ -76,8 +76,8 @@ main (void)
 
   /* bench: get() */
   {
-    double                  _times_get[ITERATIONS];
-    volatile double complex get_sink;
+    double _times_get[ITERATIONS];
+    volatile double _Complex get_sink;
     for (int i = 0; i < 16; i++)
       get_sink = acc_cf64_get (obj);
     for (int r = 0; r < ITERATIONS; r++)
@@ -100,8 +100,8 @@ main (void)
 
   /* bench: dump() */
   {
-    double                  _times_dump[ITERATIONS];
-    volatile double complex dump_sink;
+    double _times_dump[ITERATIONS];
+    volatile double _Complex dump_sink;
     for (int i = 0; i < 16; i++)
       dump_sink = acc_cf64_dump (obj);
     for (int r = 0; r < ITERATIONS; r++)

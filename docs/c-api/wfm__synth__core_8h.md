@@ -86,7 +86,7 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**wfm\_synth\_get\_wtype**](#function-wfm_synth_get_wtype) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Return the active waveform type discriminant. Maps to the WFM\_SYNTH\_\* enum: 0=tone, 1=noise, 2=pn, 3=bpsk, 4=qpsk. Use this to inspect which synthesis path is active at runtime._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) uint64\_t | [**wfm\_synth\_mls\_poly**](#function-wfm_synth_mls_poly) (uint32\_t n) <br>_The MLS primitive polynomial table — pn's, reached by its old name._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**wfm\_synth\_next\_symbol**](#function-wfm_synth_next_symbol) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* s) <br>_Pull the next constellation symbol from the active shaped source._  |
-|  void | [**wfm\_synth\_noise\_steps**](#function-wfm_synth_noise_steps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float complex \* output, size\_t n) <br>_Generate n noise-only samples — the synth's additive-AWGN term with no signal — continuing the same noise RNG stream_ [_**wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-wfm_synth_steps) _draws from (no reseed, identical chunked awgn call pattern, so a gap rendered here is the seamless continuation of the on-time noise). Writes exact zeros and advances nothing for a clean synth (no AWGN child). Used by the composer to carry a segment's noise floor through its off-time gap._ |
+|  void | [**wfm\_synth\_noise\_steps**](#function-wfm_synth_noise_steps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float \_Complex \* output, size\_t n) <br>_Generate n noise-only samples — the synth's additive-AWGN term with no signal — continuing the same noise RNG stream_ [_**wfm\_synth\_steps()**_](wfm__synth__core_8h.md#function-wfm_synth_steps) _draws from (no reseed, identical chunked awgn call pattern, so a gap rendered here is the seamless continuation of the on-time noise). Writes exact zeros and advances nothing for a clean synth (no AWGN child). Used by the composer to carry a segment's noise floor through its off-time gap._ |
 |  void | [**wfm\_synth\_reseed\_noise**](#function-wfm_synth_reseed_noise) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, uint32\_t seed) <br>_Reseed only the additive-noise (AWGN) generator, leaving the signal (LO / PN code / data / pulse shaping) untouched. A no-op for a synth with no noise. Used by the composer to give each repeat a fresh noise realization while the underlying waveform stays bit-identical._  |
 |  void | [**wfm\_synth\_reset**](#function-wfm_synth_reset) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Reset Synth to its post-create state. Resets the LO phase accumulator, AWGN internal state, and PN LFSR register to their initial values so the output sequence is perfectly reproducible from sample 0._  |
 |  int | [**wfm\_synth\_set\_bits**](#function-wfm_synth_set_bits) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* bits, size\_t n, int modulation) <br>_Attach a user bit pattern to a type=bits synth (no-op otherwise)._  |
@@ -106,8 +106,8 @@ _Synth component API._ [More...](#detailed-description)
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**wfm\_synth\_shaper\_prime**](#function-wfm_synth_shaper_prime) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* s) <br>_Prime the shaper's delay line so its output aligns with the dense FIR._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**wfm\_synth\_snr\_over\_fs**](#function-wfm_synth_snr_over_fs) (int mode, int bps, double span, double snr) <br>_Convert a per-symbol or per-bit SNR to SNR over the full sample rate._  |
 |  size\_t | [**wfm\_synth\_state\_bytes**](#function-wfm_synth_state_bytes) (const [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**wfm\_synth\_step**](#function-wfm_synth_step) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
-|  void | [**wfm\_synth\_steps**](#function-wfm_synth_steps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float complex \* output, size\_t n) <br>_Generate a block of output samples. Calls_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _in a tight loop, writing each cf32 sample into_`output` _. The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**wfm\_synth\_step**](#function-wfm_synth_step) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state) <br>_Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._ |
+|  void | [**wfm\_synth\_steps**](#function-wfm_synth_steps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, float \_Complex \* output, size\_t n) <br>_Generate a block of output samples. Calls_ [_**wfm\_synth\_step()**_](wfm__synth__core_8h.md#function-wfm_synth_step) _in a tight loop, writing each cf32 sample into_`output` _. The Python binding returns a freshly allocated NumPy complex64 array; ownership is transferred to the caller._ |
 
 
 
@@ -152,7 +152,7 @@ Lifecycle: create -&gt; `[step / steps / reset]*` -&gt; destroy
 Example: 
 ```C++
 wfm_synth_state_t *obj = wfm_synth_create(0, 1000000.0, 0.0, 100.0, 0, 1, 8, 7, 0);
-float complex y = wfm_synth_step(obj);
+float _Complex y = wfm_synth_step(obj);
 wfm_synth_destroy(obj);
 ```
  
@@ -642,7 +642,7 @@ _Generate n noise-only samples — the synth's additive-AWGN term with no signal
 ```C++
 void wfm_synth_noise_steps (
     wfm_synth_state_t * state,
-    float complex * output,
+    float _Complex * output,
     size_t n
 ) 
 ```
@@ -1352,7 +1352,7 @@ size_t wfm_synth_state_bytes (
 
 _Generate one output sample from internal state. Advances the PN LFSR (modulated types only, on symbol boundaries), the LO phase accumulator, and the AWGN engine, then returns the mixed result:_ `sym * carrier + noise` _. Inlined and hot-path annotated so tight per-sample loops pay no call overhead._
 ```C++
-JM_FORCEINLINE  JM_HOT float complex wfm_synth_step (
+JM_FORCEINLINE  JM_HOT float _Complex wfm_synth_step (
     wfm_synth_state_t * state
 ) 
 ```
@@ -1370,7 +1370,7 @@ JM_FORCEINLINE  JM_HOT float complex wfm_synth_step (
 
 **Returns:**
 
-Next output sample (float complex). 
+Next output sample (float \_Complex). 
 ```C++
 >>> from doppler.wfm import _SynthEngine
 >>> s = _SynthEngine(type="tone", fs=1.0, freq=0.0, snr=100.0)
@@ -1395,7 +1395,7 @@ _Generate a block of output samples. Calls_ [_**wfm\_synth\_step()**_](wfm__synt
 ```C++
 void wfm_synth_steps (
     wfm_synth_state_t * state,
-    float complex * output,
+    float _Complex * output,
     size_t n
 ) 
 ```

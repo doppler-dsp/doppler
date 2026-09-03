@@ -8,7 +8,7 @@
  * middle, high half at the end, with the Nyquist bin split for even n.
  * m == n is a copy.  Matches scipy.signal.resample to machine precision. */
 static void
-corr2d_zeropad_1d (const float complex *p, size_t n, float complex *q,
+corr2d_zeropad_1d (const float _Complex *p, size_t n, float _Complex *q,
                    size_t m)
 {
   if (m == n)
@@ -33,8 +33,8 @@ corr2d_zeropad_1d (const float complex *p, size_t n, float complex *q,
  * (nx -> nx_out) into ztmp, then columns (ny -> ny_out) into out.  The
  * even-axis Nyquist split is handled per axis by corr2d_zeropad_1d. */
 static void
-corr2d_zeropad_2d (corr2d_state_t *s, const float complex *p,
-                   float complex *out)
+corr2d_zeropad_2d (corr2d_state_t *s, const float _Complex *p,
+                   float _Complex *out)
 {
   for (size_t i = 0; i < s->ny; i++)
     corr2d_zeropad_1d (p + i * s->nx, s->nx, s->ztmp + i * s->nx_out,
@@ -53,7 +53,7 @@ corr2d_zeropad_2d (corr2d_state_t *s, const float complex *p,
  * single-row-reference fast-path precondition (see corr2d_core.h's file
  * doc comment for the identity this licenses).  ny==1 is trivially true. */
 static int
-corr2d_is_single_row_ref (const float complex *ref, size_t ny, size_t nx)
+corr2d_is_single_row_ref (const float _Complex *ref, size_t ny, size_t nx)
 {
   for (size_t i = 1; i < ny; i++)
     for (size_t j = 0; j < nx; j++)
@@ -63,7 +63,7 @@ corr2d_is_single_row_ref (const float complex *ref, size_t ny, size_t nx)
 }
 
 corr2d_state_t *
-corr2d_create (const float complex *ref, size_t ny, size_t nx, size_t dwell,
+corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
                int nthreads, size_t ny_out, size_t nx_out)
 {
   corr2d_state_t *state = calloc (1, sizeof (*state)); /* NULL-init pointers */
@@ -120,7 +120,7 @@ corr2d_create (const float complex *ref, size_t ny, size_t nx, size_t dwell,
 
       if (nxo != nx)
         {
-          state->work_pad = malloc (ny * nxo * sizeof (float complex));
+          state->work_pad = malloc (ny * nxo * sizeof (float _Complex));
           if (!state->work_pad)
             goto fail;
         }
@@ -138,10 +138,10 @@ corr2d_create (const float complex *ref, size_t ny, size_t nx, size_t dwell,
 
       if (decoupled)
         {
-          state->work_pad = malloc (nyo * nxo * sizeof (float complex));
-          state->ztmp     = malloc (ny * nxo * sizeof (float complex));
-          state->zcol     = malloc (ny * sizeof (float complex));
-          state->zcolout  = malloc (nyo * sizeof (float complex));
+          state->work_pad = malloc (nyo * nxo * sizeof (float _Complex));
+          state->ztmp     = malloc (ny * nxo * sizeof (float _Complex));
+          state->zcol     = malloc (ny * sizeof (float _Complex));
+          state->zcolout  = malloc (nyo * sizeof (float _Complex));
           if (!state->work_pad || !state->ztmp || !state->zcol
               || !state->zcolout)
             goto fail;
@@ -231,7 +231,7 @@ corr2d_set_state (corr2d_state_t *s, const void *blob)
 }
 
 int
-corr2d_set_ref (corr2d_state_t *state, const float complex *ref)
+corr2d_set_ref (corr2d_state_t *state, const float _Complex *ref)
 {
   if (state->fast_path)
     {
@@ -272,8 +272,8 @@ corr2d_execute_max_out (corr2d_state_t *state)
  * 1/nx (NOT 1/n = ny*nx: the row-axis orthogonality sum contributes the
  * extra factor of ny that turns 1/n into 1/nx — see the derivation). */
 static size_t
-corr2d_execute_fast (corr2d_state_t *state, const float complex *in,
-                     float complex *out)
+corr2d_execute_fast (corr2d_state_t *state, const float _Complex *in,
+                     float _Complex *out)
 {
   const size_t ny = state->ny, nx = state->nx, nxo = state->nx_out;
 
@@ -314,8 +314,8 @@ corr2d_execute_fast (corr2d_state_t *state, const float complex *in,
 }
 
 size_t
-corr2d_execute (corr2d_state_t *state, const float complex *in, size_t n_in,
-                float complex *out, size_t max_out)
+corr2d_execute (corr2d_state_t *state, const float _Complex *in, size_t n_in,
+                float _Complex *out, size_t max_out)
 {
   (void)n_in;
 
@@ -326,12 +326,12 @@ corr2d_execute (corr2d_state_t *state, const float complex *in, size_t n_in,
    * prefix. Decided here, once, because BOTH paths write through `dst`; the
    * fast path is a separate write site and a clamp applied only to the slow
    * one would leave it unguarded. */
-  float complex *dst = out;
-  size_t         cap = state->n_out;
+  float _Complex *dst = out;
+  size_t          cap = state->n_out;
   if (max_out < state->n_out)
     {
       if (!state->work_trunc)
-        state->work_trunc = (float complex *)dp_xcalloc (
+        state->work_trunc = (float _Complex *)dp_xcalloc (
             state->n_out, sizeof *state->work_trunc);
       dst = state->work_trunc;
       cap = max_out;
@@ -381,7 +381,7 @@ corr2d_execute (corr2d_state_t *state, const float complex *in, size_t n_in,
        * grid; the normalization stays the native 1/n (not 1/n_out) so the
        * interpolated peak equals the native peak.  Native path is unchanged.
        */
-      const float complex *src = state->accum;
+      const float _Complex *src = state->accum;
       if (state->n_out != state->n)
         {
           corr2d_zeropad_2d (state, state->accum, state->work_pad);

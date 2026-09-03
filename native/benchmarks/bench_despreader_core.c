@@ -35,8 +35,8 @@ main (void)
       st ^= st << 5;
       code[i] = (st & 1u);
     }
-  float complex *rx  = malloc (BENCH_N * sizeof (*rx));
-  float complex *out = malloc (BENCH_N * sizeof (*out));
+  float _Complex *rx  = malloc (BENCH_N * sizeof (*rx));
+  float _Complex *out = malloc (BENCH_N * sizeof (*out));
   if (!rx || !out)
     return 1;
   double cph = 0.0, phase = 0.0, w = 5e-5 * 2.0 * M_PI;

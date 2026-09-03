@@ -126,7 +126,7 @@
  *     m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta,
  *     bn_timing, lock_thresh, init_norm_freq, differential, num_phases,
  *     agc, bn_agc_ratio);
- * float complex sym[256];
+ * float _Complex sym[256];
  * size_t k = mpsk_receiver_steps (rx, rx_in, rx_len, sym, 256);
  * double f = mpsk_receiver_get_norm_freq (rx);  // tracked residual carrier
  * mpsk_receiver_destroy (rx);
@@ -162,7 +162,7 @@
  *     m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta,
  *     bn_timing, lock_thresh, init_norm_freq, differential, num_phases,
  *     agc, bn_agc_ratio);
- * float complex sym[256];
+ * float _Complex sym[256];
  * size_t k = mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
  * mpsk_receiver_destroy (rx);
  * @endcode
@@ -582,10 +582,10 @@ extern "C"
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  mpsk_receiver_step_ted (mpsk_receiver_state_t *s, float complex x,
-                          float complex *y_out, int ted)
+  mpsk_receiver_step_ted (mpsk_receiver_state_t *s, float _Complex x,
+                          float _Complex *y_out, int ted)
   {
-    float complex ys[4];
+    float _Complex ys[4];
     size_t        n     = ddc_execute_ctrl_push_tap2 (
         s->fe.c, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
@@ -610,9 +610,9 @@ extern "C"
    */
   JM_FORCEINLINE JM_HOT int
   mpsk_receiver_step_real_ted (mpsk_receiver_state_t *s, float x,
-                               float complex *y_out, int ted)
+                               float _Complex *y_out, int ted)
   {
-    float complex ys[4];
+    float _Complex ys[4];
     size_t        n     = ddcr_execute_ctrl_push_tap2 (
         s->fe.r, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
@@ -651,8 +651,8 @@ extern "C"
    * @endcode
    */
   size_t mpsk_receiver_steps (mpsk_receiver_state_t *state,
-                              const float complex *x, size_t x_len,
-                              float complex *out, size_t max_out);
+                              const float _Complex *x, size_t x_len,
+                              float _Complex *out, size_t max_out);
 
   size_t mpsk_receiver_bits_max_out (mpsk_receiver_state_t *state);
   /**
@@ -690,7 +690,7 @@ extern "C"
    * @endcode
    */
   size_t mpsk_receiver_bits (mpsk_receiver_state_t *state,
-                             const float complex *x, size_t x_len,
+                             const float _Complex *x, size_t x_len,
                              uint8_t *out, size_t max_out);
 
   size_t mpsk_receiver_steps_real_max_out (mpsk_receiver_state_t *state);
@@ -727,7 +727,7 @@ extern "C"
    */
   size_t mpsk_receiver_steps_real (mpsk_receiver_state_t *state,
                                    const float *x, size_t x_len,
-                                   float complex *out, size_t max_out);
+                                   float _Complex *out, size_t max_out);
 
   size_t mpsk_receiver_bits_real_max_out (mpsk_receiver_state_t *state);
   /**

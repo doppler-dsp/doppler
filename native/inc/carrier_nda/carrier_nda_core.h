@@ -123,7 +123,7 @@
  * @code
  * // QPSK NDA carrier loop, 8 samples/symbol, 2-sample moving-average arm
  * carrier_nda_state_t *c = carrier_nda_create(0.01, 0.707, 0.0, 8, 4, 4);
- * float complex derot[1024];
+ * float _Complex derot[1024];
  * size_t k = carrier_nda_steps(c, rx, rx_len, derot, 1024);
  * double f = carrier_nda_get_norm_freq(c); // tracked carrier (cyc/sample)
  * carrier_nda_destroy(c);
@@ -282,7 +282,7 @@ extern "C"
    * @param lock   Receives the lock signal.
    */
   JM_FORCEINLINE void
-  carrier_nda_disc (float complex z, int m, double *pe, double *lock)
+  carrier_nda_disc (float _Complex z, int m, double *pe, double *lock)
   {
     /* BOTH outputs normalise by the detector's OWN amplitude law, |z|^M.
      *
@@ -390,8 +390,8 @@ extern "C"
    * @param x  One input sample.
    * @return The de-rotated sample to feed the moving-average arm.
    */
-  JM_FORCEINLINE JM_HOT float complex
-  carrier_nda_wipeoff (carrier_nda_state_t *s, float complex x)
+  JM_FORCEINLINE JM_HOT float _Complex
+  carrier_nda_wipeoff (carrier_nda_state_t *s, float _Complex x)
   {
     /* De-rotate through the NCO's control port: the LO advances by its centre
      * frequency (phase_inc) plus the loop's last control (ctl_cyc, set by
@@ -417,7 +417,7 @@ extern "C"
    * @return Always 1 (one discriminator output per input sample).
    */
   JM_FORCEINLINE JM_HOT int
-  carrier_nda_arm_step (carrier_nda_state_t *s, float complex d, double *pe,
+  carrier_nda_arm_step (carrier_nda_state_t *s, float _Complex d, double *pe,
                         double *lock)
   {
     /* Slide the boxcar moving average by one sample (unit gain — pure I/Q
@@ -675,8 +675,8 @@ extern "C"
    *
    * @endcode
    */
-  size_t carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
-                            size_t x_len, float complex *out, size_t max_out);
+  size_t carrier_nda_steps (carrier_nda_state_t *state, const float _Complex *x,
+                            size_t x_len, float _Complex *out, size_t max_out);
   double carrier_nda_get_norm_freq (const carrier_nda_state_t *state);
   /** @brief Instantaneous NCO frequency command = centre + full loop-filter
    * output (integ + kp*e), cycles/sample. Mean rides a ramp with no lag;

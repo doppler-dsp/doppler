@@ -61,7 +61,7 @@ main (void)
   static double   t[N_CFG][ITERATIONS];
   fir_state_t    *fir[N_CFG] = { 0 };
   float          *rtaps      = NULL;
-  float complex  *ctaps = NULL, *in = NULL, *out = NULL;
+  float _Complex *ctaps = NULL, *in = NULL, *out = NULL;
   char            name[64];
   size_t          n_max = taps_n[N_LEN - 1];
 
@@ -84,12 +84,12 @@ main (void)
                                   - 0.46
                                         * cos (2.0 * M_PI * (double)k
                                                / (double)(n_max - 1))));
-      ctaps[k]       = (float complex)rtaps[k];
+      ctaps[k]       = (float _Complex)rtaps[k];
     }
 
   for (size_t i = 0; i < BLOCK; i++)
-    in[i] = (float complex) (cosf (0.01f * (float)i)
-                             + I * sinf (0.013f * (float)i));
+    in[i] = (float _Complex) (cosf (0.01f * (float)i)
+                              + I * sinf (0.013f * (float)i));
 
   for (int l = 0; l < N_LEN; l++)
     {

@@ -136,8 +136,8 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float complex *_ng0 = (const float complex *)PyArray_DATA (in_arr);
-  size_t               n_out;
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
+  size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
     n_out = acq_push (self->handle, _ng0, n_in, results, 64);
   Py_END_ALLOW_THREADS

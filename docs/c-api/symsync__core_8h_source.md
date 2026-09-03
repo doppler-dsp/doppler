@@ -56,8 +56,8 @@ extern "C"
     uint32_t      base_inc;     
     int           ted;          
     int           have_ontime;  
-    float complex prev_ontime;  
-    float complex mid;          
+    float _Complex prev_ontime;  
+    float _Complex mid;          
     double        bn;           
     double        zeta;         
     double        last_error;   
@@ -73,7 +73,7 @@ extern "C"
   } symsync_state_t;
 
   JM_FORCEINLINE double
-  gardner_ted (float complex mid, float complex diff)
+  gardner_ted (float _Complex mid, float _Complex diff)
   {
     return (double)(crealf (mid) * crealf (diff)
                     + cimagf (mid) * cimagf (diff));
@@ -88,7 +88,7 @@ extern "C"
   double symsync_ted_slope (int ted, int pulse, double beta, size_t span);
 
   JM_FORCEINLINE double
-  dttl_ted (float complex mid, float complex y, float complex prev)
+  dttl_ted (float _Complex mid, float _Complex y, float _Complex prev)
   {
     double si = (crealf (y) >= 0.0f ? 1.0 : -1.0)
                 - (crealf (prev) >= 0.0f ? 1.0 : -1.0);
@@ -98,7 +98,7 @@ extern "C"
   }
 
   JM_FORCEINLINE JM_HOT int
-  symsync_step_ted (symsync_state_t *s, float complex x, float complex *y_out,
+  symsync_step_ted (symsync_state_t *s, float _Complex x, float _Complex *y_out,
                     int ted)
   {
     const uint32_t HALF = 0x80000000u;
@@ -120,7 +120,7 @@ extern "C"
         return 0;
       }
     float         mu   = (float)(1.0 - (double)s->timing.phase / inc);
-    float complex y    = farrow_eval (&s->farrow, mu);
+    float _Complex y    = farrow_eval (&s->farrow, mu);
     int           emit = 0;
     if (s->have_ontime)
       {
@@ -129,7 +129,7 @@ extern "C"
           num = dttl_ted (s->mid, y, s->prev_ontime);
         else
           {
-            float complex diff = y - s->prev_ontime;
+            float _Complex diff = y - s->prev_ontime;
             num                = gardner_ted (s->mid, diff);
           }
         double inst_pwr
@@ -158,7 +158,7 @@ extern "C"
          * dll_configure_lock's derivation). See symsync_configure_lock()
          * for how avgs/threshold are sized from (rolloff, esno_min, pfa,
          * pd). */
-        float complex md = s->mid;
+        float _Complex md = s->mid;
         double        mid_pwr
             = (double)(crealf (md) * crealf (md) + cimagf (md) * cimagf (md));
         double lock_signal = 2.0 * (inst_pwr - mid_pwr)
@@ -183,7 +183,7 @@ extern "C"
   void symsync_tlm_flush (const symsync_state_t *s);
 
   JM_FORCEINLINE JM_HOT int
-  symsync_step (symsync_state_t *s, float complex x, float complex *y_out)
+  symsync_step (symsync_state_t *s, float _Complex x, float _Complex *y_out)
   {
     int r = symsync_step_ted (s, x, y_out, s->ted);
     if (r && s->tlm.ctx)
@@ -203,8 +203,8 @@ extern "C"
 
   size_t symsync_steps_max_out (symsync_state_t *state);
 
-  size_t symsync_steps (symsync_state_t *state, const float complex *x,
-                        size_t x_len, float complex *out, size_t max_out);
+  size_t symsync_steps (symsync_state_t *state, const float _Complex *x,
+                        size_t x_len, float _Complex *out, size_t max_out);
 
   void   symsync_configure (symsync_state_t *state, double bn, double zeta);
   double symsync_get_bn (const symsync_state_t *state);

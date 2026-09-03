@@ -76,7 +76,7 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 |  double | [**wfm\_writer\_peak**](#function-wfm_writer_peak) (const [**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* w) <br> |
 |  void | [**wfm\_writer\_set\_gain**](#function-wfm_writer_set_gain) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* w, double gain) <br> |
 |  void | [**wfm\_writer\_track\_clipping**](#function-wfm_writer_track_clipping) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state, int on) <br> |
-|  size\_t | [**wfm\_writer\_write**](#function-wfm_writer_write) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state, const float complex \* x, size\_t x\_len) <br>_Convert and write a block of samples._  |
+|  size\_t | [**wfm\_writer\_write**](#function-wfm_writer_write) ([**wfm\_writer\_state\_t**](wfm__writer__core_8h.md#typedef-wfm_writer_state_t) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Convert and write a block of samples._  |
 |  int | [**write\_blue\_header**](#function-write_blue_header) (const char \* path, double fs, int sample\_type, int endian, double fc, double data\_start, size\_t total, int detached, double t0) <br> |
 
 
@@ -702,7 +702,7 @@ _Convert and write a block of samples._
 ```C++
 size_t wfm_writer_write (
     wfm_writer_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len
 ) 
 ```

@@ -74,7 +74,8 @@ mpsk_rx_loops_init (mpsk_rx_loops_t *l, int m, double sps, double lo_sps,
   /* The NDA M-th-power loop's stable points are the 0-grid (z^m = +1), but
      the QPSK constellation sits on the pi/4-offset grid, so an unrotated
      strobe would land every symbol exactly on a decision boundary. */
-  l->sym_rot = (float complex) (cos (mpsk_phi0 (m)) + sin (mpsk_phi0 (m)) * I);
+  l->sym_rot
+      = (float _Complex) (cos (mpsk_phi0 (m)) + sin (mpsk_phi0 (m)) * I);
 
   memset (&l->tlm, 0, sizeof l->tlm);
 
@@ -123,11 +124,11 @@ mpsk_rx_set_freq_est (mpsk_rx_loops_t *l, double val)
 }
 
 int
-mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float complex y, uint8_t *bits)
+mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float _Complex y, uint8_t *bits)
 {
-  float complex ahat;
-  unsigned      label = mpsk_slice (y, l->m, &ahat);
-  unsigned      out_label;
+  float _Complex ahat;
+  unsigned label = mpsk_slice (y, l->m, &ahat);
+  unsigned out_label;
   if (l->differential)
     {
       unsigned idx     = mpsk_gray_decode (label & (unsigned)(l->m - 1));
@@ -146,7 +147,7 @@ mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float complex y, uint8_t *bits)
 }
 
 void
-mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float complex y)
+mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float _Complex y)
 {
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_lock, l->lock);
   dp_tlm_emit (l->tlm.ctx, l->tlm.id_e, l->car_error);
@@ -519,17 +520,17 @@ mpsk_receiver_reset (mpsk_receiver_state_t *state)
  * telemetry hoist, its own capacity guard and its own comment about both. */
 JM_FORCEINLINE static int
 mpsk_rx_step_at (mpsk_receiver_state_t *s, const void *x, size_t i,
-                 float complex *y, int real)
+                 float _Complex *y, int real)
 {
   return real ? mpsk_receiver_step_real_ted (s, ((const float *)x)[i], y,
                                              RATESYNC_TED_GARDNER)
-              : mpsk_receiver_step_ted (s, ((const float complex *)x)[i], y,
+              : mpsk_receiver_step_ted (s, ((const float _Complex *)x)[i], y,
                                         RATESYNC_TED_GARDNER);
 }
 
 JM_FORCEINLINE static size_t
 mpsk_rx_steps_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
-                    float complex *out, size_t max_out, int real)
+                    float _Complex *out, size_t max_out, int real)
 {
   size_t emitted = 0;
   /* Telemetry hoisted to loop entry (attach is setup-time only): the detached
@@ -540,7 +541,7 @@ mpsk_rx_steps_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
     {
       for (size_t i = 0; i < x_len; i++)
         {
-          float complex y;
+          float _Complex y;
           if (mpsk_rx_step_at (state, x, i, &y, real) && emitted < max_out)
             out[emitted++] = y;
         }
@@ -549,7 +550,7 @@ mpsk_rx_steps_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
     {
       for (size_t i = 0; i < x_len; i++)
         {
-          float complex y;
+          float _Complex y;
           if (mpsk_rx_step_at (state, x, i, &y, real))
             {
               if (emitted < max_out)
@@ -570,7 +571,7 @@ mpsk_rx_bits_impl (mpsk_receiver_state_t *state, const void *x, size_t x_len,
      per-symbol call, so there is no pristine register-resident fast path. */
   for (size_t i = 0; i < x_len; i++)
     {
-      float complex y;
+      float _Complex y;
       if (!mpsk_rx_step_at (state, x, i, &y, real))
         continue;
       if (state->l.tlm.ctx)
@@ -591,8 +592,8 @@ mpsk_receiver_steps_max_out (mpsk_receiver_state_t *state)
 }
 
 size_t
-mpsk_receiver_steps (mpsk_receiver_state_t *state, const float complex *x,
-                     size_t x_len, float complex *out, size_t max_out)
+mpsk_receiver_steps (mpsk_receiver_state_t *state, const float _Complex *x,
+                     size_t x_len, float _Complex *out, size_t max_out)
 {
   return mpsk_rx_steps_impl (state, x, x_len, out, max_out, 0);
 }
@@ -606,7 +607,7 @@ mpsk_receiver_steps_real_max_out (mpsk_receiver_state_t *state)
 
 size_t
 mpsk_receiver_steps_real (mpsk_receiver_state_t *state, const float *x,
-                          size_t x_len, float complex *out, size_t max_out)
+                          size_t x_len, float _Complex *out, size_t max_out)
 {
   return mpsk_rx_steps_impl (state, x, x_len, out, max_out, 1);
 }
@@ -619,7 +620,7 @@ mpsk_receiver_bits_max_out (mpsk_receiver_state_t *state)
 }
 
 size_t
-mpsk_receiver_bits (mpsk_receiver_state_t *state, const float complex *x,
+mpsk_receiver_bits (mpsk_receiver_state_t *state, const float _Complex *x,
                     size_t x_len, uint8_t *out, size_t max_out)
 {
   return mpsk_rx_bits_impl (state, x, x_len, out, max_out, 0);

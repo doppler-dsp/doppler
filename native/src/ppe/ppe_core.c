@@ -55,8 +55,8 @@ ppe_create (size_t max_len, double max_rate)
     }
 
   s->fft    = fft_create (s->nfft, -1, 1); /* forward */
-  s->buf    = malloc (s->nfft * sizeof (float complex));
-  s->spec   = malloc (s->nfft * sizeof (float complex));
+  s->buf    = malloc (s->nfft * sizeof (float _Complex));
+  s->spec   = malloc (s->nfft * sizeof (float _Complex));
   s->mag    = malloc (s->nfft * sizeof (float));
   s->win    = malloc (max_len * sizeof (float));
   s->rowpk  = malloc (s->n_rate * sizeof (double));
@@ -96,7 +96,7 @@ ppe_reset (ppe_state_t *s)
  * s->win, FFT, and return the dominant peak's DC-centred normalized frequency
  * (@p freq) and its peak-to-mean prominence in dB (@p ptm). */
 static void
-row_peak (ppe_state_t *s, const float complex *y, size_t len, double r,
+row_peak (ppe_state_t *s, const float _Complex *y, size_t len, double r,
           double *freq, double *peak_out, double *ptm)
 {
   const size_t nfft = s->nfft;
@@ -147,7 +147,7 @@ row_peak (ppe_state_t *s, const float complex *y, size_t len, double r,
 }
 
 ppe_result_t
-ppe_estimate (ppe_state_t *s, const float complex *y, size_t L)
+ppe_estimate (ppe_state_t *s, const float _Complex *y, size_t L)
 {
   ppe_result_t r = { 0.0, 0.0, 0.0 };
   if (L < 4 || L > s->max_len)

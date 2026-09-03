@@ -428,7 +428,7 @@ class _SynthEngine:
         Returns
         -------
         complex
-            Next output sample (float complex).
+            Next output sample (float _Complex).
 
         Examples
         --------

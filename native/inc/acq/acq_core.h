@@ -169,11 +169,11 @@ extern "C"
     corr2d_state_t *corr; /**< Single-row-ref correlator (dwell=1).          */
     fft_state_t *slow_fft; /**< Length-coherent_bins forward FFT (slow time). */
     dp_f32_t    *ring;  /**< Raw cf32 input ring (the only ring).          */
-    float complex *ref; /**< Single-row reference (n), owned.              */
-    float complex *yframe;  /**< Slow-time-FFT'd frame (n) fed to corr.  */
-    float complex *colbuf;  /**< Gathered column scratch (coherent_bins). */
-    float complex *colout;  /**< FFT'd column scratch (coherent_bins).   */
-    float complex *out_buf; /**< corr2d dump output (n) — also the wideband
+    float _Complex *ref; /**< Single-row reference (n), owned.              */
+    float _Complex *yframe;  /**< Slow-time-FFT'd frame (n) fed to corr.  */
+    float _Complex *colbuf;  /**< Gathered column scratch (coherent_bins). */
+    float _Complex *colout;  /**< FFT'd column scratch (coherent_bins).   */
+    float _Complex *out_buf; /**< corr2d dump output (n) — also the wideband
                                  mode's (window_bins, code_bins) grid.       */
     float *mag_buf;       /**< |out_buf| (n).                                */
     float *noise_scratch; /**< Scratch for the median sort (n).              */
@@ -185,11 +185,11 @@ extern "C"
      * left allocated at their trivial coherent_bins=1 size, in this mode). */
     fft_state_t *wide_fwd; /**< Forward FFT, length code_bins.               */
     fft_state_t *wide_inv; /**< Inverse FFT, length code_bins.               */
-    float complex
+    float _Complex
         *wide_ref_spec; /**< conj(FFT(replica row)), length code_bins.     */
-    float complex
+    float _Complex
         *wide_spec; /**< FFT(raw epoch), length code_bins; once/epoch.    */
-    float complex *wide_prod; /**< Rolled-spectrum * wide_ref_spec product,
+    float _Complex *wide_prod; /**< Rolled-spectrum * wide_ref_spec product,
                                     length code_bins; reused per hypothesis. */
 
     size_t
@@ -300,7 +300,7 @@ extern "C"
    * bytes interface (see dp_state.h); layout, contiguous and flat:
    *
    *   `[ dp_state_hdr_t ] [ acq_extra_t ]`
-   *   `[ float complex unconsumed[n_unconsumed] ]`   (partial frame, < n
+   *   `[ float _Complex unconsumed[n_unconsumed] ]`   (partial frame, < n
    * samples)
    *   `[ float          nc_surface[n] ]`             (only when n_noncoh > 1)
    *
@@ -561,7 +561,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t acq_push (acq_state_t *state, const float complex *x, size_t n_in,
+  size_t acq_push (acq_state_t *state, const float _Complex *x, size_t n_in,
                    acq_result_t *result, size_t max_results);
 
   /**
@@ -666,7 +666,7 @@ extern "C"
    * @return Number of events written (0 … max_results).
    */
   size_t acq_run (acq_state_t *state, const void *state_in, void *state_out,
-                  const float complex *in, size_t n_in, acq_result_t *result,
+                  const float _Complex *in, size_t n_in, acq_result_t *result,
                   size_t max_results);
 
 #ifdef __cplusplus

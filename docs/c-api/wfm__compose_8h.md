@@ -79,7 +79,7 @@ _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_create**](#function-wfm_compose_create) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, int repeat, int continuous) <br>_Build a composer over a copy of_ `segs` _._ |
 |  void | [**wfm\_compose\_destroy**](#function-wfm_compose_destroy) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state) <br>_Destroy a composer and its active synth._  |
 |  size\_t | [**wfm\_compose\_draws**](#function-wfm_compose_draws) (const [**wfm\_segment\_t**](structwfm__segment__t.md) \* segs, size\_t n\_segs, [**wfm\_draw\_t**](structwfm__draw__t.md) \* out, size\_t cap) <br>_Replay the (epoch 0) instance timeline AND its drawn source values._  |
-|  size\_t | [**wfm\_compose\_execute**](#function-wfm_compose_execute) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, float complex \* out, size\_t max) <br>_Emit up to_ `max` _samples of the composed stream._ |
+|  size\_t | [**wfm\_compose\_execute**](#function-wfm_compose_execute) ([**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* state, float \_Complex \* out, size\_t max) <br>_Emit up to_ `max` _samples of the composed stream._ |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_file**](#function-wfm_compose_from_file) (const char \* path) <br>_Build a composer from a JSON spec file._  |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_json**](#function-wfm_compose_from_json) (const char \* json) <br>_Build a composer from a JSON spec string (for_  _from-file)._ |
 |  [**wfm\_compose\_state\_t**](wfm__compose_8h.md#typedef-wfm_compose_state_t) \* | [**wfm\_compose\_from\_json\_why**](#function-wfm_compose_from_json_why) (const char \* json, const char \*\* why) <br>_The same, but able to say why a FRAME was refused._  |
@@ -151,7 +151,7 @@ wfm_segment_t segs[2] = {
      .num_samples = 4096, .off_samples = 0},            // qpsk
 };
 wfm_compose_state_t *c = wfm_compose_create(segs, 2, 0, 0);
-float complex buf[4096];
+float _Complex buf[4096];
 size_t n;
 while ((n = wfm_compose_execute(c, buf, 4096)) > 0) { ... }
 wfm_compose_destroy(c);
@@ -540,7 +540,7 @@ _Emit up to_ `max` _samples of the composed stream._
 ```C++
 size_t wfm_compose_execute (
     wfm_compose_state_t * state,
-    float complex * out,
+    float _Complex * out,
     size_t max
 ) 
 ```

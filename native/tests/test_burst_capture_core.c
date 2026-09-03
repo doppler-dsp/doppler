@@ -78,7 +78,7 @@ data_code (void)
 
 /** @brief One burst: REPS preamble repetitions then a spread payload. */
 static size_t
-build_burst (float complex *y)
+build_burst (float _Complex *y)
 {
   const uint8_t *acode = acq_code (), *dcode = data_code ();
   size_t         n = 0;
@@ -98,8 +98,8 @@ build_burst (float complex *y)
 
 /** @brief Noise everywhere, bursts at @p n_at offsets. */
 static void
-build_capture (float complex *cap, size_t n_cap, const size_t *at, size_t n_at,
-               double sigma, uint32_t seed)
+build_capture (float _Complex *cap, size_t n_cap, const size_t *at,
+               size_t n_at, double sigma, uint32_t seed)
 {
   uint32_t st = seed;
   for (size_t i = 0; i < n_cap; i++)
@@ -110,8 +110,8 @@ build_capture (float complex *cap, size_t n_cap, const size_t *at, size_t n_at,
       float im = (float)(sigma * dp_gauss (&st));
       cap[i]   = re + im * I;
     }
-  static float complex burst[1 << 16];
-  size_t               nb = build_burst (burst);
+  static float _Complex burst[1 << 16];
+  size_t nb = build_burst (burst);
   for (size_t k = 0; k < n_at; k++)
     for (size_t i = 0; i < nb && at[k] + i < n_cap; i++)
       cap[at[k] + i] += burst[i];
@@ -266,14 +266,14 @@ test_create_rejects_bad_parameters (void)
 static int
 test_window_starts_at_the_burst (void)
 {
-  static float complex cap[80000];
-  const size_t         at = 9000u;
+  static float _Complex cap[80000];
+  const size_t at = 9000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
 
-  static float complex out[4 * BURST_LEN];
+  static float _Complex out[4 * BURST_LEN];
   size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                                  sizeof out / sizeof *out);
 
@@ -300,7 +300,7 @@ test_window_starts_at_the_burst (void)
   DP_CHECK (ev->doppler_res_hz > 0.0);
 
   /* The window is the burst, not a window near it. */
-  static float complex burst[1 << 16];
+  static float _Complex burst[1 << 16];
   build_burst (burst);
   double num = 0.0, den = 0.0;
   for (size_t i = 0; i < 8u * ACQ_SF * SPC; i++)
@@ -311,7 +311,7 @@ test_window_starts_at_the_burst (void)
   DP_CHECK (den > 0.0 && num / den > 0.8);
 
   /* Both faces read the same scratch, so they must agree sample for sample. */
-  const float complex *w = burst_capture_window (s, 0);
+  const float _Complex *w = burst_capture_window (s, 0);
   DP_REQUIRE (w != NULL);
   DP_CHECK (memcmp (w, out, BURST_LEN * sizeof *w) == 0);
   DP_CHECK (burst_capture_window (s, 1) == NULL);
@@ -330,14 +330,14 @@ test_window_starts_at_the_burst (void)
 static int
 test_every_burst_is_emitted_once (void)
 {
-  static float complex cap[200000];
-  const size_t         at[3] = { 9000u, 60000u, 120000u };
+  static float _Complex cap[200000];
+  const size_t at[3] = { 9000u, 60000u, 120000u };
   build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
 
-  static float complex out[8 * BURST_LEN];
+  static float _Complex out[8 * BURST_LEN];
   size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                                  sizeof out / sizeof *out);
 
@@ -389,19 +389,19 @@ test_every_burst_is_emitted_once (void)
 static int
 test_block_size_does_not_change_the_answer (void)
 {
-  static float complex cap[200000];
-  const size_t         at[3] = { 9000u, 60000u, 120000u };
-  const size_t         n_cap = sizeof cap / sizeof *cap;
+  static float _Complex cap[200000];
+  const size_t at[3] = { 9000u, 60000u, 120000u };
+  const size_t n_cap = sizeof cap / sizeof *cap;
   build_capture (cap, n_cap, at, 3u, 0.02, 11u);
 
   burst_capture_state_t *a = make ();
   burst_capture_state_t *b = make ();
   DP_REQUIRE (a != NULL && b != NULL);
 
-  static float complex out_a[8 * BURST_LEN];
-  static float complex out_b[8 * BURST_LEN];
-  size_t               na = burst_capture_push (a, cap, n_cap, out_a,
-                                                sizeof out_a / sizeof *out_a);
+  static float _Complex out_a[8 * BURST_LEN];
+  static float _Complex out_b[8 * BURST_LEN];
+  size_t na = burst_capture_push (a, cap, n_cap, out_a,
+                                  sizeof out_a / sizeof *out_a);
 
   size_t nb = 0;
   for (size_t off = 0; off < n_cap; off += 333u)
@@ -430,14 +430,14 @@ test_block_size_does_not_change_the_answer (void)
 static int
 test_never_returns_a_partial_window (void)
 {
-  static float complex cap[200000];
-  const size_t         at[3] = { 9000u, 60000u, 120000u };
+  static float _Complex cap[200000];
+  const size_t at[3] = { 9000u, 60000u, 120000u };
   build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
 
-  static float complex out[8 * BURST_LEN];
+  static float _Complex out[8 * BURST_LEN];
   /* Room for 1.5 windows. */
   size_t room = BURST_LEN + BURST_LEN / 2u;
   size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out, room);
@@ -461,8 +461,8 @@ test_never_returns_a_partial_window (void)
 static int
 test_short_trailing_context_holds_the_burst (void)
 {
-  static float complex cap[200000];
-  const size_t         at = 40000u;
+  static float _Complex cap[200000];
+  const size_t at = 40000u;
   /* One sample short of the burst's last. The emission rule is the burst's
      own span having arrived -- retain_span is the RING's retention, which is
      larger, so asserting against it would pass on a much weaker object. */
@@ -472,7 +472,7 @@ test_short_trailing_context_holds_the_burst (void)
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  static float complex out[4 * BURST_LEN];
+  static float _Complex out[4 * BURST_LEN];
   size_t n = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
   DP_CHECK (n == 0);
   DP_CHECK (s->pending == 1u);
@@ -494,13 +494,13 @@ test_short_trailing_context_holds_the_burst (void)
 static int
 test_reset_clears_position_not_history (void)
 {
-  static float complex cap[80000];
-  const size_t         at = 9000u;
+  static float _Complex cap[80000];
+  const size_t at = 9000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  static float complex out[4 * BURST_LEN];
+  static float _Complex out[4 * BURST_LEN];
   burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                       sizeof out / sizeof *out);
   DP_REQUIRE (s->n_bursts == 1u);
@@ -533,14 +533,14 @@ test_reset_clears_position_not_history (void)
 static int
 test_state_resumes_mid_burst (void)
 {
-  static float complex cap[200000];
-  const size_t         at    = 60000u;
-  const size_t         n_cap = sizeof cap / sizeof *cap;
+  static float _Complex cap[200000];
+  const size_t at    = 60000u;
+  const size_t n_cap = sizeof cap / sizeof *cap;
   build_capture (cap, n_cap, &at, 1u, 0.02, 3u);
 
   burst_capture_state_t *a = make ();
   DP_REQUIRE (a != NULL);
-  static float complex out[4 * BURST_LEN];
+  static float _Complex out[4 * BURST_LEN];
   /* Split INSIDE the preamble: the detection has fired (or is about to) and
      the window has certainly not arrived. */
   const size_t cut = at + 2u * ACQ_SF * SPC;
@@ -583,13 +583,13 @@ test_push_max_out_bounds_a_real_push (void)
   DP_CHECK (large > small);
   DP_CHECK (small % BURST_LEN == 0);
 
-  static float complex cap[200000];
-  const size_t         at[3] = { 9000u, 60000u, 120000u };
-  const size_t         n_cap = sizeof cap / sizeof *cap;
+  static float _Complex cap[200000];
+  const size_t at[3] = { 9000u, 60000u, 120000u };
+  const size_t n_cap = sizeof cap / sizeof *cap;
   build_capture (cap, n_cap, at, 3u, 0.02, 11u);
 
-  static float complex out[8 * BURST_LEN];
-  size_t               bound = burst_capture_push_max_out (s, n_cap);
+  static float _Complex out[8 * BURST_LEN];
+  size_t bound = burst_capture_push_max_out (s, n_cap);
   size_t n = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
   DP_CHECK (n <= bound);
   DP_CHECK (n == burst_capture_ready (s) * BURST_LEN);
@@ -609,13 +609,13 @@ test_push_max_out_bounds_a_real_push (void)
 static int
 test_events_describe_the_last_push (void)
 {
-  static float complex cap[200000];
-  const size_t         at[3] = { 9000u, 60000u, 120000u };
+  static float _Complex cap[200000];
+  const size_t at[3] = { 9000u, 60000u, 120000u };
   build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  static float complex out[8 * BURST_LEN];
+  static float _Complex out[8 * BURST_LEN];
   burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                       sizeof out / sizeof *out);
 
@@ -644,7 +644,7 @@ test_events_describe_the_last_push (void)
 
   /* A push that completes nothing clears them -- events() describes THIS
      call, so a stale row would attribute an old burst to a quiet block. */
-  static float complex quiet[8000];
+  static float _Complex quiet[8000];
   build_capture (quiet, sizeof quiet / sizeof *quiet, NULL, 0u, 0.02, 4u);
   burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
                       sizeof out / sizeof *out);
@@ -666,13 +666,13 @@ test_events_describe_the_last_push (void)
 static int
 test_accessors_agree_with_the_event (void)
 {
-  static float complex cap[80000];
-  const size_t         at = 9000u;
+  static float _Complex cap[80000];
+  const size_t at = 9000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  static float complex out[4 * BURST_LEN];
+  static float _Complex out[4 * BURST_LEN];
   burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                       sizeof out / sizeof *out);
 
@@ -711,13 +711,13 @@ test_accessors_agree_with_the_event (void)
 static int
 test_detections_are_what_the_search_found (void)
 {
-  static float complex cap[200000];
-  const size_t         at[3] = { 9000u, 60000u, 120000u };
+  static float _Complex cap[200000];
+  const size_t at[3] = { 9000u, 60000u, 120000u };
   build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  static float complex out[8 * BURST_LEN];
+  static float _Complex out[8 * BURST_LEN];
   burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                       sizeof out / sizeof *out);
   const size_t ne = burst_capture_events_max_out (s, 0);
@@ -763,7 +763,7 @@ test_detections_are_what_the_search_found (void)
   DP_CHECK (one[0].epoch == det[0].epoch);
 
   /* A quiet push clears them: the rows describe THIS call. */
-  static float complex quiet[8000];
+  static float _Complex quiet[8000];
   build_capture (quiet, sizeof quiet / sizeof *quiet, NULL, 0u, 0.02, 4u);
   burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
                       sizeof out / sizeof *out);
@@ -787,10 +787,10 @@ test_detections_are_what_the_search_found (void)
 static int
 test_one_look_and_the_design_point_is_optional (void)
 {
-  static float complex cap[200000];
-  const size_t         at[3] = { 9000u, 60000u, 120000u };
+  static float _Complex cap[200000];
+  const size_t at[3] = { 9000u, 60000u, 120000u };
   build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
-  static float complex out[8 * BURST_LEN];
+  static float _Complex out[8 * BURST_LEN];
 
   /* No design point: the whole preamble, one look, nothing to be under. */
   burst_capture_state_t *s
@@ -895,16 +895,16 @@ test_configure_search_raw_refuses_a_grid_beyond_reach (void)
 static int
 test_release_gives_back_a_shadowed_burst (void)
 {
-  const size_t         AT = 9000u, LEAD = 2100u, CUT = 9400u;
-  static float complex cap[80000];
+  const size_t AT = 9000u, LEAD = 2100u, CUT = 9400u;
+  static float _Complex cap[80000];
   build_capture (cap, sizeof cap / sizeof *cap, &AT, 1u, 0.02, 7u);
   {
-    static float complex burst[1 << 16];
+    static float _Complex burst[1 << 16];
     build_burst (burst);
     for (size_t i = 0; i < REPS * ACQ_SF * SPC; i++)
       cap[AT - LEAD + i] += 0.35f * burst[i];
   }
-  static float complex out[4 * BURST_LEN];
+  static float _Complex out[4 * BURST_LEN];
 
   /* Released: the burst comes out. */
   {
@@ -938,7 +938,7 @@ test_release_gives_back_a_shadowed_burst (void)
     DP_CHECK (burst_capture_ready (s) == 0);
     DP_CHECK (s->pending >= 1u);                   /* held... */
     DP_CHECK (burst_capture_get_pending (s) == 0); /* ...and not counted */
-    static float complex quiet[8000];
+    static float _Complex quiet[8000];
     build_capture (quiet, sizeof quiet / sizeof *quiet, NULL, 0u, 0.02, 4u);
     burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
                         sizeof out / sizeof *out);
@@ -960,15 +960,15 @@ test_release_gives_back_a_shadowed_burst (void)
         acq_code (), ACQ_SF, LONG, REPS, SPC, 1.0e6, 0.0, 0.0, 1e-3, 0.9, 0);
     DP_REQUIRE (s != NULL);
     DP_REQUIRE (FAR >= s->refine_span && FAR < LONG); /* the premise */
-    static float complex scene[80000];
+    static float _Complex scene[80000];
     build_capture (scene, sizeof scene / sizeof *scene, &AT, 1u, 0.02, 7u);
     {
-      static float complex burst[1 << 16];
+      static float _Complex burst[1 << 16];
       build_burst (burst);
       for (size_t i = 0; i < REPS * ACQ_SF * SPC; i++)
         scene[AT - FAR + i] += 0.35f * burst[i];
     }
-    static float complex big[8 * 4 * BURST_LEN];
+    static float _Complex big[8 * 4 * BURST_LEN];
     /* One push past the decoy's window end (AT - FAR + LONG) and past the
        real preamble's first frame, so both hits are queued before the drain
        emits the decoy over the real one. */
@@ -1053,14 +1053,14 @@ test_destroy_null_is_safe (void)
 static int
 test_state_bytes_does_not_move_with_the_stream (void)
 {
-  static float complex cap[200000];
-  const size_t         at[3] = { 9000u, 60000u, 120000u };
+  static float _Complex cap[200000];
+  const size_t at[3] = { 9000u, 60000u, 120000u };
   build_capture (cap, sizeof cap / sizeof *cap, at, 3u, 0.02, 11u);
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  size_t               empty = burst_capture_state_bytes (s);
-  static float complex out[8 * BURST_LEN];
+  size_t empty = burst_capture_state_bytes (s);
+  static float _Complex out[8 * BURST_LEN];
   burst_capture_push (s, cap, 40000u, out, sizeof out / sizeof *out);
   DP_CHECK (burst_capture_state_bytes (s) == empty);
   burst_capture_push (s, cap + 40000u, 40000u, out, sizeof out / sizeof *out);
@@ -1087,15 +1087,15 @@ test_a_push_larger_than_the_ring_is_sliced (void)
   const size_t ring      = probe->hist->capacity;
   burst_capture_destroy (probe);
 
-  static float complex cap[200000];
-  const size_t         n_cap = sizeof cap / sizeof *cap;
+  static float _Complex cap[200000];
+  const size_t n_cap = sizeof cap / sizeof *cap;
   DP_REQUIRE (n_cap > 2u * ring); /* the point of the test */
   const size_t at[2] = { 9000u, 60000u };
   build_capture (cap, n_cap, at, 2u, 0.02, 11u);
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  static float complex out[8 * BURST_LEN];
+  static float _Complex out[8 * BURST_LEN];
   size_t n = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
   DP_CHECK (n_cap > chunk_max); /* the slicing path really was taken */
   DP_CHECK (n == burst_capture_ready (s) * BURST_LEN);
@@ -1117,13 +1117,13 @@ test_a_push_larger_than_the_ring_is_sliced (void)
 static int
 test_a_captured_burst_suppresses_its_own_payload (void)
 {
-  static float complex cap[80000];
-  const size_t         at = 9000u;
+  static float _Complex cap[80000];
+  const size_t at = 9000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  static float complex out[8 * BURST_LEN];
+  static float _Complex out[8 * BURST_LEN];
   size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                                  sizeof out / sizeof *out);
 
@@ -1173,13 +1173,13 @@ test_min_gap_is_derived_and_sufficient (void)
   DP_CHECK (gap > (span > BURST_LEN ? span - BURST_LEN : 0u));
   burst_capture_destroy (probe);
 
-  static float complex cap[200000];
-  const size_t         at[2] = { 9000u, 9000u + BURST_LEN + gap };
+  static float _Complex cap[200000];
+  const size_t at[2] = { 9000u, 9000u + BURST_LEN + gap };
   build_capture (cap, sizeof cap / sizeof *cap, at, 2u, 0.02, 13u);
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  static float complex out[8 * BURST_LEN];
+  static float _Complex out[8 * BURST_LEN];
   size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                                  sizeof out / sizeof *out);
 
@@ -1215,7 +1215,7 @@ test_refine_span_bounds_start_to_start (void)
   const size_t span = probe->refine_span;
   burst_capture_destroy (probe);
 
-  static float complex cap[200000];
+  static float _Complex cap[200000];
   /* Start-to-start just past `refine_span`, which leaves the two bursts
      nearly touching -- 32 samples of dead air, since burst_len is 2448 and
      the reach is 2480. Reading the reach as REQUIRED SILENCE would demand
@@ -1232,7 +1232,7 @@ test_refine_span_bounds_start_to_start (void)
 
   burst_capture_state_t *s = make ();
   DP_REQUIRE (s != NULL);
-  static float complex out[8 * BURST_LEN];
+  static float _Complex out[8 * BURST_LEN];
   size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
                                  sizeof out / sizeof *out);
 
@@ -1277,8 +1277,8 @@ test_backed_finds_the_same_burst_with_a_smaller_blob (void)
   scratch_path (path, sizeof path, "same");
   remove (path);
 
-  static float complex cap[80000];
-  const size_t         at = 9000u;
+  static float _Complex cap[80000];
+  const size_t at = 9000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
 
   burst_capture_state_t *ram = make ();
@@ -1289,8 +1289,8 @@ test_backed_finds_the_same_burst_with_a_smaller_blob (void)
   DP_CHECK (dsk->backed == 1);
   DP_CHECK (ram->backed == 0);
 
-  static float complex out_a[4 * BURST_LEN];
-  static float complex out_b[4 * BURST_LEN];
+  static float _Complex out_a[4 * BURST_LEN];
+  static float _Complex out_b[4 * BURST_LEN];
   size_t na = burst_capture_push (ram, cap, sizeof cap / sizeof *cap, out_a,
                                   sizeof out_a / sizeof *out_a);
   size_t nb = burst_capture_push (dsk, cap, sizeof cap / sizeof *cap, out_b,
@@ -1335,15 +1335,15 @@ test_history_survives_destroying_the_capture (void)
   scratch_path (path, sizeof path, "survive");
   remove (path);
 
-  static float complex cap[200000];
-  const size_t         at    = 60000u;
-  const size_t         n_cap = sizeof cap / sizeof *cap;
+  static float _Complex cap[200000];
+  const size_t at    = 60000u;
+  const size_t n_cap = sizeof cap / sizeof *cap;
   build_capture (cap, n_cap, &at, 1u, 0.02, 3u);
   const size_t cut = at + 2u * ACQ_SF * SPC; /* inside the preamble */
 
-  static float complex out[4 * BURST_LEN];
-  void                *blob = NULL;
-  size_t               cb   = 0;
+  static float _Complex out[4 * BURST_LEN];
+  void  *blob = NULL;
+  size_t cb   = 0;
   {
     burst_capture_state_t *a = burst_capture_create_backed (
         path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0,
@@ -1396,15 +1396,15 @@ test_a_blob_without_its_file_is_refused (void)
   remove (src);
   remove (dst);
 
-  static float complex cap[200000];
-  const size_t         at = 60000u;
+  static float _Complex cap[200000];
+  const size_t at = 60000u;
   build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 3u);
 
   burst_capture_state_t *a
       = burst_capture_create_backed (src, acq_code (), ACQ_SF, BURST_LEN, REPS,
                                      SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
   DP_REQUIRE (a != NULL);
-  static float complex out[4 * BURST_LEN];
+  static float _Complex out[4 * BURST_LEN];
   burst_capture_push (a, cap, at + 2u * ACQ_SF * SPC, out,
                       sizeof out / sizeof *out);
   /* What makes the blob refusable is that it CLAIMS retained history, which

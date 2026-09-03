@@ -68,7 +68,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 
 | Type | Name |
 | ---: | :--- |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**dll\_accumulate**](#function-dll_accumulate) ([**dll\_state\_t**](structdll__state__t.md) \* s, float complex d) <br>_Per-sample early/prompt/late correlate + fixed-point code-phase advance._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**dll\_accumulate**](#function-dll_accumulate) ([**dll\_state\_t**](structdll__state__t.md) \* s, float \_Complex d) <br>_Per-sample early/prompt/late correlate + fixed-point code-phase advance._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_chip\_sign**](#function-dll_chip_sign) (uint8\_t c) <br> |
 |  void | [**dll\_configure**](#function-dll_configure) ([**dll\_state\_t**](structdll__state__t.md) \* state, double bn, double zeta) <br>_Recompute the loop gains for a new (bn, zeta); keep the code state._  |
 |  int | [**dll\_configure\_lock**](#function-dll_configure_lock) ([**dll\_state\_t**](structdll__state__t.md) \* state, double pfa, size\_t n\_looks, double ref\_snr\_db) <br>_Tune the always-on code-lock detector to a target (pfa, n\_looks)._  |
@@ -86,7 +86,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  size\_t | [**dll\_get\_segments**](#function-dll_get_segments) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
 |  void | [**dll\_get\_state**](#function-dll_get_state) (const [**dll\_state\_t**](structdll__state__t.md) \* state, void \* blob) <br> |
 |  void | [**dll\_init**](#function-dll_init) ([**dll\_state\_t**](structdll__state__t.md) \* s, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_chip, double bn, double zeta, double spacing) <br>_Initialise a DLL in place (no allocation); BORROWS_ `code` _._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_lock\_accumulate**](#function-dll_lock_accumulate) ([**dll\_state\_t**](structdll__state__t.md) \* s, float complex d) <br>_Per-sample offset (noise) tap for the always-on lock detector._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_lock\_accumulate**](#function-dll_lock_accumulate) ([**dll\_state\_t**](structdll__state__t.md) \* s, float \_Complex d) <br>_Per-sample offset (noise) tap for the always-on lock detector._  |
 |  void | [**dll\_lock\_epoch**](#function-dll_lock_epoch) ([**dll\_state\_t**](structdll__state__t.md) \* s) <br>_Per-epoch lock-detector housekeeping: re-draw the noise offset._  |
 |  void | [**dll\_lock\_look**](#function-dll_lock_look) ([**dll\_state\_t**](structdll__state__t.md) \* s, double norm) <br>_Fold one look into the lock detector; clear the offset tap._  |
 |  size\_t | [**dll\_lookback\_segments**](#function-dll_lookback_segments) (size\_t tsamps, double max\_error\_db) <br>_Derive a principled_ `segments` _count from a max tolerable async-lookback correlation-power loss, instead of hand-picking one._ |
@@ -97,7 +97,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  int | [**dll\_set\_state**](#function-dll_set_state) ([**dll\_state\_t**](structdll__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**dll\_set\_telemetry**](#function-dll_set_telemetry) ([**dll\_state\_t**](structdll__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the code loop's probes on it. Registers four probes, emitted once per code epoch (period) and further thinned by decim: "&lt;prefix&gt;.e" (the early-minus-late envelope discriminator — the loop stress), "&lt;prefix&gt;.rate" (the tracked code rate, chips advanced per nominal chip, ~1.0 at lock), "&lt;prefix&gt;.lock" (the CFAR lock statistic R; compare against the configured threshold) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — the lockdet output, so a consumer sees where the declare/drop rule fired without re-deriving it from the statistic). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**dll\_state\_bytes**](#function-dll_state_bytes) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
-|  size\_t | [**dll\_steps**](#function-dll_steps) ([**dll\_state\_t**](structdll__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._  |
+|  size\_t | [**dll\_steps**](#function-dll_steps) ([**dll\_state\_t**](structdll__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._  |
 |  size\_t | [**dll\_steps\_max\_out**](#function-dll_steps_max_out) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
 |  void | [**dll\_tlm\_flush**](#function-dll_tlm_flush) (const [**dll\_state\_t**](structdll__state__t.md) \* s) <br>_Emit the code loop's telemetry records for the epoch just closed._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_update**](#function-dll_update) ([**dll\_state\_t**](structdll__state__t.md) \* s) <br>_Per-period code discriminator + loop update + NCO steer._  |
@@ -153,7 +153,7 @@ Lifecycle: `dll_create -> (steps / configure / reset)* -> dll_destroy`, or embed
 ```C++
 uint8_t code[31] = { ... };  // 0/1 chips, one period
 dll_state_t *d = dll_create(code, 31, 2, 0.0, 0.01, 0.707, 0.5);
-float complex sym[16];
+float _Complex sym[16];
 size_t k = dll_steps(d, rx, rx_len, sym, 16);  // one prompt per period
 double phase = d->chip_pos;                     // tracked code phase, chips
 dll_destroy(d);
@@ -173,7 +173,7 @@ _Per-sample early/prompt/late correlate + fixed-point code-phase advance._
 ```C++
 JM_FORCEINLINE  JM_HOT int dll_accumulate (
     dll_state_t * s,
-    float complex d
+    float _Complex d
 ) 
 ```
 
@@ -731,7 +731,7 @@ _Per-sample offset (noise) tap for the always-on lock detector._
 ```C++
 JM_FORCEINLINE  JM_HOT void dll_lock_accumulate (
     dll_state_t * s,
-    float complex d
+    float _Complex d
 ) 
 ```
 
@@ -1106,9 +1106,9 @@ _Correlate a carrier-wiped block against the local code and steer the code NCO o
 ```C++
 size_t dll_steps (
     dll_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

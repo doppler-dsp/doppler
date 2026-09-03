@@ -30,7 +30,7 @@ static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
  * > 1 (exercises nc_surface). @p s0d is the oversampled, code-phase-rolled
  * BPSK replica (length @p nx). */
 static int
-_acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
+_acq_run_roundtrip (const float _Complex *s0d, size_t nx, size_t spc,
                     double crate, double cn0, size_t n_noncoh_pin)
 {
   const double PI = acos (-1.0);
@@ -49,11 +49,11 @@ _acq_run_roundtrip (const float complex *s0d, size_t nx, size_t spc,
   const size_t cut = rn + rn / 2; /* split mid first accumulation         */
   const double rf  = 1.0 / (double)rn; /* inject Doppler bin u = 1 */
 
-  float complex *s = malloc (L * sizeof (float complex));
+  float _Complex *s = malloc (L * sizeof (float _Complex));
   for (size_t k = 0; k < L; k++)
     {
       double ph = 2.0 * PI * rf * (double)k;
-      s[k]      = s0d[k % nx] * (float complex) (cos (ph) + I * sin (ph));
+      s[k]      = s0d[k % nx] * (float _Complex) (cos (ph) + I * sin (ph));
     }
 
   /* reference: the whole stream via acq_run, state_in == NULL (-> reset). */
@@ -134,8 +134,8 @@ _acq_cn0_calibration (void)
    * frame expecting exactly one immediate dump. */
   DP_CHECK (acq_configure_search_raw (a, 16, 1) == 0);
 
-  const size_t   n = a->n; /* coherent_bins * code_bins */
-  float complex *x = malloc (n * sizeof (float complex));
+  const size_t    n = a->n; /* coherent_bins * code_bins */
+  float _Complex *x = malloc (n * sizeof (float _Complex));
   DP_CHECK (x != NULL);
   if (!x)
     {
@@ -195,8 +195,8 @@ _acq_configure_search_raw_check (void)
   DP_CHECK (a->n == 3 * a->code_bins);
   DP_CHECK (a->eta_nc > 0.0f && a->threshold == 0.0f);
 
-  const size_t   n     = a->n;
-  float complex *burst = malloc (2 * n * sizeof (float complex));
+  const size_t    n     = a->n;
+  float _Complex *burst = malloc (2 * n * sizeof (float _Complex));
   DP_CHECK (burst != NULL);
   if (burst)
     {
@@ -274,9 +274,9 @@ _acq_band_edge_check (void)
       const size_t nx = sf * spc, n = reps * nx;
       /* Native span in cycles/sample is 1/(2*nx): one half-cycle per code
          period. */
-      const double         span = 0.5 / (double)nx;
-      static float complex frame[8 * 31 * 4];
-      const double         fracs[2] = { 0.95, 1.0 };
+      const double span = 0.5 / (double)nx;
+      static float _Complex frame[8 * 31 * 4];
+      const double fracs[2] = { 0.95, 1.0 };
       for (int fi = 0; fi < 2; fi++)
         for (int sign = -1; sign <= 1; sign += 2)
           {
@@ -287,7 +287,7 @@ _acq_band_edge_check (void)
                 uint8_t chip = code31[((k % nx) / spc) % sf];
                 float   c    = chip ? -1.0f : 1.0f;
                 double  ph   = 2.0 * PI * f * (double)k;
-                frame[k]     = c * (float complex) (cos (ph) + I * sin (ph));
+                frame[k]     = c * (float _Complex) (cos (ph) + I * sin (ph));
               }
             acq_result_t r[4];
             size_t       nd = acq_push (a, frame, n, r, 4);
@@ -361,7 +361,7 @@ _acq_half_bin_check (void)
   DP_REQUIRE (looks >= 1 && looks <= 8);
   const size_t n_tot = looks * n;
 
-  static float complex frame[8 * 4 * 31 * 4];
+  static float _Complex frame[8 * 4 * 31 * 4];
   for (int q = 0; q <= 4; q++) /* 0, 1/4, 1/2, 3/4, 1 bin */
     {
       double f_norm = 0.25 * (double)q * res;
@@ -371,7 +371,7 @@ _acq_half_bin_check (void)
           uint8_t chip = code31[((k % nx) / spc) % sf];
           double  s    = (chip & 1u) ? -1.0 : 1.0;
           double  ph   = 2.0 * PI * f_norm * (double)k;
-          frame[k]     = (float complex) (s * cos (ph) + I * s * sin (ph));
+          frame[k]     = (float _Complex) (s * cos (ph) + I * s * sin (ph));
         }
 
       acq_result_t hits[8];
@@ -431,18 +431,18 @@ _acq_wideband_check (void)
   const double f_norm   = (double)signed_r / (double)nx; /* cycles/sample */
   const size_t d        = 5;                             /* code phase */
 
-  float complex s0d[14];
+  float _Complex s0d[14];
   for (size_t q = 0; q < nx; q++)
     {
       size_t  src  = (q + nx - (d % nx)) % nx; /* roll by +d */
       uint8_t chip = CODE7[(src / spc) % 7];
       s0d[q]       = (chip & 1u) ? -1.0f : 1.0f;
     }
-  float complex burst[14];
+  float _Complex burst[14];
   for (size_t k = 0; k < nx; k++)
     {
       double ph = 2.0 * PI * f_norm * (double)k;
-      burst[k]  = s0d[k] * (float complex) (cos (ph) + I * sin (ph));
+      burst[k]  = s0d[k] * (float _Complex) (cos (ph) + I * sin (ph));
     }
 
   acq_result_t hits[8];
@@ -752,7 +752,7 @@ main (void)
   const double f = (double)u / (double)(nx * ny); /* carrier, f*nx*ny = u  */
 
   /* Oversampled, code-phase-rolled BPSK replica (one segment, length nx). */
-  float complex s0d[14];
+  float _Complex s0d[14];
   for (size_t q = 0; q < nx; q++)
     {
       size_t  src  = (q + nx - (d % nx)) % nx; /* roll by +d */
@@ -761,11 +761,11 @@ main (void)
     }
 
   /* Tile ny segments with the continuous carrier; push the raw frame. */
-  float complex *burst = malloc (n * sizeof (float complex));
+  float _Complex *burst = malloc (n * sizeof (float _Complex));
   for (size_t k = 0; k < n; k++)
     {
       double ph = 2.0 * PI * f * (double)k;
-      burst[k]  = s0d[k % nx] * (float complex) (cos (ph) + I * sin (ph));
+      burst[k]  = s0d[k % nx] * (float _Complex) (cos (ph) + I * sin (ph));
     }
 
   acq_result_t hits[8];
@@ -802,11 +802,11 @@ main (void)
         const size_t cut = rn + rn / 2; /* split mid-frame (1.5 frames)   */
         const double rf  = 1.0 / (double)rn; /* Doppler bin u=1 (rf*rn = 1)  */
 
-        float complex *s = malloc (L3 * sizeof (float complex));
+        float _Complex *s = malloc (L3 * sizeof (float _Complex));
         for (size_t k = 0; k < L3; k++)
           {
             double ph = 2.0 * PI * rf * (double)k;
-            s[k] = s0d[k % nx] * (float complex) (cos (ph) + I * sin (ph));
+            s[k] = s0d[k % nx] * (float _Complex) (cos (ph) + I * sin (ph));
           }
 
         /* Run A — uninterrupted. */
@@ -896,8 +896,8 @@ main (void)
     DP_CHECK (a != NULL);
     if (a)
       {
-        const size_t   eps = 24;
-        float complex *x   = malloc (eps * nxl * sizeof *x);
+        const size_t    eps = 24;
+        float _Complex *x   = malloc (eps * nxl * sizeof *x);
         DP_CHECK (x != NULL);
         if (x)
           {
@@ -954,8 +954,8 @@ main (void)
    * of the aggregation and not of the draw: min is the most sensitive, max
    * the least, and mean/median sit between. */
   {
-    const size_t   sf = 7, spcl = 2, nxl = sf * spcl, eps = 16;
-    float complex *x = malloc (eps * nxl * sizeof *x);
+    const size_t    sf = 7, spcl = 2, nxl = sf * spcl, eps = 16;
+    float _Complex *x = malloc (eps * nxl * sizeof *x);
     DP_CHECK (x != NULL);
     if (x)
       {

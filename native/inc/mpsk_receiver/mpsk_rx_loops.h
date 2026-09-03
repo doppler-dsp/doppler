@@ -379,7 +379,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
     int           differential;  /**< bits(): differential demap.        */
     int           have_prev_idx; /**< differential: prev_idx valid.      */
     unsigned      prev_idx;      /**< differential: prev sliced index.   */
-    float complex sym_rot;       /**< exp(j*phi0): NDA grid -> slicer.   */
+    float _Complex sym_rot;       /**< exp(j*phi0): NDA grid -> slicer.   */
 
     mpsk_rx_tlm_t tlm; /**< live attachment; zeroed in state blobs.      */
   } mpsk_rx_loops_t;
@@ -500,7 +500,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
    * @param z        The tapped sample.
    */
   JM_FORCEINLINE JM_HOT void
-  mpsk_rx_disc (mpsk_rx_loops_t *l, float complex z)
+  mpsk_rx_disc (mpsk_rx_loops_t *l, float _Complex z)
   {
     /* No AGC here, and none is wanted: carrier_nda_disc() normalises by its
        own |z|^M, so the discriminator is amplitude-blind on both outputs.
@@ -534,10 +534,10 @@ mpsk_rx_derive_m_out (double cap, int strict)
    * @return 1 if this output was an on-time strobe, 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  mpsk_rx_take_output (mpsk_rx_loops_t *l, float complex y, float complex *sym,
+  mpsk_rx_take_output (mpsk_rx_loops_t *l, float _Complex y, float _Complex *sym,
                        int ted)
   {
-    float complex on;
+    float _Complex on;
     if (!ratesync_loop_take_output (&l->timing, y, &on, ted))
       return 0;
 
@@ -587,7 +587,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
        taps are real, so a rotation commutes through it, and this way it costs
        one multiply per symbol instead of one per input sample — while the
        discriminator above still sees the unrotated stream it locks. */
-    float complex y_rot = on * l->sym_rot;
+    float _Complex y_rot = on * l->sym_rot;
 
     l->sym_count++;
     *sym = y_rot;
@@ -613,8 +613,8 @@ mpsk_rx_derive_m_out (double cap, int strict)
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  mpsk_rx_fold (mpsk_rx_loops_t *l, const float complex *ys, size_t n,
-                float complex *y_out, int ted)
+  mpsk_rx_fold (mpsk_rx_loops_t *l, const float _Complex *ys, size_t n,
+                float _Complex *y_out, int ted)
   {
     int emitted = 0;
     for (size_t oi = 0; oi < n; oi++)
@@ -624,7 +624,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
 
   /** @brief Slice one recovered symbol to its log2(M) hard bits (LSB-first).
    *  @return The bit count written to @p bits. */
-  int mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float complex y,
+  int mpsk_rx_symbol_to_bits (mpsk_rx_loops_t *l, float _Complex y,
                               uint8_t *bits);
 
   /* ------------------------------------------------------------------
@@ -633,7 +633,7 @@ mpsk_rx_derive_m_out (double cap, int strict)
 
   /** @brief Emit the receiver's own probes plus the timing loop's.
    *  Out-of-line on purpose; callers gate on `l->tlm.ctx`. */
-  void mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float complex y);
+  void mpsk_rx_tlm_flush (const mpsk_rx_loops_t *l, float _Complex y);
 
   /** @brief Attach (or detach) telemetry across both loops; see
    *  mpsk_receiver_set_telemetry(), which forwards here. */

@@ -67,7 +67,7 @@ main (void)
   struct timespec t0, t1;
   static double   t[N_CFG][ITERATIONS];
   ddc_state_t    *ddc[N_RATE] = { 0 };
-  float complex  *in = NULL, *out = NULL;
+  float _Complex *in = NULL, *out = NULL;
   size_t          cap;
   size_t          emitted[N_RATE] = { 0 };
   char            name[64];
@@ -76,8 +76,8 @@ main (void)
   if (!in)
     return 1;
   for (size_t i = 0; i < BLOCK; i++)
-    in[i] = (float complex) (cosf (0.11f * (float)i)
-                             + I * sinf (0.11f * (float)i));
+    in[i] = (float _Complex) (cosf (0.11f * (float)i)
+                              + I * sinf (0.11f * (float)i));
 
   for (int s = 0; s < N_RATE; s++)
     {

@@ -86,11 +86,11 @@ _Costas carrier-tracking loop (integer-NCO de-rotation + PI loop)._ [More...](#d
 |  int | [**costas\_set\_state**](#function-costas_set_state) ([**costas\_state\_t**](structcostas__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
 |  int | [**costas\_set\_telemetry**](#function-costas_set_telemetry) ([**costas\_state\_t**](structcostas__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers four probes, emitted once per dumped symbol and further thinned by decim: "&lt;prefix&gt;.lock" (the \|Re P\|/\|P\| lock-metric EMA, 1 = phase-locked), "&lt;prefix&gt;.e" (the PLL discriminator output — the loop stress), "&lt;prefix&gt;.freq" (the tracked NCO frequency, cycles/sample) and "&lt;prefix&gt;.locked" (the verify-counted lock decision, 0/1 — see costas\_configure\_lock). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_ [_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**costas\_state\_bytes**](#function-costas_state_bytes) (const [**costas\_state\_t**](structcostas__state__t.md) \* state) <br>_Serialized-state byte size._  |
-|  size\_t | [**costas\_steps**](#function-costas_steps) ([**costas\_state\_t**](structcostas__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_De-rotate a cf32 block with the carrier NCO, integrate-and-dump each symbol, and emit one decision-directed Costas prompt per symbol._  |
+|  size\_t | [**costas\_steps**](#function-costas_steps) ([**costas\_state\_t**](structcostas__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_De-rotate a cf32 block with the carrier NCO, integrate-and-dump each symbol, and emit one decision-directed Costas prompt per symbol._  |
 |  size\_t | [**costas\_steps\_max\_out**](#function-costas_steps_max_out) ([**costas\_state\_t**](structcostas__state__t.md) \* state) <br> |
 |  void | [**costas\_tlm\_flush**](#function-costas_tlm_flush) (const [**costas\_state\_t**](structcostas__state__t.md) \* s) <br>_Emit the carrier loop's telemetry records for the symbol just dumped._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**costas\_update**](#function-costas_update) ([**costas\_state\_t**](structcostas__state__t.md) \* s, float complex P) <br>_Per-symbol carrier update: discriminator -&gt; loop filter -&gt; steer NCO._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**costas\_wipeoff**](#function-costas_wipeoff) ([**costas\_state\_t**](structcostas__state__t.md) \* s, float complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**costas\_update**](#function-costas_update) ([**costas\_state\_t**](structcostas__state__t.md) \* s, float \_Complex P) <br>_Per-symbol carrier update: discriminator -&gt; loop filter -&gt; steer NCO._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**costas\_wipeoff**](#function-costas_wipeoff) ([**costas\_state\_t**](structcostas__state__t.md) \* s, float \_Complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
 
 
 
@@ -145,7 +145,7 @@ Set `bn_fll > 0` to enable FLL assist (a wide-pull-in frequency-lock loop aiding
 
 ```C++
 costas_state_t *c = costas_create(0.05, 0.707, 0.01, 64, 0.0);
-float complex sym[16];
+float _Complex sym[16];
 size_t k = costas_steps(c, rx, rx_len, sym, 16);  // one prompt per symbol
 double f = c->nco.norm_freq;                       // tracked residual
 costas_destroy(c);
@@ -680,9 +680,9 @@ _De-rotate a cf32 block with the carrier NCO, integrate-and-dump each symbol, an
 ```C++
 size_t costas_steps (
     costas_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```
@@ -789,7 +789,7 @@ _Per-symbol carrier update: discriminator -&gt; loop filter -&gt; steer NCO._
 ```C++
 JM_FORCEINLINE  JM_HOT void costas_update (
     costas_state_t * s,
-    float complex P
+    float _Complex P
 ) 
 ```
 
@@ -819,9 +819,9 @@ Runs the decision-directed BPSK Costas discriminator on the prompt `P`, filters 
 
 _Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._
 ```C++
-JM_FORCEINLINE  JM_HOT float complex costas_wipeoff (
+JM_FORCEINLINE  JM_HOT float _Complex costas_wipeoff (
     costas_state_t * s,
-    float complex x
+    float _Complex x
 ) 
 ```
 

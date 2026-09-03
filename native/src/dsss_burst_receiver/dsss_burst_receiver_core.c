@@ -230,7 +230,7 @@ static size_t
 dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
                    size_t max_out)
 {
-  const float complex         *w  = burst_capture_window (s->cap, i);
+  const float _Complex        *w  = burst_capture_window (s->cap, i);
   const burst_capture_event_t *ce = burst_capture_event_at (s->cap, i);
   if (!w || !ce)
     return 0;
@@ -298,7 +298,7 @@ dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
 
 size_t
 dsss_burst_receiver_push (dsss_burst_receiver_state_t *state,
-                          const float complex *x, size_t x_len, uint8_t *out,
+                          const float _Complex *x, size_t x_len, uint8_t *out,
                           size_t max_out)
 {
   /* Every call starts a fresh event list: `events()` describes THIS push. */

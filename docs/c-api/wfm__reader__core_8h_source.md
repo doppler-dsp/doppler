@@ -88,7 +88,7 @@ wfm_reader_state_t *wfm_reader_create(const char *path, int sample_type, int end
   void wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info);
 
 size_t wfm_reader_read(wfm_reader_state_t *state, size_t n,
-                       float complex *out, size_t max_out);
+                       float _Complex *out, size_t max_out);
 
 size_t wfm_reader_read_max_out(wfm_reader_state_t *state, size_t n);
 
@@ -137,7 +137,7 @@ double wfm_reader_get_fs(const wfm_reader_state_t *state);
 double wfm_reader_get_fc(const wfm_reader_state_t *state);
 size_t wfm_reader_get_num_samples(const wfm_reader_state_t *state);
 size_t wfm_reader_read_follow_max_out(wfm_reader_state_t *state, size_t n);
-size_t wfm_reader_read_follow(wfm_reader_state_t *state, size_t n, float complex *out, size_t max_out);
+size_t wfm_reader_read_follow(wfm_reader_state_t *state, size_t n, float _Complex *out, size_t max_out);
 uint32_t wfm_reader_get_follow_timeout_ms(const wfm_reader_state_t *state);
 void wfm_reader_set_follow_timeout_ms(wfm_reader_state_t *state, uint32_t val);
 uint32_t wfm_reader_get_follow_grace_ms(const wfm_reader_state_t *state);

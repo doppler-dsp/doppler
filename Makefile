@@ -1097,7 +1097,7 @@ endef
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 docs-invariants \
-                jm-apply changelog-assemble changelog-assembled-check \
+                jm-apply jm-upgrade changelog-assemble changelog-assembled-check \
                 plot-rx-dynamics \
                 gen-c-api-check \
                 gen-c-api-run \
@@ -2244,6 +2244,15 @@ endif
 	@$(MAKE) --no-print-directory docs-relink
 	@uv lock
 	@echo "jm-pin: pinned $(JM). Next: make jm-apply, then make drift-check."
+
+# `jm upgrade` is the migration step a jm release can ask for (0.75.0: the
+# `complex` -> `_Complex` respelling of the sacred headers, which `apply`
+# cannot do). It rewrites hand-owned files, so it is a target: the make-SSOT
+# hook blocks the bare tool, and a bypass is a missing option, not a habit.
+jm-upgrade: ## Run just-makeit's project migration (after `make jm-pin`)
+	uv sync --group dev --no-install-project
+	uv run just-makeit upgrade
+	@echo "jm-upgrade: done. Next: make jm-apply, then the full gate set."
 
 jm-apply: ## Regenerate jm-owned glue from the manifest (then run drift-check)
 	uv sync --group dev --no-install-project

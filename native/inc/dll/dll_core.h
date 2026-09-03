@@ -27,7 +27,7 @@
  * @code
  * uint8_t code[31] = { ... };  // 0/1 chips, one period
  * dll_state_t *d = dll_create(code, 31, 2, 0.0, 0.01, 0.707, 0.5);
- * float complex sym[16];
+ * float _Complex sym[16];
  * size_t k = dll_steps(d, rx, rx_len, sym, 16);  // one prompt per period
  * double phase = d->chip_pos;                     // tracked code phase, chips
  * dll_destroy(d);
@@ -121,9 +121,9 @@ typedef struct {
     double seed_chip;        /**< create-time code phase, for reset.       */
     double bn;               /**< loop noise bandwidth (retained).         */
     double zeta;             /**< damping factor (retained).               */
-    float complex acc_e;     /**< early correlator accumulator.            */
-    float complex acc_p;     /**< prompt correlator accumulator.           */
-    float complex acc_l;     /**< late correlator accumulator.             */
+    float _Complex acc_e;     /**< early correlator accumulator.            */
+    float _Complex acc_p;     /**< prompt correlator accumulator.           */
+    float _Complex acc_l;     /**< late correlator accumulator.             */
     double last_error;       /**< last discriminator output (loop stress). */
     size_t segments;         /**< partial correlations per epoch (1 = full). */
     double seg_chips;        /**< code phase per partial segment = sf/segments.*/
@@ -140,24 +140,24 @@ typedef struct {
      *    builds the SAME named artifacts (`sums`, `backward_sums`,
      *    `correlations`) in the same order so it can be checked directly
      *    against that Python function line for line. */
-    float complex *chunk_p;         /**< this epoch's per-chunk prompt sums;
+    float _Complex *chunk_p;         /**< this epoch's per-chunk prompt sums;
                                           Python's `partial_sums`.          */
-    float complex *chunk_e;         /**< this epoch's per-chunk early sums.  */
-    float complex *chunk_l;         /**< this epoch's per-chunk late sums.   */
-    float complex *sums;            /**< this epoch's running cumulative sum
+    float _Complex *chunk_e;         /**< this epoch's per-chunk early sums.  */
+    float _Complex *chunk_l;         /**< this epoch's per-chunk late sums.   */
+    float _Complex *sums;            /**< this epoch's running cumulative sum
                                           of chunk_p; Python's `partial_sums
                                           .cumsum()`. Pure scratch (rebuilt
                                           every epoch boundary, never read
                                           across calls) -- not part of the
                                           serialized state.                 */
-    float complex *last_backward_p; /**< prev epoch's reversed-cumsum prompt;
+    float _Complex *last_backward_p; /**< prev epoch's reversed-cumsum prompt;
                                           Python's `backward_sums`, saved
                                           from the PREVIOUS epoch's call.   */
-    float complex *last_e;          /**< prev epoch's per-chunk early sums.  */
-    float complex *last_l;          /**< prev epoch's per-chunk late sums.   */
+    float _Complex *last_e;          /**< prev epoch's per-chunk early sums.  */
+    float _Complex *last_l;          /**< prev epoch's per-chunk late sums.   */
     int have_prev_epoch;     /**< 0 until one full epoch has completed.    */
     /* ── lock detector (always on): offset-tap CFAR noise ref + N-look test  */
-    float complex acc_o;     /**< offset (noise) correlator accumulator.     */
+    float _Complex acc_o;     /**< offset (noise) correlator accumulator.     */
     double off_chips;        /**< this look's offset code phase, whole chips. */
     double noise_guard;      /**< chips around P/E/L the offset must avoid.   */
     uint32_t rng;            /**< xorshift32 state for the random offset.    */
@@ -296,7 +296,7 @@ dll_dwell_center_chip_pos(const dll_state_t *s)
  *         segments>1 stress); a local value cannot go stale.
  */
 JM_FORCEINLINE JM_HOT int
-dll_accumulate(dll_state_t *s, float complex d)
+dll_accumulate(dll_state_t *s, float _Complex d)
 {
     double sfd = (double)s->sf;
     double cp = dll_dwell_center_chip_pos(s);
@@ -334,7 +334,7 @@ dll_accumulate(dll_state_t *s, float complex d)
  * @param d  One carrier-wiped input sample (same sample as dll_accumulate).
  */
 JM_FORCEINLINE JM_HOT void
-dll_lock_accumulate(dll_state_t *s, float complex d)
+dll_lock_accumulate(dll_state_t *s, float _Complex d)
 {
     double co = dll_dwell_center_chip_pos(s) + s->off_chips;
     if (co >= (double)s->sf)
@@ -597,7 +597,7 @@ size_t dll_steps_max_out(dll_state_t *state);
  *
  * @endcode
  */
-size_t dll_steps(dll_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+size_t dll_steps(dll_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
 /**
  * @brief Recompute the loop gains for a new (bn, zeta); keep the code state.

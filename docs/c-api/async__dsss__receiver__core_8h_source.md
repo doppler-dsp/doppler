@@ -128,9 +128,9 @@ extern "C"
      * allocation in the steps() hot path): refine_dll's own emitted
      * partials (capacity refine_segments), then refine_rc's resampled
      * output (capacity refine_segments*refine_rc->rate + margin). */
-    float complex *refine_dll_out_buf;
+    float _Complex *refine_dll_out_buf;
     size_t         refine_dll_out_cap;
-    float complex *refine_rc_out_buf;
+    float _Complex *refine_rc_out_buf;
     size_t         refine_rc_out_cap;
 
     /* Track stage: DsssReceiver's own composition. costas_init()'s tsamps is
@@ -146,8 +146,8 @@ extern "C"
      * run concurrently and both wipe in whole `tsamps`-sample periods, so
      * one buffer set serves either. */
     size_t         tsamps; 
-    float complex *car_wiped_buf;
-    float complex *car_carry_buf;
+    float _Complex *car_wiped_buf;
+    float _Complex *car_carry_buf;
     size_t         car_carry_len;
 
     /* Own copy of the spreading code (same rationale as DsssReceiver's
@@ -214,8 +214,8 @@ extern "C"
   size_t async_dsss_receiver_steps_max_out (async_dsss_receiver_state_t *state);
 
   size_t async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
-                                    const float complex *x, size_t x_len,
-                                    float complex *out, size_t max_out);
+                                    const float _Complex *x, size_t x_len,
+                                    float _Complex *out, size_t max_out);
 
   int async_dsss_receiver_configure_search_raw (
       async_dsss_receiver_state_t *state, size_t doppler_bins,

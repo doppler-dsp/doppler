@@ -68,7 +68,7 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  [**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* | [**burst\_demod\_create**](#function-burst_demod_create) (const uint8\_t \* data\_code, size\_t data\_code\_len, size\_t spc, double chip\_rate, double carrier\_hz, double max\_rate, size\_t frame\_syms, size\_t est\_segments) <br>_Create a feedforward BPSK DSSS burst demodulator._  |
-|  size\_t | [**burst\_demod\_demod**](#function-burst_demod_demod) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate one burst end to end and write the frame's bits._  |
+|  size\_t | [**burst\_demod\_demod**](#function-burst_demod_demod) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate one burst end to end and write the frame's bits._  |
 |  size\_t | [**burst\_demod\_demod\_max\_out**](#function-burst_demod_demod_max_out) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state) <br>_Max output bits = frame\_syms (caller sizes the buffer)._  |
 |  void | [**burst\_demod\_destroy**](#function-burst_demod_destroy) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state) <br>_Destroy a demodulator._  |
 |  size\_t | [**burst\_demod\_llrs**](#function-burst_demod_llrs) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_LLRs the last demod() wrote — the frame's soft bits._  |
@@ -77,7 +77,7 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 |  void | [**burst\_demod\_set\_preamble**](#function-burst_demod_set_preamble) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t reps) <br>_Register the unmodulated acquisition preamble code and its repetition count used for the feedforward (f0, rate) estimate._  |
 |  void | [**burst\_demod\_set\_prior**](#function-burst_demod_set_prior) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, double f0\_coarse, size\_t start) <br>_Seed the demodulator from acquisition with the coarse Doppler and the preamble start sample._  |
 |  void | [**burst\_demod\_set\_sync**](#function-burst_demod_set_sync) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, const uint8\_t \* sync, size\_t sync\_len) <br>_Register the known frame-sync word used for frame alignment and phase/sign resolution._  |
-|  size\_t | [**burst\_demod\_symbols**](#function-burst_demod_symbols) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, size\_t n, float complex \* out, size\_t max\_out) <br>_The last demod()'s DEROTATED complex symbols — the constellation the LLRs are the real part of._  |
+|  size\_t | [**burst\_demod\_symbols**](#function-burst_demod_symbols) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_The last demod()'s DEROTATED complex symbols — the constellation the LLRs are the real part of._  |
 |  size\_t | [**burst\_demod\_symbols\_max\_out**](#function-burst_demod_symbols_max_out) ([**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* state, size\_t n) <br>_Max symbols_ [_**burst\_demod\_symbols()**_](burst__demod__core_8h.md#function-burst_demod_symbols) _writes: the frame's length._ |
 
 
@@ -240,7 +240,7 @@ _Demodulate one burst end to end and write the frame's bits._
 ```C++
 size_t burst_demod_demod (
     burst_demod_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
     uint8_t * out,
     size_t max_out
@@ -638,7 +638,7 @@ _The last demod()'s DEROTATED complex symbols — the constellation the LLRs are
 size_t burst_demod_symbols (
     burst_demod_state_t * state,
     size_t n,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

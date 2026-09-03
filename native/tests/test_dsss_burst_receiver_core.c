@@ -121,7 +121,7 @@ payload_bits (void)
 }
 
 static size_t
-put_symbol (float complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
+put_symbol (float _Complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
 {
   float a = csign (bit);
   for (size_t c = 0; c < DATA_SF; c++)
@@ -132,7 +132,7 @@ put_symbol (float complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
 
 /** @brief One burst: preamble, sync, payload, CRC-16, on carrier @p f0. */
 static size_t
-build_burst (float complex *y, double f0)
+build_burst (float _Complex *y, double f0)
 {
   const uint8_t *acode = acq_code (), *dcode = data_code ();
   const uint8_t *sy = sync_word (), *pl = payload_bits ();
@@ -165,7 +165,7 @@ build_burst (float complex *y, double f0)
  * noise, so nothing observable was lost (doppler#1008).
  */
 static void
-build_capture_multi (float complex *cap, size_t n_cap, const size_t *at,
+build_capture_multi (float _Complex *cap, size_t n_cap, const size_t *at,
                      size_t n_at, double sigma, uint32_t seed)
 {
   uint32_t st = seed;
@@ -175,8 +175,8 @@ build_capture_multi (float complex *cap, size_t n_cap, const size_t *at,
       float im = (float)(sigma * dp_gauss (&st));
       cap[i]   = re + im * I;
     }
-  static float complex burst[1 << 16];
-  size_t               nb = build_burst (burst, 0.0);
+  static float _Complex burst[1 << 16];
+  size_t nb = build_burst (burst, 0.0);
   for (size_t k = 0; k < n_at; k++)
     for (size_t i = 0; i < nb && at[k] + i < n_cap; i++)
       cap[at[k] + i] += burst[i];
@@ -184,7 +184,7 @@ build_capture_multi (float complex *cap, size_t n_cap, const size_t *at,
 
 /** @brief A capture: noise everywhere, one burst starting at @p at. */
 static void
-build_capture (float complex *cap, size_t n_cap, size_t at, double f0,
+build_capture (float _Complex *cap, size_t n_cap, size_t at, double f0,
                double sigma, uint32_t seed)
 {
   uint32_t st = seed;
@@ -196,8 +196,8 @@ build_capture (float complex *cap, size_t n_cap, size_t at, double f0,
       float im = (float)(sigma * dp_gauss (&st));
       cap[i]   = re + im * I;
     }
-  static float complex burst[1 << 16];
-  size_t               nb = build_burst (burst, f0);
+  static float _Complex burst[1 << 16];
+  size_t nb = build_burst (burst, f0);
   for (size_t i = 0; i < nb && at + i < n_cap; i++)
     cap[at + i] += burst[i];
 }
@@ -335,9 +335,9 @@ test_decodes_a_burst_from_a_stream (void)
   dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
 
-  const size_t         AT    = 5000;
-  const size_t         N_CAP = 40000;
-  static float complex cap[40000];
+  const size_t AT    = 5000;
+  const size_t N_CAP = 40000;
+  static float _Complex cap[40000];
   build_capture (cap, N_CAP, AT, 0.0, 0.02, 12345u);
 
   uint8_t out[FRAME_SYMS];
@@ -408,8 +408,8 @@ test_decodes_under_residual_doppler (void)
 
   for (int q = 0; q < 3; q++)
     {
-      double               f_hz = frac[q] * res_hz;
-      static float complex cap[40000];
+      double f_hz = frac[q] * res_hz;
+      static float _Complex cap[40000];
       build_capture (cap, N_CAP, AT, f_hz / fs, 0.02, 999u);
 
       dsss_burst_receiver_state_t *s = make_rx ();
@@ -461,8 +461,8 @@ test_true_burst_once_and_false_alarms_marked (void)
   dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
 
-  const size_t         AT = 5000;
-  static float complex cap[40000];
+  const size_t AT = 5000;
+  static float _Complex cap[40000];
   build_capture (cap, 40000, AT, 0.0, 0.02, 11u);
 
   uint8_t out[FRAME_SYMS];
@@ -516,8 +516,8 @@ test_silence_yields_no_burst (void)
   dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
 
-  static float complex cap[20000];
-  uint32_t             st = 7u;
+  static float _Complex cap[20000];
+  uint32_t st = 7u;
   for (size_t i = 0; i < 20000; i++)
     {
       float re = (float)(0.02 * dp_gauss (&st));
@@ -551,8 +551,8 @@ test_one_giant_push_finds_the_same_burst (void)
   DP_REQUIRE (40000
               > s->cap->hist->capacity); /* genuinely larger than the ring */
 
-  const size_t         AT = 5000;
-  static float complex cap[40000];
+  const size_t AT = 5000;
+  static float _Complex cap[40000];
   build_capture (cap, 40000, AT, 0.0, 0.02, 12345u);
 
   /* push() returns EVERY burst the call completed, so the buffer is sized
@@ -621,7 +621,7 @@ test_a_burst_near_the_stream_start (void)
      could not land on the right answer by accident. */
   DP_REQUIRE (AT % s->cap->code_period != 0);
 
-  static float complex cap[40000];
+  static float _Complex cap[40000];
   build_capture (cap, 40000, AT, 0.0, 0.02, 4242u);
 
   uint8_t out[FRAME_SYMS];
@@ -658,8 +658,8 @@ test_one_burst_many_detections_is_claimed_once (void)
      not span several frames and this test would prove nothing. */
   DP_REQUIRE (s->cap->acq->engine->n == s->cap->code_period);
 
-  const size_t         AT = 5000;
-  static float complex cap[40000];
+  const size_t AT = 5000;
+  static float _Complex cap[40000];
   build_capture (cap, 40000, AT, 0.0, 0.02, 777u);
 
   uint8_t out[FRAME_SYMS];
@@ -721,7 +721,7 @@ test_a_weak_decoy_does_not_cost_the_burst (void)
   const size_t N_CAP = 40000;
   DP_REQUIRE (GAP < s->burst_len);
 
-  static float complex cap[40000];
+  static float _Complex cap[40000];
   build_capture (cap, N_CAP, AT, 0.0, 0.02, 12345u);
 
   /* The decoy: one preamble only, no payload, at a third the amplitude. */
@@ -774,9 +774,9 @@ test_a_weak_decoy_does_not_cost_the_burst (void)
 static int
 test_every_burst_survives_any_block_size (void)
 {
-  const size_t         N_CAP = 40000;
-  const size_t         GAP   = 3000;
-  static float complex cap[40000];
+  const size_t N_CAP = 40000;
+  const size_t GAP   = 3000;
+  static float _Complex cap[40000];
 
   size_t at[3];
   {
@@ -851,9 +851,9 @@ test_every_burst_survives_any_block_size (void)
 static int
 test_acq_saturation_does_not_lose_bursts (void)
 {
-  const size_t         N_CAP = 40000;
-  const size_t         GAP   = 3000;
-  static float complex cap[40000];
+  const size_t N_CAP = 40000;
+  const size_t GAP   = 3000;
+  static float _Complex cap[40000];
 
   /* A DELIBERATELY loose false-alarm rate, so noise crosses the gate often
      enough that one batch of BURST_CAPTURE_HITS cannot hold a chunk's
@@ -916,8 +916,8 @@ test_acq_saturation_does_not_lose_bursts (void)
 static int
 test_a_burst_split_across_two_pushes_survives (void)
 {
-  static float complex cap[40000];
-  const size_t         at = 3000;
+  static float _Complex cap[40000];
+  const size_t at = 3000;
   build_capture (cap, sizeof cap / sizeof *cap, at, 0.0, 0.05, 4242u);
 
   const size_t burst_len
@@ -1041,8 +1041,8 @@ test_reset_clears_the_event_but_not_the_counters (void)
 static int
 test_state_resumes_mid_burst (void)
 {
-  const size_t         AT = 5000, N_CAP = 40000, CUT = 5800;
-  static float complex cap[40000];
+  const size_t AT = 5000, N_CAP = 40000, CUT = 5800;
+  static float _Complex cap[40000];
   build_capture (cap, N_CAP, AT, 0.0, 0.02, 12345u);
 
   dsss_burst_receiver_state_t *a = make_rx ();
@@ -1141,11 +1141,11 @@ test_destroy_null_is_safe (void)
 static int
 test_a_failed_frame_gives_its_span_back (void)
 {
-  const size_t         AT = 9000u, LEAD = 2100u, CUT = 9400u;
-  static float complex cap[40000];
+  const size_t AT = 9000u, LEAD = 2100u, CUT = 9400u;
+  static float _Complex cap[40000];
   build_capture (cap, 40000, AT, 0.0, 0.02, 7u);
   {
-    static float complex burst[1 << 15];
+    static float _Complex burst[1 << 15];
     build_burst (burst, 0.0);
     for (size_t i = 0; i < REPS * ACQ_SF * SPC; i++)
       cap[AT - LEAD + i] += 0.35f * burst[i];

@@ -50,7 +50,7 @@ typedef struct
 {
   corr2d_state_t *corr;     
   dp_f32_t *ring;             
-  float complex *out_buf;   
+  float _Complex *out_buf;   
   float *mag_buf;           
   float *noise_scratch;     
   size_t ny;                
@@ -72,7 +72,7 @@ typedef struct
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
-detector2d_state_t *detector2d_create (const float complex *ref, size_t ny,
+detector2d_state_t *detector2d_create (const float _Complex *ref, size_t ny,
                                        size_t nx, size_t dwell,
                                        size_t noise_lo, size_t noise_hi,
                                        det_noise_mode_t noise_mode,
@@ -82,13 +82,13 @@ void detector2d_destroy (detector2d_state_t *state);
 
 void detector2d_reset (detector2d_state_t *state);
 
-int detector2d_set_ref (detector2d_state_t *state, const float complex *ref);
+int detector2d_set_ref (detector2d_state_t *state, const float _Complex *ref);
 
 void detector2d_set_threshold (detector2d_state_t *state, float threshold);
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
-size_t detector2d_push (detector2d_state_t *state, const float complex *in,
+size_t detector2d_push (detector2d_state_t *state, const float _Complex *in,
                         size_t n_in, det_result2d_t *result,
                         size_t max_results);
 

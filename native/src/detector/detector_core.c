@@ -11,7 +11,7 @@
  *   capacity = next_pow2(max(n, 512))
  *
  * The factor 512 ensures the double-mapping page-alignment constraint is met:
- *   512 samples × 8 bytes/sample (float complex) = 4096 bytes = 1 page.
+ *   512 samples × 8 bytes/sample (float _Complex) = 4096 bytes = 1 page.
  * Any power-of-2 multiple of 512 also satisfies the constraint.
  *
  * Noise estimation scratch buffer:
@@ -66,7 +66,7 @@ detector_compute_stat (detector_state_t *state)
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
 detector_state_t *
-detector_create (const float complex *ref, size_t n, size_t dwell,
+detector_create (const float _Complex *ref, size_t n, size_t dwell,
                  size_t noise_lo, size_t noise_hi, det_noise_mode_t noise_mode,
                  float threshold, int nthreads)
 {
@@ -97,7 +97,7 @@ detector_create (const float complex *ref, size_t n, size_t dwell,
   if (!state->corr)
     goto fail;
 
-  state->out_buf = (float complex *)malloc (n * sizeof (float complex));
+  state->out_buf = (float _Complex *)malloc (n * sizeof (float _Complex));
   if (!state->out_buf)
     goto fail;
 
@@ -165,8 +165,8 @@ detector_get_state (const detector_state_t *s, void *blob)
   dp_w_u64 (&_w, nun);
   for (size_t i = 0; i < nun; i++)
     {
-      size_t        idx = (t + i) & s->ring->mask;
-      float complex v
+      size_t idx = (t + i) & s->ring->mask;
+      float _Complex v
           = s->ring->data[idx * 2] + I * s->ring->data[idx * 2 + 1];
       dp_w_cf32 (&_w, &v, 1);
     }
@@ -190,7 +190,7 @@ detector_set_state (detector_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   DP_STORE_REL (&s->ring->head, 0);
   DP_STORE_REL (&s->ring->tail, 0);
-  const float complex *src = (const float complex *)(_r.buf + _r.off);
+  const float _Complex *src = (const float _Complex *)(_r.buf + _r.off);
   if (nun)
     dp_f32_write (s->ring, (const float *)src, nun);
   _r.off += s->ring_cap * sizeof (float _Complex); /* skip ring + pad */
@@ -203,7 +203,7 @@ detector_set_state (detector_state_t *s, const void *blob)
 }
 
 void
-detector_set_ref (detector_state_t *state, const float complex *ref)
+detector_set_ref (detector_state_t *state, const float _Complex *ref)
 {
   detector_reset (state);
   corr_set_ref (state->corr, ref);
@@ -218,7 +218,7 @@ detector_set_threshold (detector_state_t *state, float threshold)
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
 size_t
-detector_push (detector_state_t *state, const float complex *in, size_t n_in,
+detector_push (detector_state_t *state, const float _Complex *in, size_t n_in,
                det_result_t *result, size_t max_results)
 {
   size_t ndet = 0;
@@ -252,9 +252,9 @@ detector_push (detector_state_t *state, const float complex *in, size_t n_in,
 
           /* Zero-copy frame pointer: double-mapping guarantees contiguity
            * even when the frame wraps around the buffer boundary. */
-          float complex *frame
-              = (float complex *)(state->ring->data
-                                  + (t & state->ring->mask) * 2);
+          float _Complex *frame
+              = (float _Complex *)(state->ring->data
+                                   + (t & state->ring->mask) * 2);
           size_t n_out = corr_execute (state->corr, frame, state->n,
                                        state->out_buf, state->n);
           dp_f32_consume (state->ring, state->n);

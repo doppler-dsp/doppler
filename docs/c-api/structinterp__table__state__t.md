@@ -38,7 +38,7 @@ _InterpolatedTable state._ [More...](#detailed-description)
 | ---: | :--- |
 |  int | [**method**](#variable-method)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
-|  double complex \* | [**table**](#variable-table)  <br> |
+|  double \_Complex \* | [**table**](#variable-table)  <br> |
 
 
 
@@ -134,7 +134,7 @@ table length (one period)
 ### variable table 
 
 ```C++
-double complex* interp_table_state_t::table;
+double _Complex* interp_table_state_t::table;
 ```
 
 

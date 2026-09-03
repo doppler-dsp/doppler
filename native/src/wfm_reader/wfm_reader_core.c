@@ -2,8 +2,8 @@
  * wfm_reader.c — input file types for generated IQ (the dual of wfm_writer).
  *
  * Auto-detects raw / CSV / BLUE type-1000 (attached or detached) / SigMF and
- * yields unit-scale float complex samples. File-type parsing and the wire→unit
- * conversion live here, in C; the Python `Reader` is a thin binding.
+ * yields unit-scale float _Complex samples. File-type parsing and the
+ * wire→unit conversion live here, in C; the Python `Reader` is a thin binding.
  */
 #include "wfm_reader/wfm_reader_core.h"
 
@@ -1279,7 +1279,7 @@ wfm_reader_set_stop_fn (wfm_reader_state_t *r, int (*fn) (void))
 }
 
 size_t
-wfm_reader_read_follow (wfm_reader_state_t *r, size_t n, float complex *out,
+wfm_reader_read_follow (wfm_reader_state_t *r, size_t n, float _Complex *out,
                         size_t max_out)
 {
   if (max_out < n)

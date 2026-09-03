@@ -78,8 +78,8 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_agc\_bn**](#function-mpsk_rx_agc_bn) (double bn\_carrier, double bn\_timing, double ratio) <br> |
 |  void | [**mpsk\_rx\_config\_carrier**](#function-mpsk_rx_config_carrier) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_(Re-)size the carrier loop filter for the tap's update rate._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) size\_t | [**mpsk\_rx\_derive\_m\_out**](#function-mpsk_rx_derive_m_out) (double cap, int strict) <br>_Terminal outputs per symbol, derived: the largest even count in 2..8 the caller's own rate constraint allows._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex z) <br>_Run the NDA discriminator on one tapped sample._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_fold**](#function-mpsk_rx_fold) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const float complex \* ys, size\_t n, float complex \* y\_out, int ted) <br>_Fold one front end's burst of outputs into both loops._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_disc**](#function-mpsk_rx_disc) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex z) <br>_Run the NDA discriminator on one tapped sample._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_fold**](#function-mpsk_rx_fold) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, const float \_Complex \* ys, size\_t n, float \_Complex \* y\_out, int ted) <br>_Fold one front end's burst of outputs into both loops._  |
 |  double | [**mpsk\_rx\_freq\_est**](#function-mpsk_rx_freq_est) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_Tracked carrier offset in cycles/sample at the LO's rate — the loop's own estimate, excluding the front end's configured centre._  |
 |  void | [**mpsk\_rx\_loops\_get\_state**](#function-mpsk_rx_loops_get_state) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, void \* blob) <br>_Serialize the loops' mutable state into_ `blob` _._ |
 |  void | [**mpsk\_rx\_loops\_init**](#function-mpsk_rx_loops_init) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, int m, double sps, double lo\_sps, size\_t m\_out, double bn\_carrier, double zeta, double bn\_timing, double bn\_agc\_ratio, int ted, double lock\_thresh, int differential) <br>_Initialise the loops in place (no allocation)._  |
@@ -89,9 +89,9 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 |  void | [**mpsk\_rx\_set\_freq\_est**](#function-mpsk_rx_set_freq_est) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double val) <br>_Overwrite the tracked carrier offset (cycles/sample at the LO's rate) so the next output de-rotates by exactly_ `val` _._ |
 |  int | [**mpsk\_rx\_set\_telemetry**](#function-mpsk_rx_set_telemetry) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) telemetry across both loops; see_ [_**mpsk\_receiver\_set\_telemetry()**_](mpsk__receiver__core_8h.md#function-mpsk_receiver_set_telemetry) _, which forwards here._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**mpsk\_rx\_steer**](#function-mpsk_rx_steer) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, double pe) <br>_Filter a carrier phase error and update_ `freq_ctrl` _._ |
-|  int | [**mpsk\_rx\_symbol\_to\_bits**](#function-mpsk_rx_symbol_to_bits) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex y, uint8\_t \* bits) <br>_Slice one recovered symbol to its log2(M) hard bits (LSB-first)._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_take\_output**](#function-mpsk_rx_take_output) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex y, float complex \* sym, int ted) <br>_Fold one terminal-stage output into both loops._  |
-|  void | [**mpsk\_rx\_tlm\_flush**](#function-mpsk_rx_tlm_flush) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float complex y) <br>_Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; callers gate on_ `l->tlm.ctx` _._ |
+|  int | [**mpsk\_rx\_symbol\_to\_bits**](#function-mpsk_rx_symbol_to_bits) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y, uint8\_t \* bits) <br>_Slice one recovered symbol to its log2(M) hard bits (LSB-first)._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_rx\_take\_output**](#function-mpsk_rx_take_output) ([**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y, float \_Complex \* sym, int ted) <br>_Fold one terminal-stage output into both loops._  |
+|  void | [**mpsk\_rx\_tlm\_flush**](#function-mpsk_rx_tlm_flush) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l, float \_Complex y) <br>_Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; callers gate on_ `l->tlm.ctx` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_rx\_updates\_per\_symbol**](#function-mpsk_rx_updates_per_symbol) (const [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md) \* l) <br>_How many times per symbol the chosen tap updates the carrier loop._  |
 
 
@@ -291,7 +291,7 @@ _Run the NDA discriminator on one tapped sample._
 ```C++
 JM_FORCEINLINE  JM_HOT void mpsk_rx_disc (
     mpsk_rx_loops_t * l,
-    float complex z
+    float _Complex z
 ) 
 ```
 
@@ -326,9 +326,9 @@ _Fold one front end's burst of outputs into both loops._
 ```C++
 JM_FORCEINLINE  JM_HOT int mpsk_rx_fold (
     mpsk_rx_loops_t * l,
-    const float complex * ys,
+    const float _Complex * ys,
     size_t n,
-    float complex * y_out,
+    float _Complex * y_out,
     int ted
 ) 
 ```
@@ -582,7 +582,7 @@ _Slice one recovered symbol to its log2(M) hard bits (LSB-first)._
 ```C++
 int mpsk_rx_symbol_to_bits (
     mpsk_rx_loops_t * l,
-    float complex y,
+    float _Complex y,
     uint8_t * bits
 ) 
 ```
@@ -611,8 +611,8 @@ _Fold one terminal-stage output into both loops._
 ```C++
 JM_FORCEINLINE  JM_HOT int mpsk_rx_take_output (
     mpsk_rx_loops_t * l,
-    float complex y,
-    float complex * sym,
+    float _Complex y,
+    float _Complex * sym,
     int ted
 ) 
 ```
@@ -654,7 +654,7 @@ _Emit the receiver's own probes plus the timing loop's. Out-of-line on purpose; 
 ```C++
 void mpsk_rx_tlm_flush (
     const mpsk_rx_loops_t * l,
-    float complex y
+    float _Complex y
 ) 
 ```
 

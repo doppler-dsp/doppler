@@ -14,13 +14,13 @@
 
 /* BPSK NRZ data (+-1, held sps samples/symbol) * a complex tone at
  * tone_hz, sampled at sample_rate_hz -- deterministic given seed. */
-static float complex *
+static float _Complex *
 _make_signal (size_t n_symbols, size_t sps, double sample_rate_hz,
               double tone_hz, uint32_t seed, size_t *out_len)
 {
-  size_t         n  = n_symbols * sps;
-  float complex *x  = malloc (n * sizeof (float complex));
-  uint32_t       st = seed;
+  size_t          n  = n_symbols * sps;
+  float _Complex *x  = malloc (n * sizeof (float _Complex));
+  uint32_t        st = seed;
   for (size_t sym = 0; sym < n_symbols; sym++)
     {
       float bit = (dp_xs32 (&st) & 1u) ? 1.0f : -1.0f;
@@ -35,11 +35,11 @@ _make_signal (size_t n_symbols, size_t sps, double sample_rate_hz,
   return x;
 }
 
-static float complex *
+static float _Complex *
 _make_noise (size_t n, uint32_t seed)
 {
-  float complex *noise = malloc (n * sizeof (float complex));
-  uint32_t       st    = seed;
+  float _Complex *noise = malloc (n * sizeof (float _Complex));
+  uint32_t        st    = seed;
   for (size_t i = 0; i < n; i++)
     {
       float a  = ((float)(dp_xs32 (&st) % 2001u) - 1000.0f) / 100000.0f;
@@ -61,8 +61,8 @@ main (void)
 {
   /* ── sequential=true: fires early, accurate residual_hz ── */
   {
-    size_t         n;
-    float complex *x
+    size_t          n;
+    float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 12345u, &n);
     carrier_acq_state_t *ca = carrier_acq_create (
         SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
@@ -82,8 +82,8 @@ main (void)
 
   /* ── sequential=false: waits the full fixed dwell, same accuracy ── */
   {
-    size_t         n;
-    float complex *x
+    size_t          n;
+    float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 12345u, &n);
     carrier_acq_state_t *ca = carrier_acq_create (
         SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,
@@ -106,8 +106,8 @@ main (void)
   /* ── carry-buffer split-call: tiny, non-block-aligned chunks give the
      same result as one big call ── */
   {
-    size_t         n;
-    float complex *x
+    size_t          n;
+    float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 12345u, &n);
     carrier_acq_state_t *ca
         = carrier_acq_create (SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f,
@@ -140,8 +140,8 @@ main (void)
       {
         size_t nfft_frame
             = (size_t)llround (SAMPLE_RATE_HZ / (SYMBOL_RATE_HZ / 10.0));
-        size_t         n     = (ca->dwell_target + 2) * nfft_frame;
-        float complex *noise = _make_noise (n, 999u);
+        size_t          n     = (ca->dwell_target + 2) * nfft_frame;
+        float _Complex *noise = _make_noise (n, 999u);
         carrier_acq_steps (ca, noise, n);
         DP_CHECK (!ca->ready);
         DP_CHECK (ca->n_blocks == ca->dwell_target);
@@ -165,8 +165,8 @@ main (void)
         DP_CHECK (ca->max_n_blocks == small_cap);
         size_t nfft_frame
             = (size_t)llround (SAMPLE_RATE_HZ / (SYMBOL_RATE_HZ / 10.0));
-        size_t         n     = (small_cap + 2) * nfft_frame;
-        float complex *noise = _make_noise (n, 999u);
+        size_t          n     = (small_cap + 2) * nfft_frame;
+        float _Complex *noise = _make_noise (n, 999u);
         carrier_acq_steps (ca, noise, n);
         DP_CHECK (!ca->ready);
         DP_CHECK (ca->n_blocks == small_cap);
@@ -194,7 +194,7 @@ main (void)
           tmpl[k] = (k == nfft / 2) ? 1.0f : 0.0f;
 
         size_t               n;
-        float complex       *x  = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ,
+        float _Complex      *x  = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ,
                                                 TONE_HZ, 12345u, &n);
         carrier_acq_state_t *ca = carrier_acq_create (
             SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, tmpl, nfft, 1e-3,
@@ -220,8 +220,8 @@ main (void)
   /* ── state roundtrip + envelope reject; resumed instance continues
      bit-for-bit identically to the un-interrupted one ── */
   {
-    size_t         n;
-    float complex *x
+    size_t          n;
+    float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 777u, &n);
     carrier_acq_state_t *a
         = carrier_acq_create (SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f,
@@ -258,8 +258,8 @@ main (void)
      reset ── the standard's "resume bit-for-bit" contract for a stateful
      object; also exercises carrier_acq_reset(). ── */
   {
-    size_t         n;
-    float complex *x
+    size_t          n;
+    float _Complex *x
         = _make_signal (N_SYMBOLS, SPS, SAMPLE_RATE_HZ, TONE_HZ, 999u, &n);
     carrier_acq_state_t *ca = carrier_acq_create (
         SAMPLE_RATE_HZ, SYMBOL_RATE_HZ, 0.0, 4, 0, 0.0f, NULL, 0, 1e-3, 0.9,

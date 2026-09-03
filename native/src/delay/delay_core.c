@@ -75,7 +75,7 @@ delay_set_state (delay_state_t *s, const void *blob)
 }
 
 void
-delay_push (delay_state_t *state, double complex x)
+delay_push (delay_state_t *state, double _Complex x)
 {
   /* Decrement head (wrapping), then write to both halves so the
    * window starting at head is always a contiguous run. */
@@ -95,7 +95,8 @@ delay_ptr_max_out (delay_state_t *state, size_t n)
 }
 
 size_t
-delay_ptr (delay_state_t *state, size_t n, double complex *out, size_t max_out)
+delay_ptr (delay_state_t *state, size_t n, double _Complex *out,
+           size_t max_out)
 {
   size_t actual = n < state->num_taps ? n : state->num_taps;
   if (actual > max_out)
@@ -111,7 +112,7 @@ delay_push_ptr_max_out (delay_state_t *state)
 }
 
 size_t
-delay_push_ptr (delay_state_t *state, double complex x, double complex *out,
+delay_push_ptr (delay_state_t *state, double _Complex x, double _Complex *out,
                 size_t max_out)
 {
   /* The push lands unconditionally: the ring is a running window, and
@@ -124,7 +125,7 @@ delay_push_ptr (delay_state_t *state, double complex x, double complex *out,
 }
 
 void
-delay_write (delay_state_t *state, double complex x)
+delay_write (delay_state_t *state, double _Complex x)
 {
   delay_push (state, x);
 }

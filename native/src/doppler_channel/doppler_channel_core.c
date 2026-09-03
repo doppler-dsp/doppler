@@ -83,8 +83,8 @@ doppler_channel_execute_max_out (doppler_channel_state_t *state)
 
 size_t
 doppler_channel_execute (doppler_channel_state_t *state,
-                         const float complex *x, size_t x_len,
-                         float complex *out, size_t max_out)
+                         const float _Complex *x, size_t x_len,
+                         float _Complex *out, size_t max_out)
 {
   size_t n_out = 0;
   /* Chip away at the input in ctrl-buffer-sized pieces. resamp_execute_ctrl is

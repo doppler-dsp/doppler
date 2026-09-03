@@ -54,14 +54,14 @@ main (void)
   printf ("grid = %zu x %zu (%zu samples/frame), %d iterations\n\n", ny, nx, n,
           ITERATIONS);
 
-  float complex *in  = malloc (n * sizeof *in);
-  float complex *out = malloc (n * sizeof *out);
+  float _Complex *in  = malloc (n * sizeof *in);
+  float _Complex *out = malloc (n * sizeof *out);
   for (size_t k = 0; k < n; k++)
     in[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
 
   /* ── single-row reference: the acq/detector2d shape -- fast path ──────── */
   {
-    float complex *ref = calloc (n, sizeof *ref);
+    float _Complex *ref = calloc (n, sizeof *ref);
     for (size_t j = 0; j < nx; j++)
       ref[j] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
 
@@ -87,7 +87,7 @@ main (void)
 
   /* ── genuinely multi-row reference -- general 2-D path ────────────────── */
   {
-    float complex *ref = malloc (n * sizeof *ref);
+    float _Complex *ref = malloc (n * sizeof *ref);
     for (size_t k = 0; k < n; k++)
       ref[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
 

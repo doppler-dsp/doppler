@@ -23,8 +23,8 @@ main (void)
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 
-  float complex *in  = calloc (BENCH_N, sizeof (float complex));
-  float complex *out = calloc (BENCH_N, sizeof (float complex));
+  float _Complex *in  = calloc (BENCH_N, sizeof (float _Complex));
+  float _Complex *out = calloc (BENCH_N, sizeof (float _Complex));
   for (int i = 0; i < BENCH_N; i++)
     in[i] = 0.5f + 0.0f * _Complex_I;
 

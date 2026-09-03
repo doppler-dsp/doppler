@@ -22,7 +22,7 @@
  *      .num_samples = 4096, .off_samples = 0},            // qpsk
  * };
  * wfm_compose_state_t *c = wfm_compose_create(segs, 2, 0, 0);
- * float complex buf[4096];
+ * float _Complex buf[4096];
  * size_t n;
  * while ((n = wfm_compose_execute(c, buf, 4096)) > 0) { ... }
  * wfm_compose_destroy(c);
@@ -766,7 +766,7 @@ int wfm_compose_seed_advance(const wfm_compose_state_t *state);
  *         finished (never, when `continuous`).
  */
 size_t wfm_compose_execute(
-    wfm_compose_state_t *state, float complex *out, size_t max);
+    wfm_compose_state_t *state, float _Complex *out, size_t max);
 
 /** @brief Destroy a composer and its active synth. @param state May be NULL. */
 void wfm_compose_destroy(wfm_compose_state_t *state);

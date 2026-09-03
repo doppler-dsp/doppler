@@ -96,7 +96,7 @@ burst_demod_set_preamble (burst_demod_state_t *s, const uint8_t *acq_code,
 
   s->n_part = reps * s->est_segments; /* one partial per segment per period */
   free (s->part);
-  s->part = malloc (s->n_part * sizeof (float complex));
+  s->part = malloc (s->n_part * sizeof (float _Complex));
 
   /* Size ppe's rate search in PARTIAL units: a partial spans Lseg samples, so
    * a physical rate of max_rate cyc/sample^2 maps to max_rate*Lseg^2 per
@@ -150,7 +150,7 @@ burst_demod_symbols_max_out (burst_demod_state_t *s, size_t n)
 }
 
 size_t
-burst_demod_symbols (burst_demod_state_t *s, size_t n, float complex *out,
+burst_demod_symbols (burst_demod_state_t *s, size_t n, float _Complex *out,
                      size_t max_out)
 {
   (void)n;
@@ -183,8 +183,8 @@ burst_demod_demod_max_out (burst_demod_state_t *s)
  * estimates.  Iterating with the running (f0, mu) drives the residual to zero.
  */
 static void
-form_partials (const burst_demod_state_t *s, const float complex *x, double f0,
-               double mu, size_t lseg_chips, float complex *part)
+form_partials (const burst_demod_state_t *s, const float _Complex *x,
+               double f0, double mu, size_t lseg_chips, float _Complex *part)
 {
   const size_t npre = s->acq_sf * s->acq_reps * s->spc;
   for (size_t m = 0; m < s->n_part; m++)
@@ -208,9 +208,9 @@ form_partials (const burst_demod_state_t *s, const float complex *x, double f0,
 /* Dechirp the data section by (f0, mu) and prompt-despread to soft BPSK
  * symbols (one per data code period). Returns the symbol count (<= cap). */
 static size_t
-despread_data (const burst_demod_state_t *s, const float complex *x,
+despread_data (const burst_demod_state_t *s, const float _Complex *x,
                size_t x_len, size_t data0, size_t npre, double f0, double mu,
-               float complex *sym, size_t cap)
+               float _Complex *sym, size_t cap)
 {
   const size_t ndata = x_len - data0;
   const size_t tsym  = s->data_sf * s->spc;
@@ -218,16 +218,16 @@ despread_data (const burst_demod_state_t *s, const float complex *x,
   /* Bulk code-Doppler: the chip clock stretches by the Doppler fraction. */
   double code_rate
       = (s->carrier_hz > 0.0) ? 1.0 + (f0 * fs) / s->carrier_hz : 1.0;
-  const double  inv_spc = code_rate / (double)s->spc;
-  size_t        nsym    = 0;
-  double        cp      = 0.0;
-  float complex acc     = 0.0f;
+  const double inv_spc = code_rate / (double)s->spc;
+  size_t       nsym    = 0;
+  double       cp      = 0.0;
+  float _Complex acc   = 0.0f;
   for (size_t i = 0; i < ndata && nsym < cap; i++)
     {
       double nrel = (double)(npre + i); /* sample index from preamble start */
       double ph = wrap_pi (-2.0 * M_PI * (f0 * nrel + 0.5 * mu * nrel * nrel));
-      float complex d  = x[data0 + i] * cexpf ((float)ph * I);
-      size_t        pj = (size_t)cp;
+      float _Complex d = x[data0 + i] * cexpf ((float)ph * I);
+      size_t pj        = (size_t)cp;
       if (pj >= s->data_sf)
         pj = s->data_sf - 1;
       acc += d * chip_sign (s->data_code[pj]);
@@ -243,7 +243,7 @@ despread_data (const burst_demod_state_t *s, const float complex *x,
 }
 
 size_t
-burst_demod_demod (burst_demod_state_t *s, const float complex *x,
+burst_demod_demod (burst_demod_state_t *s, const float _Complex *x,
                    size_t x_len, uint8_t *out, size_t max_out)
 {
   burst_demod_reset (s);
@@ -300,10 +300,10 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
    * single FFT (rate_norm always 0), so this refines frequency alone when
    * the caller configured Doppler-only, and both when max_rate>0.
    */
-  const size_t   tsym     = s->data_sf * s->spc;
-  const size_t   nsym_max = (x_len - data0) / tsym + 1;
-  float complex *sym      = malloc (nsym_max * sizeof (float complex));
-  float complex *sym2     = malloc (nsym_max * sizeof (float complex));
+  const size_t    tsym     = s->data_sf * s->spc;
+  const size_t    nsym_max = (x_len - data0) / tsym + 1;
+  float _Complex *sym      = malloc (nsym_max * sizeof (float _Complex));
+  float _Complex *sym2     = malloc (nsym_max * sizeof (float _Complex));
   if (!sym || !sym2)
     {
       free (sym);
@@ -348,12 +348,12 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
       free (sym);
       return 0;
     }
-  size_t        best_off = 0;
-  double        best_mag = -1.0;
-  float complex best_c   = 0.0f;
+  size_t best_off       = 0;
+  double best_mag       = -1.0;
+  float _Complex best_c = 0.0f;
   for (size_t off = 0; off + frame <= nsym; off++)
     {
-      float complex c = 0.0f;
+      float _Complex c = 0.0f;
       for (size_t j = 0; j < s->sync_len; j++)
         c += sym[off + j] * (float)s->sync[j];
       double mag
@@ -367,7 +367,7 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
     }
   s->frame_offset = best_off;
   double theta    = atan2 ((double)cimagf (best_c), (double)crealf (best_c));
-  float complex derot = cexpf (-(float)theta * I);
+  float _Complex derot = cexpf (-(float)theta * I);
 
   /* ── 4) Slice the frame to bits, and stop ────────────────────────────
    *
@@ -404,16 +404,16 @@ burst_demod_demod (burst_demod_state_t *s, const float complex *x,
        estimate are both made from it -- and freeing it cost a caller the
        quadrature, the one axis a phase-coherence problem shows in
        (doppler#1087). */
-    float         *llr  = dp_xnn (realloc (s->llr, frame * sizeof *llr));
-    float complex *unit = dp_xnn (realloc (s->sym, frame * sizeof *unit));
+    float          *llr  = dp_xnn (realloc (s->llr, frame * sizeof *llr));
+    float _Complex *unit = dp_xnn (realloc (s->sym, frame * sizeof *unit));
     {
       s->llr   = llr;
       s->sym   = unit;
       double a = 0.0, q2 = 0.0;
       for (size_t k = 0; k < frame; k++)
         {
-          const float complex y = sym[best_off + k] * derot;
-          unit[k]               = y;
+          const float _Complex y = sym[best_off + k] * derot;
+          unit[k]                = y;
           a += fabs ((double)crealf (y));
           q2 += (double)cimagf (y) * (double)cimagf (y);
         }

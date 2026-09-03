@@ -87,7 +87,7 @@ extern "C"
 
     /* ── engine ── */
     ppe_state_t   *ppe;  /**< feedforward (rate x freq) estimator.          */
-    float complex *part; /**< preamble partials scratch (acq_reps*est_seg). */
+    float _Complex *part; /**< preamble partials scratch (acq_reps*est_seg). */
     size_t         n_part;
 
     /* ── read-backs (after demod) ── */
@@ -96,7 +96,7 @@ extern "C"
                        hard decision demod() returned. Valid until the next
                        demod(); n_llr of them.                            */
     size_t n_llr; /**< LLRs the last demod() wrote (the frame's length).  */
-    float complex *sym; /**< The frame's DEROTATED, unit-normalised complex
+    float _Complex *sym; /**< The frame's DEROTATED, unit-normalised complex
                              symbols -- the constellation the LLRs are the
                              real part of. Built either way to compute the
                              projection and the noise estimate, and freed
@@ -363,7 +363,7 @@ extern "C"
    * @endcode
    */
   size_t burst_demod_symbols (burst_demod_state_t *state, size_t n,
-                              float complex *out, size_t max_out);
+                              float _Complex *out, size_t max_out);
 
   /**
    * @brief Max symbols burst_demod_symbols() writes: the frame's length.
@@ -466,7 +466,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t burst_demod_demod (burst_demod_state_t *state, const float complex *x,
+  size_t burst_demod_demod (burst_demod_state_t *state, const float _Complex *x,
                             size_t x_len, uint8_t *out, size_t max_out);
 
 #ifdef __cplusplus

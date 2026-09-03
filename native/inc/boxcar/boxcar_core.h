@@ -65,8 +65,8 @@ extern "C"
     double gain;       /**< output gain applied to the mean.            */
     float  scale;      /**< cached (float)(gain / len) — the per-sample
                             applied multiply.                            */
-    float complex acc; /**< running sum over the window.                 */
-    float complex ring[BOXCAR_MAX_LEN]; /**< delay line.                 */
+    float _Complex acc; /**< running sum over the window.                 */
+    float _Complex ring[BOXCAR_MAX_LEN]; /**< delay line.                 */
   } boxcar_state_t;
 
   /**
@@ -86,8 +86,8 @@ extern "C"
    *
    * @endcode
    */
-  JM_FORCEINLINE JM_HOT float complex
-  boxcar_step (boxcar_state_t *s, float complex x)
+  JM_FORCEINLINE JM_HOT float _Complex
+  boxcar_step (boxcar_state_t *s, float _Complex x)
   {
     s->acc += x - s->ring[s->pos];
     s->ring[s->pos] = x;
@@ -182,8 +182,8 @@ extern "C"
    *
    * @endcode
    */
-  void boxcar_steps (boxcar_state_t *s, const float complex *x,
-                     float complex *out, size_t n);
+  void boxcar_steps (boxcar_state_t *s, const float _Complex *x,
+                     float _Complex *out, size_t n);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h)
    * ────────── Pointer-free POD struct, so a whole-struct snapshot resumes

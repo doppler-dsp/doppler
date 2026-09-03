@@ -49,7 +49,7 @@ min_sec (const double *t, int n)
 static int
 write_fixture (void)
 {
-  float complex      *buf = malloc (NUM_SAMPLES * sizeof *buf);
+  float _Complex     *buf = malloc (NUM_SAMPLES * sizeof *buf);
   wfm_writer_state_t *w;
   int                 rc;
 
@@ -76,7 +76,7 @@ int
 main (void)
 {
   capture_state_t *obj;
-  float complex   *out;
+  float _Complex  *out;
   struct timespec  t0, t1;
   jm_bench_t       _bench = { 0 };
   static double    t_read[ITERATIONS], t_sum[ITERATIONS];

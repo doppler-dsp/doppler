@@ -57,7 +57,7 @@ frame_ok (const uint8_t *frame, size_t n)
 
 /* Append one BPSK data symbol (bit -> +/-1) spread by data_code. */
 static size_t
-put_symbol (float complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
+put_symbol (float _Complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
 {
   float a = csign (bit);
   for (size_t c = 0; c < DATA_SF; c++)
@@ -69,7 +69,7 @@ put_symbol (float complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
 /* Build preamble (5x500 unmod) + frame (sync|payload|crc), then apply the
  * carrier exp(j2π(f0·n + ½μ·n²)). Returns total sample count. */
 static size_t
-build_burst (float complex *y, const uint8_t *acode, const uint8_t *dcode,
+build_burst (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
              const uint8_t *payload, double f0, double mu)
 {
   size_t n = 0;
@@ -100,7 +100,7 @@ build_burst (float complex *y, const uint8_t *acode, const uint8_t *dcode,
  * below need: frame_offset is only meaningful when the sync is NOT at 0,
  * and frame_valid's negative case needs a frame that ARRIVES and fails. */
 static size_t
-build_burst_ex (float complex *y, const uint8_t *acode, const uint8_t *dcode,
+build_burst_ex (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
                 const uint8_t *payload, double f0, size_t filler,
                 int corrupt_at)
 {
@@ -149,8 +149,8 @@ run_case (const char *name, double f0, double f0_prior, double mu,
   size_t cap
       = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
         + 16;
-  float complex *y = malloc (cap * sizeof *y);
-  size_t         n = build_burst (y, acode, dcode, payload, f0, mu);
+  float _Complex *y = malloc (cap * sizeof *y);
+  size_t          n = build_burst (y, acode, dcode, payload, f0, mu);
 
   burst_demod_state_t *d = burst_demod_create (dcode, DATA_SF, SPC, CHIP_RATE,
                                                0.0, max_rate, FRAME_SYMS, 10);
@@ -229,13 +229,13 @@ run_edge_cases (void)
   burst_demod_set_sync (d, SYNC, SYNC_LEN);
 
   /* Too-short input → clean failure: no frame, so no bits and no LLRs. */
-  float complex tiny[8] = { 0 };
-  uint8_t       eb[FRAME_SYMS];
+  float _Complex tiny[8] = { 0 };
+  uint8_t eb[FRAME_SYMS];
   burst_demod_set_prior (d, 0.0, 0);
   DP_CHECK (burst_demod_demod (d, tiny, 8, eb, FRAME_SYMS) == 0);
   float el[FRAME_SYMS];
   DP_CHECK (burst_demod_llrs (d, 1, el, FRAME_SYMS) == 0);
-  float complex esym[FRAME_SYMS];
+  float _Complex esym[FRAME_SYMS];
   DP_CHECK_MSG (burst_demod_symbols (d, 1, esym, FRAME_SYMS) == 0,
                 "no frame yet: the constellation read-back is empty, not "
                 "stale");
@@ -298,7 +298,7 @@ main (void)
         = (ACQ_SF * ACQ_REPS + (16 + SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF)
               * SPC
           + 16;
-    float complex *y = malloc (cap * sizeof *y);
+    float _Complex *y = malloc (cap * sizeof *y);
     DP_CHECK (y != NULL);
     if (y)
       {
@@ -401,7 +401,7 @@ main (void)
         = (ACQ_SF * ACQ_REPS + (16 + SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF)
               * SPC
           + 16;
-    float complex *y = malloc (cap * sizeof *y);
+    float _Complex *y = malloc (cap * sizeof *y);
     DP_CHECK (y != NULL);
     if (y)
       {
@@ -459,7 +459,7 @@ main (void)
     const size_t cap
         = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
           + 16;
-    float complex *y = malloc (cap * sizeof *y);
+    float _Complex *y = malloc (cap * sizeof *y);
     DP_CHECK (y != NULL);
     if (y)
       {
@@ -516,9 +516,9 @@ main (void)
 
     /* The same burst as everywhere else in this file, with the trailer
        simply not transmitted. */
-    const size_t   no_crc = SYNC_LEN + PAYLOAD;
-    size_t         cap    = (ACQ_SF * ACQ_REPS + no_crc * DATA_SF) * SPC + 16;
-    float complex *y      = malloc (cap * sizeof *y);
+    const size_t    no_crc = SYNC_LEN + PAYLOAD;
+    size_t          cap    = (ACQ_SF * ACQ_REPS + no_crc * DATA_SF) * SPC + 16;
+    float _Complex *y      = malloc (cap * sizeof *y);
     DP_REQUIRE (y != NULL);
     size_t n = 0;
     for (size_t r = 0; r < ACQ_REPS; r++)
@@ -582,7 +582,7 @@ main (void)
     size_t cap
         = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
           + 16;
-    float complex *y = malloc (cap * sizeof *y);
+    float _Complex *y = malloc (cap * sizeof *y);
     DP_REQUIRE (y != NULL);
     size_t n = build_burst (y, acode, dcode, payload, 0.0, 0.0);
 
@@ -629,7 +629,7 @@ main (void)
      * place a phase-coherence problem shows: measured through this object, a
      * Doppler rate of 1e5 Hz/s raises Q/I 41x while est_snr_db, est_rate_hz
      * and the bits are all unchanged. */
-    float complex *sy = malloc (nl * sizeof *sy);
+    float _Complex *sy = malloc (nl * sizeof *sy);
     DP_REQUIRE (sy != NULL);
     DP_CHECK_MSG (burst_demod_symbols (d, 1, sy, nl) == nl,
                   "the constellation spans the frame, as the LLRs do");

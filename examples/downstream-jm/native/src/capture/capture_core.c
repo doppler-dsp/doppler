@@ -123,7 +123,7 @@ capture_read_max_out (capture_state_t *state, size_t n)
 }
 
 size_t
-capture_read (capture_state_t *state, size_t n, float complex *out,
+capture_read (capture_state_t *state, size_t n, float _Complex *out,
               size_t max_out)
 {
   return wfm_reader_read (state->r, n, out, max_out);

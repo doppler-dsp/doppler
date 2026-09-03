@@ -66,11 +66,11 @@ _test_arg_validation (void)
 /* Stream `x` through `rx` in fixed-size chunks, collecting every emitted
  * symbol; return the symbol count and fill `*syms_out` (caller frees). */
 static size_t
-_stream (dsss_receiver_state_t *rx, const float complex *x, size_t n,
-         size_t chunk, float complex **syms_out)
+_stream (dsss_receiver_state_t *rx, const float _Complex *x, size_t n,
+         size_t chunk, float _Complex **syms_out)
 {
-  float complex *syms   = malloc (n * sizeof *syms); /* generous upper bound */
-  size_t         n_syms = 0;
+  float _Complex *syms = malloc (n * sizeof *syms); /* generous upper bound */
+  size_t          n_syms = 0;
   for (size_t pos = 0; pos < n; pos += chunk)
     {
       size_t take = (pos + chunk <= n) ? chunk : (n - pos);
@@ -86,7 +86,7 @@ _stream (dsss_receiver_state_t *rx, const float complex *x, size_t n,
  * pipeline delay -- the existence of a clean near-zero-error lag is the
  * proof, the same pattern this repo's gallery examples use in Python). */
 static double
-_best_ber (const float complex *syms, size_t n_syms, const double *data,
+_best_ber (const float _Complex *syms, size_t n_syms, const double *data,
            size_t n_sym)
 {
   if (n_syms < 20)
@@ -131,9 +131,9 @@ _test_acquire_and_decode (void)
   const size_t pre_silence = te * 5 + 3;
   const double cn0         = 90.0;
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
@@ -161,8 +161,8 @@ _test_acquire_and_decode (void)
       return 1;
     }
 
-  float complex *syms;
-  size_t         n_syms = _stream (rx, x, n, te, &syms);
+  float _Complex *syms;
+  size_t          n_syms = _stream (rx, x, n, te, &syms);
 
   DP_CHECK (dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (n_syms > 20);
@@ -244,19 +244,19 @@ _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
                        double rate_hz_per_s, size_t n_periods, double sigma,
                        double bn_fll, uint32_t seed)
 {
-  size_t         tsamps = sf * spc;
-  size_t         n      = n_periods * tsamps;
-  float complex *x      = malloc (n * sizeof *x);
-  uint32_t       nst    = seed;
+  size_t          tsamps = sf * spc;
+  size_t          n      = n_periods * tsamps;
+  float _Complex *x      = malloc (n * sizeof *x);
+  uint32_t        nst    = seed;
   for (size_t idx = 0; idx < n; idx++)
     {
-      double        t       = (double)idx / fs;
-      double        ph      = 2.0 * M_PI * (0.5 * rate_hz_per_s * t * t);
-      float complex carrier = (float complex) (cos (ph) + I * sin (ph));
-      size_t        cph     = (idx / spc) % sf;
-      float         csgn    = (code[cph] & 1u) ? -1.0f : 1.0f;
-      float complex noise
-          = (float complex) (sigma / sqrt (2.0)) * dp_cgauss (&nst);
+      double t               = (double)idx / fs;
+      double ph              = 2.0 * M_PI * (0.5 * rate_hz_per_s * t * t);
+      float _Complex carrier = (float _Complex) (cos (ph) + I * sin (ph));
+      size_t cph             = (idx / spc) % sf;
+      float  csgn            = (code[cph] & 1u) ? -1.0f : 1.0f;
+      float _Complex noise
+          = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&nst);
       x[idx] = csgn * carrier + noise;
     }
 
@@ -264,13 +264,13 @@ _run_ramp_composition (const uint8_t *code, size_t sf, size_t spc, double fs,
   costas_state_t car;
   costas_init (&car, 0.01, 0.707, 0.0, tsamps, bn_fll);
 
-  float complex *wiped = malloc (tsamps * sizeof *wiped);
+  float _Complex *wiped = malloc (tsamps * sizeof *wiped);
   for (size_t p = 0; p < n_periods; p++)
     {
-      const float complex *chunk = x + p * tsamps;
+      const float _Complex *chunk = x + p * tsamps;
       for (size_t i = 0; i < tsamps; i++)
         wiped[i] = costas_wipeoff (&car, chunk[i]);
-      float complex prompt;
+      float _Complex prompt;
       /* exactly one period's worth of raw samples in; ordinarily exactly
        * one prompt out, but Dll's own tracked code_rate need not be
        * precisely 1.0 -- don't hard-assert the count, mirroring the
@@ -383,9 +383,9 @@ _test_sustained_doppler_rate (void)
   for (size_t i = 0; i < sf; i++)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_ramp_capture (code, sf, spc, fs, tsym, rate_hz_per_s, cn0, n_sym,
                         pre_silence, 21, &x, &n, &data);
 
@@ -406,9 +406,9 @@ _test_sustained_doppler_rate (void)
       return 1;
     }
 
-  float complex *syms4, *syms1;
-  size_t         n_syms4 = _stream (rx4, x, n, te, &syms4);
-  size_t         n_syms1 = _stream (rx1, x, n, te, &syms1);
+  float _Complex *syms4, *syms1;
+  size_t          n_syms4 = _stream (rx4, x, n, te, &syms4);
+  size_t          n_syms1 = _stream (rx1, x, n, te, &syms1);
 
   double ber4 = _best_ber (syms4, n_syms4, data, n_sym + 4);
   double ber1 = _best_ber (syms1, n_syms1, data, n_sym + 4);
@@ -475,9 +475,9 @@ _test_carry_buffer_state_roundtrip (void)
   const size_t pre_silence = te * 5 + 3;
   const double cn0         = 90.0;
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
@@ -493,9 +493,9 @@ _test_carry_buffer_state_roundtrip (void)
 
   size_t odd_chunk = te + te / 3; /* deliberately NOT a multiple
                                       of te (one code period). */
-  float complex *warm_syms;
-  size_t         half   = n / 2;
-  size_t         warm_n = _stream (rx, x, half, odd_chunk, &warm_syms);
+  float _Complex *warm_syms;
+  size_t          half   = n / 2;
+  size_t          warm_n = _stream (rx, x, half, odd_chunk, &warm_syms);
   free (warm_syms);
   (void)warm_n;
   DP_CHECK (dsss_receiver_get_tracking (rx) == 1);
@@ -517,10 +517,10 @@ _test_carry_buffer_state_roundtrip (void)
       DP_CHECK (dsss_receiver_set_state (rx2, blob) == DP_OK);
       DP_CHECK (rx2->car_carry_len == rx->car_carry_len);
 
-      float complex *rest1, *rest2;
-      size_t         rest_n = n - half;
-      size_t         k1 = _stream (rx, x + half, rest_n, odd_chunk, &rest1);
-      size_t         k2 = _stream (rx2, x + half, rest_n, odd_chunk, &rest2);
+      float _Complex *rest1, *rest2;
+      size_t          rest_n = n - half;
+      size_t          k1 = _stream (rx, x + half, rest_n, odd_chunk, &rest1);
+      size_t          k2 = _stream (rx2, x + half, rest_n, odd_chunk, &rest2);
       DP_CHECK (k1 == k2);
       size_t kmin = k1 < k2 ? k1 : k2;
       for (size_t i = 0; i < kmin; i++)

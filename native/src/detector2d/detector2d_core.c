@@ -46,7 +46,7 @@ detector2d_compute_stat_2d (detector2d_state_t *state)
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
 detector2d_state_t *
-detector2d_create (const float complex *ref, size_t ny, size_t nx,
+detector2d_create (const float _Complex *ref, size_t ny, size_t nx,
                    size_t dwell, size_t noise_lo, size_t noise_hi,
                    det_noise_mode_t noise_mode, float threshold, int nthreads)
 {
@@ -80,7 +80,7 @@ detector2d_create (const float complex *ref, size_t ny, size_t nx,
   if (!state->corr)
     goto fail;
 
-  state->out_buf = (float complex *)malloc (n * sizeof (float complex));
+  state->out_buf = (float _Complex *)malloc (n * sizeof (float _Complex));
   if (!state->out_buf)
     goto fail;
 
@@ -147,8 +147,8 @@ detector2d_get_state (const detector2d_state_t *s, void *blob)
   dp_w_u64 (&_w, nun);
   for (size_t i = 0; i < nun; i++)
     {
-      size_t        idx = (t + i) & s->ring->mask;
-      float complex v
+      size_t idx = (t + i) & s->ring->mask;
+      float _Complex v
           = s->ring->data[idx * 2] + I * s->ring->data[idx * 2 + 1];
       dp_w_cf32 (&_w, &v, 1);
     }
@@ -173,7 +173,7 @@ detector2d_set_state (detector2d_state_t *s, const void *blob)
     return DP_ERR_INVALID;
   DP_STORE_REL (&s->ring->head, 0);
   DP_STORE_REL (&s->ring->tail, 0);
-  const float complex *src = (const float complex *)(_r.buf + _r.off);
+  const float _Complex *src = (const float _Complex *)(_r.buf + _r.off);
   if (nun)
     dp_f32_write (s->ring, (const float *)src, nun);
   _r.off += s->ring_cap * sizeof (float _Complex); /* skip ring + pad */
@@ -187,7 +187,7 @@ detector2d_set_state (detector2d_state_t *s, const void *blob)
 }
 
 int
-detector2d_set_ref (detector2d_state_t *state, const float complex *ref)
+detector2d_set_ref (detector2d_state_t *state, const float _Complex *ref)
 {
   detector2d_reset (state);
   return corr2d_set_ref (state->corr, ref);
@@ -202,7 +202,7 @@ detector2d_set_threshold (detector2d_state_t *state, float threshold)
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
 size_t
-detector2d_push (detector2d_state_t *state, const float complex *in,
+detector2d_push (detector2d_state_t *state, const float _Complex *in,
                  size_t n_in, det_result2d_t *result, size_t max_results)
 {
   size_t ndet = 0;
@@ -230,9 +230,9 @@ detector2d_push (detector2d_state_t *state, const float complex *in,
           if (h - t < state->n)
             break;
 
-          float complex *frame
-              = (float complex *)(state->ring->data
-                                  + (t & state->ring->mask) * 2);
+          float _Complex *frame
+              = (float _Complex *)(state->ring->data
+                                   + (t & state->ring->mask) * 2);
           size_t n_out = corr2d_execute (state->corr, frame, state->n,
                                          state->out_buf, state->n);
           dp_f32_consume (state->ring, state->n);

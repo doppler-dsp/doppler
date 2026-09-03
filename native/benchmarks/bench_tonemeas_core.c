@@ -57,9 +57,9 @@ main (void)
 
   for (int k = 0; k < 3; k++)
     {
-      const size_t   n  = caps[k];
-      float         *x  = malloc (n * sizeof *x);
-      float complex *xc = malloc (n * sizeof *xc);
+      const size_t    n  = caps[k];
+      float          *x  = malloc (n * sizeof *x);
+      float _Complex *xc = malloc (n * sizeof *xc);
       if (!x || !xc)
         return 1;
       /* A coherent tone near mid-band with a little harmonic content, so

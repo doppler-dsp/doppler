@@ -68,7 +68,7 @@ extern "C"
    * 17.1
    * @endcode
    */
-  double snr_data_aided_db (const float complex *soft, size_t soft_len,
+  double snr_data_aided_db (const float _Complex *soft, size_t soft_len,
                             const uint8_t *sign_bits, size_t sign_bits_len);
 
   /**
@@ -97,7 +97,7 @@ extern "C"
    * 17.1
    * @endcode
    */
-  double snr_m2m4_db (const float complex *x, size_t x_len);
+  double snr_m2m4_db (const float _Complex *x, size_t x_len);
 
   /**
    * @brief Sliding-window data-aided Es/N0 (dB), one estimate per index.
@@ -116,7 +116,7 @@ extern "C"
    * @param window        Window width in samples.
    * @param out           Output, length @p soft_len.
    */
-  void snr_data_aided_db_series (const float complex *soft, size_t soft_len,
+  void snr_data_aided_db_series (const float _Complex *soft, size_t soft_len,
                                  const uint8_t *sign_bits,
                                  size_t sign_bits_len, size_t window,
                                  double *out);
@@ -133,7 +133,7 @@ extern "C"
    * @param window  Window width in samples.
    * @param out     Output, length @p x_len.
    */
-  void snr_m2m4_db_series (const float complex *x, size_t x_len,
+  void snr_m2m4_db_series (const float _Complex *x, size_t x_len,
                            size_t window, double *out);
 
 #ifdef __cplusplus

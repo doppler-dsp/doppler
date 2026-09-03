@@ -63,12 +63,12 @@ min_sec (const double *t, int n)
    dp_dsss_capture(): a benchmark that includes a test header acquires a
    dependency on the test tree's build wiring, and this is 15 lines. */
 static size_t
-build_capture (float complex **out, size_t *pre_out)
+build_capture (float _Complex **out, size_t *pre_out)
 {
-  const size_t   tsym = (size_t)(CHIP_RATE * SPC / SYM_RATE + 0.5); /* 112 */
-  const size_t   pre  = SF * SPC * 5 + 3;
-  const size_t   n    = pre + N_SYM * tsym;
-  float complex *x    = malloc (n * sizeof *x);
+  const size_t    tsym = (size_t)(CHIP_RATE * SPC / SYM_RATE + 0.5); /* 112 */
+  const size_t    pre  = SF * SPC * 5 + 3;
+  const size_t    n    = pre + N_SYM * tsym;
+  float _Complex *x    = malloc (n * sizeof *x);
   if (!x)
     return 0;
 
@@ -107,9 +107,9 @@ main (void)
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
-  float complex *x   = NULL;
-  size_t         pre = 0;
-  size_t         n   = build_capture (&x, &pre);
+  float _Complex *x   = NULL;
+  size_t          pre = 0;
+  size_t          n   = build_capture (&x, &pre);
   if (n == 0)
     return 1;
 
@@ -122,7 +122,7 @@ main (void)
   size_t cap = async_dsss_receiver_steps_max_out (probe);
   if (cap == 0 || cap > n)
     cap = n;
-  float complex *out = malloc (cap * sizeof *out);
+  float _Complex *out = malloc (cap * sizeof *out);
   if (!out)
     return 1;
 

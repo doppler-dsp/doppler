@@ -36,17 +36,17 @@ _1-D FFT correlator state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  float complex \* | [**accum**](#variable-accum)  <br> |
+|  float \_Complex \* | [**accum**](#variable-accum)  <br> |
 |  size\_t | [**count**](#variable-count)  <br> |
 |  size\_t | [**dwell**](#variable-dwell)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**fwd**](#variable-fwd)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**inv**](#variable-inv)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**n\_out**](#variable-n_out)  <br> |
-|  float complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
-|  float complex \* | [**work\_fft**](#variable-work_fft)  <br> |
-|  float complex \* | [**work\_pad**](#variable-work_pad)  <br> |
-|  float complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
+|  float \_Complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
+|  float \_Complex \* | [**work\_fft**](#variable-work_fft)  <br> |
+|  float \_Complex \* | [**work\_pad**](#variable-work_pad)  <br> |
+|  float \_Complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
 
 
 
@@ -106,7 +106,7 @@ Allocate with [**corr\_create()**](corr__core_8h.md#function-corr_create); never
 ### variable accum 
 
 ```C++
-float complex* corr_state_t::accum;
+float _Complex* corr_state_t::accum;
 ```
 
 
@@ -230,7 +230,7 @@ Output length (== n unless decoupled).
 ### variable ref\_spec 
 
 ```C++
-float complex* corr_state_t::ref_spec;
+float _Complex* corr_state_t::ref_spec;
 ```
 
 
@@ -248,7 +248,7 @@ conj(FFT(ref)), pre-computed at create.
 ### variable work\_fft 
 
 ```C++
-float complex* corr_state_t::work_fft;
+float _Complex* corr_state_t::work_fft;
 ```
 
 
@@ -266,7 +266,7 @@ Scratch: FFT(in) · ref\_spec (product).
 ### variable work\_pad 
 
 ```C++
-float complex* corr_state_t::work_pad;
+float _Complex* corr_state_t::work_pad;
 ```
 
 
@@ -283,7 +283,7 @@ Zero-padded product, n\_out (NULL native).
 ### variable work\_trunc 
 
 ```C++
-float complex* corr_state_t::work_trunc;
+float _Complex* corr_state_t::work_trunc;
 ```
 
 

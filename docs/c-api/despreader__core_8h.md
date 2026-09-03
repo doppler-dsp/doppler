@@ -68,7 +68,7 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**despreader\_bits**](#function-despreader_bits) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Despread a CF32 block and bit-sync the prompts into hard data bits._  |
+|  size\_t | [**despreader\_bits**](#function-despreader_bits) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Despread a CF32 block and bit-sync the prompts into hard data bits._  |
 |  size\_t | [**despreader\_bits\_max\_out**](#function-despreader_bits_max_out) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
 |  void | [**despreader\_configure\_carrier\_lock**](#function-despreader_configure_carrier_lock) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the embedded carrier loop's lock detector directly._  |
 |  int | [**despreader\_configure\_code\_lock**](#function-despreader_configure_code_lock) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, double pfa, size\_t n\_looks, double ref\_snr\_db) <br>_Re-tune the embedded code loop's lock detector._  |
@@ -92,7 +92,7 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 |  int | [**despreader\_set\_state**](#function-despreader_set_state) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**despreader\_set\_telemetry**](#function-despreader_set_telemetry) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the despreader. Pure forwarder — the despreader registers no probes of its own: the carrier loop registers "&lt;prefix&gt;.car.lock" / ".e" / ".freq" / ".locked" and the code loop registers "&lt;prefix&gt;.code.e" / ".rate" / ".lock" / ".locked" (the ".locked" pair are the loops' verify-counted lockdet decisions, 0/1) — eight probes, all thinned by_ `decim` _and emitted once per code period (the despreader flushes both loops at its per-period update). Passing NULL detaches both loops. Setup path, never hot; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**despreader\_state\_bytes**](#function-despreader_state_bytes) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
-|  size\_t | [**despreader\_steps**](#function-despreader_steps) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Track carrier and code and despread a CF32 block, one prompt symbol per code period._  |
+|  size\_t | [**despreader\_steps**](#function-despreader_steps) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Track carrier and code and despread a CF32 block, one prompt symbol per code period._  |
 |  size\_t | [**despreader\_steps\_max\_out**](#function-despreader_steps_max_out) ([**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
 
 
@@ -145,7 +145,7 @@ Lifecycle: `despreader_create -> (steps / bits / reset)* -> despreader_destroy`.
 uint8_t code[127] = { ... };  // one code period, 0/1 chips
 despreader_state_t *ch = despreader_create(code, 127, 8, 0.0, 0.0,
                                       0.05, 0.005, 0.0, 0.707, 0.5, 1);
-float complex sym[64];
+float _Complex sym[64];
 size_t k = despreader_steps(ch, rx, rx_len, sym, 64);  // prompt per period
 despreader_destroy(ch);
 ```
@@ -164,7 +164,7 @@ _Despread a CF32 block and bit-sync the prompts into hard data bits._
 ```C++
 size_t despreader_bits (
     despreader_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
     uint8_t * out,
     size_t max_out
@@ -835,9 +835,9 @@ _Track carrier and code and despread a CF32 block, one prompt symbol per code pe
 ```C++
 size_t despreader_steps (
     despreader_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

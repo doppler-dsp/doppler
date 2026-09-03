@@ -70,7 +70,7 @@ main (void)
      * room for 5. The wrapper used to pass a fixed HBDECIM_MAX_OUT. */
     float                      h[3] = { 0.25f, 0.5f, 0.25f };
     HalfbandDecimator_state_t *d    = HalfbandDecimator_create (h, 3);
-    float complex              in[64], out[64];
+    float _Complex in[64], out[64];
     DP_CHECK (d != NULL);
     for (int i = 0; i < 64; i++)
       {

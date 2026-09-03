@@ -40,7 +40,7 @@ report (const char *name, const double *times)
 int
 main (void)
 {
-  float complex *out = malloc (BENCH_N * sizeof (*out));
+  float _Complex *out = malloc (BENCH_N * sizeof (*out));
   if (!out)
     {
       fprintf (stderr, "OOM\n");

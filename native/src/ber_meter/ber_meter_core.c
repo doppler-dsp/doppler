@@ -130,9 +130,9 @@ in_marker (size_t t, size_t t0, size_t n_marker, size_t period, size_t occ)
 }
 
 ber_align_t
-ber_align_detect (const float complex *rx, size_t rx_len, const uint8_t *truth,
-                  size_t truth_len, int m, size_t t0, size_t n_marker,
-                  size_t period, int lag_span, double pfa)
+ber_align_detect (const float _Complex *rx, size_t rx_len,
+                  const uint8_t *truth, size_t truth_len, int m, size_t t0,
+                  size_t n_marker, size_t period, int lag_span, double pfa)
 {
   ber_align_t a;
   double      stat[BER_MAX_LAGS], phre[BER_MAX_LAGS], phim[BER_MAX_LAGS];
@@ -291,7 +291,7 @@ ber_align_detect (const float complex *rx, size_t rx_len, const uint8_t *truth,
 }
 
 ber_align_t
-ber_meter_detect (const ber_meter_state_t *s, const float complex *rx,
+ber_meter_detect (const ber_meter_state_t *s, const float _Complex *rx,
                   size_t rx_len, size_t t0, size_t n_marker, size_t period,
                   int lag_span, double pfa)
 {
@@ -300,7 +300,7 @@ ber_meter_detect (const ber_meter_state_t *s, const float complex *rx,
 }
 
 int
-ber_meter_align (ber_meter_state_t *s, const float complex *rx, size_t rx_len,
+ber_meter_align (ber_meter_state_t *s, const float _Complex *rx, size_t rx_len,
                  size_t t0, size_t n_marker, size_t period, int lag_span,
                  double pfa)
 {
@@ -313,7 +313,7 @@ ber_meter_align (ber_meter_state_t *s, const float complex *rx, size_t rx_len,
 }
 
 size_t
-ber_meter_score (ber_meter_state_t *s, const float complex *rx, size_t rx_len,
+ber_meter_score (ber_meter_state_t *s, const float _Complex *rx, size_t rx_len,
                  size_t lo, size_t hi)
 {
   double phi0     = mpsk_phi0 (s->m);

@@ -143,9 +143,9 @@ test_the_create_snr_seam (void)
 static int
 test_the_two_faces_agree (void)
 {
-  const size_t   n = 512;
-  float complex *a = malloc (n * sizeof *a);
-  float complex *b = malloc (n * sizeof *b);
+  const size_t    n = 512;
+  float _Complex *a = malloc (n * sizeof *a);
+  float _Complex *b = malloc (n * sizeof *b);
   DP_REQUIRE_MSG (a && b, "faces: alloc");
 
   const int types[] = { WFM_SYNTH_TONE, WFM_SYNTH_BPSK, WFM_SYNTH_QPSK,
@@ -209,8 +209,8 @@ test_the_two_faces_agree (void)
     s.payload.len                = sizeof pay;
     s.crc                        = 1;
 
-    float complex *da = malloc (n * sizeof *da);
-    float complex *db = malloc (n * sizeof *db);
+    float _Complex *da = malloc (n * sizeof *da);
+    float _Complex *db = malloc (n * sizeof *db);
     DP_REQUIRE_MSG (da && db, "dsss faces: alloc");
     wfm_synth_state_t *comp = wfm_compose_build_synth (
         &s, 1e6, n, s.freq, s.snr, s.f_end, 0, 0, 0);
@@ -559,9 +559,9 @@ main (void)
   /* ── once-through: collect the whole stream in odd-sized chunks ── */
   wfm_compose_state_t *c = wfm_compose_create (segs, 2, 0, 0);
   DP_REQUIRE_MSG (c, "create");
-  static float complex all[8192];
-  size_t               total = 0, n;
-  float complex        buf[777];
+  static float _Complex all[8192];
+  size_t total = 0, n;
+  float _Complex buf[777];
   while ((n = wfm_compose_execute (c, buf, 777)) > 0)
     {
       DP_REQUIRE_MSG (total + n <= 8192, "overflow");
@@ -607,8 +607,8 @@ main (void)
   DP_REQUIRE_MSG (strstr (json, "\"version\""), "version tag");
   wfm_compose_state_t *jc = wfm_compose_from_json (json);
   DP_REQUIRE_MSG (jc, "from_json");
-  static float complex jall[8192];
-  size_t               jtotal = 0;
+  static float _Complex jall[8192];
+  size_t jtotal = 0;
   while ((n = wfm_compose_execute (jc, buf, 777)) > 0)
     {
       for (size_t i = 0; i < n; i++)
@@ -665,23 +665,23 @@ main (void)
    * ──
    */
   {
-    float complex c0[8] = { 1 + 1 * I, -1 + 1 * I, 1 - 1 * I,  -1 - 1 * I,
-                            1 + 1 * I, 1 - 1 * I,  -1 + 1 * I, -1 - 1 * I };
-    float complex c1[8] = { 1 - 1 * I,  1 + 1 * I, -1 - 1 * I, -1 + 1 * I,
-                            -1 - 1 * I, 1 + 1 * I, 1 - 1 * I,  -1 + 1 * I };
-    wfm_source_t  a0    = { .type      = WFM_SYNTH_SYMBOLS,
-                            .snr       = 100.0,
-                            .seed      = 1,
-                            .sps       = 4,
-                            .symbols   = c0,
-                            .n_symbols = 8 };
-    wfm_source_t  a1    = { .type      = WFM_SYNTH_SYMBOLS,
-                            .snr       = 100.0,
-                            .seed      = 2,
-                            .sps       = 4,
-                            .level     = -3.0,
-                            .symbols   = c1,
-                            .n_symbols = 8 };
+    float _Complex c0[8] = { 1 + 1 * I, -1 + 1 * I, 1 - 1 * I,  -1 - 1 * I,
+                             1 + 1 * I, 1 - 1 * I,  -1 + 1 * I, -1 - 1 * I };
+    float _Complex c1[8] = { 1 - 1 * I,  1 + 1 * I, -1 - 1 * I, -1 + 1 * I,
+                             -1 - 1 * I, 1 + 1 * I, 1 - 1 * I,  -1 + 1 * I };
+    wfm_source_t a0      = { .type      = WFM_SYNTH_SYMBOLS,
+                             .snr       = 100.0,
+                             .seed      = 1,
+                             .sps       = 4,
+                             .symbols   = c0,
+                             .n_symbols = 8 };
+    wfm_source_t a1      = { .type      = WFM_SYNTH_SYMBOLS,
+                             .snr       = 100.0,
+                             .seed      = 2,
+                             .sps       = 4,
+                             .level     = -3.0,
+                             .symbols   = c1,
+                             .n_symbols = 8 };
     /* both the inline (1-source) and "sum" (2-source) serializer paths */
     wfm_source_t  one[1]   = { a0 };
     wfm_source_t  both[2]  = { a0, a1 };
@@ -697,8 +697,8 @@ main (void)
     DP_REQUIRE_MSG (jc, "symbols from_json");
     wfm_compose_state_t *dc = wfm_compose_create (segs2, 2, 0, 0);
     DP_REQUIRE_MSG (jc && dc, "symbols states built");
-    float complex ja[600], da[600];
-    size_t        jt = 0, dt = 0;
+    float _Complex ja[600], da[600];
+    size_t jt = 0, dt = 0;
     while ((n = wfm_compose_execute (jc, buf, 333)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -733,7 +733,7 @@ main (void)
         = { .sources = &src0, .n_sources = 1, .fs = 1e6, .num_samples = 64 };
     wfm_segment_t s6
         = { .sources = &src6, .n_sources = 1, .fs = 1e6, .num_samples = 64 };
-    float complex        a[64], b[64];
+    float _Complex a[64], b[64];
     wfm_compose_state_t *ca = wfm_compose_create (&s0, 1, 0, 0);
     wfm_compose_state_t *cb = wfm_compose_create (&s6, 1, 0, 0);
     DP_REQUIRE_MSG (wfm_compose_execute (ca, a, 64) == 64, "level a");
@@ -758,7 +758,7 @@ main (void)
                           .pn_length = 7 };
     wfm_segment_t seg
         = { .sources = &src, .n_sources = 1, .fs = 1e6, .num_samples = 200 };
-    float complex        viac[200], direct[200];
+    float _Complex viac[200], direct[200];
     wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
     DP_REQUIRE_MSG (wfm_compose_execute (c, viac, 200) == 200, "1src execute");
     wfm_compose_destroy (c);
@@ -786,7 +786,7 @@ main (void)
     };
     wfm_segment_t seg
         = { .sources = srcs, .n_sources = 2, .fs = 1e6, .num_samples = 100 };
-    float complex        sum[100];
+    float _Complex sum[100];
     wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
     DP_REQUIRE_MSG (wfm_compose_execute (c, sum, 100) == 100, "2src execute");
     wfm_compose_destroy (c);
@@ -795,7 +795,7 @@ main (void)
         = wfm_synth_create (0, 1e6, 0.0, 100.0, 0, 1, 1, 7, 0, 0, 0.0);
     wfm_synth_state_t *sb
         = wfm_synth_create (0, 1e6, 2e5, 100.0, 0, 2, 1, 7, 0, 0, 0.0);
-    float complex ba[100], bb[100];
+    float _Complex ba[100], bb[100];
     wfm_synth_steps (sa, ba, 100);
     wfm_synth_steps (sb, bb, 100);
     wfm_synth_destroy (sa);
@@ -804,7 +804,7 @@ main (void)
     int   ok = 1;
     for (int i = 0; i < 100; i++)
       {
-        float complex ref = ba[i] + gb * bb[i];
+        float _Complex ref = ba[i] + gb * bb[i];
         if (cabsf (sum[i] - ref) > 1e-5f)
           ok = 0;
       }
@@ -896,7 +896,7 @@ main (void)
     /* reparse and compare sample-for-sample. */
     wfm_compose_state_t *jc = wfm_compose_from_json (json);
     DP_REQUIRE_MSG (jc, "sum from_json");
-    float complex a[4096], b[4096];
+    float _Complex a[4096], b[4096];
     DP_REQUIRE_MSG (wfm_compose_execute (c, a, 4096) == 4096, "sum direct");
     DP_REQUIRE_MSG (wfm_compose_execute (jc, b, 4096) == 4096, "sum reparsed");
     int ok = 1;
@@ -996,7 +996,7 @@ main (void)
                          .pn_length = 7 };
     wfm_segment_t seg
         = { .sources = &pn, .n_sources = 1, .fs = 1e6, .num_samples = 127 };
-    float complex none[254], all[254];
+    float _Complex none[254], all[254];
 
     wfm_compose_state_t *cn = wfm_compose_create (&seg, 1, 1, 0);
     wfm_compose_set_seed_advance (cn, WFM_SEED_ADVANCE_NONE);
@@ -1037,7 +1037,7 @@ main (void)
                             .sps      = 1 };
     wfm_segment_t seg
         = { .sources = &noisy, .n_sources = 1, .fs = 1e6, .num_samples = 128 };
-    float complex        z[256];
+    float _Complex z[256];
     wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 1, 0);
     wfm_compose_set_seed_advance (c, WFM_SEED_ADVANCE_NOISE);
     DP_REQUIRE_MSG (wfm_compose_execute (c, z, 256) == 256,
@@ -1066,7 +1066,7 @@ main (void)
                            .sps      = 1 };
     wfm_segment_t rseg
         = { .sources = &rsrc, .n_sources = 1, .fs = 1e6, .num_samples = 128 };
-    float complex        a[256], b[256];
+    float _Complex a[256], b[256];
     wfm_compose_state_t *c1 = wfm_compose_create (&rseg, 1, 1, 0);
     DP_REQUIRE_MSG (wfm_compose_execute (c1, a, 256) == 256,
                     "ranged freq exec");
@@ -1153,7 +1153,7 @@ main (void)
             .off_samples    = 8,
             .off_samples_hi = 16,
             .ranged         = WFM_RANGE_NUM_SAMPLES | WFM_RANGE_OFF_SAMPLES };
-    float complex        buf[512];
+    float _Complex buf[512];
     wfm_compose_state_t *c = wfm_compose_create (&rseg, 1, 1, 0);
     DP_REQUIRE_MSG (wfm_compose_execute (c, buf, 512) == 512,
                     "ranged snr/level/f_end/num/off exec");
@@ -1166,7 +1166,7 @@ main (void)
     wfm_source_t  src = { .type = 0, .snr = 100.0, .seed = 1, .sps = 1 };
     wfm_segment_t g
         = { .sources = &src, .n_sources = 1, .fs = 1e6, .off_samples = 8 };
-    float complex        buf[8];
+    float _Complex buf[8];
     wfm_compose_state_t *c   = wfm_compose_create (&g, 1, 0, 0);
     size_t               got = wfm_compose_execute (c, buf, 8);
     DP_REQUIRE_MSG (got == 8, "off-only segment emits the gap");
@@ -1242,8 +1242,8 @@ main (void)
     size_t               nseg = 0;
     const wfm_segment_t *gg   = wfm_compose_segments (c, &nseg, NULL, NULL);
     DP_REQUIRE_MSG (gg[0].num_samples == on, "dsss on-time is intrinsic");
-    static float complex dall[1024];
-    size_t               dt = 0;
+    static float _Complex dall[1024];
+    size_t dt = 0;
     while ((n = wfm_compose_execute (c, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1276,8 +1276,8 @@ main (void)
                                   .off_samples = 10 };
     wfm_compose_state_t *cb   = wfm_compose_create (&gb, 1, 0, 0);
     DP_REQUIRE_MSG (cb, "bits create");
-    static float complex ball[1024];
-    size_t               bt = 0;
+    static float _Complex ball[1024];
+    size_t bt = 0;
     while ((n = wfm_compose_execute (cb, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1287,7 +1287,7 @@ main (void)
     wfm_compose_destroy (cb);
     DP_REQUIRE_MSG (bt == dt, "dsss vs bits length");
     DP_REQUIRE_MSG (
-        memcmp (dall, ball, dt * sizeof (float complex)) == 0,
+        memcmp (dall, ball, dt * sizeof (float _Complex)) == 0,
         "dsss segment byte-identical to pre-spread bits at converted snr");
 
     /* JSON round-trip: geometry keys emitted, parse back, same bytes, and
@@ -1301,17 +1301,17 @@ main (void)
                     "dsss geometry keys");
     wfm_compose_state_t *jc2 = wfm_compose_from_json (js);
     DP_REQUIRE_MSG (jc2, "dsss from_json");
-    static float complex j2[1024];
-    size_t               jt = 0;
+    static float _Complex j2[1024];
+    size_t jt = 0;
     while ((n = wfm_compose_execute (jc2, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
           j2[jt + i] = buf[i];
         jt += n;
       }
-    DP_REQUIRE_MSG (jt == dt
-                        && memcmp (dall, j2, dt * sizeof (float complex)) == 0,
-                    "dsss json round-trip byte-identical");
+    DP_REQUIRE_MSG (
+        jt == dt && memcmp (dall, j2, dt * sizeof (float _Complex)) == 0,
+        "dsss json round-trip byte-identical");
     wfm_compose_destroy (jc2);
 
     /* "pattern" is accepted as an alias for "payload" on parse: rename the
@@ -1321,8 +1321,8 @@ main (void)
     memcpy (pat, "\"pattern\"", 9);
     wfm_compose_state_t *jp = wfm_compose_from_json (js);
     DP_REQUIRE_MSG (jp, "pattern alias parses");
-    static float complex jp2[1024];
-    size_t               pt = 0;
+    static float _Complex jp2[1024];
+    size_t pt = 0;
     while ((n = wfm_compose_execute (jp, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1330,7 +1330,7 @@ main (void)
         pt += n;
       }
     DP_REQUIRE_MSG (
-        pt == dt && memcmp (dall, jp2, dt * sizeof (float complex)) == 0,
+        pt == dt && memcmp (dall, jp2, dt * sizeof (float _Complex)) == 0,
         "pattern alias byte-identical to payload");
     wfm_compose_destroy (jp);
     free (js);
@@ -1343,8 +1343,8 @@ main (void)
     eb.snr_mode             = 2; /* ebno */
     wfm_compose_state_t *ce = wfm_compose_create (&ge, 1, 0, 0);
     DP_REQUIRE_MSG (ce, "ebno dsss create");
-    static float complex eall[1024];
-    size_t               et = 0;
+    static float _Complex eall[1024];
+    size_t et = 0;
     while ((n = wfm_compose_execute (ce, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1353,7 +1353,7 @@ main (void)
       }
     wfm_compose_destroy (ce);
     DP_REQUIRE_MSG (
-        et == dt && memcmp (dall, eall, dt * sizeof (float complex)) == 0,
+        et == dt && memcmp (dall, eall, dt * sizeof (float _Complex)) == 0,
         "dsss ebno == esno (BPSK payload)");
 
     /* an absent optional code is simply not emitted (no empty "" keys) */
@@ -1400,9 +1400,9 @@ main (void)
       wfm_compose_state_t *cp = wfm_compose_create (&gpl, 1, 0, 0);
       wfm_compose_state_t *cc = wfm_compose_create (&gcv, 1, 0, 0);
       DP_REQUIRE_MSG (cp && cc, "both bursts compose");
-      static float complex pbuf[4096], cbuf[4096];
-      size_t               pn2 = wfm_compose_execute (cp, pbuf, 4096);
-      size_t               cn2 = wfm_compose_execute (cc, cbuf, 4096);
+      static float _Complex pbuf[4096], cbuf[4096];
+      size_t pn2 = wfm_compose_execute (cp, pbuf, 4096);
+      size_t cn2 = wfm_compose_execute (cc, cbuf, 4096);
       wfm_compose_destroy (cp);
       wfm_compose_destroy (cc);
       DP_REQUIRE_MSG (pn2 == (pre + frame) * 2u
@@ -1411,12 +1411,12 @@ main (void)
       /* The preamble is the coherent pull-in target: a code over "the whole
          frame" must not touch it, or every receiver's acquisition breaks. */
       DP_REQUIRE_MSG (
-          memcmp (pbuf, cbuf, pre * 2u * sizeof (float complex)) == 0,
+          memcmp (pbuf, cbuf, pre * 2u * sizeof (float _Complex)) == 0,
           "the unspread preamble is identical with and without the "
           "inner code");
       /* ...and the spread part is NOT identical, or the stage did nothing. */
       DP_REQUIRE_MSG (memcmp (pbuf + pre * 2u, cbuf + pre * 2u,
-                              frame * 2u * sizeof (float complex))
+                              frame * 2u * sizeof (float _Complex))
                           != 0,
                       "the inner code changed the frame it covers");
 
@@ -1495,8 +1495,8 @@ main (void)
 
     wfm_compose_state_t *c = wfm_compose_create (&g3, 1, 0, 0);
     DP_REQUIRE_MSG (c, "repeats create");
-    static float complex rall[512];
-    size_t               rt = 0;
+    static float _Complex rall[512];
+    size_t rt = 0;
     while ((n = wfm_compose_execute (c, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1511,8 +1511,8 @@ main (void)
     g1.repeats              = 0; /* 0 and 1 both mean one instance */
     wfm_compose_state_t *c1 = wfm_compose_create (&g1, 1, 0, 0);
     DP_REQUIRE_MSG (c1, "repeats-less create");
-    static float complex r1[256];
-    size_t               t1 = 0;
+    static float _Complex r1[256];
+    size_t t1 = 0;
     while ((n = wfm_compose_execute (c1, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1521,11 +1521,11 @@ main (void)
       }
     wfm_compose_destroy (c1);
     DP_REQUIRE_MSG (t1 == 120, "repeats-less length");
-    DP_REQUIRE_MSG (memcmp (rall, r1, 120 * sizeof (float complex)) == 0,
+    DP_REQUIRE_MSG (memcmp (rall, r1, 120 * sizeof (float _Complex)) == 0,
                     "instance 0 byte-identical to a repeats-less segment");
 
     /* noisy instances never share an AWGN realization ... */
-    DP_REQUIRE_MSG (memcmp (rall, rall + 120, 100 * sizeof (float complex))
+    DP_REQUIRE_MSG (memcmp (rall, rall + 120, 100 * sizeof (float _Complex))
                         != 0,
                     "fresh noise per instance");
     /* ... while the underlying signal is fixed: clean instances repeat
@@ -1536,8 +1536,8 @@ main (void)
     gc.sources              = &cb;
     wfm_compose_state_t *cc = wfm_compose_create (&gc, 1, 0, 0);
     DP_REQUIRE_MSG (cc, "clean repeats create");
-    static float complex rc[512];
-    size_t               tc = 0;
+    static float _Complex rc[512];
+    size_t tc = 0;
     while ((n = wfm_compose_execute (cc, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1546,8 +1546,8 @@ main (void)
       }
     wfm_compose_destroy (cc);
     DP_REQUIRE_MSG (
-        tc == 360 && memcmp (rc, rc + 120, 120 * sizeof (float complex)) == 0
-            && memcmp (rc, rc + 240, 120 * sizeof (float complex)) == 0,
+        tc == 360 && memcmp (rc, rc + 120, 120 * sizeof (float _Complex)) == 0
+            && memcmp (rc, rc + 240, 120 * sizeof (float _Complex)) == 0,
         "signal fixed: clean instances byte-identical");
 
     /* ranged off_samples re-draws per instance (a jittered burst train)
@@ -1590,8 +1590,8 @@ main (void)
                                  .off_samples = 300 };
     wfm_compose_state_t *cgn = wfm_compose_create (&gn, 1, 0, 0);
     DP_REQUIRE_MSG (cgn, "gap-noise create");
-    static float complex gna[512];
-    size_t               gt = 0;
+    static float _Complex gna[512];
+    size_t gt = 0;
     while ((n = wfm_compose_execute (cgn, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1616,11 +1616,11 @@ main (void)
     wfm_synth_state_t *ref = wfm_compose_build_synth (
         &nsy, 1e6, 200, nsy.freq, nsy.snr, nsy.f_end, 0, 0, 0);
     DP_REQUIRE_MSG (ref, "reference synth");
-    static float complex rr[512];
+    static float _Complex rr[512];
     wfm_synth_steps (ref, rr, 200);
     wfm_synth_noise_steps (ref, rr + 200, 300);
     wfm_synth_destroy (ref);
-    DP_REQUIRE_MSG (memcmp (gna, rr, 500 * sizeof (float complex)) == 0,
+    DP_REQUIRE_MSG (memcmp (gna, rr, 500 * sizeof (float _Complex)) == 0,
                     "gap is the byte-exact continuation of the on-time noise");
     /* the escape hatch restores hard zeros */
     wfm_segment_t goff       = gn;
@@ -1650,8 +1650,8 @@ main (void)
                           .delay_samples = 60 };
     wfm_compose_state_t *cd = wfm_compose_create (&gd, 1, 0, 0);
     DP_REQUIRE_MSG (cd, "delay create");
-    static float complex da[256];
-    size_t               dt2 = 0;
+    static float _Complex da[256];
+    size_t dt2 = 0;
     while ((n = wfm_compose_execute (cd, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1670,8 +1670,8 @@ main (void)
     wfm_segment_t g0        = gd;
     g0.delay_samples        = 0;
     wfm_compose_state_t *c0 = wfm_compose_create (&g0, 1, 0, 0);
-    static float complex z0[256];
-    size_t               zt = 0;
+    static float _Complex z0[256];
+    size_t zt = 0;
     while ((n = wfm_compose_execute (c0, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1680,7 +1680,7 @@ main (void)
       }
     wfm_compose_destroy (c0);
     DP_REQUIRE_MSG (
-        zt == 140 && memcmp (da + 60, z0, 140 * sizeof (float complex)) == 0,
+        zt == 140 && memcmp (da + 60, z0, 140 * sizeof (float _Complex)) == 0,
         "delayed burst is the delay-less render, shifted");
     /* ranged delay × repeats: spans replay the rendered instance timeline */
     wfm_segment_t gr2    = gd;
@@ -1878,8 +1878,8 @@ main (void)
     wfm_compose_state_t *jr2 = wfm_compose_from_json (jd);
     free (jd);
     DP_REQUIRE_MSG (jr2, "delay json parses");
-    static float complex jda[256];
-    size_t               jdt = 0;
+    static float _Complex jda[256];
+    size_t jdt = 0;
     while ((n = wfm_compose_execute (jr2, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1887,9 +1887,9 @@ main (void)
         jdt += n;
       }
     wfm_compose_destroy (jr2);
-    DP_REQUIRE_MSG (jdt == 200
-                        && memcmp (da, jda, 200 * sizeof (float complex)) == 0,
-                    "delay json round-trip byte-identical");
+    DP_REQUIRE_MSG (
+        jdt == 200 && memcmp (da, jda, 200 * sizeof (float _Complex)) == 0,
+        "delay json round-trip byte-identical");
     wfm_compose_state_t *cjd = wfm_compose_create (&g0, 1, 0, 0);
     size_t               njd = 0;
     const wfm_segment_t *ggd = wfm_compose_segments (cjd, &njd, NULL, NULL);
@@ -1910,8 +1910,8 @@ main (void)
     wfm_compose_state_t *jr = wfm_compose_from_json (js);
     free (js);
     DP_REQUIRE_MSG (jr, "repeats from_json");
-    static float complex jall2[512];
-    size_t               jt2 = 0;
+    static float _Complex jall2[512];
+    size_t jt2 = 0;
     while ((n = wfm_compose_execute (jr, buf, 777)) > 0)
       {
         for (size_t i = 0; i < n; i++)
@@ -1920,7 +1920,7 @@ main (void)
       }
     wfm_compose_destroy (jr);
     DP_REQUIRE_MSG (
-        jt2 == rt && memcmp (rall, jall2, rt * sizeof (float complex)) == 0,
+        jt2 == rt && memcmp (rall, jall2, rt * sizeof (float _Complex)) == 0,
         "repeats json round-trip byte-identical");
     wfm_compose_state_t *c1j = wfm_compose_create (&g1, 1, 0, 0);
     size_t               n1j = 0;
@@ -1989,9 +1989,9 @@ main (void)
                                     .off_samples = 0 };
         wfm_compose_state_t *cc = wfm_compose_create (&g, 1, 0, 0);
         DP_REQUIRE_MSG (cc, "floor/bundled: create");
-        double        p   = 0.0;
-        size_t        got = 0, nn;
-        float complex b[4096];
+        double p   = 0.0;
+        size_t got = 0, nn;
+        float _Complex b[4096];
         while ((nn = wfm_compose_execute (cc, b, 4096)) > 0)
           {
             for (size_t i = 0; i < nn; i++)
@@ -2116,9 +2116,9 @@ main (void)
                     "builds anything");
 
     /* THE assertion whose absence was the bug. */
-    size_t nb        = 32 + 13 + 16 + 16; /* preamble + sync + payload + crc */
-    float complex *a = malloc (nb * sizeof *a);
-    float complex *b = malloc (nb * sizeof *b);
+    size_t nb = 32 + 13 + 16 + 16; /* preamble + sync + payload + crc */
+    float _Complex *a = malloc (nb * sizeof *a);
+    float _Complex *b = malloc (nb * sizeof *b);
     DP_REQUIRE_MSG (a && b, "alloc");
     /* wfm_compose_build_synth is THE single synth-construction path (the
        standalone Synth reaches the same attach through the shared bridge —
@@ -2161,7 +2161,7 @@ main (void)
       }
     /* One frame, then it CYCLES — which is what turns a one-frame description
        into a multi-frame record without a repeat count in the descriptor. */
-    float complex     *c2 = malloc (2 * nb * sizeof *c2);
+    float _Complex    *c2 = malloc (2 * nb * sizeof *c2);
     wfm_synth_state_t *sc = wfm_compose_build_synth (&framed, 1.0, 2 * nb, 0.0,
                                                      100.0, 0.0, 0, 0, 0);
     DP_REQUIRE_MSG (c2 && sc, "cycle alloc");
@@ -2768,7 +2768,7 @@ main (void)
     {
       N = 20000
     };
-    static float complex ref[N], got[N];
+    static float _Complex ref[N], got[N];
 
     wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
     DP_REQUIRE_MSG (c, "a doppler source composes");
@@ -2849,7 +2849,7 @@ main (void)
       G2   = 9000, /* long gap  */
       CAP2 = 2 * (B + G2)
     };
-    static float complex a[CAP2], b[CAP2];
+    static float _Complex a[CAP2], b[CAP2];
 
     wfm_source_t src = { .type             = WFM_SYNTH_TONE,
                          .freq             = 5e4,
@@ -2860,9 +2860,9 @@ main (void)
                          .carrier_hz       = 2.0e9,
                          .doppler_lifetime = WFM_DOPPLER_PERSIST };
 
-    size_t         got[2];
-    float complex *bufs[2] = { a, b };
-    const size_t   gaps[2] = { G1, G2 };
+    size_t          got[2];
+    float _Complex *bufs[2] = { a, b };
+    const size_t    gaps[2] = { G1, G2 };
     for (int g = 0; g < 2; g++)
       {
         wfm_segment_t        seg = { .sources     = &src,
@@ -2939,7 +2939,7 @@ main (void)
       R  = 3,
       NT = R * B
     };
-    static float complex r1[NT], r2[NT];
+    static float _Complex r1[NT], r2[NT];
 
     /* BOTH ranged fields: doppler_rate draws from its own stream, and
        ranging only the offset would leave that one unexercised. */
@@ -2960,7 +2960,7 @@ main (void)
                           .num_samples = B,
                           .repeats     = R };
 
-    float complex *outs[2] = { r1, r2 };
+    float _Complex *outs[2] = { r1, r2 };
     for (int pass = 0; pass < 2; pass++)
       {
         wfm_compose_state_t *c = wfm_compose_create (&seg, 1, 0, 0);
@@ -3059,7 +3059,7 @@ main (void)
     {
       JN = 6000
     };
-    static float complex ja[JN], jb[JN];
+    static float _Complex ja[JN], jb[JN];
 
     for (size_t ci = 0; ci < sizeof cases / sizeof *cases; ci++)
       {

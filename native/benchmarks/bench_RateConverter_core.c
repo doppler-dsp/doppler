@@ -31,14 +31,14 @@ static const bench_regime_t REGIMES[] = {
 int
 main (void)
 {
-  float complex *in = malloc (BENCH_N * sizeof (float complex));
+  float _Complex *in = malloc (BENCH_N * sizeof (float _Complex));
   if (!in)
     {
       fprintf (stderr, "OOM\n");
       return 1;
     }
   /* Worst-case output: interpolation doubles length */
-  float complex *out = malloc (BENCH_N * 2 * sizeof (float complex));
+  float _Complex *out = malloc (BENCH_N * 2 * sizeof (float _Complex));
   if (!out)
     {
       fprintf (stderr, "OOM\n");

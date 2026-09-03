@@ -9,7 +9,7 @@
 #include <math.h>
 
 void
-snr_data_aided_db_series (const float complex *soft, size_t soft_len,
+snr_data_aided_db_series (const float _Complex *soft, size_t soft_len,
                           const uint8_t *sign_bits, size_t sign_bits_len,
                           size_t window, double *out)
 {

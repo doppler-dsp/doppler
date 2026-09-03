@@ -514,7 +514,7 @@ wfm_synth_set_state (wfm_synth_state_t *s, const void *blob)
 }
 
 void
-wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
+wfm_synth_steps (wfm_synth_state_t *state, float _Complex *output, size_t n)
 {
   /* Fully batched, no per-sample library calls. Per chunk: the LO carrier
    * (NCO) and AWGN are generated a block at a time (their vectorized paths);
@@ -531,13 +531,13 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
   {
     CH = 2048
   }; /* <= LO_MAX_OUT */
-  float complex carrier[CH];     /* 16 KiB */
-  float complex noise[CH];       /* 16 KiB */
-  float complex shaper_syms[CH]; /* polyphase-shaper symbol scratch */
-  uint8_t       chips[2 * CH];   /* up to 2 chips/sample (qpsk at sps 1) */
-  const int     has_lo   = state->lo != NULL;
-  const int     has_awgn = state->awgn != NULL;
-  const int     is_bits
+  float _Complex carrier[CH];     /* 16 KiB */
+  float _Complex noise[CH];       /* 16 KiB */
+  float _Complex shaper_syms[CH]; /* polyphase-shaper symbol scratch */
+  uint8_t   chips[2 * CH];        /* up to 2 chips/sample (qpsk at sps 1) */
+  const int has_lo   = state->lo != NULL;
+  const int has_awgn = state->awgn != NULL;
+  const int is_bits
       = state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS;
   /* Continuous DSSS rides the is_bits machinery (same FIR/rect/carrier/noise
      path) but sources each chip from wfm_synth_cont_dsss_chip() instead of the
@@ -564,8 +564,8 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
 
   for (size_t done = 0; done < n;)
     {
-      size_t         m   = (n - done < (size_t)CH) ? (n - done) : (size_t)CH;
-      float complex *out = output + done;
+      size_t          m   = (n - done < (size_t)CH) ? (n - done) : (size_t)CH;
+      float _Complex *out = output + done;
       if (has_lo)
         lo_steps (state->lo, m, carrier, m);
       else if (is_chirp)
@@ -636,10 +636,10 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
                         }
                       else if (bits && nb)
                         {
-                          float complex bs = wfm_synth_bit_symbol (state);
-                          bit_idx          = state->bit_idx;
-                          cre              = crealf (bs);
-                          cim              = cimagf (bs);
+                          float _Complex bs = wfm_synth_bit_symbol (state);
+                          bit_idx           = state->bit_idx;
+                          cre               = crealf (bs);
+                          cim               = cimagf (bs);
                         }
                     }
                   out[i]
@@ -670,17 +670,17 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
                       }
                     else if (bits && nb)
                       {
-                        float complex bs = wfm_synth_bit_symbol (state);
-                        bit_idx          = state->bit_idx;
-                        cre              = crealf (bs);
-                        cim              = cimagf (bs);
+                        float _Complex bs = wfm_synth_bit_symbol (state);
+                        bit_idx           = state->bit_idx;
+                        cre               = crealf (bs);
+                        cim               = cimagf (bs);
                       }
                   }
                 if (++sym_pos >= nsps)
                   sym_pos = 0;
-                float complex sym = cre + cim * I;
-                float complex v   = has_lo ? sym * carrier[i] : sym;
-                out[i]            = has_awgn ? v + noise[i] : v;
+                float _Complex sym = cre + cim * I;
+                float _Complex v   = has_lo ? sym * carrier[i] : sym;
+                out[i]             = has_awgn ? v + noise[i] : v;
               }
           done += m;
           continue;
@@ -731,9 +731,9 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
                   }
                 if (++sym_pos >= nsps)
                   sym_pos = 0;
-                float complex sym = cre + cim * I;
-                float complex v   = has_lo ? sym * carrier[i] : sym;
-                out[i]            = has_awgn ? v + noise[i] : v;
+                float _Complex sym = cre + cim * I;
+                float _Complex v   = has_lo ? sym * carrier[i] : sym;
+                out[i]             = has_awgn ? v + noise[i] : v;
               }
           done += m;
           continue;
@@ -744,8 +744,8 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
           /* Constant symbol → one fused, fully data-parallel pass. A chirp
            * reuses this path with sym=1 and the swept carrier above, so its
            * fused `sym*carrier + noise` matches the tone path exactly. */
-          const int     use_carrier = has_lo || is_chirp;
-          float complex sym         = cre + cim * I;
+          const int use_carrier = has_lo || is_chirp;
+          float _Complex sym    = cre + cim * I;
           if (use_carrier && has_awgn)
             for (size_t i = 0; i < m; i++)
               out[i] = sym * carrier[i] + noise[i];
@@ -856,9 +856,9 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
                 }
               if (++sym_pos >= nsps)
                 sym_pos = 0;
-              float complex sym = cre + cim * I;
-              float complex v   = has_lo ? sym * carrier[i] : sym;
-              out[i]            = has_awgn ? v + noise[i] : v;
+              float _Complex sym = cre + cim * I;
+              float _Complex v   = has_lo ? sym * carrier[i] : sym;
+              out[i]             = has_awgn ? v + noise[i] : v;
             }
         }
       done += m;
@@ -871,7 +871,7 @@ wfm_synth_steps (wfm_synth_state_t *state, float complex *output, size_t n)
 }
 
 void
-wfm_synth_noise_steps (wfm_synth_state_t *state, float complex *output,
+wfm_synth_noise_steps (wfm_synth_state_t *state, float _Complex *output,
                        size_t n)
 {
   if (!state || !output || n == 0)

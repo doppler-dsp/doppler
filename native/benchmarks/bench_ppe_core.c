@@ -20,7 +20,7 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 }
 
 static void
-synth (float complex *y, size_t L, double f, double r)
+synth (float _Complex *y, size_t L, double f, double r)
 {
   for (size_t m = 0; m < L; m++)
     {
@@ -33,8 +33,8 @@ synth (float complex *y, size_t L, double f, double r)
 static void
 bench_one (jm_bench_t *b, const char *name, size_t L, double max_rate)
 {
-  ppe_state_t   *p = ppe_create (L, max_rate);
-  float complex *y = malloc (L * sizeof *y);
+  ppe_state_t    *p = ppe_create (L, max_rate);
+  float _Complex *y = malloc (L * sizeof *y);
   if (!p || !y)
     return;
   synth (y, L, 0.05, max_rate > 0.0 ? 1e-5 : 0.0);

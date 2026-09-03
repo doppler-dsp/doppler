@@ -28,11 +28,11 @@
  * `out` must hold at least ceil(n_in / R) elements.
  * Caller guarantees n_in is large enough that the filter has settled.
  */
-static float complex
-dc_last (cic_state_t *obj, float complex sample, float complex *out,
-         size_t n_in, size_t cap)
+static float _Complex dc_last (cic_state_t    *obj, float _Complex sample,
+                               float _Complex *out, size_t n_in, size_t cap)
 {
-  float complex *in = (float complex *)malloc (n_in * sizeof (float complex));
+  float _Complex *in
+      = (float _Complex *)malloc (n_in * sizeof (float _Complex));
   for (size_t i = 0; i < n_in; i++)
     in[i] = sample;
   size_t n = cic_decimate (obj, in, n_in, out, cap);
@@ -74,7 +74,7 @@ main (void)
     uint32_t     R   = 8;
     cic_state_t *obj = cic_create (R);
     DP_CHECK (obj != NULL);
-    float complex in[256] = { 0 }, out[256];
+    float _Complex in[256] = { 0 }, out[256];
     for (int k = 1; k <= 4; k++)
       {
         cic_reset (obj);
@@ -97,8 +97,8 @@ main (void)
   {
     cic_state_t *obj = cic_create (4);
     DP_CHECK (obj != NULL);
-    float complex in[64] = { 0 }, out[64];
-    size_t        n      = cic_decimate (obj, in, 64, out, 64);
+    float _Complex in[64] = { 0 }, out[64];
+    size_t n              = cic_decimate (obj, in, 64, out, 64);
     DP_CHECK (n == 16);
     for (size_t i = CIC_N; i < n; i++)
       DP_CHECK (dp_cnearf (out[i], 0.0f, 0.0f));
@@ -111,9 +111,9 @@ main (void)
     uint32_t     R   = 4;
     cic_state_t *obj = cic_create (R);
     DP_CHECK (obj != NULL);
-    size_t         n_in = 8 * R * CIC_N;
-    float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
-    float complex  last
+    size_t          n_in = 8 * R * CIC_N;
+    float _Complex *out  = malloc ((n_in / R + 1) * sizeof (float _Complex));
+    float _Complex last
         = dc_last (obj, 1.0f + 0.0f * I, out, n_in, n_in / R + 1);
     DP_CHECK (dp_cnearf (last, 1.0f + 0.0f * I, 4e-5f));
     free (out);
@@ -125,9 +125,9 @@ main (void)
     uint32_t     R   = 4;
     cic_state_t *obj = cic_create (R);
     DP_CHECK (obj != NULL);
-    size_t         n_in = 8 * R * CIC_N;
-    float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
-    float complex  last
+    size_t          n_in = 8 * R * CIC_N;
+    float _Complex *out  = malloc ((n_in / R + 1) * sizeof (float _Complex));
+    float _Complex last
         = dc_last (obj, -1.0f + 0.0f * I, out, n_in, n_in / R + 1);
     DP_CHECK (dp_cnearf (last, -1.0f + 0.0f * I, 4e-5f));
     free (out);
@@ -139,9 +139,9 @@ main (void)
     uint32_t     R   = 4;
     cic_state_t *obj = cic_create (R);
     DP_CHECK (obj != NULL);
-    size_t         n_in = 8 * R * CIC_N;
-    float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
-    float complex  last
+    size_t          n_in = 8 * R * CIC_N;
+    float _Complex *out  = malloc ((n_in / R + 1) * sizeof (float _Complex));
+    float _Complex last
         = dc_last (obj, 0.0f + 1.0f * I, out, n_in, n_in / R + 1);
     DP_CHECK (dp_cnearf (last, 0.0f + 1.0f * I, 4e-5f));
     free (out);
@@ -154,9 +154,9 @@ main (void)
     uint32_t     R   = 32;
     cic_state_t *obj = cic_create (R);
     DP_CHECK (obj != NULL);
-    size_t         n_in = 12 * R * CIC_N;
-    float complex *out  = malloc ((n_in / R + 1) * sizeof (float complex));
-    float complex  last
+    size_t          n_in = 12 * R * CIC_N;
+    float _Complex *out  = malloc ((n_in / R + 1) * sizeof (float _Complex));
+    float _Complex last
         = dc_last (obj, 0.5f + 0.5f * I, out, n_in, n_in / R + 1);
     DP_CHECK (dp_cnearf (last, 0.5f + 0.5f * I, 4e-5f));
     free (out);
@@ -168,10 +168,10 @@ main (void)
     uint32_t     R   = 4;
     cic_state_t *obj = cic_create (R);
     DP_CHECK (obj != NULL);
-    size_t         n_in = 64;
-    float complex *in   = malloc (n_in * sizeof (float complex));
-    float complex *out1 = malloc (n_in * sizeof (float complex));
-    float complex *out2 = malloc (n_in * sizeof (float complex));
+    size_t          n_in = 64;
+    float _Complex *in   = malloc (n_in * sizeof (float _Complex));
+    float _Complex *out1 = malloc (n_in * sizeof (float _Complex));
+    float _Complex *out2 = malloc (n_in * sizeof (float _Complex));
     /* non-trivial input: ramp on real, constant on imag */
     for (size_t i = 0; i < n_in; i++)
       in[i] = (float)i * 0.01f + 0.5f * I;
@@ -180,7 +180,7 @@ main (void)
     cic_reset (obj);
     size_t n2 = cic_decimate (obj, in, n_in, out2, n_in);
     DP_CHECK (n1 == n2);
-    DP_CHECK (memcmp (out1, out2, n1 * sizeof (float complex)) == 0);
+    DP_CHECK (memcmp (out1, out2, n1 * sizeof (float _Complex)) == 0);
 
     free (in);
     free (out1);
@@ -192,7 +192,7 @@ main (void)
   {
     cic_state_t *obj = cic_create (4);
     DP_CHECK (obj != NULL);
-    float complex in[256], out[256];
+    float _Complex in[256], out[256];
     for (int i = 0; i < 256; i++)
       in[i] = 1.0f;
 
@@ -229,8 +229,8 @@ main (void)
   /* ── Streaming: split block across two calls ─────────────────────────── */
   /* Two calls of R samples must give same result as one call of 2R samples */
   {
-    uint32_t      R = 16;
-    float complex in[64], out_split[4], out_whole[4];
+    uint32_t R = 16;
+    float _Complex in[64], out_split[4], out_whole[4];
     for (int i = 0; i < 64; i++)
       in[i] = 0.7f - 0.3f * I;
 
@@ -263,8 +263,8 @@ main (void)
     size_t   n_drop  = CIC_N * (R - 1) / R + 2; /* skip transient */
     size_t   n_meas  = n_out - n_drop;
 
-    float complex *in  = malloc (n_in * sizeof (float complex));
-    float complex *out = malloc (n_out * sizeof (float complex));
+    float _Complex *in  = malloc (n_in * sizeof (float _Complex));
+    float _Complex *out = malloc (n_out * sizeof (float _Complex));
 
     /* passband reference: DC input → should be ~1.0 at output */
     for (size_t i = 0; i < n_in; i++)
@@ -299,12 +299,12 @@ main (void)
    * Split a stream at a mid-decimation-cycle cut, hand the state to a fresh
    * CIC, and continue: output equals an uninterrupted run byte-for-byte. */
   {
-    const uint32_t R  = 16;
-    const size_t   L  = 320;
-    float complex *in = malloc (L * sizeof (float complex));
+    const uint32_t  R  = 16;
+    const size_t    L  = 320;
+    float _Complex *in = malloc (L * sizeof (float _Complex));
     for (size_t i = 0; i < L; i++)
       in[i] = (float)(i % 7) - 3.0f + I * ((float)(i % 5) - 2.0f);
-    float complex outA[64], outB[64];
+    float _Complex outA[64], outB[64];
 
     cic_state_t *ra = cic_create (R);
     size_t       nA = cic_decimate (ra, in, L, outA, 64);
@@ -338,15 +338,16 @@ main (void)
     free (blob);
 
     DP_CHECK (nA == nB);
-    DP_CHECK (nA > 0 && memcmp (outA, outB, nA * sizeof (float complex)) == 0);
+    DP_CHECK (nA > 0
+              && memcmp (outA, outB, nA * sizeof (float _Complex)) == 0);
     free (in);
   }
 
   /* ── sticky clip flag: the only signal that the +-1.0 input bound was
    *    exceeded, since the sample stream stays finite and plausible ────── */
   {
-    cic_state_t  *obj = cic_create (16);
-    float complex in[64];
+    cic_state_t *obj = cic_create (16);
+    float _Complex in[64];
     DP_CHECK (obj->clipped == 0);
     /* The bound is CIC_PAPR_HEADROOM, not 1.0: the encoder reserves that
        headroom precisely so a unit-amplitude signal's peaks fit (an RRC
@@ -355,7 +356,7 @@ main (void)
        away 4 dB nothing restored. */
     for (size_t i = 0; i < 64; i++)
       in[i] = 0.9f + 0.9f * I;
-    float complex out[8];
+    float _Complex out[8];
     cic_decimate (obj, in, 64, out, 8);
     DP_CHECK (obj->clipped == 0); /* in range — no false positive */
 
@@ -378,8 +379,8 @@ main (void)
     DP_CHECK (obj->clipped == 0); /* cleared only by reset() */
 
     /* every component and sign is caught */
-    const float         B      = 1.05f * CIC_PAPR_HEADROOM;
-    const float complex bad[4] = { B, -B, B * I, -B * I };
+    const float B               = 1.05f * CIC_PAPR_HEADROOM;
+    const float _Complex bad[4] = { B, -B, B * I, -B * I };
     for (size_t k = 0; k < 4; k++)
       {
         cic_reset (obj);
@@ -399,14 +400,14 @@ main (void)
   {
     const uint32_t R    = 4;
     const size_t   n_in = 64, n_full = n_in / R; /* 16 outputs */
-    float complex  in[64];
+    float _Complex in[64];
     for (size_t i = 0; i < n_in; i++)
       in[i] = CMPLXF ((float)cos (2 * M_PI * 0.05 * (double)i) * 0.5f,
                       (float)sin (2 * M_PI * 0.05 * (double)i) * 0.5f);
 
-    float complex       full[16], part[16];
-    const float complex CANARY = -1234.0f - 567.0f * I;
-    const size_t        K      = 5;
+    float _Complex full[16], part[16];
+    const float _Complex CANARY = -1234.0f - 567.0f * I;
+    const size_t K              = 5;
 
     cic_state_t *a = cic_create (R);
     DP_CHECK (cic_decimate (a, in, n_in, full, n_full) == n_full);
@@ -422,9 +423,9 @@ main (void)
     for (size_t k = K; k < n_full; k++)
       DP_CHECK (dp_cnearf (part[k], CANARY, 0.0f));
     /* ... and both filters are in the SAME state: the next block agrees. */
-    float complex nextA[16], nextB[16];
-    size_t        nA = cic_decimate (a, in, n_in, nextA, n_full);
-    size_t        nB = cic_decimate (b, in, n_in, nextB, n_full);
+    float _Complex nextA[16], nextB[16];
+    size_t nA = cic_decimate (a, in, n_in, nextA, n_full);
+    size_t nB = cic_decimate (b, in, n_in, nextB, n_full);
     DP_CHECK (nA == nB);
     for (size_t k = 0; k < nA; k++)
       DP_CHECK (dp_cnearf (nextA[k], nextB[k], 0.0f));

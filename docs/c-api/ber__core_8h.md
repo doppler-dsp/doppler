@@ -63,7 +63,7 @@ _Error-rate measurement: settled windows, detected alignment, and an exact confi
 | ---: | :--- |
 |  [**ber\_interval\_t**](structber__interval__t.md) | [**ber\_confidence**](#function-ber_confidence) (size\_t errors, size\_t symbols, double conf) <br>_Exact confidence interval for a run stopped on an ERROR count._  |
 |  double | [**ber\_esn0\_db\_for\_ser**](#function-ber_esn0_db_for_ser) (int m, double ser) <br>_Es/N0 (dB) at which the coherent bound equals_ `ser` _._ |
-|  double | [**ber\_evm\_db**](#function-ber_evm_db) (const float complex \* rx, size\_t rx\_len, size\_t lo, size\_t hi, int m) <br>_Self-referenced EVM (dB) over an EXPLICIT window_ `[lo, hi)` _._ |
+|  double | [**ber\_evm\_db**](#function-ber_evm_db) (const float \_Complex \* rx, size\_t rx\_len, size\_t lo, size\_t hi, int m) <br>_Self-referenced EVM (dB) over an EXPLICIT window_ `[lo, hi)` _._ |
 |  double | [**ber\_evm\_scatter\_floor\_db**](#function-ber_evm_scatter_floor_db) (int m) <br>_EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation._  |
 |  int | [**ber\_lock\_symbol**](#function-ber_lock_symbol) (const uint8\_t \* flags, size\_t flags\_len, size\_t sustain, double min\_frac) <br>_First symbol from which a verify-counted flag is SUSTAINED._  |
 |  double | [**ber\_qfunc**](#function-ber_qfunc) (double x) <br>_Gaussian tail_ `Q(x) = P(N(0,1) > x)` _._ |
@@ -200,7 +200,7 @@ How an implementation loss is quoted honestly: convert the MEASURED rate to the 
 _Self-referenced EVM (dB) over an EXPLICIT window_ `[lo, hi)` _._
 ```C++
 double ber_evm_db (
-    const float complex * rx,
+    const float _Complex * rx,
     size_t rx_len,
     size_t lo,
     size_t hi,

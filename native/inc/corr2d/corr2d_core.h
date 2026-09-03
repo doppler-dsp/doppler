@@ -27,9 +27,9 @@
  *
  * Lifecycle:
  * @code
- * float complex ref[NY * NX] = { ... };    // row-major 2-D reference
+ * float _Complex ref[NY * NX] = { ... };    // row-major 2-D reference
  * corr2d_state_t *c = corr2d_create(ref, NY, NX, 4, 1);
- * float complex out[NY * NX];
+ * float _Complex out[NY * NX];
  * for (int i = 0; i < 4; i++) {
  *     size_t n_out = corr2d_execute(c, frame[i], NY*NX, out, NY*NX);
  *     if (n_out) process_2d(out, NY, NX);   // fires once, on i == 3
@@ -60,12 +60,12 @@ typedef struct {
                                  NULL when @ref fast_path.                  */
   fft2d_state_t *inv;       /**< Inverse 2-D plan (sign = +1) at (ny_out,…).
                                  NULL when @ref fast_path.                  */
-  float complex *ref_spec;  /**< conj(FFT2(ref)), pre-computed.  (ny, nx).
+  float _Complex *ref_spec;  /**< conj(FFT2(ref)), pre-computed.  (ny, nx).
                                  NULL when @ref fast_path (see row_ref_spec). */
-  float complex *work_fft;  /**< Scratch: FFT(in)·ref_spec product.  (ny,nx)
+  float _Complex *work_fft;  /**< Scratch: FFT(in)·ref_spec product.  (ny,nx)
                                  either path — fast path reinterprets this
                                  as ny independent length-nx row spectra.   */
-  float complex *accum;     /**< Coherent product-spectrum accumulator, same
+  float _Complex *accum;     /**< Coherent product-spectrum accumulator, same
                                  (ny,nx)/reinterpretation rule as work_fft.  */
   /* Decoupled-inverse scratch — allocated only when (ny_out,nx_out) differ
    * from (ny,nx); NULL on the native path.  General path: zeropad goes
@@ -73,13 +73,13 @@ typedef struct {
    * path (nx_out != nx only, ny_out == ny is required for fast_path at all):
    * zeropad goes accum -> work_pad directly, one row at a time, via
    * corr2d_zeropad_1d; ztmp/zcol/zcolout are unused (2-axis-pad only). */
-  float complex *work_pad;  /**< Zero-padded product, (ny_out, nx_out) or,
+  float _Complex *work_pad;  /**< Zero-padded product, (ny_out, nx_out) or,
                                  fast path, (ny, nx_out).                   */
-  float complex *ztmp;      /**< Row-padded intermediate, (ny, nx_out).
+  float _Complex *ztmp;      /**< Row-padded intermediate, (ny, nx_out).
                                  General path only.                        */
-  float complex *zcol;      /**< Column gather scratch, (ny). General path
+  float _Complex *zcol;      /**< Column gather scratch, (ny). General path
                                  only.                                      */
-  float complex *zcolout;   /**< Column-padded scratch, (ny_out). General
+  float _Complex *zcolout;   /**< Column-padded scratch, (ny_out). General
                                  path only.                                 */
   /* Single-row-reference fast path (see the file doc comment for the
    * identity this relies on).  fast_path is decided once at create() and
@@ -89,7 +89,7 @@ typedef struct {
   fft_state_t    *fwd1d;         /**< Forward 1-D plan, length nx.  Fast only.*/
   fft_state_t    *inv1d;         /**< Inverse 1-D plan, length nx_out.  Fast
                                       only.                                 */
-  float complex  *row_ref_spec;  /**< conj(FFT_nx(ref row 0)), length nx.
+  float _Complex  *row_ref_spec;  /**< conj(FFT_nx(ref row 0)), length nx.
                                       Fast-path replacement for ref_spec.   */
   size_t ny;                /**< Row count.                               */
   size_t nx;                /**< Column count.                            */
@@ -104,7 +104,7 @@ typedef struct {
    *  write the full n_out surface, so a short `out` is served by writing
    *  here and copying the prefix. Allocated lazily; the sized path never
    *  touches it. */
-  float complex *work_trunc;
+  float _Complex *work_trunc;
 } corr2d_state_t;
 
 /**
@@ -137,7 +137,7 @@ typedef struct {
  * (4, 4, 1, 0)
  * @endcode
  */
-corr2d_state_t *corr2d_create(const float complex *ref, size_t ny, size_t nx,
+corr2d_state_t *corr2d_create(const float _Complex *ref, size_t ny, size_t nx,
                               size_t dwell, int nthreads, size_t ny_out,
                               size_t nx_out);
 
@@ -181,7 +181,7 @@ void corr2d_reset(corr2d_state_t *state);
  * @return 0 on success, -1 if @p state is fast-path and @p ref is no longer
  *         single-row.
  */
-int corr2d_set_ref(corr2d_state_t *state, const float complex *ref);
+int corr2d_set_ref(corr2d_state_t *state, const float _Complex *ref);
 
 /** @brief Maximum output samples per execute call (always == ny*nx). */
 size_t corr2d_execute_max_out(corr2d_state_t *state);
@@ -217,8 +217,8 @@ size_t corr2d_execute_max_out(corr2d_state_t *state);
  * [(2+0j), (2+0j), (2+0j), (2+0j)]
  * @endcode
  */
-size_t corr2d_execute(corr2d_state_t *state, const float complex *in,
-                      size_t n_in, float complex *out, size_t max_out);
+size_t corr2d_execute(corr2d_state_t *state, const float _Complex *in,
+                      size_t n_in, float _Complex *out, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running 2-D product-spectrum accumulator + frame count;

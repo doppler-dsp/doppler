@@ -59,11 +59,11 @@ _Additive White Gaussian Noise generator._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**awgn**](#function-awgn) (uint64\_t seed, float amplitude, size\_t n, float complex \* out) <br>_One-shot AWGN generation — no persistent state required._  |
+|  int | [**awgn**](#function-awgn) (uint64\_t seed, float amplitude, size\_t n, float \_Complex \* out) <br>_One-shot AWGN generation — no persistent state required._  |
 |  float | [**awgn\_amplitude\_for\_snr**](#function-awgn_amplitude_for_snr) (float snr\_db, float signal\_power) <br>_The_ `amplitude` _that puts a signal at a target SNR._ |
 |  [**awgn\_state\_t**](structawgn__state__t.md) \* | [**awgn\_create**](#function-awgn_create) (uint64\_t seed, float amplitude) <br>_Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG via SplitMix64, and sets up both the scalar and the AVX2 parallel streams. The initial seed is stored so_ [_**awgn\_reset()**_](awgn__core_8h.md#function-awgn_reset) _can reproduce the exact same stream._ |
 |  void | [**awgn\_destroy**](#function-awgn_destroy) ([**awgn\_state\_t**](structawgn__state__t.md) \* state) <br> |
-|  size\_t | [**awgn\_generate**](#function-awgn_generate) ([**awgn\_state\_t**](structawgn__state__t.md) \* state, size\_t n, float complex \* out, size\_t max\_out) <br>_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude². The AVX2 path processes 8 samples in parallel when available._ |
+|  size\_t | [**awgn\_generate**](#function-awgn_generate) ([**awgn\_state\_t**](structawgn__state__t.md) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill_ `out` _with independent complex Gaussians: Re and Im each have zero mean and standard deviation_`amplitude` _. Total complex power = 2 × amplitude². The AVX2 path processes 8 samples in parallel when available._ |
 |  size\_t | [**awgn\_generate\_max\_out**](#function-awgn_generate_max_out) ([**awgn\_state\_t**](structawgn__state__t.md) \* state) <br>_Conservative upper bound on generate() output size._  |
 |  float | [**awgn\_get\_amplitude**](#function-awgn_get_amplitude) (const [**awgn\_state\_t**](structawgn__state__t.md) \* state) <br>_Return the current amplitude (per-component std dev)._  |
 |  void | [**awgn\_get\_state**](#function-awgn_get_state) (const [**awgn\_state\_t**](structawgn__state__t.md) \* state, void \* blob) <br>_Serialize the RNG state (scalar + AVX2 streams) into_ `blob` _._ |
@@ -133,7 +133,7 @@ u1 ∈ (0, 1] (top 24 bits of first 64-bit word, +1 offset, /2^24) u2 ∈ [0, 1)
 
 ```C++
 awgn_state_t *g = awgn_create(42, 1.0f);
-float complex out[1024];
+float _Complex out[1024];
 awgn_generate(g, 1024, out, 1024);
 awgn_destroy(g);
 ```
@@ -155,7 +155,7 @@ int awgn (
     uint64_t seed,
     float amplitude,
     size_t n,
-    float complex * out
+    float _Complex * out
 ) 
 ```
 
@@ -311,7 +311,7 @@ _Generate n complex CF32 AWGN samples. Uses Box-Muller with xoshiro256++ to fill
 size_t awgn_generate (
     awgn_state_t * state,
     size_t n,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```
@@ -325,7 +325,7 @@ size_t awgn_generate (
 
 * `state` Generator state returned by [**awgn\_create()**](awgn__core_8h.md#function-awgn_create). 
 * `n` Number of samples to generate. 
-* `out` Output buffer; must hold at least n float complex values. 
+* `out` Output buffer; must hold at least n float \_Complex values. 
 * `max_out` Capacity of `out` in elements. Emission stops there, so the return value is the number actually written. 
 
 

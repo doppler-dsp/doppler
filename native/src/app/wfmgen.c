@@ -570,7 +570,7 @@ source_free (wfm_source_t *s)
   free ((void *)s->acq_code.bits);
   free ((void *)s->data_code.bits);
   free ((void *)s->sync.bits);
-  /* Nulled individually, not chained: `symbols` is float complex * while the
+  /* Nulled individually, not chained: `symbols` is float _Complex * while the
      rest are uint8_t *, so a chain would be an incompatible assignment. */
   s->payload.bits   = NULL;
   s->symbols        = NULL;
@@ -1349,8 +1349,8 @@ open_writer (const emit_ctx_t *e, FILE *fp, int file_type)
 static size_t
 drain_to_writer (const emit_ctx_t *e, wfm_writer_state_t *w, int paced)
 {
-  float complex buf[BLK];
-  size_t        n, total = 0;
+  float _Complex buf[BLK];
+  size_t n, total = 0;
   while ((n = wfm_compose_execute (e->comp, buf, BLK)) > 0)
     {
       wfm_writer_write (w, buf, n);
@@ -1421,8 +1421,8 @@ emit_to_stream (const emit_ctx_t *e)
   if (o->clip_report)
     wfm_stream_sink_track_clipping (sink, 1);
 
-  float complex buf[BLK];
-  size_t        n;
+  float _Complex buf[BLK];
+  size_t n;
   while ((n = wfm_compose_execute (e->comp, buf, BLK)) > 0)
     {
       wfm_stream_sink_send (sink, buf, n, e->fs, o->fc);

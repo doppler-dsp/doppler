@@ -47,8 +47,8 @@ _SymbolSync state._ [More...](#detailed-description)
 |  size\_t | [**lock\_count**](#variable-lock_count)  <br> |
 |  double | [**lock\_stat**](#variable-lock_stat)  <br> |
 |  double | [**lock\_sum**](#variable-lock_sum)  <br> |
-|  float complex | [**mid**](#variable-mid)  <br> |
-|  float complex | [**prev\_ontime**](#variable-prev_ontime)  <br> |
+|  float \_Complex | [**mid**](#variable-mid)  <br> |
+|  float \_Complex | [**prev\_ontime**](#variable-prev_ontime)  <br> |
 |  double | [**pwr\_avg**](#variable-pwr_avg)  <br> |
 |  double | [**rate\_est**](#variable-rate_est)  <br> |
 |  size\_t | [**sps**](#variable-sps)  <br> |
@@ -312,7 +312,7 @@ running sum of lock\_signal over the current avgs-symbol block (mirrors [**dll\_
 ### variable mid 
 
 ```C++
-float complex symsync_state_t::mid;
+float _Complex symsync_state_t::mid;
 ```
 
 
@@ -330,7 +330,7 @@ mid-symbol (transition-gate) sample.
 ### variable prev\_ontime 
 
 ```C++
-float complex symsync_state_t::prev_ontime;
+float _Complex symsync_state_t::prev_ontime;
 ```
 
 

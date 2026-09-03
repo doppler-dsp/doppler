@@ -38,9 +38,9 @@ _Composed receiver state._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq**](#variable-acq)  <br> |
 |  [**costas\_state\_t**](structcostas__state__t.md) | [**car**](#variable-car)  <br> |
-|  float complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
+|  float \_Complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
 |  size\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
-|  float complex \* | [**car\_wiped\_buf**](#variable-car_wiped_buf)  <br> |
+|  float \_Complex \* | [**car\_wiped\_buf**](#variable-car_wiped_buf)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  uint8\_t \* | [**code**](#variable-code)  <br> |
@@ -144,7 +144,7 @@ costas_state_t dsss_receiver_state_t::car;
 ### variable car\_carry\_buf 
 
 ```C++
-float complex* dsss_receiver_state_t::car_carry_buf;
+float _Complex* dsss_receiver_state_t::car_carry_buf;
 ```
 
 
@@ -170,7 +170,7 @@ size_t dsss_receiver_state_t::car_carry_len;
 ### variable car\_wiped\_buf 
 
 ```C++
-float complex* dsss_receiver_state_t::car_wiped_buf;
+float _Complex* dsss_receiver_state_t::car_wiped_buf;
 ```
 
 

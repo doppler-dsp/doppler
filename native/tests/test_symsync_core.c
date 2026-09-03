@@ -36,7 +36,7 @@ rc (double t, double beta, double T)
 /* Build an RC-shaped BPSK signal at SPS samples/symbol with a fractional
  * timing `offset` (samples) and a clock-rate scale `rate`.  Fills bits[]. */
 static size_t
-make_signal (float complex *rx, int *bits, size_t nsym, double offset,
+make_signal (float _Complex *rx, int *bits, size_t nsym, double offset,
              double rate, uint32_t seed)
 {
   size_t   n    = nsym * SPS;
@@ -63,7 +63,8 @@ make_signal (float complex *rx, int *bits, size_t nsym, double offset,
 /* Ambiguity- and lag-tolerant BER over a clean, fully-locked middle window
  * (avoids the acquisition transient and the low-signal tail). */
 static double
-tail_ber (const float complex *sym, size_t nsym, const int *bits, size_t nbits)
+tail_ber (const float _Complex *sym, size_t nsym, const int *bits,
+          size_t nbits)
 {
   size_t lo_i = nsym / 4, hi_i = nsym - nsym / 4; /* middle half */
   double best = 1.0;
@@ -93,9 +94,9 @@ tail_ber (const float complex *sym, size_t nsym, const int *bits, size_t nbits)
 int
 main (void)
 {
-  float complex *rx   = malloc (NSYM * SPS * sizeof (*rx));
-  int           *bits = malloc (NSYM * sizeof (int));
-  float complex *sym  = malloc (NSYM * sizeof (*sym));
+  float _Complex *rx   = malloc (NSYM * SPS * sizeof (*rx));
+  int            *bits = malloc (NSYM * sizeof (int));
+  float _Complex *sym  = malloc (NSYM * sizeof (*sym));
 
   /* 1. Lifecycle / order / reset reproducibility */
   {
@@ -209,7 +210,7 @@ main (void)
    * (Moved above the final _fails check: this block used to sit after it,
    * so its own failures could never fail the test.) */
   {
-    float complex rx[256], sym[32];
+    float _Complex rx[256], sym[32];
     for (int i = 0; i < 256; i++)
       rx[i] = (float)(i % 8) - 4.0f + 0.3f * I;
     symsync_state_t *a
@@ -230,7 +231,7 @@ main (void)
    * deterministic (attachment zeroed); a live attachment survives
    * set_state; detach reverts to the no-op path. */
   {
-    float complex trx[512], tsym[160];
+    float _Complex trx[512], tsym[160];
     for (int i = 0; i < 512; i++)
       trx[i] = ((i / 4) % 2 ? 1.0f : -1.0f) + 0.0f * I; /* BPSK, sps=4 */
     dp_tlm_t        *tlm = dp_tlm_create (1024);
@@ -293,7 +294,7 @@ main (void)
    * attached; the attached-DTTL block loop emits; a full probe table
    * fails the attach whole. */
   {
-    float complex trx2[64], tsym2[32];
+    float _Complex trx2[64], tsym2[32];
     for (int i = 0; i < 64; i++)
       trx2[i] = ((i / 4) % 2 ? 1.0f : -1.0f) + 0.0f * I;
     dp_tlm_t        *tlm = dp_tlm_create (1024);
@@ -308,8 +309,8 @@ main (void)
     DP_CHECK (dp_tlm_read (tlm, 256, recs, 256) == 5 * n_sym);
 
     /* Public single-sample step (dispatches + flushes when attached). */
-    float complex y;
-    size_t        n_step_sym = 0;
+    float _Complex y;
+    size_t n_step_sym = 0;
     for (int i = 0; i < 64; i++)
       if (symsync_step (a, trx2[i], &y))
         n_step_sym++;
@@ -346,9 +347,9 @@ main (void)
     size_t nsym    = 4000;
     size_t measure = nsym - 100; /* well clear of the ~8-symbol
                                      (span/SPS) truncated tail */
-    float complex *lrx   = malloc (nsym * SPS * sizeof (*lrx));
-    int           *lbits = malloc (nsym * sizeof (*lbits));
-    float complex *lsym  = malloc (nsym * sizeof (*lsym));
+    float _Complex *lrx   = malloc (nsym * SPS * sizeof (*lrx));
+    int            *lbits = malloc (nsym * sizeof (*lbits));
+    float _Complex *lsym  = malloc (nsym * sizeof (*lsym));
 
     make_signal (lrx, lbits, nsym, 1.3, 1.0, 13u);
     symsync_state_t *s
@@ -403,10 +404,10 @@ main (void)
               == DP_ERR_INVALID); /* pd must exceed pfa */
 
     /* raw: an unreachable threshold never locks even on a strong signal. */
-    size_t         nsym  = 4000;
-    float complex *lrx   = malloc (nsym * SPS * sizeof (*lrx));
-    int           *lbits = malloc (nsym * sizeof (*lbits));
-    float complex *lsym  = malloc (nsym * sizeof (*lsym));
+    size_t          nsym  = 4000;
+    float _Complex *lrx   = malloc (nsym * SPS * sizeof (*lrx));
+    int            *lbits = malloc (nsym * sizeof (*lbits));
+    float _Complex *lsym  = malloc (nsym * sizeof (*lsym));
     make_signal (lrx, lbits, nsym, 1.3, 1.0, 13u);
     symsync_configure_lock_raw (s, 20, 100.0, 100.0, 1, 1);
     DP_CHECK (s->avgs == 20);

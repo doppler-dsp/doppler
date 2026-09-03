@@ -78,8 +78,7 @@ floor_db_from_theory (int m)
 }
 
 /** @brief One unit-modulus M-PSK point at Gray label @p k. */
-static float complex
-psk_point (int k, int m)
+static float _Complex psk_point (int k, int m)
 {
   double th = 2.0 * M_PI * (double)k / (double)m;
   return (float)cos (th) + (float)sin (th) * I;
@@ -94,7 +93,7 @@ psk_point (int k, int m)
  * makes `EVM[dB] ~ -(Es/N0)[dB]` the prediction rather than a fit.
  */
 static void
-make_psk (float complex *dst, size_t n, int m, double esn0_db, uint32_t *st)
+make_psk (float _Complex *dst, size_t n, int m, double esn0_db, uint32_t *st)
 {
   double sigma = pow (10.0, -esn0_db / 20.0);
   size_t i;
@@ -105,8 +104,8 @@ make_psk (float complex *dst, size_t n, int m, double esn0_db, uint32_t *st)
          and clang pick opposite orders, so the same seed would carry a
          different stream per compiler. `make lint` rejects the one-line
          form; this is the shape it asks for. */
-      unsigned      idx = (unsigned)(dp_xs32 (st) % (uint32_t)m);
-      float complex nz  = dp_cgauss (st);
+      unsigned idx      = (unsigned)(dp_xs32 (st) % (uint32_t)m);
+      float _Complex nz = dp_cgauss (st);
       dst[i]            = psk_point ((int)idx, m) + (float)sigma * nz;
     }
 }
@@ -115,7 +114,7 @@ make_psk (float complex *dst, size_t n, int m, double esn0_db, uint32_t *st)
  * [0, 2pi). No carrier recovery at all, which is the thing the floor
  * describes. */
 static void
-make_scattered (float complex *dst, size_t n, uint32_t *st)
+make_scattered (float _Complex *dst, size_t n, uint32_t *st)
 {
   size_t i;
   for (i = 0; i < n; i++)
@@ -128,11 +127,11 @@ make_scattered (float complex *dst, size_t n, uint32_t *st)
 int
 main (void)
 {
-  uint32_t       st    = 12345u;
-  float complex *buf   = (float complex *)malloc (NSYM * sizeof *buf);
-  float complex *b2    = (float complex *)malloc (NSYM * sizeof *b2);
-  int            ms[3] = { 2, 4, 8 };
-  int            i;
+  uint32_t        st    = 12345u;
+  float _Complex *buf   = (float _Complex *)malloc (NSYM * sizeof *buf);
+  float _Complex *b2    = (float _Complex *)malloc (NSYM * sizeof *b2);
+  int             ms[3] = { 2, 4, 8 };
+  int             i;
 
   DP_REQUIRE (buf != NULL && b2 != NULL);
 

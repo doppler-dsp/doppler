@@ -33,29 +33,29 @@ extern "C"
   void acc_cf64_reset (acc_cf64_state_t *state);
 
   JM_FORCEINLINE JM_HOT void
-  acc_cf64_step (acc_cf64_state_t *state, double complex x)
+  acc_cf64_step (acc_cf64_state_t *state, double _Complex x)
   {
     state->acc += x;
   }
 
-  void acc_cf64_steps (acc_cf64_state_t *state, const double complex *input,
+  void acc_cf64_steps (acc_cf64_state_t *state, const double _Complex *input,
                        size_t n);
 
   double _Complex acc_cf64_get_acc (const acc_cf64_state_t *state);
 
   void acc_cf64_set_acc (acc_cf64_state_t *state, double _Complex value);
 
-  double complex acc_cf64_get (acc_cf64_state_t *state);
+  double _Complex acc_cf64_get (acc_cf64_state_t *state);
 
-  double complex acc_cf64_dump (acc_cf64_state_t *state);
+  double _Complex acc_cf64_dump (acc_cf64_state_t *state);
 
-  void acc_cf64_madd (acc_cf64_state_t *state, const double complex *x,
+  void acc_cf64_madd (acc_cf64_state_t *state, const double _Complex *x,
                       size_t x_len, const float *h, size_t h_len);
 
-  void acc_cf64_add2d (acc_cf64_state_t *state, const double complex *x,
+  void acc_cf64_add2d (acc_cf64_state_t *state, const double _Complex *x,
                        size_t x_len);
 
-  void acc_cf64_madd2d (acc_cf64_state_t *state, const double complex *x,
+  void acc_cf64_madd2d (acc_cf64_state_t *state, const double _Complex *x,
                         size_t x_len, const float *h, size_t h_len);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────

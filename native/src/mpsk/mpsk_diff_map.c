@@ -9,7 +9,7 @@
 #include "mpsk/mpsk_core.h"
 
 void
-mpsk_diff_map (const uint8_t *sym, size_t sym_len, float complex *out, int m)
+mpsk_diff_map (const uint8_t *sym, size_t sym_len, float _Complex *out, int m)
 {
   unsigned mask = (unsigned)(m - 1);
   unsigned acc  = 0; /* running index; implicit zero-phase start */

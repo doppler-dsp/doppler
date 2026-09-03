@@ -138,8 +138,8 @@ costas_steps_max_out (costas_state_t *state)
 }
 
 size_t
-costas_steps (costas_state_t *state, const float complex *x, size_t x_len,
-              float complex *out, size_t max_out)
+costas_steps (costas_state_t *state, const float _Complex *x, size_t x_len,
+              float _Complex *out, size_t max_out)
 {
   size_t emitted = 0;
   /* The telemetry check is hoisted to loop entry (attach is setup-time
@@ -156,7 +156,7 @@ costas_steps (costas_state_t *state, const float complex *x, size_t x_len,
           if (++state->acc_n < state->tsamps)
             continue;
           /* symbol boundary: dump, steer the loop, emit the prompt */
-          float complex prompt = state->acc;
+          float _Complex prompt = state->acc;
           costas_update (state, prompt);
           if (emitted < max_out)
             out[emitted++] = prompt / (float)state->tsamps;
@@ -171,7 +171,7 @@ costas_steps (costas_state_t *state, const float complex *x, size_t x_len,
           state->acc += costas_wipeoff (state, x[n]);
           if (++state->acc_n < state->tsamps)
             continue;
-          float complex prompt = state->acc;
+          float _Complex prompt = state->acc;
           costas_update (state, prompt);
           if (emitted < max_out)
             out[emitted++] = prompt / (float)state->tsamps;

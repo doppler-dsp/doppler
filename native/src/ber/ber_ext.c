@@ -122,8 +122,8 @@ _bind_ber_evm_db (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *rx     = (const float complex *)PyArray_DATA (rx_arr);
-  size_t               rx_len = (size_t)PyArray_SIZE (rx_arr);
+  const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
+  size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
   Py_DECREF (rx_arr);
   return PyFloat_FromDouble (ber_evm_db (rx, rx_len, lo, hi, m));
 }

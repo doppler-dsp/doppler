@@ -8,7 +8,7 @@
  * @code
  * acc_cf64_state_t *obj = acc_cf64_create(0.0 + 0.0 * I);
  * acc_cf64_step(obj, 1.0 + 0.5 * I);
- * double complex v = acc_cf64_get(obj);  // v == 1.0 + 0.5 * I
+ * double _Complex v = acc_cf64_get(obj);  // v == 1.0 + 0.5 * I
  * acc_cf64_destroy(obj);
  * @endcode
  */
@@ -101,7 +101,7 @@ extern "C"
    * @endcode
    */
   JM_FORCEINLINE JM_HOT void
-  acc_cf64_step (acc_cf64_state_t *state, double complex x)
+  acc_cf64_step (acc_cf64_state_t *state, double _Complex x)
   {
     state->acc += x;
   }
@@ -123,7 +123,7 @@ extern "C"
    * (6+3j)
    * @endcode
    */
-  void acc_cf64_steps (acc_cf64_state_t *state, const double complex *input,
+  void acc_cf64_steps (acc_cf64_state_t *state, const double _Complex *input,
                        size_t n);
 
   /**
@@ -182,7 +182,7 @@ extern "C"
    * (2+3j)
    * @endcode
    */
-  double complex acc_cf64_get (acc_cf64_state_t *state);
+  double _Complex acc_cf64_get (acc_cf64_state_t *state);
 
   /**
    * @brief Return the accumulated sum and atomically reset it to zero.
@@ -202,7 +202,7 @@ extern "C"
    * 0j
    * @endcode
    */
-  double complex acc_cf64_dump (acc_cf64_state_t *state);
+  double _Complex acc_cf64_dump (acc_cf64_state_t *state);
 
   /**
    * @brief Dot-product accumulate with complex signal and float weights:
@@ -228,7 +228,7 @@ extern "C"
    * (5+0j)
    * @endcode
    */
-  void acc_cf64_madd (acc_cf64_state_t *state, const double complex *x,
+  void acc_cf64_madd (acc_cf64_state_t *state, const double _Complex *x,
                       size_t x_len, const float *h, size_t h_len);
 
   /**
@@ -250,7 +250,7 @@ extern "C"
    * (10+0j)
    * @endcode
    */
-  void acc_cf64_add2d (acc_cf64_state_t *state, const double complex *x,
+  void acc_cf64_add2d (acc_cf64_state_t *state, const double _Complex *x,
                        size_t x_len);
 
   /**
@@ -277,7 +277,7 @@ extern "C"
    * (5+0j)
    * @endcode
    */
-  void acc_cf64_madd2d (acc_cf64_state_t *state, const double complex *x,
+  void acc_cf64_madd2d (acc_cf64_state_t *state, const double _Complex *x,
                         size_t x_len, const float *h, size_t h_len);
 
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────

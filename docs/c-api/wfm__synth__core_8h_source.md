@@ -248,10 +248,10 @@ void wfm_synth_reset(wfm_synth_state_t *state);
 
 void wfm_synth_reseed_noise(wfm_synth_state_t *state, uint32_t seed);
 
-void wfm_synth_noise_steps(wfm_synth_state_t *state, float complex *output,
+void wfm_synth_noise_steps(wfm_synth_state_t *state, float _Complex *output,
                            size_t n);
 
-JM_FORCEINLINE JM_HOT float complex
+JM_FORCEINLINE JM_HOT float _Complex
 wfm_synth_step(wfm_synth_state_t *state)
 {
     /* jm: body sourced from [wfm_synth] impl/impl_file in
@@ -379,7 +379,7 @@ wfm_synth_step(wfm_synth_state_t *state)
 
 void wfm_synth_steps(
     wfm_synth_state_t *state,
-    float complex          *output,
+    float _Complex          *output,
     size_t               n);
 
 int wfm_synth_get_wtype(const wfm_synth_state_t *state);

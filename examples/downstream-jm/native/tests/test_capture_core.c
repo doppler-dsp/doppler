@@ -44,7 +44,7 @@
 static int
 write_capture (const char *path, wfm_filetype_t ft)
 {
-  float complex       buf[NUM_SAMPLES];
+  float _Complex buf[NUM_SAMPLES];
   wfm_writer_state_t *w;
   size_t              i;
   int                 rc;
@@ -73,7 +73,7 @@ main (void)
   const char      *blue   = "test_capture_fixture.blue";
   const char      *raw    = "test_capture_fixture.raw";
   capture_state_t *obj;
-  float complex    out[NUM_SAMPLES];
+  float _Complex out[NUM_SAMPLES];
 
   if (write_capture (blue, WFM_FT_BLUE) != 0
       || write_capture (raw, WFM_FT_RAW) != 0)

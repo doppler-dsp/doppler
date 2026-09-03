@@ -276,7 +276,7 @@ awgn_generate_max_out (awgn_state_t *state)
 /* ================================================================== */
 
 static void
-generate_scalar (awgn_state_t *state, size_t n, float complex *out)
+generate_scalar (awgn_state_t *state, size_t n, float _Complex *out)
 {
   const float amp = state->amplitude;
   uint64_t   *s   = state->s;
@@ -298,7 +298,7 @@ generate_scalar (awgn_state_t *state, size_t n, float complex *out)
 /* ================================================================== */
 
 size_t
-awgn_generate (awgn_state_t *state, size_t n, float complex *out,
+awgn_generate (awgn_state_t *state, size_t n, float _Complex *out,
                size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
@@ -309,7 +309,7 @@ awgn_generate (awgn_state_t *state, size_t n, float complex *out,
 }
 
 int
-awgn (uint64_t seed, float amplitude, size_t n, float complex *out)
+awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out)
 {
   awgn_state_t *g = awgn_create (seed, amplitude);
   if (!g)

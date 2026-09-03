@@ -74,7 +74,7 @@ phi0_for (int m)
  * loop would otherwise sit at for a perfectly noiseless, zero-offset signal.
  */
 static void
-make_mpsk (float complex *tx, int *idx, int m, double foff, double snr_db,
+make_mpsk (float _Complex *tx, int *idx, int m, double foff, double snr_db,
            uint32_t seed)
 {
   uint32_t st   = seed;
@@ -85,19 +85,19 @@ make_mpsk (float complex *tx, int *idx, int m, double foff, double snr_db,
     {
       int ki           = (int)(dp_xs32 (&st) & 0xFFFFu) % m;
       idx[k]           = ki;
-      double        th = 2.0 * M_PI * (double)ki / (double)m + phi0;
-      float complex s  = TX_AMP * ((float)cos (th) + (float)sin (th) * I);
+      double th        = 2.0 * M_PI * (double)ki / (double)m + phi0;
+      float _Complex s = TX_AMP * ((float)cos (th) + (float)sin (th) * I);
       for (size_t j = 0; j < (size_t)SPS; j++)
         {
-          size_t        n  = k * (size_t)SPS + j;
-          double        ph = 2.0 * M_PI * foff * (double)n;
-          float complex c  = (float)cos (ph) + (float)sin (ph) * I;
+          size_t n         = k * (size_t)SPS + j;
+          double ph        = 2.0 * M_PI * foff * (double)n;
+          float _Complex c = (float)cos (ph) + (float)sin (ph) * I;
           /* Sequenced: indeterminately-sequenced calls in one
              expression, and gcc and clang pick opposite orders. gcc's is
              pinned. */
-          double        wi = sigma * dp_gauss (&st);
-          double        wr = sigma * dp_gauss (&st);
-          float complex w  = (float)wr + (float)wi * I;
+          double wi        = sigma * dp_gauss (&st);
+          double wr        = sigma * dp_gauss (&st);
+          float _Complex w = (float)wr + (float)wi * I;
           tx[n]            = s * c + w;
         }
     }
@@ -111,7 +111,7 @@ make_mpsk (float complex *tx, int *idx, int m, double foff, double snr_db,
  * exists to test -- a generator that rounded sps to an integer would test
  * nothing. Writes `nsym * sps` samples (floor), and returns that count. */
 static size_t
-make_mpsk_sps (float complex *tx, int *idx, int m, double sps, size_t nsym,
+make_mpsk_sps (float _Complex *tx, int *idx, int m, double sps, size_t nsym,
                double foff, double snr_db, uint32_t seed)
 {
   uint32_t st    = seed;
@@ -125,12 +125,12 @@ make_mpsk_sps (float complex *tx, int *idx, int m, double sps, size_t nsym,
       size_t k = (size_t)((double)i / sps);
       if (k >= nsym)
         k = nsym - 1;
-      double        th = 2.0 * M_PI * (double)idx[k] / (double)m + phi0;
-      float complex s  = TX_AMP * ((float)cos (th) + (float)sin (th) * I);
-      double        ph = 2.0 * M_PI * foff * (double)i;
-      float complex c  = (float)cos (ph) + (float)sin (ph) * I;
-      double        wi = sigma * dp_gauss (&st);
-      double        wr = sigma * dp_gauss (&st);
+      double th        = 2.0 * M_PI * (double)idx[k] / (double)m + phi0;
+      float _Complex s = TX_AMP * ((float)cos (th) + (float)sin (th) * I);
+      double ph        = 2.0 * M_PI * foff * (double)i;
+      float _Complex c = (float)cos (ph) + (float)sin (ph) * I;
+      double wi        = sigma * dp_gauss (&st);
+      double wr        = sigma * dp_gauss (&st);
       tx[i]            = s * c + ((float)wr + (float)wi * I);
     }
   return n;
@@ -138,7 +138,7 @@ make_mpsk_sps (float complex *tx, int *idx, int m, double sps, size_t nsym,
 
 /* Decide the constellation index of a recovered symbol (mpsk convention). */
 static int
-decide (float complex y, int m, double phi0)
+decide (float _Complex y, int m, double phi0)
 {
   double th = atan2 ((double)cimagf (y), (double)crealf (y)) - phi0;
   long   k  = lround (th * (double)m / (2.0 * M_PI));
@@ -155,7 +155,7 @@ decide (float complex y, int m, double phi0)
  * budget) `nout / 3` = 2000 began 1000 symbols INSIDE the joint acquisition
  * transient, scoring unsettled symbols against a steady-state threshold. */
 static double
-tail_ser (const float complex *out, size_t nout, const int *idx, int m,
+tail_ser (const float _Complex *out, size_t nout, const int *idx, int m,
           double phi0, size_t settle)
 {
   if (settle + 400 >= nout)
@@ -254,9 +254,9 @@ RXR (int m, double sps, size_t m_out, int pulse, double bn_carrier,
 int
 main (void)
 {
-  float complex *tx  = malloc (NSAMP * sizeof (*tx));
-  int           *idx = malloc (NSYM * sizeof (int));
-  float complex *out = malloc (NSYM * sizeof (*out));
+  float _Complex *tx  = malloc (NSAMP * sizeof (*tx));
+  int            *idx = malloc (NSYM * sizeof (int));
+  float _Complex *out = malloc (NSYM * sizeof (*out));
 
   /* 1. Lifecycle / validation / getters / reset reproducibility */
   {
@@ -713,7 +713,7 @@ main (void)
    * (Moved above the final _fails check: this block used to sit after it,
    * so its own failures could never fail the test.) */
   {
-    float complex tx[256], out[32];
+    float _Complex tx[256], out[32];
     for (int i = 0; i < 256; i++)
       tx[i] = (float)(i % 4) - 2.0f + 0.1f * I;
     mpsk_receiver_state_t *a
@@ -736,7 +736,7 @@ main (void)
    * (incl. its arm AGC) and symsync probes: nine records per emitted symbol
    * plus the AGC's amortized gain records; detach cascades. */
   {
-    float complex tx[512], out[80];
+    float _Complex tx[512], out[80];
     for (int i = 0; i < 512; i++)
       tx[i] = ((i / 8) % 2 ? 1.0f : -1.0f) + 0.0f * I; /* BPSK, sps=8 */
     dp_tlm_t              *tlm = dp_tlm_create (4096);
@@ -955,10 +955,10 @@ main (void)
    * through the whole nesting: receiver -> ddc -> RateConverter -> agc. */
   {
     /* Own buffers: tx/idx/out above are already freed by this point. */
-    float complex *stx  = malloc (NSAMP * sizeof (*stx));
-    int           *sidx = malloc (NSYM * sizeof (int));
+    float _Complex *stx  = malloc (NSAMP * sizeof (*stx));
+    int            *sidx = malloc (NSYM * sizeof (int));
     make_mpsk (stx, sidx, 4, 0.0, 30.0, 11u);
-    float complex         *tx = stx; /* keep the body reading naturally */
+    float _Complex        *tx = stx; /* keep the body reading naturally */
     mpsk_receiver_state_t *a
         = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, 0.01, 0.5, 0.0);
     DP_CHECK (a != NULL);
@@ -966,8 +966,8 @@ main (void)
       {
         /* Enough input for the loop to move off unity, nowhere near
          * enough for it to settle. */
-        float complex y[512];
-        size_t        n_pre = (size_t)SPS * 200u;
+        float _Complex y[512];
+        size_t n_pre = (size_t)SPS * 200u;
         (void)mpsk_receiver_steps (a, tx, n_pre, y, 512);
         DP_CHECK (a->fe.c->rc->agc != NULL);
         /* Non-vacuous: the gain is genuinely mid-flight at the split. */
@@ -983,8 +983,8 @@ main (void)
 
         /* Resume both on the same remainder; every symbol must match bit for
          * bit, which it cannot if the in-flight seed mean was lost. */
-        float complex ya[512], yb[512];
-        size_t        na
+        float _Complex ya[512], yb[512];
+        size_t na
             = mpsk_receiver_steps (a, tx + n_pre, NSAMP - n_pre, ya, 512);
         size_t nc
             = mpsk_receiver_steps (b, tx + n_pre, NSAMP - n_pre, yb, 512);
@@ -1020,9 +1020,9 @@ main (void)
       {
         for (size_t a = 0; a < 3; a++)
           {
-            float complex *sx = malloc (NSAMP * sizeof (*sx));
-            int           *si = malloc (NSYM * sizeof (int));
-            float complex *so = malloc (NSYM * sizeof (*so));
+            float _Complex *sx = malloc (NSAMP * sizeof (*sx));
+            int            *si = malloc (NSYM * sizeof (int));
+            float _Complex *so = malloc (NSYM * sizeof (*so));
             make_mpsk (sx, si, 4, 0.0, 20.0, 3u);
             for (size_t i = 0; i < NSAMP; i++)
               sx[i] *= (float)amps[a];
@@ -1081,8 +1081,8 @@ main (void)
      freed after section 4, and reaching past that free is a use-after-free
      that segfaults rather than failing an assert. */
   {
-    float complex *ftx = malloc (NSAMP * sizeof (*ftx));
-    int           *fid = malloc (NSYM * sizeof (int));
+    float _Complex *ftx = malloc (NSAMP * sizeof (*ftx));
+    int            *fid = malloc (NSYM * sizeof (int));
 
     /* 12. The verify counts are TIME hysteresis, and the defaults are the
        header's. gh-814: "both directions are verify-counted (8 symbols up /
@@ -1111,10 +1111,10 @@ main (void)
       mpsk_receiver_state_t *rx
           = RX (4, SPS, M_OUT, MPSK_RX_PULSE_IANDD, bn, 0.65, 0.0);
       DP_CHECK (rx != NULL);
-      const double  thr = mpsk_receiver_get_lock_thresh (rx);
-      float complex y;
-      int64_t       first_cross = -1, declared = -1;
-      int64_t       sym = 0;
+      const double thr = mpsk_receiver_get_lock_thresh (rx);
+      float _Complex y;
+      int64_t first_cross = -1, declared = -1;
+      int64_t sym = 0;
       for (size_t i = 0; i < NSAMP && declared < 0; i++)
         {
           if (!mpsk_receiver_step_ted (rx, ftx[i], &y, RATESYNC_TED_GARDNER))
@@ -1176,16 +1176,16 @@ main (void)
       size_t ns = 0;
       for (double sps = 8.0; sps <= 32.0; sps *= 2.0, ns++)
         {
-          float complex *vtx = malloc (NSAMP * sizeof (*vtx));
-          int           *vid = malloc (NSYM * sizeof (int));
+          float _Complex *vtx = malloc (NSAMP * sizeof (*vtx));
+          int            *vid = malloc (NSYM * sizeof (int));
           double foff = dp_test_freq_offset_inside_bw (BN, 4, 1.0) / sps;
           size_t nsym = (size_t)((double)NSAMP / sps) - 4;
           size_t n = make_mpsk_sps (vtx, vid, 4, sps, nsym, foff, 30.0, 81u);
           mpsk_receiver_state_t *rx
               = RX (4, sps, M_OUT, MPSK_RX_PULSE_IANDD, BN, 0.5, 0.0);
           DP_CHECK (rx != NULL);
-          float complex y;
-          size_t        at = 0;
+          float _Complex y;
+          size_t at = 0;
           for (size_t i = 0; i < n; i++)
             {
               (void)mpsk_receiver_step_ted (rx, vtx[i], &y,
@@ -1237,13 +1237,13 @@ main (void)
        this file of the receiver's lock statistic moving last, and it is why
        the header's "never" cannot be left to a caller noticing at runtime. */
     {
-      float complex *dtx = malloc (NSAMP * sizeof (*dtx));
-      int           *did = malloc (NSYM * sizeof (int));
+      float _Complex *dtx = malloc (NSAMP * sizeof (*dtx));
+      int            *did = malloc (NSYM * sizeof (int));
       /* Its own output buffer: the shared `out` is freed after section 4. */
-      float complex *dou = malloc (NSYM * sizeof (*dou));
-      double         excess[2];
-      double         lk[2];
-      const size_t   mo[2] = { M_OUT * 2, 2 }; /* 8 (derived-equivalent), 2 */
+      float _Complex *dou = malloc (NSYM * sizeof (*dou));
+      double          excess[2];
+      double          lk[2];
+      const size_t    mo[2] = { M_OUT * 2, 2 }; /* 8 (derived-equivalent), 2 */
       for (int c = 0; c < 2; c++)
         {
           size_t n
@@ -1297,9 +1297,9 @@ main (void)
    * ================================================================== */
   {
     /* 15. Lifecycle / validation / getters / reset reproducibility. */
-    float         *rtx = malloc (RNSAMP * sizeof (*rtx));
-    int           *rid = malloc (NSYM * sizeof (int));
-    float complex *rou = malloc (NSYM * sizeof (*rou));
+    float          *rtx = malloc (RNSAMP * sizeof (*rtx));
+    int            *rid = malloc (NSYM * sizeof (int));
+    float _Complex *rou = malloc (NSYM * sizeof (*rou));
     DP_CHECK (rtx && rid && rou);
     if (rtx && rid && rou)
       {
@@ -1371,7 +1371,7 @@ main (void)
             {
               size_t k1 = mpsk_receiver_steps_real (a, rtx, RNSAMP, rou, NSYM);
               double f1 = mpsk_receiver_get_norm_freq (a);
-              float complex first = rou[k1 / 2];
+              float _Complex first = rou[k1 / 2];
               mpsk_receiver_reset (a);
               size_t k2 = mpsk_receiver_steps_real (a, rtx, RNSAMP, rou, NSYM);
               DP_CHECK (k1 == k2);
@@ -1649,7 +1649,7 @@ main (void)
           DP_CHECK (ref && src && dst);
           if (ref && src && dst)
             {
-              float complex *ref_out = malloc (NSYM * sizeof (*ref_out));
+              float _Complex *ref_out = malloc (NSYM * sizeof (*ref_out));
               if (ref_out)
                 {
                   /* Reference: both halves through one instance. */
@@ -1880,10 +1880,10 @@ main (void)
    * AGC pair being on the CASCADE's grid rather than the symbol grid --
    * which is only observable if the forward actually happened. */
   {
-    float         *ttx = malloc (RNSAMP * sizeof (*ttx));
-    int           *tid = malloc (NSYM * sizeof (int));
-    float complex *tou = malloc (NSYM * sizeof (*tou));
-    dp_tlm_t      *tlm = dp_tlm_create (1 << 16);
+    float          *ttx = malloc (RNSAMP * sizeof (*ttx));
+    int            *tid = malloc (NSYM * sizeof (int));
+    float _Complex *tou = malloc (NSYM * sizeof (*tou));
+    dp_tlm_t       *tlm = dp_tlm_create (1 << 16);
     DP_CHECK (ttx && tid && tou && tlm);
     if (ttx && tid && tou && tlm)
       {
@@ -2032,7 +2032,7 @@ main (void)
                        f(n) = fc + a*n gives the instantaneous phase. */
                     double ph = 2.0 * M_PI
                                 * ((real ? RFC * n : 0.0) + a * n * n * 0.5);
-                    float complex y;
+                    float _Complex y;
                     if (real)
                       (void)mpsk_receiver_step_real_ted (
                           rx, (float)(sr * cos (ph)), &y,
@@ -2075,10 +2075,10 @@ main (void)
        the reported number, not the settling -- and the offset is held well
        inside the seeding bound bn/(M*sps) so the loop pulls it in. */
     {
-      const double   df  = 4.0e-5; /* cycles/sample at the REAL input rate */
-      float         *ltx = malloc ((size_t)(6000.0 * LO_SPS) * sizeof (*ltx));
-      int           *lid = malloc (6000 * sizeof (int));
-      float complex *lou = malloc (6000 * sizeof (*lou));
+      const double    df  = 4.0e-5; /* cycles/sample at the REAL input rate */
+      float          *ltx = malloc ((size_t)(6000.0 * LO_SPS) * sizeof (*ltx));
+      int            *lid = malloc (6000 * sizeof (int));
+      float _Complex *lou = malloc (6000 * sizeof (*lou));
       DP_CHECK (ltx && lid && lou);
       if (ltx && lid && lou)
         {

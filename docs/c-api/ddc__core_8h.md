@@ -77,13 +77,13 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 |  [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* | [**ddc\_create**](#function-ddc_create) (double norm\_freq, double rate) <br>_Create a complex-input Digital Down-Converter. Allocates internal state for the LO and RateConverter cascade. The RateConverter selects the cheapest multi-stage decimation chain (CIC + optional halfband + polyphase resampler) for the given rate._  |
 |  [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* | [**ddc\_create\_matched**](#function-ddc_create_matched) (double norm\_freq, double rate, int pulse, double beta, size\_t span, double pulse\_sps, size\_t num\_phases) <br>_Create a DDC whose cascade's terminal stage IS a matched filter._  |
 |  void | [**ddc\_destroy**](#function-ddc_destroy) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Free all resources held by a DDC instance. Releases the RateConverter and LO substructures, then the struct itself. Passing NULL is a no-op._  |
-|  size\_t | [**ddc\_execute**](#function-ddc_execute) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Mix and resample a block of CF32 samples. Multiplies each input sample by the current LO phasor (advancing the NCO phase per sample), then feeds the mixed block into the RateConverter. The resampler maintains history across calls, so arbitrary block sizes produce contiguous output with no edge artefacts. Output length ≈ x\_len \* rate (varies by ±1 due to polyphase indexing)._  |
-|  size\_t | [**ddc\_execute\_ctrl**](#function-ddc_execute_ctrl) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, const float complex \* x, size\_t x\_len, double rate\_ctrl, double freq\_ctrl, float complex \* out, size\_t max\_out) <br>_Mix and resample a block, steering both control ports._  |
+|  size\_t | [**ddc\_execute**](#function-ddc_execute) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Mix and resample a block of CF32 samples. Multiplies each input sample by the current LO phasor (advancing the NCO phase per sample), then feeds the mixed block into the RateConverter. The resampler maintains history across calls, so arbitrary block sizes produce contiguous output with no edge artefacts. Output length ≈ x\_len \* rate (varies by ±1 due to polyphase indexing)._  |
+|  size\_t | [**ddc\_execute\_ctrl**](#function-ddc_execute_ctrl) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, const float \_Complex \* x, size\_t x\_len, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out) <br>_Mix and resample a block, steering both control ports._  |
 |  size\_t | [**ddc\_execute\_ctrl\_max\_out**](#function-ddc_execute_ctrl_max_out) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, size\_t x\_len) <br> |
-|  size\_t | [**ddc\_execute\_ctrl\_push**](#function-ddc_execute_ctrl_push) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, float complex x, double rate\_ctrl, double freq\_ctrl, float complex \* out, size\_t max\_out) <br>_Push ONE input sample; emit whatever outputs it completes._  |
+|  size\_t | [**ddc\_execute\_ctrl\_push**](#function-ddc_execute_ctrl_push) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, float \_Complex x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out) <br>_Push ONE input sample; emit whatever outputs it completes._  |
 |  size\_t | [**ddc\_execute\_ctrl\_push\_max\_out**](#function-ddc_execute_ctrl_push_max_out) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br> |
-|  size\_t | [**ddc\_execute\_ctrl\_push\_tap**](#function-ddc_execute_ctrl_push_tap) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, float complex x, double rate\_ctrl, double freq\_ctrl, float complex \* out, size\_t max\_out, float complex \* lo\_out, int \* n\_lo) <br>[_**ddc\_execute\_ctrl\_push()**_](ddc__core_8h.md#function-ddc_execute_ctrl_push) _that also hands back the post-LO sample._ |
-|  size\_t | [**ddc\_execute\_ctrl\_push\_tap2**](#function-ddc_execute_ctrl_push_tap2) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, float complex x, double rate\_ctrl, double freq\_ctrl, float complex \* out, size\_t max\_out, float complex \* lo\_out, int \* n\_lo, float complex \* pre\_out, int \* n\_pre) <br>[_**ddc\_execute\_ctrl\_push\_tap()**_](ddc__core_8h.md#function-ddc_execute_ctrl_push_tap) _, plus the PRE-TERMINAL tap._ |
+|  size\_t | [**ddc\_execute\_ctrl\_push\_tap**](#function-ddc_execute_ctrl_push_tap) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, float \_Complex x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo) <br>[_**ddc\_execute\_ctrl\_push()**_](ddc__core_8h.md#function-ddc_execute_ctrl_push) _that also hands back the post-LO sample._ |
+|  size\_t | [**ddc\_execute\_ctrl\_push\_tap2**](#function-ddc_execute_ctrl_push_tap2) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, float \_Complex x, double rate\_ctrl, double freq\_ctrl, float \_Complex \* out, size\_t max\_out, float \_Complex \* lo\_out, int \* n\_lo, float \_Complex \* pre\_out, int \* n\_pre) <br>[_**ddc\_execute\_ctrl\_push\_tap()**_](ddc__core_8h.md#function-ddc_execute_ctrl_push_tap) _, plus the PRE-TERMINAL tap._ |
 |  size\_t | [**ddc\_execute\_max\_out**](#function-ddc_execute_max_out) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, size\_t x\_len) <br>_Maximum output samples one execute() of x\_len inputs can produce._  |
 |  double | [**ddc\_get\_bank\_sps**](#function-ddc_get_bank_sps) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Samples per symbol of the pre-terminal tap; a planner outcome._  |
 |  bool | [**ddc\_get\_clipped**](#function-ddc_get_clipped) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Has the cascade's CIC clipped its input since the last reset?_  |
@@ -92,7 +92,7 @@ _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#det
 |  double | [**ddc\_get\_rate**](#function-ddc_get_rate) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Return the configured output/input rate ratio (read-only). The rate is fixed at create time; change it by destroying and recreating the DDC with the new value._  |
 |  void | [**ddc\_get\_state**](#function-ddc_get_state) (const [**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, void \* blob) <br>_Serialize_ `state's` _LO + RateConverter state into_`blob` _._ |
 |  void | [**ddc\_reset**](#function-ddc_reset) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state) <br>_Zero LO phase and resampler history. After reset, the next execute call produces the same output as the first execute after create — useful for reproducible block-by-block processing or looped test fixtures._  |
-|  size\_t | [**ddc\_run**](#function-ddc_run) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, const void \* state\_in, void \* state\_out, const float complex \* in, size\_t n\_in, float complex \* out, size\_t max\_out) <br>_Pure run:_ `(state_in, input) -> (state_out, output)` _; either blob may be NULL (NULL in = current; NULL out = discard)._ |
+|  size\_t | [**ddc\_run**](#function-ddc_run) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, const void \* state\_in, void \* state\_out, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Pure run:_ `(state_in, input) -> (state_out, output)` _; either blob may be NULL (NULL in = current; NULL out = discard)._ |
 |  void | [**ddc\_set\_norm\_freq**](#function-ddc_set_norm_freq) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, double val) <br>_Retune the LO without resetting phase or resampler history. Updates the NCO phase increment atomically so the carrier shift changes seamlessly across block boundaries. The resampler history and LO phase accumulator are left intact, avoiding the transient that a full reset would cause._  |
 |  int | [**ddc\_set\_state**](#function-ddc_set_state) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, const void \* blob) <br>_Restore LO + RateConverter state from_ `blob` _._ |
 |  int | [**ddc\_set\_telemetry**](#function-ddc_set_telemetry) ([**ddc\_state\_t**](ddc__core_8h.md#typedef-ddc_state_t) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context on the cascade's AGC._  |
@@ -376,9 +376,9 @@ _Mix and resample a block of CF32 samples. Multiplies each input sample by the c
 ```C++
 size_t ddc_execute (
     ddc_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```
@@ -433,11 +433,11 @@ _Mix and resample a block, steering both control ports._
 ```C++
 size_t ddc_execute_ctrl (
     ddc_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
     double rate_ctrl,
     double freq_ctrl,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```
@@ -514,10 +514,10 @@ _Push ONE input sample; emit whatever outputs it completes._
 ```C++
 size_t ddc_execute_ctrl_push (
     ddc_state_t * state,
-    float complex x,
+    float _Complex x,
     double rate_ctrl,
     double freq_ctrl,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```
@@ -592,12 +592,12 @@ size_t ddc_execute_ctrl_push_max_out (
 ```C++
 size_t ddc_execute_ctrl_push_tap (
     ddc_state_t * state,
-    float complex x,
+    float _Complex x,
     double rate_ctrl,
     double freq_ctrl,
-    float complex * out,
+    float _Complex * out,
     size_t max_out,
-    float complex * lo_out,
+    float _Complex * lo_out,
     int * n_lo
 ) 
 ```
@@ -646,14 +646,14 @@ Number of terminal outputs written (0, 1, or more).
 ```C++
 size_t ddc_execute_ctrl_push_tap2 (
     ddc_state_t * state,
-    float complex x,
+    float _Complex x,
     double rate_ctrl,
     double freq_ctrl,
-    float complex * out,
+    float _Complex * out,
     size_t max_out,
-    float complex * lo_out,
+    float _Complex * lo_out,
     int * n_lo,
-    float complex * pre_out,
+    float _Complex * pre_out,
     int * n_pre
 ) 
 ```
@@ -922,9 +922,9 @@ size_t ddc_run (
     ddc_state_t * state,
     const void * state_in,
     void * state_out,
-    const float complex * in,
+    const float _Complex * in,
     size_t n_in,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

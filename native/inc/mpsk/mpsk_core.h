@@ -20,7 +20,7 @@
  *
  * @code
  * // C: round-trip one QPSK symbol through the inline slicer
- * float complex ahat;
+ * float _Complex ahat;
  * unsigned g = mpsk_slice((1.0f + 1.0f*I) * 0.70710678f, 4, &ahat); // -> 0
  * @endcode
  */
@@ -81,7 +81,7 @@ mpsk_gray_decode (unsigned g)
  * @param m  M in {2,4,8}.
  * @return   Unit-amplitude constellation point.
  */
-JM_FORCEINLINE float complex
+JM_FORCEINLINE float _Complex
 mpsk_constellation (unsigned g, int m)
 {
   unsigned k    = mpsk_gray_decode (g & (unsigned)(m - 1));
@@ -103,7 +103,7 @@ mpsk_constellation (unsigned g, int m)
  * @return      Gray-coded label (0..M-1).
  */
 JM_FORCEINLINE unsigned
-mpsk_slice (float complex y, int m, float complex *ahat)
+mpsk_slice (float _Complex y, int m, float _Complex *ahat)
 {
   double phi0 = mpsk_phi0 (m);
   double th   = atan2 ((double)cimagf (y), (double)crealf (y)) - phi0;
@@ -138,7 +138,7 @@ mpsk_slice (float complex y, int m, float complex *ahat)
  *
  * @endcode
  */
-void mpsk_map(const uint8_t *sym, size_t sym_len, float complex *out, int m);
+void mpsk_map(const uint8_t *sym, size_t sym_len, float _Complex *out, int m);
 
 /**
  * @brief Hard-decide M-PSK symbols to their Gray-coded label bytes.
@@ -161,7 +161,7 @@ void mpsk_map(const uint8_t *sym, size_t sym_len, float complex *out, int m);
  *
  * @endcode
  */
-void mpsk_demap(const float complex *x, size_t x_len, uint8_t *out, int m);
+void mpsk_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
 
 /**
  * @brief Differential M-PSK map: the label selects a phase INCREMENT.
@@ -196,7 +196,7 @@ void mpsk_demap(const float complex *x, size_t x_len, uint8_t *out, int m);
  *
  * @endcode
  */
-void mpsk_diff_map(const uint8_t *sym, size_t sym_len, float complex *out,
+void mpsk_diff_map(const uint8_t *sym, size_t sym_len, float _Complex *out,
                    int m);
 
 /**
@@ -220,7 +220,7 @@ void mpsk_diff_map(const uint8_t *sym, size_t sym_len, float complex *out,
  *
  * @endcode
  */
-void mpsk_diff_demap(const float complex *x, size_t x_len, uint8_t *out, int m);
+void mpsk_diff_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
 
 /**
  * @brief Soft-demap M-PSK symbols to per-bit log-likelihood ratios.
@@ -279,7 +279,7 @@ void mpsk_diff_demap(const float complex *x, size_t x_len, uint8_t *out, int m);
  *
  * @endcode
  */
-void mpsk_soft_demap(const float complex *x, size_t x_len, float *llr,
+void mpsk_soft_demap(const float _Complex *x, size_t x_len, float *llr,
                      size_t llr_len, int m, float n0);
 
 /**

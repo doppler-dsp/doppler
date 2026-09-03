@@ -36,12 +36,12 @@ _Boxcar moving-average state (cf32)._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  float complex | [**acc**](#variable-acc)  <br> |
+|  float \_Complex | [**acc**](#variable-acc)  <br> |
 |  double | [**gain**](#variable-gain)  <br> |
 |  double | [**inv\_len**](#variable-inv_len)  <br> |
 |  size\_t | [**len**](#variable-len)  <br> |
 |  size\_t | [**pos**](#variable-pos)  <br> |
-|  float complex | [**ring**](#variable-ring)  <br> |
+|  float \_Complex | [**ring**](#variable-ring)  <br> |
 |  float | [**scale**](#variable-scale)  <br> |
 
 
@@ -102,7 +102,7 @@ Pointer-free POD. Allocate with [**boxcar\_create()**](boxcar__core_8h.md#functi
 ### variable acc 
 
 ```C++
-float complex boxcar_state_t::acc;
+float _Complex boxcar_state_t::acc;
 ```
 
 
@@ -192,7 +192,7 @@ ring write index (0 .. len-1).
 ### variable ring 
 
 ```C++
-float complex boxcar_state_t::ring[BOXCAR_MAX_LEN];
+float _Complex boxcar_state_t::ring[BOXCAR_MAX_LEN];
 ```
 
 

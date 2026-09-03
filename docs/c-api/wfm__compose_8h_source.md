@@ -321,7 +321,7 @@ void wfm_compose_set_seed_advance(wfm_compose_state_t *state, int mode);
 int wfm_compose_seed_advance(const wfm_compose_state_t *state);
 
 size_t wfm_compose_execute(
-    wfm_compose_state_t *state, float complex *out, size_t max);
+    wfm_compose_state_t *state, float _Complex *out, size_t max);
 
 void wfm_compose_destroy(wfm_compose_state_t *state);
 

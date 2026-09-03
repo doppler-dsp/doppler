@@ -34,7 +34,7 @@ make_code (uint8_t *code, size_t sf, uint32_t seed)
  * sigma. Fills `data` with the +-1 bit per data symbol.  Returns sample count.
  */
 static size_t
-make_signal (float complex *rx, int *data, const uint8_t *code, size_t sf,
+make_signal (float _Complex *rx, int *data, const uint8_t *code, size_t sf,
              size_t sps, size_t nper, size_t periods_per_bit, double f0,
              float sigma, uint32_t seed)
 {
@@ -50,9 +50,9 @@ make_signal (float complex *rx, int *data, const uint8_t *code, size_t sf,
       data[p / periods_per_bit] = bit;
       for (size_t i = 0; i < sf * sps; i++, k++)
         {
-          size_t        idx  = (size_t)fmod (cph, (double)sf);
-          float         csgn = (code[idx] & 1u) ? -1.0f : 1.0f;
-          float complex s    = (float)bit * csgn * cexpf ((float)phase * I);
+          size_t idx       = (size_t)fmod (cph, (double)sf);
+          float  csgn      = (code[idx] & 1u) ? -1.0f : 1.0f;
+          float _Complex s = (float)bit * csgn * cexpf ((float)phase * I);
           if (sigma > 0.0f)
             {
               float gr = 0, gi = 0;
@@ -114,13 +114,13 @@ main (void)
     const size_t nper = 500;
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 7u);
-    float complex *rx   = malloc (tsamps * nper * sizeof (*rx));
-    int           *data = malloc (nper * sizeof (*data));
+    float _Complex *rx   = malloc (tsamps * nper * sizeof (*rx));
+    int            *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 5e-5, 0.0f, 3u);
 
     despreader_state_t *c   = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
                                                  0.005, 0.0, 0.707, 0.5, 1);
-    float complex      *sym = malloc (nper * sizeof (*sym));
+    float _Complex     *sym = malloc (nper * sizeof (*sym));
     size_t              k   = despreader_steps (c, rx, n, sym, nper);
     DP_CHECK (fabs (despreader_get_norm_freq (c) - 5e-5) < 1e-5);
     DP_CHECK (despreader_get_lock_metric (c) > 0.9);
@@ -149,13 +149,13 @@ main (void)
     double       f0   = 0.2 / (double)tsamps; /* 0.2 cycles per code period */
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 9u);
-    float complex *rx   = malloc (tsamps * nper * sizeof (*rx));
-    int           *data = malloc (nper * sizeof (*data));
+    float _Complex *rx   = malloc (tsamps * nper * sizeof (*rx));
+    int            *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, f0, 0.0f, 11u);
 
     despreader_state_t *pll = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
                                                  0.005, 0.0, 0.707, 0.5, 1);
-    float complex      *sym = malloc (nper * sizeof (*sym));
+    float _Complex     *sym = malloc (nper * sizeof (*sym));
     despreader_steps (pll, rx, n, sym, nper);
     DP_CHECK (despreader_get_lock_metric (pll) < 0.8); /* bare PLL misses it */
     DP_CHECK (despreader_get_carrier_locked (pll) == 0); /* decision agrees */
@@ -183,8 +183,8 @@ main (void)
     const size_t nper = 400;
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 13u);
-    float complex *rx   = malloc (tsamps * nper * sizeof (*rx));
-    int           *data = malloc (nper * sizeof (*data));
+    float _Complex *rx   = malloc (tsamps * nper * sizeof (*rx));
+    int            *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 4e-5, 0.0f, 17u);
 
     despreader_state_t *c = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
@@ -209,8 +209,8 @@ main (void)
     const size_t N = 20, nbits = 120, nper = N * nbits;
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 19u);
-    float complex *rx   = malloc (tsamps * nper * sizeof (*rx));
-    int           *data = malloc (nbits * sizeof (*data));
+    float _Complex *rx   = malloc (tsamps * nper * sizeof (*rx));
+    int            *data = malloc (nbits * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, N, 3e-5, 0.0f, 23u);
 
     despreader_state_t *c = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
@@ -237,13 +237,13 @@ main (void)
     const size_t nper = 300;
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 21u);
-    float complex *rx   = malloc (tsamps * nper * sizeof (*rx));
-    int           *data = malloc (nper * sizeof (*data));
+    float _Complex *rx   = malloc (tsamps * nper * sizeof (*rx));
+    int            *data = malloc (nper * sizeof (*data));
     size_t n = make_signal (rx, data, code, sf, sps, nper, 1, 5e-5, 0.0f, 5u);
 
     despreader_state_t *c   = despreader_create (code, sf, sps, 0.0, 0.0, 0.05,
                                                  0.005, 0.0, 0.707, 0.5, 1);
-    float complex      *sym = malloc (nper * sizeof (*sym));
+    float _Complex     *sym = malloc (nper * sizeof (*sym));
     despreader_steps (c, rx, n, sym, nper);
     double f1 = despreader_get_norm_freq (c),
            l1 = despreader_get_lock_metric (c);
@@ -266,7 +266,7 @@ main (void)
     uint8_t code[31];
     for (int i = 0; i < 31; i++)
       code[i] = (uint8_t)(i & 1);
-    float complex rx[256], sym[16];
+    float _Complex rx[256], sym[16];
     for (int i = 0; i < 256; i++)
       rx[i] = (float)(i % 5) - 2.0f + 0.2f * I;
     despreader_state_t *a = despreader_create (code, 31, 2, 0.0, 0.0, 0.05,
@@ -297,8 +297,8 @@ main (void)
       NEP = 20,
       L   = EP * NEP
     };
-    float complex rx[L], sym[64];
-    dp_tlm_rec_t  recs[512];
+    float _Complex rx[L], sym[64];
+    dp_tlm_rec_t recs[512];
     for (int i = 0; i < L; i++)
       rx[i] = (code[(size_t)(i / 2) % 31] & 1u) ? -1.0f : 1.0f;
     dp_tlm_t           *tlm = dp_tlm_create (4096);

@@ -80,7 +80,7 @@ extern "C"
   int ber_lock_symbol (const uint8_t *flags, size_t flags_len, size_t sustain,
                         double min_frac);
 
-  double ber_evm_db (const float complex *rx, size_t rx_len, size_t lo,
+  double ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo,
                      size_t hi, int m);
 
   size_t ber_settle_from (size_t budget, int timing_lock, int carrier_lock);

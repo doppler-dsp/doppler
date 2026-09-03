@@ -63,13 +63,13 @@ _BerMeter — the error-rate accumulator._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  [**ber\_align\_t**](structber__align__t.md) | [**ber\_align\_detect**](#function-ber_align_detect) (const float complex \* rx, size\_t rx\_len, const uint8\_t \* truth, size\_t truth\_len, int m, size\_t t0, size\_t n\_marker, size\_t period, int lag\_span, double pfa) <br>_Exact confidence interval for a run stopped on an ERROR count._  |
+|  [**ber\_align\_t**](structber__align__t.md) | [**ber\_align\_detect**](#function-ber_align_detect) (const float \_Complex \* rx, size\_t rx\_len, const uint8\_t \* truth, size\_t truth\_len, int m, size\_t t0, size\_t n\_marker, size\_t period, int lag\_span, double pfa) <br>_Exact confidence interval for a run stopped on an ERROR count._  |
 |  [**ber\_interval\_t**](structber__interval__t.md) | [**ber\_confidence**](#function-ber_confidence) (size\_t errors, size\_t symbols, double conf) <br> |
-|  int | [**ber\_meter\_align**](#function-ber_meter_align) ([**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state, const float complex \* rx, size\_t rx\_len, size\_t t0, size\_t n\_marker, size\_t period, int lag\_span, double pfa) <br>_Detect where_ `rx` _sits against truth and REMEMBER that alignment._ |
+|  int | [**ber\_meter\_align**](#function-ber_meter_align) ([**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state, const float \_Complex \* rx, size\_t rx\_len, size\_t t0, size\_t n\_marker, size\_t period, int lag\_span, double pfa) <br>_Detect where_ `rx` _sits against truth and REMEMBER that alignment._ |
 |  [**ber\_interval\_t**](structber__interval__t.md) | [**ber\_meter\_ber**](#function-ber_meter_ber) (const [**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state) <br>_Gray-coded bit error rate over the scored bits, with its interval._  |
 |  [**ber\_meter\_state\_t**](structber__meter__state__t.md) \* | [**ber\_meter\_create**](#function-ber_meter_create) (int m, size\_t target\_errors, double conf) <br>_Error counters accumulated across as many bursts as it takes._  |
 |  void | [**ber\_meter\_destroy**](#function-ber_meter_destroy) ([**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state) <br> |
-|  [**ber\_align\_t**](structber__align__t.md) | [**ber\_meter\_detect**](#function-ber_meter_detect) (const [**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state, const float complex \* rx, size\_t rx\_len, size\_t t0, size\_t n\_marker, size\_t period, int lag\_span, double pfa) <br>_Pure detection: returns the alignment without touching state._  |
+|  [**ber\_align\_t**](structber__align__t.md) | [**ber\_meter\_detect**](#function-ber_meter_detect) (const [**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state, const float \_Complex \* rx, size\_t rx\_len, size\_t t0, size\_t n\_marker, size\_t period, int lag\_span, double pfa) <br>_Pure detection: returns the alignment without touching state._  |
 |  double | [**ber\_meter\_get\_align\_margin\_db**](#function-ber_meter_get_align_margin_db) (const [**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state) <br> |
 |  size\_t | [**ber\_meter\_get\_align\_occurrences**](#function-ber_meter_get_align_occurrences) (const [**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state) <br> |
 |  int | [**ber\_meter\_get\_align\_ok**](#function-ber_meter_get_align_ok) (const [**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state) <br> |
@@ -91,7 +91,7 @@ _BerMeter — the error-rate accumulator._ [More...](#detailed-description)
 |  size\_t | [**ber\_meter\_get\_target\_errors**](#function-ber_meter_get_target_errors) (const [**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state) <br> |
 |  [**ber\_interval\_t**](structber__interval__t.md) | [**ber\_meter\_interval**](#function-ber_meter_interval) (const [**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state, size\_t errors, size\_t symbols) <br>_Exact confidence interval for error/trial counts from ELSEWHERE._  |
 |  void | [**ber\_meter\_reset**](#function-ber_meter_reset) ([**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state) <br>_Zero the running counters; keep the configuration and the truth._  |
-|  size\_t | [**ber\_meter\_score**](#function-ber_meter_score) ([**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state, const float complex \* rx, size\_t rx\_len, size\_t lo, size\_t hi) <br>_Score_ `rx[lo .. hi)` _against the truth and accumulate the counters._ |
+|  size\_t | [**ber\_meter\_score**](#function-ber_meter_score) ([**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state, const float \_Complex \* rx, size\_t rx\_len, size\_t lo, size\_t hi) <br>_Score_ `rx[lo .. hi)` _against the truth and accumulate the counters._ |
 |  [**ber\_interval\_t**](structber__interval__t.md) | [**ber\_meter\_ser**](#function-ber_meter_ser) (const [**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state) <br>_Symbol error rate over the scored symbols, with its exact interval._  |
 |  void | [**ber\_meter\_set\_align**](#function-ber_meter_set_align) ([**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state, [**ber\_align\_t**](structber__align__t.md) align, size\_t t0, size\_t n\_marker, size\_t period) <br>_Install an alignment detected elsewhere (e.g. by_ [_**ber\_align\_detect()**_](ber__meter__core_8h.md#function-ber_align_detect) _on a different buffer), with the marker geometry that produced it, so_[_**ber\_meter\_score()**_](ber__meter__core_8h.md#function-ber_meter_score) _can use it._ |
 |  int | [**ber\_meter\_set\_state**](#function-ber_meter_set_state) ([**ber\_meter\_state\_t**](structber__meter__state__t.md) \* state, const void \* blob) <br> |
@@ -169,7 +169,7 @@ The three gates a result has to pass, and why each exists, are on [**ber/ber\_co
 _Exact confidence interval for a run stopped on an ERROR count._ 
 ```C++
 ber_align_t ber_align_detect (
-    const float complex * rx,
+    const float _Complex * rx,
     size_t rx_len,
     const uint8_t * truth,
     size_t truth_len,
@@ -254,7 +254,7 @@ _Detect where_ `rx` _sits against truth and REMEMBER that alignment._
 ```C++
 int ber_meter_align (
     ber_meter_state_t * state,
-    const float complex * rx,
+    const float _Complex * rx,
     size_t rx_len,
     size_t t0,
     size_t n_marker,
@@ -426,7 +426,7 @@ _Pure detection: returns the alignment without touching state._
 ```C++
 ber_align_t ber_meter_detect (
     const ber_meter_state_t * state,
-    const float complex * rx,
+    const float _Complex * rx,
     size_t rx_len,
     size_t t0,
     size_t n_marker,
@@ -863,7 +863,7 @@ _Score_ `rx[lo .. hi)` _against the truth and accumulate the counters._
 ```C++
 size_t ber_meter_score (
     ber_meter_state_t * state,
-    const float complex * rx,
+    const float _Complex * rx,
     size_t rx_len,
     size_t lo,
     size_t hi

@@ -60,8 +60,8 @@ main (void)
   jm_bench_t      _bench = { 0 };
   volatile double sink   = 0.0;
 
-  float complex *soft = malloc (BENCH_N * sizeof *soft);
-  uint8_t       *bits = malloc (BENCH_N);
+  float _Complex *soft = malloc (BENCH_N * sizeof *soft);
+  uint8_t        *bits = malloc (BENCH_N);
   /* One estimate per SAMPLE, not per window: the series form slides, and
      its contract says `out` is `soft_len` long. Sizing this buffer
      `BENCH_N / WINDOW` -- the intuitive reading, and the wrong one --

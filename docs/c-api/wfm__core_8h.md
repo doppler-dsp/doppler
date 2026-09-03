@@ -52,12 +52,12 @@ _Wfmgen module — public C API._
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**bpsk\_map**](#function-bpsk_map) (const uint8\_t \* bits, size\_t bits\_len, float complex \* out) <br>_Map binary bits {0, 1} to BPSK constellation symbols (cf32). The mapping is: 0 -&gt; +1 + 0j, 1 -&gt; -1 + 0j. Output is unit-power (each symbol has magnitude 1). The imaginary component is always zero. Typically used before a carrier multiply and noise addition to build a BPSK burst without the full Synth engine._  |
+|  void | [**bpsk\_map**](#function-bpsk_map) (const uint8\_t \* bits, size\_t bits\_len, float \_Complex \* out) <br>_Map binary bits {0, 1} to BPSK constellation symbols (cf32). The mapping is: 0 -&gt; +1 + 0j, 1 -&gt; -1 + 0j. Output is unit-power (each symbol has magnitude 1). The imaginary component is always zero. Typically used before a carrier multiply and noise addition to build a BPSK burst without the full Synth engine._  |
 |  void | [**ccsds\_asm\_bits**](#function-ccsds_asm_bits) (uint8\_t \* out) <br>_The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits._  |
 |  uint16\_t | [**crc16**](#function-crc16) (const uint8\_t \* bits, size\_t bits\_len) <br>_CRC-16-CCITT (poly 0x1021, init 0xFFFF) over a bit stream, MSB-first. The one frame CRC doppler's DSSS burst convention uses: the_ `dsss` _waveform appends it over the payload bits on transmit and_`BurstDemod` _validates it as_`frame_valid` _on receive (both call the same C kernel,_[_**dp\_crc16.h**_](dp__crc16_8h.md) _). Each input byte carries one bit (0/1) in its LSB — an unpacked bit array, not a packed byte-stream CRC. Transmit the result MSB-first._ |
-|  void | [**dsss\_spread**](#function-dsss_spread) (const float complex \* syms, size\_t syms\_len, const uint8\_t \* code, size\_t code\_len, int sf, float complex \* out) <br> |
+|  void | [**dsss\_spread**](#function-dsss_spread) (const float \_Complex \* syms, size\_t syms\_len, const uint8\_t \* code, size\_t code\_len, int sf, float \_Complex \* out) <br> |
 |  uint64\_t | [**mls\_poly**](#function-mls_poly) (uint32\_t n) <br>_Maximal-length-sequence primitive polynomial for a length-_ `n` _LFSR. Returns the tap mask (in the same bit convention the synth/PN engine uses for_`pn_poly = 0` _) that drives an_`n-stage` _Fibonacci LFSR through its full 2^n - 1 state period. Thin public alias over the synth engine's MLS table; valid for_`n` _in 2..64 and returns 0 otherwise._ |
-|  void | [**qpsk\_map**](#function-qpsk_map) (const uint8\_t \* syms, size\_t syms\_len, float complex \* out) <br>_Map QPSK symbol indices {0, 1, 2, 3} to Gray-coded symbols (cf32). Gray coding: adjacent indices differ in exactly one bit, minimising BER at low SNR. Bit 0 (LSB) controls I, bit 1 controls Q: I = (1 - 2\*b\_i) / sqrt(2), Q = (1 - 2\*b\_q) / sqrt(2). Output is unit-power (\|sym\| = 1.0 exactly). The four constellation points lie at the cardinal diagonals of the IQ plane._  |
+|  void | [**qpsk\_map**](#function-qpsk_map) (const uint8\_t \* syms, size\_t syms\_len, float \_Complex \* out) <br>_Map QPSK symbol indices {0, 1, 2, 3} to Gray-coded symbols (cf32). Gray coding: adjacent indices differ in exactly one bit, minimising BER at low SNR. Bit 0 (LSB) controls I, bit 1 controls Q: I = (1 - 2\*b\_i) / sqrt(2), Q = (1 - 2\*b\_q) / sqrt(2). Output is unit-power (\|sym\| = 1.0 exactly). The four constellation points lie at the cardinal diagonals of the IQ plane._  |
 |  void | [**rc\_h**](#function-rc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
 |  void | [**rrc\_h**](#function-rrc_h) (const double \* t, size\_t t\_len, double \* out, double beta) <br> |
 |  void | [**rrc\_taps**](#function-rrc_taps) (double beta, int sps, int span, float \* out) <br> |
@@ -103,7 +103,7 @@ _Map binary bits {0, 1} to BPSK constellation symbols (cf32). The mapping is: 0 
 void bpsk_map (
     const uint8_t * bits,
     size_t bits_len,
-    float complex * out
+    float _Complex * out
 ) 
 ```
 
@@ -229,12 +229,12 @@ The 16-bit CRC.
 
 ```C++
 void dsss_spread (
-    const float complex * syms,
+    const float _Complex * syms,
     size_t syms_len,
     const uint8_t * code,
     size_t code_len,
     int sf,
-    float complex * out
+    float _Complex * out
 ) 
 ```
 
@@ -292,7 +292,7 @@ _Map QPSK symbol indices {0, 1, 2, 3} to Gray-coded symbols (cf32). Gray coding:
 void qpsk_map (
     const uint8_t * syms,
     size_t syms_len,
-    float complex * out
+    float _Complex * out
 ) 
 ```
 

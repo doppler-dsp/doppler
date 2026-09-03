@@ -46,7 +46,7 @@ test_zero_amplitude (void)
 {
   printf ("\n-- Zero amplitude --\n");
   awgn_state_t *g = awgn_create (0, 0.0f);
-  float complex buf[N_SMALL];
+  float _Complex buf[N_SMALL];
   awgn_generate (g, N_SMALL, buf, N_SMALL);
   int all_zero = 1;
   for (int i = 0; i < N_SMALL; i++)
@@ -64,7 +64,7 @@ test_reset_reproducible (void)
 {
   printf ("\n-- Reset reproducible --\n");
   awgn_state_t *g = awgn_create (42, 1.0f);
-  float complex a[N_SMALL], b[N_SMALL];
+  float _Complex a[N_SMALL], b[N_SMALL];
 
   awgn_generate (g, N_SMALL, a, N_SMALL);
   awgn_reset (g);
@@ -82,7 +82,7 @@ test_reseed (void)
 {
   printf ("\n-- Reseed --\n");
   awgn_state_t *g = awgn_create (1, 1.0f);
-  float complex a[N_SMALL], b[N_SMALL];
+  float _Complex a[N_SMALL], b[N_SMALL];
 
   awgn_generate (g, N_SMALL, a, N_SMALL);
   awgn_reseed (g, 2);
@@ -96,7 +96,7 @@ test_reseed (void)
 
   /* reseed back to 1 should reproduce stream a */
   awgn_reseed (g, 1);
-  float complex c[N_SMALL];
+  float _Complex c[N_SMALL];
   awgn_generate (g, N_SMALL, c, N_SMALL);
   DP_CHECK (memcmp (a, c, N_SMALL * sizeof *a) == 0);
   awgn_destroy (g);
@@ -112,7 +112,7 @@ test_statistics (void)
   const float   amp = 2.0f;
   awgn_state_t *g   = awgn_create (7, amp);
 
-  float complex *buf = malloc (N_STAT * sizeof *buf);
+  float _Complex *buf = malloc (N_STAT * sizeof *buf);
   awgn_generate (g, N_STAT, buf, N_STAT);
 
   double sum_re = 0, sum_im = 0;
@@ -152,7 +152,7 @@ static void
 test_split_block (void)
 {
   printf ("\n-- Split-block identity --\n");
-  float complex full[N_SMALL], part[N_SMALL];
+  float _Complex full[N_SMALL], part[N_SMALL];
 
   /* Full block */
   awgn_state_t *g = awgn_create (99, 1.0f);
@@ -177,13 +177,13 @@ test_oneshot (void)
 {
   printf ("\n-- One-shot awgn() --\n");
 
-  float complex ref[N_SMALL];
+  float _Complex ref[N_SMALL];
   awgn_state_t *g = awgn_create (42, 0.7f);
   DP_CHECK (g != NULL);
   awgn_generate (g, N_SMALL, ref, N_SMALL);
   awgn_destroy (g);
 
-  float complex out[N_SMALL];
+  float _Complex out[N_SMALL];
   DP_CHECK (awgn (42, 0.7f, N_SMALL, out) == 0);
   DP_CHECK (memcmp (ref, out, N_SMALL * sizeof *out) == 0);
 }
@@ -198,7 +198,7 @@ test_state_roundtrip (void)
   {
     M = 64
   };
-  float complex ref[M], got[M];
+  float _Complex ref[M], got[M];
 
   awgn_state_t *a = awgn_create (123, 1.0f);
   awgn_generate (a, M, ref, M); /* advance past the seed state */
@@ -254,7 +254,7 @@ test_stream_pinned (void)
       = { 0.581977606f, -0.171774969f, -0.357516527f, -1.250267267f };
 
   awgn_state_t *g = awgn_create (42, 1.0f);
-  float complex out[4];
+  float _Complex out[4];
   awgn_generate (g, 4, out, 4);
   for (size_t i = 0; i < 4; i++)
     {
@@ -265,8 +265,8 @@ test_stream_pinned (void)
 
   /* The head being right does not mean the state update is. */
   awgn_state_t *h = awgn_create (12345, 1.0f);
-  float complex buf[4096];
-  double        acc_re = 0.0, acc_im = 0.0;
+  float _Complex buf[4096];
+  double acc_re = 0.0, acc_im = 0.0;
   for (int r = 0; r < 64; r++)
     {
       awgn_generate (h, 4096, buf, 4096);

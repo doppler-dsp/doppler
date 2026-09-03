@@ -21,12 +21,12 @@ extern "C"
 
   typedef struct
   {
-    double complex *table;  
+    double _Complex *table;  
     size_t          n;      
     int             method; 
   } interp_table_state_t;
 
-  interp_table_state_t *interp_table_create (const double complex *table,
+  interp_table_state_t *interp_table_create (const double _Complex *table,
                                              size_t table_len, int method);
 
   void interp_table_destroy (interp_table_state_t *state);
@@ -36,7 +36,7 @@ extern "C"
   size_t interp_table_execute_max_out (interp_table_state_t *state);
 
   size_t interp_table_execute (interp_table_state_t *state, const double *in,
-                               size_t n_in, double complex *out,
+                               size_t n_in, double _Complex *out,
                                size_t max_out);
 
 #ifdef __cplusplus

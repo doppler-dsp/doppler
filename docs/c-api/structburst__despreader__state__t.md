@@ -36,9 +36,9 @@ _BurstDespreader state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  float complex | [**acc\_e**](#variable-acc_e)  <br> |
-|  float complex | [**acc\_l**](#variable-acc_l)  <br> |
-|  float complex | [**acc\_p**](#variable-acc_p)  <br> |
+|  float \_Complex | [**acc\_e**](#variable-acc_e)  <br> |
+|  float \_Complex | [**acc\_l**](#variable-acc_l)  <br> |
+|  float \_Complex | [**acc\_p**](#variable-acc_p)  <br> |
 |  uint8\_t \* | [**acq\_code**](#variable-acq_code)  <br> |
 |  size\_t | [**acq\_reps**](#variable-acq_reps)  <br> |
 |  size\_t | [**acq\_sf**](#variable-acq_sf)  <br> |
@@ -120,7 +120,7 @@ Allocate with [**burst\_despreader\_create()**](burst__despreader__core_8h.md#fu
 ### variable acc\_e 
 
 ```C++
-float complex burst_despreader_state_t::acc_e;
+float _Complex burst_despreader_state_t::acc_e;
 ```
 
 
@@ -138,7 +138,7 @@ early correlator accumulator.
 ### variable acc\_l 
 
 ```C++
-float complex burst_despreader_state_t::acc_l;
+float _Complex burst_despreader_state_t::acc_l;
 ```
 
 
@@ -156,7 +156,7 @@ late correlator accumulator.
 ### variable acc\_p 
 
 ```C++
-float complex burst_despreader_state_t::acc_p;
+float _Complex burst_despreader_state_t::acc_p;
 ```
 
 

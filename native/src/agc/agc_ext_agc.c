@@ -76,8 +76,8 @@ AGC_step (AGCObject *self, PyObject *args)
   Py_complex x_raw = { 0.0, 0.0 };
   if (!PyArg_ParseTuple (args, "D", &x_raw))
     return NULL;
-  float complex x = (float)x_raw.real + (float)x_raw.imag * I;
-  float complex y = agc_step (self->handle, x);
+  float _Complex x = (float)x_raw.real + (float)x_raw.imag * I;
+  float _Complex y = agc_step (self->handle, x);
   return PyComplex_FromDoubles ((double)crealf (y), (double)cimagf (y));
 }
 
@@ -133,8 +133,8 @@ AGC_steps (AGCObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      agc_steps (self->handle, (const float complex *)PyArray_DATA (in_arr),
-                 (float complex *)PyArray_DATA (out_arr), (size_t)n);
+      agc_steps (self->handle, (const float _Complex *)PyArray_DATA (in_arr),
+                 (float _Complex *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
     }
@@ -147,8 +147,8 @@ AGC_steps (AGCObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  agc_steps (self->handle, (const float complex *)PyArray_DATA (in_arr),
-             (float complex *)PyArray_DATA ((PyArrayObject *)out_arr),
+  agc_steps (self->handle, (const float _Complex *)PyArray_DATA (in_arr),
+             (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr),
              (size_t)n);
 
   Py_DECREF (in_arr);
@@ -490,7 +490,7 @@ static PyMethodDef AGCObj_methods[] = {
     "alpha, decim, clip_db) are left untouched.  Use this to process a new, "
     "independent signal segment without re-allocating." },
   { "step", (PyCFunction)AGC_step, METH_VARARGS,
-    "step(x) -> float complex\n"
+    "step(x) -> float _Complex\n"
     "\n"
     "Process one complex sample through the per-sample AGC loop. Applies the "
     "current gain, measures the output power via the EMA detector, advances "

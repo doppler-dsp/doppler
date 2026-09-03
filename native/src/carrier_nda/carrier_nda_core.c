@@ -213,8 +213,8 @@ carrier_nda_steps_max_out (carrier_nda_state_t *state)
 }
 
 size_t
-carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
-                   size_t x_len, float complex *out, size_t max_out)
+carrier_nda_steps (carrier_nda_state_t *state, const float _Complex *x,
+                   size_t x_len, float _Complex *out, size_t max_out)
 {
   size_t emitted = 0;
   /* The telemetry check is hoisted to loop entry (attach is setup-time
@@ -229,8 +229,8 @@ carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
     {
       for (size_t i = 0; i < x_len; i++)
         {
-          float complex d = carrier_nda_wipeoff (state, x[i]);
-          double        pe, lk;
+          float _Complex d = carrier_nda_wipeoff (state, x[i]);
+          double pe, lk;
           if (carrier_nda_arm_step (state, d, &pe, &lk))
             {
               state->lock += CARRIER_NDA_LOCK_ALPHA * (lk - state->lock);
@@ -245,8 +245,8 @@ carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
     {
       for (size_t i = 0; i < x_len; i++)
         {
-          float complex d = carrier_nda_wipeoff (state, x[i]);
-          double        pe, lk;
+          float _Complex d = carrier_nda_wipeoff (state, x[i]);
+          double pe, lk;
           if (carrier_nda_arm_step (state, d, &pe, &lk))
             {
               state->lock += CARRIER_NDA_LOCK_ALPHA * (lk - state->lock);

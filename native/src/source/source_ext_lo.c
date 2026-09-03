@@ -118,7 +118,7 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = lo_steps (self->handle, (size_t)n,
-                               (float complex *)PyArray_DATA (out_arr), _cap);
+                               (float _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -140,8 +140,8 @@ LOObj_steps (LOObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  float complex *_d0   = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t         n_out = lo_steps (self->handle, (size_t)n, _d0, _cap);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t          n_out = lo_steps (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -227,7 +227,7 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
       size_t n_out = lo_steps_ctrl (
           self->handle, (const double *)PyArray_DATA (ctrl_arr),
           (size_t)PyArray_SIZE (ctrl_arr),
-          (float complex *)PyArray_DATA (out_arr), _cap);
+          (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (ctrl_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -251,8 +251,8 @@ LOObj_steps_ctrl (LOObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (ctrl_arr);
       return NULL;
     }
-  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t         n_out
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t          n_out
       = lo_steps_ctrl (self->handle, (const double *)PyArray_DATA (ctrl_arr),
                        (size_t)PyArray_SIZE (ctrl_arr), _d0, _cap);
   Py_DECREF (ctrl_arr);
@@ -472,7 +472,7 @@ static PyMethodDef LOObj_methods[] = {
     "    an `out=` buffer with the matching `_max_out()` when you need the\n"
     "    worst case.\n"
     "out : NDArray[np.complex64] | None\n"
-    "    Output buffer; must hold at least n float complex values.\n"
+    "    Output buffer; must hold at least n float _Complex values.\n"
     "\n"
     "Returns\n"
     "-------\n"

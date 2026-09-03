@@ -7,7 +7,7 @@
 #include "snr/snr_core.h"
 
 void
-snr_m2m4_db_series (const float complex *x, size_t x_len, size_t window,
+snr_m2m4_db_series (const float _Complex *x, size_t x_len, size_t window,
                     double *out)
 {
   size_t half = window / 2;

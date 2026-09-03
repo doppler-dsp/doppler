@@ -102,7 +102,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  void | [**dsss\_burst\_receiver\_get\_state**](#function-dsss_burst_receiver_get_state) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dsss\_burst\_receiver\_state\_bytes()**_](dsss__burst__receiver__core_8h.md#function-dsss_burst_receiver_state_bytes) _long)._ |
 |  size\_t | [**dsss\_burst\_receiver\_llrs**](#function-dsss_burst_receiver_llrs) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t n, float \* out, size\_t max\_out) <br>_The SOFT bits of every burst the last push() returned._  |
 |  size\_t | [**dsss\_burst\_receiver\_llrs\_max\_out**](#function-dsss_burst_receiver_llrs_max_out) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t n) <br>_Max LLRs llrs() writes: frame bits x the bursts the last push returned._  |
-|  size\_t | [**dsss\_burst\_receiver\_push**](#function-dsss_burst_receiver_push) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Stream samples; return the payload of EVERY burst that completed._  |
+|  size\_t | [**dsss\_burst\_receiver\_push**](#function-dsss_burst_receiver_push) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Stream samples; return the payload of EVERY burst that completed._  |
 |  size\_t | [**dsss\_burst\_receiver\_push\_max\_out**](#function-dsss_burst_receiver_push_max_out) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t x\_len) <br>_Max bits push() can write for an input of_ `x_len` _samples._ |
 |  void | [**dsss\_burst\_receiver\_reset**](#function-dsss_burst_receiver_reset) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br>_Return to searching: drop the history and clear every read-back._  |
 |  int | [**dsss\_burst\_receiver\_set\_state**](#function-dsss_burst_receiver_set_state) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, const void \* blob) <br>_Restore cross-call state from_ `blob` _(replacing it)._ |
@@ -773,7 +773,7 @@ _Stream samples; return the payload of EVERY burst that completed._
 ```C++
 size_t dsss_burst_receiver_push (
     dsss_burst_receiver_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
     uint8_t * out,
     size_t max_out

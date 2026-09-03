@@ -9,11 +9,11 @@
 #include "mpsk/mpsk_core.h"
 
 void
-mpsk_diff_demap (const float complex *x, size_t x_len, uint8_t *out, int m)
+mpsk_diff_demap (const float _Complex *x, size_t x_len, uint8_t *out, int m)
 {
-  float complex ahat;
-  unsigned      mask   = (unsigned)(m - 1);
-  unsigned      prev_k = 0; /* implicit zero-phase reference */
+  float _Complex ahat;
+  unsigned mask   = (unsigned)(m - 1);
+  unsigned prev_k = 0; /* implicit zero-phase reference */
   for (size_t i = 0; i < x_len; i++)
     {
       unsigned k = mpsk_gray_decode (mpsk_slice (x[i], m, &ahat));

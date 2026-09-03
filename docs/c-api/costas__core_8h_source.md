@@ -47,9 +47,9 @@ typedef struct {
     double zeta;             
     double bn_fll;           
     double k_fll;            
-    float complex acc;       
+    float _Complex acc;       
     size_t acc_n;            
-    float complex prev;      
+    float _Complex prev;      
     int have_prev;           
     double lock_metric;      
     lockdet_state_t lock;    
@@ -60,14 +60,14 @@ typedef struct {
 void costas_init(costas_state_t *s, double bn, double zeta,
                  double init_norm_freq, size_t tsamps, double bn_fll);
 
-JM_FORCEINLINE JM_HOT float complex
-costas_wipeoff(costas_state_t *s, float complex x)
+JM_FORCEINLINE JM_HOT float _Complex
+costas_wipeoff(costas_state_t *s, float _Complex x)
 {
     return x * conjf(lo_step(&s->nco));
 }
 
 JM_FORCEINLINE JM_HOT void
-costas_update(costas_state_t *s, float complex P)
+costas_update(costas_state_t *s, float _Complex P)
 {
     float reP = crealf(P), imP = cimagf(P);
     float aP = cabsf(P) + COSTAS_EPS;
@@ -130,7 +130,7 @@ int costas_set_state(costas_state_t *state, const void *blob);
 
 size_t costas_steps_max_out(costas_state_t *state);
 
-size_t costas_steps(costas_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+size_t costas_steps(costas_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
 void costas_configure(costas_state_t *state, double bn, double zeta);
 double costas_get_bn(const costas_state_t *state);

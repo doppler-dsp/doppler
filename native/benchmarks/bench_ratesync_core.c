@@ -55,8 +55,8 @@ main (void)
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
-  float complex *x = malloc (BENCH_N * sizeof *x);
-  float complex *y = malloc (BENCH_N * sizeof *y);
+  float _Complex *x = malloc (BENCH_N * sizeof *x);
+  float _Complex *y = malloc (BENCH_N * sizeof *y);
   if (!x || !y)
     return 1;
 

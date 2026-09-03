@@ -14,11 +14,11 @@
 typedef struct
 {
   PyObject_HEAD farrow_state_t *handle;
-  float complex *_delay_buf;     /* pre-allocated output for delay */
-  size_t         _delay_buf_cap; /* allocated capacity for delay */
-  void         **_delay_retired; /* gh-219 deferred free */
-  size_t         _delay_retired_n;
-  size_t         _delay_retired_cap;
+  float _Complex *_delay_buf;     /* pre-allocated output for delay */
+  size_t          _delay_buf_cap; /* allocated capacity for delay */
+  void          **_delay_retired; /* gh-219 deferred free */
+  size_t          _delay_retired_n;
+  size_t          _delay_retired_cap;
 } FarrowObject;
 
 static void
@@ -75,7 +75,7 @@ FarrowObj_init (FarrowObject *self, PyObject *args, PyObject *kwds)
     size_t _max = farrow_delay_max_out (self->handle);
     if (_max)
       {
-        self->_delay_buf = malloc (_max * sizeof (float complex));
+        self->_delay_buf = malloc (_max * sizeof (float _Complex));
         if (!self->_delay_buf)
           {
             PyErr_NoMemory ();
@@ -155,10 +155,11 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (x_arr);
           return NULL;
         }
-      const float complex *_ng0o = (const float complex *)PyArray_DATA (x_arr);
-      size_t               _ng1o = _n_in;
-      float complex       *_ng2o = (float complex *)PyArray_DATA (out_arr);
-      size_t               n_out;
+      const float _Complex *_ng0o
+          = (const float _Complex *)PyArray_DATA (x_arr);
+      size_t          _ng1o = _n_in;
+      float _Complex *_ng2o = (float _Complex *)PyArray_DATA (out_arr);
+      size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
         n_out = farrow_delay (self->handle, _ng0o, _ng1o, mu, _ng2o, _cap);
       Py_END_ALLOW_THREADS
@@ -196,7 +197,7 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
           self->_delay_retired     = _rt;
           self->_delay_retired_cap = _rcap;
         }
-      float complex *_tmp = malloc (_max * sizeof (float complex));
+      float _Complex *_tmp = malloc (_max * sizeof (float _Complex));
       if (!_tmp)
         {
           Py_DECREF (x_arr);
@@ -212,9 +213,9 @@ FarrowObj_delay (FarrowObject *self, PyObject *args, PyObject *kwds)
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
-  size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t               n_out;
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
+  size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
     n_out = farrow_delay (self->handle, _ng0, _ng1, mu, self->_delay_buf,
                           self->_delay_buf_cap);

@@ -27,7 +27,7 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
  * snr >= 100 ⇒ clean (no AWGN); freq == 0 ⇒ baseband (no LO). */
 static void
 bench_cfg (const char *name, int type, int sps, int pnlen, int lfsr,
-           double snr, double freq, float complex *out, jm_bench_t *bench)
+           double snr, double freq, float _Complex *out, jm_bench_t *bench)
 {
   wfm_synth_state_t *obj = wfm_synth_create (type, 1e6, freq, snr, 0, 1, sps,
                                              pnlen, 0, lfsr, 0.0);
@@ -63,7 +63,7 @@ bench_cfg (const char *name, int type, int sps, int pnlen, int lfsr,
  * span 8. Isolates the pulse-shaping cost on top of the bit source. */
 static void
 bench_cfg_rrc (const char *name, int type, int sps, int pnlen, double snr,
-               double freq, float complex *out, jm_bench_t *bench)
+               double freq, float _Complex *out, jm_bench_t *bench)
 {
   wfm_synth_state_t *obj
       = wfm_synth_create (type, 1e6, freq, snr, 0, 1, sps, pnlen, 0, 0, 0.0);
@@ -102,7 +102,7 @@ bench_cfg_rrc (const char *name, int type, int sps, int pnlen, double snr,
 int
 main (void)
 {
-  float complex *out = malloc (BENCH_N * sizeof (float complex));
+  float _Complex *out = malloc (BENCH_N * sizeof (float _Complex));
   if (!out)
     {
       fprintf (stderr, "OOM\n");

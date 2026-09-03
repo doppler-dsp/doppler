@@ -12,8 +12,8 @@
 #include "wfm/wfm_dsp.h" /* wfm_dsss_spread */
 
 void
-dsss_spread (const float complex *syms, size_t syms_len, const uint8_t *code,
-             size_t code_len, int sf, float complex *out)
+dsss_spread (const float _Complex *syms, size_t syms_len, const uint8_t *code,
+             size_t code_len, int sf, float _Complex *out)
 {
   /* Defensive guards: the generated binding leaves sf / code_len unchecked, so
      a misuse the retired hand binding rejected with a ValueError would drive

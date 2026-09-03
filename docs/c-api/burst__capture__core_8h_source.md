@@ -169,8 +169,8 @@ size_t burst_capture_push_max_out (burst_capture_state_t *state,
                                    size_t x_len);
 
 size_t burst_capture_push (burst_capture_state_t *state,
-                           const float complex *x, size_t x_len,
-                           float complex *out, size_t max_out);
+                           const float _Complex *x, size_t x_len,
+                           float _Complex *out, size_t max_out);
 
 size_t burst_capture_detections_max_out (burst_capture_state_t *state,
                                          size_t n);
@@ -186,7 +186,7 @@ size_t burst_capture_events (burst_capture_state_t *state, size_t n,
 
 size_t burst_capture_ready (const burst_capture_state_t *state);
 
-const float complex *burst_capture_window (const burst_capture_state_t *state,
+const float _Complex *burst_capture_window (const burst_capture_state_t *state,
                                            size_t i);
 
 const burst_capture_event_t *

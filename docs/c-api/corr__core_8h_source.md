@@ -23,30 +23,30 @@ extern "C" {
 typedef struct {
   fft_state_t *fwd;         
   fft_state_t *inv;         
-  float complex *ref_spec;  
-  float complex *work_fft;  
-  float complex *accum;     
-  float complex *work_pad;  
+  float _Complex *ref_spec;  
+  float _Complex *work_fft;  
+  float _Complex *accum;     
+  float _Complex *work_pad;  
   size_t n;                 
   size_t n_out;             
   size_t dwell;             
   size_t count;             
-  float complex *work_trunc;
+  float _Complex *work_trunc;
 } corr_state_t;
 
-corr_state_t *corr_create(const float complex *ref, size_t ref_len, size_t dwell,
+corr_state_t *corr_create(const float _Complex *ref, size_t ref_len, size_t dwell,
                           int nthreads, size_t n_out);
 
 void corr_destroy(corr_state_t *state);
 
 void corr_reset(corr_state_t *state);
 
-void corr_set_ref(corr_state_t *state, const float complex *ref);
+void corr_set_ref(corr_state_t *state, const float _Complex *ref);
 
 size_t corr_execute_max_out(corr_state_t *state);
 
-size_t corr_execute(corr_state_t *state, const float complex *in, size_t n_in,
-                    float complex *out, size_t max_out);
+size_t corr_execute(corr_state_t *state, const float _Complex *in, size_t n_in,
+                    float _Complex *out, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running product-spectrum accumulator + frame count;

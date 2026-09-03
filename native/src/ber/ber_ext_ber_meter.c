@@ -126,8 +126,8 @@ BerMeterObj_align (BerMeterObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *rx     = (const float complex *)PyArray_DATA (rx_arr);
-  size_t               rx_len = (size_t)PyArray_SIZE (rx_arr);
+  const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
+  size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
   int y = ber_meter_align (self->handle, rx, rx_len, t0, n_marker, period,
                            lag_span, pfa);
   Py_DECREF (rx_arr);
@@ -157,9 +157,9 @@ BerMeterObj_score (BerMeterObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *rx     = (const float complex *)PyArray_DATA (rx_arr);
-  size_t               rx_len = (size_t)PyArray_SIZE (rx_arr);
-  size_t               y = ber_meter_score (self->handle, rx, rx_len, lo, hi);
+  const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
+  size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
+  size_t                y = ber_meter_score (self->handle, rx, rx_len, lo, hi);
   Py_DECREF (rx_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }

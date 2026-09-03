@@ -26,7 +26,7 @@ extern "C"
     pocketfft_plan *plan_f32; 
     size_t n;                 
     int sign;                 
-    double complex *work_trunc;
+    double _Complex *work_trunc;
   } fft_state_t;
 
   fft_state_t *fft_create (size_t n, int sign, int nthreads);
@@ -37,35 +37,35 @@ extern "C"
 
   size_t fft_execute_cf64_max_out (fft_state_t *state);
 
-  size_t fft_execute_cf64 (fft_state_t *state, const double complex *in,
-                           size_t n_in, double complex *out, size_t max_out);
+  size_t fft_execute_cf64 (fft_state_t *state, const double _Complex *in,
+                           size_t n_in, double _Complex *out, size_t max_out);
 
   size_t fft_execute_cf32_max_out (fft_state_t *state);
 
-  size_t fft_execute_cf32 (fft_state_t *state, const float complex *in,
-                           size_t n_in, float complex *out, size_t max_out);
+  size_t fft_execute_cf32 (fft_state_t *state, const float _Complex *in,
+                           size_t n_in, float _Complex *out, size_t max_out);
 
   size_t fft_execute_inplace_cf64_max_out (fft_state_t *state);
 
   size_t fft_execute_inplace_cf64 (fft_state_t *state,
-                                   const double complex *in, size_t n_in,
-                                   double complex *out, size_t max_out);
+                                   const double _Complex *in, size_t n_in,
+                                   double _Complex *out, size_t max_out);
 
   size_t fft_execute_inplace_cf32_max_out (fft_state_t *state);
 
-  size_t fft_execute_inplace_cf32 (fft_state_t *state, const float complex *in,
-                                   size_t n_in, float complex *out,
+  size_t fft_execute_inplace_cf32 (fft_state_t *state, const float _Complex *in,
+                                   size_t n_in, float _Complex *out,
                                    size_t max_out);
 
   size_t fft_execute_ci16_max_out (fft_state_t *state);
 
   size_t fft_execute_ci16 (fft_state_t *state, const int16_t *in, size_t n_in,
-                           float complex *out);
+                           float _Complex *out);
 
   size_t fft_execute_ci8_max_out (fft_state_t *state);
 
   size_t fft_execute_ci8 (fft_state_t *state, const int8_t *in, size_t n_in,
-                          float complex *out);
+                          float _Complex *out);
 
 #ifdef __cplusplus
 }

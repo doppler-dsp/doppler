@@ -57,16 +57,16 @@ _M-PSK constellation: Gray-coded map / demap for BPSK, QPSK, 8PSK._ [More...](#d
 | ---: | :--- |
 |  int | [**mpsk\_bits\_per\_symbol**](#function-mpsk_bits_per_symbol) (int m) <br>_Bits per M-PSK symbol = log2(M)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**mpsk\_bps**](#function-mpsk_bps) (int m) <br>_Bits per M-PSK symbol = log2(M); M in {2,4,8} -&gt; {1,2,3}, else 0._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float complex | [**mpsk\_constellation**](#function-mpsk_constellation) (unsigned g, int m) <br>_Constellation point for Gray label_ `g` _(M-PSK), unit amplitude._ |
-|  void | [**mpsk\_demap**](#function-mpsk_demap) (const float complex \* x, size\_t x\_len, uint8\_t \* out, int m) <br>_Hard-decide M-PSK symbols to their Gray-coded label bytes._  |
-|  void | [**mpsk\_diff\_demap**](#function-mpsk_diff_demap) (const float complex \* x, size\_t x\_len, uint8\_t \* out, int m) <br>_Differential M-PSK demap: decide from the phase DIFFERENCE._  |
-|  void | [**mpsk\_diff\_map**](#function-mpsk_diff_map) (const uint8\_t \* sym, size\_t sym\_len, float complex \* out, int m) <br>_Differential M-PSK map: the label selects a phase INCREMENT._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**mpsk\_constellation**](#function-mpsk_constellation) (unsigned g, int m) <br>_Constellation point for Gray label_ `g` _(M-PSK), unit amplitude._ |
+|  void | [**mpsk\_demap**](#function-mpsk_demap) (const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, int m) <br>_Hard-decide M-PSK symbols to their Gray-coded label bytes._  |
+|  void | [**mpsk\_diff\_demap**](#function-mpsk_diff_demap) (const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, int m) <br>_Differential M-PSK demap: decide from the phase DIFFERENCE._  |
+|  void | [**mpsk\_diff\_map**](#function-mpsk_diff_map) (const uint8\_t \* sym, size\_t sym\_len, float \_Complex \* out, int m) <br>_Differential M-PSK map: the label selects a phase INCREMENT._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_gray\_decode**](#function-mpsk_gray_decode) (unsigned g) <br>_Gray code -&gt; binary index (inverse of mpsk\_gray\_encode)._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_gray\_encode**](#function-mpsk_gray_encode) (unsigned k) <br>_Binary index -&gt; Gray code (k ^ k&gt;&gt;1)._  |
-|  void | [**mpsk\_map**](#function-mpsk_map) (const uint8\_t \* sym, size\_t sym\_len, float complex \* out, int m) <br>_Map Gray-coded M-PSK labels to unit-amplitude constellation points._  |
+|  void | [**mpsk\_map**](#function-mpsk_map) (const uint8\_t \* sym, size\_t sym\_len, float \_Complex \* out, int m) <br>_Map Gray-coded M-PSK labels to unit-amplitude constellation points._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mpsk\_phi0**](#function-mpsk_phi0) (int m) <br>_Constellation phase offset (radians): pi/4 for QPSK, else 0._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_slice**](#function-mpsk_slice) (float complex y, int m, float complex \* ahat) <br>_Hard-decide_ `y` _to the nearest M-PSK point; return its Gray label._ |
-|  void | [**mpsk\_soft\_demap**](#function-mpsk_soft_demap) (const float complex \* x, size\_t x\_len, float \* llr, size\_t llr\_len, int m, float n0) <br>_Soft-demap M-PSK symbols to per-bit log-likelihood ratios._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) unsigned | [**mpsk\_slice**](#function-mpsk_slice) (float \_Complex y, int m, float \_Complex \* ahat) <br>_Hard-decide_ `y` _to the nearest M-PSK point; return its Gray label._ |
+|  void | [**mpsk\_soft\_demap**](#function-mpsk_soft_demap) (const float \_Complex \* x, size\_t x\_len, float \* llr, size\_t llr\_len, int m, float n0) <br>_Soft-demap M-PSK symbols to per-bit log-likelihood ratios._  |
 
 
 
@@ -120,7 +120,7 @@ The inline helpers (mpsk\_constellation, mpsk\_slice) are the C composition API 
 
 ```C++
 // C: round-trip one QPSK symbol through the inline slicer
-float complex ahat;
+float _Complex ahat;
 unsigned g = mpsk_slice((1.0f + 1.0f*I) * 0.70710678f, 4, &ahat); // -> 0
 ```
  
@@ -192,7 +192,7 @@ JM_FORCEINLINE int mpsk_bps (
 
 _Constellation point for Gray label_ `g` _(M-PSK), unit amplitude._
 ```C++
-JM_FORCEINLINE float complex mpsk_constellation (
+JM_FORCEINLINE float _Complex mpsk_constellation (
     unsigned g,
     int m
 ) 
@@ -232,7 +232,7 @@ Unit-amplitude constellation point.
 _Hard-decide M-PSK symbols to their Gray-coded label bytes._ 
 ```C++
 void mpsk_demap (
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
     uint8_t * out,
     int m
@@ -276,7 +276,7 @@ Element-wise inverse of [**mpsk\_map()**](mpsk__core_8h.md#function-mpsk_map): e
 _Differential M-PSK demap: decide from the phase DIFFERENCE._ 
 ```C++
 void mpsk_diff_demap (
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
     uint8_t * out,
     int m
@@ -322,7 +322,7 @@ _Differential M-PSK map: the label selects a phase INCREMENT._
 void mpsk_diff_map (
     const uint8_t * sym,
     size_t sym_len,
-    float complex * out,
+    float _Complex * out,
     int m
 ) 
 ```
@@ -405,7 +405,7 @@ _Map Gray-coded M-PSK labels to unit-amplitude constellation points._
 void mpsk_map (
     const uint8_t * sym,
     size_t sym_len,
-    float complex * out,
+    float _Complex * out,
     int m
 ) 
 ```
@@ -466,9 +466,9 @@ JM_FORCEINLINE double mpsk_phi0 (
 _Hard-decide_ `y` _to the nearest M-PSK point; return its Gray label._
 ```C++
 JM_FORCEINLINE unsigned mpsk_slice (
-    float complex y,
+    float _Complex y,
     int m,
-    float complex * ahat
+    float _Complex * ahat
 ) 
 ```
 
@@ -507,7 +507,7 @@ Gray-coded label (0..M-1).
 _Soft-demap M-PSK symbols to per-bit log-likelihood ratios._ 
 ```C++
 void mpsk_soft_demap (
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
     float * llr,
     size_t llr_len,

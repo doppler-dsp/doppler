@@ -48,11 +48,11 @@ _The symbol-timing loop, independent of what feeds it._ [More...](#detailed-desc
 |  double | [**lock\_sum**](#variable-lock_sum)  <br> |
 |  size\_t | [**m**](#variable-m)  <br> |
 |  size\_t | [**out\_count**](#variable-out_count)  <br> |
-|  float complex | [**prev\_on**](#variable-prev_on)  <br> |
+|  float \_Complex | [**prev\_on**](#variable-prev_on)  <br> |
 |  size\_t | [**prime\_left**](#variable-prime_left)  <br> |
 |  size\_t | [**prime\_taps**](#variable-prime_taps)  <br> |
 |  double | [**rate\_est**](#variable-rate_est)  <br> |
-|  float complex | [**ring**](#variable-ring)  <br> |
+|  float \_Complex | [**ring**](#variable-ring)  <br> |
 |  size\_t | [**ring\_n**](#variable-ring_n)  <br> |
 |  double | [**sps**](#variable-sps)  <br> |
 |  int | [**ted**](#variable-ted)  <br> |
@@ -342,7 +342,7 @@ terminal outputs seen (mod m: strobe phase).
 ### variable prev\_on 
 
 ```C++
-float complex ratesync_loop_t::prev_on;
+float _Complex ratesync_loop_t::prev_on;
 ```
 
 
@@ -414,7 +414,7 @@ smoothed tracked samples/symbol.
 ### variable ring 
 
 ```C++
-float complex ratesync_loop_t::ring[RATESYNC_MAX_M/2+1];
+float _Complex ratesync_loop_t::ring[RATESYNC_MAX_M/2+1];
 ```
 
 

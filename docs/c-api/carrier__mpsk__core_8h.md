@@ -80,10 +80,10 @@ _M-PSK carrier-tracking loop (integer-NCO de-rotation + decision PLL)._ [More...
 |  void | [**carrier\_mpsk\_set\_norm\_freq**](#function-carrier_mpsk_set_norm_freq) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state, double val) <br> |
 |  int | [**carrier\_mpsk\_set\_state**](#function-carrier_mpsk_set_state) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
 |  size\_t | [**carrier\_mpsk\_state\_bytes**](#function-carrier_mpsk_state_bytes) (const [**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br>_Serialized-state byte size._  |
-|  size\_t | [**carrier\_mpsk\_steps**](#function-carrier_mpsk_steps) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Track the residual carrier over a block, one prompt per symbol._  |
+|  size\_t | [**carrier\_mpsk\_steps**](#function-carrier_mpsk_steps) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Track the residual carrier over a block, one prompt per symbol._  |
 |  size\_t | [**carrier\_mpsk\_steps\_max\_out**](#function-carrier_mpsk_steps_max_out) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**carrier\_mpsk\_update**](#function-carrier_mpsk_update) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* s, float complex P) <br>_Per-symbol carrier update: decision discriminator -&gt; loop -&gt; NCO._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**carrier\_mpsk\_wipeoff**](#function-carrier_mpsk_wipeoff) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* s, float complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**carrier\_mpsk\_update**](#function-carrier_mpsk_update) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* s, float \_Complex P) <br>_Per-symbol carrier update: decision discriminator -&gt; loop -&gt; NCO._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**carrier\_mpsk\_wipeoff**](#function-carrier_mpsk_wipeoff) ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md) \* s, float \_Complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
 
 
 
@@ -139,7 +139,7 @@ The block API (carrier\_mpsk\_steps) is the Python face; the JM\_FORCEINLINE [**
 ```C++
 // QPSK carrier loop, 64 samples/symbol, FLL-assisted
 carrier_mpsk_state_t *c = carrier_mpsk_create(0.05, 0.707, 0.0, 64, 0.01, 4);
-float complex sym[16];
+float _Complex sym[16];
 size_t k = carrier_mpsk_steps(c, rx, rx_len, sym, 16);
 double f = c->nco.norm_freq;                 // tracked residual carrier
 carrier_mpsk_destroy(c);
@@ -564,9 +564,9 @@ _Track the residual carrier over a block, one prompt per symbol._
 ```C++
 size_t carrier_mpsk_steps (
     carrier_mpsk_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```
@@ -648,7 +648,7 @@ _Per-symbol carrier update: decision discriminator -&gt; loop -&gt; NCO._
 ```C++
 JM_FORCEINLINE  JM_HOT void carrier_mpsk_update (
     carrier_mpsk_state_t * s,
-    float complex P
+    float _Complex P
 ) 
 ```
 
@@ -678,9 +678,9 @@ Slices the prompt `P` to the nearest M-PSK point `ahat`, forms the decision-dire
 
 _Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._
 ```C++
-JM_FORCEINLINE  JM_HOT float complex carrier_mpsk_wipeoff (
+JM_FORCEINLINE  JM_HOT float _Complex carrier_mpsk_wipeoff (
     carrier_mpsk_state_t * s,
-    float complex x
+    float _Complex x
 ) 
 ```
 

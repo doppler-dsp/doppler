@@ -68,8 +68,8 @@ _Boxcar (rectangular) moving-average filter — cf32, fixed window._ [More...](#
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**boxcar\_set\_gain**](#function-boxcar_set_gain) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, double gain) <br>_Set the output gain; refresh the cached scale._  |
 |  int | [**boxcar\_set\_state**](#function-boxcar_set_state) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, const void \* blob) <br>_Restore state; DP\_OK, or DP\_ERR\_INVALID if the envelope rejects._  |
 |  size\_t | [**boxcar\_state\_bytes**](#function-boxcar_state_bytes) (const [**boxcar\_state\_t**](structboxcar__state__t.md) \* s) <br>_Serialized-state byte size._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**boxcar\_step**](#function-boxcar_step) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, float complex x) <br>_Slide the window by one sample; return the gained moving average._  |
-|  void | [**boxcar\_steps**](#function-boxcar_steps) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, const float complex \* x, float complex \* out, size\_t n) <br>_Filter a block: write the gained moving average of each sample._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**boxcar\_step**](#function-boxcar_step) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, float \_Complex x) <br>_Slide the window by one sample; return the gained moving average._  |
+|  void | [**boxcar\_steps**](#function-boxcar_steps) ([**boxcar\_state\_t**](structboxcar__state__t.md) \* s, const float \_Complex \* x, float \_Complex \* out, size\_t n) <br>_Filter a block: write the gained moving average of each sample._  |
 
 
 
@@ -377,9 +377,9 @@ size_t boxcar_state_bytes (
 
 _Slide the window by one sample; return the gained moving average._ 
 ```C++
-JM_FORCEINLINE  JM_HOT float complex boxcar_step (
+JM_FORCEINLINE  JM_HOT float _Complex boxcar_step (
     boxcar_state_t * s,
-    float complex x
+    float _Complex x
 ) 
 ```
 
@@ -425,8 +425,8 @@ _Filter a block: write the gained moving average of each sample._
 ```C++
 void boxcar_steps (
     boxcar_state_t * s,
-    const float complex * x,
-    float complex * out,
+    const float _Complex * x,
+    float _Complex * out,
     size_t n
 ) 
 ```

@@ -302,7 +302,7 @@ size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size
  *
  * @endcode
  */
-size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float complex *x, size_t x_len, uint8_t *out, size_t max_out);
+size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float _Complex *x, size_t x_len, uint8_t *out, size_t max_out);
 
 /**
  * @brief Max records events() writes: one per burst the last push() returned.

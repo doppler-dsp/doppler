@@ -287,7 +287,7 @@ typedef struct
  * @return          The alignment, with `ok` telling you whether to believe it.
  */
 static inline dp_ber_sync_t
-dp_ber_sync (const float complex *rx, size_t n_rx, const uint8_t *truth,
+dp_ber_sync (const float _Complex *rx, size_t n_rx, const uint8_t *truth,
              size_t n_truth, const dp_ber_marker_t *mk, int m, long lag_span,
              double pfa)
 {
@@ -433,7 +433,7 @@ dp_ber_refresh (dp_ber_t *b)
  *  SAME window the error rate used. Composition over library primitives, not
  *  a second implementation of either. */
 static inline int
-dp_ber_evm_m2m4 (dp_ber_t *b, const float complex *rx, size_t lo, size_t hi)
+dp_ber_evm_m2m4 (dp_ber_t *b, const float _Complex *rx, size_t lo, size_t hi)
 {
   if (hi <= lo || hi - lo < 20)
     return 0;
@@ -492,7 +492,7 @@ dp_ber_enough (const dp_ber_t *b)
  * array; both land in `skipped`.
  */
 static inline void
-dp_ber_score (dp_ber_t *b, const float complex *rx, size_t lo, size_t hi,
+dp_ber_score (dp_ber_t *b, const float _Complex *rx, size_t lo, size_t hi,
               const uint8_t *truth, size_t n_truth, const dp_ber_marker_t *mk,
               const dp_ber_sync_t *sy)
 {
@@ -800,7 +800,7 @@ dp_ber_print (const char *label, const dp_ber_report_t *r)
  * @return         The per-burst report (also folded into @p b).
  */
 static inline dp_ber_report_t
-dp_ber_measure (dp_ber_t *b, const float complex *rx, size_t n_rx,
+dp_ber_measure (dp_ber_t *b, const float _Complex *rx, size_t n_rx,
                 const uint8_t *truth, size_t n_truth, double esn0_db,
                 size_t settle, int settled, const dp_ber_marker_t *mk)
 {

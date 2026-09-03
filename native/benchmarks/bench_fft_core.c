@@ -57,16 +57,16 @@ static const char *kind_name[N_KIND]
 int
 main (void)
 {
-  jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
-  static double   t[N_CFG][ITERATIONS];
-  fft_state_t    *plan[N_SIZE] = { 0 };
-  const size_t    n_max        = sizes[N_SIZE - 1];
-  float complex  *in32 = NULL, *out32 = NULL;
-  double complex *in64 = NULL, *out64 = NULL;
-  int16_t        *in16 = NULL;
-  int8_t         *in8  = NULL;
-  char            name[64];
+  jm_bench_t       _bench = { 0 };
+  struct timespec  t0, t1;
+  static double    t[N_CFG][ITERATIONS];
+  fft_state_t     *plan[N_SIZE] = { 0 };
+  const size_t     n_max        = sizes[N_SIZE - 1];
+  float _Complex  *in32 = NULL, *out32 = NULL;
+  double _Complex *in64 = NULL, *out64 = NULL;
+  int16_t         *in16 = NULL;
+  int8_t          *in8  = NULL;
+  char             name[64];
 
   in32  = malloc (n_max * sizeof *in32);
   out32 = malloc (n_max * sizeof *out32);
@@ -86,7 +86,7 @@ main (void)
           = cos (0.031 * (double)i) + 0.5 * cos (0.211 * (double)i);
       const double im
           = sin (0.031 * (double)i) + 0.5 * sin (0.211 * (double)i);
-      in32[i]         = (float complex) (re + im * I);
+      in32[i]         = (float _Complex) (re + im * I);
       in64[i]         = re + im * I;
       in16[2 * i]     = (int16_t)(re * 8000.0);
       in16[2 * i + 1] = (int16_t)(im * 8000.0);

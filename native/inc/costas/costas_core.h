@@ -24,7 +24,7 @@
  *
  * @code
  * costas_state_t *c = costas_create(0.05, 0.707, 0.01, 64, 0.0);
- * float complex sym[16];
+ * float _Complex sym[16];
  * size_t k = costas_steps(c, rx, rx_len, sym, 16);  // one prompt per symbol
  * double f = c->nco.norm_freq;                       // tracked residual
  * costas_destroy(c);
@@ -83,9 +83,9 @@ typedef struct {
     double zeta;             /**< damping factor (retained).               */
     double bn_fll;           /**< FLL-assist bandwidth (0 = pure PLL).     */
     double k_fll;            /**< derived FLL gain (per-symbol freq pull).  */
-    float complex acc;       /**< running coherent I&D accumulator.        */
+    float _Complex acc;       /**< running coherent I&D accumulator.        */
     size_t acc_n;            /**< samples accumulated into `acc`.          */
-    float complex prev;      /**< previous symbol's prompt (FLL cross).    */
+    float _Complex prev;      /**< previous symbol's prompt (FLL cross).    */
     int have_prev;           /**< prev valid (skip FLL on the 1st symbol). */
     double lock_metric;      /**< EMA of |Re P|/|P| (1 = locked).          */
     lockdet_state_t lock;    /**< decision rule on lock_metric: thresholds
@@ -122,8 +122,8 @@ void costas_init(costas_state_t *s, double bn, double zeta,
  * @param x  One input sample.
  * @return The de-rotated sample to feed the integrator.
  */
-JM_FORCEINLINE JM_HOT float complex
-costas_wipeoff(costas_state_t *s, float complex x)
+JM_FORCEINLINE JM_HOT float _Complex
+costas_wipeoff(costas_state_t *s, float _Complex x)
 {
     return x * conjf(lo_step(&s->nco));
 }
@@ -140,7 +140,7 @@ costas_wipeoff(costas_state_t *s, float complex x)
  * @param P  The dumped integrate-and-dump prompt for this symbol.
  */
 JM_FORCEINLINE JM_HOT void
-costas_update(costas_state_t *s, float complex P)
+costas_update(costas_state_t *s, float _Complex P)
 {
     float reP = crealf(P), imP = cimagf(P);
     float aP = cabsf(P) + COSTAS_EPS;
@@ -307,7 +307,7 @@ size_t costas_steps_max_out(costas_state_t *state);
  *
  * @endcode
  */
-size_t costas_steps(costas_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+size_t costas_steps(costas_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
 /**
  * @brief Recompute the loop-filter gains for a new (@p bn, @p zeta) without

@@ -45,8 +45,8 @@ extern "C"
    * (-1+0j)
    * @endcode
    */
-  JM_FORCEINLINE float complex
-  square_clip (float complex y, float lin)
+  JM_FORCEINLINE float _Complex
+  square_clip (float _Complex y, float lin)
   {
     float r = fminf (fmaxf (crealf (y), -lin), lin);
     float i = fminf (fmaxf (cimagf (y), -lin), lin);

@@ -85,10 +85,10 @@ main (void)
 
   /* ── 5. complex capture: tone at a negative frequency ── */
   {
-    float complex *xc
-        = (float complex *)malloc (NCAP * sizeof (float complex));
+    float _Complex *xc
+        = (float _Complex *)malloc (NCAP * sizeof (float _Complex));
     for (size_t i = 0; i < NCAP; i++)
-      xc[i] = (float complex) (
+      xc[i] = (float _Complex) (
           1.0 * cexp (-2.0 * I * M_PI * 137.0 * (double)i / (double)NCAP));
     r = tonemeas_analyze_complex (m, xc, NCAP);
     DP_CHECK (fabs (r.fund_freq - (-137.0 / NCAP)) < 2e-3);

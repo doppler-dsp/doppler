@@ -244,7 +244,7 @@ extern "C"
    *
    * @return EVM in dB, or 0.0 ("no lock") for a window under 20 symbols.
    */
-  double ber_evm_db (const float complex *rx, size_t rx_len, size_t lo,
+  double ber_evm_db (const float _Complex *rx, size_t rx_len, size_t lo,
                      size_t hi, int m);
 
   /**

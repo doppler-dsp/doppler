@@ -33,7 +33,7 @@
  * given per-quadrature sigma. Exactly the convention dp_ber_sync() resolves.
  */
 static void
-build (float complex *rx, size_t n_rx, const uint8_t *truth, size_t n_truth,
+build (float _Complex *rx, size_t n_rx, const uint8_t *truth, size_t n_truth,
        int m, long lag, double phase, double sigma, uint64_t *st)
 {
   double phi0 = mpsk_phi0 (m);
@@ -197,10 +197,10 @@ test_sync_resolves (void)
   {
     NSYM = 6000
   };
-  static uint8_t       truth[NSYM];
-  static float complex rx[NSYM];
-  uint64_t             st = 12345u;
-  int                  m  = 4;
+  static uint8_t truth[NSYM];
+  static float _Complex rx[NSYM];
+  uint64_t st = 12345u;
+  int      m  = 4;
 
   for (int i = 0; i < NSYM; i++)
     truth[i] = (uint8_t)(dp_xs64 (&st) % 4u);
@@ -257,11 +257,11 @@ test_sync_rejects_garbage (void)
   {
     NSYM = 4000
   };
-  static uint8_t       truth[NSYM], other[NSYM];
-  static float complex rx[NSYM];
-  uint64_t             st = 777u;
-  int                  m = 4, alarms = 0;
-  const int            trials = 50;
+  static uint8_t truth[NSYM], other[NSYM];
+  static float _Complex rx[NSYM];
+  uint64_t  st = 777u;
+  int       m = 4, alarms = 0;
+  const int trials = 50;
 
   for (int t = 0; t < trials; t++)
     {
@@ -324,13 +324,13 @@ test_score_counts_exactly (void)
   {
     NSYM = 4000
   };
-  static uint8_t       truth[NSYM];
-  static float complex rx[NSYM];
-  uint64_t             st = 24680u;
-  int                  m  = 4;
-  dp_ber_sync_t        sy;
-  dp_ber_marker_t      mk = { NULL, 256, 500, 0, 0 };
-  dp_ber_t             acc;
+  static uint8_t truth[NSYM];
+  static float _Complex rx[NSYM];
+  uint64_t        st = 24680u;
+  int             m  = 4;
+  dp_ber_sync_t   sy;
+  dp_ber_marker_t mk = { NULL, 256, 500, 0, 0 };
+  dp_ber_t        acc;
 
   for (int i = 0; i < NSYM; i++)
     truth[i] = (uint8_t)(dp_xs64 (&st) % 4u);
@@ -489,14 +489,14 @@ test_sanity_gate (void)
   {
     NSYM = 20000
   };
-  static uint8_t       truth[NSYM];
-  static float complex rx[NSYM];
-  uint64_t             st      = 99991u;
-  int                  m       = 4;
-  double               esn0_db = 10.3; /* QPSK's SER = 1e-3 anchor */
-  double               sigma   = sqrt (0.5 / pow (10.0, esn0_db / 10.0));
-  dp_ber_t             acc;
-  dp_ber_report_t      r;
+  static uint8_t truth[NSYM];
+  static float _Complex rx[NSYM];
+  uint64_t        st      = 99991u;
+  int             m       = 4;
+  double          esn0_db = 10.3; /* QPSK's SER = 1e-3 anchor */
+  double          sigma   = sqrt (0.5 / pow (10.0, esn0_db / 10.0));
+  dp_ber_t        acc;
+  dp_ber_report_t r;
 
   for (int i = 0; i < NSYM; i++)
     truth[i] = (uint8_t)(dp_xs64 (&st) % 4u);
@@ -601,13 +601,13 @@ test_inverse_sampling_loop (void)
   {
     NSYM = 4000
   };
-  static uint8_t       truth[NSYM];
-  static float complex rx[NSYM];
-  uint64_t             st      = 5150u;
-  int                  m       = 2;
-  double               esn0_db = 6.8; /* BPSK's SER = 1e-3 anchor */
-  double               sigma   = sqrt (0.5 / pow (10.0, esn0_db / 10.0));
-  double          theory = dp_ber_theory_ser (m, pow (10.0, esn0_db / 10.0));
+  static uint8_t truth[NSYM];
+  static float _Complex rx[NSYM];
+  uint64_t        st      = 5150u;
+  int             m       = 2;
+  double          esn0_db = 6.8; /* BPSK's SER = 1e-3 anchor */
+  double          sigma   = sqrt (0.5 / pow (10.0, esn0_db / 10.0));
+  double          theory  = dp_ber_theory_ser (m, pow (10.0, esn0_db / 10.0));
   dp_ber_t        acc;
   dp_ber_report_t r;
   int             bursts = 0;

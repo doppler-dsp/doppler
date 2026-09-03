@@ -36,7 +36,7 @@ _Costas loop state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  float complex | [**acc**](#variable-acc)  <br> |
+|  float \_Complex | [**acc**](#variable-acc)  <br> |
 |  size\_t | [**acc\_n**](#variable-acc_n)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
 |  double | [**bn\_fll**](#variable-bn_fll)  <br> |
@@ -47,7 +47,7 @@ _Costas loop state._ [More...](#detailed-description)
 |  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**lock**](#variable-lock)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  [**lo\_state\_t**](structlo__state__t.md) | [**nco**](#variable-nco)  <br> |
-|  float complex | [**prev**](#variable-prev)  <br> |
+|  float \_Complex | [**prev**](#variable-prev)  <br> |
 |  double | [**seed\_norm\_freq**](#variable-seed_norm_freq)  <br> |
 |  [**costas\_tlm\_t**](structcostas__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  size\_t | [**tsamps**](#variable-tsamps)  <br> |
@@ -111,7 +111,7 @@ Allocate with [**costas\_create()**](costas__core_8h.md#function-costas_create),
 ### variable acc 
 
 ```C++
-float complex costas_state_t::acc;
+float _Complex costas_state_t::acc;
 ```
 
 
@@ -311,7 +311,7 @@ integer carrier NCO (uint32 phase).
 ### variable prev 
 
 ```C++
-float complex costas_state_t::prev;
+float _Complex costas_state_t::prev;
 ```
 
 

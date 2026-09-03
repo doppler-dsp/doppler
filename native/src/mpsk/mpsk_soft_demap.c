@@ -11,7 +11,7 @@
 #include <float.h>
 
 void
-mpsk_soft_demap (const float complex *x, size_t x_len, float *llr,
+mpsk_soft_demap (const float _Complex *x, size_t x_len, float *llr,
                  size_t llr_len, int m, float n0)
 {
   const int nb = mpsk_bps (m);
@@ -22,7 +22,7 @@ mpsk_soft_demap (const float complex *x, size_t x_len, float *llr,
      cos/sin pair per point, which is why this function is the array face and
      there is no inline per-symbol twin -- a caller looping symbols would pay
      for the grid on every one of them. */
-  float complex pts[8];
+  float _Complex pts[8];
   for (int g = 0; g < m; g++)
     pts[g] = mpsk_constellation ((unsigned)g, m);
 

@@ -36,15 +36,15 @@ _DLL state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  float complex | [**acc\_e**](#variable-acc_e)  <br> |
-|  float complex | [**acc\_l**](#variable-acc_l)  <br> |
-|  float complex | [**acc\_o**](#variable-acc_o)  <br> |
-|  float complex | [**acc\_p**](#variable-acc_p)  <br> |
+|  float \_Complex | [**acc\_e**](#variable-acc_e)  <br> |
+|  float \_Complex | [**acc\_l**](#variable-acc_l)  <br> |
+|  float \_Complex | [**acc\_o**](#variable-acc_o)  <br> |
+|  float \_Complex | [**acc\_p**](#variable-acc_p)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
 |  double | [**chip\_pos**](#variable-chip_pos)  <br> |
-|  float complex \* | [**chunk\_e**](#variable-chunk_e)  <br> |
-|  float complex \* | [**chunk\_l**](#variable-chunk_l)  <br> |
-|  float complex \* | [**chunk\_p**](#variable-chunk_p)  <br> |
+|  float \_Complex \* | [**chunk\_e**](#variable-chunk_e)  <br> |
+|  float \_Complex \* | [**chunk\_l**](#variable-chunk_l)  <br> |
+|  float \_Complex \* | [**chunk\_p**](#variable-chunk_p)  <br> |
 |  const uint8\_t \* | [**code**](#variable-code)  <br> |
 |  [**nco\_state\_t**](structnco__state__t.md) | [**code\_nco**](#variable-code_nco)  <br> |
 |  double | [**code\_rate**](#variable-code_rate)  <br> |
@@ -53,10 +53,10 @@ _DLL state._ [More...](#detailed-description)
 |  double | [**inv\_tsamps**](#variable-inv_tsamps)  <br> |
 |  double | [**inv\_tsamps2**](#variable-inv_tsamps2)  <br> |
 |  double | [**inv\_tsamps\_sf**](#variable-inv_tsamps_sf)  <br> |
-|  float complex \* | [**last\_backward\_p**](#variable-last_backward_p)  <br> |
-|  float complex \* | [**last\_e**](#variable-last_e)  <br> |
+|  float \_Complex \* | [**last\_backward\_p**](#variable-last_backward_p)  <br> |
+|  float \_Complex \* | [**last\_e**](#variable-last_e)  <br> |
 |  double | [**last\_error**](#variable-last_error)  <br> |
-|  float complex \* | [**last\_l**](#variable-last_l)  <br> |
+|  float \_Complex \* | [**last\_l**](#variable-last_l)  <br> |
 |  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**lf**](#variable-lf)  <br> |
 |  [**lockdet\_state\_t**](structlockdet__state__t.md) | [**lock**](#variable-lock)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
@@ -79,7 +79,7 @@ _DLL state._ [More...](#detailed-description)
 |  size\_t | [**sf**](#variable-sf)  <br> |
 |  double | [**spacing**](#variable-spacing)  <br> |
 |  size\_t | [**sps**](#variable-sps)  <br> |
-|  float complex \* | [**sums**](#variable-sums)  <br> |
+|  float \_Complex \* | [**sums**](#variable-sums)  <br> |
 |  [**dll\_tlm\_t**](structdll__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
 
@@ -141,7 +141,7 @@ Allocate with [**dll\_create()**](dll__core_8h.md#function-dll_create) (copies t
 ### variable acc\_e 
 
 ```C++
-float complex dll_state_t::acc_e;
+float _Complex dll_state_t::acc_e;
 ```
 
 
@@ -159,7 +159,7 @@ early correlator accumulator.
 ### variable acc\_l 
 
 ```C++
-float complex dll_state_t::acc_l;
+float _Complex dll_state_t::acc_l;
 ```
 
 
@@ -177,7 +177,7 @@ late correlator accumulator.
 ### variable acc\_o 
 
 ```C++
-float complex dll_state_t::acc_o;
+float _Complex dll_state_t::acc_o;
 ```
 
 
@@ -195,7 +195,7 @@ offset (noise) correlator accumulator.
 ### variable acc\_p 
 
 ```C++
-float complex dll_state_t::acc_p;
+float _Complex dll_state_t::acc_p;
 ```
 
 
@@ -249,7 +249,7 @@ current prompt code phase, chips; DERIVED from code\_nco.phase on every dll\_acc
 ### variable chunk\_e 
 
 ```C++
-float complex* dll_state_t::chunk_e;
+float _Complex* dll_state_t::chunk_e;
 ```
 
 
@@ -267,7 +267,7 @@ this epoch's per-chunk early sums.
 ### variable chunk\_l 
 
 ```C++
-float complex* dll_state_t::chunk_l;
+float _Complex* dll_state_t::chunk_l;
 ```
 
 
@@ -285,7 +285,7 @@ this epoch's per-chunk late sums.
 ### variable chunk\_p 
 
 ```C++
-float complex* dll_state_t::chunk_p;
+float _Complex* dll_state_t::chunk_p;
 ```
 
 
@@ -445,7 +445,7 @@ double dll_state_t::inv_tsamps_sf;
 ### variable last\_backward\_p 
 
 ```C++
-float complex* dll_state_t::last_backward_p;
+float _Complex* dll_state_t::last_backward_p;
 ```
 
 
@@ -463,7 +463,7 @@ prev epoch's reversed-cumsum prompt; Python's `backward_sums`, saved from the PR
 ### variable last\_e 
 
 ```C++
-float complex* dll_state_t::last_e;
+float _Complex* dll_state_t::last_e;
 ```
 
 
@@ -498,7 +498,7 @@ last discriminator output (loop stress).
 ### variable last\_l 
 
 ```C++
-float complex* dll_state_t::last_l;
+float _Complex* dll_state_t::last_l;
 ```
 
 
@@ -903,7 +903,7 @@ samples per chip.
 ### variable sums 
 
 ```C++
-float complex* dll_state_t::sums;
+float _Complex* dll_state_t::sums;
 ```
 
 

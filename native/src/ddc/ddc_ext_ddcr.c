@@ -125,10 +125,10 @@ DdcrObj_execute (DdcrObject *self, PyObject *args, PyObject *kwds)
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float   *_ng0 = (const float *)PyArray_DATA (x_arr);
-      size_t         _ng1 = (size_t)PyArray_SIZE (x_arr);
-      float complex *_ng2 = (float complex *)PyArray_DATA (out_arr);
-      size_t         n_out;
+      const float    *_ng0 = (const float *)PyArray_DATA (x_arr);
+      size_t          _ng1 = (size_t)PyArray_SIZE (x_arr);
+      float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
+      size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
         n_out = ddcr_execute (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
@@ -155,7 +155,7 @@ DdcrObj_execute (DdcrObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (x_arr);
       return NULL;
     }
-  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
@@ -214,7 +214,7 @@ DdcrObj_execute_ctrl (DdcrObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (x_arr);
       return NULL;
     }
-  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
@@ -306,7 +306,7 @@ DdcrObj_execute_ctrl_push (DdcrObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out = ddcr_execute_ctrl_push (
           self->handle, x, rate_ctrl, freq_ctrl,
-          (float complex *)PyArray_DATA (out_arr), _cap);
+          (float _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -328,7 +328,7 @@ DdcrObj_execute_ctrl_push (DdcrObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = ddcr_execute_ctrl_push (self->handle, x, rate_ctrl, freq_ctrl,
                                          _d0, _cap);
   if ((size_t)n_out == _cap)

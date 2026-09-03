@@ -66,8 +66,8 @@ main (void)
 
   /* ── lifecycle ────────────────────────────────────────────────────── */
   {
-    float complex ref[N] = { 0 };
-    ref[0]               = 1.0f;
+    float _Complex ref[N] = { 0 };
+    ref[0]                = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 1, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
@@ -88,8 +88,8 @@ main (void)
    * The binding passes (size_t)-1 for the documented "ny*nx-1" default. *
    * It must clamp to N-1, not overflow the scratch sizing / OOB-read.   */
   {
-    float complex ref[N] = { 0 };
-    ref[0]               = 1.0f;
+    float _Complex ref[N] = { 0 };
+    ref[0]                = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 0, (size_t)-1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
@@ -111,8 +111,8 @@ main (void)
    * noise_lo=0 includes the peak so noise_est = 1/N > 0 and            *
    * test_stat = N >> 1.                                                 */
   {
-    float complex ref[N] = { 0 };
-    ref[0]               = 1.0f;
+    float _Complex ref[N] = { 0 };
+    ref[0]                = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 0, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
@@ -131,8 +131,8 @@ main (void)
 
   /* ── sub-frame push ──────────────────────────────────────────────── */
   {
-    float complex ref[N] = { 0 };
-    ref[0]               = 1.0f;
+    float _Complex ref[N] = { 0 };
+    ref[0]                = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 1, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
@@ -150,8 +150,8 @@ main (void)
 
   /* ── dwell=2 ─────────────────────────────────────────────────────── */
   {
-    float complex ref[N] = { 0 };
-    ref[0]               = 1.0f;
+    float _Complex ref[N] = { 0 };
+    ref[0]                = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 2, 1, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
@@ -169,10 +169,10 @@ main (void)
 
   /* ── 2-D shift: ref=δ[0,0] in=δ[1,0] → peak at (row=1, col=0) ──── */
   {
-    float complex ref[N] = { 0 };
-    float complex in[N]  = { 0 };
-    ref[0]               = 1.0f;
-    in[NX]               = 1.0f; /* row 1, col 0 */
+    float _Complex ref[N] = { 0 };
+    float _Complex in[N]  = { 0 };
+    ref[0]                = 1.0f;
+    in[NX]                = 1.0f; /* row 1, col 0 */
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 0, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
@@ -188,8 +188,8 @@ main (void)
 
   /* ── threshold gate ──────────────────────────────────────────────── */
   {
-    float complex ref[N] = { 0 };
-    ref[0]               = 1.0f;
+    float _Complex ref[N] = { 0 };
+    ref[0]                = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 1, 1, N - 1,
                                                  DET_NOISE_MEAN, 1000.0f, 1);
@@ -206,8 +206,8 @@ main (void)
 
   /* ── reset clears state ──────────────────────────────────────────── */
   {
-    float complex ref[N] = { 0 };
-    ref[0]               = 1.0f;
+    float _Complex ref[N] = { 0 };
+    ref[0]                = 1.0f;
 
     detector2d_state_t *det = detector2d_create (ref, NY, NX, 2, 1, N - 1,
                                                  DET_NOISE_MEAN, 0.0f, 1);
@@ -225,7 +225,7 @@ main (void)
 
   /* serializable state — corr2d child + ring residual + result fields. */
   {
-    float complex  ref[16], in[24];
+    float _Complex ref[16], in[24];
     det_result2d_t res[16];
     for (int i = 0; i < 16; i++)
       ref[i] = (float)(i % 4) + 0.5f * I;
@@ -256,8 +256,8 @@ main (void)
    * assertion that would notice if the forwarding were ever replaced by a
    * local copy that forgot the rule. */
   {
-    float complex ref[N] = { 0 };
-    ref[0]               = 1.0f;
+    float _Complex ref[N] = { 0 };
+    ref[0]                = 1.0f;
     DP_CHECK (
         detector2d_create (ref, NY, NX, 0, 1, N - 1, DET_NOISE_MEAN, 0.0f, 1)
         == NULL);
@@ -280,8 +280,8 @@ main (void)
    * the same surface by definition (a full sort for the median, not a
    * selection algorithm), so the two paths share no code. */
   {
-    float complex ref[N] = { 0 }, in[N];
-    ref[0]               = 1.0f;
+    float _Complex ref[N] = { 0 }, in[N];
+    ref[0]                = 1.0f;
     /* A surface with a clear peak and a spread of noise values, so the
        four modes give four DIFFERENT answers -- a flat window would let
        any of them pass as any other. */
@@ -348,10 +348,10 @@ main (void)
    * is the contract working, not a defect, and is now asserted rather than
    * tripped over. */
   {
-    float complex ref_a[N] = { 0 }, ref_b[N] = { 0 }, ref_2d[N] = { 0 };
-    float complex in[N] = { 0 };
-    ref_a[0]            = 1.0f; /* single-row: impulse at (0,0)  */
-    ref_b[2]            = 1.0f; /* single-row: impulse at (0,2)  */
+    float _Complex ref_a[N] = { 0 }, ref_b[N] = { 0 }, ref_2d[N] = { 0 };
+    float _Complex in[N] = { 0 };
+    ref_a[0]             = 1.0f; /* single-row: impulse at (0,0)  */
+    ref_b[2]             = 1.0f; /* single-row: impulse at (0,2)  */
     for (size_t k = 0; k < N; k++)
       ref_2d[k] = (float)(k % 5) + 1.0f; /* genuinely multi-row */
     in[0] = 1.0f;
@@ -419,7 +419,7 @@ main (void)
    * DIFFERENT position, and the last-dump position must follow it even
    * though nothing was emitted. */
   {
-    float complex ref[N] = { 0 }, in_a[N] = { 0 }, in_b[N] = { 0 };
+    float _Complex ref[N] = { 0 }, in_a[N] = { 0 }, in_b[N] = { 0 };
     ref[0]           = 1.0f;
     in_a[0]          = 1.0f; /* peak at (0,0) */
     in_b[2 * NX + 5] = 1.0f; /* peak at (2,5) */

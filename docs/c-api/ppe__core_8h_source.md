@@ -37,8 +37,8 @@ extern "C"
     size_t n_rate;   
     double drate;    
     fft_state_t   *fft;    
-    float complex *buf;    
-    float complex *spec;   
+    float _Complex *buf;    
+    float _Complex *spec;   
     float         *mag;    
     float         *win;    
     double        *rowpk;  
@@ -51,7 +51,7 @@ extern "C"
 
   void ppe_reset (ppe_state_t *state);
 
-  ppe_result_t ppe_estimate (ppe_state_t *state, const float complex *x,
+  ppe_result_t ppe_estimate (ppe_state_t *state, const float _Complex *x,
                              size_t n_in);
 
 #ifdef __cplusplus

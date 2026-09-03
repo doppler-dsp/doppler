@@ -71,15 +71,15 @@ static const char *const cfg_unit[N_CFG] = {
   "bit", "sym", "bit", "chip", "tap", "eval", "eval", "call", "bit",
 };
 
-static uint8_t       bits[N_BITS];
-static uint8_t       qsyms[N_BITS];
-static float complex map_out[N_BITS];
-static float complex syms[N_SYMS];
-static uint8_t       code[CODE_LEN];
-static float complex chips[(size_t)N_SYMS * SF];
-static float         taps[RRC_TAPS];
-static double        tvec[N_T], hout[N_T];
-static uint8_t       asm_out[32];
+static uint8_t bits[N_BITS];
+static uint8_t qsyms[N_BITS];
+static float _Complex map_out[N_BITS];
+static float _Complex syms[N_SYMS];
+static uint8_t code[CODE_LEN];
+static float _Complex chips[(size_t)N_SYMS * SF];
+static float   taps[RRC_TAPS];
+static double  tvec[N_T], hout[N_T];
+static uint8_t asm_out[32];
 
 static volatile double sink = 0.0;
 

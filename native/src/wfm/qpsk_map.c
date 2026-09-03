@@ -9,7 +9,7 @@
  * coding means adjacent constellation points differ in one bit.
  */
 void
-qpsk_map (const uint8_t *syms, size_t syms_len, float complex *out)
+qpsk_map (const uint8_t *syms, size_t syms_len, float _Complex *out)
 {
   const float s = (float)(1.0 / 1.4142135623730951);
   for (size_t i = 0; i < syms_len; i++)

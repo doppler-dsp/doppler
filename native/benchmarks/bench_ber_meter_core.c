@@ -53,8 +53,8 @@ main (void)
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
-  uint8_t       *truth = malloc (NSYM);
-  float complex *rx    = malloc (NSYM * sizeof *rx);
+  uint8_t        *truth = malloc (NSYM);
+  float _Complex *rx    = malloc (NSYM * sizeof *rx);
   if (!truth || !rx)
     return 1;
 

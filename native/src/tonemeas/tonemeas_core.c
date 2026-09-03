@@ -136,7 +136,7 @@ build_real (tonemeas_state_t *s, const float *x, size_t n_in)
 /* Average a complex capture over its segments, return the DC-centred two-sided
  * power into s->pwr[0..nfft).  Returns nfft, or 0 if no full frame. */
 static size_t
-build_complex (tonemeas_state_t *s, const float complex *x, size_t n_in)
+build_complex (tonemeas_state_t *s, const float _Complex *x, size_t n_in)
 {
   psd_reset (s->psd);
   psd_accumulate (s->psd, x, n_in);
@@ -335,7 +335,7 @@ tonemeas_analyze (tonemeas_state_t *state, const float *x, size_t n_in)
 }
 
 tone_meas_t
-tonemeas_analyze_complex (tonemeas_state_t *state, const float complex *x,
+tonemeas_analyze_complex (tonemeas_state_t *state, const float _Complex *x,
                           size_t n_in)
 {
   tone_meas_t r;

@@ -144,7 +144,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t burst_acq_push (burst_acq_state_t *state, const float complex *x,
+  size_t burst_acq_push (burst_acq_state_t *state, const float _Complex *x,
                          size_t n_in, acq_result_t *result,
                          size_t max_results);
 

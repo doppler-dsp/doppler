@@ -15,7 +15,7 @@ main (void)
 
   /* ── lifecycle ────────────────────────────────────────────────────── */
   {
-    float complex ref[16];
+    float _Complex ref[16];
     for (size_t i = 0; i < N; i++)
       ref[i] = 1.0f + 0.0f * I;
 
@@ -37,14 +37,14 @@ main (void)
    * With the FFT correlator the output is circular; the impulse at index 0
    * maps to lag 0 = index 0 in the output.                               */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f + 0.0f * I; /* unit impulse */
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f + 0.0f * I; /* unit impulse */
 
     corr_state_t *obj = corr_create (ref, N, 1, 1, 0);
     DP_CHECK (obj != NULL);
 
-    float complex out[16];
-    size_t        n_out = corr_execute (obj, ref, N, out, N);
+    float _Complex out[16];
+    size_t n_out = corr_execute (obj, ref, N, out, N);
 
     DP_CHECK (n_out == N); /* dwell=1 → always dumps */
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL)); /* peak at lag 0 */
@@ -59,7 +59,7 @@ main (void)
    * N · exp(j·2π·k₀·τ/N) — the same tone scaled by N; every lag has     *
    * equal magnitude N.  Verify a few lag values.                          */
   {
-    float complex ref[16];
+    float _Complex ref[16];
     for (size_t n = 0; n < N; n++)
       {
         float ph = 2.0f * 3.14159265358979f * 2.0f * (float)n / (float)N;
@@ -67,7 +67,7 @@ main (void)
       }
 
     corr_state_t *obj = corr_create (ref, N, 1, 1, 0);
-    float complex out[16];
+    float _Complex out[16];
     corr_execute (obj, ref, N, out, N);
 
     /* out[τ] = N · ref[τ]; magnitude at every lag should be N. */
@@ -85,11 +85,11 @@ main (void)
   /* ── integrate-and-dump: dwell=3 ─────────────────────────────────── *
    * First two calls return 0; third call returns n and resets counter.  */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f;
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f;
 
     corr_state_t *obj = corr_create (ref, N, 3, 1, 0);
-    float complex out[16];
+    float _Complex out[16];
 
     size_t n1 = corr_execute (obj, ref, N, out, N);
     DP_CHECK (n1 == 0);
@@ -116,11 +116,11 @@ main (void)
 
   /* ── corr_reset clears mid-dwell accumulation ─────────────────────── */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f;
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f;
 
     corr_state_t *obj = corr_create (ref, N, 4, 1, 0);
-    float complex out[16];
+    float _Complex out[16];
 
     corr_execute (obj, ref, N, out, N); /* count = 1 */
     corr_execute (obj, ref, N, out, N); /* count = 2 */
@@ -133,13 +133,13 @@ main (void)
 
   /* ── corr_set_ref recomputes and resets ───────────────────────────── */
   {
-    float complex ref_a[16] = { 0 };
-    float complex ref_b[16] = { 0 };
-    ref_a[0]                = 1.0f;
-    ref_b[1]                = 1.0f; /* impulse at lag 1 */
+    float _Complex ref_a[16] = { 0 };
+    float _Complex ref_b[16] = { 0 };
+    ref_a[0]                 = 1.0f;
+    ref_b[1]                 = 1.0f; /* impulse at lag 1 */
 
     corr_state_t *obj = corr_create (ref_a, N, 1, 1, 0);
-    float complex out[16];
+    float _Complex out[16];
 
     /* Correlate ref_b (impulse at 1) against ref_a (impulse at 0).
      * R[τ] = IFFT(FFT(δ[n-1]) · conj(FFT(δ[n]))) / N
@@ -158,9 +158,9 @@ main (void)
 
   /* ── max_out returns n_out (native = n) ────────────────────────────── */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f;
-    corr_state_t *obj     = corr_create (ref, N, 1, 1, 0);
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f;
+    corr_state_t *obj      = corr_create (ref, N, 1, 1, 0);
     DP_CHECK (corr_execute_max_out (obj) == N);
     corr_destroy (obj);
   }
@@ -169,16 +169,16 @@ main (void)
    * impulse ref, input shifted to lag 1 → native peak at 1; inverted on  *
    * a 16→32 grid, the peak lands at 1·32/16 = 2.                         */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f;
-    float complex in[16]  = { 0 };
-    in[1]                 = 1.0f;
-    corr_state_t *obj     = corr_create (ref, N, 1, 1, 32);
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f;
+    float _Complex in[16]  = { 0 };
+    in[1]                  = 1.0f;
+    corr_state_t *obj      = corr_create (ref, N, 1, 1, 32);
     DP_CHECK (obj->n_out == 32);
     DP_CHECK (corr_execute_max_out (obj) == 32);
 
-    float complex out[32];
-    size_t        no = corr_execute (obj, in, N, out, 32);
+    float _Complex out[32];
+    size_t no = corr_execute (obj, in, N, out, 32);
     DP_CHECK (no == 32);
     size_t pk = 0;
     for (size_t k = 1; k < 32; k++)
@@ -195,12 +195,12 @@ main (void)
      * served from a bounce buffer. The prefix must still be bit-identical to
      * the unclamped surface, which is what makes truncation a prefix rather
      * than a different answer. */
-    float complex ref[16] = { 0 }, in[16] = { 0 };
+    float _Complex ref[16] = { 0 }, in[16] = { 0 };
     ref[0]          = 1.0f;
     in[2]           = 1.0f;
     corr_state_t *a = corr_create (ref, 16, 1, 1, 0);
     corr_state_t *b = corr_create (ref, 16, 1, 1, 0);
-    float complex full[16], part[16];
+    float _Complex full[16], part[16];
     DP_CHECK (a != NULL && b != NULL);
     for (int i = 0; i < 16; i++)
       part[i] = 42.0f + 42.0f * I;
@@ -228,7 +228,7 @@ main (void)
   /* serializable state — accumulator + count resume; FFT plans + ref rebuilt.
    */
   {
-    float complex ref[16], in[16], out[16];
+    float _Complex ref[16], in[16], out[16];
     for (int i = 0; i < 16; i++)
       {
         ref[i] = (float)(i % 4) + 0.5f * I;

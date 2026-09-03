@@ -78,7 +78,7 @@ extern "C"
   }
 
   JM_FORCEINLINE double
-  agc_power_ (float complex y)
+  agc_power_ (float _Complex y)
   {
     double yr = (double)crealf (y), yi = (double)cimagf (y);
     return yr * yr + yi * yi;
@@ -130,8 +130,8 @@ void agc_destroy(agc_state_t *state);
 
 void agc_reset(agc_state_t *state);
 
-  JM_FORCEINLINE JM_HOT float complex
-  agc_step (agc_state_t *state, float complex x)
+  JM_FORCEINLINE JM_HOT float _Complex
+  agc_step (agc_state_t *state, float _Complex x)
   {
     /* Stage 1: linear-in-dB gain, held across the update period.  At the
      * start of each period (gain_phase == 0) refresh the linear gain from
@@ -144,7 +144,7 @@ void agc_reset(agc_state_t *state);
     size_t period = state->gain_update_period ? state->gain_update_period : 1;
     if (state->gain_phase == 0)
       state->g_last = agc_exp10_ (state->gain_db * 0.05);
-    float complex y = x * (float)state->g_last;
+    float _Complex y = x * (float)state->g_last;
 
     /* Stage 2: power detector — runs every sample (cheap, no transcendental).
      * Instantaneous output power folded into the EMA p_avg += alpha*(p-p_avg)
@@ -182,8 +182,8 @@ void agc_reset(agc_state_t *state);
     return square_clip (y, state->clip_lin);
   }
 
-  void agc_steps (agc_state_t *state, const float complex *input,
-                  float complex *output, size_t n);
+  void agc_steps (agc_state_t *state, const float _Complex *input,
+                  float _Complex *output, size_t n);
 
 double agc_get_applied_gain_db(const agc_state_t *state);
 

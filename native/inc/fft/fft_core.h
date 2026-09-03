@@ -9,7 +9,7 @@
  * Lifecycle:
  * @code
  * fft_state_t *fft = fft_create(1024, -1, 1);
- * double complex out[1024];
+ * double _Complex out[1024];
  * fft_execute_cf64(fft, in, 1024, out, 1024);
  * fft_destroy(fft);
  * @endcode
@@ -37,7 +37,7 @@ extern "C"
      *  for the widest element (CF64) so one buffer serves both plans.
      *  Allocated lazily -- max_out is n on every sized call, which is
      *  everything the Python binding and every in-tree caller does. */
-    double complex *work_trunc;
+    double _Complex *work_trunc;
   } fft_state_t;
 
   /**
@@ -97,15 +97,15 @@ extern "C"
    * [(1+0j), (1+0j), (1+0j), (1+0j)]
    * @endcode
    */
-  size_t fft_execute_cf64 (fft_state_t *state, const double complex *in,
-                           size_t n_in, double complex *out, size_t max_out);
+  size_t fft_execute_cf64 (fft_state_t *state, const double _Complex *in,
+                           size_t n_in, double _Complex *out, size_t max_out);
 
   /** @brief Maximum output samples for CF32 execute (always == n). */
   size_t fft_execute_cf32_max_out (fft_state_t *state);
 
   /**
    * @brief Compute an out-of-place 1-D DFT on a single-precision complex input.
-   * Identical to fft_execute_cf64() but operates on float complex (CF32)
+   * Identical to fft_execute_cf64() but operates on float _Complex (CF32)
    * buffers, halving memory bandwidth relative to the double-precision variant.
    * Output is unnormalised; @p in and @p out must not alias.
    *
@@ -126,8 +126,8 @@ extern "C"
    * [(4+0j), 0j, 0j, 0j]
    * @endcode
    */
-  size_t fft_execute_cf32 (fft_state_t *state, const float complex *in,
-                           size_t n_in, float complex *out, size_t max_out);
+  size_t fft_execute_cf32 (fft_state_t *state, const float _Complex *in,
+                           size_t n_in, float _Complex *out, size_t max_out);
 
   /** @brief Maximum output samples for inplace CF64 (always == n). */
   size_t fft_execute_inplace_cf64_max_out (fft_state_t *state);
@@ -157,8 +157,8 @@ extern "C"
    * @endcode
    */
   size_t fft_execute_inplace_cf64 (fft_state_t *state,
-                                   const double complex *in, size_t n_in,
-                                   double complex *out, size_t max_out);
+                                   const double _Complex *in, size_t n_in,
+                                   double _Complex *out, size_t max_out);
 
   /** @brief Maximum output samples for inplace CF32 (always == n). */
   size_t fft_execute_inplace_cf32_max_out (fft_state_t *state);
@@ -186,8 +186,8 @@ extern "C"
    * [(1+0j), (1+0j), (1+0j), (1+0j)]
    * @endcode
    */
-  size_t fft_execute_inplace_cf32 (fft_state_t *state, const float complex *in,
-                                   size_t n_in, float complex *out,
+  size_t fft_execute_inplace_cf32 (fft_state_t *state, const float _Complex *in,
+                                   size_t n_in, float _Complex *out,
                                    size_t max_out);
 
   /** @brief Maximum output samples for the ci16 execute (always == n). */
@@ -196,7 +196,7 @@ extern "C"
   /**
    * @brief Compute an out-of-place 1-D DFT directly on integer IQ (ci16).
    * @p in is interleaved int16 I/Q (2 ints per complex sample, length 2*n);
-   * the result is float complex (CF32).  The int->float scale (v/32768,
+   * the result is float _Complex (CF32).  The int->float scale (v/32768,
    * full-scale ±1.0, matching the cvt module) is folded into the transform's
    * input read, so this is a single fused pass — faster than a separate
    * i16_to_f32 conversion followed by fft_execute_cf32().  Output is
@@ -217,7 +217,7 @@ extern "C"
    * @endcode
    */
   size_t fft_execute_ci16 (fft_state_t *state, const int16_t *in, size_t n_in,
-                           float complex *out);
+                           float _Complex *out);
 
   /** @brief Maximum output samples for the ci8 execute (always == n). */
   size_t fft_execute_ci8_max_out (fft_state_t *state);
@@ -241,7 +241,7 @@ extern "C"
    * @endcode
    */
   size_t fft_execute_ci8 (fft_state_t *state, const int8_t *in, size_t n_in,
-                          float complex *out);
+                          float _Complex *out);
 
 #ifdef __cplusplus
 }

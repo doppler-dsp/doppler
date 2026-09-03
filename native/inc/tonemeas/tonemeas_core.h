@@ -148,7 +148,7 @@ tone_meas_t tonemeas_analyze(tonemeas_state_t *state, const float *x,
  * @endcode
  */
 tone_meas_t tonemeas_analyze_complex(tonemeas_state_t *state,
-                                     const float complex *x, size_t n_in);
+                                     const float _Complex *x, size_t n_in);
 
 /**
  * @brief Time-domain statistics of a real capture.

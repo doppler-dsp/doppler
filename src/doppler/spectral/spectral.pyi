@@ -93,7 +93,7 @@ class FFT:
         out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """Compute an out-of-place 1-D DFT on a single-precision complex input.
-        Identical to fft_execute_cf64() but operates on float complex (CF32)
+        Identical to fft_execute_cf64() but operates on float _Complex (CF32)
         buffers, halving memory bandwidth relative to the double-precision
         variant. Output is unnormalised; in and out must not alias.
 

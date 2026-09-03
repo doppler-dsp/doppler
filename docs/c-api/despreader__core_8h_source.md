@@ -65,11 +65,11 @@ extern "C"
 
   size_t despreader_steps_max_out (despreader_state_t *state);
 
-  size_t despreader_steps (despreader_state_t *state, const float complex *x,
-                           size_t x_len, float complex *out, size_t max_out);
+  size_t despreader_steps (despreader_state_t *state, const float _Complex *x,
+                           size_t x_len, float _Complex *out, size_t max_out);
   size_t despreader_bits_max_out (despreader_state_t *state);
 
-  size_t despreader_bits (despreader_state_t *state, const float complex *x,
+  size_t despreader_bits (despreader_state_t *state, const float _Complex *x,
                           size_t x_len, uint8_t *out, size_t max_out);
   double despreader_get_norm_freq (const despreader_state_t *state);
   void   despreader_set_norm_freq (despreader_state_t *state, double val);

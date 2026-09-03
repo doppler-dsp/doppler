@@ -316,7 +316,21 @@ wfm_synth_set_dsss_cont (wfm_synth_state_t *state, const uint8_t *code,
   state->bit_mod          = 1; /* chips are always BPSK (0 -> +1, 1 -> -1) */
   state->chip_n           = 0;
   state->sym_idx          = 0;
+  state->data_n           = 0;
   state->cur_data         = 0;
+  return 0;
+}
+
+int
+wfm_synth_set_dsss_window (wfm_synth_state_t *state, size_t code_only_epochs,
+                           size_t frame_epochs)
+{
+  if (state->wtype != WFM_SYNTH_DSSS)
+    return 0; /* no-op for every other type, same as set_dsss_cont */
+  if (frame_epochs && code_only_epochs > frame_epochs)
+    return -1;
+  state->code_only_epochs = code_only_epochs;
+  state->frame_epochs     = frame_epochs;
   return 0;
 }
 
@@ -387,6 +401,7 @@ wfm_synth_reset (wfm_synth_state_t *state)
   state->chirp_n      = 0;
   state->chip_n       = 0; /* rewind the continuous-DSSS chip/symbol clocks */
   state->sym_idx      = 0;
+  state->data_n       = 0;
   state->cur_data     = 0;
   if (state->fir)
     fir_reset (state->fir); /* clear the RRC delay line */
@@ -428,6 +443,7 @@ wfm_synth_state_bytes (const wfm_synth_state_t *s)
              + sizeof (uint64_t)                         /* chirp_n      */
              + sizeof (uint64_t)                         /* chip_n       */
              + sizeof (uint64_t)                         /* sym_idx      */
+             + sizeof (uint64_t)                         /* data_n       */
              + sizeof (uint8_t)                          /* cur_data     */
              + sizeof (uint8_t)                          /* primed       */
              + 5;                                        /* presence     */
@@ -458,6 +474,7 @@ wfm_synth_get_state (const wfm_synth_state_t *s, void *blob)
   dp_w_u64 (&_w, s->chirp_n);
   dp_w_u64 (&_w, s->chip_n);
   dp_w_u64 (&_w, s->sym_idx);
+  dp_w_u64 (&_w, s->data_n);
   dp_w_bytes (&_w, &s->cur_data, 1);
   dp_w_bytes (&_w, &s->primed, 1);
   uint8_t pres[5] = { s->fir != NULL, s->shaper != NULL, s->lo != NULL,
@@ -489,6 +506,7 @@ wfm_synth_set_state (wfm_synth_state_t *s, const void *blob)
   s->chirp_n      = (size_t)dp_r_u64 (&_r);
   s->chip_n       = dp_r_u64 (&_r);
   s->sym_idx      = dp_r_u64 (&_r);
+  s->data_n       = dp_r_u64 (&_r);
   dp_r_bytes (&_r, &s->cur_data, 1);
   dp_r_bytes (&_r, &s->primed, 1);
   uint8_t pres[5];

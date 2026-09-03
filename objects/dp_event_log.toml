@@ -82,7 +82,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 error = "OSError"
-error_message = "append: the event could not be written (the log is closed, or the write failed)"
+error_message = "append: the event could not be written (the log is closed, the write failed, or the event renders to 16 KiB or more)"
 params = [
   { name = "sample_start", type = "uint64_t" },
   { name = "label", type = "const char *" },
@@ -97,7 +97,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 error = "OSError"
-error_message = "finalize: the event file could not be read or the sidecar could not be written"
+error_message = "finalize: the event file could not be read, is not an event log (not a regular file, or a line of 16 KiB or more), or the sidecar could not be written"
 params = [
   # `const char *`, not `path`: jm's `path` pseudo-type reaches only
   # init_params and handle-method args (gh-515 fixed _build_no_state_init_ctx

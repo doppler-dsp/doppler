@@ -632,11 +632,11 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
 
   corr2d_state_t *new_corr          = NULL;
   fft_state_t    *new_fft           = NULL;
-  float complex  *new_ref           = NULL;
-  float complex  *new_yframe        = NULL;
-  float complex  *new_out           = NULL;
-  float complex  *new_colbuf        = NULL;
-  float complex  *new_colout        = NULL;
+  float _Complex *new_ref           = NULL;
+  float _Complex *new_yframe        = NULL;
+  float _Complex *new_out           = NULL;
+  float _Complex *new_colbuf        = NULL;
+  float _Complex *new_colout        = NULL;
   float          *new_mag           = NULL;
   float          *new_scratch       = NULL;
   float          *new_ncsurf        = NULL;
@@ -644,9 +644,9 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
   size_t          new_ring_cap      = st->ring_cap;
   fft_state_t    *new_wide_fwd      = NULL;
   fft_state_t    *new_wide_inv      = NULL;
-  float complex  *new_wide_ref_spec = NULL;
-  float complex  *new_wide_spec     = NULL;
-  float complex  *new_wide_prod     = NULL;
+  float _Complex *new_wide_ref_spec = NULL;
+  float _Complex *new_wide_spec     = NULL;
+  float _Complex *new_wide_prod     = NULL;
 
   if (grid_changed)
     {
@@ -654,7 +654,7 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
        * carries the replica (chip 0 -> +1, chip 1 -> -1, each held for spc
        * samples), the rest of the (possibly wideband-enlarged) buffer
        * zero. */
-      new_ref = (float complex *)calloc (new_n_surf, sizeof (float complex));
+      new_ref = (float _Complex *)calloc (new_n_surf, sizeof (float _Complex));
       if (!new_ref)
         goto fail;
       if (code)
@@ -665,7 +665,7 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
               new_ref[c * st->spc + s] = sign;
           }
       else
-        memcpy (new_ref, st->ref, cb * sizeof (float complex));
+        memcpy (new_ref, st->ref, cb * sizeof (float _Complex));
 
       /* The correlator works on the INTERPOLATED row count: its single-row
          fast path runs one length-cb FFT per row and never touches the row
@@ -683,12 +683,13 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
         goto fail;
 
       new_yframe
-          = (float complex *)malloc (new_n_surf * sizeof (float complex));
-      new_out = (float complex *)malloc (new_n_surf * sizeof (float complex));
-      new_colbuf  = (float complex *)calloc (new_db * new_interp,
-                                             sizeof (float complex));
-      new_colout  = (float complex *)malloc (new_db * new_interp
-                                             * sizeof (float complex));
+          = (float _Complex *)malloc (new_n_surf * sizeof (float _Complex));
+      new_out
+          = (float _Complex *)malloc (new_n_surf * sizeof (float _Complex));
+      new_colbuf  = (float _Complex *)calloc (new_db * new_interp,
+                                              sizeof (float _Complex));
+      new_colout  = (float _Complex *)malloc (new_db * new_interp
+                                              * sizeof (float _Complex));
       new_mag     = (float *)malloc (new_n_surf * sizeof (float));
       new_scratch = (float *)malloc (new_n_surf * sizeof (float));
       if (!new_yframe || !new_out || !new_colbuf || !new_colout || !new_mag
@@ -700,11 +701,11 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
           new_wide_fwd = fft_create (cb, -1, 1);
           new_wide_inv = fft_create (cb, +1, 1);
           new_wide_ref_spec
-              = (float complex *)malloc (cb * sizeof (float complex));
+              = (float _Complex *)malloc (cb * sizeof (float _Complex));
           new_wide_spec
-              = (float complex *)malloc (cb * sizeof (float complex));
+              = (float _Complex *)malloc (cb * sizeof (float _Complex));
           new_wide_prod
-              = (float complex *)malloc (cb * sizeof (float complex));
+              = (float _Complex *)malloc (cb * sizeof (float _Complex));
           if (!new_wide_fwd || !new_wide_inv || !new_wide_ref_spec
               || !new_wide_spec || !new_wide_prod)
             goto fail;
@@ -977,7 +978,7 @@ acq_reset (acq_state_t *st)
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
 size_t
-acq_push (acq_state_t *st, const float complex *x, size_t n_in,
+acq_push (acq_state_t *st, const float _Complex *x, size_t n_in,
           acq_result_t *result, size_t max_results)
 {
   size_t       ndet     = 0;
@@ -1010,9 +1011,9 @@ acq_push (acq_state_t *st, const float complex *x, size_t n_in,
           if (h - t < frame_n)
             break;
 
-          const float complex *frame
-              = (const float complex *)(st->ring->data
-                                        + (t & st->ring->mask) * 2);
+          const float _Complex *frame
+              = (const float _Complex *)(st->ring->data
+                                         + (t & st->ring->mask) * 2);
 
           size_t n_out;
           if (wideband)
@@ -1167,7 +1168,7 @@ acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
  *
  * Fixed flat layout (offsets depend only on the ring capacity), so the state
  * blob is portable POD:
- *   [hdr][ float complex unconsumed[ring_cap] ][ float nc_surface[n_surf] ]
+ *   [hdr][ float _Complex unconsumed[ring_cap] ][ float nc_surface[n_surf] ]
  * Only the first hdr.n_unconsumed of the unconsumed region holds data; that
  * may exceed n (undrained full frames from a max_results-saturated run,
  * preserved so the resume processes them).
@@ -1177,23 +1178,23 @@ acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
  */
 #define ACQ_BODY_OFF (sizeof (dp_state_hdr_t) + sizeof (acq_extra_t))
 
-static float complex *
+static float _Complex *
 acq_state_samples (void *blob)
 {
-  return (float complex *)((char *)blob + ACQ_BODY_OFF);
+  return (float _Complex *)((char *)blob + ACQ_BODY_OFF);
 }
 
 static float *
 acq_state_nc (void *blob, size_t ring_cap)
 {
   return (float *)((char *)blob + ACQ_BODY_OFF
-                   + ring_cap * sizeof (float complex));
+                   + ring_cap * sizeof (float _Complex));
 }
 
 size_t
 acq_state_bytes (const acq_state_t *st)
 {
-  size_t b = ACQ_BODY_OFF + st->ring_cap * sizeof (float complex);
+  size_t b = ACQ_BODY_OFF + st->ring_cap * sizeof (float _Complex);
   if (st->n_noncoh > 1)
     b += st->n_surf * sizeof (float);
   return b;
@@ -1218,7 +1219,7 @@ acq_get_state (const acq_state_t *st, void *blob)
                      .n_unconsumed     = (uint32_t)nun };
   dp_w_bytes (&w, &ex, sizeof ex);
 
-  float complex *dst = acq_state_samples (blob);
+  float _Complex *dst = acq_state_samples (blob);
   for (size_t i = 0; i < nun; i++)
     {
       size_t idx = (t + i) & st->ring->mask;
@@ -1249,7 +1250,7 @@ acq_set_state (acq_state_t *st, const void *blob)
   st->samples_consumed = ex.samples_consumed;
   st->nc_count         = ex.nc_count;
 
-  const float complex *src = acq_state_samples ((void *)blob);
+  const float _Complex *src = acq_state_samples ((void *)blob);
   if (ex.n_unconsumed > 0)
     dp_f32_write (st->ring, (const float *)src, ex.n_unconsumed);
 
@@ -1266,7 +1267,7 @@ acq_set_state (acq_state_t *st, const void *blob)
 
 size_t
 acq_run (acq_state_t *st, const void *state_in, void *state_out,
-         const float complex *in, size_t n_in, acq_result_t *result,
+         const float _Complex *in, size_t n_in, acq_result_t *result,
          size_t max_results)
 {
   if (state_in)

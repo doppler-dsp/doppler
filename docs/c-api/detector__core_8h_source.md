@@ -49,7 +49,7 @@ typedef struct
 {
   corr_state_t *corr;       
   dp_f32_t *ring;             
-  float complex *out_buf;   
+  float _Complex *out_buf;   
   float *mag_buf;           
   float *noise_scratch;     
   size_t n;                 
@@ -68,7 +68,7 @@ typedef struct
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
-detector_state_t *detector_create (const float complex *ref,
+detector_state_t *detector_create (const float _Complex *ref,
                                    size_t ref_len,
                                    size_t dwell, size_t noise_lo,
                                    size_t noise_hi,
@@ -79,13 +79,13 @@ void detector_destroy (detector_state_t *state);
 
 void detector_reset (detector_state_t *state);
 
-void detector_set_ref (detector_state_t *state, const float complex *ref);
+void detector_set_ref (detector_state_t *state, const float _Complex *ref);
 
 void detector_set_threshold (detector_state_t *state, float threshold);
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
 
-size_t detector_push (detector_state_t *state, const float complex *in,
+size_t detector_push (detector_state_t *state, const float _Complex *in,
                       size_t n_in, det_result_t *result, size_t max_results);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────

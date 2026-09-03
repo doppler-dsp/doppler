@@ -8,7 +8,8 @@
  * middle, high half at the end, with the Nyquist bin split for even n.
  * m == n is a copy.  Matches scipy.signal.resample to machine precision. */
 static void
-corr_zeropad_1d (const float complex *p, size_t n, float complex *q, size_t m)
+corr_zeropad_1d (const float _Complex *p, size_t n, float _Complex *q,
+                 size_t m)
 {
   if (m == n)
     {
@@ -29,7 +30,7 @@ corr_zeropad_1d (const float complex *p, size_t n, float complex *q, size_t m)
 }
 
 corr_state_t *
-corr_create (const float complex *ref, size_t n, size_t dwell, int nthreads,
+corr_create (const float _Complex *ref, size_t n, size_t dwell, int nthreads,
              size_t n_out)
 {
   corr_state_t *state = calloc (1, sizeof (*state)); /* NULL-init pointers */
@@ -57,7 +58,7 @@ corr_create (const float complex *ref, size_t n, size_t dwell, int nthreads,
 
   if (decoupled)
     {
-      state->work_pad = malloc (no * sizeof (float complex));
+      state->work_pad = malloc (no * sizeof (float _Complex));
       if (!state->work_pad)
         goto fail;
     }
@@ -130,7 +131,7 @@ corr_set_state (corr_state_t *s, const void *blob)
 }
 
 void
-corr_set_ref (corr_state_t *state, const float complex *ref)
+corr_set_ref (corr_state_t *state, const float _Complex *ref)
 {
   fft_execute_cf32 (state->fwd, ref, state->n, state->ref_spec, state->n);
   for (size_t k = 0; k < state->n; k++)
@@ -145,8 +146,8 @@ corr_execute_max_out (corr_state_t *state)
 }
 
 size_t
-corr_execute (corr_state_t *state, const float complex *in, size_t n_in,
-              float complex *out, size_t max_out)
+corr_execute (corr_state_t *state, const float _Complex *in, size_t n_in,
+              float _Complex *out, size_t max_out)
 {
   (void)n_in; /* must equal state->n; caller's responsibility */
 
@@ -167,7 +168,7 @@ corr_execute (corr_state_t *state, const float complex *in, size_t n_in,
       /* When n_out > n, zero-pad the accumulated spectrum first → band-limited
        * interpolation onto the finer grid; the normalization stays the native
        * 1/n (not 1/n_out) so the interpolated peak equals the native peak. */
-      const float complex *src = state->accum;
+      const float _Complex *src = state->accum;
       if (state->n_out != state->n)
         {
           corr_zeropad_1d (state->accum, state->n, state->work_pad,
@@ -181,12 +182,12 @@ corr_execute (corr_state_t *state, const float complex *in, size_t n_in,
        * still completes and the accumulator still resets, because the
        * frames have been consumed either way and pretending otherwise
        * would desynchronise `count` from the stream. */
-      size_t         n_out = state->n_out;
-      float complex *dst   = out;
+      size_t          n_out = state->n_out;
+      float _Complex *dst   = out;
       if (max_out < n_out)
         {
           if (!state->work_trunc)
-            state->work_trunc = (float complex *)dp_xcalloc (
+            state->work_trunc = (float _Complex *)dp_xcalloc (
                 state->n_out, sizeof *state->work_trunc);
           dst   = state->work_trunc;
           n_out = max_out;

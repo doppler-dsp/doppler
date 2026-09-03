@@ -24,7 +24,7 @@
  *
  * @code
  * awgn_state_t *g = awgn_create(42, 1.0f);
- * float complex out[1024];
+ * float _Complex out[1024];
  * awgn_generate(g, 1024, out, 1024);
  * awgn_destroy(g);
  * @endcode
@@ -185,7 +185,7 @@ extern "C"
    *
    * @param state  Generator state returned by awgn_create().
    * @param n      Number of samples to generate.
-   * @param out    Output buffer; must hold at least n float complex values.
+   * @param out    Output buffer; must hold at least n float _Complex values.
    * @param max_out Capacity of @p out in elements. Emission stops there, so
    *                the return value is the number actually written.
    * @return min(n, max_out) samples.
@@ -204,7 +204,7 @@ extern "C"
    * 1.0
    * @endcode
    */
-  size_t awgn_generate (awgn_state_t *state, size_t n, float complex *out,
+  size_t awgn_generate (awgn_state_t *state, size_t n, float _Complex *out,
                         size_t max_out);
 
   /**
@@ -224,7 +224,7 @@ extern "C"
    * @param out        Output buffer, capacity ≥ n.
    * @return DP_OK on success, DP_ERR_MEMORY on allocation failure.
    */
-  int awgn (uint64_t seed, float amplitude, size_t n, float complex *out);
+  int awgn (uint64_t seed, float amplitude, size_t n, float _Complex *out);
 
 #ifdef __cplusplus
 }

@@ -28,7 +28,7 @@
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
 
 fir_state_t *
-fir_create (const float complex *taps, size_t num_taps)
+fir_create (const float _Complex *taps, size_t num_taps)
 {
   if (!taps || num_taps == 0)
     return NULL;
@@ -37,18 +37,18 @@ fir_create (const float complex *taps, size_t num_taps)
   if (!f)
     return NULL;
 
-  f->taps = (float complex *)malloc (num_taps * sizeof (float complex));
+  f->taps = (float _Complex *)malloc (num_taps * sizeof (float _Complex));
   if (!f->taps)
     {
       free (f);
       return NULL;
     }
-  memcpy (f->taps, taps, num_taps * sizeof (float complex));
+  memcpy (f->taps, taps, num_taps * sizeof (float _Complex));
 
   if (num_taps > 1)
     {
       f->delay
-          = (float complex *)calloc (num_taps - 1, sizeof (float complex));
+          = (float _Complex *)calloc (num_taps - 1, sizeof (float _Complex));
       if (!f->delay)
         {
           free (f->taps);
@@ -82,7 +82,7 @@ fir_create_real (const float *taps, size_t num_taps)
   if (num_taps > 1)
     {
       f->delay
-          = (float complex *)calloc (num_taps - 1, sizeof (float complex));
+          = (float _Complex *)calloc (num_taps - 1, sizeof (float _Complex));
       if (!f->delay)
         {
           free (f->rtaps);
@@ -111,7 +111,7 @@ void
 fir_reset (fir_state_t *state)
 {
   if (state->delay && state->num_taps > 1)
-    memset (state->delay, 0, (state->num_taps - 1) * sizeof (float complex));
+    memset (state->delay, 0, (state->num_taps - 1) * sizeof (float _Complex));
 }
 
 /* ── Serializable state — standard envelope + delay line (num_taps-1
@@ -121,7 +121,7 @@ size_t
 fir_state_bytes (const fir_state_t *state)
 {
   size_t payload = (state->num_taps > 1)
-                       ? (state->num_taps - 1) * sizeof (float complex)
+                       ? (state->num_taps - 1) * sizeof (float _Complex)
                        : 0;
   return sizeof (dp_state_hdr_t) + payload;
 }
@@ -187,8 +187,8 @@ ensure_scratch (fir_state_t *f, size_t num_samples)
   size_t needed = (f->num_taps - 1) + num_samples;
   if (needed <= f->scratch_cap)
     return 0;
-  float complex *tmp
-      = (float complex *)realloc (f->scratch, needed * sizeof (float complex));
+  float _Complex *tmp = (float _Complex *)realloc (
+      f->scratch, needed * sizeof (float _Complex));
   if (!tmp)
     return -1;
   f->scratch     = tmp;
@@ -208,9 +208,9 @@ static const float fir_sign[16] __attribute__ ((aligned (64)))
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 JM_HOT static void
-inner_cf32 (const float complex *JM_RESTRICT buf,
-            const float complex *JM_RESTRICT h, size_t M,
-            float complex *JM_RESTRICT out, size_t N)
+inner_cf32 (const float _Complex *JM_RESTRICT buf,
+            const float _Complex *JM_RESTRICT h, size_t M,
+            float _Complex *JM_RESTRICT out, size_t N)
 {
   const __m512 SIGN = _mm512_load_ps (fir_sign);
   size_t       i    = 0;
@@ -249,9 +249,9 @@ inner_cf32 (const float complex *JM_RESTRICT buf,
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 JM_HOT static void
-inner_cf32 (const float complex *JM_RESTRICT buf,
-            const float complex *JM_RESTRICT h, size_t M,
-            float complex *JM_RESTRICT out, size_t N)
+inner_cf32 (const float _Complex *JM_RESTRICT buf,
+            const float _Complex *JM_RESTRICT h, size_t M,
+            float _Complex *JM_RESTRICT out, size_t N)
 {
   const ptrdiff_t iM = (ptrdiff_t)M;
   for (ptrdiff_t ii = 0; (size_t)ii < N; ii++)
@@ -290,9 +290,9 @@ inner_cf32 (const float complex *JM_RESTRICT buf,
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 JM_HOT static void
-inner_real_cf32 (const float complex *JM_RESTRICT buf,
+inner_real_cf32 (const float _Complex *JM_RESTRICT buf,
                  const float *JM_RESTRICT h, size_t M,
-                 float complex *JM_RESTRICT out, size_t N)
+                 float _Complex *JM_RESTRICT out, size_t N)
 {
   const size_t stride = JM_SIMD_WIDTH_F32 / 2;
   size_t       i      = 0;
@@ -322,9 +322,9 @@ inner_real_cf32 (const float complex *JM_RESTRICT buf,
 __attribute__ ((optimize ("no-aggressive-loop-optimizations")))
 #endif
 JM_HOT static void
-inner_real_cf32 (const float complex *JM_RESTRICT buf,
+inner_real_cf32 (const float _Complex *JM_RESTRICT buf,
                  const float *JM_RESTRICT h, size_t M,
-                 float complex *JM_RESTRICT out, size_t N)
+                 float _Complex *JM_RESTRICT out, size_t N)
 {
   const ptrdiff_t iM = (ptrdiff_t)M;
   for (ptrdiff_t ii = 0; (size_t)ii < N; ii++)
@@ -345,8 +345,8 @@ inner_real_cf32 (const float complex *JM_RESTRICT buf,
 /* ── Execute ────────────────────────────────────────────────────────────── */
 
 size_t
-fir_execute (fir_state_t *state, const float complex *in, size_t n_in,
-             float complex *out)
+fir_execute (fir_state_t *state, const float _Complex *in, size_t n_in,
+             float _Complex *out)
 {
   if (!state || !in || !out || n_in == 0)
     return 0;
@@ -355,8 +355,8 @@ fir_execute (fir_state_t *state, const float complex *in, size_t n_in,
 
   const size_t dly = state->num_taps - 1;
   if (dly)
-    memcpy (state->scratch, state->delay, dly * sizeof (float complex));
-  memcpy (state->scratch + dly, in, n_in * sizeof (float complex));
+    memcpy (state->scratch, state->delay, dly * sizeof (float _Complex));
+  memcpy (state->scratch + dly, in, n_in * sizeof (float _Complex));
 
   if (state->rtaps)
     inner_real_cf32 (state->scratch, state->rtaps, state->num_taps, out, n_in);
@@ -364,7 +364,8 @@ fir_execute (fir_state_t *state, const float complex *in, size_t n_in,
     inner_cf32 (state->scratch, state->taps, state->num_taps, out, n_in);
 
   if (dly)
-    memcpy (state->delay, state->scratch + n_in, dly * sizeof (float complex));
+    memcpy (state->delay, state->scratch + n_in,
+            dly * sizeof (float _Complex));
 
   return n_in;
 }

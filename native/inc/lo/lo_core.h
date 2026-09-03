@@ -45,7 +45,7 @@
  *
  * @code
  * lo_state_t *lo = lo_create(0.25);
- * float complex out[4];
+ * float _Complex out[4];
  * lo_steps (lo, 4, out, 4);
  * // out ≈ { 1+0j, 0+1j, -1+0j, 0-1j }
  * lo_destroy(lo);
@@ -130,14 +130,14 @@ extern "C"
    * @code
    * lo_state_t lo;            // embedded by value, no heap
    * lo_init (&lo, 0.25);
-   * float complex s0 = lo_step (&lo);   // 1 + 0j
-   * float complex s1 = lo_step (&lo);   // 0 + 1j
+   * float _Complex s0 = lo_step (&lo);   // 1 + 0j
+   * float _Complex s1 = lo_step (&lo);   // 0 + 1j
    * @endcode
    */
-  JM_FORCEINLINE JM_HOT float complex lo_step (lo_state_t *state)
+  JM_FORCEINLINE JM_HOT float _Complex lo_step (lo_state_t *state)
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
-    float complex out
+    float _Complex out
         = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                   lo_sin_lut[idx]);
     state->phase += state->phase_inc;
@@ -162,14 +162,14 @@ extern "C"
    * @code
    * lo_state_t lo;
    * lo_init (&lo, 0.0);                 // centre at DC
-   * float complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
+   * float _Complex s = lo_step_ctrl (&lo, 0.01);  // step at +0.01 cyc/sample
    * @endcode
    */
-  JM_FORCEINLINE JM_HOT float complex lo_step_ctrl (lo_state_t *state,
+  JM_FORCEINLINE JM_HOT float _Complex lo_step_ctrl (lo_state_t *state,
                                                     double ctrl)
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
-    float complex out
+    float _Complex out
         = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                   lo_sin_lut[idx]);
     /* nco_norm_freq_to_inc() is the ONE shared cycles->phase-delta
@@ -311,7 +311,7 @@ extern "C"
    *
    * @param state  LO state returned by lo_create().
    * @param n      Number of phasors to generate.
-   * @param out    Output buffer; must hold at least n float complex values.
+   * @param out    Output buffer; must hold at least n float _Complex values.
    * @param max_out Capacity of @p out in elements. Emission stops there, so
    *                the return value is the number actually written.
    * @return min(n, max_out) samples.
@@ -327,7 +327,7 @@ extern "C"
    * [1.0, 1.0, 1.0, 1.0]
    * @endcode
    */
-  size_t lo_steps (lo_state_t *state, size_t n, float complex *out,
+  size_t lo_steps (lo_state_t *state, size_t n, float _Complex *out,
                    size_t max_out);
 
   size_t lo_steps_ctrl_max_out (lo_state_t *state);
@@ -348,7 +348,7 @@ extern "C"
    *                  contributes.  See nco_steps_u32_ctrl() on why the
    *                  port is `double` and not float32.
    * @param ctrl_len  Number of elements in ctrl; equals output length.
-   * @param out       Output buffer; must hold at least ctrl_len float complex
+   * @param out       Output buffer; must hold at least ctrl_len float _Complex
    *                  values.
    * @param max_out Capacity of @p out in elements. Emission stops there, so
    *                the return value is the number actually written.
@@ -368,7 +368,7 @@ extern "C"
    * @endcode
    */
   size_t lo_steps_ctrl (lo_state_t *state, const double *ctrl, size_t ctrl_len,
-                        float complex *out, size_t max_out);
+                        float _Complex *out, size_t max_out);
 
 #ifdef __cplusplus
 }

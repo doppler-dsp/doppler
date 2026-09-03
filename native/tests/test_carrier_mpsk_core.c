@@ -26,21 +26,21 @@
  * (cycles/sample), optional per-sample frequency ramp, and optional AWGN
  * sigma per component.  Records the Gray labels used in `labels`. */
 static void
-make_signal (float complex *rx, int *labels, size_t nsym, size_t tsamps, int m,
-             double f0, double ramp, float sigma, uint32_t seed)
+make_signal (float _Complex *rx, int *labels, size_t nsym, size_t tsamps,
+             int m, double f0, double ramp, float sigma, uint32_t seed)
 {
   uint32_t bst = seed, nst = seed ^ 0x9e3779b9u;
   double   phase = 0.0, w = f0 * 2.0 * M_PI;
   size_t   k = 0;
   for (size_t s = 0; s < nsym; s++)
     {
-      int g            = (int)(dp_xs32 (&bst) % (uint32_t)m);
-      labels[s]        = g;
-      float complex pt = mpsk_constellation (g, m);
+      int g             = (int)(dp_xs32 (&bst) % (uint32_t)m);
+      labels[s]         = g;
+      float _Complex pt = mpsk_constellation (g, m);
       for (size_t i = 0; i < tsamps; i++, k++)
         {
-          float complex c = cexpf ((float)phase * I);
-          rx[k]           = pt * c;
+          float _Complex c = cexpf ((float)phase * I);
+          rx[k]            = pt * c;
           if (sigma > 0.0f)
             {
               /* Sequenced: CMPLXF's two arguments are
@@ -67,9 +67,9 @@ make_signal (float complex *rx, int *labels, size_t nsym, size_t tsamps, int m,
  * equivalence it used to assume (nearest in phase == nearest by Euclidean
  * distance on the unit circle) is proven in test_mpsk_core.c §5b instead. */
 static int
-nearest_label (float complex y, int m)
+nearest_label (float _Complex y, int m)
 {
-  float complex ahat;
+  float _Complex ahat;
   return (int)mpsk_slice (y, m, &ahat);
 }
 
@@ -77,19 +77,19 @@ nearest_label (float complex y, int m)
  * symbol-error count over the converged tail (min over the m global
  * phase rotations the loop may have locked onto). */
 static void
-run (carrier_mpsk_state_t *c, const float complex *rx, const int *labels,
+run (carrier_mpsk_state_t *c, const float _Complex *rx, const int *labels,
      size_t nsym, size_t tsamps, int m, double *out_freq, double *out_lock,
      int *out_symerr)
 {
-  float complex *sym = malloc (nsym * sizeof (*sym));
-  size_t         k   = carrier_mpsk_steps (c, rx, nsym * tsamps, sym, nsym);
-  *out_freq          = carrier_mpsk_get_norm_freq (c);
-  *out_lock          = carrier_mpsk_get_lock_metric (c);
-  size_t tail0       = k / 2;
-  int    best        = (int)(k - tail0) + 1;
+  float _Complex *sym = malloc (nsym * sizeof (*sym));
+  size_t          k   = carrier_mpsk_steps (c, rx, nsym * tsamps, sym, nsym);
+  *out_freq           = carrier_mpsk_get_norm_freq (c);
+  *out_lock           = carrier_mpsk_get_lock_metric (c);
+  size_t tail0        = k / 2;
+  int    best         = (int)(k - tail0) + 1;
   for (int r = 0; r < m; r++)
     {
-      float complex rot
+      float _Complex rot
           = cexpf (-2.0f * (float)M_PI * (float)r / (float)m * I);
       int err = 0;
       for (size_t s = tail0; s < k; s++)
@@ -144,11 +144,11 @@ main (void)
    * 2a. Pull-in — BPSK & QPSK lock a grid of residuals (pure PLL)   *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 4000;
-    float complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
-    int           *labels = malloc (nsym * sizeof (*labels));
-    int            ms[]   = { 2, 4 };
-    double         f0s[]  = { 0.0, 0.001, -0.0012 };
+    const size_t    tsamps = 16, nsym = 4000;
+    float _Complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
+    int            *labels = malloc (nsym * sizeof (*labels));
+    int             ms[]   = { 2, 4 };
+    double          f0s[]  = { 0.0, 0.001, -0.0012 };
     for (int mi = 0; mi < 2; mi++)
       for (int t = 0; t < 3; t++)
         {
@@ -173,9 +173,9 @@ main (void)
    * discriminator needs the wide frequency discriminator to acquire) *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 6000;
-    float complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
-    int           *labels = malloc (nsym * sizeof (*labels));
+    const size_t    tsamps = 16, nsym = 6000;
+    float _Complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
+    int            *labels = malloc (nsym * sizeof (*labels));
     make_signal (rx, labels, nsym, tsamps, 8, 0.0015, 0.0, 0.0f, 71u);
     carrier_mpsk_state_t *c
         = carrier_mpsk_create (0.05, 0.707, 0.0, tsamps, 0.01, 8);
@@ -195,9 +195,9 @@ main (void)
    * (run() scores ambiguity-tolerant; assert zero on a fresh seed)   *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 3000;
-    float complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
-    int           *labels = malloc (nsym * sizeof (*labels));
+    const size_t    tsamps = 16, nsym = 3000;
+    float _Complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
+    int            *labels = malloc (nsym * sizeof (*labels));
     make_signal (rx, labels, nsym, tsamps, 4, 0.002, 0.0, 0.0f, 909u);
     carrier_mpsk_state_t *c
         = carrier_mpsk_create (0.05, 0.707, 0.0, tsamps, 0.0, 4);
@@ -216,9 +216,9 @@ main (void)
    * after the tsamps-fold coherent integration)                      *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 5000;
-    float complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
-    int           *labels = malloc (nsym * sizeof (*labels));
+    const size_t    tsamps = 16, nsym = 5000;
+    float _Complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
+    int            *labels = malloc (nsym * sizeof (*labels));
     make_signal (rx, labels, nsym, tsamps, 4, 0.0015, 0.0, 0.6f, 2024u);
     carrier_mpsk_state_t *c
         = carrier_mpsk_create (0.03, 0.707, 0.0, tsamps, 0.0, 4);
@@ -237,10 +237,10 @@ main (void)
    * 5. FLL assist widens pull-in beyond the bare PLL (QPSK)          *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 6000;
-    float complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
-    int           *labels = malloc (nsym * sizeof (*labels));
-    double         f0     = 0.006;
+    const size_t    tsamps = 16, nsym = 6000;
+    float _Complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
+    int            *labels = malloc (nsym * sizeof (*labels));
+    double          f0     = 0.006;
     make_signal (rx, labels, nsym, tsamps, 4, f0, 0.0, 0.0f, 31u);
     double f, lk;
     int    se;
@@ -267,9 +267,9 @@ main (void)
    * 6. Reset reproducibility — run #2 == run #1 after reset          *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 1500;
-    float complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
-    int           *labels = malloc (nsym * sizeof (*labels));
+    const size_t    tsamps = 16, nsym = 1500;
+    float _Complex *rx     = malloc (nsym * tsamps * sizeof (*rx));
+    int            *labels = malloc (nsym * sizeof (*labels));
     make_signal (rx, labels, nsym, tsamps, 8, 0.001, 0.0, 0.0f, 55u);
     carrier_mpsk_state_t *c
         = carrier_mpsk_create (0.05, 0.707, 0.0, tsamps, 0.01, 8);

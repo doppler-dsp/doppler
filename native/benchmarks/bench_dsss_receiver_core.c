@@ -29,8 +29,7 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
          + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
 }
 
-static float complex
-cgauss (uint32_t *st)
+static float _Complex cgauss (uint32_t *st)
 {
   *st ^= *st << 13;
   *st ^= *st >> 17;
@@ -61,8 +60,8 @@ main (void)
   {
     dsss_receiver_state_t *rx = dsss_receiver_create (
         CODE7, 7, 1.0e6, 35714.29, 4, 2, 45.0, 1e-2, 0.9, 500.0, 4, 8, 0);
-    float complex *x   = calloc (BENCH_N, sizeof *x);
-    float complex *out = malloc (BENCH_N * sizeof *out);
+    float _Complex *x   = calloc (BENCH_N, sizeof *x);
+    float _Complex *out = malloc (BENCH_N * sizeof *out);
     dsss_receiver_steps (rx, x, BENCH_N, out, BENCH_N); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
@@ -100,12 +99,12 @@ main (void)
     for (size_t i = 0; i < sf; i++)
       csign[i] = CODE7[i] & 1 ? -1.0f : 1.0f;
 
-    uint32_t       st      = 7;
-    float complex *x       = calloc (total, sizeof *x);
-    double         amp_snr = sqrt (pow (10.0, 90.0 / 10.0) / fs);
-    double         sigma   = 1.0 / amp_snr;
+    uint32_t        st      = 7;
+    float _Complex *x       = calloc (total, sizeof *x);
+    double          amp_snr = sqrt (pow (10.0, 90.0 / 10.0) / fs);
+    double          sigma   = 1.0 / amp_snr;
     for (size_t i = 0; i < total; i++)
-      x[i] = (float complex) (sigma / sqrt (2.0)) * cgauss (&st);
+      x[i] = (float _Complex) (sigma / sqrt (2.0)) * cgauss (&st);
     for (size_t idx = 0; idx < n_track; idx++)
       {
         double si  = (((size_t)((double)idx / tsym)) % 2 == 0) ? 1.0 : -1.0;
@@ -115,8 +114,8 @@ main (void)
 
     dsss_receiver_state_t *rx = dsss_receiver_create (
         CODE7, sf, 1.0e6, sym_rate, spc, 2, 45.0, 1e-2, 0.9, 500.0, 4, 8, 0);
-    float complex *out = malloc (BENCH_N * sizeof *out);
-    size_t         pos = 0;
+    float _Complex *out = malloc (BENCH_N * sizeof *out);
+    size_t          pos = 0;
     /* stream until locked (search cost not timed) */
     while (!dsss_receiver_get_tracking (rx) && pos + te <= total)
       {

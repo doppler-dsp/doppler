@@ -53,7 +53,7 @@ _The receiver's loops: timing, carrier, demapper._
 |  unsigned | [**prev\_idx**](#variable-prev_idx)  <br> |
 |  double | [**sps**](#variable-sps)  <br> |
 |  size\_t | [**sym\_count**](#variable-sym_count)  <br> |
-|  float complex | [**sym\_rot**](#variable-sym_rot)  <br> |
+|  float \_Complex | [**sym\_rot**](#variable-sym_rot)  <br> |
 |  [**ratesync\_loop\_t**](structratesync__loop__t.md) | [**timing**](#variable-timing)  <br> |
 |  [**mpsk\_rx\_tlm\_t**](structmpsk__rx__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
@@ -415,7 +415,7 @@ symbols emitted; also dates `lock_time`.
 ### variable sym\_rot 
 
 ```C++
-float complex mpsk_rx_loops_t::sym_rot;
+float _Complex mpsk_rx_loops_t::sym_rot;
 ```
 
 

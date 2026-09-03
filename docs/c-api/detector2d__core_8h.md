@@ -65,12 +65,12 @@ _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump,
 
 | Type | Name |
 | ---: | :--- |
-|  [**detector2d\_state\_t**](structdetector2d__state__t.md) \* | [**detector2d\_create**](#function-detector2d_create) (const float complex \* ref, size\_t ny, size\_t nx, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of_ [_**detector\_create()**_](detector__core_8h.md#function-detector_create) _. Input frames are flat row-major CF32 arrays of length ny\*nx streamed through a ring buffer. On every int-dump the peak flat index is decomposed into (row, col) and a_[_**det\_result2d\_t**_](structdet__result2d__t.md) _is emitted when test\_stat &gt; threshold. The Python wrapper accepts a (ny, nx) CF32 ndarray for both_`ref` _and the push input._ |
+|  [**detector2d\_state\_t**](structdetector2d__state__t.md) \* | [**detector2d\_create**](#function-detector2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, size\_t noise\_lo, size\_t noise\_hi, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) noise\_mode, float threshold, int nthreads) <br>_Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of_ [_**detector\_create()**_](detector__core_8h.md#function-detector_create) _. Input frames are flat row-major CF32 arrays of length ny\*nx streamed through a ring buffer. On every int-dump the peak flat index is decomposed into (row, col) and a_[_**det\_result2d\_t**_](structdet__result2d__t.md) _is emitted when test\_stat &gt; threshold. The Python wrapper accepts a (ny, nx) CF32 ndarray for both_`ref` _and the push input._ |
 |  void | [**detector2d\_destroy**](#function-detector2d_destroy) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state) <br>_Destroy and free._  |
 |  void | [**detector2d\_get\_state**](#function-detector2d_get_state) (const [**detector2d\_state\_t**](structdetector2d__state__t.md) \* state, void \* blob) <br> |
-|  size\_t | [**detector2d\_push**](#function-detector2d_push) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state, const float complex \* in, size\_t n\_in, [**det\_result2d\_t**](structdet__result2d__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the 2-D detector. Identical to_ [_**detector\_push()**_](detector__core_8h.md#function-detector_push) _except frames are ny\*nx complex samples and each detection event carries (row, col) for the peak location instead of a single lag index. In Python the result is always a list of (row, col, peak\_mag, noise\_est, test\_stat) tuples._ |
+|  size\_t | [**detector2d\_push**](#function-detector2d_push) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, [**det\_result2d\_t**](structdet__result2d__t.md) \* result, size\_t max\_results) <br>_Stream an arbitrary-length CF32 chunk through the 2-D detector. Identical to_ [_**detector\_push()**_](detector__core_8h.md#function-detector_push) _except frames are ny\*nx complex samples and each detection event carries (row, col) for the peak location instead of a single lag index. In Python the result is always a list of (row, col, peak\_mag, noise\_est, test\_stat) tuples._ |
 |  void | [**detector2d\_reset**](#function-detector2d_reset) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state) <br>_Reset the 2-D correlator, ring buffer, and last-corr flag. Discards any partial frame buffered in the ring and zeroes the coherent accumulator. The reference spectrum and FFT plans are preserved._  |
-|  int | [**detector2d\_set\_ref**](#function-detector2d_set_ref) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state, const float complex \* ref) <br>_Replace the reference image and recompute its spectrum._  |
+|  int | [**detector2d\_set\_ref**](#function-detector2d_set_ref) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference image and recompute its spectrum._  |
 |  int | [**detector2d\_set\_state**](#function-detector2d_set_state) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state, const void \* blob) <br> |
 |  void | [**detector2d\_set\_threshold**](#function-detector2d_set_threshold) ([**detector2d\_state\_t**](structdetector2d__state__t.md) \* state, float threshold) <br>_Change threshold without rebuilding._  |
 |  size\_t | [**detector2d\_state\_bytes**](#function-detector2d_state_bytes) (const [**detector2d\_state\_t**](structdetector2d__state__t.md) \* state) <br> |
@@ -120,7 +120,7 @@ Detection events: [**det\_result2d\_t**](structdet__result2d__t.md) = { row, col
 
 Lifecycle: 
 ```C++
-float complex ref[NY * NX] = { ... };
+float _Complex ref[NY * NX] = { ... };
 detector2d_state_t *det = detector2d_create(ref, NY, NX, 1,
     0, NY*NX-1, DET_NOISE_MEAN, 0.0f, 1);
 det_result2d_t results[64];
@@ -166,7 +166,7 @@ enum det_noise_mode_t {
 _Allocate a 2-D streaming signal detector backed by a 2-D correlator. Two-dimensional extension of_ [_**detector\_create()**_](detector__core_8h.md#function-detector_create) _. Input frames are flat row-major CF32 arrays of length ny\*nx streamed through a ring buffer. On every int-dump the peak flat index is decomposed into (row, col) and a_[_**det\_result2d\_t**_](structdet__result2d__t.md) _is emitted when test\_stat &gt; threshold. The Python wrapper accepts a (ny, nx) CF32 ndarray for both_`ref` _and the push input._
 ```C++
 detector2d_state_t * detector2d_create (
-    const float complex * ref,
+    const float _Complex * ref,
     size_t ny,
     size_t nx,
     size_t dwell,
@@ -270,7 +270,7 @@ _Stream an arbitrary-length CF32 chunk through the 2-D detector. Identical to_ [
 ```C++
 size_t detector2d_push (
     detector2d_state_t * state,
-    const float complex * in,
+    const float _Complex * in,
     size_t n_in,
     det_result2d_t * result,
     size_t max_results
@@ -358,7 +358,7 @@ _Replace the reference image and recompute its spectrum._
 ```C++
 int detector2d_set_ref (
     detector2d_state_t * state,
-    const float complex * ref
+    const float _Complex * ref
 ) 
 ```
 

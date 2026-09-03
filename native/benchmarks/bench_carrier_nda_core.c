@@ -40,8 +40,8 @@ report (const char *name, const double *times)
 int
 main (void)
 {
-  float complex *in  = malloc (BENCH_N * sizeof (*in));
-  float complex *out = malloc (BENCH_N * sizeof (*out));
+  float _Complex *in  = malloc (BENCH_N * sizeof (*in));
+  float _Complex *out = malloc (BENCH_N * sizeof (*out));
   if (!in || !out)
     {
       fprintf (stderr, "OOM\n");
@@ -49,7 +49,7 @@ main (void)
     }
   /* A rotating carrier — the per-sample loop work is data-independent. */
   for (int i = 0; i < BENCH_N; i++)
-    in[i] = (float complex)cexp (I * TWOPI * 0.002 * (double)i);
+    in[i] = (float _Complex)cexp (I * TWOPI * 0.002 * (double)i);
 
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
@@ -64,8 +64,8 @@ main (void)
     volatile float       sink = 0.0f;
     for (int i = 0; i < 16; i++) /* warmup */
       {
-        float complex d = carrier_nda_wipeoff (c, in[i]);
-        double        pe, lk;
+        float _Complex d = carrier_nda_wipeoff (c, in[i]);
+        double pe, lk;
         if (carrier_nda_arm_step (c, d, &pe, &lk))
           carrier_nda_steer (c, pe);
         sink += crealf (d);
@@ -76,8 +76,8 @@ main (void)
         clock_gettime (CLOCK_MONOTONIC, &t0);
         for (int i = 0; i < BENCH_N; i++)
           {
-            float complex d = carrier_nda_wipeoff (c, in[i]);
-            double        pe, lk;
+            float _Complex d = carrier_nda_wipeoff (c, in[i]);
+            double pe, lk;
             if (carrier_nda_arm_step (c, d, &pe, &lk))
               carrier_nda_steer (c, pe);
             out[i] = d;

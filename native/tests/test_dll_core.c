@@ -38,7 +38,7 @@ make_code (uint8_t *code, size_t sf, uint32_t seed)
  * data-symbol vs code-period async). `sps` samples per nominal chip. Returns
  * the sample count. */
 static size_t
-make_signal (float complex *rx, const uint8_t *code, size_t sf, size_t sps,
+make_signal (float _Complex *rx, const uint8_t *code, size_t sf, size_t sps,
              double delta, size_t nper, uint32_t seed, int const_data)
 {
   uint32_t dst    = seed;
@@ -114,7 +114,7 @@ main (void)
     uint32_t inc0 = g.code_nco.phase_inc;
     /* run a clean aligned epoch; the NCO must keep a sane (nonzero, ~nominal)
        phase_inc rather than collapsing to 0. */
-    float complex sig[31 * 2];
+    float _Complex sig[31 * 2];
     for (size_t ci = 0; ci < 31; ci++)
       {
         float vv    = (code[ci] & 1u) ? -1.0f : 1.0f;
@@ -141,12 +141,12 @@ main (void)
     const size_t sf = 63, sps = 4, nper = 400;
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 7u);
-    float complex *rx = malloc (sf * sps * nper * sizeof (*rx));
-    size_t         n  = make_signal (rx, code, sf, sps, 0.0, nper, 3u, 0);
+    float _Complex *rx = malloc (sf * sps * nper * sizeof (*rx));
+    size_t          n  = make_signal (rx, code, sf, sps, 0.0, nper, 3u, 0);
 
-    dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, 1);
-    float complex *sym = malloc (nper * sizeof (*sym));
-    size_t         k   = dll_steps (d, rx, n, sym, nper);
+    dll_state_t    *d   = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, 1);
+    float _Complex *sym = malloc (nper * sizeof (*sym));
+    size_t          k   = dll_steps (d, rx, n, sym, nper);
     DP_CHECK (k >= nper - 2 && k <= nper); /* ~one prompt per period */
     DP_CHECK (fabs (dll_get_last_error (d)) < 0.05); /* E ~ L on-time */
     DP_CHECK (fabs (dll_get_code_rate (d) - 1.0) < 1e-3);
@@ -163,14 +163,14 @@ main (void)
     const size_t sf = 63, sps = 4, nper = 1500;
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 11u);
-    float complex *rx    = malloc (sf * sps * nper * sizeof (*rx));
-    double         delta = 5e-4; /* incoming code runs 0.05% fast */
-    size_t         n     = make_signal (rx, code, sf, sps, delta, nper, 9u, 1);
+    float _Complex *rx    = malloc (sf * sps * nper * sizeof (*rx));
+    double          delta = 5e-4; /* incoming code runs 0.05% fast */
+    size_t          n = make_signal (rx, code, sf, sps, delta, nper, 9u, 1);
 
     /* half-chip E/L discriminator is steep — keep the loop BW low. */
-    dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.005, 0.707, 0.5, 1);
-    float complex *sym = malloc (nper * sizeof (*sym));
-    size_t         k   = dll_steps (d, rx, n, sym, nper);
+    dll_state_t    *d = dll_create (code, sf, sps, 0.0, 0.005, 0.707, 0.5, 1);
+    float _Complex *sym = malloc (nper * sizeof (*sym));
+    size_t          k   = dll_steps (d, rx, n, sym, nper);
     /* the loop must speed its replica up to match the incoming rate */
     DP_CHECK (fabs (dll_get_code_rate (d) - (1.0 + delta)) < 1e-4);
     /* sub-chip lock holds: the prompt despreads cleanly over the run tail
@@ -200,12 +200,12 @@ main (void)
     const size_t sf = 63, sps = 4, nper = 800;
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 13u);
-    float complex *rx = malloc (sf * sps * nper * sizeof (*rx));
-    size_t         n  = make_signal (rx, code, sf, sps, 0.0, nper, 17u, 0);
+    float _Complex *rx = malloc (sf * sps * nper * sizeof (*rx));
+    size_t          n  = make_signal (rx, code, sf, sps, 0.0, nper, 17u, 0);
 
     /* seed the replica 0.4 chips off — the loop must realign it */
-    dll_state_t   *d   = dll_create (code, sf, sps, 0.4, 0.005, 0.707, 0.5, 1);
-    float complex *sym = malloc (nper * sizeof (*sym));
+    dll_state_t    *d = dll_create (code, sf, sps, 0.4, 0.005, 0.707, 0.5, 1);
+    float _Complex *sym = malloc (nper * sizeof (*sym));
     /* early discriminator (first few periods) should be non-trivial */
     dll_steps (d, rx, sf * sps * 3, sym, 3);
     double early_err = fabs (dll_get_last_error (d));
@@ -226,11 +226,11 @@ main (void)
     const size_t sf = 31, sps = 2, nper = 300;
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 21u);
-    float complex *rx = malloc (sf * sps * nper * sizeof (*rx));
-    size_t         n  = make_signal (rx, code, sf, sps, 3e-4, nper, 5u, 0);
+    float _Complex *rx = malloc (sf * sps * nper * sizeof (*rx));
+    size_t          n  = make_signal (rx, code, sf, sps, 3e-4, nper, 5u, 0);
 
-    dll_state_t   *d   = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, 1);
-    float complex *sym = malloc (nper * sizeof (*sym));
+    dll_state_t    *d   = dll_create (code, sf, sps, 0.0, 0.02, 0.707, 0.5, 1);
+    float _Complex *sym = malloc (nper * sizeof (*sym));
     dll_steps (d, rx, n, sym, nper);
     double r1 = dll_get_code_rate (d), e1 = dll_get_last_error (d);
     dll_reset (d);
@@ -253,11 +253,11 @@ main (void)
     double       phi  = 0.37 * (double)te;
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 11u);
-    size_t         N    = (size_t)(nsym * tsym) + 2 * te;
-    float complex *rx   = malloc (N * sizeof (*rx));
-    float complex *out  = malloc (N * sizeof (*out));
-    int           *data = malloc ((nsym + 8) * sizeof (int));
-    uint32_t       ds   = 7u;
+    size_t          N    = (size_t)(nsym * tsym) + 2 * te;
+    float _Complex *rx   = malloc (N * sizeof (*rx));
+    float _Complex *out  = malloc (N * sizeof (*out));
+    int            *data = malloc ((nsym + 8) * sizeof (int));
+    uint32_t        ds   = 7u;
     for (size_t i = 0; i < nsym + 6; i++)
       {
         data[i] = (dp_xs32 (&ds) & 1u) ? 1 : -1;
@@ -316,8 +316,8 @@ main (void)
     size_t       te   = sf * sps;
     uint8_t     *code = malloc (sf);
     make_code (code, sf, 11u);
-    float complex *rx  = malloc (te * nper * sizeof (*rx));
-    float complex *out = malloc (te * nper * sizeof (*out));
+    float _Complex *rx  = malloc (te * nper * sizeof (*rx));
+    float _Complex *out = malloc (te * nper * sizeof (*out));
 
     /* signal present (const data, code-aligned): strong despread -> lock.
        The default config (pfa=1e-3, 20 looks, threshold ~8.567) is applied at
@@ -458,8 +458,8 @@ main (void)
       NEP = 20,
       L   = EP * NEP
     };
-    float complex rx[L], out[256];
-    dp_tlm_rec_t  recs[512];
+    float _Complex rx[L], out[256];
+    dp_tlm_rec_t recs[512];
     for (int i = 0; i < L; i++)
       rx[i] = (code[(size_t)(i / 2) % 31] & 1u) ? -1.0f : 1.0f;
     dp_tlm_t    *tlm = dp_tlm_create (4096);
@@ -543,11 +543,11 @@ main (void)
    *    immediately instead of needing a multi-session investigation. *
    * ---------------------------------------------------------------- */
   {
-    const size_t   sf = 63, sps = 4, nper = 4188, tsamps = sf * sps;
-    const uint32_t seeds[] = { 42, 43, 44, 100 };
-    const size_t   n_seeds = sizeof (seeds) / sizeof (seeds[0]);
-    uint8_t       *code    = malloc (sf);
-    float complex *rx      = malloc (tsamps * nper * sizeof (*rx));
+    const size_t    sf = 63, sps = 4, nper = 4188, tsamps = sf * sps;
+    const uint32_t  seeds[] = { 42, 43, 44, 100 };
+    const size_t    n_seeds = sizeof (seeds) / sizeof (seeds[0]);
+    uint8_t        *code    = malloc (sf);
+    float _Complex *rx      = malloc (tsamps * nper * sizeof (*rx));
     for (size_t si = 0; si < n_seeds; si++)
       {
         make_code (code, sf, 7u + seeds[si]);

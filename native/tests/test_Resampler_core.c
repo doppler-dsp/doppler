@@ -67,7 +67,7 @@ main (void)
      * matter what the caller had allocated; it now forwards the real
      * capacity, so an under-sized buffer truncates instead of overruns. */
     Resampler_state_t *r = Resampler_create (1.0);
-    float complex      in[64], out[64];
+    float _Complex in[64], out[64];
     DP_CHECK (r != NULL);
     for (int i = 0; i < 64; i++)
       {

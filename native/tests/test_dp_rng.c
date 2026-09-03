@@ -177,7 +177,7 @@ main (void)
     uint32_t            st   = SEED;
     for (size_t i = 0; i < sizeof re / sizeof *re; i++)
       {
-        float complex z = dp_cgauss (&st);
+        float _Complex z = dp_cgauss (&st);
         DP_CHECK_NEAR (crealf (z), re[i], 1e-6);
         DP_CHECK_NEAR (cimagf (z), im[i], 1e-6);
       }
@@ -227,7 +227,7 @@ main (void)
     double   pr = 0.0, pi = 0.0, cross = 0.0;
     for (long i = 0; i < NSTAT; i++)
       {
-        float complex z = dp_cgauss (&st);
+        float _Complex z = dp_cgauss (&st);
         pr += (double)crealf (z) * (double)crealf (z);
         pi += (double)cimagf (z) * (double)cimagf (z);
         cross += (double)crealf (z) * (double)cimagf (z);

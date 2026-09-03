@@ -24,7 +24,7 @@
  * (cycles/sample), optional per-sample frequency ramp (Doppler rate), and
  * optional AWGN sigma per component.  Returns the ±1 bits used in `bits`. */
 static void
-make_signal (float complex *rx, int *bits, size_t nsym, size_t tsamps,
+make_signal (float _Complex *rx, int *bits, size_t nsym, size_t tsamps,
              double f0, double ramp, float sigma, uint32_t seed)
 {
   uint32_t bst = seed, nst = seed ^ 0x9e3779b9u;
@@ -36,8 +36,8 @@ make_signal (float complex *rx, int *bits, size_t nsym, size_t tsamps,
       bits[s] = b;
       for (size_t i = 0; i < tsamps; i++, k++)
         {
-          float complex c = cexpf ((float)phase * I);
-          rx[k]           = (float)b * c;
+          float _Complex c = cexpf ((float)phase * I);
+          rx[k]            = (float)b * c;
           if (sigma > 0.0f)
             {
               /* Sequenced: CMPLXF's two arguments are
@@ -57,13 +57,13 @@ make_signal (float complex *rx, int *bits, size_t nsym, size_t tsamps,
 /* Run the loop over a built signal; report tracked freq, lock, and the
  * ambiguity-tolerant bit-error count over the converged tail. */
 static void
-run (costas_state_t *c, const float complex *rx, const int *bits, size_t nsym,
+run (costas_state_t *c, const float _Complex *rx, const int *bits, size_t nsym,
      size_t tsamps, double *out_freq, double *out_lock, int *out_biterr)
 {
-  float complex *sym = malloc (nsym * sizeof (*sym));
-  size_t         k   = costas_steps (c, rx, nsym * tsamps, sym, nsym);
-  *out_freq          = costas_get_norm_freq (c);
-  *out_lock          = costas_get_lock_metric (c);
+  float _Complex *sym = malloc (nsym * sizeof (*sym));
+  size_t          k   = costas_steps (c, rx, nsym * tsamps, sym, nsym);
+  *out_freq           = costas_get_norm_freq (c);
+  *out_lock           = costas_get_lock_metric (c);
   /* bit errors over the converged tail (last half), ambiguity-tolerant */
   size_t tail0 = k / 2;
   int    err   = 0;
@@ -106,10 +106,10 @@ main (void)
    * 2. Pull-in — a grid of carrier residuals locks                   *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 4000;
-    float complex *rx    = malloc (nsym * tsamps * sizeof (*rx));
-    int           *bits  = malloc (nsym * sizeof (*bits));
-    double         f0s[] = { 0.0, 0.001, 0.003, -0.004 };
+    const size_t    tsamps = 16, nsym = 4000;
+    float _Complex *rx    = malloc (nsym * tsamps * sizeof (*rx));
+    int            *bits  = malloc (nsym * sizeof (*bits));
+    double          f0s[] = { 0.0, 0.001, 0.003, -0.004 };
     for (int t = 0; t < 4; t++)
       {
         make_signal (rx, bits, nsym, tsamps, f0s[t], 0.0, 0.0f, 12345u);
@@ -131,9 +131,9 @@ main (void)
    * (run() already scores ambiguity-tolerant; assert a flipped seed) *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 3000;
-    float complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
-    int           *bits = malloc (nsym * sizeof (*bits));
+    const size_t    tsamps = 16, nsym = 3000;
+    float _Complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
+    int            *bits = malloc (nsym * sizeof (*bits));
     make_signal (rx, bits, nsym, tsamps, 0.002, 0.0, 0.0f, 777u);
     costas_state_t *c = costas_create (0.05, 0.707, 0.0, tsamps, 0.0);
     double          f, lk;
@@ -151,9 +151,9 @@ main (void)
    * after tsamps-fold coherent integration)                          *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 5000;
-    float complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
-    int           *bits = malloc (nsym * sizeof (*bits));
+    const size_t    tsamps = 16, nsym = 5000;
+    float _Complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
+    int            *bits = malloc (nsym * sizeof (*bits));
     /* sigma=1.0 per component → ~ -3 dB per-sample SNR; +12 dB from the
      * 16-fold I&D → comfortably locked. That arithmetic is only true as of
      * the move to dp_rng_test.h: this file's own Box-Muller drew both of its
@@ -183,9 +183,9 @@ main (void)
    * 5. Dynamic stress — track a frequency ramp (Doppler rate)        *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 6000;
-    float complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
-    int           *bits = malloc (nsym * sizeof (*bits));
+    const size_t    tsamps = 16, nsym = 6000;
+    float _Complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
+    int            *bits = malloc (nsym * sizeof (*bits));
     /* start at 0, ramp the carrier to a final offset; 2nd-order loop
      * tracks a constant rate with bounded (small) steady error. */
     double ramp = 5e-9; /* cycles/sample per sample */
@@ -207,9 +207,9 @@ main (void)
    * 6. Reset reproducibility — run #2 == run #1 after reset          *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 1500;
-    float complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
-    int           *bits = malloc (nsym * sizeof (*bits));
+    const size_t    tsamps = 16, nsym = 1500;
+    float _Complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
+    int            *bits = malloc (nsym * sizeof (*bits));
     make_signal (rx, bits, nsym, tsamps, 0.002, 0.0, 0.0f, 55u);
     costas_state_t *c = costas_create (0.05, 0.707, 0.0, tsamps, 0.0);
     double          f1, lk1;
@@ -230,9 +230,9 @@ main (void)
    * PLL is acquired once the FLL assist is enabled.                  *
    * ---------------------------------------------------------------- */
   {
-    const size_t   tsamps = 16, nsym = 6000;
-    float complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
-    int           *bits = malloc (nsym * sizeof (*bits));
+    const size_t    tsamps = 16, nsym = 6000;
+    float _Complex *rx   = malloc (nsym * tsamps * sizeof (*rx));
+    int            *bits = malloc (nsym * sizeof (*bits));
     /* ~0.8 rad/symbol residual — beyond the narrow PLL's pull-in. */
     double f0 = 0.008;
     make_signal (rx, bits, nsym, tsamps, f0, 0.0, 0.0f, 31u);
@@ -311,7 +311,7 @@ main (void)
       TS = 16,
       NS = 256
     };
-    float complex rx[TS * NS], out[NS];
+    float _Complex rx[TS * NS], out[NS];
     /* constant BPSK at a locked phase: metric EMA -> 1 quickly */
     for (int i = 0; i < TS * NS; i++)
       rx[i] = ((i / (TS * 4)) % 2 ? -1.0f : 1.0f) + 0.0f * I;
@@ -362,8 +362,8 @@ main (void)
       NS = 64,
       L  = TS * NS
     };
-    float complex rx[L], out[NS];
-    dp_tlm_rec_t  recs[512];
+    float _Complex rx[L], out[NS];
+    dp_tlm_rec_t recs[512];
     for (int i = 0; i < L; i++)
       rx[i] = ((i / (TS * 4)) % 2 ? -1.0f : 1.0f) + 0.0f * I;
     dp_tlm_t       *tlm = dp_tlm_create (4096);

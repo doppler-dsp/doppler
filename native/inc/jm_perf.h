@@ -94,7 +94,7 @@
  *
  *   fn        - name prefix; calls fn##_step() and fn##_step_batch()
  *   state_t   - state struct type
- *   sample_t  - per-sample type  (e.g. float complex)
+ *   sample_t  - per-sample type  (e.g. float _Complex)
  *   LENGTH    - history depth: samples held in state->delay[]  [algorithm]
  *   BATCH     - SIMD width in samples                          [parallelism]
  *   CHUNK     - samples per scratch-buffer fill                [tuning]
@@ -111,7 +111,7 @@
  * field (e.g. `float delay[1]`) is enough.
  *
  * Usage (16-tap FIR: TAPS=16, LENGTH=TAPS-1=15):
- *   JM_DEFINE_STEPS(fir_filter, fir_filter_state_t, float complex,
+ *   JM_DEFINE_STEPS(fir_filter, fir_filter_state_t, float _Complex,
  *                   FIR_LENGTH, FIR_BATCH, FIR_CHUNK)
  *
  * Controllable per-call overrides (gh-240): when a state field is
@@ -121,7 +121,7 @@
  * parameter list and the matching argument list — so the macro threads the
  * control into fn_steps()'s signature, the scalar tail call, and the SIMD batch
  * call alike. Your hand-written fn_step_batch() takes the same trailing param:
- *   JM_DEFINE_STEPS_EX(fir_filter, fir_filter_state_t, float complex,
+ *   JM_DEFINE_STEPS_EX(fir_filter, fir_filter_state_t, float _Complex,
  *                      FIR_LENGTH, FIR_BATCH, FIR_CHUNK,
  *                      (, float gain), (, gain))
  *   //  -> void fir_filter_steps(state, in, out, n, float gain)

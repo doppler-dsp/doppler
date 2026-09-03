@@ -63,7 +63,8 @@ agc_settling_samples (double loop_bw, double alpha, double gain_err_db,
   /* An input needing `gain_err_db` of gain to reach a 0 dB reference. The
      direction is the caller's: positive means quiet, which is the slow
      case because the detector's dB reading crawls up a concave log. */
-  float complex x = (float)pow (10.0, -gain_err_db / 20.0) * (0.6f + 0.8f * I);
+  float _Complex x
+      = (float)pow (10.0, -gain_err_db / 20.0) * (0.6f + 0.8f * I);
 
   /* Bounded search. The measured multiplier tops out near 5 for the
      slowest detector this object accepts; 64 filter time constants is an
@@ -125,8 +126,8 @@ agc_get_applied_gain_db (const agc_state_t *state)
 }
 
 JM_HOT void
-agc_steps (agc_state_t *state, const float complex *input,
-           float complex *output, size_t n)
+agc_steps (agc_state_t *state, const float _Complex *input,
+           float _Complex *output, size_t n)
 {
   size_t d      = state->decim ? state->decim : 1; /* chunk len, >=1 */
   double g_prev = state->g_last; /* ramp continues from here */

@@ -87,8 +87,8 @@ carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
       return NULL;
     }
 
-  float         *tmpl = malloc (s->nfft * sizeof (float));
-  float complex *ref  = malloc (s->nfft * sizeof (float complex));
+  float          *tmpl = malloc (s->nfft * sizeof (float));
+  float _Complex *ref  = malloc (s->nfft * sizeof (float _Complex));
   if (!tmpl || !ref)
     {
       free (tmpl);
@@ -132,8 +132,8 @@ carrier_acq_create (double sample_rate_hz, double symbol_rate_hz,
     }
 
   s->pwr_buf   = malloc (s->nfft * sizeof (float));
-  s->power_buf = malloc (s->nfft * sizeof (float complex));
-  s->carry_buf = malloc (n_fft * sizeof (float complex));
+  s->power_buf = malloc (s->nfft * sizeof (float _Complex));
+  s->carry_buf = malloc (n_fft * sizeof (float _Complex));
   if (!s->pwr_buf || !s->power_buf || !s->carry_buf)
     {
       free (s->pwr_buf);
@@ -267,7 +267,7 @@ carrier_acq_ratio_threshold (const carrier_acq_state_t *s, size_t n_blocks)
 }
 
 static void
-carrier_acq_process_block (carrier_acq_state_t *s, const float complex *block)
+carrier_acq_process_block (carrier_acq_state_t *s, const float _Complex *block)
 {
   psd_accumulate (s->psd, block, s->psd->n);
   s->n_blocks++;
@@ -292,7 +292,7 @@ carrier_acq_process_block (carrier_acq_state_t *s, const float complex *block)
 }
 
 void
-carrier_acq_steps (carrier_acq_state_t *state, const float complex *x,
+carrier_acq_steps (carrier_acq_state_t *state, const float _Complex *x,
                    size_t x_len)
 {
   size_t cap = carrier_acq_giveup_cap (state);
@@ -307,7 +307,7 @@ carrier_acq_steps (carrier_acq_state_t *state, const float complex *x,
       size_t need = n_fft - state->carry_len;
       size_t take = (x_len < need) ? x_len : need;
       memcpy (state->carry_buf + state->carry_len, x,
-              take * sizeof (float complex));
+              take * sizeof (float _Complex));
       state->carry_len += take;
       off += take;
       if (state->carry_len == n_fft)
@@ -326,7 +326,7 @@ carrier_acq_steps (carrier_acq_state_t *state, const float complex *x,
   size_t rem = x_len - off;
   if (rem > 0 && rem < n_fft && !state->ready && state->n_blocks < cap)
     {
-      memcpy (state->carry_buf, x + off, rem * sizeof (float complex));
+      memcpy (state->carry_buf, x + off, rem * sizeof (float _Complex));
       state->carry_len = rem;
     }
 }
@@ -354,7 +354,7 @@ carrier_acq_state_bytes (const carrier_acq_state_t *s)
 {
   return sizeof (dp_state_hdr_t) + sizeof (carrier_acq_extra_t)
          + psd_state_bytes (s->psd) + detector_state_bytes (s->det)
-         + s->psd->n * sizeof (float complex);
+         + s->psd->n * sizeof (float _Complex);
 }
 
 void

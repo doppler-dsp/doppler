@@ -166,10 +166,10 @@ _bind_magnitude_db_cf32 (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *x     = (const float complex *)PyArray_DATA (x_arr);
-  size_t               x_len = (size_t)PyArray_SIZE (x_arr);
-  npy_intp             _dim  = (npy_intp)x_len;
-  PyObject            *_out  = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  npy_intp              _dim  = (npy_intp)x_len;
+  PyObject             *_out  = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
   if (!_out)
     {
       Py_DECREF (x_arr);
@@ -198,10 +198,10 @@ _bind_magnitude_db_cf64 (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const double complex *x     = (const double complex *)PyArray_DATA (x_arr);
-  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  npy_intp              _dim  = (npy_intp)x_len;
-  PyObject             *_out  = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
+  const double _Complex *x     = (const double _Complex *)PyArray_DATA (x_arr);
+  size_t                 x_len = (size_t)PyArray_SIZE (x_arr);
+  npy_intp               _dim  = (npy_intp)x_len;
+  PyObject              *_out  = PyArray_EMPTY (1, &_dim, NPY_FLOAT, 0);
   if (!_out)
     {
       Py_DECREF (x_arr);

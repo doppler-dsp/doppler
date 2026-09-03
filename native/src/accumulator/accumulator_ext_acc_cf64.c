@@ -74,7 +74,7 @@ AccCf64_step (AccCf64Object *self, PyObject *args)
   Py_complex x_raw = { 0.0, 0.0 };
   if (!PyArg_ParseTuple (args, "D", &x_raw))
     return NULL;
-  double complex x = x_raw.real + x_raw.imag * I;
+  double _Complex x = x_raw.real + x_raw.imag * I;
   acc_cf64_step (self->handle, x);
   Py_RETURN_NONE;
 }
@@ -96,7 +96,7 @@ AccCf64_steps (AccCf64Object *self, PyObject *args)
   if (!in_arr)
     return NULL;
 
-  acc_cf64_steps (self->handle, (const double complex *)PyArray_DATA (in_arr),
+  acc_cf64_steps (self->handle, (const double _Complex *)PyArray_DATA (in_arr),
                   (size_t)PyArray_SIZE (in_arr));
   Py_DECREF (in_arr);
   Py_RETURN_NONE;
@@ -137,7 +137,7 @@ AccCf64_get (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  double complex y = acc_cf64_get (self->handle);
+  double _Complex y = acc_cf64_get (self->handle);
   return PyComplex_FromDoubles (creal (y), cimag (y));
 }
 
@@ -149,7 +149,7 @@ AccCf64_dump (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  double complex y = acc_cf64_dump (self->handle);
+  double _Complex y = acc_cf64_dump (self->handle);
   return PyComplex_FromDoubles (creal (y), cimag (y));
 }
 
@@ -171,9 +171,9 @@ AccCf64_madd (AccCf64Object *self, PyObject *args)
     {
       return NULL;
     }
-  const double complex *x     = (const double complex *)PyArray_DATA (x_arr);
-  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  PyArrayObject        *h_arr = (PyArrayObject *)PyArray_FROM_OTF (
+  const double _Complex *x     = (const double _Complex *)PyArray_DATA (x_arr);
+  size_t                 x_len = (size_t)PyArray_SIZE (x_arr);
+  PyArrayObject         *h_arr = (PyArrayObject *)PyArray_FROM_OTF (
       h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
   if (!h_arr)
     {
@@ -205,8 +205,8 @@ AccCf64_add2d (AccCf64Object *self, PyObject *args)
     {
       return NULL;
     }
-  const double complex *x     = (const double complex *)PyArray_DATA (x_arr);
-  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  const double _Complex *x     = (const double _Complex *)PyArray_DATA (x_arr);
+  size_t                 x_len = (size_t)PyArray_SIZE (x_arr);
   acc_cf64_add2d (self->handle, x, x_len);
   Py_DECREF (x_arr);
   Py_RETURN_NONE;
@@ -230,9 +230,9 @@ AccCf64_madd2d (AccCf64Object *self, PyObject *args)
     {
       return NULL;
     }
-  const double complex *x     = (const double complex *)PyArray_DATA (x_arr);
-  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  PyArrayObject        *h_arr = (PyArrayObject *)PyArray_FROM_OTF (
+  const double _Complex *x     = (const double _Complex *)PyArray_DATA (x_arr);
+  size_t                 x_len = (size_t)PyArray_SIZE (x_arr);
+  PyArrayObject         *h_arr = (PyArrayObject *)PyArray_FROM_OTF (
       h_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
   if (!h_arr)
     {

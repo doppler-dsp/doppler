@@ -18,9 +18,9 @@ main (void)
   DP_CHECK (fir_get_is_real (f) == 1);
 
   /* ── impulse response ─────────────────────────────────────────────── */
-  float complex in[6] = { 1.0f + 0.0f * I, 0, 0, 0, 0, 0 };
-  float complex out[6];
-  size_t        n = fir_execute (f, in, 6, out);
+  float _Complex in[6] = { 1.0f + 0.0f * I, 0, 0, 0, 0, 0 };
+  float _Complex out[6];
+  size_t n = fir_execute (f, in, 6, out);
   DP_CHECK (n == 6);
   DP_CHECK (dp_nearf (crealf (out[0]), 0.5f, 1e-6f));
   DP_CHECK (dp_nearf (crealf (out[1]), 0.25f, 1e-6f));
@@ -34,12 +34,12 @@ main (void)
   DP_CHECK (dp_nearf (crealf (out[0]), 0.5f, 1e-6f));
 
   /* ── complex taps ─────────────────────────────────────────────────── */
-  float complex ctaps[2] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I };
-  fir_state_t  *cf       = fir_create (ctaps, 2);
+  float _Complex ctaps[2] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I };
+  fir_state_t *cf         = fir_create (ctaps, 2);
   DP_CHECK (cf != NULL);
   DP_CHECK (fir_get_is_real (cf) == 0);
-  float complex cin[4] = { 1.0f + 0.0f * I, 0, 0, 0 };
-  float complex cout[4];
+  float _Complex cin[4] = { 1.0f + 0.0f * I, 0, 0, 0 };
+  float _Complex cout[4];
   fir_execute (cf, cin, 4, cout);
   DP_CHECK (dp_cnearf (cout[0], 1.0f + 0.0f * I, 1e-6f));
   DP_CHECK (dp_cnearf (cout[1], 0.0f + 1.0f * I, 1e-6f));
@@ -52,8 +52,8 @@ main (void)
    * continue: the concatenated output equals an uninterrupted run exactly. */
   {
     const float taps[7] = { 0.05f, -0.12f, 0.30f, 0.6f, 0.30f, -0.12f, 0.05f };
-    const size_t  L = 128, cut = 53;
-    float complex in[128], outA[128], outB[128];
+    const size_t L = 128, cut = 53;
+    float _Complex in[128], outA[128], outB[128];
     for (size_t i = 0; i < L; i++)
       in[i] = (float)(i % 9) - 4.0f + I * ((float)(i % 5) - 2.0f);
 

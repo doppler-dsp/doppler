@@ -62,7 +62,7 @@ _Clock Doppler as a propagation impairment: dilate the time base and shift the c
 | ---: | :--- |
 |  [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* | [**doppler\_channel\_create**](#function-doppler_channel_create) (double fs, double carrier\_hz, double doppler\_ppm, double doppler\_rate\_ppm\_s) <br>_Create a doppler\_channel instance._  |
 |  void | [**doppler\_channel\_destroy**](#function-doppler_channel_destroy) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Destroy a doppler\_channel instance and release all memory._  |
-|  size\_t | [**doppler\_channel\_execute**](#function-doppler_channel_execute) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Apply clock Doppler to a block of complex baseband._  |
+|  size\_t | [**doppler\_channel\_execute**](#function-doppler_channel_execute) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Apply clock Doppler to a block of complex baseband._  |
 |  size\_t | [**doppler\_channel\_execute\_max\_out**](#function-doppler_channel_execute_max_out) ([**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Upper bound on the output of one execute() call._  |
 |  double | [**doppler\_channel\_get\_elapsed\_s**](#function-doppler_channel_get_elapsed_s) (const [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Receive time in seconds produced so far (_ `n_out/fs` _)._ |
 |  double | [**doppler\_channel\_get\_offset\_hz**](#function-doppler_channel_get_offset_hz) (const [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md) \* state) <br>_Instantaneous carrier offset_ `fc*d(t)` _in Hz at_`elapsed_s` _._ |
@@ -145,7 +145,7 @@ Example — a 2.5 GHz carrier seen at +20 ppm, ramping at 0.2 ppm/s:
 doppler_channel_state_t *ch =
     doppler_channel_create (6.138e6, 2.5e9, 20.0, 0.2);
 size_t         cap = doppler_channel_execute_max_out (ch);
-float complex *out = malloc (cap * sizeof *out);
+float _Complex *out = malloc (cap * sizeof *out);
 size_t         n   = doppler_channel_execute (ch, in, 65536, out, cap);
 // n ~= 65536/(1+20e-6); doppler_channel_get_offset_hz (ch) ~= 50000.0
 free (out);
@@ -240,9 +240,9 @@ _Apply clock Doppler to a block of complex baseband._
 ```C++
 size_t doppler_channel_execute (
     doppler_channel_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

@@ -61,13 +61,13 @@ build_codes (void)
     dcode[i] = (uint8_t)((i >> 1) & 1u);
 }
 
-static float complex x_quiet[BENCH_N];
-static float complex x_bursts[BENCH_N];
-static float complex out[16 * BURST_LEN];
+static float _Complex x_quiet[BENCH_N];
+static float _Complex x_bursts[BENCH_N];
+static float _Complex out[16 * BURST_LEN];
 
 /** @brief Noise, plus @p n_at bursts spread evenly through the block. */
 static void
-build_stream (float complex *y, size_t n, size_t n_bursts)
+build_stream (float _Complex *y, size_t n, size_t n_bursts)
 {
   uint32_t st = 12345u;
   for (size_t i = 0; i < n; i++)
@@ -105,7 +105,7 @@ build_stream (float complex *y, size_t n, size_t n_bursts)
  */
 static void
 time_push (jm_bench_t *b, const char *name, const char *path,
-           const float complex *x, double *times)
+           const float _Complex *x, double *times)
 {
   struct timespec t0, t1;
   for (int r = 0; r < ITERATIONS; r++)

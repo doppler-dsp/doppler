@@ -40,8 +40,8 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  size\_t | [**code\_bins**](#variable-code_bins)  <br> |
 |  size\_t | [**coherent\_bins**](#variable-coherent_bins)  <br> |
-|  float complex \* | [**colbuf**](#variable-colbuf)  <br> |
-|  float complex \* | [**colout**](#variable-colout)  <br> |
+|  float \_Complex \* | [**colbuf**](#variable-colbuf)  <br> |
+|  float \_Complex \* | [**colout**](#variable-colout)  <br> |
 |  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**corr**](#variable-corr)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
 |  double | [**doppler\_span\_hz**](#variable-doppler_span_hz)  <br> |
@@ -63,7 +63,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  size\_t | [**noise\_lo**](#variable-noise_lo)  <br> |
 |  [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) | [**noise\_mode**](#variable-noise_mode)  <br> |
 |  float \* | [**noise\_scratch**](#variable-noise_scratch)  <br> |
-|  float complex \* | [**out\_buf**](#variable-out_buf)  <br> |
+|  float \_Complex \* | [**out\_buf**](#variable-out_buf)  <br> |
 |  double | [**pd**](#variable-pd)  <br> |
 |  double | [**pd\_predicted**](#variable-pd_predicted)  <br> |
 |  size\_t | [**peak\_col**](#variable-peak_col)  <br> |
@@ -71,7 +71,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  size\_t | [**peak\_row**](#variable-peak_row)  <br> |
 |  double | [**pfa**](#variable-pfa)  <br> |
 |  double | [**pfa\_cell**](#variable-pfa_cell)  <br> |
-|  float complex \* | [**ref**](#variable-ref)  <br> |
+|  float \_Complex \* | [**ref**](#variable-ref)  <br> |
 |  size\_t | [**reps**](#variable-reps)  <br> |
 |  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
 |  size\_t | [**ring\_cap**](#variable-ring_cap)  <br> |
@@ -87,11 +87,11 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  uint8\_t | [**underpowered**](#variable-underpowered)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**wide\_fwd**](#variable-wide_fwd)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**wide\_inv**](#variable-wide_inv)  <br> |
-|  float complex \* | [**wide\_prod**](#variable-wide_prod)  <br> |
-|  float complex \* | [**wide\_ref\_spec**](#variable-wide_ref_spec)  <br> |
-|  float complex \* | [**wide\_spec**](#variable-wide_spec)  <br> |
+|  float \_Complex \* | [**wide\_prod**](#variable-wide_prod)  <br> |
+|  float \_Complex \* | [**wide\_ref\_spec**](#variable-wide_ref_spec)  <br> |
+|  float \_Complex \* | [**wide\_spec**](#variable-wide_spec)  <br> |
 |  size\_t | [**window\_bins**](#variable-window_bins)  <br> |
-|  float complex \* | [**yframe**](#variable-yframe)  <br> |
+|  float \_Complex \* | [**yframe**](#variable-yframe)  <br> |
 
 
 
@@ -223,7 +223,7 @@ Coherent depth = slow-time FFT length (&lt;= reps). Forced to 1 in wideband mode
 ### variable colbuf 
 
 ```C++
-float complex* acq_state_t::colbuf;
+float _Complex* acq_state_t::colbuf;
 ```
 
 
@@ -240,7 +240,7 @@ Gathered column scratch (coherent\_bins).
 ### variable colout 
 
 ```C++
-float complex* acq_state_t::colout;
+float _Complex* acq_state_t::colout;
 ```
 
 
@@ -626,7 +626,7 @@ Scratch for the median sort (n).
 ### variable out\_buf 
 
 ```C++
-float complex* acq_state_t::out_buf;
+float _Complex* acq_state_t::out_buf;
 ```
 
 
@@ -754,7 +754,7 @@ Bonferroni per-cell false-alarm probability.
 ### variable ref 
 
 ```C++
-float complex* acq_state_t::ref;
+float _Complex* acq_state_t::ref;
 ```
 
 
@@ -1032,7 +1032,7 @@ Inverse FFT, length code\_bins.
 ### variable wide\_prod 
 
 ```C++
-float complex* acq_state_t::wide_prod;
+float _Complex* acq_state_t::wide_prod;
 ```
 
 
@@ -1049,7 +1049,7 @@ Rolled-spectrum \* wide\_ref\_spec product, length code\_bins; reused per hypoth
 ### variable wide\_ref\_spec 
 
 ```C++
-float complex* acq_state_t::wide_ref_spec;
+float _Complex* acq_state_t::wide_ref_spec;
 ```
 
 
@@ -1067,7 +1067,7 @@ conj(FFT(replica row)), length code\_bins.
 ### variable wide\_spec 
 
 ```C++
-float complex* acq_state_t::wide_spec;
+float _Complex* acq_state_t::wide_spec;
 ```
 
 
@@ -1103,7 +1103,7 @@ Wideband frequency-window hypotheses (1 = disabled/native — see the file doc c
 ### variable yframe 
 
 ```C++
-float complex* acq_state_t::yframe;
+float _Complex* acq_state_t::yframe;
 ```
 
 

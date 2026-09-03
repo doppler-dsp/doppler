@@ -15,10 +15,11 @@
 typedef struct
 {
   PyObject_HEAD Resampler_state_t *handle;
-  float complex *_execute_buf;      /* pre-allocated output for execute */
-  size_t         _execute_buf_cap;  /* elements allocated above */
-  float complex *_execute_ctrl_buf; /* pre-allocated output for execute_ctrl */
-  size_t         _execute_ctrl_buf_cap; /* elements allocated above */
+  float _Complex *_execute_buf;     /* pre-allocated output for execute */
+  size_t          _execute_buf_cap; /* elements allocated above */
+  float _Complex
+        *_execute_ctrl_buf;     /* pre-allocated output for execute_ctrl */
+  size_t _execute_ctrl_buf_cap; /* elements allocated above */
 } ResamplerObject;
 
 static void
@@ -151,8 +152,8 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = Resampler_execute (
-          self->handle, (const float complex *)PyArray_DATA (x_arr), _n_in,
-          (float complex *)PyArray_DATA (out_arr), _cap);
+          self->handle, (const float _Complex *)PyArray_DATA (x_arr), _n_in,
+          (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -175,7 +176,7 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
       size_t _max = Resampler_execute_max_out (self->handle);
       if (!_max)
         _max = (size_t)PyArray_SIZE (x_arr);
-      self->_execute_buf     = malloc (_max * sizeof (float complex));
+      self->_execute_buf     = malloc (_max * sizeof (float _Complex));
       self->_execute_buf_cap = _max;
       if (!self->_execute_buf)
         {
@@ -185,7 +186,7 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
         }
     }
   size_t n_out = Resampler_execute (
-      self->handle, (const float complex *)PyArray_DATA (x_arr),
+      self->handle, (const float _Complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), self->_execute_buf,
       self->_execute_buf_cap);
   npy_intp  dim = (npy_intp)n_out;
@@ -288,10 +289,10 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
           return NULL;
         }
       size_t n_out = Resampler_execute_ctrl (
-          self->handle, (const float complex *)PyArray_DATA (x_arr), _n_in,
+          self->handle, (const float _Complex *)PyArray_DATA (x_arr), _n_in,
           (const double *)PyArray_DATA (ctrl_arr),
           (size_t)PyArray_SIZE (ctrl_arr),
-          (float complex *)PyArray_DATA (out_arr), _cap);
+          (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       Py_DECREF (ctrl_arr);
       npy_intp  _odim  = (npy_intp)n_out;
@@ -314,7 +315,7 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
       size_t _max = Resampler_execute_ctrl_max_out (self->handle);
       if (!_max)
         _max = (size_t)PyArray_SIZE (x_arr);
-      self->_execute_ctrl_buf     = malloc (_max * sizeof (float complex));
+      self->_execute_ctrl_buf     = malloc (_max * sizeof (float _Complex));
       self->_execute_ctrl_buf_cap = _max;
       if (!self->_execute_ctrl_buf)
         {
@@ -325,7 +326,7 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
         }
     }
   size_t n_out = Resampler_execute_ctrl (
-      self->handle, (const float complex *)PyArray_DATA (x_arr),
+      self->handle, (const float _Complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), (const double *)PyArray_DATA (ctrl_arr),
       (size_t)PyArray_SIZE (ctrl_arr), self->_execute_ctrl_buf,
       self->_execute_ctrl_buf_cap);

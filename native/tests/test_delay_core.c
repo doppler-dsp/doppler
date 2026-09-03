@@ -49,7 +49,7 @@ main (void)
     /* 3-tap delay: after pushing A B C the window is [C, B, A]
      * (newest first). */
     delay_state_t *obj = delay_create (3);
-    double complex win[3];
+    double _Complex win[3];
 
     delay_push (obj, 1.0 + 0.0 * I);
     delay_push (obj, 2.0 + 0.0 * I);
@@ -66,7 +66,7 @@ main (void)
   /* ── push_ptr returns the updated window ────────────────────────── */
   {
     delay_state_t *obj = delay_create (2);
-    double complex win[2];
+    double _Complex win[2];
 
     delay_push (obj, 10.0 + 0.0 * I);
     size_t n = delay_push_ptr (obj, 20.0 + 0.0 * I, win, 2);
@@ -81,7 +81,7 @@ main (void)
     /* Fill a 4-tap delay one element at a time; verify wrap-around
      * works correctly when head crosses the start of the ring. */
     delay_state_t *obj = delay_create (4);
-    double complex win[4];
+    double _Complex win[4];
 
     for (int i = 1; i <= 8; i++)
       delay_push (obj, (double)i + 0.0 * I);
@@ -98,7 +98,7 @@ main (void)
   /* ── write batch pushes multiple samples ────────────────────────── */
   {
     delay_state_t *obj = delay_create (3);
-    double complex win[3];
+    double _Complex win[3];
 
     /* write inserts one sample (same as push — scalar API) */
     delay_write (obj, 1.0 + 0.0 * I);
@@ -115,7 +115,7 @@ main (void)
   /* ── reset clears the buffer and resets head ────────────────────── */
   {
     delay_state_t *obj = delay_create (4);
-    double complex win[4];
+    double _Complex win[4];
 
     delay_push (obj, 1.0 + 1.0 * I);
     delay_push (obj, 2.0 + 2.0 * I);
@@ -143,7 +143,7 @@ main (void)
   /* ── complex values round-trip correctly ────────────────────────── */
   {
     delay_state_t *obj = delay_create (2);
-    double complex win[2];
+    double _Complex win[2];
 
     delay_push (obj, 1.5 + 2.5 * I);
     delay_push (obj, -3.0 + 4.0 * I);
@@ -160,9 +160,9 @@ main (void)
    * when there is no room to report it back, or the window falls out of
    * step with the sample stream.  Both are checked here. */
   {
-    delay_state_t       *obj = delay_create (4);
-    double complex       win[4];
-    const double complex CANARY = -999.0 - 111.0 * I;
+    delay_state_t *obj = delay_create (4);
+    double _Complex win[4];
+    const double _Complex CANARY = -999.0 - 111.0 * I;
 
     for (int i = 1; i <= 4; i++)
       delay_push (obj, (double)i + 0.0 * I); /* window = [4, 3, 2, 1] */

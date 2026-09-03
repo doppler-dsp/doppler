@@ -237,8 +237,7 @@ dp_gauss (uint32_t *st)
  *
  * @param st  the caller's state; advanced by two words.
  */
-static inline float complex
-dp_cgauss (uint32_t *st)
+static inline float _Complex dp_cgauss (uint32_t *st)
 {
   double u1  = dp_uni (st);
   double u2  = dp_uni (st);

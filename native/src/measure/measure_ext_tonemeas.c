@@ -236,8 +236,8 @@ ToneMeasureObj_analyze_complex (ToneMeasureObject *self, PyObject *args)
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream). */
-  const float complex *_ng0 = (const float complex *)PyArray_DATA (in_arr);
-  tone_meas_t          _r;
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
+  tone_meas_t           _r;
   Py_BEGIN_ALLOW_THREADS
     _r = tonemeas_analyze_complex (self->handle, _ng0, n_in);
   Py_END_ALLOW_THREADS

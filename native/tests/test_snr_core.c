@@ -48,8 +48,8 @@ static uint32_t st = 0x2545F491u;
 int
 main (void)
 {
-  static float complex x[NSYM];
-  static uint8_t       bits[NSYM];
+  static float _Complex x[NSYM];
+  static uint8_t bits[NSYM];
 
   /* ── known answer: QPSK at a constructed Es/N0 ─────────────────────────
    *
@@ -68,7 +68,8 @@ main (void)
         {
           bits[i]  = (uint8_t)(dp_uni (&st) > 0.5);
           double a = bits[i] ? -1.0 : 1.0;
-          x[i] = (float complex)a + (float complex) (sigma * dp_cgauss (&st));
+          x[i]
+              = (float _Complex)a + (float _Complex) (sigma * dp_cgauss (&st));
         }
       double blind = snr_m2m4_db (x, NSYM);
       double aided = snr_data_aided_db (x, NSYM, bits, NSYM);
@@ -100,13 +101,13 @@ main (void)
       {
         bits[i]  = (uint8_t)(dp_uni (&st) > 0.5);
         double a = bits[i] ? -1.0 : 1.0;
-        x[i] = (float complex)a + (float complex) (sigma * dp_cgauss (&st));
+        x[i] = (float _Complex)a + (float _Complex) (sigma * dp_cgauss (&st));
       }
     double base_blind = snr_m2m4_db (x, NSYM);
     double base_aided = snr_data_aided_db (x, NSYM, bits, NSYM);
 
-    static float complex y[NSYM];
-    const float complex  rot = (float complex) (cos (0.7) + sin (0.7) * I);
+    static float _Complex y[NSYM];
+    const float _Complex rot = (float _Complex) (cos (0.7) + sin (0.7) * I);
     for (size_t i = 0; i < NSYM; i++)
       y[i] = x[i] * rot;
     DP_REQUIRE_MSG (fabs (snr_m2m4_db (y, NSYM) - base_blind) < 0.05,
@@ -183,7 +184,7 @@ main (void)
       {
         bits[i]  = (uint8_t)(dp_uni (&st) > 0.5);
         double a = bits[i] ? -1.0 : 1.0;
-        x[i]     = (float complex)a + (float complex) (0.1 * dp_cgauss (&st));
+        x[i] = (float _Complex)a + (float _Complex) (0.1 * dp_cgauss (&st));
       }
     double full   = snr_data_aided_db (x, 4096, bits, 4096);
     double short_ = snr_data_aided_db (x, 4096, bits, 2048);

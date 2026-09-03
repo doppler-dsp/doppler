@@ -79,7 +79,7 @@
  * @return      EVM in dB, or 0.0 ("no lock") for a window under 20 symbols.
  */
 static inline double
-dp_test_evm_db_hard_range (const float complex *syms, size_t lo, size_t hi,
+dp_test_evm_db_hard_range (const float _Complex *syms, size_t lo, size_t hi,
                            int m)
 {
   return ber_evm_db (syms, hi, lo, hi, m);
@@ -125,7 +125,7 @@ dp_test_evm_db_hard_range (const float complex *syms, size_t lo, size_t hi,
  *       it. Pinned in test_dp_sym.c.
  */
 static inline double
-dp_test_evm_db_hard_m (const float complex *syms, size_t n_syms, int m)
+dp_test_evm_db_hard_m (const float _Complex *syms, size_t n_syms, int m)
 {
   if (n_syms < 20)
     return 0.0;
@@ -135,7 +135,7 @@ dp_test_evm_db_hard_m (const float complex *syms, size_t n_syms, int m)
 /* BPSK spelling, kept because most callers here are BPSK (the DSSS receivers)
  * and reads better at the call site than passing a literal 2. */
 static inline double
-dp_test_evm_db_hard (const float complex *syms, size_t n_syms)
+dp_test_evm_db_hard (const float _Complex *syms, size_t n_syms)
 {
   return dp_test_evm_db_hard_m (syms, n_syms, 2);
 }
@@ -183,7 +183,7 @@ dp_test_evm_scatter_floor_db (int m)
  * a window too short to judge, so a symbol famine reads as an obvious
  * sentinel rather than a plausible number. */
 static inline double
-dp_test_m2m4_snr_db_range (const float complex *syms, size_t lo, size_t hi)
+dp_test_m2m4_snr_db_range (const float _Complex *syms, size_t lo, size_t hi)
 {
   if (hi <= lo || hi - lo < 20)
     return -120.0;
@@ -194,7 +194,7 @@ dp_test_m2m4_snr_db_range (const float complex *syms, size_t lo, size_t hi)
  * the effective floor is 39 symbols, not the 20 named below, because only
  * `ceil(n_syms/2)` of them are scored. */
 static inline double
-dp_test_m2m4_snr_db (const float complex *syms, size_t n_syms)
+dp_test_m2m4_snr_db (const float _Complex *syms, size_t n_syms)
 {
   if (n_syms < 20)
     return -120.0;

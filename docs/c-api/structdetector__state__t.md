@@ -45,7 +45,7 @@ _1-D signal detector state._ [More...](#detailed-description)
 |  size\_t | [**noise\_lo**](#variable-noise_lo)  <br> |
 |  [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) | [**noise\_mode**](#variable-noise_mode)  <br> |
 |  float \* | [**noise\_scratch**](#variable-noise_scratch)  <br> |
-|  float complex \* | [**out\_buf**](#variable-out_buf)  <br> |
+|  float \_Complex \* | [**out\_buf**](#variable-out_buf)  <br> |
 |  size\_t | [**peak\_lag**](#variable-peak_lag)  <br> |
 |  float | [**peak\_mag**](#variable-peak_mag)  <br> |
 |  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
@@ -263,7 +263,7 @@ Scratch for median sort.
 ### variable out\_buf 
 
 ```C++
-float complex* detector_state_t::out_buf;
+float _Complex* detector_state_t::out_buf;
 ```
 
 

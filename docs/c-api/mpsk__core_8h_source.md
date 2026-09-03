@@ -51,7 +51,7 @@ mpsk_gray_decode (unsigned g)
   return k;
 }
 
-JM_FORCEINLINE float complex
+JM_FORCEINLINE float _Complex
 mpsk_constellation (unsigned g, int m)
 {
   unsigned k    = mpsk_gray_decode (g & (unsigned)(m - 1));
@@ -60,7 +60,7 @@ mpsk_constellation (unsigned g, int m)
 }
 
 JM_FORCEINLINE unsigned
-mpsk_slice (float complex y, int m, float complex *ahat)
+mpsk_slice (float _Complex y, int m, float _Complex *ahat)
 {
   double phi0 = mpsk_phi0 (m);
   double th   = atan2 ((double)cimagf (y), (double)crealf (y)) - phi0;
@@ -71,16 +71,16 @@ mpsk_slice (float complex y, int m, float complex *ahat)
   return mpsk_gray_encode (ki);
 }
 
-void mpsk_map(const uint8_t *sym, size_t sym_len, float complex *out, int m);
+void mpsk_map(const uint8_t *sym, size_t sym_len, float _Complex *out, int m);
 
-void mpsk_demap(const float complex *x, size_t x_len, uint8_t *out, int m);
+void mpsk_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
 
-void mpsk_diff_map(const uint8_t *sym, size_t sym_len, float complex *out,
+void mpsk_diff_map(const uint8_t *sym, size_t sym_len, float _Complex *out,
                    int m);
 
-void mpsk_diff_demap(const float complex *x, size_t x_len, uint8_t *out, int m);
+void mpsk_diff_demap(const float _Complex *x, size_t x_len, uint8_t *out, int m);
 
-void mpsk_soft_demap(const float complex *x, size_t x_len, float *llr,
+void mpsk_soft_demap(const float _Complex *x, size_t x_len, float *llr,
                      size_t llr_len, int m, float n0);
 
 int mpsk_bits_per_symbol(int m);

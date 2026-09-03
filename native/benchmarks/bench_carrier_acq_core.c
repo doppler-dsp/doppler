@@ -55,7 +55,7 @@ main (void)
   struct timespec t0, t1;
   jm_bench_t      _bench = { 0 };
 
-  float complex *x = malloc (BENCH_N * sizeof *x);
+  float _Complex *x = malloc (BENCH_N * sizeof *x);
   if (!x)
     return 1;
   /* A BPSK stream with a real offset to find -- an acquisition run on a

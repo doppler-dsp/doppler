@@ -72,7 +72,7 @@ crc16 (const uint8_t *bits, size_t n)
 }
 
 static size_t
-put_symbol (float complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
+put_symbol (float _Complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
 {
   float a = csign (bit);
   for (size_t c = 0; c < DATA_SF; c++)
@@ -82,7 +82,7 @@ put_symbol (float complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
 }
 
 static size_t
-build_burst (float complex *y, const uint8_t *acode, const uint8_t *dcode,
+build_burst (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
              const uint8_t *payload, double f0, double mu)
 {
   size_t n = 0;
@@ -142,8 +142,8 @@ main (void)
   const size_t cap
       = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
         + 16;
-  float complex *y    = malloc (cap * sizeof *y);
-  uint8_t       *bits = malloc (FRAME_SYMS);
+  float _Complex *y    = malloc (cap * sizeof *y);
+  uint8_t        *bits = malloc (FRAME_SYMS);
   if (!y || !bits)
     return 1;
 

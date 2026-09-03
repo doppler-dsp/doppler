@@ -87,8 +87,8 @@ typedef struct {
     /* Scratch, not state -- sized nfft/psd->n, allocated once at create
      * (no allocation in the steps() hot path). */
     float         *pwr_buf;    /**< psd_power_twosided() output, nfft.  */
-    float complex *power_buf;  /**< pwr_buf packed complex (imag=0).    */
-    float complex *carry_buf;  /**< Raw-input carry, capacity psd->n.   */
+    float _Complex *power_buf;  /**< pwr_buf packed complex (imag=0).    */
+    float _Complex *carry_buf;  /**< Raw-input carry, capacity psd->n.   */
     size_t         carry_len;  /**< Valid samples in carry_buf, 0..n-1. */
 
     /* Config, fixed at construction (restored by create(), not the
@@ -245,7 +245,7 @@ void carrier_acq_reset(carrier_acq_state_t *state);
  *
  * @endcode
  */
-void carrier_acq_steps(carrier_acq_state_t *state, const float complex *x,
+void carrier_acq_steps(carrier_acq_state_t *state, const float _Complex *x,
                        size_t x_len);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────

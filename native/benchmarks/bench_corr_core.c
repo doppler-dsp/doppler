@@ -64,7 +64,7 @@ main (void)
   static double   t[N_CFG][ITERATIONS];
   corr_state_t   *corr[N_LEN] = { 0 };
   const size_t    n_max       = frame_n[N_LEN - 1];
-  float complex  *ref = NULL, *in = NULL, *out = NULL;
+  float _Complex *ref = NULL, *in = NULL, *out = NULL;
   char            name[64];
 
   ref = malloc (n_max * sizeof *ref);
@@ -78,8 +78,8 @@ main (void)
   for (size_t i = 0; i < n_max; i++)
     {
       const double p = 1e-4 * (double)i * (double)i;
-      ref[i]         = (float complex) (cos (p) + sin (p) * I);
-      in[i]          = (float complex) (cos (p + 0.7) + sin (p + 0.7) * I);
+      ref[i]         = (float _Complex) (cos (p) + sin (p) * I);
+      in[i]          = (float _Complex) (cos (p + 0.7) + sin (p + 0.7) * I);
     }
 
   for (int l = 0; l < N_LEN; l++)

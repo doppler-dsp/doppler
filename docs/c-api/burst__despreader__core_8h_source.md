@@ -43,9 +43,9 @@ typedef struct
   /* ── code phase / integrate-and-dump ── */
   double        chip_pos;  
   double        code_rate; 
-  float complex acc_e;     
-  float complex acc_p;     
-  float complex acc_l;     
+  float _Complex acc_e;     
+  float _Complex acc_p;     
+  float _Complex acc_l;     
   /* ── status read-backs: cumulative over the burst (reset re-arms) ── */
   double lock_metric; 
   double snr_est;     
@@ -74,12 +74,12 @@ void burst_despreader_reset(burst_despreader_state_t *state);
 
 size_t burst_despreader_steps_max_out (burst_despreader_state_t *state);
 
-size_t burst_despreader_steps (burst_despreader_state_t *state, const float complex *x,
-                         size_t x_len, float complex *out, size_t max_out);
+size_t burst_despreader_steps (burst_despreader_state_t *state, const float _Complex *x,
+                         size_t x_len, float _Complex *out, size_t max_out);
 
 size_t burst_despreader_bits_max_out (burst_despreader_state_t *state);
 
-size_t burst_despreader_bits (burst_despreader_state_t *state, const float complex *x,
+size_t burst_despreader_bits (burst_despreader_state_t *state, const float _Complex *x,
                         size_t x_len, uint8_t *out, size_t max_out);
 
 double burst_despreader_get_bn_carrier (const burst_despreader_state_t *state);

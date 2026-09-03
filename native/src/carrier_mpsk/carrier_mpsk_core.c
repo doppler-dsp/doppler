@@ -84,8 +84,8 @@ carrier_mpsk_steps_max_out (carrier_mpsk_state_t *state)
 }
 
 size_t
-carrier_mpsk_steps (carrier_mpsk_state_t *state, const float complex *x,
-                    size_t x_len, float complex *out, size_t max_out)
+carrier_mpsk_steps (carrier_mpsk_state_t *state, const float _Complex *x,
+                    size_t x_len, float _Complex *out, size_t max_out)
 {
   size_t emitted = 0;
   for (size_t n = 0; n < x_len; n++)
@@ -94,7 +94,7 @@ carrier_mpsk_steps (carrier_mpsk_state_t *state, const float complex *x,
       if (++state->acc_n < state->tsamps)
         continue;
       /* symbol boundary: dump, steer the loop, emit the prompt */
-      float complex prompt = state->acc;
+      float _Complex prompt = state->acc;
       carrier_mpsk_update (state, prompt);
       if (emitted < max_out)
         out[emitted++] = prompt / (float)state->tsamps;

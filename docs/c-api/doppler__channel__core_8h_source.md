@@ -77,7 +77,7 @@ int doppler_channel_set_state(doppler_channel_state_t *state, const void *blob);
 
 size_t doppler_channel_execute_max_out(doppler_channel_state_t *state);
 
-size_t doppler_channel_execute(doppler_channel_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+size_t doppler_channel_execute(doppler_channel_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
 double doppler_channel_get_elapsed_s(const doppler_channel_state_t *state);
 

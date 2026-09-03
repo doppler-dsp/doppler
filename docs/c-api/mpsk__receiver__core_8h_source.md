@@ -84,10 +84,10 @@ extern "C"
   void mpsk_receiver_reset (mpsk_receiver_state_t *state);
 
   JM_FORCEINLINE JM_HOT int
-  mpsk_receiver_step_ted (mpsk_receiver_state_t *s, float complex x,
-                          float complex *y_out, int ted)
+  mpsk_receiver_step_ted (mpsk_receiver_state_t *s, float _Complex x,
+                          float _Complex *y_out, int ted)
   {
-    float complex ys[4];
+    float _Complex ys[4];
     size_t        n     = ddc_execute_ctrl_push_tap2 (
         s->fe.c, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
@@ -96,9 +96,9 @@ extern "C"
 
   JM_FORCEINLINE JM_HOT int
   mpsk_receiver_step_real_ted (mpsk_receiver_state_t *s, float x,
-                               float complex *y_out, int ted)
+                               float _Complex *y_out, int ted)
   {
-    float complex ys[4];
+    float _Complex ys[4];
     size_t        n     = ddcr_execute_ctrl_push_tap2 (
         s->fe.r, x, s->l.timing.ctrl, s->l.freq_ctrl, ys,
         sizeof (ys) / sizeof (ys[0]), NULL, NULL, NULL, NULL);
@@ -107,18 +107,18 @@ extern "C"
 
   size_t mpsk_receiver_steps_max_out (mpsk_receiver_state_t *state);
   size_t mpsk_receiver_steps (mpsk_receiver_state_t *state,
-                              const float complex *x, size_t x_len,
-                              float complex *out, size_t max_out);
+                              const float _Complex *x, size_t x_len,
+                              float _Complex *out, size_t max_out);
 
   size_t mpsk_receiver_bits_max_out (mpsk_receiver_state_t *state);
   size_t mpsk_receiver_bits (mpsk_receiver_state_t *state,
-                             const float complex *x, size_t x_len,
+                             const float _Complex *x, size_t x_len,
                              uint8_t *out, size_t max_out);
 
   size_t mpsk_receiver_steps_real_max_out (mpsk_receiver_state_t *state);
   size_t mpsk_receiver_steps_real (mpsk_receiver_state_t *state,
                                    const float *x, size_t x_len,
-                                   float complex *out, size_t max_out);
+                                   float _Complex *out, size_t max_out);
 
   size_t mpsk_receiver_bits_real_max_out (mpsk_receiver_state_t *state);
   size_t mpsk_receiver_bits_real (mpsk_receiver_state_t *state, const float *x,

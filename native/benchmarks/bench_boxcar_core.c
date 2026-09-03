@@ -18,13 +18,13 @@ elapsed_sec (struct timespec *t0, struct timespec *t1)
 int
 main (void)
 {
-  float complex *in = malloc (BENCH_N * sizeof (float complex));
+  float _Complex *in = malloc (BENCH_N * sizeof (float _Complex));
   if (!in)
     {
       fprintf (stderr, "OOM\n");
       return 1;
     }
-  float complex *out = malloc (BENCH_N * sizeof (float complex));
+  float _Complex *out = malloc (BENCH_N * sizeof (float _Complex));
   if (!out)
     {
       fprintf (stderr, "OOM\n");
@@ -36,7 +36,7 @@ main (void)
   boxcar_state_t *obj = boxcar_create (4, 1.0);
 
   /* volatile sink prevents DCE of the step() loop */
-  volatile float complex _sink;
+  volatile float _Complex _sink;
 
   /* warmup */
   for (int i = 0; i < 16; i++)

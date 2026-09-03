@@ -47,7 +47,7 @@ extern "C"
     size_t         tsamps; 
     /* Scratch, not state: sized `tsamps`, allocated once (never per
      * steps() call -- no allocation in the hot streaming path). */
-    float complex *car_wiped_buf;
+    float _Complex *car_wiped_buf;
     /* Genuinely stateful: raw samples handed to steps() that didn't fill
      * a whole code period yet, carried to the NEXT call so the carrier
      * loop always wipes exact, complete periods regardless of how a
@@ -55,7 +55,7 @@ extern "C"
      * carries across calls" contract). Capacity `tsamps`; only the first
      * `car_carry_len` samples are valid. Must be serialized (see below)
      * or a resumed instance silently loses its period alignment. */
-    float complex *car_carry_buf;
+    float _Complex *car_carry_buf;
     size_t         car_carry_len;
 
     /* Own copy of the spreading code -- acq_create_continuous()/
@@ -107,8 +107,8 @@ extern "C"
   size_t dsss_receiver_steps_max_out (dsss_receiver_state_t *state);
 
   size_t dsss_receiver_steps (dsss_receiver_state_t *state,
-                              const float complex *x, size_t x_len,
-                              float complex *out, size_t max_out);
+                              const float _Complex *x, size_t x_len,
+                              float _Complex *out, size_t max_out);
 
   int dsss_receiver_configure_search_raw (dsss_receiver_state_t *state,
                                           size_t                 doppler_bins,

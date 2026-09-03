@@ -29,9 +29,9 @@ _bind_snr_data_aided_db (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *soft = (const float complex *)PyArray_DATA (soft_arr);
-  size_t               soft_len      = (size_t)PyArray_SIZE (soft_arr);
-  PyArrayObject       *sign_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
+  const float _Complex *soft = (const float _Complex *)PyArray_DATA (soft_arr);
+  size_t                soft_len      = (size_t)PyArray_SIZE (soft_arr);
+  PyArrayObject        *sign_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
       sign_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!sign_bits_arr)
     {
@@ -60,8 +60,8 @@ _bind_snr_m2m4_db (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *x     = (const float complex *)PyArray_DATA (x_arr);
-  size_t               x_len = (size_t)PyArray_SIZE (x_arr);
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   Py_DECREF (x_arr);
   return PyFloat_FromDouble (snr_m2m4_db (x, x_len));
 }
@@ -84,9 +84,9 @@ _bind_snr_data_aided_db_series (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *soft = (const float complex *)PyArray_DATA (soft_arr);
-  size_t               soft_len      = (size_t)PyArray_SIZE (soft_arr);
-  PyArrayObject       *sign_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
+  const float _Complex *soft = (const float _Complex *)PyArray_DATA (soft_arr);
+  size_t                soft_len      = (size_t)PyArray_SIZE (soft_arr);
+  PyArrayObject        *sign_bits_arr = (PyArrayObject *)PyArray_FROM_OTF (
       sign_bits_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!sign_bits_arr)
     {
@@ -127,10 +127,10 @@ _bind_snr_m2m4_db_series (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *x     = (const float complex *)PyArray_DATA (x_arr);
-  size_t               x_len = (size_t)PyArray_SIZE (x_arr);
-  npy_intp             _dim  = (npy_intp)(x_len);
-  PyObject            *_out  = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  npy_intp              _dim  = (npy_intp)(x_len);
+  PyObject             *_out  = PyArray_EMPTY (1, &_dim, NPY_DOUBLE, 0);
   if (!_out)
     {
       Py_DECREF (x_arr);

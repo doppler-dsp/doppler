@@ -20,14 +20,13 @@
 /* Interpolate a length-N real sequence f[] at continuous position `pos`
  * (= integer index + fraction) by streaming through the Farrow, accounting for
  * the 2-sample group delay (d[1] lags the newest pushed sample by 2). */
-static float complex
-interp_at (int order, const float *f, int n, double pos)
+static float _Complex interp_at (int order, const float *f, int n, double pos)
 {
   farrow_state_t s;
   farrow_init (&s, order);
-  int           base = (int)floor (pos);
-  double        mu   = pos - base;
-  float complex y    = 0.0f;
+  int    base      = (int)floor (pos);
+  double mu        = pos - base;
+  float _Complex y = 0.0f;
   for (int i = 0; i <= base + 2 && i < n; i++)
     {
       farrow_push (&s, f[i] + 0.0f * I);
@@ -91,7 +90,7 @@ main (void)
             double exact = 0.0;
             for (int p = 0; p <= deg[order]; p++)
               exact += (p % 2 ? -0.7 : 0.4) * pow (pos - 8.0, p);
-            float complex got = interp_at (order, f, n, pos);
+            float _Complex got = interp_at (order, f, n, pos);
             if (fabsf (crealf (got) - (float)exact) > 1e-2f)
               bad++;
           }
@@ -106,9 +105,9 @@ main (void)
     double         fnorm = 0.05; /* cycles/sample */
     farrow_state_t s;
     farrow_init (&s, FARROW_CUBIC);
-    double        mu     = 0.5;
-    int           errors = 0;
-    float complex sig[64];
+    double mu     = 0.5;
+    int    errors = 0;
+    float _Complex sig[64];
     for (int i = 0; i < n; i++)
       sig[i] = cexpf ((float)(2.0 * M_PI * fnorm * i) * I);
     for (int i = 0; i < n; i++)
@@ -116,9 +115,10 @@ main (void)
         farrow_push (&s, sig[i]);
         if (i >= 3)
           {
-            float complex got  = farrow_eval (&s, (float)mu);
-            double        pos  = (double)i - 2.0 + mu;
-            float complex want = cexpf ((float)(2.0 * M_PI * fnorm * pos) * I);
+            float _Complex got = farrow_eval (&s, (float)mu);
+            double pos         = (double)i - 2.0 + mu;
+            float _Complex want
+                = cexpf ((float)(2.0 * M_PI * fnorm * pos) * I);
             if (cabsf (got - want) > 0.02f)
               errors++;
           }

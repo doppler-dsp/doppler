@@ -33,8 +33,8 @@ typedef struct {
     /* Scratch, not state -- sized nfft/psd->n, allocated once at create
      * (no allocation in the steps() hot path). */
     float         *pwr_buf;    
-    float complex *power_buf;  
-    float complex *carry_buf;  
+    float _Complex *power_buf;  
+    float _Complex *carry_buf;  
     size_t         carry_len;  
     /* Config, fixed at construction (restored by create(), not the
      * blob -- validated against the blob's own copy in set_state). */
@@ -62,7 +62,7 @@ void carrier_acq_destroy(carrier_acq_state_t *state);
 
 void carrier_acq_reset(carrier_acq_state_t *state);
 
-void carrier_acq_steps(carrier_acq_state_t *state, const float complex *x,
+void carrier_acq_steps(carrier_acq_state_t *state, const float _Complex *x,
                        size_t x_len);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────

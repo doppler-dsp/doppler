@@ -7,7 +7,7 @@
  * Example:
  * @code
  * wfm_synth_state_t *obj = wfm_synth_create(0, 1000000.0, 0.0, 100.0, 0, 1, 8, 7, 0);
- * float complex y = wfm_synth_step(obj);
+ * float _Complex y = wfm_synth_step(obj);
  * wfm_synth_destroy(obj);
  * @endcode
  */
@@ -654,7 +654,7 @@ void wfm_synth_reseed_noise(wfm_synth_state_t *state, uint32_t seed);
  * @param output  n complex samples out.
  * @param n       Sample count.
  */
-void wfm_synth_noise_steps(wfm_synth_state_t *state, float complex *output,
+void wfm_synth_noise_steps(wfm_synth_state_t *state, float _Complex *output,
                            size_t n);
 
 /**
@@ -665,7 +665,7 @@ void wfm_synth_noise_steps(wfm_synth_state_t *state, float complex *output,
  * tight per-sample loops pay no call overhead.
  *
  * @param state  Must be non-NULL.
- * @return Next output sample (float complex).
+ * @return Next output sample (float _Complex).
  * @code
  * >>> from doppler.wfm import _SynthEngine
  * >>> s = _SynthEngine(type="tone", fs=1.0, freq=0.0, snr=100.0)
@@ -673,7 +673,7 @@ void wfm_synth_noise_steps(wfm_synth_state_t *state, float complex *output,
  * (1+0j)
  * @endcode
  */
-JM_FORCEINLINE JM_HOT float complex
+JM_FORCEINLINE JM_HOT float _Complex
 wfm_synth_step(wfm_synth_state_t *state)
 {
     /* jm: body sourced from [wfm_synth] impl/impl_file in
@@ -821,7 +821,7 @@ wfm_synth_step(wfm_synth_state_t *state)
  */
 void wfm_synth_steps(
     wfm_synth_state_t *state,
-    float complex          *output,
+    float _Complex          *output,
     size_t               n);
 
 /**

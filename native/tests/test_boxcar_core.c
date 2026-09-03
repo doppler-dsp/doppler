@@ -96,9 +96,9 @@ main (void)
       CUT = 83,
       CAP = 200
     };
-    float complex *in   = malloc (L * sizeof (*in));
-    float complex *outA = malloc (CAP * sizeof (*outA));
-    float complex *outB = malloc (CAP * sizeof (*outB));
+    float _Complex *in   = malloc (L * sizeof (*in));
+    float _Complex *outA = malloc (CAP * sizeof (*outA));
+    float _Complex *outB = malloc (CAP * sizeof (*outB));
     for (int i = 0; i < L; i++)
       in[i] = cosf (0.03f * i) + I * sinf (0.017f * i);
 

@@ -42,21 +42,21 @@ extern "C"
 
   void lo_init (lo_state_t *state, double norm_freq);
 
-  JM_FORCEINLINE JM_HOT float complex lo_step (lo_state_t *state)
+  JM_FORCEINLINE JM_HOT float _Complex lo_step (lo_state_t *state)
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
-    float complex out
+    float _Complex out
         = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                   lo_sin_lut[idx]);
     state->phase += state->phase_inc;
     return out;
   }
 
-  JM_FORCEINLINE JM_HOT float complex lo_step_ctrl (lo_state_t *state,
+  JM_FORCEINLINE JM_HOT float _Complex lo_step_ctrl (lo_state_t *state,
                                                     double ctrl)
   {
     uint16_t idx = (uint16_t)(state->phase >> (32u - LO_LUT_BITS));
-    float complex out
+    float _Complex out
         = CMPLXF (lo_sin_lut[(uint16_t)(idx + (uint16_t)LO_LUT_QTR)],
                   lo_sin_lut[idx]);
     /* nco_norm_freq_to_inc() is the ONE shared cycles->phase-delta
@@ -103,13 +103,13 @@ extern "C"
 
   size_t lo_steps_max_out (lo_state_t *state);
 
-  size_t lo_steps (lo_state_t *state, size_t n, float complex *out,
+  size_t lo_steps (lo_state_t *state, size_t n, float _Complex *out,
                    size_t max_out);
 
   size_t lo_steps_ctrl_max_out (lo_state_t *state);
 
   size_t lo_steps_ctrl (lo_state_t *state, const double *ctrl, size_t ctrl_len,
-                        float complex *out, size_t max_out);
+                        float _Complex *out, size_t max_out);
 
 #ifdef __cplusplus
 }

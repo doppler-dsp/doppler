@@ -58,8 +58,8 @@ compose_collect (const char *json, float _Complex *out)
   wfm_compose_state_t *c = wfm_compose_from_json (json);
   if (!c)
     return 0;
-  size_t        total = 0, n;
-  float complex buf[257];
+  size_t total = 0, n;
+  float _Complex buf[257];
   while ((n = wfm_compose_execute (c, buf, 257)) > 0 && total + n <= L)
     {
       memcpy (out + total, buf, n * sizeof *buf);
@@ -121,8 +121,8 @@ test_parallel_build_bit_exact (void)
   /* Full serial compose — the ground truth. */
   wfm_compose_state_t *c = wfm_compose_from_json (json);
   DP_REQUIRE_MSG (c, "par: compose_from_json");
-  size_t        total = 0, n;
-  float complex buf[257];
+  size_t total = 0, n;
+  float _Complex buf[257];
   while ((n = wfm_compose_execute (c, buf, 257)) > 0 && total + n <= NPAR_LEN)
     {
       memcpy (ref + total, buf, n * sizeof *buf);
@@ -247,8 +247,8 @@ compose_n (const char *json, float _Complex *out, size_t n)
   wfm_compose_state_t *c = wfm_compose_from_json (json);
   if (!c)
     return 0;
-  size_t        total = 0, got;
-  float complex buf[257];
+  size_t total = 0, got;
+  float _Complex buf[257];
   while ((got = wfm_compose_execute (c, buf, 257)) > 0 && total + got <= n)
     {
       memcpy (out + total, buf, got * sizeof *buf);

@@ -618,8 +618,8 @@ burst_capture_push_max_out (burst_capture_state_t *state, size_t x_len)
 }
 
 size_t
-burst_capture_push (burst_capture_state_t *state, const float complex *x,
-                    size_t x_len, float complex *out, size_t max_out)
+burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
+                    size_t x_len, float _Complex *out, size_t max_out)
 {
   /* Every call starts fresh: both lists describe THIS push. */
   state->ev_len  = 0;
@@ -862,7 +862,7 @@ burst_capture_ready (const burst_capture_state_t *state)
   return state->ev_len;
 }
 
-const float complex *
+const float _Complex *
 burst_capture_window (const burst_capture_state_t *state, size_t i)
 {
   if (i >= state->ev_len)

@@ -43,7 +43,7 @@ _bind_bpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   bpsk_map (bits, bits_len,
-            (float complex *)PyArray_DATA ((PyArrayObject *)_out));
+            (float _Complex *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (bits_arr);
   return _out;
 }
@@ -72,7 +72,7 @@ _bind_qpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   qpsk_map (syms, syms_len,
-            (float complex *)PyArray_DATA ((PyArrayObject *)_out));
+            (float _Complex *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (syms_arr);
   return _out;
 }
@@ -249,9 +249,9 @@ _bind_dsss_spread (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *syms = (const float complex *)PyArray_DATA (syms_arr);
-  size_t               syms_len = (size_t)PyArray_SIZE (syms_arr);
-  PyArrayObject       *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
+  const float _Complex *syms = (const float _Complex *)PyArray_DATA (syms_arr);
+  size_t                syms_len = (size_t)PyArray_SIZE (syms_arr);
+  PyArrayObject        *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
       code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!code_arr)
     {
@@ -269,7 +269,7 @@ _bind_dsss_spread (PyObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   dsss_spread (syms, syms_len, code, code_len, sf,
-               (float complex *)PyArray_DATA ((PyArrayObject *)_out));
+               (float _Complex *)PyArray_DATA ((PyArrayObject *)_out));
   Py_DECREF (syms_arr);
   Py_DECREF (code_arr);
   return _out;

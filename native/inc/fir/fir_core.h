@@ -15,7 +15,7 @@
  * @code
  * float taps[63] = { ... };
  * fir_state_t *fir = fir_create_real(taps, 63);
- * float complex out[4096];
+ * float _Complex out[4096];
  * fir_execute(fir, signal, 4096, out);
  * fir_destroy(fir);
  * @endcode
@@ -37,10 +37,10 @@ extern "C"
 
   typedef struct
   {
-    float complex *taps;    /* complex taps  (NULL for real-tap filter)   */
+    float _Complex *taps;    /* complex taps  (NULL for real-tap filter)   */
     float *rtaps;           /* real taps     (NULL for complex-tap filter) */
-    float complex *delay;   /* delay line, length num_taps - 1            */
-    float complex *scratch; /* [delay | input] workspace, grown on demand  */
+    float _Complex *delay;   /* delay line, length num_taps - 1            */
+    float _Complex *scratch; /* [delay | input] workspace, grown on demand  */
     size_t scratch_cap;
     size_t num_taps;
   } fir_state_t;
@@ -69,22 +69,22 @@ extern "C"
    * @param x  One input sample.
    * @return The filtered output sample.
    */
-  JM_FORCEINLINE JM_HOT float complex
-  fir_step (fir_state_t *s, float complex x)
+  JM_FORCEINLINE JM_HOT float _Complex
+  fir_step (fir_state_t *s, float _Complex x)
   {
     size_t               M = s->num_taps;
-    const float complex *d = s->delay;  /* length M-1 (NULL when M == 1) */
+    const float _Complex *d = s->delay;  /* length M-1 (NULL when M == 1) */
     const float         *h = s->rtaps;  /* real taps (fir_create_real)   */
     float                re = 0.0f, im = 0.0f;
     for (size_t k = 0; k < M; k++)
       {
-        float complex cf = (k == 0) ? x : d[M - 1 - k];
+        float _Complex cf = (k == 0) ? x : d[M - 1 - k];
         re += h[k] * crealf (cf);
         im += h[k] * cimagf (cf);
       }
     if (M > 1)
       {
-        float complex *dl = s->delay; /* shift left, append x as newest */
+        float _Complex *dl = s->delay; /* shift left, append x as newest */
         for (size_t i = 0; i + 2 < M; i++)
           dl[i] = dl[i + 1];
         dl[M - 2] = x;
@@ -112,7 +112,7 @@ extern "C"
    * False
    * @endcode
    */
-  fir_state_t *fir_create (const float complex *taps, size_t taps_len);
+  fir_state_t *fir_create (const float _Complex *taps, size_t taps_len);
 
   /**
    * @brief Create a FIR filter from real float tap coefficients.
@@ -265,8 +265,8 @@ extern "C"
    * [0.25, 0.5, 0.25]
    * @endcode
    */
-  size_t fir_execute (fir_state_t *state, const float complex *in, size_t n_in,
-                      float complex *out);
+  size_t fir_execute (fir_state_t *state, const float _Complex *in, size_t n_in,
+                      float _Complex *out);
 
 #ifdef __cplusplus
 }

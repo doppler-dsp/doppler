@@ -169,7 +169,7 @@ RawCaptureObj_read (RawCaptureObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out
           = capture_read (self->handle, (size_t)n,
-                          (float complex *)PyArray_DATA (out_arr), _cap);
+                          (float _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -190,8 +190,8 @@ RawCaptureObj_read (RawCaptureObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  float complex *_d0   = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t         n_out = capture_read (self->handle, (size_t)n, _d0, _cap);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t          n_out = capture_read (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -384,16 +384,29 @@ static PyMethodDef RawCaptureObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "read(count=1) -> ndarray\n"
     "\n"
-    "Read up to `count` samples as unit-scale complex64; an empty array at "
-    "end of file.\n"
+    "Read up to `count` samples as unit-scale complex64; an empty array\n"
+    "at end of file.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "count : int\n"
+    "    How many output samples to ask for. The call may return fewer; size\n"
+    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
+    "    worst case.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Optional pre-allocated output buffer. When given, the result is\n"
+    "    written into it and the returned array is a view of exactly the\n"
+    "    samples produced; when omitted, a fresh array is allocated.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "NDArray[np.complex64]\n"
     "    Output.\n"
     "\n"
+    "Examples\n"
+    "--------\n"
     "    >>> import numpy as np\n"
-    "    >>> from iqtools import RawCapture\n"
+    "    >>> from iqtools.capture import RawCapture\n"
     "    >>> obj = RawCapture(path=..., sample_type=\"ci16\", endian=\"le\", "
     "fs=1.0, fc=0.0)\n"
     "    >>> y = obj.read(4)\n"
@@ -431,7 +444,7 @@ static PyMethodDef RawCaptureObj_methods[] = {
     "\n"
     "Examples\n"
     "--------\n"
-    "    >>> from iqtools import RawCapture\n"
+    "    >>> from iqtools.capture import RawCapture\n"
     "    >>> obj = RawCapture(path=..., sample_type=\"ci16\", endian=\"le\", "
     "fs=1.0, fc=0.0)\n"
     "    >>> rec = obj.summary()\n"

@@ -40,7 +40,7 @@
 |  pocketfft\_plan \* | [**plan\_f32**](#variable-plan_f32)  <br> |
 |  pocketfft\_plan \* | [**plan\_f64**](#variable-plan_f64)  <br> |
 |  int | [**sign**](#variable-sign)  <br> |
-|  double complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
+|  double \_Complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
 
 
 
@@ -162,7 +162,7 @@ int fft_state_t::sign;
 ### variable work\_trunc 
 
 ```C++
-double complex* fft_state_t::work_trunc;
+double _Complex* fft_state_t::work_trunc;
 ```
 
 

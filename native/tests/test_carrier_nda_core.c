@@ -37,10 +37,10 @@
 
 /* Run the loop over a built signal; report tracked freq + lock. */
 static void
-run (carrier_nda_state_t *c, const float complex *rx, size_t n, double *f,
+run (carrier_nda_state_t *c, const float _Complex *rx, size_t n, double *f,
      double *lk)
 {
-  float complex *o = malloc (n * sizeof (*o));
+  float _Complex *o = malloc (n * sizeof (*o));
   carrier_nda_steps (c, rx, n, o, n);
   *f  = carrier_nda_get_norm_freq (c);
   *lk = carrier_nda_get_lock (c);
@@ -61,11 +61,11 @@ run (carrier_nda_state_t *c, const float complex *rx, size_t n, double *f,
  * Returns N when the loop never settles inside the record. */
 static size_t
 track_settle (size_t sps, int n, int m, double bn, double f0,
-              const float complex *rx, size_t N, double tol_frac, size_t step,
+              const float _Complex *rx, size_t N, double tol_frac, size_t step,
               int last)
 {
   carrier_nda_state_t *c     = carrier_nda_create (bn, 0.707, 0.0, sps, n, m);
-  float complex       *o     = malloc (step * sizeof (*o));
+  float _Complex      *o     = malloc (step * sizeof (*o));
   size_t               first = N, out_at = 0;
   int                  ever_in = 0;
   for (size_t i = 0; i + step <= N; i += step)
@@ -89,7 +89,7 @@ track_settle (size_t sps, int n, int m, double bn, double f0,
 /* Section 7's proxy, unchanged: first arrival inside 10%, probed every 50
  * samples, at the shipped sps and M = 4. */
 static size_t
-settle_idx (int n, double bn, double f0, const float complex *rx, size_t N)
+settle_idx (int n, double bn, double f0, const float _Complex *rx, size_t N)
 {
   return track_settle (8, n, 4, bn, f0, rx, N, 0.1, 50, 0);
 }
@@ -181,14 +181,15 @@ main (void)
         DP_CHECK (lk0 > 0.0);         /* lock peaks at 0   */
         /* constant-gain property: phase_error slope at 0 is ~2 for all M */
         double h = 1e-3 / m, peh, pemh, lk;
-        carrier_nda_disc ((float complex)cexp (I * h), m, &peh, &lk);
-        carrier_nda_disc ((float complex)cexp (-I * h), m, &pemh, &lk);
+        carrier_nda_disc ((float _Complex)cexp (I * h), m, &peh, &lk);
+        carrier_nda_disc ((float _Complex)cexp (-I * h), m, &pemh, &lk);
         double slope = (peh - pemh) / (2.0 * h);
         DP_CHECK (fabs (slope - 2.0) < 2e-2);
         /* sawtooth period 2pi/M: e(phi) == e(phi + 2pi/M) */
         double pa, pb;
-        carrier_nda_disc ((float complex)cexp (I * 0.05), m, &pa, &lk);
-        carrier_nda_disc ((float complex)cexp (I * (0.05 + seg)), m, &pb, &lk);
+        carrier_nda_disc ((float _Complex)cexp (I * 0.05), m, &pa, &lk);
+        carrier_nda_disc ((float _Complex)cexp (I * (0.05 + seg)), m, &pb,
+                          &lk);
         DP_CHECK (fabs (pa - pb) < 1e-6);
       }
   }
@@ -197,10 +198,10 @@ main (void)
    * 4. Cold-start pull-in on an UNMODULATED carrier (no data)        *
    * ---------------------------------------------------------------- */
   {
-    size_t         N    = 40000;
-    float complex *rx   = malloc (N * sizeof (*rx));
-    double         f0   = 0.001;
-    int            ms[] = { 2, 4, 8 };
+    size_t          N    = 40000;
+    float _Complex *rx   = malloc (N * sizeof (*rx));
+    double          f0   = 0.001;
+    int             ms[] = { 2, 4, 8 };
     for (int mi = 0; mi < 3; mi++)
       {
         uint32_t ns = 5u;
@@ -211,7 +212,7 @@ main (void)
                clang takes the real one. gcc's order is pinned. */
             float n_im = 0.05f * (float)dp_gauss (&ns);
             float n_re = 0.05f * (float)dp_gauss (&ns);
-            rx[k] = (float complex)cexp (I * TWOPI * f0 * (double)k) + n_re
+            rx[k] = (float _Complex)cexp (I * TWOPI * f0 * (double)k) + n_re
                     + n_im * I;
           }
         carrier_nda_state_t *c
@@ -229,25 +230,25 @@ main (void)
    * 5. Cold-start on MODULATED data with NO symbol timing            *
    * ---------------------------------------------------------------- */
   {
-    int            sps  = 8;
-    size_t         nsym = 6000, N = nsym * (size_t)sps;
-    float complex *rx   = malloc (N * sizeof (*rx));
-    double         f0   = 0.001;
-    int            ms[] = { 2, 4, 8 };
+    int             sps  = 8;
+    size_t          nsym = 6000, N = nsym * (size_t)sps;
+    float _Complex *rx   = malloc (N * sizeof (*rx));
+    double          f0   = 0.001;
+    int             ms[] = { 2, 4, 8 };
     for (int mi = 0; mi < 3; mi++)
       {
         int      m  = ms[mi];
         uint32_t ds = 99u, ns = 7u;
         for (size_t s = 0; s < nsym; s++)
           {
-            float complex a
+            float _Complex a
                 = mpsk_constellation ((int)(dp_xs32 (&ds) % (uint32_t)m), m);
             for (int i = 0; i < sps; i++)
               {
                 size_t k    = s * (size_t)sps + (size_t)i;
                 float  n_im = 0.1f * (float)dp_gauss (&ns); /* gcc's order */
                 float  n_re = 0.1f * (float)dp_gauss (&ns);
-                rx[k] = a * (float complex)cexp (I * TWOPI * f0 * (double)k)
+                rx[k] = a * (float _Complex)cexp (I * TWOPI * f0 * (double)k)
                         + n_re + n_im * I;
               }
           }
@@ -266,14 +267,14 @@ main (void)
    * 6. Reset reproducibility                                         *
    * ---------------------------------------------------------------- */
   {
-    size_t         N  = 8000;
-    float complex *rx = malloc (N * sizeof (*rx));
-    uint32_t       ns = 3u;
+    size_t          N  = 8000;
+    float _Complex *rx = malloc (N * sizeof (*rx));
+    uint32_t        ns = 3u;
     for (size_t k = 0; k < N; k++)
       {
         float n_im = 0.05f * (float)dp_gauss (&ns); /* gcc's order */
         float n_re = 0.05f * (float)dp_gauss (&ns);
-        rx[k] = (float complex)cexp (I * TWOPI * 0.0012 * (double)k) + n_re
+        rx[k] = (float _Complex)cexp (I * TWOPI * 0.0012 * (double)k) + n_re
                 + n_im * I;
       }
     carrier_nda_state_t *c = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
@@ -337,11 +338,11 @@ main (void)
    *    settling — scaled ~n x. Noiseless carrier → deterministic.      *
    * ---------------------------------------------------------------- */
   {
-    size_t         N  = 40000;
-    float complex *rx = malloc (N * sizeof (*rx));
-    double         f0 = 0.0015;
+    size_t          N  = 40000;
+    float _Complex *rx = malloc (N * sizeof (*rx));
+    double          f0 = 0.0015;
     for (size_t k = 0; k < N; k++)
-      rx[k] = (float complex)cexp (I * TWOPI * f0 * (double)k);
+      rx[k] = (float _Complex)cexp (I * TWOPI * f0 * (double)k);
     size_t s1 = settle_idx (1, 0.005, f0, rx, N);
     size_t s2 = settle_idx (2, 0.005, f0, rx, N);
     size_t s4 = settle_idx (4, 0.005, f0, rx, N);
@@ -387,15 +388,15 @@ main (void)
     const double th   = 0.11; /* off lock, so pe and lock are both nonzero */
     for (int mi = 0; mi < 3; mi++)
       {
-        double        ref_pe, ref_lk;
-        float complex z1 = (float)cos (th) + (float)sin (th) * I;
+        double ref_pe, ref_lk;
+        float _Complex z1 = (float)cos (th) + (float)sin (th) * I;
         carrier_nda_disc (z1, ms[mi], &ref_pe, &ref_lk);
         DP_CHECK (fabs (ref_pe) > 0.1 && fabs (ref_lk) > 0.1);
         const double amps[] = { 1e-5, 1e-3, 3.2e-2, 1.0, 1e3, 1e5, 1e8 };
         for (size_t ai = 0; ai < sizeof amps / sizeof *amps; ai++)
           {
-            double        A = amps[ai];
-            float complex z
+            double A = amps[ai];
+            float _Complex z
                 = (float)(A * cos (th)) + (float)(A * sin (th)) * I;
             double pe, lk;
             carrier_nda_disc (z, ms[mi], &pe, &lk);
@@ -409,15 +410,15 @@ main (void)
       }
   }
   {
-    size_t         N  = 40000;
-    float complex *rx = malloc (N * sizeof (*rx));
-    double         f0 = 0.001;
-    uint32_t       ns = 23u;
+    size_t          N  = 40000;
+    float _Complex *rx = malloc (N * sizeof (*rx));
+    double          f0 = 0.001;
+    uint32_t        ns = 23u;
     for (size_t k = 0; k < N; k++)
       {
         float n_im = 0.05f * (float)dp_gauss (&ns); /* gcc's order */
         float n_re = 0.05f * (float)dp_gauss (&ns);
-        rx[k]      = (float complex)cexp (I * TWOPI * f0 * (double)k) + n_re
+        rx[k]      = (float _Complex)cexp (I * TWOPI * f0 * (double)k) + n_re
                      + n_im * I;
       }
     /* The DISCRIMINATOR's own invariance, which is the claim the loop test
@@ -444,14 +445,14 @@ main (void)
         {
           /* An off-axis phase, so both outputs are non-trivial and a
              relative comparison means something. */
-          float complex z0 = (float)cos (0.3) + (float)sin (0.3) * I;
-          double        pe0, lk0;
+          float _Complex z0 = (float)cos (0.3) + (float)sin (0.3) * I;
+          double pe0, lk0;
           carrier_nda_disc (z0, ms[mi], &pe0, &lk0);
           DP_CHECK (fabs (pe0) > 1e-3 && fabs (lk0) > 1e-3);
           for (size_t si = 0; si < sizeof sc / sizeof *sc; si++)
             {
               double pe, lk;
-              carrier_nda_disc ((float complex) ((float)sc[si]) * z0, ms[mi],
+              carrier_nda_disc ((float _Complex) ((float)sc[si]) * z0, ms[mi],
                                 &pe, &lk);
               DP_CHECK (isfinite (pe) && isfinite (lk));
               DP_CHECK (fabs (pe - pe0) <= 1e-6 * fabs (pe0));
@@ -467,7 +468,7 @@ main (void)
     {
       NS = sizeof scales / sizeof *scales
     };
-    float complex *rs = malloc (N * sizeof (*rs));
+    float _Complex *rs = malloc (N * sizeof (*rs));
     for (int m = 4; m <= 8; m += 4) /* QPSK and the 8PSK worst case */
       {
         double fs[NS];
@@ -498,10 +499,10 @@ main (void)
     {
       N = 1024
     };
-    float complex rx[N], out[N];
-    dp_tlm_rec_t  recs[8192];
+    float _Complex rx[N], out[N];
+    dp_tlm_rec_t recs[8192];
     for (int i = 0; i < N; i++)
-      rx[i] = (float complex)cexp (I * TWOPI * 0.005 * (double)i);
+      rx[i] = (float _Complex)cexp (I * TWOPI * 0.005 * (double)i);
     dp_tlm_t            *tlm = dp_tlm_create (1 << 13);
     carrier_nda_state_t *c   = carrier_nda_create (0.01, 0.707, 0.0, 8, 4, 4);
     DP_CHECK (tlm != NULL && c != NULL);
@@ -593,8 +594,8 @@ main (void)
             double th = -M_PI + 2.0 * M_PI * (double)k / 512.0;
             for (size_t ai = 0; ai < sizeof amps / sizeof *amps; ai++)
               {
-                double        A = amps[ai];
-                float complex z
+                double A = amps[ai];
+                float _Complex z
                     = (float)(A * cos (th)) + (float)(A * sin (th)) * I;
                 double pe, lk;
                 carrier_nda_disc (z, ms[mi], &pe, &lk);
@@ -698,8 +699,8 @@ main (void)
     const size_t bud  = (size_t)(2.5 / bn); /* the 2/bn rule, with margin
                                                for platform variation --
                                                measured worst case 1.92 */
-    float complex *rx = malloc (NS16 * sizeof (*rx));
-    size_t         s_in[3], s_edge[3], s_out[3];
+    float _Complex *rx = malloc (NS16 * sizeof (*rx));
+    size_t          s_in[3], s_edge[3], s_out[3];
     for (int mi = 0; mi < 3; mi++)
       {
         const int m = ms[mi];
@@ -710,7 +711,7 @@ main (void)
           {
             double f0 = us[ui] * bn / (double)m;
             for (size_t k = 0; k < NS16; k++)
-              rx[k] = (float complex)cexp (I * TWOPI * f0 * (double)k);
+              rx[k] = (float _Complex)cexp (I * TWOPI * f0 * (double)k);
             /* Noiseless, so the tolerance is purely relative: an absolute
                floor would be a different criterion at each M, because f0
                scales as 1/M. That error cost the report a wrong result

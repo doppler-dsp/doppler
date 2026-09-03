@@ -49,7 +49,7 @@ static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 
 /** @brief Mean |x|^2 over `[lo, hi)`. */
 static double
-mean_power (const float complex *x, size_t lo, size_t hi)
+mean_power (const float _Complex *x, size_t lo, size_t hi)
 {
   double s = 0.0;
   size_t i;
@@ -77,10 +77,10 @@ main (void)
      so the target noise power is 1.0 and any discrepancy is the factor rather
      than arithmetic. This is the header's own worked example. */
   {
-    float complex *x    = NULL;
-    double        *data = NULL;
-    size_t         n    = 0;
-    double         p, p_db;
+    float _Complex *x    = NULL;
+    double         *data = NULL;
+    size_t          n    = 0;
+    double          p, p_db;
 
     dp_dsss_capture (CODE7, SF, SPC, FS, TSYM, 0.0, 60.0, NSYM, PRE, 7u, &x,
                      &n, &data);
@@ -109,9 +109,9 @@ main (void)
   /* ── 2. The capture's structure ───────────────────────────────────────── */
 
   {
-    float complex *x    = NULL;
-    double        *data = NULL;
-    size_t         n = 0, idx, bad = 0;
+    float _Complex *x    = NULL;
+    double         *data = NULL;
+    size_t          n = 0, idx, bad = 0;
     /* A very high cn0 makes sigma tiny, so the signal region can be compared
        against its closed form directly. */
     const double CN0 = 120.0;
@@ -162,9 +162,9 @@ main (void)
   /* ── 3. Reproducible from the seed, and only from the seed ────────────── */
 
   {
-    float complex *x1 = NULL, *x2 = NULL, *x3 = NULL;
-    double        *d1 = NULL, *d2 = NULL, *d3 = NULL;
-    size_t         n1 = 0, n2 = 0, n3 = 0, i, same = 0, diff = 0;
+    float _Complex *x1 = NULL, *x2 = NULL, *x3 = NULL;
+    double         *d1 = NULL, *d2 = NULL, *d3 = NULL;
+    size_t          n1 = 0, n2 = 0, n3 = 0, i, same = 0, diff = 0;
 
     dp_dsss_capture (CODE7, SF, SPC, FS, TSYM, 0.0, 60.0, NSYM, 64, 7u, &x1,
                      &n1, &d1);
@@ -213,11 +213,11 @@ main (void)
      chosen inside the first symbol so `data` and `code` are both +1-signed and
      known. */
   {
-    float complex *x    = NULL;
-    double        *data = NULL;
-    size_t         n = 0, idx = 3;
-    double         want, got, sgn;
-    const double   DOP = 1000.0;
+    float _Complex *x    = NULL;
+    double         *data = NULL;
+    size_t          n = 0, idx = 3;
+    double          want, got, sgn;
+    const double    DOP = 1000.0;
 
     dp_dsss_capture (CODE7, SF, SPC, FS, TSYM, DOP, 120.0, NSYM, 0, 7u, &x, &n,
                      &data);
@@ -234,11 +234,11 @@ main (void)
      a factor of two away from the obvious wrong answer, which is exactly the
      kind of thing that reads as a receiver failing to track. */
   {
-    float complex *x    = NULL;
-    double        *data = NULL;
-    size_t         n = 0, idx = 997;
-    double         t, want, got, sgn;
-    const double   RATE = 5.0e5; /* Hz/s */
+    float _Complex *x    = NULL;
+    double         *data = NULL;
+    size_t          n = 0, idx = 997;
+    double          t, want, got, sgn;
+    const double    RATE = 5.0e5; /* Hz/s */
 
     dp_dsss_ramp_capture (CODE7, SF, SPC, FS, TSYM, RATE, 120.0, NSYM, 0, 7u,
                           &x, &n, &data);
@@ -260,9 +260,9 @@ main (void)
      degenerate case, which is where a `t^2` sign or factor error would still
      look fine and then diverge everywhere else. */
   {
-    float complex *x    = NULL;
-    double        *data = NULL;
-    size_t         n = 0, idx, bad = 0;
+    float _Complex *x    = NULL;
+    double         *data = NULL;
+    size_t          n = 0, idx, bad = 0;
 
     dp_dsss_ramp_capture (CODE7, SF, SPC, FS, TSYM, 0.0, 120.0, NSYM, 0, 7u,
                           &x, &n, &data);

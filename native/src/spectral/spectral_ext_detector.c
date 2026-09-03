@@ -78,7 +78,7 @@ CorrDetectorObj_init (CorrDetectorObject *self, PyObject *args, PyObject *kwds)
     }
   size_t ref_len = (size_t)PyArray_SIZE (ref_arr);
   self->handle   = detector_create (
-      (const float complex *)PyArray_DATA (ref_arr), ref_len, dwell, noise_lo,
+      (const float _Complex *)PyArray_DATA (ref_arr), ref_len, dwell, noise_lo,
       noise_hi, noise_mode, threshold, nthreads);
   Py_DECREF (ref_arr);
   if (!self->handle)
@@ -119,7 +119,7 @@ CorrDetectorObj_push (CorrDetectorObject *self, PyObject *args)
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
   det_result_t results[64];
   size_t n_out = detector_push (self->handle,
-                                (const float complex *)PyArray_DATA (in_arr),
+                                (const float _Complex *)PyArray_DATA (in_arr),
                                 n_in, results, 64);
   Py_DECREF (in_arr);
   PyObject *lst = PyList_New ((Py_ssize_t)n_out);

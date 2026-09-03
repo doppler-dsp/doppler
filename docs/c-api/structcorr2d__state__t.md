@@ -36,7 +36,7 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  float complex \* | [**accum**](#variable-accum)  <br> |
+|  float \_Complex \* | [**accum**](#variable-accum)  <br> |
 |  size\_t | [**count**](#variable-count)  <br> |
 |  size\_t | [**dwell**](#variable-dwell)  <br> |
 |  int | [**fast\_path**](#variable-fast_path)  <br> |
@@ -50,14 +50,14 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 |  size\_t | [**nx\_out**](#variable-nx_out)  <br> |
 |  size\_t | [**ny**](#variable-ny)  <br> |
 |  size\_t | [**ny\_out**](#variable-ny_out)  <br> |
-|  float complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
-|  float complex \* | [**row\_ref\_spec**](#variable-row_ref_spec)  <br> |
-|  float complex \* | [**work\_fft**](#variable-work_fft)  <br> |
-|  float complex \* | [**work\_pad**](#variable-work_pad)  <br> |
-|  float complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
-|  float complex \* | [**zcol**](#variable-zcol)  <br> |
-|  float complex \* | [**zcolout**](#variable-zcolout)  <br> |
-|  float complex \* | [**ztmp**](#variable-ztmp)  <br> |
+|  float \_Complex \* | [**ref\_spec**](#variable-ref_spec)  <br> |
+|  float \_Complex \* | [**row\_ref\_spec**](#variable-row_ref_spec)  <br> |
+|  float \_Complex \* | [**work\_fft**](#variable-work_fft)  <br> |
+|  float \_Complex \* | [**work\_pad**](#variable-work_pad)  <br> |
+|  float \_Complex \* | [**work\_trunc**](#variable-work_trunc)  <br> |
+|  float \_Complex \* | [**zcol**](#variable-zcol)  <br> |
+|  float \_Complex \* | [**zcolout**](#variable-zcolout)  <br> |
+|  float \_Complex \* | [**ztmp**](#variable-ztmp)  <br> |
 
 
 
@@ -117,7 +117,7 @@ Allocate with [**corr2d\_create()**](corr2d__core_8h.md#function-corr2d_create);
 ### variable accum 
 
 ```C++
-float complex* corr2d_state_t::accum;
+float _Complex* corr2d_state_t::accum;
 ```
 
 
@@ -367,7 +367,7 @@ Output rows (== ny unless decoupled).
 ### variable ref\_spec 
 
 ```C++
-float complex* corr2d_state_t::ref_spec;
+float _Complex* corr2d_state_t::ref_spec;
 ```
 
 
@@ -384,7 +384,7 @@ conj(FFT2(ref)), pre-computed. (ny, nx). NULL when [**fast\_path**](structcorr2d
 ### variable row\_ref\_spec 
 
 ```C++
-float complex* corr2d_state_t::row_ref_spec;
+float _Complex* corr2d_state_t::row_ref_spec;
 ```
 
 
@@ -402,7 +402,7 @@ conj(FFT\_nx(ref row 0)), length nx. Fast-path replacement for ref\_spec.
 ### variable work\_fft 
 
 ```C++
-float complex* corr2d_state_t::work_fft;
+float _Complex* corr2d_state_t::work_fft;
 ```
 
 
@@ -420,7 +420,7 @@ Scratch: FFT(in)·ref\_spec product. (ny,nx) either path — fast path reinterpr
 ### variable work\_pad 
 
 ```C++
-float complex* corr2d_state_t::work_pad;
+float _Complex* corr2d_state_t::work_pad;
 ```
 
 
@@ -438,7 +438,7 @@ Zero-padded product, (ny\_out, nx\_out) or, fast path, (ny, nx\_out).
 ### variable work\_trunc 
 
 ```C++
-float complex* corr2d_state_t::work_trunc;
+float _Complex* corr2d_state_t::work_trunc;
 ```
 
 
@@ -455,7 +455,7 @@ Bounce buffer for a dump into an under-sized `out` (jm gh-138). Both execute pat
 ### variable zcol 
 
 ```C++
-float complex* corr2d_state_t::zcol;
+float _Complex* corr2d_state_t::zcol;
 ```
 
 
@@ -473,7 +473,7 @@ Column gather scratch, (ny). General path only.
 ### variable zcolout 
 
 ```C++
-float complex* corr2d_state_t::zcolout;
+float _Complex* corr2d_state_t::zcolout;
 ```
 
 
@@ -491,7 +491,7 @@ Column-padded scratch, (ny\_out). General path only.
 ### variable ztmp 
 
 ```C++
-float complex* corr2d_state_t::ztmp;
+float _Complex* corr2d_state_t::ztmp;
 ```
 
 

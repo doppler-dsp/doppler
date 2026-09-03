@@ -60,7 +60,7 @@ _BurstDespreader component API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**burst\_despreader\_bits**](#function-burst_despreader_bits) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Despread a CF32 block; emit one hard BPSK bit (0/1) per code period._  |
+|  size\_t | [**burst\_despreader\_bits**](#function-burst_despreader_bits) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Despread a CF32 block; emit one hard BPSK bit (0/1) per code period._  |
 |  size\_t | [**burst\_despreader\_bits\_max\_out**](#function-burst_despreader_bits_max_out) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Upper bound on bits_ `burst_despreader_bits` _can emit (0; see burst\_despreader\_steps\_max\_out)._ |
 |  [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* | [**burst\_despreader\_create**](#function-burst_despreader_create) (const uint8\_t \* code, size\_t code\_len, size\_t sf, size\_t sps, double init\_norm\_freq, double init\_chip\_phase, double bn\_carrier, double bn\_code) <br>_Create a burst despreader instance._  |
 |  void | [**burst\_despreader\_destroy**](#function-burst_despreader_destroy) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Destroy a burst despreader instance and release all memory._  |
@@ -80,7 +80,7 @@ _BurstDespreader component API._ [More...](#detailed-description)
 |  void | [**burst\_despreader\_set\_norm\_freq**](#function-burst_despreader_set_norm_freq) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, double val) <br>_Override the carrier frequency estimate, cycles/sample (re-seed)._  |
 |  int | [**burst\_despreader\_set\_state**](#function-burst_despreader_set_state) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**burst\_despreader\_state\_bytes**](#function-burst_despreader_state_bytes) (const [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br> |
-|  size\_t | [**burst\_despreader\_steps**](#function-burst_despreader_steps) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Despread a CF32 block; emit one complex prompt symbol per code period._  |
+|  size\_t | [**burst\_despreader\_steps**](#function-burst_despreader_steps) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Despread a CF32 block; emit one complex prompt symbol per code period._  |
 |  size\_t | [**burst\_despreader\_steps\_max\_out**](#function-burst_despreader_steps_max_out) ([**burst\_despreader\_state\_t**](structburst__despreader__state__t.md) \* state) <br>_Upper bound on symbols_ `burst_despreader_steps` _can emit (0; the caller sizes the output buffer to the input length, which always suffices)._ |
 
 
@@ -130,8 +130,8 @@ Example:
 static const uint8_t code[4] = { 1, 0, 1, 1 };
 burst_despreader_state_t *obj
     = burst_despreader_create (code, 4, 4, 2, 0.0, 0.0, 0.05, 0.01);
-float complex in[8]  = { 0 };
-float complex out[8] = { 0 };
+float _Complex in[8]  = { 0 };
+float _Complex out[8] = { 0 };
 size_t n = burst_despreader_steps (obj, in, 8, out,
                                    burst_despreader_steps_max_out (obj));
 burst_despreader_destroy (obj);
@@ -151,7 +151,7 @@ _Despread a CF32 block; emit one hard BPSK bit (0/1) per code period._
 ```C++
 size_t burst_despreader_bits (
     burst_despreader_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
     uint8_t * out,
     size_t max_out
@@ -698,9 +698,9 @@ _Despread a CF32 block; emit one complex prompt symbol per code period._
 ```C++
 size_t burst_despreader_steps (
     burst_despreader_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

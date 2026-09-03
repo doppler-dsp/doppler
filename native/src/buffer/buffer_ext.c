@@ -2,8 +2,8 @@
  * buffer_ext.c — Python C extension for dp/buffer.h
  *
  * Exposes three types:
- *   doppler.buffer.F32Buffer  — float complex  (complex64)
- *   doppler.buffer.F64Buffer  — double complex (complex128)
+ *   doppler.buffer.F32Buffer  — float _Complex  (complex64)
+ *   doppler.buffer.F64Buffer  — double _Complex (complex128)
  *   doppler.buffer.I16Buffer  — int16 IQ pairs (structured array)
  *
  * Zero-copy contract
@@ -30,7 +30,7 @@
 #include "dp_interrupt_pyadopt.h"
 
 /* =====================================================================
- * F32Buffer  (float complex / complex64)
+ * F32Buffer  (float _Complex / complex64)
  * ===================================================================== */
 
 typedef struct
@@ -294,7 +294,7 @@ static PyTypeObject F32BufferType = {
 };
 
 /* =====================================================================
- * F64Buffer  (double complex / complex128)
+ * F64Buffer  (double _Complex / complex128)
  * ===================================================================== */
 
 typedef struct

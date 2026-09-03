@@ -38,7 +38,7 @@ main (void)
 
   /* Noise-free burst at zero Doppler/code-phase -- exercises push()
    * reaching the embedded engine. */
-  float complex *burst = malloc (2 * nx * sizeof (float complex));
+  float _Complex *burst = malloc (2 * nx * sizeof (float _Complex));
   DP_CHECK (burst != NULL);
   if (burst)
     {

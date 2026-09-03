@@ -202,13 +202,13 @@ specan_execute_max_out (specan_state_t *state)
 }
 
 size_t
-specan_execute (specan_state_t *state, const float complex *x, size_t x_len,
+specan_execute (specan_state_t *state, const float _Complex *x, size_t x_len,
                 float *out, size_t max_out)
 {
   /* Mix to DC and decimate; output length <= x_len since rate <= 1. */
   if (state->scratch_cap < x_len)
     {
-      float complex *p = realloc (state->scratch, x_len * sizeof *p);
+      float _Complex *p = realloc (state->scratch, x_len * sizeof *p);
       if (!p)
         return 0;
       state->scratch     = p;
@@ -225,7 +225,7 @@ specan_execute (specan_state_t *state, const float complex *x, size_t x_len,
       size_t cap = state->pend_len + m;
       if (cap < need)
         cap = need;
-      float complex *p = realloc (state->pend, cap * sizeof *p);
+      float _Complex *p = realloc (state->pend, cap * sizeof *p);
       if (!p)
         return 0;
       state->pend     = p;

@@ -90,7 +90,7 @@ _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despre
 |  void | [**dsss\_receiver\_reset**](#function-dsss_receiver_reset) ([**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md) \* state) <br>_Return to the searching state. Resets the embedded Acquisition and frees_ `dll` _/_`rc` _/_`rx` _(rebuilt from scratch on the next hit) — a receiver that has locked cannot be "reset back to tracking the same signal," only back to searching, matching every other object's reset() semantics in this codebase._ |
 |  int | [**dsss\_receiver\_set\_state**](#function-dsss_receiver_set_state) ([**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**dsss\_receiver\_state\_bytes**](#function-dsss_receiver_state_bytes) (const [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md) \* state) <br> |
-|  size\_t | [**dsss\_receiver\_steps**](#function-dsss_receiver_steps) ([**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Stream raw cf32 samples; emit demodulated symbols once locked._  |
+|  size\_t | [**dsss\_receiver\_steps**](#function-dsss_receiver_steps) ([**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream raw cf32 samples; emit demodulated symbols once locked._  |
 |  size\_t | [**dsss\_receiver\_steps\_max\_out**](#function-dsss_receiver_steps_max_out) ([**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md) \* state) <br> |
 
 
@@ -154,7 +154,7 @@ dsss_receiver_state_t *rx = dsss_receiver_create(
                                      // doppler_uncertainty
     4, 8,                            // segments, sps
     0);                              // differential
-float complex syms[4096];
+float _Complex syms[4096];
 size_t n = dsss_receiver_steps(rx, x, x_len, syms, 4096);
 dsss_receiver_destroy(rx);
 ```
@@ -683,9 +683,9 @@ _Stream raw cf32 samples; emit demodulated symbols once locked._
 ```C++
 size_t dsss_receiver_steps (
     dsss_receiver_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

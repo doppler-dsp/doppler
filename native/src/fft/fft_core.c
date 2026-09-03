@@ -9,12 +9,12 @@
  * allocation serves both plans, and it is allocated on first use: every
  * in-tree caller (and the Python binding, which sizes from *_max_out())
  * passes max_out == n and never touches this path. */
-static double complex *
+static double _Complex *
 trunc_buf (fft_state_t *state)
 {
   if (!state->work_trunc)
     state->work_trunc
-        = (double complex *)dp_xcalloc (state->n, sizeof *state->work_trunc);
+        = (double _Complex *)dp_xcalloc (state->n, sizeof *state->work_trunc);
   return state->work_trunc;
 }
 
@@ -64,8 +64,8 @@ fft_execute_cf64_max_out (fft_state_t *state)
 }
 
 size_t
-fft_execute_cf64 (fft_state_t *state, const double complex *in, size_t n_in,
-                  double complex *out, size_t max_out)
+fft_execute_cf64 (fft_state_t *state, const double _Complex *in, size_t n_in,
+                  double _Complex *out, size_t max_out)
 {
   (void)n_in;
   if (max_out >= state->n)
@@ -73,7 +73,7 @@ fft_execute_cf64 (fft_state_t *state, const double complex *in, size_t n_in,
       pocketfft_execute_1d (state->plan_f64, in, out);
       return state->n;
     }
-  double complex *scratch = trunc_buf (state);
+  double _Complex *scratch = trunc_buf (state);
   pocketfft_execute_1d (state->plan_f64, in, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
@@ -86,8 +86,8 @@ fft_execute_cf32_max_out (fft_state_t *state)
 }
 
 size_t
-fft_execute_cf32 (fft_state_t *state, const float complex *in, size_t n_in,
-                  float complex *out, size_t max_out)
+fft_execute_cf32 (fft_state_t *state, const float _Complex *in, size_t n_in,
+                  float _Complex *out, size_t max_out)
 {
   (void)n_in;
   if (max_out >= state->n)
@@ -95,7 +95,7 @@ fft_execute_cf32 (fft_state_t *state, const float complex *in, size_t n_in,
       pocketfft_execute_1d_cf32 (state->plan_f32, in, out);
       return state->n;
     }
-  float complex *scratch = (float complex *)trunc_buf (state);
+  float _Complex *scratch = (float _Complex *)trunc_buf (state);
   pocketfft_execute_1d_cf32 (state->plan_f32, in, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
@@ -108,8 +108,8 @@ fft_execute_inplace_cf64_max_out (fft_state_t *state)
 }
 
 size_t
-fft_execute_inplace_cf64 (fft_state_t *state, const double complex *in,
-                          size_t n_in, double complex *out, size_t max_out)
+fft_execute_inplace_cf64 (fft_state_t *state, const double _Complex *in,
+                          size_t n_in, double _Complex *out, size_t max_out)
 {
   /* Copy in→out so the plan can transform the buffer in place.
    * Avoids a scratch allocation inside pocketfft at the cost of
@@ -122,7 +122,7 @@ fft_execute_inplace_cf64 (fft_state_t *state, const double complex *in,
       pocketfft_execute_1d (state->plan_f64, out, out);
       return state->n;
     }
-  double complex *scratch = trunc_buf (state);
+  double _Complex *scratch = trunc_buf (state);
   memcpy (scratch, in, n * sizeof (*scratch));
   pocketfft_execute_1d (state->plan_f64, scratch, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
@@ -136,8 +136,8 @@ fft_execute_inplace_cf32_max_out (fft_state_t *state)
 }
 
 size_t
-fft_execute_inplace_cf32 (fft_state_t *state, const float complex *in,
-                          size_t n_in, float complex *out, size_t max_out)
+fft_execute_inplace_cf32 (fft_state_t *state, const float _Complex *in,
+                          size_t n_in, float _Complex *out, size_t max_out)
 {
   const size_t n = n_in < state->n ? n_in : state->n;
   if (max_out >= state->n)
@@ -146,7 +146,7 @@ fft_execute_inplace_cf32 (fft_state_t *state, const float complex *in,
       pocketfft_execute_1d_cf32 (state->plan_f32, out, out);
       return state->n;
     }
-  float complex *scratch = (float complex *)trunc_buf (state);
+  float _Complex *scratch = (float _Complex *)trunc_buf (state);
   memcpy (scratch, in, n * sizeof (*scratch));
   pocketfft_execute_1d_cf32 (state->plan_f32, scratch, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
@@ -161,7 +161,7 @@ fft_execute_ci16_max_out (fft_state_t *state)
 
 size_t
 fft_execute_ci16 (fft_state_t *state, const int16_t *in, size_t n_in,
-                  float complex *out)
+                  float _Complex *out)
 {
   (void)n_in;
   pocketfft_execute_1d_ci16 (state->plan_f32, in, out);
@@ -176,7 +176,7 @@ fft_execute_ci8_max_out (fft_state_t *state)
 
 size_t
 fft_execute_ci8 (fft_state_t *state, const int8_t *in, size_t n_in,
-                 float complex *out)
+                 float _Complex *out)
 {
   (void)n_in;
   pocketfft_execute_1d_ci8 (state->plan_f32, in, out);

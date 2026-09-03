@@ -61,7 +61,7 @@ _tx_cfg (double sps, double tau)
 
 /* RRC-shaped BPSK at `sps` samples/symbol, timing offset `tau` symbols, at a
  * STATED symbol amplitude. */
-static float complex *
+static float _Complex *
 _tx_amp (double sps, double tau, double amp, size_t *n_out)
 {
   dp_tx_cfg_t c = _tx_cfg (sps, tau);
@@ -70,7 +70,7 @@ _tx_amp (double sps, double tau, double amp, size_t *n_out)
 }
 
 /* The same at the loop's CONTRACTED symbol amplitude of 1.0. */
-static float complex *
+static float _Complex *
 _tx (double sps, double tau, size_t *n_out)
 {
   return _tx_amp (sps, tau, 1.0, n_out);
@@ -78,7 +78,7 @@ _tx (double sps, double tau, size_t *n_out)
 
 /* Rectangular NRZ at `sps` samples/symbol — the pulse RATESYNC_PULSE_IANDD is
  * matched to, and the stream the m >= 4 guidance is stated against. */
-static float complex *
+static float _Complex *
 _tx_nrz (double sps, size_t *n_out)
 {
   dp_tx_cfg_t c = _tx_cfg (sps, 0.0);
@@ -105,7 +105,7 @@ _settle (double bn)
 }
 
 static double
-_evm_db_bn (const float complex *y, size_t n, double bn)
+_evm_db_bn (const float _Complex *y, size_t n, double bn)
 {
   size_t lo = _settle (bn);
   if (n < lo + 100)
@@ -215,9 +215,9 @@ _lock_sweep (double sps, double evm_max_db, const char *label)
   double       worst  = -200.0;
   for (size_t t = 0; t < 8; t++)
     {
-      size_t         n;
-      float complex *x = _tx (sps, taus[t], &n);
-      float complex *y = calloc (n, sizeof *y);
+      size_t          n;
+      float _Complex *x = _tx (sps, taus[t], &n);
+      float _Complex *y = calloc (n, sizeof *y);
       DP_CHECK (x && y);
       if (!x || !y)
         {
@@ -277,9 +277,9 @@ test_tracks_a_clock_offset (void)
   const double actual[] = { 8.0, 8.008, 7.992 }; /* 0, +1000, -1000 ppm */
   for (size_t i = 0; i < 3; i++)
     {
-      size_t         n;
-      float complex *x = _tx (actual[i], 0.2, &n);
-      float complex *y = calloc (n, sizeof *y);
+      size_t          n;
+      float _Complex *x = _tx (actual[i], 0.2, &n);
+      float _Complex *y = calloc (n, sizeof *y);
       DP_CHECK (x && y);
       if (!x || !y)
         {
@@ -311,11 +311,11 @@ test_step_equals_steps (void)
 {
   /* One block, one sample at a time, or two arbitrary chunks — the object is
      block-boundary invariant, so all three must agree bit-for-bit. */
-  size_t         n;
-  float complex *x = _tx (17.333333333, 0.3, &n);
-  float complex *a = calloc (n, sizeof *a);
-  float complex *b = calloc (n, sizeof *b);
-  float complex *c = calloc (n, sizeof *c);
+  size_t          n;
+  float _Complex *x = _tx (17.333333333, 0.3, &n);
+  float _Complex *a = calloc (n, sizeof *a);
+  float _Complex *b = calloc (n, sizeof *b);
+  float _Complex *c = calloc (n, sizeof *c);
   DP_CHECK (x && a && b && c);
   if (!x || !a || !b || !c)
     {
@@ -351,8 +351,8 @@ test_step_equals_steps (void)
 
       DP_CHECK (na == nb && na == nc);
       DP_CHECK (na > 0);
-      DP_CHECK (memcmp (a, b, na * sizeof (float complex)) == 0);
-      DP_CHECK (memcmp (a, c, na * sizeof (float complex)) == 0);
+      DP_CHECK (memcmp (a, b, na * sizeof (float _Complex)) == 0);
+      DP_CHECK (memcmp (a, c, na * sizeof (float _Complex)) == 0);
     }
   ratesync_destroy (s1);
   ratesync_destroy (s2);
@@ -366,10 +366,10 @@ test_step_equals_steps (void)
 static void
 test_reset (void)
 {
-  size_t         n;
-  float complex *x = _tx (4.0, 0.4, &n);
-  float complex *a = calloc (n, sizeof *a);
-  float complex *b = calloc (n, sizeof *b);
+  size_t          n;
+  float _Complex *x = _tx (4.0, 0.4, &n);
+  float _Complex *a = calloc (n, sizeof *a);
+  float _Complex *b = calloc (n, sizeof *b);
   DP_CHECK (x && a && b);
   if (!x || !a || !b)
     {
@@ -392,7 +392,7 @@ test_reset (void)
       DP_CHECK (ratesync_get_locked (s) == 0);
       size_t nb = ratesync_steps (s, x, n, b, n);
       DP_CHECK (na == nb);
-      DP_CHECK (na > 0 && memcmp (a, b, na * sizeof (float complex)) == 0);
+      DP_CHECK (na > 0 && memcmp (a, b, na * sizeof (float _Complex)) == 0);
       ratesync_destroy (s);
     }
   free (x);
@@ -403,10 +403,10 @@ test_reset (void)
 static void
 test_state_roundtrip (void)
 {
-  size_t         n;
-  float complex *x = _tx (17.333333333, 0.2, &n);
-  float complex *a = calloc (n, sizeof *a);
-  float complex *b = calloc (n, sizeof *b);
+  size_t          n;
+  float _Complex *x = _tx (17.333333333, 0.2, &n);
+  float _Complex *a = calloc (n, sizeof *a);
+  float _Complex *b = calloc (n, sizeof *b);
   DP_CHECK (x && a && b);
   if (!x || !a || !b)
     {
@@ -451,7 +451,8 @@ test_state_roundtrip (void)
           size_t na = ratesync_steps (s1, x + cut, n - cut, a, n);
           size_t nb = ratesync_steps (s2, x + cut, n - cut, b, n);
           DP_CHECK (na == nb);
-          DP_CHECK (na > 0 && memcmp (a, b, na * sizeof (float complex)) == 0);
+          DP_CHECK (na > 0
+                    && memcmp (a, b, na * sizeof (float _Complex)) == 0);
 
           /* Standard envelope: a clobbered blob is rejected, never
              reinterpreted. */
@@ -500,7 +501,7 @@ test_prime_geometry (void)
       DP_CHECK (s->loop.term
                 == (const resamp_state_t *)s->mf->stage_ptrs[last]);
       /* reset() re-arms the countdown along with the delay lines. */
-      float complex y;
+      float _Complex y;
       for (size_t k = 0; k < 64; k++)
         (void)ratesync_step (s, 0.1f, &y);
       DP_CHECK (s->loop.prime_left < taps + 1u); /* it really counted down */
@@ -540,8 +541,8 @@ test_two_outputs_per_input (void)
   const int    expect_two = 1; /* index 0 and 2 have terminal rate 1.0 */
   for (size_t i = 0; i < 3; i++)
     {
-      size_t         n;
-      float complex *x = _tx (sps[i], 0.3, &n);
+      size_t          n;
+      float _Complex *x = _tx (sps[i], 0.3, &n);
       DP_CHECK (x != NULL);
       if (!x)
         continue;
@@ -554,8 +555,8 @@ test_two_outputs_per_input (void)
           size_t doubles = 0, most = 0;
           for (size_t k = 0; k < n; k++)
             {
-              float complex ys[4];
-              size_t        got = RateConverter_execute_ctrl_push (
+              float _Complex ys[4];
+              size_t got = RateConverter_execute_ctrl_push (
                   s->mf, x[k], s->loop.ctrl, ys, 4);
               if (got > most)
                 most = got;
@@ -563,7 +564,7 @@ test_two_outputs_per_input (void)
                 doubles++;
               for (size_t oi = 0; oi < got; oi++)
                 {
-                  float complex yo;
+                  float _Complex yo;
                   (void)ratesync_loop_take_output (&s->loop, ys[oi], &yo,
                                                    RATESYNC_TED_GARDNER);
                 }
@@ -600,9 +601,9 @@ test_dttl_detector (void)
   double       g_scale = 0.0, d_scale = 0.0;
   for (size_t i = 0; i < 3; i++)
     {
-      size_t         n;
-      float complex *x = _tx (sps[i], 0.3, &n);
-      float complex *y = calloc (n, sizeof *y);
+      size_t          n;
+      float _Complex *x = _tx (sps[i], 0.3, &n);
+      float _Complex *y = calloc (n, sizeof *y);
       DP_CHECK (x && y);
       if (!x || !y)
         {
@@ -610,7 +611,7 @@ test_dttl_detector (void)
           free (y);
           continue;
         }
-      float complex *yg = calloc (n, sizeof *yg);
+      float _Complex *yg = calloc (n, sizeof *yg);
       DP_CHECK (yg != NULL);
       ratesync_state_t *d
           = ratesync_create (sps[i], RATESYNC_PULSE_RRC, _BETA, _SPAN, 2, 1024,
@@ -658,9 +659,9 @@ test_dttl_detector (void)
             {
               /* A deterministic non-trivial complex sequence: both
                  detectors see exactly these outputs. */
-              float complex v = (float)cos (0.7 * (double)k)
-                                + (float)sin (0.31 * (double)k + 0.4) * I;
-              float complex yp, yq;
+              float _Complex v = (float)cos (0.7 * (double)k)
+                                 + (float)sin (0.31 * (double)k + 0.4) * I;
+              float _Complex yp, yq;
               int rp = ratesync_loop_take_output (&p, v, &yp,
                                                   RATESYNC_TED_GARDNER);
               int rq
@@ -698,11 +699,11 @@ test_dttl_detector (void)
 static void
 test_loop_without_the_object (void)
 {
-  const double   sps = 17.333333333;
-  size_t         n;
-  float complex *x = _tx (sps, 0.3, &n);
-  float complex *a = calloc (n, sizeof *a);
-  float complex *b = calloc (n, sizeof *b);
+  const double    sps = 17.333333333;
+  size_t          n;
+  float _Complex *x = _tx (sps, 0.3, &n);
+  float _Complex *a = calloc (n, sizeof *a);
+  float _Complex *b = calloc (n, sizeof *b);
   DP_CHECK (x && a && b);
   if (!x || !a || !b)
     {
@@ -736,7 +737,7 @@ test_loop_without_the_object (void)
   if (rc)
     for (size_t k = 0; k < n; k++)
       {
-        float complex ys[4];
+        float _Complex ys[4];
         size_t got = RateConverter_execute_ctrl_push (rc, x[k], l.ctrl, ys, 4);
         for (size_t oi = 0; oi < got; oi++)
           if (ratesync_loop_take_output (&l, ys[oi], &b[nb],
@@ -744,7 +745,7 @@ test_loop_without_the_object (void)
             nb++;
       }
   DP_CHECK (na > 0 && na == nb);
-  DP_CHECK (na && memcmp (a, b, na * sizeof (float complex)) == 0);
+  DP_CHECK (na && memcmp (a, b, na * sizeof (float _Complex)) == 0);
   if (s)
     {
       DP_CHECK (l.lock_stat == ratesync_get_lock_stat (s));
@@ -770,10 +771,10 @@ test_loop_without_the_object (void)
 static void
 test_ctrl_scale_is_the_terminal_rate (void)
 {
-  const double   sps = 64.0; /* CIC(32) + Resampler(1.0): a 32x decimation */
-  size_t         n;
-  float complex *x = _tx (sps, 0.3, &n);
-  float complex *y = calloc (n, sizeof *y);
+  const double    sps = 64.0; /* CIC(32) + Resampler(1.0): a 32x decimation */
+  size_t          n;
+  float _Complex *x = _tx (sps, 0.3, &n);
+  float _Complex *y = calloc (n, sizeof *y);
   DP_CHECK (x && y);
   if (!x || !y)
     {
@@ -797,8 +798,8 @@ test_ctrl_scale_is_the_terminal_rate (void)
       size_t ns = 0;
       for (size_t k = 0; k < n; k++)
         {
-          float complex ys[4];
-          size_t        got
+          float _Complex ys[4];
+          size_t got
               = RateConverter_execute_ctrl_push (rc, x[k], l.ctrl, ys, 4);
           for (size_t oi = 0; oi < got; oi++)
             if (ratesync_loop_take_output (&l, ys[oi], &y[ns],
@@ -844,9 +845,9 @@ test_clipped_reports_overdrive (void)
   for (size_t i = 0; i < 3; i++)
     for (int over = 0; over < 2; over++)
       {
-        size_t         n;
-        float complex *x = _tx_amp (sps[i], 0.2, over ? 4.0 : 1.0, &n);
-        float complex *y = calloc (n, sizeof *y);
+        size_t          n;
+        float _Complex *x = _tx_amp (sps[i], 0.2, over ? 4.0 : 1.0, &n);
+        float _Complex *y = calloc (n, sizeof *y);
         DP_CHECK (x && y);
         if (!x || !y)
           {
@@ -894,9 +895,9 @@ test_iandd_needs_m4 (void)
   double lock[5] = { 0 };
   for (size_t m = 2; m <= 4; m += 2)
     {
-      size_t         n;
-      float complex *x = _tx_nrz (4.0, &n);
-      float complex *y = calloc (n, sizeof *y);
+      size_t          n;
+      float _Complex *x = _tx_nrz (4.0, &n);
+      float _Complex *y = calloc (n, sizeof *y);
       DP_CHECK (x && y);
       if (!x || !y)
         {
@@ -951,11 +952,11 @@ test_iandd_needs_m4 (void)
 static void
 _loop_state_roundtrip_at_parity (int parity)
 {
-  const double   sps = 17.333333333;
-  size_t         n;
-  float complex *x = _tx (sps, 0.25, &n);
-  float complex *a = calloc (n, sizeof *a);
-  float complex *b = calloc (n, sizeof *b);
+  const double    sps = 17.333333333;
+  size_t          n;
+  float _Complex *x = _tx (sps, 0.25, &n);
+  float _Complex *a = calloc (n, sizeof *a);
+  float _Complex *b = calloc (n, sizeof *b);
   DP_CHECK (x && a && b);
   if (!x || !a || !b)
     {
@@ -988,8 +989,8 @@ _loop_state_roundtrip_at_parity (int parity)
               cut = k;
               break;
             }
-          float complex ys[4];
-          size_t        got
+          float _Complex ys[4];
+          size_t got
               = RateConverter_execute_ctrl_push (rc1, x[k], l1.ctrl, ys, 4);
           for (size_t oi = 0; oi < got; oi++)
             if (ratesync_loop_take_output (&l1, ys[oi], &a[na],
@@ -1029,7 +1030,7 @@ _loop_state_roundtrip_at_parity (int parity)
           size_t ka = na, kb = na;
           for (size_t k = cut; k < n; k++)
             {
-              float complex ys[4];
+              float _Complex ys[4];
               size_t got = RateConverter_execute_ctrl_push (rc1, x[k], l1.ctrl,
                                                             ys, 4);
               for (size_t oi = 0; oi < got; oi++)
@@ -1044,10 +1045,11 @@ _loop_state_roundtrip_at_parity (int parity)
                   kb++;
             }
           DP_CHECK (ka == kb && ka > na);
-          DP_CHECK (memcmp (a + na, b + na, (ka - na) * sizeof (float complex))
-                    == 0);
+          DP_CHECK (
+              memcmp (a + na, b + na, (ka - na) * sizeof (float _Complex))
+              == 0);
           if (ka != kb
-              || memcmp (a + na, b + na, (ka - na) * sizeof (float complex))
+              || memcmp (a + na, b + na, (ka - na) * sizeof (float _Complex))
                      != 0)
             fprintf (stderr, "  loop blob: parity %d resumed %zu vs %zu\n",
                      parity, ka - na, kb - na);
@@ -1127,9 +1129,9 @@ test_telemetry_attach_is_atomic (void)
 static void
 test_configure_semantics (void)
 {
-  size_t         n;
-  float complex *x = _tx (8.0, 0.2, &n);
-  float complex *y = calloc (n, sizeof *y);
+  size_t          n;
+  float _Complex *x = _tx (8.0, 0.2, &n);
+  float _Complex *y = calloc (n, sizeof *y);
   DP_CHECK (x && y);
   if (!x || !y)
     {
@@ -1185,9 +1187,9 @@ test_configure_semantics (void)
 static void
 test_max_out (void)
 {
-  size_t         n;
-  float complex *x = _tx (4.0, 0.2, &n);
-  float complex *y = calloc (n, sizeof *y);
+  size_t          n;
+  float _Complex *x = _tx (4.0, 0.2, &n);
+  float _Complex *y = calloc (n, sizeof *y);
   DP_CHECK (x && y);
   if (!x || !y)
     {

@@ -54,7 +54,7 @@ CorrObj_init (CorrObject *self, PyObject *args, PyObject *kwds)
       return -1;
     }
   size_t ref_len = (size_t)PyArray_SIZE (ref_arr);
-  self->handle   = corr_create ((const float complex *)PyArray_DATA (ref_arr),
+  self->handle   = corr_create ((const float _Complex *)PyArray_DATA (ref_arr),
                                 ref_len, dwell, nthreads, n_out);
   Py_DECREF (ref_arr);
   if (!self->handle)
@@ -142,8 +142,8 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = corr_execute (
-          self->handle, (const float complex *)PyArray_DATA (in_arr),
-          (size_t)n, (float complex *)PyArray_DATA (out_arr), _cap);
+          self->handle, (const float _Complex *)PyArray_DATA (in_arr),
+          (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
       if (!n_out)
         {
@@ -172,9 +172,9 @@ CorrObj_execute (CorrObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (in_arr);
       return NULL;
     }
-  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = corr_execute (self->handle,
-                               (const float complex *)PyArray_DATA (in_arr),
+                               (const float _Complex *)PyArray_DATA (in_arr),
                                (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
   if (!n_out)

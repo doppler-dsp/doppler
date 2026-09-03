@@ -78,8 +78,8 @@ main (void)
      which is the level error doppler#893 is about. */
   const size_t blocks[4]
       = { 1024, 8192, HBDECIM_MAX_OUT, 2 * (size_t)HBDECIM_MAX_OUT };
-  float complex *x   = malloc (blocks[3] * sizeof *x);
-  float complex *out = malloc (blocks[3] * sizeof *out);
+  float _Complex *x   = malloc (blocks[3] * sizeof *x);
+  float _Complex *out = malloc (blocks[3] * sizeof *out);
   if (!x || !out)
     return 1;
   for (size_t i = 0; i < blocks[3]; i++)

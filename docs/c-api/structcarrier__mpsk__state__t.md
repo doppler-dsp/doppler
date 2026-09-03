@@ -36,7 +36,7 @@ _M-PSK carrier loop state._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
-|  float complex | [**acc**](#variable-acc)  <br> |
+|  float \_Complex | [**acc**](#variable-acc)  <br> |
 |  size\_t | [**acc\_n**](#variable-acc_n)  <br> |
 |  double | [**bn**](#variable-bn)  <br> |
 |  double | [**bn\_fll**](#variable-bn_fll)  <br> |
@@ -47,7 +47,7 @@ _M-PSK carrier loop state._ [More...](#detailed-description)
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  int | [**m**](#variable-m)  <br> |
 |  [**lo\_state\_t**](structlo__state__t.md) | [**nco**](#variable-nco)  <br> |
-|  float complex | [**prev**](#variable-prev)  <br> |
+|  float \_Complex | [**prev**](#variable-prev)  <br> |
 |  double | [**prev\_abs**](#variable-prev_abs)  <br> |
 |  double | [**seed\_norm\_freq**](#variable-seed_norm_freq)  <br> |
 |  size\_t | [**tsamps**](#variable-tsamps)  <br> |
@@ -111,7 +111,7 @@ Allocate with [**carrier\_mpsk\_create()**](carrier__mpsk__core_8h.md#function-c
 ### variable acc 
 
 ```C++
-float complex carrier_mpsk_state_t::acc;
+float _Complex carrier_mpsk_state_t::acc;
 ```
 
 
@@ -308,7 +308,7 @@ integer carrier NCO (uint32 phase).
 ### variable prev 
 
 ```C++
-float complex carrier_mpsk_state_t::prev;
+float _Complex carrier_mpsk_state_t::prev;
 ```
 
 

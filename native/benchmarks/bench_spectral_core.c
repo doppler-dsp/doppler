@@ -58,12 +58,12 @@ static const char *const cfg_name[N_CFG] = {
   "obw_from_power[4096]",
 };
 
-static float          win[NFFT];
-static float complex  x32[NFFT];
-static double complex x64[NFFT];
-static float          db[NFFT];
-static double         pwr[NFFT];
-static dp_peak_t      peaks[N_PEAKS];
+static float win[NFFT];
+static float _Complex x32[NFFT];
+static double _Complex x64[NFFT];
+static float     db[NFFT];
+static double    pwr[NFFT];
+static dp_peak_t peaks[N_PEAKS];
 
 static volatile double sink = 0.0;
 
@@ -123,7 +123,7 @@ main (void)
       double       a  = 1e-3 * (1.0 + 0.5 * sin (0.013 * (double)i));
       if (i == 512 || i == 1300 || i == 2048 || i == 3100)
         a = 1.0;
-      x32[i] = (float complex) (a * cos (ph) + a * sin (ph) * I);
+      x32[i] = (float _Complex) (a * cos (ph) + a * sin (ph) * I);
       x64[i] = a * cos (ph) + a * sin (ph) * I;
       pwr[i] = a * a;
     }

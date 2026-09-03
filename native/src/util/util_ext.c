@@ -22,7 +22,7 @@ _bind_square_clip (PyObject *self, PyObject *args, PyObject *kwds)
   float        lin       = 0.0f;
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Df", _kwlist, &y_raw, &lin))
     return NULL;
-  float complex y = (float)y_raw.real + (float)y_raw.imag * I;
+  float _Complex y = (float)y_raw.real + (float)y_raw.imag * I;
   return PyComplex_FromDoubles ((double)crealf (square_clip (y, lin)),
                                 (double)cimagf (square_clip (y, lin)));
 }

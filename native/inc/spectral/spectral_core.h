@@ -160,7 +160,7 @@ void blackman_harris_window(float *w, size_t w_len);
    * [0.0, -20.0, -240.0]
    * @endcode
    */
-void magnitude_db_cf32(const float complex *x, size_t x_len, float *out, float lin_floor, float offset_db);
+void magnitude_db_cf32(const float _Complex *x, size_t x_len, float *out, float lin_floor, float offset_db);
 
   /**
    * @brief Convert a CF64 complex spectrum to F32 dB magnitudes.
@@ -182,7 +182,7 @@ void magnitude_db_cf32(const float complex *x, size_t x_len, float *out, float l
    * [0.0, 20.0]
    * @endcode
    */
-void magnitude_db_cf64(const double complex *x, size_t x_len, float *out, double lin_floor, float offset_db);
+void magnitude_db_cf64(const double _Complex *x, size_t x_len, float *out, double lin_floor, float offset_db);
 
   /**
    * @brief Find up to @p n_peaks local maxima in a DC-centred F32 dB spectrum.

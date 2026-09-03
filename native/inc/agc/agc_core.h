@@ -122,7 +122,7 @@
  * @code
  * // Hold output power at 0 dB; slow loop, moderate detector smoothing.
  * agc_state_t *agc = agc_create(0.0, 0.0025, 0.05);
- * float complex y = agc_step(agc, 4.0f + 0.0f * I);  // loud input
+ * float _Complex y = agc_step(agc, 4.0f + 0.0f * I);  // loud input
  * // ... feed more samples; gain_db converges so 10*log10(|y|^2) -> 0 dB
  * agc_destroy(agc);
  * @endcode
@@ -314,7 +314,7 @@ extern "C"
    * sample loop that accumulates AGC input power — measures power identically.
    */
   JM_FORCEINLINE double
-  agc_power_ (float complex y)
+  agc_power_ (float _Complex y)
   {
     double yr = (double)crealf (y), yi = (double)cimagf (y);
     return yr * yr + yi * yi;
@@ -484,8 +484,8 @@ void agc_reset(agc_state_t *state);
    * -0.024276
    * @endcode
    */
-  JM_FORCEINLINE JM_HOT float complex
-  agc_step (agc_state_t *state, float complex x)
+  JM_FORCEINLINE JM_HOT float _Complex
+  agc_step (agc_state_t *state, float _Complex x)
   {
     /* Stage 1: linear-in-dB gain, held across the update period.  At the
      * start of each period (gain_phase == 0) refresh the linear gain from
@@ -498,7 +498,7 @@ void agc_reset(agc_state_t *state);
     size_t period = state->gain_update_period ? state->gain_update_period : 1;
     if (state->gain_phase == 0)
       state->g_last = agc_exp10_ (state->gain_db * 0.05);
-    float complex y = x * (float)state->g_last;
+    float _Complex y = x * (float)state->g_last;
 
     /* Stage 2: power detector — runs every sample (cheap, no transcendental).
      * Instantaneous output power folded into the EMA p_avg += alpha*(p-p_avg)
@@ -564,8 +564,8 @@ void agc_reset(agc_state_t *state);
    * [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
    * @endcode
    */
-  void agc_steps (agc_state_t *state, const float complex *input,
-                  float complex *output, size_t n);
+  void agc_steps (agc_state_t *state, const float _Complex *input,
+                  float _Complex *output, size_t n);
 
   /**
    * @brief Return the gain (in dB) actually applied to the most recent sample.

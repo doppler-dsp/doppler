@@ -121,7 +121,7 @@ wfm_writer_state_t *wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type
  * >>> tmp.cleanup()   # directory and contents removed
  * @endcode
  */
-size_t wfm_writer_write(wfm_writer_state_t *state, const float complex *x, size_t x_len);
+size_t wfm_writer_write(wfm_writer_state_t *state, const float _Complex *x, size_t x_len);
 
 /**
  * @brief Attach a BLUE extended-header keyword (a tag/value pair).

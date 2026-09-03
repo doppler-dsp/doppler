@@ -151,8 +151,8 @@ burst_despreader_set_state (burst_despreader_state_t *s, const void *blob)
  * per-symbol integrate-and-dump driving the two tracking loops. Exactly one of
  * csym / bits is non-NULL; returns the number of symbols emitted. */
 static size_t
-despread_run (burst_despreader_state_t *s, const float complex *x,
-              size_t x_len, float complex *bitsym_csym, uint8_t *bits,
+despread_run (burst_despreader_state_t *s, const float _Complex *x,
+              size_t x_len, float _Complex *bitsym_csym, uint8_t *bits,
               size_t max_out)
 {
   const double inv_sps = 1.0 / (double)s->sps;
@@ -169,8 +169,8 @@ despread_run (burst_despreader_state_t *s, const float complex *x,
   for (size_t n = 0; n < x_len && n_out < max_out; n++)
     {
       /* Carrier wipe-off (inline NCO). */
-      float complex carrier = cexpf ((float)(s->car_phase) * I);
-      float complex d       = x[n] * conjf (carrier);
+      float _Complex carrier = cexpf ((float)(s->car_phase) * I);
+      float _Complex d       = x[n] * conjf (carrier);
       s->car_phase += s->car_w;
 
       /* Early / prompt / late chip indices (early advanced by half a chip,
@@ -202,7 +202,7 @@ despread_run (burst_despreader_state_t *s, const float complex *x,
         continue;
 
       /* ── symbol/period boundary: dump and update both loops ── */
-      float complex P = s->acc_p;
+      float _Complex P = s->acc_p;
       if (!preamble)
         {
           /* Emit only payload symbols; the preamble pulls the loops in. */
@@ -289,8 +289,8 @@ burst_despreader_steps_max_out (burst_despreader_state_t *state)
 
 size_t
 burst_despreader_steps (burst_despreader_state_t *state,
-                        const float complex *x, size_t x_len,
-                        float complex *out, size_t max_out)
+                        const float _Complex *x, size_t x_len,
+                        float _Complex *out, size_t max_out)
 {
   return despread_run (state, x, x_len, out, NULL, max_out);
 }
@@ -303,8 +303,9 @@ burst_despreader_bits_max_out (burst_despreader_state_t *state)
 }
 
 size_t
-burst_despreader_bits (burst_despreader_state_t *state, const float complex *x,
-                       size_t x_len, uint8_t *out, size_t max_out)
+burst_despreader_bits (burst_despreader_state_t *state,
+                       const float _Complex *x, size_t x_len, uint8_t *out,
+                       size_t max_out)
 {
   return despread_run (state, x, x_len, NULL, out, max_out);
 }

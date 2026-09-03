@@ -36,7 +36,7 @@ _PolynomialPhaseEstimator state (FFT plan + rate grid + scratch)._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  float complex \* | [**buf**](#variable-buf)  <br> |
+|  float \_Complex \* | [**buf**](#variable-buf)  <br> |
 |  double | [**drate**](#variable-drate)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**fft**](#variable-fft)  <br> |
 |  float \* | [**mag**](#variable-mag)  <br> |
@@ -46,7 +46,7 @@ _PolynomialPhaseEstimator state (FFT plan + rate grid + scratch)._ [More...](#de
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
 |  double \* | [**rowfrq**](#variable-rowfrq)  <br> |
 |  double \* | [**rowpk**](#variable-rowpk)  <br> |
-|  float complex \* | [**spec**](#variable-spec)  <br> |
+|  float \_Complex \* | [**spec**](#variable-spec)  <br> |
 |  float \* | [**win**](#variable-win)  <br> |
 
 
@@ -107,7 +107,7 @@ Allocate with [**ppe\_create()**](ppe__core_8h.md#function-ppe_create).
 ### variable buf 
 
 ```C++
-float complex* ppe_state_t::buf;
+float _Complex* ppe_state_t::buf;
 ```
 
 
@@ -285,7 +285,7 @@ per-rate winning peak dB, n\_rate.
 ### variable spec 
 
 ```C++
-float complex* ppe_state_t::spec;
+float _Complex* ppe_state_t::spec;
 ```
 
 

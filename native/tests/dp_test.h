@@ -329,7 +329,7 @@ dp_near (double a, double b, double tol)
  *  `tol = 0.5`. That matters for exactly the errors this suite measures most —
  *  a carrier phase error moves both rails at once. */
 static inline int
-dp_cnearf (float complex a, float complex b, float tol)
+dp_cnearf (float _Complex a, float _Complex b, float tol)
 {
   return dp_nearf (crealf (a), crealf (b), tol)
          && dp_nearf (cimagf (a), cimagf (b), tol);
@@ -337,7 +337,7 @@ dp_cnearf (float complex a, float complex b, float tol)
 
 /** Both components within tol, double precision. */
 static inline int
-dp_cnear (double complex a, double complex b, double tol)
+dp_cnear (double _Complex a, double _Complex b, double tol)
 {
   return dp_near (creal (a), creal (b), tol)
          && dp_near (cimag (a), cimag (b), tol);

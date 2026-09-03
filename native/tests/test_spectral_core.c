@@ -120,16 +120,16 @@ main (void)
 
   /* ── magnitude_db_cf32 / cf64: the same answer, two input widths ── */
   {
-    float complex  x32[4];
-    double complex x64[4];
-    float          o32[4], o64[4];
+    float _Complex x32[4];
+    double _Complex x64[4];
+    float o32[4], o64[4];
 
     x32[0] = 1.0f + 0.0f * I;  /* |x| = 1     ->   0 dB */
     x32[1] = 0.0f + 10.0f * I; /* |x| = 10    ->  20 dB */
     x32[2] = 3.0f + 4.0f * I;  /* |x| = 5     ->  ~14 dB */
     x32[3] = 0.0f + 0.0f * I;  /* zero -> the floor, not -inf */
     for (int i = 0; i < 4; i++)
-      x64[i] = (double complex)x32[i];
+      x64[i] = (double _Complex)x32[i];
 
     magnitude_db_cf32 (x32, 4, o32, 1e-12f, 0.0f);
     DP_CHECK (fabs ((double)o32[0] - 0.0) < 1e-3);

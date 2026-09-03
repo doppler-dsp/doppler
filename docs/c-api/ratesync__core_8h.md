@@ -102,16 +102,16 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  int | [**ratesync\_loop\_set\_state**](#function-ratesync_loop_set_state) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, const void \* blob) <br>_Restore the loop's mutable state from_ `blob` _._ |
 |  int | [**ratesync\_loop\_set\_telemetry**](#function-ratesync_loop_set_telemetry) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* l, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Register the six timing probes; see_ [_**ratesync\_set\_telemetry()**_](ratesync__core_8h.md#function-ratesync_set_telemetry) _, which forwards here. NULL_`tlm` _detaches._ |
 |  size\_t | [**ratesync\_loop\_state\_bytes**](#function-ratesync_loop_state_bytes) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Bytes_ [_**ratesync\_loop\_get\_state()**_](ratesync__core_8h.md#function-ratesync_loop_get_state) _writes (envelope + payload + the loop filter's child blob)._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**ratesync\_loop\_take\_output**](#function-ratesync_loop_take_output) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* s, float complex y, float complex \* y\_out, int ted) <br>_Fold one terminal-stage output into the timing loop._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**ratesync\_loop\_take\_output**](#function-ratesync_loop_take_output) ([**ratesync\_loop\_t**](structratesync__loop__t.md) \* s, float \_Complex y, float \_Complex \* y\_out, int ted) <br>_Fold one terminal-stage output into the timing loop._  |
 |  void | [**ratesync\_loop\_tlm\_flush**](#function-ratesync_loop_tlm_flush) (const [**ratesync\_loop\_t**](structratesync__loop__t.md) \* l) <br>_Emit the timing loop's telemetry for the symbol just recovered._  |
 |  void | [**ratesync\_reset**](#function-ratesync_reset) ([**ratesync\_state\_t**](structratesync__state__t.md) \* state) <br>_Reset to the post-create state: the cascade, the loop integrator, the lock detector, the strobe ring and the prime countdown._  |
 |  void | [**ratesync\_set\_bn**](#function-ratesync_set_bn) ([**ratesync\_state\_t**](structratesync__state__t.md) \* state, double val) <br> |
 |  int | [**ratesync\_set\_state**](#function-ratesync_set_state) ([**ratesync\_state\_t**](structratesync__state__t.md) \* state, const void \* blob) <br>_Restore mutable state from_ `blob` _into an identically built instance._ |
 |  int | [**ratesync\_set\_telemetry**](#function-ratesync_set_telemetry) ([**ratesync\_state\_t**](structratesync__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the probes._  |
 |  size\_t | [**ratesync\_state\_bytes**](#function-ratesync_state_bytes) (const [**ratesync\_state\_t**](structratesync__state__t.md) \* state) <br>_Bytes_ [_**ratesync\_get\_state()**_](ratesync__core_8h.md#function-ratesync_get_state) _writes (envelope + payload + child)._ |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**ratesync\_step**](#function-ratesync_step) ([**ratesync\_state\_t**](structratesync__state__t.md) \* s, float complex x, float complex \* y\_out) <br>_Per-input timing step (the inline composition API)._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**ratesync\_step\_ted**](#function-ratesync_step_ted) ([**ratesync\_state\_t**](structratesync__state__t.md) \* s, float complex x, float complex \* y\_out, int ted) <br>_Per-input timing step with the TED selection as a parameter._  |
-|  size\_t | [**ratesync\_steps**](#function-ratesync_steps) ([**ratesync\_state\_t**](structratesync__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Recover symbols from a block of oversampled cf32 baseband._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**ratesync\_step**](#function-ratesync_step) ([**ratesync\_state\_t**](structratesync__state__t.md) \* s, float \_Complex x, float \_Complex \* y\_out) <br>_Per-input timing step (the inline composition API)._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**ratesync\_step\_ted**](#function-ratesync_step_ted) ([**ratesync\_state\_t**](structratesync__state__t.md) \* s, float \_Complex x, float \_Complex \* y\_out, int ted) <br>_Per-input timing step with the TED selection as a parameter._  |
+|  size\_t | [**ratesync\_steps**](#function-ratesync_steps) ([**ratesync\_state\_t**](structratesync__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Recover symbols from a block of oversampled cf32 baseband._  |
 |  size\_t | [**ratesync\_steps\_max\_out**](#function-ratesync_steps_max_out) ([**ratesync\_state\_t**](structratesync__state__t.md) \* state) <br>_Output-buffer hint for the generated binding; 0 means "the input
 length is already a safe bound" — with_ `sps >= m >= 2` _a block can never yield more symbols than it has samples (mirrors symsync)._ |
 
@@ -207,7 +207,7 @@ Lifecycle: `create -> (step / steps / reset)* -> destroy`
 ratesync_state_t *rx = ratesync_create (17.33389, RATESYNC_PULSE_RRC, 0.35,
                                         8, 2, 1024, 0.01, 0.707,
                                         RATESYNC_TED_GARDNER);
-float complex sym;
+float _Complex sym;
 if (ratesync_step (rx, x, &sym))
   consume (sym);
 ratesync_destroy (rx);
@@ -860,8 +860,8 @@ _Fold one terminal-stage output into the timing loop._
 ```C++
 JM_FORCEINLINE  JM_HOT int ratesync_loop_take_output (
     ratesync_loop_t * s,
-    float complex y,
-    float complex * y_out,
+    float _Complex y,
+    float _Complex * y_out,
     int ted
 ) 
 ```
@@ -1096,8 +1096,8 @@ _Per-input timing step (the inline composition API)._
 ```C++
 JM_FORCEINLINE  JM_HOT int ratesync_step (
     ratesync_state_t * s,
-    float complex x,
-    float complex * y_out
+    float _Complex x,
+    float _Complex * y_out
 ) 
 ```
 
@@ -1137,8 +1137,8 @@ _Per-input timing step with the TED selection as a parameter._
 ```C++
 JM_FORCEINLINE  JM_HOT int ratesync_step_ted (
     ratesync_state_t * s,
-    float complex x,
-    float complex * y_out,
+    float _Complex x,
+    float _Complex * y_out,
     int ted
 ) 
 ```
@@ -1186,9 +1186,9 @@ _Recover symbols from a block of oversampled cf32 baseband._
 ```C++
 size_t ratesync_steps (
     ratesync_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

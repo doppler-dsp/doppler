@@ -8,7 +8,7 @@
  * Lifecycle:
  * @code
  *   Resampler_state_t *r = Resampler_create(0.5);
- *   float complex out[4096];
+ *   float _Complex out[4096];
  *   size_t n = Resampler_execute(r, in, 1024, out, 1024);
  *   Resampler_destroy(r);
  * @endcode
@@ -133,8 +133,8 @@ extern "C"
    * ((256,), dtype('complex64'))
    * @endcode
    */
-  size_t Resampler_execute (Resampler_state_t *state, const float complex *x,
-                            size_t x_len, float complex *out,
+  size_t Resampler_execute (Resampler_state_t *state, const float _Complex *x,
+                            size_t x_len, float _Complex *out,
                             size_t max_out);
 
   /** Always returns RESAMPLER_MAX_OUT. */
@@ -174,9 +174,9 @@ extern "C"
    * @endcode
    */
   size_t Resampler_execute_ctrl (Resampler_state_t *state,
-                                 const float complex *x, size_t x_len,
+                                 const float _Complex *x, size_t x_len,
                                  const double *ctrl, size_t ctrl_len,
-                                 float complex *out, size_t max_out);
+                                 float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------ */
   /* Properties                                                          */

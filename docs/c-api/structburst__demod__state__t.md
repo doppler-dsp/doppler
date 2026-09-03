@@ -57,11 +57,11 @@ _BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__c
 |  size\_t | [**n\_part**](#variable-n_part)  <br> |
 |  size\_t | [**n\_sym**](#variable-n_sym)  <br> |
 |  size\_t | [**n\_symbols**](#variable-n_symbols)  <br> |
-|  float complex \* | [**part**](#variable-part)  <br> |
+|  float \_Complex \* | [**part**](#variable-part)  <br> |
 |  [**ppe\_state\_t**](structppe__state__t.md) \* | [**ppe**](#variable-ppe)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  size\_t | [**start**](#variable-start)  <br> |
-|  float complex \* | [**sym**](#variable-sym)  <br> |
+|  float \_Complex \* | [**sym**](#variable-sym)  <br> |
 |  int8\_t \* | [**sync**](#variable-sync)  <br> |
 |  size\_t | [**sync\_len**](#variable-sync_len)  <br> |
 
@@ -485,7 +485,7 @@ despread data symbols produced.
 ### variable part 
 
 ```C++
-float complex* burst_demod_state_t::part;
+float _Complex* burst_demod_state_t::part;
 ```
 
 
@@ -556,7 +556,7 @@ preamble start sample in the burst.
 ### variable sym 
 
 ```C++
-float complex* burst_demod_state_t::sym;
+float _Complex* burst_demod_state_t::sym;
 ```
 
 

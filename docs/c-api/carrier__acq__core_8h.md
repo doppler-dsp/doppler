@@ -72,7 +72,7 @@ _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](
 |  void | [**carrier\_acq\_reset**](#function-carrier_acq_reset) ([**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* state) <br>_Reset to the post-create state: discard the running PSD average and detection state; n\_blocks/ready/residual\_hz return to their initial values. Config (psd/detector/dwell\_target) is untouched._  |
 |  int | [**carrier\_acq\_set\_state**](#function-carrier_acq_set_state) ([**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**carrier\_acq\_state\_bytes**](#function-carrier_acq_state_bytes) (const [**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* state) <br> |
-|  void | [**carrier\_acq\_steps**](#function-carrier_acq_steps) ([**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* state, const float complex \* x, size\_t x\_len) <br>_Fold raw complex samples into the running PSD average and test for a detection. Accepts any chunk size across repeated calls_  _a partial trailing block is carried to the next call. A no-op once ready is true or the give-up cap (max\_n\_blocks in sequential mode, dwell\_target otherwise) has been reached._ |
+|  void | [**carrier\_acq\_steps**](#function-carrier_acq_steps) ([**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Fold raw complex samples into the running PSD average and test for a detection. Accepts any chunk size across repeated calls_  _a partial trailing block is carried to the next call. A no-op once ready is true or the give-up cap (max\_n\_blocks in sequential mode, dwell\_target otherwise) has been reached._ |
 
 
 
@@ -361,7 +361,7 @@ _Fold raw complex samples into the running PSD average and test for a detection.
 ```C++
 void carrier_acq_steps (
     carrier_acq_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len
 ) 
 ```

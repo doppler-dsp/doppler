@@ -91,8 +91,7 @@ _xorshift32 (uint32_t *s)
 
 /* Unit-variance complex Gaussian (Box-Muller); same generator as
  * test_acq_core.c's cgauss -- E|z|^2 = 1. */
-static float complex
-cgauss (uint32_t *st)
+static float _Complex cgauss (uint32_t *st)
 {
   uint32_t a   = _xorshift32 (st);
   uint32_t b   = _xorshift32 (st);
@@ -174,17 +173,17 @@ main (void)
               = dp_fftfreq_index (cfg->inject_window, a->window_bins);
           const double f_norm = (double)signed_r / (double)nx;
 
-          float complex *buf   = malloc (n_in * sizeof (float complex));
-          uint32_t       nseed = 1234u + (uint32_t)nc;
+          float _Complex *buf   = malloc (n_in * sizeof (float _Complex));
+          uint32_t        nseed = 1234u + (uint32_t)nc;
           for (size_t k = 0; k < n_in; k++)
             {
-              size_t        epoch_k = k % nx;
-              size_t        src  = (epoch_k + nx - (INJECT_PHASE % nx)) % nx;
-              uint8_t       chip = code[(src / SPC) % SF];
-              float         c    = (chip & 1u) ? -1.0f : 1.0f;
-              double        ph   = 2.0 * PI * f_norm * (double)k;
-              float complex tone
-                  = c * (float complex) (cos (ph) + I * sin (ph));
+              size_t  epoch_k = k % nx;
+              size_t  src     = (epoch_k + nx - (INJECT_PHASE % nx)) % nx;
+              uint8_t chip    = code[(src / SPC) % SF];
+              float   c       = (chip & 1u) ? -1.0f : 1.0f;
+              double  ph      = 2.0 * PI * f_norm * (double)k;
+              float _Complex tone
+                  = c * (float _Complex) (cos (ph) + I * sin (ph));
               buf[k] = tone + sigma * cgauss (&nseed);
             }
 

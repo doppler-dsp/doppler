@@ -163,9 +163,9 @@ MatchedRateConverterObj_execute (MatchedRateConverterObject *self,
           return NULL;
         }
       size_t n_out = RateConverter_execute (
-          self->handle, (const float complex *)PyArray_DATA (x_arr),
+          self->handle, (const float _Complex *)PyArray_DATA (x_arr),
           (size_t)PyArray_SIZE (x_arr),
-          (float complex *)PyArray_DATA (out_arr), _cap);
+          (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (x_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -189,9 +189,9 @@ MatchedRateConverterObj_execute (MatchedRateConverterObject *self,
       Py_DECREF (x_arr);
       return NULL;
     }
-  float complex *_d0   = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t         n_out = RateConverter_execute (
-      self->handle, (const float complex *)PyArray_DATA (x_arr),
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t          n_out = RateConverter_execute (
+      self->handle, (const float _Complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -240,9 +240,9 @@ MatchedRateConverterObj_execute_ctrl (MatchedRateConverterObject *self,
       Py_DECREF (x_arr);
       return NULL;
     }
-  float complex *_d0   = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t         n_out = RateConverter_execute_ctrl (
-      self->handle, (const float complex *)PyArray_DATA (x_arr),
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t          n_out = RateConverter_execute_ctrl (
+      self->handle, (const float _Complex *)PyArray_DATA (x_arr),
       (size_t)PyArray_SIZE (x_arr), ctrl, _d0, _cap);
   Py_DECREF (x_arr);
   if ((size_t)n_out == _cap)
@@ -290,7 +290,7 @@ MatchedRateConverterObj_execute_ctrl_push (MatchedRateConverterObject *self,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "Dd|O", _kwlist, &x_raw, &ctrl,
                                     &out_obj))
     return NULL;
-  float complex x = (float)x_raw.real + (float)x_raw.imag * I;
+  float _Complex x = (float)x_raw.real + (float)x_raw.imag * I;
   if (out_obj && out_obj != Py_None)
     {
       /* Require the exact dtype AND C-contiguity — either mismatch makes
@@ -326,7 +326,7 @@ MatchedRateConverterObj_execute_ctrl_push (MatchedRateConverterObject *self,
           return NULL;
         }
       size_t n_out = RateConverter_execute_ctrl_push (
-          self->handle, x, ctrl, (float complex *)PyArray_DATA (out_arr),
+          self->handle, x, ctrl, (float _Complex *)PyArray_DATA (out_arr),
           _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -349,8 +349,8 @@ MatchedRateConverterObj_execute_ctrl_push (MatchedRateConverterObject *self,
     {
       return NULL;
     }
-  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t         n_out
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t          n_out
       = RateConverter_execute_ctrl_push (self->handle, x, ctrl, _d0, _cap);
   if ((size_t)n_out == _cap)
     {

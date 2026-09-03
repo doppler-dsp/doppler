@@ -48,13 +48,13 @@ extern "C"
     size_t   start;        
     /* ── engine ── */
     ppe_state_t   *ppe;  
-    float complex *part; 
+    float _Complex *part; 
     size_t         n_part;
 
     /* ── read-backs (after demod) ── */
     float *llr;   
     size_t n_llr; 
-    float complex *sym; 
+    float _Complex *sym; 
     size_t n_sym; 
     double est_n0; 
     size_t frame_offset; 
@@ -87,7 +87,7 @@ extern "C"
   size_t burst_demod_llrs_max_out (burst_demod_state_t *state, size_t n);
 
   size_t burst_demod_symbols (burst_demod_state_t *state, size_t n,
-                              float complex *out, size_t max_out);
+                              float _Complex *out, size_t max_out);
 
   size_t burst_demod_symbols_max_out (burst_demod_state_t *state, size_t n);
 
@@ -96,7 +96,7 @@ extern "C"
 
   size_t burst_demod_demod_max_out (burst_demod_state_t *state);
 
-  size_t burst_demod_demod (burst_demod_state_t *state, const float complex *x,
+  size_t burst_demod_demod (burst_demod_state_t *state, const float _Complex *x,
                             size_t x_len, uint8_t *out, size_t max_out);
 
 #ifdef __cplusplus

@@ -97,8 +97,8 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 |  const char \* | [**wfm\_reader\_keyword\_tag**](#function-wfm_reader_keyword_tag) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t i) <br>_The tag of the_ `i'th` _keyword (key\_fn for the_`.keywords` _dict)._ |
 |  size\_t | [**wfm\_reader\_num\_header\_fields**](#function-wfm_reader_num_header_fields) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_The first keyword whose tag equals_ `tag` _, or NULL if absent._ |
 |  size\_t | [**wfm\_reader\_num\_keywords**](#function-wfm_reader_num_keywords) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_Number of extended-header keywords recovered from the capture._  |
-|  size\_t | [**wfm\_reader\_read**](#function-wfm_reader_read) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n, float complex \* out, size\_t max\_out) <br>_Read up to_ `count` _samples, returning them as_`complex64` _._ |
-|  size\_t | [**wfm\_reader\_read\_follow**](#function-wfm_reader_read_follow) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n, float complex \* out, size\_t max\_out) <br>_Read from a capture that is still being written._  |
+|  size\_t | [**wfm\_reader\_read**](#function-wfm_reader_read) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Read up to_ `count` _samples, returning them as_`complex64` _._ |
+|  size\_t | [**wfm\_reader\_read\_follow**](#function-wfm_reader_read_follow) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n, float \_Complex \* out, size\_t max\_out) <br>_Read from a capture that is still being written._  |
 |  size\_t | [**wfm\_reader\_read\_follow\_max\_out**](#function-wfm_reader_read_follow_max_out) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n) <br> |
 |  size\_t | [**wfm\_reader\_read\_max\_out**](#function-wfm_reader_read_max_out) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n) <br>_Maximum samples one read(n) yields: n (fewer at EOF)._  |
 |  void | [**wfm\_reader\_reset**](#function-wfm_reader_reset) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_Rewind to the first sample of the capture._  |
@@ -846,7 +846,7 @@ _Read up to_ `count` _samples, returning them as_`complex64` _._
 size_t wfm_reader_read (
     wfm_reader_state_t * state,
     size_t n,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```
@@ -905,7 +905,7 @@ _Read from a capture that is still being written._
 size_t wfm_reader_read_follow (
     wfm_reader_state_t * state,
     size_t n,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

@@ -68,8 +68,8 @@ extern "C"
     size_t n_rate;   /**< number of chirp-rate hypotheses (1 if max_rate=0).*/
     double drate;    /**< chirp-rate grid step.                             */
     fft_state_t   *fft;    /**< forward plan, size nfft.                    */
-    float complex *buf;    /**< windowed, dechirped, zero-padded input, nfft.*/
-    float complex *spec;   /**< FFT output, nfft.                           */
+    float _Complex *buf;    /**< windowed, dechirped, zero-padded input, nfft.*/
+    float _Complex *spec;   /**< FFT output, nfft.                           */
     float         *mag;    /**< dB magnitude scratch, nfft.                 */
     float         *win;    /**< window scratch, max_len.                    */
     double        *rowpk;  /**< per-rate winning peak dB, n_rate.           */
@@ -139,7 +139,7 @@ extern "C"
    *
    * @endcode
    */
-  ppe_result_t ppe_estimate (ppe_state_t *state, const float complex *x,
+  ppe_result_t ppe_estimate (ppe_state_t *state, const float _Complex *x,
                              size_t n_in);
 
 #ifdef __cplusplus

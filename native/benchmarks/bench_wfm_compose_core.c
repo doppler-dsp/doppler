@@ -56,7 +56,7 @@ main (void)
   wfm_compose_state_t *comp[N_CFG] = { 0 };
   wfm_source_t         src[N_CFG];
   wfm_segment_t        seg[N_CFG];
-  float complex       *out = NULL;
+  float _Complex      *out = NULL;
   char                 name[72];
 
   out = malloc (PULL * sizeof *out);

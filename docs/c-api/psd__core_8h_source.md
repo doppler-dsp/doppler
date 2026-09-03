@@ -25,8 +25,8 @@ typedef struct {
     fft_state_t *fft;          
     acc_trace_state_t *avg;    
     float *w;                  
-    float complex *frame;      
-    float complex *spec;       
+    float _Complex *frame;      
+    float _Complex *spec;       
     float *pwr;                
     float *dbbuf;              
     double cg;                 
@@ -47,7 +47,7 @@ void psd_destroy(psd_state_t *state);
 
 void psd_reset(psd_state_t *state);
 
-void psd_accumulate(psd_state_t *state, const float complex *x,
+void psd_accumulate(psd_state_t *state, const float _Complex *x,
                       size_t x_len);
 
 void psd_accumulate_real(psd_state_t *state, const float *x, size_t x_len);

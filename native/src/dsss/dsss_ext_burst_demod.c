@@ -327,10 +327,11 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
-      size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
-      uint8_t             *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
-      size_t               n_out;
+      const float _Complex *_ng0
+          = (const float _Complex *)PyArray_DATA (x_arr);
+      size_t   _ng1 = (size_t)PyArray_SIZE (x_arr);
+      uint8_t *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
+      size_t   n_out;
       Py_BEGIN_ALLOW_THREADS
         n_out = burst_demod_demod (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
@@ -362,9 +363,9 @@ BurstDemodObj_demod (BurstDemodObject *self, PyObject *args, PyObject *kwds)
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
-  size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t               n_out;
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
+  size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
     n_out = burst_demod_demod (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
@@ -568,7 +569,7 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = burst_demod_symbols (
-          self->handle, (size_t)n, (float complex *)PyArray_DATA (out_arr),
+          self->handle, (size_t)n, (float _Complex *)PyArray_DATA (out_arr),
           _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -590,7 +591,7 @@ BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = burst_demod_symbols (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {

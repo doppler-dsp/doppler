@@ -10,7 +10,7 @@
  * Lifecycle:
  * @code
  * fft2d_state_t *fft = fft2d_create(64, 64, -1, 1);
- * double complex out[64 * 64];
+ * double _Complex out[64 * 64];
  * fft2d_execute_cf64(fft, in, 64 * 64, out, 64 * 64);
  * fft2d_destroy(fft);
  * @endcode
@@ -39,7 +39,7 @@ extern "C"
      *  prefix.  Sized for the widest element (CF64) so one buffer serves
      *  both plans, and allocated lazily -- max_out is ny*nx on every
      *  sized call, which is everything the Python binding does. */
-    double complex *work_trunc;
+    double _Complex *work_trunc;
   } fft2d_state_t;
 
   /**
@@ -105,8 +105,8 @@ extern "C"
    * True
    * @endcode
    */
-  size_t fft2d_execute_cf64 (fft2d_state_t *state, const double complex *in,
-                             size_t n_in, double complex *out,
+  size_t fft2d_execute_cf64 (fft2d_state_t *state, const double _Complex *in,
+                             size_t n_in, double _Complex *out,
                              size_t max_out);
 
   /** @brief Maximum output samples for CF32 execute (ny * nx). */
@@ -138,8 +138,8 @@ extern "C"
    * True
    * @endcode
    */
-  size_t fft2d_execute_cf32 (fft2d_state_t *state, const float complex *in,
-                             size_t n_in, float complex *out,
+  size_t fft2d_execute_cf32 (fft2d_state_t *state, const float _Complex *in,
+                             size_t n_in, float _Complex *out,
                              size_t max_out);
 
   /** @brief Maximum output samples for inplace CF64 execute (ny * nx). */
@@ -170,8 +170,8 @@ extern "C"
    * @endcode
    */
   size_t fft2d_execute_inplace_cf64 (fft2d_state_t *state,
-                                     const double complex *in, size_t n_in,
-                                     double complex *out, size_t max_out);
+                                     const double _Complex *in, size_t n_in,
+                                     double _Complex *out, size_t max_out);
 
   /** @brief Maximum output samples for inplace CF32 execute (ny * nx). */
   size_t fft2d_execute_inplace_cf32_max_out (fft2d_state_t *state);
@@ -200,8 +200,8 @@ extern "C"
    * @endcode
    */
   size_t fft2d_execute_inplace_cf32 (fft2d_state_t *state,
-                                     const float complex *in, size_t n_in,
-                                     float complex *out, size_t max_out);
+                                     const float _Complex *in, size_t n_in,
+                                     float _Complex *out, size_t max_out);
 
 #ifdef __cplusplus
 }

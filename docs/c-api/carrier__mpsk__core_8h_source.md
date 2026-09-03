@@ -38,9 +38,9 @@ typedef struct {
     double bn_fll;           
     double k_fll;            
     int m;                   
-    float complex acc;       
+    float _Complex acc;       
     size_t acc_n;            
-    float complex prev;      
+    float _Complex prev;      
     double prev_abs;         
     int have_prev;           
     double lock_metric;      
@@ -51,18 +51,18 @@ void carrier_mpsk_init(carrier_mpsk_state_t *s, double bn, double zeta,
                        double init_norm_freq, size_t tsamps, double bn_fll,
                        int m);
 
-JM_FORCEINLINE JM_HOT float complex
-carrier_mpsk_wipeoff(carrier_mpsk_state_t *s, float complex x)
+JM_FORCEINLINE JM_HOT float _Complex
+carrier_mpsk_wipeoff(carrier_mpsk_state_t *s, float _Complex x)
 {
     return x * conjf(lo_step(&s->nco));
 }
 
 JM_FORCEINLINE JM_HOT void
-carrier_mpsk_update(carrier_mpsk_state_t *s, float complex P)
+carrier_mpsk_update(carrier_mpsk_state_t *s, float _Complex P)
 {
-    float complex ahat;
+    float _Complex ahat;
     mpsk_slice(P, s->m, &ahat);          /* nearest unit constellation point */
-    float complex d = P * conjf(ahat);   /* data-wiped prompt (carrier only) */
+    float _Complex d = P * conjf(ahat);   /* data-wiped prompt (carrier only) */
     double aP = (double)cabsf(P) + CARRIER_MPSK_EPS;
     double e = (double)cimagf(d) / aP;   /* sin(phase error) near lock */
     s->last_error = e;
@@ -112,7 +112,7 @@ int carrier_mpsk_set_state(carrier_mpsk_state_t *state, const void *blob);
 
 size_t carrier_mpsk_steps_max_out(carrier_mpsk_state_t *state);
 
-size_t carrier_mpsk_steps(carrier_mpsk_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+size_t carrier_mpsk_steps(carrier_mpsk_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
 void carrier_mpsk_configure(carrier_mpsk_state_t *state, double bn, double zeta);
 double carrier_mpsk_get_bn(const carrier_mpsk_state_t *state);

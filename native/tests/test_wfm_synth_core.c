@@ -66,7 +66,7 @@ main (void)
     DP_CHECK (rs && rs->fir == NULL);
     DP_CHECK (wfm_synth_set_rrc (rs, taps, 5) == 0);
     DP_CHECK (rs->shaper != NULL && rs->fir == NULL);
-    float complex y[256];
+    float _Complex y[256];
     wfm_synth_steps (rs, y, 256);
 
     /* step() must reproduce steps() bit-for-bit */
@@ -82,7 +82,7 @@ main (void)
     /* shaping changes the output vs the unshaped (rect) synth */
     wfm_synth_state_t *rect = wfm_synth_create (WFM_SYNTH_QPSK, 1e6, 0.0,
                                                 100.0, 0, 7, 4, 7, 0, 0, 0.0);
-    float complex      r[256];
+    float _Complex r[256];
     wfm_synth_steps (rect, r, 256);
     int differs = 0;
     for (int i = 0; i < 256; i++)
@@ -108,7 +108,7 @@ main (void)
     DP_CHECK (fs3 && wfm_synth_set_rrc (fs3, taps, 5) == 0);
     DP_CHECK (fs3 && fs3->fir != NULL
               && fs3->shaper == NULL); /* dense fallback */
-    float complex y3[192];
+    float _Complex y3[192];
     wfm_synth_steps (fs3, y3, 192);
     wfm_synth_state_t *fs3b = wfm_synth_create (WFM_SYNTH_PN, 1e6, 0.0, 100.0,
                                                 0, 7, 3, 7, 0, 0, 0.0);
@@ -131,7 +131,7 @@ main (void)
                                               0, 1, 2, 7, 0, 0, 0.0);
     DP_CHECK (bs && bs->lo == NULL && bs->awgn == NULL && bs->pn == NULL);
     DP_CHECK (wfm_synth_set_bits (bs, pat, 6, 1) == 0); /* 1 = bpsk */
-    float complex y[24];
+    float _Complex y[24];
     wfm_synth_steps (bs, y, 24); /* two passes (cycled) */
     /* bpsk: bit 1 -> -1, bit 0 -> +1; symbol centre at each sps-block */
     DP_CHECK (dp_nearf (crealf (y[0]), -1.0f, 1e-5f)); /* bit 1 */
@@ -195,8 +195,8 @@ main (void)
         DP_CHECK (b != NULL);
         DP_CHECK (wfm_synth_set_bits (b, bp, 24, bmod) == 0);
         {
-          size_t        nsym = 24u / (size_t)bmod;
-          float complex y[24];
+          size_t nsym = 24u / (size_t)bmod;
+          float _Complex y[24];
           wfm_synth_steps (b, y, nsym); /* sps = 1: one sample per symbol */
           for (size_t k = 0; k < nsym; k++)
             {
@@ -204,8 +204,8 @@ main (void)
               for (int t = 0; t < bmod; t++) /* MSB-first, as documented */
                 g = (g << 1) | (unsigned)bp[k * (size_t)bmod + (size_t)t];
               {
-                float complex ahat;
-                unsigned      got = mpsk_slice (y[k], m, &ahat);
+                float _Complex ahat;
+                unsigned got = mpsk_slice (y[k], m, &ahat);
                 DP_CHECK (got == g);
                 DP_CHECK (dp_nearf (cabsf (y[k]), 1.0f, 1e-5f));
               }
@@ -227,7 +227,7 @@ main (void)
     DP_CHECK (wfm_synth_set_bits (bs, pat, 6, 1) == 0); /* bpsk */
     DP_CHECK (wfm_synth_set_rrc (bs, taps, 5) == 0); /* now accepted on bits */
     DP_CHECK (bs->shaper != NULL && bs->fir == NULL);
-    float complex y[256];
+    float _Complex y[256];
     wfm_synth_steps (bs, y, 256);
 
     /* step() must reproduce steps() bit-for-bit (chunk-invariant FIR) */
@@ -245,7 +245,7 @@ main (void)
     wfm_synth_state_t *rect = wfm_synth_create (WFM_SYNTH_BITS, 1e6, 0.0,
                                                 100.0, 0, 1, 4, 7, 0, 0, 0.0);
     wfm_synth_set_bits (rect, pat, 6, 1);
-    float complex r[256];
+    float _Complex r[256];
     wfm_synth_steps (rect, r, 256);
     int differs = 0;
     for (int i = 0; i < 256; i++)
@@ -263,13 +263,13 @@ main (void)
    */
   {
     /* Four-point constellation; the symbol IS the output (no bit mapping). */
-    const float complex syms[4] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I,
-                                    -1.0f + 0.0f * I, 0.0f - 1.0f * I };
-    wfm_synth_state_t  *ss = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
-                                               100.0, 0, 1, 2, 7, 0, 0, 0.0);
+    const float _Complex syms[4] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I,
+                                     -1.0f + 0.0f * I, 0.0f - 1.0f * I };
+    wfm_synth_state_t *ss = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
+                                              100.0, 0, 1, 2, 7, 0, 0, 0.0);
     DP_CHECK (ss && ss->lo == NULL && ss->awgn == NULL && ss->pn == NULL);
     DP_CHECK (wfm_synth_set_symbols (ss, syms, 4) == 0);
-    float complex y[16];
+    float _Complex y[16];
     wfm_synth_steps (ss, y, 16); /* 4 syms * 2 sps = 8/pass → two passes */
     /* symbol centre at each sps-block equals the symbol itself */
     DP_CHECK (dp_cnearf (y[0], syms[0], 1e-5f));
@@ -308,15 +308,15 @@ main (void)
   /* ── symbols + RRC: set_rrc shapes the symbol stream, step()==steps() ──────
    */
   {
-    const float         taps[5] = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
-    const float complex syms[3]
+    const float taps[5] = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
+    const float _Complex syms[3]
         = { 1.0f + 1.0f * I, -1.0f + 1.0f * I, 1.0f - 1.0f * I };
     wfm_synth_state_t *ss = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
                                               100.0, 0, 1, 4, 7, 0, 0, 0.0);
     wfm_synth_set_symbols (ss, syms, 3);
     DP_CHECK (wfm_synth_set_rrc (ss, taps, 5) == 0); /* accepted on symbols */
     DP_CHECK (ss->shaper != NULL && ss->fir == NULL);
-    float complex y[192];
+    float _Complex y[192];
     wfm_synth_steps (ss, y, 192);
 
     wfm_synth_state_t *ss2 = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
@@ -332,7 +332,7 @@ main (void)
     wfm_synth_state_t *rect = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
                                                 100.0, 0, 1, 4, 7, 0, 0, 0.0);
     wfm_synth_set_symbols (rect, syms, 3);
-    float complex r[192];
+    float _Complex r[192];
     wfm_synth_steps (rect, r, 192);
     int differs = 0;
     for (int i = 0; i < 192; i++)
@@ -357,7 +357,7 @@ main (void)
     DP_CHECK (cu && cu->lo == NULL && cu->awgn == NULL);
     wfm_synth_set_chirp_span (cu, N);
 
-    float complex *y = malloc (N * sizeof *y);
+    float _Complex *y = malloc (N * sizeof *y);
     DP_CHECK (y != NULL);
     wfm_synth_steps (cu, y, N);
 
@@ -385,12 +385,12 @@ main (void)
     DP_CHECK (step_match);
 
     /* reset rewinds the sweep to sample 0 (reproducible). */
-    float complex y0 = y[0];
+    float _Complex y0 = y[0];
     wfm_synth_reset (cu);
     DP_CHECK (wfm_synth_step (cu) == y0);
 
     /* down-chirp: f_end < f_start sweeps the other way (high → low). */
-    float complex *d = malloc (N * sizeof *d);
+    float _Complex *d = malloc (N * sizeof *d);
     DP_CHECK (d != NULL);
     wfm_synth_state_t *cd = wfm_synth_create (WFM_SYNTH_CHIRP, fs, f1, 100.0,
                                               0, 1, 8, 7, 0, 0, f0);
@@ -412,7 +412,7 @@ main (void)
   /* serializable state — running scalars + present children
    * (presence-flagged). */
   {
-    float complex      out[256];
+    float _Complex out[256];
     wfm_synth_state_t *a
         = wfm_synth_create (0, 1e6, 1e5, 100.0, 0, 1, 8, 7, 0, 0, 0.0);
     wfm_synth_state_t *b
@@ -429,9 +429,9 @@ main (void)
   /* symbols serialization: a mid-stream split resumes bit-exact, and
    * sym_read_idx survives the round-trip. */
   {
-    const float complex syms[5]
+    const float _Complex syms[5]
         = { 1 + 0 * I, 0 + 1 * I, -1 + 0 * I, 0 - 1 * I, 1 + 1 * I };
-    float complex      ref[128], part[40], cont[88];
+    float _Complex ref[128], part[40], cont[88];
     wfm_synth_state_t *a = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
                                              100.0, 0, 1, 3, 7, 0, 0, 0.0);
     wfm_synth_state_t *b = wfm_synth_create (WFM_SYNTH_SYMBOLS, 1e6, 0.0,
@@ -472,7 +472,7 @@ main (void)
     const uint8_t sync[2]  = { 1, 0 };
     const uint8_t pay[5]   = { 1, 0, 0, 1, 1 };
     /* 8*3 + (2+5+16)*4 = 116 chips × sps 2 = 232 samples per burst pass */
-    float complex      ref[232], part[100], cont[132];
+    float _Complex ref[232], part[100], cont[132];
     wfm_synth_state_t *a = wfm_synth_create (WFM_SYNTH_DSSS, 1e6, 0.0, 3.0, 1,
                                              9, 2, 7, 0, 0, 0.0);
     wfm_synth_state_t *b = wfm_synth_create (WFM_SYNTH_DSSS, 1e6, 0.0, 3.0, 1,
@@ -552,7 +552,7 @@ main (void)
                   == 0);
 
         /* step() and steps() must agree bit-for-bit (shared chip kernel). */
-        float complex blk[600];
+        float _Complex blk[600];
         wfm_synth_steps (a, blk, 600);
         int idn = 1;
         for (int i = 0; i < 600; i++)
@@ -567,7 +567,7 @@ main (void)
          * outputs coincide (noisy, so the AWGN child rides too; prbs also
          * carries the PN child across the split). */
         wfm_synth_reset (a);
-        float complex ref[600], part[250], cont[350];
+        float _Complex ref[600], part[250], cont[350];
         wfm_synth_steps (a, ref, 600);
         wfm_synth_reset (a);
         wfm_synth_steps (a, part, 250);
@@ -607,7 +607,7 @@ main (void)
       /* heap, not a `blk[sf * spc]` VLA: sf/spc are const size_t, not integer
        * constant expressions, so the array would be a (folded) VLA -- clang
        * warns -Wgnu-folding-constant. */
-      float complex *blk = malloc (sf * spc * sizeof *blk);
+      float _Complex *blk = malloc (sf * spc * sizeof *blk);
       wfm_synth_steps (a, blk, sf * spc);
       int ok = 1;
       for (size_t k = 0; k < sf; k++)
@@ -665,7 +665,7 @@ main (void)
     DP_CHECK (a && wfm_synth_set_rrc (a, taps, 5) == 0);
     DP_CHECK (a && a->shaper != NULL && a->lo != NULL && a->awgn != NULL
               && a->pn != NULL);
-    float complex ref[512], part[200], cont[312];
+    float _Complex ref[512], part[200], cont[312];
     wfm_synth_steps (a, ref, 512);  /* uninterrupted reference */
     wfm_synth_reset (a);            /* re-arm priming + rewind children */
     wfm_synth_steps (a, part, 200); /* first leg, past the sps priming */
@@ -762,7 +762,7 @@ main (void)
     wfm_synth_state_t *ds = wfm_synth_create (WFM_SYNTH_DSSS, 1e6, 0.0, 9.0, 0,
                                               11, 8, 9, 0, 0, 0.0);
     DP_REQUIRE_MSG (ds != NULL, "auto/dsss: create");
-    float complex *y = malloc (n * sizeof *y);
+    float _Complex *y = malloc (n * sizeof *y);
     DP_REQUIRE_MSG (y != NULL, "auto/dsss: alloc");
     wfm_synth_steps (ds, y, n);
     double p = 0.0;
@@ -790,7 +790,7 @@ main (void)
     DP_REQUIRE_MSG (dc != NULL, "set_dsss_chips: create");
     DP_CHECK (wfm_synth_set_dsss_chips (dc, chips, 6) == 0);
     /* chip 1 → −1, chip 0 → +1, each held for the create-time sps (2). */
-    float complex y[12];
+    float _Complex y[12];
     wfm_synth_steps (dc, y, 12);
     for (size_t k = 0; k < 6; k++)
       {
@@ -805,7 +805,7 @@ main (void)
     wfm_synth_reset (dc);
     for (size_t k = 0; k < 6; k++)
       chips[k] ^= 1u; /* invert every chip in the CALLER's array */
-    float complex y2[12];
+    float _Complex y2[12];
     wfm_synth_steps (dc, y2, 12);
     int same = 1;
     for (size_t i = 0; i < 12; i++)
@@ -835,9 +835,9 @@ main (void)
    * "noise moved" and "signal moved" is two orders of magnitude wide.
    */
   {
-    const size_t   n = 4000;
-    float complex *a = malloc (n * sizeof *a);
-    float complex *b = malloc (n * sizeof *b);
+    const size_t    n = 4000;
+    float _Complex *a = malloc (n * sizeof *a);
+    float _Complex *b = malloc (n * sizeof *b);
     DP_REQUIRE_MSG (a && b, "reseed: alloc");
     wfm_synth_state_t *ra = wfm_synth_create (WFM_SYNTH_BPSK, 1e6, 0.0, 40.0,
                                               1, 7, 8, 7, 0, 0, 0.0);
@@ -856,10 +856,10 @@ main (void)
     double dmax = 0.0, amax = 0.0;
     for (size_t i = 0; i < n; i++)
       {
-        double d = cabs ((double complex)a[i] - (double complex)b[i]);
+        double d = cabs ((double _Complex)a[i] - (double _Complex)b[i]);
         if (d > dmax)
           dmax = d;
-        double m = cabs ((double complex)a[i]);
+        double m = cabs ((double _Complex)a[i]);
         if (m > amax)
           amax = m;
       }
@@ -871,7 +871,7 @@ main (void)
     wfm_synth_state_t *cl = wfm_synth_create (WFM_SYNTH_BPSK, 1e6, 0.0, 100.0,
                                               1, 7, 8, 7, 0, 0, 0.0);
     DP_REQUIRE_MSG (cl != NULL, "reseed/clean: create");
-    float complex c1[64], c2[64];
+    float _Complex c1[64], c2[64];
     wfm_synth_steps (cl, c1, 64);
     wfm_synth_reset (cl);
     wfm_synth_reseed_noise (cl, 12345u);
@@ -906,10 +906,10 @@ main (void)
    * any length below 2048 it could not.
    */
   {
-    const size_t   n1 = 1000, n2 = 3000;
-    float complex *g  = malloc (n2 * sizeof *g);
-    float complex *on = malloc (n2 * sizeof *on);
-    float complex *sk = malloc (n1 * sizeof *sk);
+    const size_t    n1 = 1000, n2 = 3000;
+    float _Complex *g  = malloc (n2 * sizeof *g);
+    float _Complex *on = malloc (n2 * sizeof *on);
+    float _Complex *sk = malloc (n1 * sizeof *sk);
     DP_REQUIRE_MSG (g && on && sk, "noise_steps: alloc");
     wfm_synth_state_t *na = wfm_synth_create (WFM_SYNTH_NOISE, 1e6, 0.0, 100.0,
                                               1, 4, 8, 7, 0, 0, 0.0);
@@ -943,7 +943,7 @@ main (void)
     wfm_synth_state_t *cn = wfm_synth_create (WFM_SYNTH_TONE, 1e6, 0.0, 100.0,
                                               1, 4, 8, 7, 0, 0, 0.0);
     DP_REQUIRE_MSG (cn != NULL, "noise_steps/clean: create");
-    float complex z[16];
+    float _Complex z[16];
     for (size_t i = 0; i < 16; i++)
       z[i] = 7.0f + 7.0f * I; /* poison, so "wrote zeros" is falsifiable */
     wfm_synth_noise_steps (cn, z, 16);
@@ -1000,14 +1000,14 @@ main (void)
     wfm_synth_set_cur_im (ac, -0.5f);
     DP_CHECK_NEAR (wfm_synth_get_cur_re (ac), 0.25f, 1e-9);
     DP_CHECK_NEAR (wfm_synth_get_cur_im (ac), -0.5f, 1e-9);
-    float complex held = wfm_synth_step (ac); /* sym_pos is 1..3: mid-hold */
+    float _Complex held = wfm_synth_step (ac); /* sym_pos is 1..3: mid-hold */
     DP_CHECK_NEAR (crealf (held), 0.25f, 1e-6);
     DP_CHECK_NEAR (cimagf (held), -0.5f, 1e-6);
     /* ... and injecting sym_pos = 0 forces the NEXT step to latch a fresh
        symbol from the LFSR, overwriting the injected one. */
     wfm_synth_set_sym_pos (ac, 0);
     DP_CHECK (wfm_synth_get_sym_pos (ac) == 0);
-    float complex fresh = wfm_synth_step (ac);
+    float _Complex fresh = wfm_synth_step (ac);
     DP_CHECK_NEAR (fabsf (crealf (fresh)), q, 1e-6); /* latched, not 0.25 */
     DP_CHECK_NEAR (fabsf (cimagf (fresh)), q, 1e-6);
     wfm_synth_destroy (ac);
@@ -1029,11 +1029,11 @@ main (void)
    * and sps = 3 the dense-FIR fallback, so ONE truth covers both.
    */
   {
-    const float         taps[5] = { 0.1f, -0.3f, 0.8f, 0.25f, -0.05f };
-    const size_t        ntaps   = 5;
-    const float complex syms[4] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I,
-                                    -1.0f + 0.0f * I, 0.5f - 0.5f * I };
-    const int sps_cases[2]      = { 4, 3 }; /* polyphase, then dense FIR */
+    const float  taps[5]         = { 0.1f, -0.3f, 0.8f, 0.25f, -0.05f };
+    const size_t ntaps           = 5;
+    const float _Complex syms[4] = { 1.0f + 0.0f * I, 0.0f + 1.0f * I,
+                                     -1.0f + 0.0f * I, 0.5f - 0.5f * I };
+    const int sps_cases[2]       = { 4, 3 }; /* polyphase, then dense FIR */
     for (int c = 0; c < 2; c++)
       {
         const int          sps = sps_cases[c];
@@ -1049,7 +1049,7 @@ main (void)
           DP_CHECK (sh->shaper != NULL && sh->fir == NULL);
         else
           DP_CHECK (sh->fir != NULL && sh->shaper == NULL);
-        float complex *y = malloc (n * sizeof *y);
+        float _Complex *y = malloc (n * sizeof *y);
         DP_REQUIRE_MSG (y != NULL, "rrc/truth: alloc");
         wfm_synth_steps (sh, y, n);
         const double scale = sqrt ((double)sps);
@@ -1057,7 +1057,7 @@ main (void)
         double       worst = 0.0;
         for (size_t i = 0; i < n; i++)
           {
-            double complex want = 0.0;
+            double _Complex want = 0.0;
             for (size_t k = 0; k < ntaps; k++)
               {
                 if (k > i)
@@ -1066,9 +1066,9 @@ main (void)
                 if (j % (size_t)sps)
                   continue; /* structural zero between symbols */
                 want += (double)taps[k] * scale
-                        * (double complex)syms[(j / (size_t)sps) % 4];
+                        * (double _Complex)syms[(j / (size_t)sps) % 4];
               }
-            double err = cabs ((double complex)y[i] - want);
+            double err = cabs ((double _Complex)y[i] - want);
             if (err > worst)
               worst = err;
             if (err > 2e-6)

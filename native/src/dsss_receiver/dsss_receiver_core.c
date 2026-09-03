@@ -184,12 +184,12 @@ dsss_rx_rebuild_chain (dsss_receiver_state_t *s, double chip_phase,
  * emit-block comment). A single (or all-zero-magnitude) partial degenerates
  * harmlessly to a plain pass-through / no-op sum. */
 static void
-dsss_rx_carrier_update_from_partials (costas_state_t      *car,
-                                      const float complex *partials, size_t n)
+dsss_rx_carrier_update_from_partials (costas_state_t       *car,
+                                      const float _Complex *partials, size_t n)
 {
   if (n == 0)
     return;
-  float complex sum = 0.0f;
+  float _Complex sum = 0.0f;
   for (size_t k = 0; k < n; k++)
     {
       float sign = (crealf (partials[k]) >= 0.0f) ? 1.0f : -1.0f;
@@ -214,8 +214,8 @@ dsss_rx_carrier_update_from_partials (costas_state_t      *car,
  * prompts written to `dll_out` (capped at max_out, a generous
  * caller-supplied bound). */
 static size_t
-dsss_rx_track_carrier_dll (dsss_receiver_state_t *s, const float complex *x,
-                           size_t x_len, float complex *dll_out,
+dsss_rx_track_carrier_dll (dsss_receiver_state_t *s, const float _Complex *x,
+                           size_t x_len, float _Complex *dll_out,
                            size_t max_out)
 {
   size_t emitted = 0;
@@ -242,7 +242,7 @@ dsss_rx_track_carrier_dll (dsss_receiver_state_t *s, const float complex *x,
 
   while (pos + s->tsamps <= x_len)
     {
-      const float complex *chunk = x + pos;
+      const float _Complex *chunk = x + pos;
       for (size_t i = 0; i < s->tsamps; i++)
         s->car_wiped_buf[i] = costas_wipeoff (&s->car, chunk[i]);
       size_t n_out = dll_steps (s->dll, s->car_wiped_buf, s->tsamps,
@@ -266,17 +266,17 @@ dsss_rx_track_carrier_dll (dsss_receiver_state_t *s, const float complex *x,
  * ratio) rather than relying on a *_max_out() call that would need to
  * know x_len in advance. */
 static size_t
-dsss_rx_track_chain (dsss_receiver_state_t *s, const float complex *x,
-                     size_t x_len, float complex *out, size_t max_out)
+dsss_rx_track_chain (dsss_receiver_state_t *s, const float _Complex *x,
+                     size_t x_len, float _Complex *out, size_t max_out)
 {
   if (x_len == 0)
     return 0;
 
-  float complex *dll_out = dp_xmalloc (x_len * sizeof *dll_out);
+  float _Complex *dll_out = dp_xmalloc (x_len * sizeof *dll_out);
   size_t n_dll = dsss_rx_track_carrier_dll (s, x, x_len, dll_out, x_len);
 
-  size_t         rc_cap = (size_t)((double)n_dll * s->rc->rate) + 64;
-  float complex *rc_out = dp_xmalloc (rc_cap * sizeof *rc_out);
+  size_t          rc_cap = (size_t)((double)n_dll * s->rc->rate) + 64;
+  float _Complex *rc_out = dp_xmalloc (rc_cap * sizeof *rc_out);
   size_t n_rc = RateConverter_execute (s->rc, dll_out, n_dll, rc_out, rc_cap);
   free (dll_out);
 
@@ -381,8 +381,8 @@ dsss_receiver_steps_max_out (dsss_receiver_state_t *state)
 }
 
 size_t
-dsss_receiver_steps (dsss_receiver_state_t *state, const float complex *x,
-                     size_t x_len, float complex *out, size_t max_out)
+dsss_receiver_steps (dsss_receiver_state_t *state, const float _Complex *x,
+                     size_t x_len, float _Complex *out, size_t max_out)
 {
   if (x_len == 0)
     return 0;
@@ -408,7 +408,7 @@ dsss_receiver_steps (dsss_receiver_state_t *state, const float complex *x,
       uint64_t tail64
           = (total_after > consumed) ? (total_after - consumed) : 0;
       size_t tail_len = (tail64 > (uint64_t)x_len) ? x_len : (size_t)tail64;
-      const float complex *tail = x + (x_len - tail_len);
+      const float _Complex *tail = x + (x_len - tail_len);
 
       /* This receiver's embedded engine is always built via
        * acq_create_continuous() -- coherent_bins is pinned at 1, window_bins

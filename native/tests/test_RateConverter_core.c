@@ -33,10 +33,10 @@ _near (double a, double b, double tol)
   return fabs (a - b) <= tol;
 }
 
-static float complex *
+static float _Complex *
 _dc_block (size_t n)
 {
-  float complex *b = malloc (n * sizeof (float complex));
+  float _Complex *b = malloc (n * sizeof (float _Complex));
   if (!b)
     return NULL;
   for (size_t i = 0; i < n; i++)
@@ -167,8 +167,8 @@ test_output_length (void)
     N_IN  = 1024,
     N_OUT = 1024
   };
-  float complex *in  = _dc_block (N_IN);
-  float complex *out = malloc (N_OUT * sizeof (float complex));
+  float _Complex *in  = _dc_block (N_IN);
+  float _Complex *out = malloc (N_OUT * sizeof (float _Complex));
   DP_CHECK (in && out);
 
   /* rate = 0.5: expect exactly 512 out */
@@ -213,8 +213,8 @@ test_set_rate (void)
   {
     N = 512
   };
-  float complex *in  = _dc_block (N);
-  float complex *out = malloc (N * sizeof (float complex));
+  float _Complex *in  = _dc_block (N);
+  float _Complex *out = malloc (N * sizeof (float _Complex));
   DP_CHECK (in && out);
 
   RateConverter_state_t *rc = RateConverter_create (0.5, 0);
@@ -247,9 +247,9 @@ test_reset_reproducible (void)
   {
     N = 256
   };
-  float complex *in   = _dc_block (N);
-  float complex *out1 = malloc (N * sizeof (float complex));
-  float complex *out2 = malloc (N * sizeof (float complex));
+  float _Complex *in   = _dc_block (N);
+  float _Complex *out1 = malloc (N * sizeof (float _Complex));
+  float _Complex *out2 = malloc (N * sizeof (float _Complex));
   DP_CHECK (in && out1 && out2);
 
   RateConverter_state_t *rc = RateConverter_create (0.125, 0);
@@ -261,7 +261,7 @@ test_reset_reproducible (void)
 
   DP_CHECK (n1 == n2);
   if (n1 == n2 && n1 > 0)
-    DP_CHECK (memcmp (out1, out2, n1 * sizeof (float complex)) == 0);
+    DP_CHECK (memcmp (out1, out2, n1 * sizeof (float _Complex)) == 0);
 
   RateConverter_destroy (rc);
   free (in);
@@ -340,9 +340,9 @@ test_state_roundtrip (void)
     CUT = 401,
     CAP = 1024
   };
-  float complex *in   = malloc (L * sizeof (float complex));
-  float complex *outA = malloc (CAP * sizeof (float complex));
-  float complex *outB = malloc (CAP * sizeof (float complex));
+  float _Complex *in   = malloc (L * sizeof (float _Complex));
+  float _Complex *outA = malloc (CAP * sizeof (float _Complex));
+  float _Complex *outB = malloc (CAP * sizeof (float _Complex));
   DP_CHECK (in && outA && outB);
   for (size_t i = 0; i < L; i++)
     in[i] = (float)cos (0.03 * (double)i) + I * (float)sin (0.03 * (double)i);
@@ -1508,15 +1508,15 @@ test_capped_cic_still_delivers_the_requested_rate (void)
       double                 D  = Ds[i];
       RateConverter_state_t *rc = RateConverter_create (1.0 / D, 1);
       size_t                 n  = (size_t)(D * 40.0);
-      float complex         *x, *o;
+      float _Complex        *x, *o;
       size_t                 m;
       double                 got;
 
       DP_CHECK (rc != NULL);
       if (!rc)
         continue;
-      x = (float complex *)malloc (n * sizeof *x);
-      o = (float complex *)malloc (n * sizeof *o);
+      x = (float _Complex *)malloc (n * sizeof *x);
+      o = (float _Complex *)malloc (n * sizeof *o);
       DP_CHECK (x != NULL && o != NULL);
       if (!x || !o)
         {

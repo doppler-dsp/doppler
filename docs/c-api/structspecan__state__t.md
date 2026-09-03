@@ -47,13 +47,13 @@ _Specan state. Allocate with_ [_**specan\_create()**_](specan__core_8h.md#functi
 |  size\_t | [**navg**](#variable-navg)  <br> |
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
 |  double | [**offset\_db**](#variable-offset_db)  <br> |
-|  float complex \* | [**pend**](#variable-pend)  <br> |
+|  float \_Complex \* | [**pend**](#variable-pend)  <br> |
 |  size\_t | [**pend\_cap**](#variable-pend_cap)  <br> |
 |  size\_t | [**pend\_len**](#variable-pend_len)  <br> |
 |  [**psd\_state\_t**](structpsd__state__t.md) \* | [**psd**](#variable-psd)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
 |  double | [**rbw**](#variable-rbw)  <br> |
-|  float complex \* | [**scratch**](#variable-scratch)  <br> |
+|  float \_Complex \* | [**scratch**](#variable-scratch)  <br> |
 |  size\_t | [**scratch\_cap**](#variable-scratch_cap)  <br> |
 |  double | [**span**](#variable-span)  <br> |
 |  double | [**src\_center**](#variable-src_center)  <br> |
@@ -304,7 +304,7 @@ Additive dB offset on the display (dBm cal).
 ### variable pend 
 
 ```C++
-float complex* specan_state_t::pend;
+float _Complex* specan_state_t::pend;
 ```
 
 
@@ -411,7 +411,7 @@ Requested resolution bandwidth, Hz.
 ### variable scratch 
 
 ```C++
-float complex* specan_state_t::scratch;
+float _Complex* specan_state_t::scratch;
 ```
 
 

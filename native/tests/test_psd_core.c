@@ -19,12 +19,12 @@ argmax (const float *a, size_t n)
 
 /* Fill x[0..n-1] with a unit-amplitude complex tone at FFT bin k. */
 static void
-fill_tone (float complex *x, size_t n, int k)
+fill_tone (float _Complex *x, size_t n, int k)
 {
   for (size_t i = 0; i < n; i++)
     {
       double ph = 2.0 * M_PI * (double)k * (double)i / (double)n;
-      x[i]      = (float complex) (cos (ph) + sin (ph) * I);
+      x[i]      = (float _Complex) (cos (ph) + sin (ph) * I);
     }
 }
 
@@ -91,8 +91,8 @@ main (void)
 
   /* ── DC tone lands at the centre bin after fftshift ─────────────────── */
   {
-    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
-    float complex x[64];
+    psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    float _Complex x[64];
     for (size_t i = 0; i < N; i++)
       x[i] = 1.0f + 0.0f * I;
     psd_accumulate (w, x, N);
@@ -104,12 +104,12 @@ main (void)
 
   /* ── tone at bin k maps to index n/2 + k; counts frames ─────────────── */
   {
-    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
-    const int     k = 8;
-    float complex x[64];
+    psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    const int    k = 8;
+    float _Complex x[64];
     fill_tone (x, N, k);
     /* feed 3 full frames + a trailing partial that must be ignored */
-    float complex buf[64 * 3 + 7];
+    float _Complex buf[64 * 3 + 7];
     for (size_t f = 0; f < 3; f++)
       for (size_t i = 0; i < N; i++)
         buf[f * N + i] = x[i];
@@ -125,8 +125,8 @@ main (void)
 
   /* ── psd_dbhz differs from psd_db by a constant offset ──────────────── */
   {
-    psd_state_t  *w = psd_create (32, 2.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
-    float complex x[32];
+    psd_state_t *w = psd_create (32, 2.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    float _Complex x[32];
     fill_tone (x, 32, 5);
     psd_accumulate (w, x, 32);
     float a[32], b[32];
@@ -140,8 +140,8 @@ main (void)
 
   /* ── band power: a partition sums (in power) to the total ───────────── */
   {
-    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
-    float complex x[64];
+    psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    float _Complex x[64];
     fill_tone (x, N, 10);
     for (int r = 0; r < 4; r++)
       psd_accumulate (w, x, N);
@@ -179,7 +179,7 @@ main (void)
         {
           psd_state_t *w = psd_create (N, 1.0, win, 8.0f, pad, 1.0, 0, 0, 0.1);
           DP_CHECK (w != NULL);
-          float complex x[64];
+          float _Complex x[64];
           fill_tone (x, N, 9); /* window spreads it; Parseval recovers total */
           for (int r = 0; r < 8; r++)
             psd_accumulate (w, x, N);
@@ -191,8 +191,8 @@ main (void)
 
   /* ── occupied bandwidth: narrow for a tone, ~full for flat noise ────── */
   {
-    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
-    float complex x[64];
+    psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    float _Complex x[64];
     fill_tone (x, N, 4);
     for (int r = 0; r < 4; r++)
       psd_accumulate (w, x, N);
@@ -203,14 +203,14 @@ main (void)
 
   /* ── noise floor / SNR / SFDR are finite on a two-tone signal ───────── */
   {
-    psd_state_t  *w = psd_create (N, 1.0, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
-    float complex x[64];
+    psd_state_t *w = psd_create (N, 1.0, 1, 8.0f, 1, 1.0, 0, 0, 0.1);
+    float _Complex x[64];
     for (size_t i = 0; i < N; i++)
       {
         double p1 = 2.0 * M_PI * 6.0 * (double)i / (double)N;
         double p2 = 2.0 * M_PI * 20.0 * (double)i / (double)N;
-        x[i]      = (float complex) ((cos (p1) + sin (p1) * I)
-                                     + 0.1 * (cos (p2) + sin (p2) * I));
+        x[i]      = (float _Complex) ((cos (p1) + sin (p1) * I)
+                                      + 0.1 * (cos (p2) + sin (p2) * I));
       }
     for (int r = 0; r < 8; r++)
       psd_accumulate (w, x, N);
@@ -374,10 +374,10 @@ main (void)
   {
     /* Every readout here used to ignore its count argument entirely and
      * write state->nfft floats regardless of what the caller owned. */
-    const size_t  N = 64;
-    psd_state_t  *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
-    float complex x[64];
-    float         buf[64];
+    const size_t N = 64;
+    psd_state_t *w = psd_create (N, 1.0, 0, 0.0f, 1, 1.0, 0, 0, 0.1);
+    float _Complex x[64];
+    float buf[64];
     DP_CHECK (w != NULL);
     fill_tone (x, N, 10);
     psd_accumulate (w, x, N);
@@ -427,7 +427,7 @@ main (void)
 
   /* serializable state — delegates to the acc_trace averager child. */
   {
-    float complex frame[64];
+    float _Complex frame[64];
     for (int i = 0; i < 64; i++)
       frame[i] = (float)(i % 8) - 4.0f + 0.3f * I;
     psd_state_t *a = psd_create (64, 1.0e6, 1, 8.0f, 1, 1.0, 0, 0, 0.1);

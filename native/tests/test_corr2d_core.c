@@ -24,8 +24,7 @@ _rand_uniform (uint32_t *s)
  * draw, clang the first. doppler builds this file with both (`make test` is
  * gcc, `make coverage` is clang), so that spelling produced two different
  * fixtures. gcc's order is preserved here. See dp_rng_test.h. */
-static float complex
-_rand_cplx (uint32_t *s)
+static float _Complex _rand_cplx (uint32_t *s)
 {
   float im = _rand_uniform (s);
   float re = _rand_uniform (s);
@@ -46,13 +45,13 @@ _rand_cplx (uint32_t *s)
  * impulse/shift tests above pass through almost any correlator trivially
  * and don't exercise general content. */
 static void
-_brute_corr2d (const float complex *x, const float complex *h, size_t ny,
-               size_t nx, float complex *out)
+_brute_corr2d (const float _Complex *x, const float _Complex *h, size_t ny,
+               size_t nx, float _Complex *out)
 {
   for (size_t i = 0; i < ny; i++)
     for (size_t j = 0; j < nx; j++)
       {
-        float complex acc = 0.0f;
+        float _Complex acc = 0.0f;
         for (size_t a = 0; a < ny; a++)
           for (size_t b = 0; b < nx; b++)
             {
@@ -73,8 +72,8 @@ main (void)
 
   /* ── lifecycle ────────────────────────────────────────────────────── */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f;
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f;
 
     corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
     DP_CHECK (obj != NULL);
@@ -95,12 +94,12 @@ main (void)
   /* ── self-correlation of 2-D unit impulse ─────────────────────────── *
    * The 2-D circular cross-correlation of δ with itself is δ.           */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f + 0.0f * I;
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f + 0.0f * I;
 
     corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
-    float complex   out[16];
-    size_t          n_out = corr2d_execute (obj, ref, N, out, N);
+    float _Complex out[16];
+    size_t n_out = corr2d_execute (obj, ref, N, out, N);
 
     DP_CHECK (n_out == N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
@@ -112,11 +111,11 @@ main (void)
 
   /* ── integrate-and-dump: dwell=2 ─────────────────────────────────── */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f;
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f;
 
     corr2d_state_t *obj = corr2d_create (ref, NY, NX, 2, 1, 0, 0);
-    float complex   out[16];
+    float _Complex out[16];
 
     size_t n1 = corr2d_execute (obj, ref, N, out, N);
     DP_CHECK (n1 == 0);
@@ -137,13 +136,13 @@ main (void)
    * R[i,j] = IFFT2(FFT2(in) · conj(FFT2(ref))) / (ny*nx)               *
    *        = δ[i-1, j] → peak at (row=1, col=0).                        */
   {
-    float complex ref[16] = { 0 };
-    float complex in[16]  = { 0 };
-    ref[0]                = 1.0f;
-    in[NX]                = 1.0f; /* row 1, col 0 */
+    float _Complex ref[16] = { 0 };
+    float _Complex in[16]  = { 0 };
+    ref[0]                 = 1.0f;
+    in[NX]                 = 1.0f; /* row 1, col 0 */
 
     corr2d_state_t *obj = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
-    float complex   out[16];
+    float _Complex out[16];
     corr2d_execute (obj, in, N, out, N);
 
     /* Peak should be at row=1, col=0 → flat index = 1*NX + 0 = NX */
@@ -160,9 +159,9 @@ main (void)
 
   /* ── max_out returns n_out (native = ny*nx) ──────────────────────── */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f;
-    corr2d_state_t *obj   = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f;
+    corr2d_state_t *obj    = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
     DP_CHECK (corr2d_execute_max_out (obj) == N);
     corr2d_destroy (obj);
   }
@@ -171,11 +170,11 @@ main (void)
    * impulse ref, input shifted to (row 1, col 0) → native peak at (1,0); *
    * inverted on a 4→8 grid, the peak lands at (1·8/4, 0) = (2, 0).       */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f;
-    float complex in[16]  = { 0 };
-    in[NX]                = 1.0f; /* row 1, col 0 */
-    corr2d_state_t *obj   = corr2d_create (ref, NY, NX, 1, 1, 8, 8);
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f;
+    float _Complex in[16]  = { 0 };
+    in[NX]                 = 1.0f; /* row 1, col 0 */
+    corr2d_state_t *obj    = corr2d_create (ref, NY, NX, 1, 1, 8, 8);
     DP_CHECK (obj->ny_out == 8 && obj->nx_out == 8);
     /* ny_out (8) != ny (4) -- Doppler-axis interpolation is requested, so
      * the fast path's identity doesn't apply (see corr2d.h); must fall
@@ -184,8 +183,8 @@ main (void)
     DP_CHECK (obj->fwd != NULL && obj->inv != NULL);
     DP_CHECK (corr2d_execute_max_out (obj) == 64);
 
-    float complex out[64];
-    size_t        no = corr2d_execute (obj, in, N, out, 64);
+    float _Complex out[64];
+    size_t no = corr2d_execute (obj, in, N, out, 64);
     DP_CHECK (no == 64);
     size_t pk = 0;
     for (size_t k = 1; k < 64; k++)
@@ -197,9 +196,9 @@ main (void)
 
   /* ── dense-signal correctness vs. a brute-force reference, both paths ── */
   {
-    const size_t  ny = 5, nx = 7, n = ny * nx;
-    uint32_t      seed          = 12345u;
-    float complex dense_ref[35] = { 0 }, dense_in[35], expect[35], out[35];
+    const size_t ny = 5, nx = 7, n = ny * nx;
+    uint32_t     seed            = 12345u;
+    float _Complex dense_ref[35] = { 0 }, dense_in[35], expect[35], out[35];
     for (size_t j = 0; j < nx; j++)
       dense_ref[j] = _rand_cplx (&seed);
     for (size_t k = 0; k < n; k++)
@@ -216,7 +215,7 @@ main (void)
 
     /* genuinely multi-row ref -> general path; the pre-existing suite had
      * no non-impulse correctness check for this path either. */
-    float complex dense_ref2[35];
+    float _Complex dense_ref2[35];
     for (size_t k = 0; k < n; k++)
       dense_ref2[k] = _rand_cplx (&seed);
     corr2d_state_t *slow = corr2d_create (dense_ref2, ny, nx, 1, 1, 0, 0);
@@ -233,18 +232,18 @@ main (void)
    * nx_out/nx exactly like the general-path decoupled test above scales by
    * ny_out/ny. */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f;
-    float complex in[16]  = { 0 };
-    in[1]                 = 1.0f; /* row 0, col 1 */
-    corr2d_state_t *obj   = corr2d_create (ref, NY, NX, 1, 1, 0, 8);
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f;
+    float _Complex in[16]  = { 0 };
+    in[1]                  = 1.0f; /* row 0, col 1 */
+    corr2d_state_t *obj    = corr2d_create (ref, NY, NX, 1, 1, 0, 8);
     DP_CHECK (obj->fast_path
               == 1); /* ny_out==ny native; nx_out interpolated */
     DP_CHECK (obj->ny_out == NY && obj->nx_out == 8);
     DP_CHECK (corr2d_execute_max_out (obj) == NY * 8);
 
-    float complex out[32];
-    size_t        no = corr2d_execute (obj, in, N, out, 32);
+    float _Complex out[32];
+    size_t no = corr2d_execute (obj, in, N, out, 32);
     DP_CHECK (no == NY * 8);
     size_t pk = 0;
     for (size_t k = 1; k < NY * 8; k++)
@@ -257,7 +256,7 @@ main (void)
 
   /* ── corr2d_set_ref: fast-path accept vs. reject ──────────────────────── */
   {
-    float complex ref1[16] = { 0 }, ref2[16] = { 0 }, bad_ref[16] = { 0 };
+    float _Complex ref1[16] = { 0 }, ref2[16] = { 0 }, bad_ref[16] = { 0 };
     ref1[0]     = 1.0f;
     ref2[1]     = 1.0f; /* still single-row -- row 0, col 1 */
     bad_ref[NX] = 1.0f; /* row 1 nonzero -- no longer single-row */
@@ -267,9 +266,9 @@ main (void)
 
     /* accept: still single-row */
     DP_CHECK (corr2d_set_ref (obj, ref2) == 0);
-    float complex in[16] = { 0 };
-    in[1]                = 1.0f; /* row 0, col 1 -- matches ref2's replica */
-    float complex out[16];
+    float _Complex in[16] = { 0 };
+    in[1]                 = 1.0f; /* row 0, col 1 -- matches ref2's replica */
+    float _Complex out[16];
     corr2d_execute (obj, in, N, out, N);
     DP_CHECK (dp_cnearf (out[0], 1.0f + 0.0f * I, TOL));
 
@@ -288,10 +287,10 @@ main (void)
      * path -- and the fast one bypasses the slow path entirely, so both are
      * exercised here. A clamp applied to only one would leave the other
      * overrunning, which is the shape of the bug this guards. */
-    const size_t  ny = 5, nx = 7, n = ny * nx;
-    uint32_t      seed        = 999u;
-    float complex row_ref[35] = { 0 }, full_ref[35], input[35];
-    float complex full[35], part[35];
+    const size_t ny = 5, nx = 7, n = ny * nx;
+    uint32_t     seed          = 999u;
+    float _Complex row_ref[35] = { 0 }, full_ref[35], input[35];
+    float _Complex full[35], part[35];
     for (size_t j = 0; j < nx; j++)
       row_ref[j] = _rand_cplx (&seed);
     for (size_t k = 0; k < n; k++)
@@ -302,9 +301,9 @@ main (void)
 
     for (int which = 0; which < 2; which++)
       {
-        const float complex *rf = which ? full_ref : row_ref;
-        corr2d_state_t      *a  = corr2d_create (rf, ny, nx, 1, 1, 0, 0);
-        corr2d_state_t      *b  = corr2d_create (rf, ny, nx, 1, 1, 0, 0);
+        const float _Complex *rf = which ? full_ref : row_ref;
+        corr2d_state_t       *a  = corr2d_create (rf, ny, nx, 1, 1, 0, 0);
+        corr2d_state_t       *b  = corr2d_create (rf, ny, nx, 1, 1, 0, 0);
         DP_CHECK (a != NULL && b != NULL);
         DP_CHECK (a->fast_path == (which ? 0 : 1)); /* both paths covered */
         for (size_t k = 0; k < n; k++)
@@ -332,7 +331,7 @@ main (void)
   /* serializable state — 2-D accumulator + count resume; plans + ref rebuilt.
    */
   {
-    float complex ref[16], in[16], out[16];
+    float _Complex ref[16], in[16], out[16];
     for (int i = 0; i < 16; i++)
       {
         ref[i] = (float)(i % 4) + 0.5f * I;
@@ -353,8 +352,8 @@ main (void)
    * identical (n complex floats + count either way), so the triplet needs
    * no fast-path-specific code at all -- this proves that in practice. */
   {
-    float complex ref[16] = { 0 }, in[16], out[16];
-    ref[0]                = 1.0f;
+    float _Complex ref[16] = { 0 }, in[16], out[16];
+    ref[0]                 = 1.0f;
     for (int i = 0; i < 16; i++)
       in[i] = (float)(i % 3) - 1.0f + 0.2f * I;
     corr2d_state_t *a = corr2d_create (ref, 4, 4, 3, 1, 0, 0);
@@ -383,10 +382,10 @@ main (void)
    * reset that zeroed the counter but left the accumulator would carry
    * the stale frame into the dump and fail. */
   {
-    const size_t  ny = 4, nx = 4, n = ny * nx;
-    uint32_t      seed    = 777u;
-    float complex ref[16] = { 0 }, stale[16], fresh[16];
-    float complex out_a[16], out_b[16];
+    const size_t ny = 4, nx = 4, n = ny * nx;
+    uint32_t     seed      = 777u;
+    float _Complex ref[16] = { 0 }, stale[16], fresh[16];
+    float _Complex out_a[16], out_b[16];
     for (size_t j = 0; j < nx; j++)
       ref[j] = _rand_cplx (&seed);
     for (size_t k = 0; k < n; k++)
@@ -440,10 +439,10 @@ main (void)
    * a caller's output starts depending on a parameter documented not to
    * matter. Bit-for-bit across four values, on both paths. */
   {
-    const size_t  ny = 5, nx = 7, n = ny * nx;
-    uint32_t      seed     = 4242u;
-    float complex ref1[35] = { 0 }, refN[35], in[35];
-    float complex base[35], other[35];
+    const size_t ny = 5, nx = 7, n = ny * nx;
+    uint32_t     seed       = 4242u;
+    float _Complex ref1[35] = { 0 }, refN[35], in[35];
+    float _Complex base[35], other[35];
     for (size_t j = 0; j < nx; j++)
       ref1[j] = _rand_cplx (&seed);
     for (size_t k = 0; k < n; k++)
@@ -453,8 +452,8 @@ main (void)
 
     for (int path = 0; path < 2; path++)
       {
-        const float complex *r  = path ? refN : ref1;
-        corr2d_state_t      *c0 = corr2d_create (r, ny, nx, 1, 1, 0, 0);
+        const float _Complex *r  = path ? refN : ref1;
+        corr2d_state_t       *c0 = corr2d_create (r, ny, nx, 1, 1, 0, 0);
         DP_CHECK (c0 != NULL && c0->fast_path == (path ? 0 : 1));
         DP_CHECK (corr2d_execute (c0, in, n, base, n) == n);
         corr2d_destroy (c0);
@@ -478,9 +477,9 @@ main (void)
    * pointers being NULL. A regression that allocated them unconditionally
    * would cost every acquisition instance the padded grid it never uses. */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f;
-    corr2d_state_t *nat   = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f;
+    corr2d_state_t *nat    = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
     DP_CHECK (nat != NULL);
     DP_CHECK (nat->ny_out == NY && nat->nx_out == NX);
     DP_CHECK (nat->work_pad == NULL && nat->ztmp == NULL);
@@ -523,9 +522,9 @@ main (void)
 
     for (int parity = 0; parity < 2; parity++)
       {
-        const size_t  nx      = parity ? 15 : 16; /* odd has no Nyquist bin */
-        float complex ref[16] = { 0 }, in[16];
-        float complex out[16 * 8];
+        const size_t nx        = parity ? 15 : 16; /* odd has no Nyquist bin */
+        float _Complex ref[16] = { 0 }, in[16];
+        float _Complex out[16 * 8];
         ref[0] = 1.0f;
 
         for (int fi = 0; fi < 5; fi++)
@@ -546,8 +545,8 @@ main (void)
                     ar += cos (ph);
                     ai += sin (ph);
                   }
-                in[j] = (float complex) (ar / (double)nx)
-                        + (float complex) (ai / (double)nx) * I;
+                in[j] = (float _Complex) (ar / (double)nx)
+                        + (float _Complex) (ai / (double)nx) * I;
               }
 
             corr2d_state_t *fine
@@ -582,12 +581,12 @@ main (void)
                   ar += cos (ph);
                   ai += sin (ph);
                 }
-              in[j] = (float complex) (ar / (double)nx)
-                      + (float complex) (ai / (double)nx) * I;
+              in[j] = (float _Complex) (ar / (double)nx)
+                      + (float _Complex) (ai / (double)nx) * I;
             }
           corr2d_state_t *nat = corr2d_create (ref, 1, nx, 1, 1, 0, 0);
           DP_CHECK (nat != NULL);
-          float complex onat[16];
+          float _Complex onat[16];
           DP_CHECK (corr2d_execute (nat, in, nx, onat, nx) == nx);
           size_t pk = 0;
           for (size_t k = 1; k < nx; k++)
@@ -617,9 +616,9 @@ main (void)
    * the residue of the bug. Measured: 5.5e-08 with the split, 6.3e-03
    * without it, five orders of magnitude apart. */
   {
-    const size_t  nx = 16, up = 4;
-    float complex ref[16] = { 0 }, in[16];
-    float complex out[64];
+    const size_t nx = 16, up = 4;
+    float _Complex ref[16] = { 0 }, in[16];
+    float _Complex out[64];
     ref[0] = 1.0f;
     for (size_t j = 0; j < nx; j++)
       in[j] = (j == 3) ? 1.0f : (j == 4) ? 0.7f : (j == 11) ? -0.4f : 0.0f;
@@ -664,8 +663,8 @@ main (void)
    * NULL for an allocation failure OR an invalid argument, and the binding
    * turns that into MemoryError. */
   {
-    float complex ref[16] = { 0 };
-    ref[0]                = 1.0f;
+    float _Complex ref[16] = { 0 };
+    ref[0]                 = 1.0f;
     DP_CHECK (corr2d_create (ref, NY, NX, 0, 1, 0, 0) == NULL);
     /* Not vacuous: the neighbouring value builds. */
     corr2d_state_t *ok = corr2d_create (ref, NY, NX, 1, 1, 0, 0);

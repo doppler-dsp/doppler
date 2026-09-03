@@ -46,7 +46,7 @@ boxcar_reset (boxcar_state_t *s)
 }
 
 void
-boxcar_steps (boxcar_state_t *s, const float complex *x, float complex *out,
+boxcar_steps (boxcar_state_t *s, const float _Complex *x, float _Complex *out,
               size_t n)
 {
   for (size_t i = 0; i < n; i++)

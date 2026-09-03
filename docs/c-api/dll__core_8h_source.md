@@ -68,9 +68,9 @@ typedef struct {
     double seed_chip;        
     double bn;               
     double zeta;             
-    float complex acc_e;     
-    float complex acc_p;     
-    float complex acc_l;     
+    float _Complex acc_e;     
+    float _Complex acc_p;     
+    float _Complex acc_l;     
     double last_error;       
     size_t segments;         
     double seg_chips;        
@@ -87,16 +87,16 @@ typedef struct {
      *    builds the SAME named artifacts (`sums`, `backward_sums`,
      *    `correlations`) in the same order so it can be checked directly
      *    against that Python function line for line. */
-    float complex *chunk_p;         
-    float complex *chunk_e;         
-    float complex *chunk_l;         
-    float complex *sums;            
-    float complex *last_backward_p; 
-    float complex *last_e;          
-    float complex *last_l;          
+    float _Complex *chunk_p;         
+    float _Complex *chunk_e;         
+    float _Complex *chunk_l;         
+    float _Complex *sums;            
+    float _Complex *last_backward_p; 
+    float _Complex *last_e;          
+    float _Complex *last_l;          
     int have_prev_epoch;     
     /* ── lock detector (always on): offset-tap CFAR noise ref + N-look test  */
-    float complex acc_o;     
+    float _Complex acc_o;     
     double off_chips;        
     double noise_guard;      
     uint32_t rng;            
@@ -151,7 +151,7 @@ dll_dwell_center_chip_pos(const dll_state_t *s)
 }
 
 JM_FORCEINLINE JM_HOT int
-dll_accumulate(dll_state_t *s, float complex d)
+dll_accumulate(dll_state_t *s, float _Complex d)
 {
     double sfd = (double)s->sf;
     double cp = dll_dwell_center_chip_pos(s);
@@ -174,7 +174,7 @@ dll_accumulate(dll_state_t *s, float complex d)
 }
 
 JM_FORCEINLINE JM_HOT void
-dll_lock_accumulate(dll_state_t *s, float complex d)
+dll_lock_accumulate(dll_state_t *s, float _Complex d)
 {
     double co = dll_dwell_center_chip_pos(s) + s->off_chips;
     if (co >= (double)s->sf)
@@ -226,7 +226,7 @@ void dll_reset(dll_state_t *state);
 
 size_t dll_steps_max_out(dll_state_t *state);
 
-size_t dll_steps(dll_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+size_t dll_steps(dll_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
 void dll_configure(dll_state_t *state, double bn, double zeta);
 double dll_get_bn(const dll_state_t *state);

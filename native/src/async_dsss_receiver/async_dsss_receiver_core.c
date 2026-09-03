@@ -43,14 +43,12 @@ adr_reset_lock (async_dsss_receiver_state_t *s)
  * "no error handling for impossible scenarios" rule) -- this build cannot
  * fail. */
 static void
-adr_build_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
-                        double doppler_hz_est, costas_state_t *car_frozen_out,
-                        dll_state_t           **refine_dll_out,
-                        RateConverter_state_t **refine_rc_out,
-                        carrier_acq_state_t   **ca_out,
-                        float complex         **dll_out_buf_out,
-                        size_t                 *dll_out_cap_out,
-                        float complex **rc_out_buf_out, size_t *rc_out_cap_out)
+adr_build_refine_chain (
+    async_dsss_receiver_state_t *s, double chip_phase, double doppler_hz_est,
+    costas_state_t *car_frozen_out, dll_state_t **refine_dll_out,
+    RateConverter_state_t **refine_rc_out, carrier_acq_state_t **ca_out,
+    float _Complex **dll_out_buf_out, size_t *dll_out_cap_out,
+    float _Complex **rc_out_buf_out, size_t *rc_out_cap_out)
 {
   /* Frozen carrier: costas_update() is never called on this instance --
    * the direct C equivalent of Python's freeze_carrier=True. bn/tsamps
@@ -95,12 +93,12 @@ adr_build_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
       0 /* window=hann */, 0.0f, NULL, 0, s->pfa, s->pd, design_snr,
       s->refine_sequential, s->refine_max_n_blocks));
 
-  float complex *dll_out_buf
+  float _Complex *dll_out_buf
       = dp_xmalloc (s->refine_segments * sizeof (*dll_out_buf));
 
   size_t rc_out_cap
       = (size_t)((double)s->refine_segments * refine_rc->rate) + 64;
-  float complex *rc_out_buf = dp_xmalloc (rc_out_cap * sizeof (*rc_out_buf));
+  float _Complex *rc_out_buf = dp_xmalloc (rc_out_cap * sizeof (*rc_out_buf));
 
   *refine_dll_out  = refine_dll;
   *refine_rc_out   = refine_rc;
@@ -139,9 +137,9 @@ adr_rebuild_refine_chain (async_dsss_receiver_state_t *s, double chip_phase,
   dll_state_t           *refine_dll  = NULL;
   RateConverter_state_t *refine_rc   = NULL;
   carrier_acq_state_t   *ca          = NULL;
-  float complex         *dll_out_buf = NULL;
+  float _Complex        *dll_out_buf = NULL;
   size_t                 dll_out_cap = 0;
-  float complex         *rc_out_buf  = NULL;
+  float _Complex        *rc_out_buf  = NULL;
   size_t                 rc_out_cap  = 0;
 
   adr_build_refine_chain (s, chip_phase, doppler_hz_est, &car_frozen,
@@ -285,7 +283,8 @@ adr_rebuild_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
  * collapses to near-DC. See objects/async_dsss_receiver.toml's
  * refine_max_error_db comment. */
 static void
-adr_refine_period (async_dsss_receiver_state_t *s, const float complex *period)
+adr_refine_period (async_dsss_receiver_state_t *s,
+                   const float _Complex        *period)
 {
   for (size_t i = 0; i < s->tsamps; i++)
     s->car_wiped_buf[i] = costas_wipeoff (&s->car_frozen, period[i]);
@@ -308,7 +307,7 @@ adr_refine_period (async_dsss_receiver_state_t *s, const float complex *period)
  * periods (the shared car_carry_buf -- refine and track never run
  * concurrently) and run adr_refine_period() on each complete one. */
 static void
-adr_process_refine (async_dsss_receiver_state_t *s, const float complex *x,
+adr_process_refine (async_dsss_receiver_state_t *s, const float _Complex *x,
                     size_t x_len)
 {
   size_t pos = 0;
@@ -359,8 +358,8 @@ adr_process_refine (async_dsss_receiver_state_t *s, const float complex *x,
  * receiver, so this squaring lives here in the consumer, not in dll_core.c.
  * Writes emitted partials into dll_out (capacity max_out); returns count. */
 static size_t
-adr_track_period (async_dsss_receiver_state_t *s, const float complex *period,
-                  float complex *dll_out, size_t max_out)
+adr_track_period (async_dsss_receiver_state_t *s, const float _Complex *period,
+                  float _Complex *dll_out, size_t max_out)
 {
   for (size_t i = 0; i < s->tsamps; i++)
     s->car_wiped_buf[i] = costas_wipeoff (&s->car, period[i]);
@@ -388,11 +387,11 @@ adr_track_period (async_dsss_receiver_state_t *s, const float complex *period,
        * applied PRE-despread so despreading stays coherent (no residual
        * carrier rotating within the correlation) instead of leaving the whole
        * carrier burden to the post-despread loop. */
-      float complex sq = 0.0f;
+      float _Complex sq = 0.0f;
       for (size_t i = 0; i < n_out; i++)
         sq += dll_out[i] * dll_out[i];
-      double        phi = 0.5 * atan2 (cimag (sq), creal (sq));
-      float complex P   = (float)cos (phi) + (float)sin (phi) * I;
+      double phi       = 0.5 * atan2 (cimag (sq), creal (sq));
+      float _Complex P = (float)cos (phi) + (float)sin (phi) * I;
       costas_update (&s->car, P);
       /* Continuous carrier->code aiding: the pre-despread Costas tracks the
          FULL carrier offset (including the 500 Hz/s ramp), so refresh the
@@ -410,8 +409,8 @@ adr_track_period (async_dsss_receiver_state_t *s, const float complex *period,
 }
 
 static size_t
-adr_track_carrier_dll (async_dsss_receiver_state_t *s, const float complex *x,
-                       size_t x_len, float complex *dll_out, size_t max_out)
+adr_track_carrier_dll (async_dsss_receiver_state_t *s, const float _Complex *x,
+                       size_t x_len, float _Complex *dll_out, size_t max_out)
 {
   size_t emitted = 0;
   size_t pos     = 0;
@@ -446,17 +445,17 @@ adr_track_carrier_dll (async_dsss_receiver_state_t *s, const float complex *x,
 }
 
 static size_t
-adr_track_chain (async_dsss_receiver_state_t *s, const float complex *x,
-                 size_t x_len, float complex *out, size_t max_out)
+adr_track_chain (async_dsss_receiver_state_t *s, const float _Complex *x,
+                 size_t x_len, float _Complex *out, size_t max_out)
 {
   if (x_len == 0)
     return 0;
 
-  float complex *dll_out = dp_xmalloc (x_len * sizeof *dll_out);
-  size_t         n_dll   = adr_track_carrier_dll (s, x, x_len, dll_out, x_len);
+  float _Complex *dll_out = dp_xmalloc (x_len * sizeof *dll_out);
+  size_t          n_dll = adr_track_carrier_dll (s, x, x_len, dll_out, x_len);
 
-  size_t         rc_cap = (size_t)((double)n_dll * s->rc->rate) + 64;
-  float complex *rc_out = dp_xmalloc (rc_cap * sizeof *rc_out);
+  size_t          rc_cap = (size_t)((double)n_dll * s->rc->rate) + 64;
+  float _Complex *rc_out = dp_xmalloc (rc_cap * sizeof *rc_out);
   size_t n_rc = RateConverter_execute (s->rc, dll_out, n_dll, rc_out, rc_cap);
   free (dll_out);
 
@@ -613,8 +612,8 @@ async_dsss_receiver_steps_max_out (async_dsss_receiver_state_t *state)
 
 size_t
 async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
-                           const float complex *x, size_t x_len,
-                           float complex *out, size_t max_out)
+                           const float _Complex *x, size_t x_len,
+                           float _Complex *out, size_t max_out)
 {
   if (x_len == 0)
     return 0;
@@ -635,7 +634,7 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
       uint64_t tail64
           = (total_after > consumed) ? (total_after - consumed) : 0;
       size_t tail_len = (tail64 > (uint64_t)x_len) ? x_len : (size_t)tail64;
-      const float complex *tail = x + (x_len - tail_len);
+      const float _Complex *tail = x + (x_len - tail_len);
 
       acq_handoff_t ho;
       acq_build_handoff (state->acq, &hit, state->code_len, state->spc, &ho);
@@ -717,7 +716,7 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
                                ? (fed_total - samples_consumed_refine)
                                : 0;
       size_t   tail_len  = (unused > (uint64_t)x_len) ? 0 : (size_t)unused;
-      const float complex *tail = x + (x_len - tail_len);
+      const float _Complex *tail = x + (x_len - tail_len);
 
       adr_rebuild_track_chain (state, state->seed_chip_phase,
                                refined_doppler_hz_est, state->segments,

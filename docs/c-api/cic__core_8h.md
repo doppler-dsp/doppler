@@ -61,7 +61,7 @@ _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#deta
 | ---: | :--- |
 |  [**cic\_state\_t**](structcic__state__t.md) \* | [**cic\_create**](#function-cic_create) (uint32\_t R) <br>_Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct on the heap and pre-computes the normalisation right-shift (CIC\_N \* log2(R) bits). All integrator and comb accumulators are zeroed; the first output arrives after R input samples. Returns NULL for invalid R or OOM. Input amplitude is bounded: \|Re\| and \|Im\| &lt;= 1.0. A component beyond +-1.0 is clipped at the boundary before any filtering; the sample stream gives no sign of it, so check the sticky_ `clipped` _flag. Unlike doppler's floating-point blocks this one is not scale-free_ _scale the input into range first._ |
 |  double | [**cic\_dc\_gain**](#function-cic_dc_gain) (const [**cic\_state\_t**](structcic__state__t.md) \* state) <br>_The filter's response to a constant input, from its own geometry._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**cic\_decimate**](#function-cic_decimate) ([**cic\_state\_t**](structcic__state__t.md) \* state, const float complex \* in, size\_t n\_in, float complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) size\_t | [**cic\_decimate**](#function-cic_decimate) ([**cic\_state\_t**](structcic__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Decimate a block of CF32 samples through the CIC pipeline. Each sample is converted to offset-binary UQ16, pushed through CIC\_N integrators (unsigned wrapping), and when the phase counter reaches R the integrated value is passed through CIC\_N M=1 comb stages and converted back to CF32. State persists between calls. Feeding blocks that are multiples of R gives predictable output counts (exactly n\_in/R samples per block)._  |
 |  size\_t | [**cic\_decimate\_max\_out**](#function-cic_decimate_max_out) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br>_Upper bound on decimate output — returns 0 (lazy-alloc signal)._  |
 |  void | [**cic\_destroy**](#function-cic_destroy) ([**cic\_state\_t**](structcic__state__t.md) \* state) <br> |
 |  void | [**cic\_get\_state**](#function-cic_get_state) (const [**cic\_state\_t**](structcic__state__t.md) \* state, void \* blob) <br>_Serialize the integrator/comb/phase state into_ `blob` _._ |
@@ -244,9 +244,9 @@ _Decimate a block of CF32 samples through the CIC pipeline. Each sample is conve
 ```C++
 JM_FORCEINLINE  JM_HOT size_t cic_decimate (
     cic_state_t * state,
-    const float complex * in,
+    const float _Complex * in,
     size_t n_in,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

@@ -80,7 +80,7 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 
 | Type | Name |
 | ---: | :--- |
-|  size\_t | [**mpsk\_receiver\_bits**](#function-mpsk_receiver_bits) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit hard Gray-coded bits._  |
+|  size\_t | [**mpsk\_receiver\_bits**](#function-mpsk_receiver_bits) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit hard Gray-coded bits._  |
 |  size\_t | [**mpsk\_receiver\_bits\_max\_out**](#function-mpsk_receiver_bits_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 |  size\_t | [**mpsk\_receiver\_bits\_real**](#function-mpsk_receiver_bits_real) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float \* x, size\_t x\_len, uint8\_t \* out, size\_t max\_out) <br>_Demodulate a real f32 block and emit hard Gray-coded bits._  |
 |  size\_t | [**mpsk\_receiver\_bits\_real\_max\_out**](#function-mpsk_receiver_bits_real_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
@@ -113,11 +113,11 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 |  int | [**mpsk\_receiver\_set\_state**](#function-mpsk_receiver_set_state) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const void \* blob) <br> |
 |  int | [**mpsk\_receiver\_set\_telemetry**](#function-mpsk_receiver_set_telemetry) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context across the receiver. Registers the receiver's own "&lt;prefix&gt;.lock" probe (the carrier lock EMA), then the carrier loop's "&lt;prefix&gt;.car.e" / ".freq" / ".locked" and the symbol-timing loop's "&lt;prefix&gt;.sync.e" / ".ctrl" / ".rate" / ".lock" / ".locked" / ".mu"_  _ten probes emitted once per recovered symbol_ _then the front end's AGC under "&lt;prefix&gt;.agc" ("&lt;prefix&gt;.agc.gain\_db" and "&lt;prefix&gt;.agc.level\_db"; see_[_**agc\_set\_telemetry()**_](agc__core_8h.md#function-agc_set_telemetry) _). Twelve probes total, all thinned by_`decim` _. Passing NULL detaches everything._ |
 |  size\_t | [**mpsk\_receiver\_state\_bytes**](#function-mpsk_receiver_state_bytes) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_receiver\_step\_real\_ted**](#function-mpsk_receiver_step_real_ted) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* s, float x, float complex \* y\_out, int ted) <br>_Push one REAL input sample; emit a symbol if it completed one._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_receiver\_step\_ted**](#function-mpsk_receiver_step_ted) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* s, float complex x, float complex \* y\_out, int ted) <br>_Push one input sample; emit a symbol if it completed one._  |
-|  size\_t | [**mpsk\_receiver\_steps**](#function-mpsk_receiver_steps) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit the recovered symbols._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_receiver\_step\_real\_ted**](#function-mpsk_receiver_step_real_ted) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* s, float x, float \_Complex \* y\_out, int ted) <br>_Push one REAL input sample; emit a symbol if it completed one._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**mpsk\_receiver\_step\_ted**](#function-mpsk_receiver_step_ted) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* s, float \_Complex x, float \_Complex \* y\_out, int ted) <br>_Push one input sample; emit a symbol if it completed one._  |
+|  size\_t | [**mpsk\_receiver\_steps**](#function-mpsk_receiver_steps) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Demodulate a cf32 block and emit the recovered symbols._  |
 |  size\_t | [**mpsk\_receiver\_steps\_max\_out**](#function-mpsk_receiver_steps_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
-|  size\_t | [**mpsk\_receiver\_steps\_real**](#function-mpsk_receiver_steps_real) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Demodulate a real f32 block and emit the recovered symbols._  |
+|  size\_t | [**mpsk\_receiver\_steps\_real**](#function-mpsk_receiver_steps_real) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, const float \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Demodulate a real f32 block and emit the recovered symbols._  |
 |  size\_t | [**mpsk\_receiver\_steps\_real\_max\_out**](#function-mpsk_receiver_steps_real_max_out) ([**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
 
 
@@ -260,7 +260,7 @@ mpsk_receiver_state_t *rx = mpsk_receiver_create (
     m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta,
     bn_timing, lock_thresh, init_norm_freq, differential, num_phases,
     agc, bn_agc_ratio);
-float complex sym[256];
+float _Complex sym[256];
 size_t k = mpsk_receiver_steps (rx, rx_in, rx_len, sym, 256);
 double f = mpsk_receiver_get_norm_freq (rx);  // tracked residual carrier
 mpsk_receiver_destroy (rx);
@@ -296,7 +296,7 @@ mpsk_receiver_state_t *rx = mpsk_receiver_create_real (
     m, sps, m_out, pulse, rrc_beta, rrc_span, bn_carrier, zeta,
     bn_timing, lock_thresh, init_norm_freq, differential, num_phases,
     agc, bn_agc_ratio);
-float complex sym[256];
+float _Complex sym[256];
 size_t k = mpsk_receiver_steps_real (rx, rx_in, rx_len, sym, 256);
 mpsk_receiver_destroy (rx);
 ```
@@ -316,7 +316,7 @@ _Demodulate a cf32 block and emit hard Gray-coded bits._
 ```C++
 size_t mpsk_receiver_bits (
     mpsk_receiver_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
     uint8_t * out,
     size_t max_out
@@ -1228,7 +1228,7 @@ _Push one REAL input sample; emit a symbol if it completed one._
 JM_FORCEINLINE  JM_HOT int mpsk_receiver_step_real_ted (
     mpsk_receiver_state_t * s,
     float x,
-    float complex * y_out,
+    float _Complex * y_out,
     int ted
 ) 
 ```
@@ -1270,8 +1270,8 @@ _Push one input sample; emit a symbol if it completed one._
 ```C++
 JM_FORCEINLINE  JM_HOT int mpsk_receiver_step_ted (
     mpsk_receiver_state_t * s,
-    float complex x,
-    float complex * y_out,
+    float _Complex x,
+    float _Complex * y_out,
     int ted
 ) 
 ```
@@ -1313,9 +1313,9 @@ _Demodulate a cf32 block and emit the recovered symbols._
 ```C++
 size_t mpsk_receiver_steps (
     mpsk_receiver_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```
@@ -1390,7 +1390,7 @@ size_t mpsk_receiver_steps_real (
     mpsk_receiver_state_t * state,
     const float * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

@@ -256,7 +256,7 @@ ReaderObj_read (ReaderObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out
           = wfm_reader_read (self->handle, (size_t)n,
-                             (float complex *)PyArray_DATA (out_arr), _cap);
+                             (float _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -277,8 +277,8 @@ ReaderObj_read (ReaderObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  float complex *_d0   = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t         n_out = wfm_reader_read (self->handle, (size_t)n, _d0, _cap);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t          n_out = wfm_reader_read (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;
@@ -358,8 +358,8 @@ ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      float complex *_ng0 = (float complex *)PyArray_DATA (out_arr);
-      size_t         n_out;
+      float _Complex *_ng0 = (float _Complex *)PyArray_DATA (out_arr);
+      size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
         n_out = wfm_reader_read_follow (self->handle, (size_t)n, _ng0, _cap);
       Py_END_ALLOW_THREADS
@@ -383,7 +383,7 @@ ReaderObj_read_follow (ReaderObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's

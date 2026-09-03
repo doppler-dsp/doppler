@@ -9,14 +9,14 @@
 #define TOL32 5e-4f
 
 static inline int
-ceq64 (double complex a, double complex b)
+ceq64 (double _Complex a, double _Complex b)
 {
   return fabs (creal (a) - creal (b)) < TOL64
          && fabs (cimag (a) - cimag (b)) < TOL64;
 }
 
 static inline int
-ceq32 (float complex a, float complex b)
+ceq32 (float _Complex a, float _Complex b)
 {
   return fabsf (crealf (a) - crealf (b)) < TOL32
          && fabsf (cimagf (a) - cimagf (b)) < TOL32;
@@ -57,7 +57,7 @@ main (void)
     fft2d_state_t *inv = fft2d_create (NY, NX, +1, 1);
     DP_CHECK (fwd != NULL && inv != NULL);
 
-    double complex in[64], spec[64], rec[64];
+    double _Complex in[64], spec[64], rec[64];
     for (size_t i = 0; i < N; i++)
       in[i] = (double)(i + 1) + 0.0 * I;
 
@@ -77,7 +77,7 @@ main (void)
     fft2d_state_t *fwd = fft2d_create (NY, NX, -1, 1);
     fft2d_state_t *inv = fft2d_create (NY, NX, +1, 1);
 
-    float complex in[64], spec[64], rec[64];
+    float _Complex in[64], spec[64], rec[64];
     for (size_t i = 0; i < N; i++)
       in[i] = (float)(i + 1) + 0.0f * I;
 
@@ -94,7 +94,7 @@ main (void)
   /* ── DC input: only bin (0,0) is non-zero ───────────────────────── */
   {
     fft2d_state_t *obj = fft2d_create (NY, NX, -1, 1);
-    double complex in[64], out[64];
+    double _Complex in[64], out[64];
     for (size_t i = 0; i < N; i++)
       in[i] = 1.0 + 0.0 * I;
     fft2d_execute_cf64 (obj, in, N, out, N);
@@ -108,7 +108,7 @@ main (void)
   /* ── inplace CF64 matches out-of-place ──────────────────────────── */
   {
     fft2d_state_t *obj = fft2d_create (NY, NX, -1, 1);
-    double complex in[64], out_oop[64], out_ip[64];
+    double _Complex in[64], out_oop[64], out_ip[64];
     for (size_t i = 0; i < N; i++)
       in[i] = (double)(i % 5) - 2.0 + (double)(i % 3) * I;
 
@@ -123,16 +123,16 @@ main (void)
   /* ── short out: prefix of the full surface, nothing past max_out ──── */
   {
     fft2d_state_t *obj = fft2d_create (NY, NX, -1, 1);
-    double complex in[64], full[64], part[64];
-    float complex  in32[64], full32[64], part32[64];
+    double _Complex in[64], full[64], part[64];
+    float _Complex in32[64], full32[64], part32[64];
     for (size_t i = 0; i < N; i++)
       {
         in[i]   = (double)(i % 7) - 3.0 + (double)(i % 5) * I;
         in32[i] = (float)(i % 7) - 3.0f + (float)(i % 5) * I;
       }
-    const double complex CANARY   = -12345.0 - 6789.0 * I;
-    const float complex  CANARY32 = -12345.0f - 6789.0f * I;
-    const size_t         K        = 10;
+    const double _Complex CANARY  = -12345.0 - 6789.0 * I;
+    const float _Complex CANARY32 = -12345.0f - 6789.0f * I;
+    const size_t K                = 10;
 
     fft2d_execute_cf64 (obj, in, N, full, N);
     for (size_t k = 0; k < N; k++)

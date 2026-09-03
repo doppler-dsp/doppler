@@ -65,8 +65,8 @@ MovingAverage_step (MovingAverageObject *self, PyObject *args)
   Py_complex x_raw = { 0.0, 0.0 };
   if (!PyArg_ParseTuple (args, "D", &x_raw))
     return NULL;
-  float complex x = (float)x_raw.real + (float)x_raw.imag * I;
-  float complex y = boxcar_step (self->handle, x);
+  float _Complex x = (float)x_raw.real + (float)x_raw.imag * I;
+  float _Complex y = boxcar_step (self->handle, x);
   return PyComplex_FromDoubles ((double)crealf (y), (double)cimagf (y));
 }
 
@@ -122,8 +122,9 @@ MovingAverage_steps (MovingAverageObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (in_arr);
           return NULL;
         }
-      boxcar_steps (self->handle, (const float complex *)PyArray_DATA (in_arr),
-                    (float complex *)PyArray_DATA (out_arr), (size_t)n);
+      boxcar_steps (self->handle,
+                    (const float _Complex *)PyArray_DATA (in_arr),
+                    (float _Complex *)PyArray_DATA (out_arr), (size_t)n);
       Py_DECREF (in_arr);
       return (PyObject *)out_arr;
     }
@@ -136,8 +137,8 @@ MovingAverage_steps (MovingAverageObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-  boxcar_steps (self->handle, (const float complex *)PyArray_DATA (in_arr),
-                (float complex *)PyArray_DATA ((PyArrayObject *)out_arr),
+  boxcar_steps (self->handle, (const float _Complex *)PyArray_DATA (in_arr),
+                (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr),
                 (size_t)n);
 
   Py_DECREF (in_arr);
@@ -291,7 +292,7 @@ MovingAverageObj_exit (MovingAverageObject *self, PyObject *args)
 
 static PyMethodDef MovingAverageObj_methods[] = {
   { "step", (PyCFunction)MovingAverage_step, METH_VARARGS,
-    "step(x) -> float complex\n"
+    "step(x) -> float _Complex\n"
     "\n"
     "Slide the window by one sample; return the gained moving average.\n"
     "\n"

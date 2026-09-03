@@ -70,9 +70,9 @@
 /* Feed n copies of a constant-magnitude sample; return the power of the
  * final output in dB.  Used to probe the converged loop state. */
 static double
-run_const (agc_state_t *agc, float complex x, size_t n)
+run_const (agc_state_t *agc, float _Complex x, size_t n)
 {
-  float complex y = 0.0f + 0.0f * I;
+  float _Complex y = 0.0f + 0.0f * I;
   for (size_t i = 0; i < n; i++)
     y = agc_step (agc, x);
   double p = (double)crealf (y) * crealf (y) + (double)cimagf (y) * cimagf (y);
@@ -91,7 +91,7 @@ run_const (agc_state_t *agc, float complex x, size_t n)
  * the floor instead would be equally "finite" and would drive the gain up,
  * railing everything downstream.  That is what the gain_db < 0 check pins. */
 static int
-guard_survives_one_bad_sample (float complex bad, const char *what)
+guard_survives_one_bad_sample (float _Complex bad, const char *what)
 {
   int          ok = 1;
   agc_state_t *s  = agc_create (0.0, 0.0025, 0.05);
@@ -138,7 +138,7 @@ guard_survives_one_bad_sample (float complex bad, const char *what)
     }
 
   /* The loop still works afterwards: this is the half that failed before. */
-  float complex y = agc_step (s, 1.0f + 0.0f * I);
+  float _Complex y = agc_step (s, 1.0f + 0.0f * I);
   if (!isfinite (crealf (y)) || !isfinite (cimagf (y)))
     {
       fprintf (stderr, "  §13 %s: output non-finite after recovery sample\n",
@@ -173,14 +173,14 @@ silence_leaves_the_loop_recoverable (int use_block)
     GAP    = 3000,
     BUDGET = 100000
   };
-  const float complex dir  = 0.6f + 0.8f * I;
-  const char         *what = use_block ? "steps" : "step";
-  int                 ok   = 1;
-  agc_state_t        *s    = agc_create (0.0, 0.0025, 0.05);
+  const float _Complex dir = 0.6f + 0.8f * I;
+  const char  *what        = use_block ? "steps" : "step";
+  int          ok          = 1;
+  agc_state_t *s           = agc_create (0.0, 0.0025, 0.05);
   if (!s)
     return 0;
 
-  static float complex zeros[GAP], out[GAP];
+  static float _Complex zeros[GAP], out[GAP];
   for (size_t i = 0; i < GAP; i++)
     zeros[i] = 0.0f + 0.0f * I;
 
@@ -448,10 +448,10 @@ saturate_contract (void)
 static int
 gain_update_period_holds_and_converges (void)
 {
-  const float complex dir = 0.6f + 0.8f * I;
-  int                 ok  = 1;
-  double              ref = 0.0, want = -20.0; /* 10x input -> -20 dB gain */
-  size_t              Ps[3] = { 1, 8, 32 };
+  const float _Complex dir = 0.6f + 0.8f * I;
+  int    ok                = 1;
+  double ref = 0.0, want = -20.0; /* 10x input -> -20 dB gain */
+  size_t Ps[3] = { 1, 8, 32 };
   for (int k = 0; k < 3; k++)
     {
       agc_state_t *s = agc_create (ref, 0.0025, 0.05);
@@ -526,8 +526,8 @@ gain_update_period_holds_and_converges (void)
 static long
 tau_1e (double loop_bw, double alpha, double amp, long budget)
 {
-  const float complex dir = 0.6f + 0.8f * I;
-  agc_state_t        *s   = agc_create (0.0, loop_bw, alpha);
+  const float _Complex dir = 0.6f + 0.8f * I;
+  agc_state_t *s           = agc_create (0.0, loop_bw, alpha);
   if (!s)
     return -1;
   double gain_inf = -20.0 * log10 (amp); /* ref 0 dB */
@@ -683,9 +683,9 @@ block_gain_is_a_first_order_hold (void)
     N = 64,
     D = 8
   };
-  int                  ok  = 1;
-  const float complex  dir = 0.6f + 0.8f * I;
-  static float complex in[N], out[N];
+  int ok                   = 1;
+  const float _Complex dir = 0.6f + 0.8f * I;
+  static float _Complex in[N], out[N];
   for (size_t i = 0; i < N; i++)
     in[i] = dir * 10.0f; /* hot, so the loop is moving */
 
@@ -791,9 +791,9 @@ decim_is_neutral_at_the_steady_state (void)
   {
     N = 512
   };
-  int                  ok  = 1;
-  const float complex  dir = 0.6f + 0.8f * I;
-  static float complex in[N], out[N];
+  int ok                   = 1;
+  const float _Complex dir = 0.6f + 0.8f * I;
+  static float _Complex in[N], out[N];
   for (size_t i = 0; i < N; i++)
     in[i] = dir * 10.0f;
 
@@ -843,7 +843,7 @@ decim_is_neutral_at_the_steady_state (void)
     {
       M = 4096
     };
-    static float complex lin[M], lout[M];
+    static float _Complex lin[M], lout[M];
 
     const double bw    = 2.5e-4;
     const double group = 4.0 * 32.0 * bw; /* the rule's own quantity */
@@ -1139,7 +1139,7 @@ settling_samples_is_the_loop_it_describes (void)
     agc_state_t *s = agc_create (0.0, 0.0025, 0.05);
     if (!s)
       return 0;
-    float complex x = (float)pow (10.0, -40.0 / 20.0) * (0.6f + 0.8f * I);
+    float _Complex x = (float)pow (10.0, -40.0 / 20.0) * (0.6f + 0.8f * I);
     for (size_t n = 0; n < quiet; n++)
       (void)agc_step (s, x);
     if (!(fabs (s->gain_db - 40.0) <= 0.5))
@@ -1161,7 +1161,7 @@ main (void)
 {
   /* unit-magnitude direction: (0.6 + 0.8j) has |.| == 1, so scaling it
    * by A gives an input of magnitude A exercising both re and im. */
-  const float complex dir = 0.6f + 0.8f * I;
+  const float _Complex dir = 0.6f + 0.8f * I;
 
   /* ---- lifecycle ---- */
   agc_state_t *obj = agc_create (0.0, 0.0025, 0.05);
@@ -1211,10 +1211,10 @@ main (void)
           step() loop: the block-rate control loop reaches the same
           steady state, just by a coarser path. ---- */
   {
-    static float complex in[3000];
-    static float complex blk[3000];
-    agc_state_t         *a = agc_create (0.0, 0.005, 0.1);
-    agc_state_t         *b = agc_create (0.0, 0.005, 0.1);
+    static float _Complex in[3000];
+    static float _Complex blk[3000];
+    agc_state_t *a = agc_create (0.0, 0.005, 0.1);
+    agc_state_t *b = agc_create (0.0, 0.005, 0.1);
     for (size_t i = 0; i < 3000; i++)
       in[i] = dir * 4.0f;
     agc_steps (a, in, blk, 3000);
@@ -1227,9 +1227,9 @@ main (void)
 
   /* ---- steps() supports in-place operation (output aliases input) ---- */
   {
-    float complex buf[64], ref[64];
-    agc_state_t  *a = agc_create (0.0, 0.005, 0.1);
-    agc_state_t  *b = agc_create (0.0, 0.005, 0.1);
+    float _Complex buf[64], ref[64];
+    agc_state_t *a = agc_create (0.0, 0.005, 0.1);
+    agc_state_t *b = agc_create (0.0, 0.005, 0.1);
     for (size_t i = 0; i < 64; i++)
       buf[i] = dir * 5.0f;
     agc_steps (b, buf, ref, 64);
@@ -1243,9 +1243,9 @@ main (void)
   /* ---- decimation factor is configurable (8 / 16 / 32); every setting
           still converges the output to the reference ---- */
   {
-    static float complex in[4000];
-    static float complex blk[4000];
-    size_t               decims[3] = { 8, 16, 32 };
+    static float _Complex in[4000];
+    static float _Complex blk[4000];
+    size_t decims[3] = { 8, 16, 32 };
     for (size_t i = 0; i < 4000; i++)
       in[i] = dir * 8.0f;
     for (int di = 0; di < 3; di++)
@@ -1298,7 +1298,7 @@ main (void)
     /* first step: gain is exactly unity, so output = clip(x).  re (5)
        exceeds L and clamps; im (1) is below L and is kept unchanged —
        proving the clip is square, not a circular magnitude limit. */
-    float complex y = agc_step (s, 5.0f + 1.0f * I);
+    float _Complex y = agc_step (s, 5.0f + 1.0f * I);
     DP_CHECK (dp_nearf (crealf (y), L, 0.02));
     DP_CHECK (dp_nearf (cimagf (y), 1.0, 1e-6));
     agc_destroy (s);
@@ -1323,7 +1323,7 @@ main (void)
 
   /* ---- agc_steps() square-clips its block output too ---- */
   {
-    static float complex in[256], out[256];
+    static float _Complex in[256], out[256];
     for (size_t i = 0; i < 256; i++)
       in[i] = dir * 50.0f;
     agc_state_t *s = agc_create (0.0, 0.0025, 0.05);

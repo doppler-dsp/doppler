@@ -12,8 +12,8 @@
  * static const uint8_t code[4] = { 1, 0, 1, 1 };
  * burst_despreader_state_t *obj
  *     = burst_despreader_create (code, 4, 4, 2, 0.0, 0.0, 0.05, 0.01);
- * float complex in[8]  = { 0 };
- * float complex out[8] = { 0 };
+ * float _Complex in[8]  = { 0 };
+ * float _Complex out[8] = { 0 };
  * size_t n = burst_despreader_steps (obj, in, 8, out,
  *                                    burst_despreader_steps_max_out (obj));
  * burst_despreader_destroy (obj);
@@ -62,9 +62,9 @@ typedef struct
   /* ── code phase / integrate-and-dump ── */
   double        chip_pos;  /**< prompt code position within symbol, chips. */
   double        code_rate; /**< chips advanced per nominal chip (~1.0).    */
-  float complex acc_e;     /**< early correlator accumulator.         */
-  float complex acc_p;     /**< prompt correlator accumulator.        */
-  float complex acc_l;     /**< late correlator accumulator.          */
+  float _Complex acc_e;     /**< early correlator accumulator.         */
+  float _Complex acc_p;     /**< prompt correlator accumulator.        */
+  float _Complex acc_l;     /**< late correlator accumulator.          */
 
   /* ── status read-backs: cumulative over the burst (reset re-arms) ── */
   double lock_metric; /**< mean of |Re P|/|P| over the burst (~1 locked,
@@ -244,8 +244,8 @@ size_t burst_despreader_steps_max_out (burst_despreader_state_t *state);
  *
  * @endcode
  */
-size_t burst_despreader_steps (burst_despreader_state_t *state, const float complex *x,
-                         size_t x_len, float complex *out, size_t max_out);
+size_t burst_despreader_steps (burst_despreader_state_t *state, const float _Complex *x,
+                         size_t x_len, float _Complex *out, size_t max_out);
 
 /** @brief Upper bound on bits `burst_despreader_bits` can emit (0; see
  *  burst_despreader_steps_max_out). */
@@ -285,7 +285,7 @@ size_t burst_despreader_bits_max_out (burst_despreader_state_t *state);
  *
  * @endcode
  */
-size_t burst_despreader_bits (burst_despreader_state_t *state, const float complex *x,
+size_t burst_despreader_bits (burst_despreader_state_t *state, const float _Complex *x,
                         size_t x_len, uint8_t *out, size_t max_out);
 
 /** @brief Carrier (Costas) loop noise bandwidth, normalized to the symbol rate. */

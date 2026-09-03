@@ -240,8 +240,8 @@ ratesync_loop_state_bytes (const ratesync_loop_t *l)
   return sizeof (dp_state_hdr_t) + DP_RS_DOUBLES * sizeof (double)
          + DP_RS_U64S * sizeof (uint64_t) + sizeof (uint64_t) /* lock_count */
          + (RATESYNC_MAX_M / 2 + 1 + 1)
-               * sizeof (float complex) /* ring+prev */
-         + sizeof (uint32_t) * 2        /* lockdet cnt, locked */
+               * sizeof (float _Complex) /* ring+prev */
+         + sizeof (uint32_t) * 2         /* lockdet cnt, locked */
          + loop_filter_state_bytes (&l->lf);
 }
 
@@ -368,8 +368,8 @@ ratesync_steps_max_out (ratesync_state_t *state)
 }
 
 size_t
-ratesync_steps (ratesync_state_t *state, const float complex *x, size_t x_len,
-                float complex *out, size_t max_out)
+ratesync_steps (ratesync_state_t *state, const float _Complex *x, size_t x_len,
+                float _Complex *out, size_t max_out)
 {
   size_t n = 0;
   /* Specialise on the configured detector so the branch folds away, exactly

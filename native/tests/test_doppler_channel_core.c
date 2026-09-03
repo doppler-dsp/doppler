@@ -19,7 +19,7 @@
    the expected bin — enough to confirm the offset without pulling in an FFT
    dependency for one test. */
 static double
-_peak_hz (const float complex *y, size_t n, double fs, double lo, double hi,
+_peak_hz (const float _Complex *y, size_t n, double fs, double lo, double hi,
           double step)
 {
   double best = 0.0, best_mag = -1.0;
@@ -47,7 +47,7 @@ int
 main (void)
 {
 
-  float complex *x = malloc (T_N * sizeof *x);
+  float _Complex *x = malloc (T_N * sizeof *x);
   DP_CHECK (x != NULL);
   if (!x)
     return 1;
@@ -60,8 +60,8 @@ main (void)
     doppler_channel_state_t *ch
         = doppler_channel_create (T_FS, T_FC, T_PPM, 0.0);
     DP_CHECK (ch != NULL);
-    size_t         cap = doppler_channel_execute_max_out (ch);
-    float complex *y   = malloc (cap * sizeof *y);
+    size_t          cap = doppler_channel_execute_max_out (ch);
+    float _Complex *y   = malloc (cap * sizeof *y);
     DP_CHECK (y != NULL);
     size_t n = doppler_channel_execute (ch, x, T_N, y, cap);
     DP_CHECK (n > 0);
@@ -84,9 +84,9 @@ main (void)
     doppler_channel_state_t *ch
         = doppler_channel_create (T_FS, T_FC, 0.0, 0.0);
     DP_CHECK (ch != NULL);
-    size_t         cap = doppler_channel_execute_max_out (ch);
-    float complex *y   = malloc (cap * sizeof *y);
-    size_t         n   = doppler_channel_execute (ch, x, T_N, y, cap);
+    size_t          cap = doppler_channel_execute_max_out (ch);
+    float _Complex *y   = malloc (cap * sizeof *y);
+    size_t          n   = doppler_channel_execute (ch, x, T_N, y, cap);
     DP_CHECK (n == T_N);
     DP_CHECK (dp_nearf (doppler_channel_get_offset_hz (ch), 0.0, 1e-9f));
     free (y);
@@ -101,8 +101,8 @@ main (void)
     doppler_channel_state_t *ch
         = doppler_channel_create (T_FS, T_FC, 0.0, T_RATE);
     DP_CHECK (ch != NULL);
-    size_t         cap = doppler_channel_execute_max_out (ch);
-    float complex *y   = malloc (cap * sizeof *y);
+    size_t          cap = doppler_channel_execute_max_out (ch);
+    float _Complex *y   = malloc (cap * sizeof *y);
     for (int b = 0; b < 16; b++)
       (void)doppler_channel_execute (ch, x, T_N, y, cap);
     double t = doppler_channel_get_elapsed_s (ch);
@@ -120,10 +120,10 @@ main (void)
     doppler_channel_state_t *b
         = doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
     DP_CHECK (a != NULL && b != NULL);
-    size_t         cap = doppler_channel_execute_max_out (a);
-    float complex *ya  = malloc (cap * sizeof *ya);
-    float complex *yb  = malloc (cap * sizeof *yb);
-    size_t         na  = doppler_channel_execute (a, x, T_N, ya, cap);
+    size_t          cap = doppler_channel_execute_max_out (a);
+    float _Complex *ya  = malloc (cap * sizeof *ya);
+    float _Complex *yb  = malloc (cap * sizeof *yb);
+    size_t          na  = doppler_channel_execute (a, x, T_N, ya, cap);
 
     size_t nb = 0;
     for (size_t off = 0; off < T_N; off += 4096)
@@ -151,9 +151,9 @@ main (void)
     doppler_channel_state_t *b
         = doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
     DP_CHECK (a != NULL && b != NULL);
-    size_t         cap = doppler_channel_execute_max_out (a);
-    float complex *ya  = malloc (cap * sizeof *ya);
-    float complex *yb  = malloc (cap * sizeof *yb);
+    size_t          cap = doppler_channel_execute_max_out (a);
+    float _Complex *ya  = malloc (cap * sizeof *ya);
+    float _Complex *yb  = malloc (cap * sizeof *yb);
 
     /* Run `a` through one block, hand its state to `b`, then run both
        over an identical second block: the outputs must agree exactly. */
@@ -190,8 +190,8 @@ main (void)
     doppler_channel_state_t *b
         = doppler_channel_create (T_FS, T_FC, T_PPM, T_RATE);
     DP_CHECK (a != NULL && b != NULL);
-    size_t         cap = doppler_channel_execute_max_out (a);
-    float complex *y   = malloc (cap * sizeof *y);
+    size_t          cap = doppler_channel_execute_max_out (a);
+    float _Complex *y   = malloc (cap * sizeof *y);
     (void)doppler_channel_execute (a, x, 4096, y, cap);
     DP_STATE_ROUNDTRIP_TEST (doppler_channel, a, b);
     free (y);
@@ -215,8 +215,8 @@ main (void)
     doppler_channel_state_t *ch
         = doppler_channel_create (T_FS, T_FC, T_PPM, 0.0);
     DP_CHECK (ch != NULL);
-    size_t         cap = doppler_channel_execute_max_out (ch);
-    float complex *y   = malloc (cap * sizeof *y);
+    size_t          cap = doppler_channel_execute_max_out (ch);
+    float _Complex *y   = malloc (cap * sizeof *y);
     (void)doppler_channel_execute (ch, x, T_N, y, cap);
     DP_CHECK (doppler_channel_get_elapsed_s (ch) > 0.0);
     doppler_channel_reset (ch);

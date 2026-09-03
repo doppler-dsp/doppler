@@ -171,17 +171,17 @@ struct wfm_compose_state
                                   per-repeat seed advance + ranged-field draws */
   size_t instance;             /* current segment's repeats counter (0-based) —
                                   folds into ranged draws + the AWGN reseed */
-  size_t         cur;          /* current segment index */
-  int            phase;        /* PHASE_ON / PHASE_OFF / PHASE_DONE */
-  size_t         left;         /* samples remaining in the current phase */
-  size_t         cur_num;   /* this epoch's resolved on-time (ranged/fixed) */
-  size_t         cur_off;   /* this epoch's resolved off-time gap */
-  size_t         cur_delay; /* this epoch's resolved leading delay */
-  wfm_render_t **rend;      /* active segment's renderers (one per source) */
-  float         *gain;      /* parallel: 10^(level/20) per source */
-  size_t         n_syn;     /* live renderer count while ON (0 otherwise) */
-  size_t         syn_cap;   /* capacity of rend/gain = max n_sources */
-  float complex *scratch;   /* SCRATCH_CAP render buffer for N-source sum */
+  size_t          cur;         /* current segment index */
+  int             phase;       /* PHASE_ON / PHASE_OFF / PHASE_DONE */
+  size_t          left;        /* samples remaining in the current phase */
+  size_t          cur_num;   /* this epoch's resolved on-time (ranged/fixed) */
+  size_t          cur_off;   /* this epoch's resolved off-time gap */
+  size_t          cur_delay; /* this epoch's resolved leading delay */
+  wfm_render_t  **rend;      /* active segment's renderers (one per source) */
+  float          *gain;      /* parallel: 10^(level/20) per source */
+  size_t          n_syn;     /* live renderer count while ON (0 otherwise) */
+  size_t          syn_cap;   /* capacity of rend/gain = max n_sources */
+  float _Complex *scratch;   /* SCRATCH_CAP render buffer for N-source sum */
   /* PERSIST channels, one slot per (segment, source), owned for the life of
      the scene. A source's identity is its position -- the composer has no
      other -- and that is exactly what has to survive the per-segment synth
@@ -719,7 +719,7 @@ wfm_compose_create (const wfm_segment_t *segs, size_t n_segs, int repeat,
  * or gap_noise=off the gap is exact zeros, as before. Mirrors the ON path's
  * 1-source / N-source split so face parity holds sample-for-sample. */
 static void
-render_gap (wfm_compose_state_t *s, float complex *out, size_t k)
+render_gap (wfm_compose_state_t *s, float _Complex *out, size_t k)
 {
   const wfm_segment_t *g = &s->segs[s->cur];
   if (s->n_syn == 0 || g->gap_noise)
@@ -749,7 +749,7 @@ render_gap (wfm_compose_state_t *s, float complex *out, size_t k)
 }
 
 size_t
-wfm_compose_execute (wfm_compose_state_t *state, float complex *out,
+wfm_compose_execute (wfm_compose_state_t *state, float _Complex *out,
                      size_t max)
 {
   size_t i = 0;

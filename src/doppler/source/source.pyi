@@ -587,7 +587,7 @@ class LO:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : NDArray[np.complex64] | None
-            Output buffer; must hold at least n float complex values.
+            Output buffer; must hold at least n float _Complex values.
 
         Returns
         -------
@@ -637,7 +637,7 @@ class LO:
             fractional part of each element contributes. See
             nco_steps_u32_ctrl() on why the port is `double` and not float32.
         out : NDArray[np.complex64] | None
-            Output buffer; must hold at least ctrl_len float complex values.
+            Output buffer; must hold at least ctrl_len float _Complex values.
 
         Returns
         -------
@@ -863,7 +863,7 @@ class AWGN:
             an `out=` buffer with the matching `_max_out()` when you need the
             worst case.
         out : NDArray[np.complex64] | None
-            Output buffer; must hold at least n float complex values.
+            Output buffer; must hold at least n float _Complex values.
 
         Returns
         -------

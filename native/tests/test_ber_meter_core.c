@@ -56,8 +56,8 @@ static uint32_t st = 0xD1B54A32u;
 #define NSYM 8000
 #define M 4
 
-static uint8_t       truth[NSYM];
-static float complex rx[NSYM];
+static uint8_t truth[NSYM];
+static float _Complex rx[NSYM];
 
 /* QPSK stream carrying `truth`, shifted by `lag` (rx[i] <-> truth[i + lag]),
    rotated by `phase`, at the given per-component noise sigma. */
@@ -68,10 +68,10 @@ build (int lag, double phase, double sigma)
     {
       long t = (long)i + lag;
       int  q = (t >= 0 && t < (long)NSYM) ? truth[t] : (int)(dp_uni (&st) * M);
-      double        ph = 2.0 * M_PI * q / M + M_PI / M + phase;
-      float complex n
-          = (sigma > 0.0) ? (float complex) (sigma * dp_cgauss (&st)) : 0.0f;
-      rx[i] = (float complex) (cos (ph) + sin (ph) * I) + n;
+      double ph = 2.0 * M_PI * q / M + M_PI / M + phase;
+      float _Complex n
+          = (sigma > 0.0) ? (float _Complex) (sigma * dp_cgauss (&st)) : 0.0f;
+      rx[i] = (float _Complex) (cos (ph) + sin (ph) * I) + n;
     }
 }
 

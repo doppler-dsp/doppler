@@ -52,7 +52,7 @@ tone_meas_t tonemeas_analyze(tonemeas_state_t *state, const float *x,
                              size_t n_in);
 
 tone_meas_t tonemeas_analyze_complex(tonemeas_state_t *state,
-                                     const float complex *x, size_t n_in);
+                                     const float _Complex *x, size_t n_in);
 
 time_stats_t tonemeas_time_stats(tonemeas_state_t *state, const float *x,
                                  size_t n_in);

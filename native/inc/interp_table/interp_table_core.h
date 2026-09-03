@@ -39,7 +39,7 @@ extern "C"
    */
   typedef struct
   {
-    double complex *table;  /**< owned copy, length n                    */
+    double _Complex *table;  /**< owned copy, length n                    */
     size_t          n;      /**< table length (one period)               */
     int             method; /**< 0=floor, 1=nearest, 2=linear             */
   } interp_table_state_t;
@@ -66,7 +66,7 @@ extern "C"
    * 3
    * @endcode
    */
-  interp_table_state_t *interp_table_create (const double complex *table,
+  interp_table_state_t *interp_table_create (const double _Complex *table,
                                              size_t table_len, int method);
 
   /**
@@ -131,7 +131,7 @@ extern "C"
    * @endcode
    */
   size_t interp_table_execute (interp_table_state_t *state, const double *in,
-                               size_t n_in, double complex *out,
+                               size_t n_in, double _Complex *out,
                                size_t max_out);
 
 #ifdef __cplusplus

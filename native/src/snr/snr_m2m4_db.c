@@ -10,7 +10,7 @@
 #include <math.h>
 
 double
-snr_m2m4_db (const float complex *x, size_t x_len)
+snr_m2m4_db (const float _Complex *x, size_t x_len)
 {
   if (x_len == 0)
     return NAN;

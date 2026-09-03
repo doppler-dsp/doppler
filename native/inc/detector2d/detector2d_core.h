@@ -13,7 +13,7 @@
  *
  * Lifecycle:
  * @code
- * float complex ref[NY * NX] = { ... };
+ * float _Complex ref[NY * NX] = { ... };
  * detector2d_state_t *det = detector2d_create(ref, NY, NX, 1,
  *     0, NY*NX-1, DET_NOISE_MEAN, 0.0f, 1);
  * det_result2d_t results[64];
@@ -78,7 +78,7 @@ typedef struct
 {
   corr2d_state_t *corr;     /**< 2-D FFT correlator + int-dump engine.     */
   dp_f32_t *ring;             /**< Double-mapped ring buffer (auto-sized).    */
-  float complex *out_buf;   /**< Corr2D output (ny*nx complex samples).     */
+  float _Complex *out_buf;   /**< Corr2D output (ny*nx complex samples).     */
   float *mag_buf;           /**< |out_buf&#91;k&#93;|, ny*nx floats.               */
   float *noise_scratch;     /**< Scratch for median sort.                   */
   size_t ny;                /**< Number of rows.                            */
@@ -130,7 +130,7 @@ typedef struct
  * (4, 4, 16, 1)
  * @endcode
  */
-detector2d_state_t *detector2d_create (const float complex *ref, size_t ny,
+detector2d_state_t *detector2d_create (const float _Complex *ref, size_t ny,
                                        size_t nx, size_t dwell,
                                        size_t noise_lo, size_t noise_hi,
                                        det_noise_mode_t noise_mode,
@@ -170,7 +170,7 @@ void detector2d_reset (detector2d_state_t *state);
  * @param ref   New reference, flat row-major CF32, length ny*nx.
  * @return 0 on success, -1 if rejected by corr2d_set_ref().
  */
-int detector2d_set_ref (detector2d_state_t *state, const float complex *ref);
+int detector2d_set_ref (detector2d_state_t *state, const float _Complex *ref);
 
 /**
  * @brief Change threshold without rebuilding.
@@ -209,7 +209,7 @@ void detector2d_set_threshold (detector2d_state_t *state, float threshold);
  * (0, 0, 1.0, 1.0, 1.0)
  * @endcode
  */
-size_t detector2d_push (detector2d_state_t *state, const float complex *in,
+size_t detector2d_push (detector2d_state_t *state, const float _Complex *in,
                         size_t n_in, det_result2d_t *result,
                         size_t max_results);
 

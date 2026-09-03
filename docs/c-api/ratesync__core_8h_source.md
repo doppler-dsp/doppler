@@ -84,9 +84,9 @@ extern "C"
     int    have_prev;  
     size_t prime_left; 
     size_t out_count;  
-    float complex ring[RATESYNC_MAX_M / 2 + 1];
+    float _Complex ring[RATESYNC_MAX_M / 2 + 1];
     size_t        ring_n;
-    float complex prev_on; 
+    float _Complex prev_on; 
     /* ── lock detector (always on): tumbling-window block average ───── */
     double lock_sum;      
     size_t lock_count;    
@@ -163,8 +163,8 @@ extern "C"
    * ------------------------------------------------------------------ */
 
   JM_FORCEINLINE JM_HOT int
-  ratesync_loop_take_output (ratesync_loop_t *s, float complex y,
-                             float complex *y_out, int ted)
+  ratesync_loop_take_output (ratesync_loop_t *s, float _Complex y,
+                             float _Complex *y_out, int ted)
   {
     /* Newest-first ring: ring[0] is this output, ring[m/2] the gate. */
     const size_t half = s->m >> 1;
@@ -187,8 +187,8 @@ extern "C"
     if (phase != 0 || s->ring_n <= half)
       return 0; /* not a strobe, or the gate is not yet in the ring */
 
-    const float complex on  = y;
-    const float complex mid = s->ring[half];
+    const float _Complex on  = y;
+    const float _Complex mid = s->ring[half];
     if (!s->have_prev)
       {
         s->have_prev = 1;
@@ -280,8 +280,8 @@ extern "C"
   }
 
   JM_FORCEINLINE JM_HOT int
-  ratesync_step_ted (ratesync_state_t *s, float complex x,
-                     float complex *y_out, int ted)
+  ratesync_step_ted (ratesync_state_t *s, float _Complex x,
+                     float _Complex *y_out, int ted)
   {
     /* One input can complete MORE THAN ONE output period. It happens
        whenever the terminal stage's own rate is at or near 1.0 (a cascade
@@ -293,7 +293,7 @@ extern "C"
        is m/sps <= 1, so an input can complete at most two output periods, and
        with m >= 2 those can contain at most one on-time strobe: the
        single-symbol return of this function is still correct. */
-    float complex ys[4];
+    float _Complex ys[4];
     size_t n = RateConverter_execute_ctrl_push (s->mf, x, s->loop.ctrl, ys,
                                                 sizeof (ys) / sizeof (ys[0]));
     int    emitted = 0;
@@ -303,7 +303,7 @@ extern "C"
   }
 
   JM_FORCEINLINE JM_HOT int
-  ratesync_step (ratesync_state_t *s, float complex x, float complex *y_out)
+  ratesync_step (ratesync_state_t *s, float _Complex x, float _Complex *y_out)
   {
     int r = ratesync_step_ted (s, x, y_out, s->loop.ted);
     if (r && s->loop.tlm.ctx)
@@ -313,8 +313,8 @@ extern "C"
 
   size_t ratesync_steps_max_out (ratesync_state_t *state);
 
-  size_t ratesync_steps (ratesync_state_t *state, const float complex *x,
-                         size_t x_len, float complex *out, size_t max_out);
+  size_t ratesync_steps (ratesync_state_t *state, const float _Complex *x,
+                         size_t x_len, float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------
    * Properties / configuration

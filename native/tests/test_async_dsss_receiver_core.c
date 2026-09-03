@@ -45,11 +45,11 @@ static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 /* Stream `x` through `rx` in fixed-size chunks, collecting every emitted
  * symbol; return the symbol count and fill `*syms_out` (caller frees). */
 static size_t
-_stream (async_dsss_receiver_state_t *rx, const float complex *x, size_t n,
-         size_t chunk, float complex **syms_out)
+_stream (async_dsss_receiver_state_t *rx, const float _Complex *x, size_t n,
+         size_t chunk, float _Complex **syms_out)
 {
-  float complex *syms   = malloc (n * sizeof *syms); /* generous upper bound */
-  size_t         n_syms = 0;
+  float _Complex *syms = malloc (n * sizeof *syms); /* generous upper bound */
+  size_t          n_syms = 0;
   for (size_t pos = 0; pos < n; pos += chunk)
     {
       size_t take = (pos + chunk <= n) ? chunk : (n - pos);
@@ -63,7 +63,7 @@ _stream (async_dsss_receiver_state_t *rx, const float complex *x, size_t n,
 /* Best-lag BER over the back half of the recovered symbols against the
  * known data -- mirrors test_dsss_receiver_core.c's own _best_ber(). */
 static double
-_best_ber (const float complex *syms, size_t n_syms, const double *data,
+_best_ber (const float _Complex *syms, size_t n_syms, const double *data,
            size_t n_sym)
 {
   if (n_syms < 20)
@@ -162,9 +162,9 @@ _test_acquire_and_decode (void)
   const size_t pre_silence = te * 5 + 3;
   const double cn0         = 70.0;
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
@@ -179,8 +179,8 @@ _test_acquire_and_decode (void)
       return 1;
     }
 
-  float complex *syms;
-  size_t         n_syms = _stream (rx, x, n, te, &syms);
+  float _Complex *syms;
+  size_t          n_syms = _stream (rx, x, n, te, &syms);
 
   DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (async_dsss_receiver_get_refining (rx) == 0);
@@ -280,9 +280,9 @@ _test_give_up_cap (void)
   const size_t pre_silence = te * 5 + 3;
   const double cn0         = 70.0;
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 9,
                    &x, &n, &data);
 
@@ -298,8 +298,8 @@ _test_give_up_cap (void)
       return 1;
     }
 
-  float complex *syms; /* _stream() allocates it; see its three siblings */
-  size_t         n_syms = _stream (rx, x, n, te, &syms);
+  float _Complex *syms; /* _stream() allocates it; see its three siblings */
+  size_t          n_syms = _stream (rx, x, n, te, &syms);
 
   DP_CHECK (async_dsss_receiver_get_refining (rx) == 0);
   DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
@@ -360,9 +360,9 @@ _test_spec_ramp_decode (void)
   for (size_t i = 0; i < sf; i++)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_ramp_capture (code, sf, spc, fs, tsym, rate_hz_per_s, cn0, n_sym,
                         pre_silence, 21, &x, &n, &data);
 
@@ -378,8 +378,8 @@ _test_spec_ramp_decode (void)
       return 1;
     }
 
-  float complex *syms;
-  size_t         n_syms = _stream (rx, x, n, te, &syms);
+  float _Complex *syms;
+  size_t          n_syms = _stream (rx, x, n, te, &syms);
 
   double ber = _best_ber (syms, n_syms, data, n_sym + 4);
 
@@ -437,9 +437,9 @@ _test_spec_combined_scenario_at_spec_floor (void)
   for (size_t i = 0; i < sf; i++)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_ramp_capture (code, sf, spc, fs, tsym, rate_hz_per_s, cn0, n_sym,
                         pre_silence, 21, &x, &n, &data);
 
@@ -455,8 +455,8 @@ _test_spec_combined_scenario_at_spec_floor (void)
       return 1;
     }
 
-  float complex *syms;
-  size_t         n_syms = _stream (rx, x, n, te, &syms);
+  float _Complex *syms;
+  size_t          n_syms = _stream (rx, x, n, te, &syms);
   (void)n_syms;
 
   DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
@@ -530,23 +530,23 @@ _test_awgn_esn0_floor (void)
       uint8_t *chips   = malloc (n_chips);
       wfm_cont_dsss_chips (code, sf, dbits, n_data, cps, n_chips, chips);
 
-      size_t         pre   = sf * spc * 5 + 3;
-      size_t         n     = n_chips * spc;
-      size_t         tot   = pre + n;
-      float complex *x     = calloc (tot, sizeof *x);
-      double         amp   = sqrt (pow (10.0, cn0 / 10.0) / fs);
-      double         sigma = 1.0 / amp;
+      size_t          pre   = sf * spc * 5 + 3;
+      size_t          n     = n_chips * spc;
+      size_t          tot   = pre + n;
+      float _Complex *x     = calloc (tot, sizeof *x);
+      double          amp   = sqrt (pow (10.0, cn0 / 10.0) / fs);
+      double          sigma = 1.0 / amp;
       for (size_t i = 0; i < tot; i++)
-        x[i] = (float complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+        x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
       for (size_t i = 0; i < n; i++)
         x[pre + i] += (float)(1.0 - 2.0 * (double)chips[i / spc]);
 
       async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
           code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-3, 0.9, 100.0, 4, 8,
           0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0);
-      float complex *syms   = NULL;
-      size_t         n_syms = rx ? _stream (rx, x, tot, sf * spc, &syms) : 0;
-      double         ber    = _best_ber (syms, n_syms, dsym, n_data);
+      float _Complex *syms   = NULL;
+      size_t          n_syms = rx ? _stream (rx, x, tot, sf * spc, &syms) : 0;
+      double          ber    = _best_ber (syms, n_syms, dsym, n_data);
       double evm = dp_test_evm_db_hard (syms, n_syms); /* no lag/truth */
       double snr = dp_test_m2m4_snr_db (syms, n_syms); /* blind M2M4   */
       ber_at[p]  = ber;

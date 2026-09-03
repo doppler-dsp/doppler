@@ -36,7 +36,7 @@ wfm_writer_state_t *wfm_writer_open(FILE *fp, wfm_filetype_t ft, int sample_type
                              int endian, double fs, double fc,
                              size_t total_samples, double t0_unix_sec);
 
-size_t wfm_writer_write(wfm_writer_state_t *state, const float complex *x, size_t x_len);
+size_t wfm_writer_write(wfm_writer_state_t *state, const float _Complex *x, size_t x_len);
 
 int wfm_writer_add_keyword(wfm_writer_state_t *w, const char *tag, char type,
                           const void *value, size_t count);

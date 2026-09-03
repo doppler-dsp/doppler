@@ -75,7 +75,7 @@ _Specan — natural-parameter spectrum analyzer (DDC + averaging PSD)._ [More...
 | ---: | :--- |
 |  [**specan\_state\_t**](structspecan__state__t.md) \* | [**specan\_create**](#function-specan_create) (double fs, double span, double rbw, double src\_center, double center, double offset\_db, double full\_scale, size\_t bits, int window, size\_t navg) <br>_Create a natural-parameter spectrum analyzer._  |
 |  void | [**specan\_destroy**](#function-specan_destroy) ([**specan\_state\_t**](structspecan__state__t.md) \* state) <br>_Destroy a Specan instance and release all memory._  |
-|  size\_t | [**specan\_execute**](#function-specan_execute) ([**specan\_state\_t**](structspecan__state__t.md) \* state, const float complex \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_Mix, decimate, average and return one display spectrum, or nothing._  |
+|  size\_t | [**specan\_execute**](#function-specan_execute) ([**specan\_state\_t**](structspecan__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \* out, size\_t max\_out) <br>_Mix, decimate, average and return one display spectrum, or nothing._  |
 |  size\_t | [**specan\_execute\_max\_out**](#function-specan_execute_max_out) ([**specan\_state\_t**](structspecan__state__t.md) \* state) <br>_Output capacity hint for_ [_**specan\_execute()**_](specan__core_8h.md#function-specan_execute) _; equals disp\_n._ |
 |  void | [**specan\_get\_state**](#function-specan_get_state) (const [**specan\_state\_t**](structspecan__state__t.md) \* state, void \* blob) <br> |
 |  void | [**specan\_reset**](#function-specan_reset) ([**specan\_state\_t**](structspecan__state__t.md) \* state) <br>_Drop pending samples and the running average; LO/filter history zero._  |
@@ -271,7 +271,7 @@ _Mix, decimate, average and return one display spectrum, or nothing._
 ```C++
 size_t specan_execute (
     specan_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
     float * out,
     size_t max_out

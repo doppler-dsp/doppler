@@ -39,10 +39,10 @@ _Composed receiver state._ [More...](#detailed-description)
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq**](#variable-acq)  <br> |
 |  [**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md) \* | [**ca**](#variable-ca)  <br> |
 |  [**costas\_state\_t**](structcostas__state__t.md) | [**car**](#variable-car)  <br> |
-|  float complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
+|  float \_Complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
 |  size\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
 |  [**costas\_state\_t**](structcostas__state__t.md) | [**car\_frozen**](#variable-car_frozen)  <br> |
-|  float complex \* | [**car\_wiped\_buf**](#variable-car_wiped_buf)  <br> |
+|  float \_Complex \* | [**car\_wiped\_buf**](#variable-car_wiped_buf)  <br> |
 |  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
@@ -63,13 +63,13 @@ _Composed receiver state._ [More...](#detailed-description)
 |  [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* | [**rc**](#variable-rc)  <br> |
 |  double | [**refine\_design\_margin\_db**](#variable-refine_design_margin_db)  <br> |
 |  [**dll\_state\_t**](structdll__state__t.md) \* | [**refine\_dll**](#variable-refine_dll)  <br> |
-|  float complex \* | [**refine\_dll\_out\_buf**](#variable-refine_dll_out_buf)  <br> |
+|  float \_Complex \* | [**refine\_dll\_out\_buf**](#variable-refine_dll_out_buf)  <br> |
 |  size\_t | [**refine\_dll\_out\_cap**](#variable-refine_dll_out_cap)  <br> |
 |  double | [**refine\_max\_error\_db**](#variable-refine_max_error_db)  <br> |
 |  size\_t | [**refine\_max\_n\_blocks**](#variable-refine_max_n_blocks)  <br> |
 |  size\_t | [**refine\_n\_fft**](#variable-refine_n_fft)  <br> |
 |  [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* | [**refine\_rc**](#variable-refine_rc)  <br> |
-|  float complex \* | [**refine\_rc\_out\_buf**](#variable-refine_rc_out_buf)  <br> |
+|  float \_Complex \* | [**refine\_rc\_out\_buf**](#variable-refine_rc_out_buf)  <br> |
 |  size\_t | [**refine\_rc\_out\_cap**](#variable-refine_rc_out_cap)  <br> |
 |  uint64\_t | [**refine\_samples\_fed**](#variable-refine_samples_fed)  <br> |
 |  size\_t | [**refine\_samples\_per\_symbol**](#variable-refine_samples_per_symbol)  <br> |
@@ -185,7 +185,7 @@ costas_state_t async_dsss_receiver_state_t::car;
 ### variable car\_carry\_buf 
 
 ```C++
-float complex* async_dsss_receiver_state_t::car_carry_buf;
+float _Complex* async_dsss_receiver_state_t::car_carry_buf;
 ```
 
 
@@ -224,7 +224,7 @@ costas_state_t async_dsss_receiver_state_t::car_frozen;
 ### variable car\_wiped\_buf 
 
 ```C++
-float complex* async_dsss_receiver_state_t::car_wiped_buf;
+float _Complex* async_dsss_receiver_state_t::car_wiped_buf;
 ```
 
 
@@ -535,7 +535,7 @@ dll_state_t* async_dsss_receiver_state_t::refine_dll;
 ### variable refine\_dll\_out\_buf 
 
 ```C++
-float complex* async_dsss_receiver_state_t::refine_dll_out_buf;
+float _Complex* async_dsss_receiver_state_t::refine_dll_out_buf;
 ```
 
 
@@ -613,7 +613,7 @@ RateConverter_state_t* async_dsss_receiver_state_t::refine_rc;
 ### variable refine\_rc\_out\_buf 
 
 ```C++
-float complex* async_dsss_receiver_state_t::refine_rc_out_buf;
+float _Complex* async_dsss_receiver_state_t::refine_rc_out_buf;
 ```
 
 

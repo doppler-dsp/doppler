@@ -110,7 +110,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 the same signal," only back to searching — matching every other object's reset() semantics in this codebase._  |
 |  int | [**async\_dsss\_receiver\_set\_state**](#function-async_dsss_receiver_set_state) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**async\_dsss\_receiver\_state\_bytes**](#function-async_dsss_receiver_state_bytes) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br> |
-|  size\_t | [**async\_dsss\_receiver\_steps**](#function-async_dsss_receiver_steps) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Stream raw cf32 samples; emit demodulated symbols once tracking._  |
+|  size\_t | [**async\_dsss\_receiver\_steps**](#function-async_dsss_receiver_steps) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream raw cf32 samples; emit demodulated symbols once tracking._  |
 |  size\_t | [**async\_dsss\_receiver\_steps\_max\_out**](#function-async_dsss_receiver_steps_max_out) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br> |
 
 
@@ -181,7 +181,7 @@ async_dsss_receiver_state_t *rx = async_dsss_receiver_create(
     4, 8, 0,                         // segments, sps, differential
     0.5, 4, 14.0, 64, 8, false, 100000,  // refine_* tuning
     0.0);                            // carrier_freq_hz (0 = aiding off)
-float complex syms[4096];
+float _Complex syms[4096];
 size_t n = async_dsss_receiver_steps(rx, x, x_len, syms, 4096);
 async_dsss_receiver_destroy(rx);
 ```
@@ -875,9 +875,9 @@ _Stream raw cf32 samples; emit demodulated symbols once tracking._
 ```C++
 size_t async_dsss_receiver_steps (
     async_dsss_receiver_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

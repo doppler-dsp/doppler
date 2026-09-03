@@ -67,11 +67,11 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 
 | Type | Name |
 | ---: | :--- |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**carrier\_nda\_arm\_step**](#function-carrier_nda_arm_step) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* s, float complex d, double \* pe, double \* lock) <br>_Slide the moving-average arm by one sample; discriminate the output._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) int | [**carrier\_nda\_arm\_step**](#function-carrier_nda_arm_step) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* s, float \_Complex d, double \* pe, double \* lock) <br>_Slide the moving-average arm by one sample; discriminate the output._  |
 |  void | [**carrier\_nda\_configure\_lock**](#function-carrier_nda_configure_lock) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Re-tune the carrier lock detector's geometry directly._  |
 |  [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* | [**carrier\_nda\_create**](#function-carrier_nda_create) (double bn, double zeta, double init\_norm\_freq, size\_t sps, int n, int m) <br>_Create an NDA carrier loop instance._  |
 |  void | [**carrier\_nda\_destroy**](#function-carrier_nda_destroy) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br>_Destroy an NDA carrier loop instance and release all memory._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**carrier\_nda\_disc**](#function-carrier_nda_disc) (float complex z, int m, double \* pe, double \* lock) <br>_The M-th-power discriminator on an arm sample, normalized by its own amplitude law._  |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**carrier\_nda\_disc**](#function-carrier_nda_disc) (float \_Complex z, int m, double \* pe, double \* lock) <br>_The M-th-power discriminator on an arm sample, normalized by its own amplitude law._  |
 |  double | [**carrier\_nda\_get\_bn**](#function-carrier_nda_get_bn) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
 |  double | [**carrier\_nda\_get\_last\_error**](#function-carrier_nda_get_last_error) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
 |  double | [**carrier\_nda\_get\_lock**](#function-carrier_nda_get_lock) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
@@ -90,10 +90,10 @@ _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-des
 |  int | [**carrier\_nda\_set\_telemetry**](#function-carrier_nda_set_telemetry) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the carrier loop's probes on it. Registers four probes, emitted once per input sample (this is a sample-rate loop — use_ `decim` _to thin the stream): "&lt;prefix&gt;.lock" (the lock-signal EMA, ~1 when phase-locked), "&lt;prefix&gt;.e" (the M-th-power phase discriminator — the loop stress), "&lt;prefix&gt;.freq" (the tracked carrier frequency, cycles/sample) and "&lt;prefix&gt;.locked" (the verify-counted lockdet decision, 0/1). Passing NULL detaches. Setup path, never hot: call before the producer thread starts stepping; the context is borrowed and must outlive the attachment (SPSC rules in_[_**dp\_tlm/dp\_tlm\_core.h**_](dp__tlm__core_8h.md) _)._ |
 |  size\_t | [**carrier\_nda\_state\_bytes**](#function-carrier_nda_state_bytes) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br>_Serialized-state byte size._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**carrier\_nda\_steer**](#function-carrier_nda_steer) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* s, double pe) <br>_Steer the shared NCO with a phase error through the loop filter._  |
-|  size\_t | [**carrier\_nda\_steps**](#function-carrier_nda_steps) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_De-rotate a cf32 block with the recovered carrier and return the de-rotated stream (one output per input sample)._  |
+|  size\_t | [**carrier\_nda\_steps**](#function-carrier_nda_steps) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_De-rotate a cf32 block with the recovered carrier and return the de-rotated stream (one output per input sample)._  |
 |  size\_t | [**carrier\_nda\_steps\_max\_out**](#function-carrier_nda_steps_max_out) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* state) <br> |
 |  void | [**carrier\_nda\_tlm\_flush**](#function-carrier_nda_tlm_flush) (const [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* s) <br>_Emit the carrier loop's telemetry records for the current sample._  |
-|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float complex | [**carrier\_nda\_wipeoff**](#function-carrier_nda_wipeoff) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* s, float complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) float \_Complex | [**carrier\_nda\_wipeoff**](#function-carrier_nda_wipeoff) ([**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md) \* s, float \_Complex x) <br>_Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._ |
 
 
 
@@ -200,7 +200,7 @@ The ceiling is linear in the rate the discriminator updates at, and nothing else
 ```C++
 // QPSK NDA carrier loop, 8 samples/symbol, 2-sample moving-average arm
 carrier_nda_state_t *c = carrier_nda_create(0.01, 0.707, 0.0, 8, 4, 4);
-float complex derot[1024];
+float _Complex derot[1024];
 size_t k = carrier_nda_steps(c, rx, rx_len, derot, 1024);
 double f = carrier_nda_get_norm_freq(c); // tracked carrier (cyc/sample)
 carrier_nda_destroy(c);
@@ -220,7 +220,7 @@ _Slide the moving-average arm by one sample; discriminate the output._
 ```C++
 JM_FORCEINLINE  JM_HOT int carrier_nda_arm_step (
     carrier_nda_state_t * s,
-    float complex d,
+    float _Complex d,
     double * pe,
     double * lock
 ) 
@@ -386,7 +386,7 @@ void carrier_nda_destroy (
 _The M-th-power discriminator on an arm sample, normalized by its own amplitude law._ 
 ```C++
 JM_FORCEINLINE void carrier_nda_disc (
-    float complex z,
+    float _Complex z,
     int m,
     double * pe,
     double * lock
@@ -819,9 +819,9 @@ _De-rotate a cf32 block with the recovered carrier and return the de-rotated str
 ```C++
 size_t carrier_nda_steps (
     carrier_nda_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```
@@ -926,9 +926,9 @@ Out-of-line on purpose: the emit machinery must not inline into the per-sample h
 
 _Per-sample carrier wipe-off: de-rotate_ `x` _by the NCO, advance it._
 ```C++
-JM_FORCEINLINE  JM_HOT float complex carrier_nda_wipeoff (
+JM_FORCEINLINE  JM_HOT float _Complex carrier_nda_wipeoff (
     carrier_nda_state_t * s,
-    float complex x
+    float _Complex x
 ) 
 ```
 

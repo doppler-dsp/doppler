@@ -34,14 +34,14 @@
    every probe has something to say. Content does not matter to the bound --
    only that the object runs its real code path. */
 static void
-fill (float complex *x, size_t n, size_t sps, double foff)
+fill (float _Complex *x, size_t n, size_t sps, double foff)
 {
   for (size_t i = 0; i < n; i++)
     {
       size_t sym = (i / sps) & 3u;
       double ph  = M_PI_4 + (double)sym * M_PI_2;
       double rot = 2.0 * M_PI * foff * (double)i;
-      x[i]       = (float complex) (cos (ph + rot) + I * sin (ph + rot));
+      x[i]       = (float _Complex) (cos (ph + rot) + I * sin (ph + rot));
     }
 }
 
@@ -70,8 +70,8 @@ main (void)
   size_t bound = dp_tlm_block_bound (t, BLOCK);
   DP_CHECK (bound == probes * BLOCK);
 
-  float complex *x = malloc (BLOCK * sizeof *x);
-  float complex *y = malloc (BLOCK * sizeof *y);
+  float _Complex *x = malloc (BLOCK * sizeof *x);
+  float _Complex *y = malloc (BLOCK * sizeof *y);
   DP_CHECK (x && y);
   if (!x || !y)
     return 1;

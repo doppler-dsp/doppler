@@ -723,7 +723,7 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
 /* --- Type instantiations --- */
 
 DECLARE_DP_BUFFER (f32, float)  /**< 32-bit float  complex (8 bytes/sample)  */
-DECLARE_DP_BUFFER (f64, double) /**< 64-bit double complex (16 bytes/sample) */
+DECLARE_DP_BUFFER (f64, double) /**< 64-bit double _Complex (16 bytes/sample) */
 DECLARE_DP_BUFFER (i16, int16_t) /**< 16-bit int    complex (4 bytes/sample) */
 
 #endif /* DP_BUFFER_H */

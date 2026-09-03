@@ -140,7 +140,7 @@ typedef struct
   /** One input sample in, 0 or more terminal outputs out. A real receiver
    *  takes `crealf(x)`; the instrument does that conversion, not the caller.
    */
-  int (*step) (void *, float complex x, float complex *y);
+  int (*step) (void *, float _Complex x, float _Complex *y);
 
   double (*norm_freq) (const void *);  /**< tracked carrier, cycles/sample */
   double (*last_error) (const void *); /**< discriminator output, radians  */
@@ -459,7 +459,7 @@ dp_rx_duty (const unsigned char *flags, size_t lo, size_t hi)
 static inline size_t
 dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
              const uint8_t *bits, size_t nbits, uint32_t seed, size_t nsym,
-             float complex *out, unsigned char *lock_c, unsigned char *track,
+             float _Complex *out, unsigned char *lock_c, unsigned char *track,
              double *err, double *nf_out, long *lt_out, double *zeta_out,
              int *clipped)
 {
@@ -469,11 +469,11 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
   size_t                   ntaps = wfm_rrc_ntaps (isps, span);
   size_t                   nsamp = nsym * (size_t)isps;
   float                   *taps  = (float *)malloc (ntaps * sizeof *taps);
-  float complex           *x     = (float complex *)malloc (nsamp * sizeof *x);
-  float complex           *imp   = NULL;
-  wfm_synth_state_t       *tx    = NULL;
-  doppler_channel_state_t *ch    = NULL;
-  void                    *r     = NULL;
+  float _Complex          *x    = (float _Complex *)malloc (nsamp * sizeof *x);
+  float _Complex          *imp  = NULL;
+  wfm_synth_state_t       *tx   = NULL;
+  doppler_channel_state_t *ch   = NULL;
+  void                    *r    = NULL;
   size_t                   nout = 0, navail = nsamp;
   /* A real front end takes Re{}, halving signal AND noise, but its convention
      counts the real noise against the halved Es — 3 dB less noise. Asking the
@@ -507,7 +507,7 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
       ch  = doppler_channel_create (pt->fs_hz > 0.0 ? pt->fs_hz : 1.0,
                                     pt->carrier_hz, pt->doppler_ppm,
                                     pt->doppler_rate_ppm_s);
-      imp = (float complex *)malloc (nsamp * sizeof *imp);
+      imp = (float _Complex *)malloc (nsamp * sizeof *imp);
       if (!ch || !imp)
         goto done;
       navail = doppler_channel_execute (ch, x, nsamp, imp, nsamp);
@@ -517,11 +517,11 @@ dp_rx_burst (const dp_rx_iface_t *rx, const dp_rx_point_t *pt,
   if (!r)
     goto done;
   {
-    const float complex *src = imp ? imp : x;
+    const float _Complex *src = imp ? imp : x;
     for (size_t n = 0; n < navail; n++)
       {
-        float complex in = src[n] * (float)amp;
-        float complex y;
+        float _Complex in = src[n] * (float)amp;
+        float _Complex y;
         if (rx->domain == DP_RX_IN_REAL)
           in = crealf (in) + 0.0f * I;
         if (rx->step (r, in, &y) && nout < nsym)
@@ -652,20 +652,20 @@ dp_rx_iface_missing (const dp_rx_iface_t *rx)
  */
 static inline void
 dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
-                    const float complex *out, size_t n, const uint8_t *truth,
+                    const float _Complex *out, size_t n, const uint8_t *truth,
                     size_t nsym, long lag, double phase, size_t lo,
                     frame_meter_state_t *fm, uint8_t *rxbits)
 {
   /* Shift whichever array needs it so the residual lag is zero, because
      ber_align_detect searches around lag 0 and has no centre argument. After
      this, `rxa[i]` carries `tra[i]`. */
-  size_t               rx_skip = (lag < 0) ? (size_t)(-lag) : 0;
-  size_t               tr_skip = (lag > 0) ? (size_t)(lag) : 0;
-  const float complex *rxa     = out + rx_skip;
-  size_t               n_rxa   = (n > rx_skip) ? n - rx_skip : 0;
-  const uint8_t       *tra     = truth + tr_skip;
-  size_t               n_tra   = (nsym > tr_skip) ? nsym - tr_skip : 0;
-  size_t               nbits   = l->total_bits;
+  size_t                rx_skip = (lag < 0) ? (size_t)(-lag) : 0;
+  size_t                tr_skip = (lag > 0) ? (size_t)(lag) : 0;
+  const float _Complex *rxa     = out + rx_skip;
+  size_t                n_rxa   = (n > rx_skip) ? n - rx_skip : 0;
+  const uint8_t        *tra     = truth + tr_skip;
+  size_t                n_tra   = (nsym > tr_skip) ? nsym - tr_skip : 0;
+  size_t                nbits   = l->total_bits;
   /* The frame layout is stated in BITS; `out` and `truth` hold SYMBOLS. At
      BPSK the two coincide, which is why this arithmetic survived unnoticed in
      `rx_frame_fer.c` — its geometry struct says "BPSK only for now" and every
@@ -680,8 +680,8 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
   size_t slen = bps ? l->sync_bits / bps : 0; /* ditto, length     */
   /* One rotation for the whole record, from the marker — not re-estimated per
      frame, which would be a per-frame minimisation over the answer. */
-  float complex derot = (float)cos (-phase) + (float)sin (-phase) * I;
-  size_t        k;
+  float _Complex derot = (float)cos (-phase) + (float)sin (-phase) * I;
+  size_t k;
 
   /* A geometry whose fields do not land on symbol boundaries cannot be scored
      per frame at all, and guessing would produce confident garbage that is
@@ -732,8 +732,8 @@ dp_rx_score_frames (int m, const wfm_frame_t *f, const wfm_frame_layout_t *l,
          measurement cannot disagree about bit order. */
       for (s = 0; s < fsym; s++)
         {
-          float complex ahat;
-          unsigned      lab
+          float _Complex ahat;
+          unsigned lab
               = (unsigned)mpsk_slice (out[(size_t)i0 + s] * derot, m, &ahat);
           for (t = 0; t < bps; t++)
             rxbits[s * bps + t] = (uint8_t)((lab >> (bps - 1u - t)) & 1u);
@@ -765,7 +765,7 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   size_t               nbits = wfm_frame_nbits (&f), nsym;
   size_t               bps   = (size_t)mpsk_bps (pt->m);
   uint8_t             *bits = NULL, *truth = NULL, *rxbits = NULL;
-  float complex       *out = NULL;
+  float _Complex      *out = NULL;
   unsigned char       *lc = NULL, *tk = NULL;
   double              *err = NULL;
   frame_meter_state_t *fm  = NULL;
@@ -825,7 +825,7 @@ dp_rx_run (const dp_rx_iface_t *rx, const dp_rx_point_t *pt)
   rxbits = (uint8_t *)malloc (nbits);
   bits   = (uint8_t *)malloc (nbits);
   truth  = (uint8_t *)malloc (nsym);
-  out    = (float complex *)malloc (nsym * sizeof *out);
+  out    = (float _Complex *)malloc (nsym * sizeof *out);
   lc     = (unsigned char *)malloc (nsym);
   tk     = (unsigned char *)malloc (nsym);
   err    = (double *)malloc (nsym * sizeof *err);

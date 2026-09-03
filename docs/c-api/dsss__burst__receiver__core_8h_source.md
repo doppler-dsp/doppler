@@ -114,7 +114,7 @@ void dsss_burst_receiver_reset(dsss_burst_receiver_state_t *state);
 
 size_t dsss_burst_receiver_push_max_out(dsss_burst_receiver_state_t *state, size_t x_len);
 
-size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float complex *x, size_t x_len, uint8_t *out, size_t max_out);
+size_t dsss_burst_receiver_push(dsss_burst_receiver_state_t *state, const float _Complex *x, size_t x_len, uint8_t *out, size_t max_out);
 
 size_t dsss_burst_receiver_events_max_out(dsss_burst_receiver_state_t *state);
 

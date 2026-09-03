@@ -49,7 +49,7 @@ dp_rx_mpsk_destroy (void *h)
 }
 
 static int
-dp_rx_mpsk_step (void *h, float complex x, float complex *y)
+dp_rx_mpsk_step (void *h, float _Complex x, float _Complex *y)
 {
   return mpsk_receiver_step_ted ((mpsk_receiver_state_t *)h, x, y,
                                  RATESYNC_TED_GARDNER);

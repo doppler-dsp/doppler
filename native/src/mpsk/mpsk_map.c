@@ -8,7 +8,7 @@
 #include "mpsk/mpsk_core.h"
 
 void
-mpsk_map (const uint8_t *sym, size_t sym_len, float complex *out, int m)
+mpsk_map (const uint8_t *sym, size_t sym_len, float _Complex *out, int m)
 {
   for (size_t i = 0; i < sym_len; i++)
     out[i] = mpsk_constellation (sym[i], m);

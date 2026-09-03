@@ -124,7 +124,7 @@ extern "C"
 
 
   JM_FORCEINLINE void
-  carrier_nda_disc (float complex z, int m, double *pe, double *lock)
+  carrier_nda_disc (float _Complex z, int m, double *pe, double *lock)
   {
     /* BOTH outputs normalise by the detector's OWN amplitude law, |z|^M.
      *
@@ -213,8 +213,8 @@ extern "C"
   void carrier_nda_init (carrier_nda_state_t *s, double bn, double zeta,
                          double init_norm_freq, size_t sps, int n, int m);
 
-  JM_FORCEINLINE JM_HOT float complex
-  carrier_nda_wipeoff (carrier_nda_state_t *s, float complex x)
+  JM_FORCEINLINE JM_HOT float _Complex
+  carrier_nda_wipeoff (carrier_nda_state_t *s, float _Complex x)
   {
     /* De-rotate through the NCO's control port: the LO advances by its centre
      * frequency (phase_inc) plus the loop's last control (ctl_cyc, set by
@@ -223,7 +223,7 @@ extern "C"
   }
 
   JM_FORCEINLINE JM_HOT int
-  carrier_nda_arm_step (carrier_nda_state_t *s, float complex d, double *pe,
+  carrier_nda_arm_step (carrier_nda_state_t *s, float _Complex d, double *pe,
                         double *lock)
   {
     /* Slide the boxcar moving average by one sample (unit gain — pure I/Q
@@ -286,8 +286,8 @@ extern "C"
 
   size_t carrier_nda_steps_max_out (carrier_nda_state_t *state);
 
-  size_t carrier_nda_steps (carrier_nda_state_t *state, const float complex *x,
-                            size_t x_len, float complex *out, size_t max_out);
+  size_t carrier_nda_steps (carrier_nda_state_t *state, const float _Complex *x,
+                            size_t x_len, float _Complex *out, size_t max_out);
   double carrier_nda_get_norm_freq (const carrier_nda_state_t *state);
   double carrier_nda_get_nco_freq (const carrier_nda_state_t *state);
   void   carrier_nda_set_norm_freq (carrier_nda_state_t *state, double val);

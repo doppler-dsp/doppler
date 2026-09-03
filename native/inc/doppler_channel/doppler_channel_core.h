@@ -45,7 +45,7 @@
  * doppler_channel_state_t *ch =
  *     doppler_channel_create (6.138e6, 2.5e9, 20.0, 0.2);
  * size_t         cap = doppler_channel_execute_max_out (ch);
- * float complex *out = malloc (cap * sizeof *out);
+ * float _Complex *out = malloc (cap * sizeof *out);
  * size_t         n   = doppler_channel_execute (ch, in, 65536, out, cap);
  * // n ~= 65536/(1+20e-6); doppler_channel_get_offset_hz (ch) ~= 50000.0
  * free (out);
@@ -264,7 +264,7 @@ size_t doppler_channel_execute_max_out(doppler_channel_state_t *state);
  *
  * @endcode
  */
-size_t doppler_channel_execute(doppler_channel_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+size_t doppler_channel_execute(doppler_channel_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
 /** @brief Receive time in seconds produced so far (`n_out/fs`). */
 double doppler_channel_get_elapsed_s(const doppler_channel_state_t *state);

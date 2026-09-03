@@ -165,9 +165,9 @@ WriterObj_write (WriterObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *x     = (const float complex *)PyArray_DATA (x_arr);
-  size_t               x_len = (size_t)PyArray_SIZE (x_arr);
-  size_t               y     = wfm_writer_write (self->handle, x, x_len);
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  size_t                y     = wfm_writer_write (self->handle, x, x_len);
   Py_DECREF (x_arr);
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }

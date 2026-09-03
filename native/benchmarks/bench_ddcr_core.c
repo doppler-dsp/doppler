@@ -57,7 +57,7 @@ main (void)
   static double   t[N_CFG][ITERATIONS];
   ddcr_state_t   *ddcr = ddcr_create (NORM_FREQ, RATE);
   float          *in   = NULL;
-  float complex  *out  = NULL;
+  float _Complex *out  = NULL;
   size_t          cap, emitted = 0;
   char            name[64];
 

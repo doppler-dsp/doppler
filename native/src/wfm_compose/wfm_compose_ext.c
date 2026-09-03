@@ -1470,7 +1470,7 @@ Synth_steps (SynthObject *self, PyObject *args)
   PyObject *arr     = PyArray_SimpleNew (1, dims, NPY_COMPLEX64);
   if (!arr)
     return NULL;
-  float complex *out = (float complex *)PyArray_DATA ((PyArrayObject *)arr);
+  float _Complex *out = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr);
   Py_BEGIN_ALLOW_THREADS
     wfm_synth_steps (self->_gen, out, (size_t)n);
   Py_END_ALLOW_THREADS
@@ -1482,7 +1482,7 @@ Synth_step (SynthObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (Synth_ensure_gen (self) < 0)
     return NULL;
-  float complex y = wfm_synth_step (self->_gen);
+  float _Complex y = wfm_synth_step (self->_gen);
   return PyComplex_FromDoubles (crealf (y), cimagf (y));
 }
 

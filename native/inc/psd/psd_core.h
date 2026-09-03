@@ -45,8 +45,8 @@ typedef struct {
     fft_state_t *fft;          /**< Forward cf32 plan, size nfft.         */
     acc_trace_state_t *avg;    /**< Per-bin power averager, length nfft.  */
     float *w;                  /**< Window, length n.                     */
-    float complex *frame;      /**< Windowed + zero-padded, length nfft.  */
-    float complex *spec;       /**< FFT output scratch, length nfft.      */
+    float _Complex *frame;      /**< Windowed + zero-padded, length nfft.  */
+    float _Complex *spec;       /**< FFT output scratch, length nfft.      */
     float *pwr;                /**< DC-centred power scratch, length nfft.*/
     float *dbbuf;              /**< dB-trace scratch, length nfft.        */
     double cg;                 /**< Window coherent gain, sum(w).         */
@@ -128,7 +128,7 @@ void psd_reset(psd_state_t *state);
  * 4
  * @endcode
  */
-void psd_accumulate(psd_state_t *state, const float complex *x,
+void psd_accumulate(psd_state_t *state, const float _Complex *x,
                       size_t x_len);
 
 /**

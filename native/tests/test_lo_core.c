@@ -29,7 +29,7 @@ near (float a, float b)
 }
 
 static int
-near_c (float complex a, float complex b)
+near_c (float _Complex a, float _Complex b)
 {
   return near (crealf (a), crealf (b)) && near (cimagf (a), cimagf (b));
 }
@@ -55,8 +55,8 @@ main (void)
    * 2. DC tone — norm_freq = 0 → phase_inc = 0 → all 1 + 0j
    * ---------------------------------------------------------------- */
   {
-    lo_state_t   *lo = lo_create (0.0);
-    float complex out[8];
+    lo_state_t *lo = lo_create (0.0);
+    float _Complex out[8];
     lo_steps (lo, 8, out, 8);
     for (int i = 0; i < 8; i++)
       DP_CHECK (near_c (out[i], 1.0f + 0.0f * I));
@@ -74,8 +74,8 @@ main (void)
    *   phase=0xC0000000 → cos=0, sin=-1 →  0 - 1j
    * ---------------------------------------------------------------- */
   {
-    lo_state_t   *lo = lo_create (0.25);
-    float complex out[8];
+    lo_state_t *lo = lo_create (0.25);
+    float _Complex out[8];
     lo_steps (lo, 8, out, 8);
     DP_CHECK (near_c (out[0], 1.0f + 0.0f * I));
     DP_CHECK (near_c (out[1], 0.0f + 1.0f * I));
@@ -94,9 +94,9 @@ main (void)
    * Two consecutive calls of length N must match a single call of 2N.
    * ---------------------------------------------------------------- */
   {
-    lo_state_t   *a = lo_create (0.1);
-    lo_state_t   *b = lo_create (0.1);
-    float complex ref[16], blk[8];
+    lo_state_t *a = lo_create (0.1);
+    lo_state_t *b = lo_create (0.1);
+    float _Complex ref[16], blk[8];
     lo_steps (a, 16, ref, 16);
     lo_steps (b, 8, blk, 8);
     for (int i = 0; i < 8; i++)
@@ -126,7 +126,7 @@ main (void)
     for (int i = 0; i < 8; i++)
       ctrl[i] = 0.25f;
 
-    float complex out_ctrl[8], out_ref[8];
+    float _Complex out_ctrl[8], out_ref[8];
     lo_steps_ctrl (lo_ctrl, ctrl, 8, out_ctrl, 8);
     lo_steps (lo_ref, 8, out_ref, 8);
 
@@ -147,8 +147,8 @@ main (void)
    * Verify |out[k]|² ≈ 1 and that out[1] is close to j·out[0].
    * ---------------------------------------------------------------- */
   {
-    lo_state_t   *lo = lo_create (0.25);
-    float complex out[4];
+    lo_state_t *lo = lo_create (0.25);
+    float _Complex out[4];
     lo_steps (lo, 4, out, 4);
     for (int k = 0; k < 4; k++)
       {
@@ -157,7 +157,7 @@ main (void)
         DP_CHECK (near (mag2, 1.0f));
       }
     /* out[1] should equal j * out[0] at quarter-rate */
-    float complex expected1 = I * out[0];
+    float _Complex expected1 = I * out[0];
     DP_CHECK (near_c (out[1], expected1));
     lo_destroy (lo);
   }
@@ -198,7 +198,7 @@ main (void)
     lo_state_t   stp;
     lo_init (&stp, 0.123456);
 
-    float complex ref[257], got[257];
+    float _Complex ref[257], got[257];
     lo_steps (blk, N, ref, N);
     for (size_t i = 0; i < N; i++)
       got[i] = lo_step (&stp);
@@ -225,7 +225,7 @@ main (void)
     DP_CHECK (byval.phase_inc == heap->phase_inc);
     DP_CHECK (byval.norm_freq == heap->norm_freq);
 
-    float complex a[64], b[64];
+    float _Complex a[64], b[64];
     lo_steps (heap, 64, a, 64);
     for (int i = 0; i < 64; i++)
       b[i] = lo_step (&byval);
@@ -255,10 +255,10 @@ main (void)
     long           wraps = 0;
     for (long k = 0; k < RUN; k++)
       {
-        uint32_t      prev = s.phase;
-        float complex c    = lo_step (&s);
-        float         re = crealf (c), im = cimagf (c);
-        float         m2 = re * re + im * im;
+        uint32_t prev    = s.phase;
+        float _Complex c = lo_step (&s);
+        float re = crealf (c), im = cimagf (c);
+        float m2 = re * re + im * im;
         if (!(m2 > 0.98f && m2 < 1.02f)) /* unit magnitude, bounded */
           bad_mag++;
         if (re != re || im != im) /* NaN check */
@@ -320,8 +320,8 @@ main (void)
     lo_init (&big, 1.25);
     DP_CHECK (lo_get_phase_inc (&big) == 0x40000000u);
 
-    lo_state_t   *ref = lo_create (-0.25);
-    float complex a[16], b[16];
+    lo_state_t *ref = lo_create (-0.25);
+    float _Complex a[16], b[16];
     lo_steps (ref, 16, a, 16);
     for (int i = 0; i < 16; i++)
       b[i] = lo_step (&neg);
@@ -341,14 +341,14 @@ main (void)
    * resumed output must equal an uninterrupted run bit-for-bit.
    * ---------------------------------------------------------------- */
   {
-    const size_t  N = 100, M = 156;
-    lo_state_t   *ref = lo_create (0.123456);
-    float complex full[256];
+    const size_t N = 100, M = 156;
+    lo_state_t  *ref = lo_create (0.123456);
+    float _Complex full[256];
     lo_steps (ref, N + M, full, N + M);
     lo_destroy (ref);
 
-    lo_state_t   *a = lo_create (0.123456);
-    float complex tmp[256];
+    lo_state_t *a = lo_create (0.123456);
+    float _Complex tmp[256];
     lo_steps (a, N, tmp, N); /* advance N */
 
     DP_CHECK (lo_state_bytes (a)
@@ -359,7 +359,7 @@ main (void)
 
     lo_state_t *b = lo_create (0.123456); /* fresh, from the descriptor */
     DP_CHECK (lo_set_state (b, blob) == DP_OK);
-    float complex resumed[256];
+    float _Complex resumed[256];
     lo_steps (b, M, resumed, M);
     lo_destroy (b);
 
@@ -376,7 +376,7 @@ main (void)
   {
     lo_state_t *a = lo_create (0.2);
     lo_state_t *b = lo_create (0.2);
-    lo_steps (a, 37, (float complex[37]){ 0 }, 37);
+    lo_steps (a, 37, (float _Complex[37]){ 0 }, 37);
     DP_STATE_ROUNDTRIP_TEST (lo, a, b);
     lo_destroy (a);
     lo_destroy (b);
@@ -440,10 +440,10 @@ main (void)
     /* Asking for more than the buffer holds truncates rather than
      * overruns, and the generator advances only by what it emitted --
      * so a truncated call leaves a resumable, not a corrupted, phase. */
-    lo_state_t   *lo  = lo_create (0.01);
-    lo_state_t   *ref = lo_create (0.01);
-    float complex out[16];
-    float complex expect[5];
+    lo_state_t *lo  = lo_create (0.01);
+    lo_state_t *ref = lo_create (0.01);
+    float _Complex out[16];
+    float _Complex expect[5];
     for (int i = 0; i < 16; i++)
       out[i] = 42.0f + 42.0f * I;
 
@@ -463,8 +463,8 @@ main (void)
 
     /* The control-port form clamps on the same rule: ctrl_len is the
      * request, max_out the capacity, and the shorter one wins. */
-    const double  ctrl[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-    float complex cout[8];
+    const double ctrl[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    float _Complex cout[8];
     for (int i = 0; i < 8; i++)
       cout[i] = 42.0f + 42.0f * I;
     DP_CHECK (lo_steps_ctrl (lo, ctrl, 8, cout, 3) == 3);
@@ -495,8 +495,8 @@ main (void)
     int exact = 1;
     for (size_t i = 0; i < N; i++)
       {
-        float complex p = lo_step (&plain);
-        float complex z = lo_step_ctrl (&zeroed, 0.0);
+        float _Complex p = lo_step (&plain);
+        float _Complex z = lo_step_ctrl (&zeroed, 0.0);
         if (crealf (p) != crealf (z) || cimagf (p) != cimagf (z))
           exact = 0;
       }
@@ -505,9 +505,9 @@ main (void)
 
     /* (b) A constant control is the same oscillator as the equivalent
      * base rate: base 0, ctrl 0.25 == a 0.25 LO, bit-for-bit. */
-    lo_state_t    driven;
-    lo_state_t   *ref = lo_create (0.25);
-    float complex a[64], b[64];
+    lo_state_t  driven;
+    lo_state_t *ref = lo_create (0.25);
+    float _Complex a[64], b[64];
     lo_init (&driven, 0.0);
     lo_steps (ref, 64, a, 64);
     for (int i = 0; i < 64; i++)
@@ -577,8 +577,8 @@ main (void)
     lo_state_t seeded;
     lo_init (&seeded, 0.1);
     lo_set_phase (&seeded, 0x9ABC0000u);
-    uint16_t      widx = (uint16_t)(0x9ABC0000u >> 16);
-    float complex s0   = lo_step_ctrl (&seeded, 0.42);
+    uint16_t widx     = (uint16_t)(0x9ABC0000u >> 16);
+    float _Complex s0 = lo_step_ctrl (&seeded, 0.42);
     DP_CHECK (crealf (s0)
               == lo_sin_lut[(uint16_t)(widx + (uint16_t)LO_LUT_QTR)]);
     DP_CHECK (cimagf (s0) == lo_sin_lut[widx]);
@@ -596,9 +596,9 @@ main (void)
    * per sample rather than held constant.
    * ---------------------------------------------------------------- */
   {
-    const size_t  N = 133;
-    double        ctrl[133];
-    float complex blk[133], one[133];
+    const size_t N = 133;
+    double       ctrl[133];
+    float _Complex blk[133], one[133];
     for (size_t i = 0; i < N; i++)
       ctrl[i] = 0.03 * sin (0.11 * (double)i) - 0.007 * (double)i;
 
@@ -648,8 +648,8 @@ main (void)
     DP_CHECK (lo_steps_max_out (NULL) == 65536u);
     DP_CHECK (lo_steps_ctrl_max_out (NULL) == 65536u);
 
-    const size_t   BIG = 70000;
-    float complex *big = malloc (BIG * sizeof *big);
+    const size_t    BIG = 70000;
+    float _Complex *big = malloc (BIG * sizeof *big);
     DP_CHECK (big != NULL);
     if (big)
       {
@@ -701,9 +701,9 @@ main (void)
     /* Unit magnitude over a full sweep of the phase range, not just the
      * four exact points: an odd increment coprime with 2^32 visits every
      * LUT bin over a long enough run. */
-    lo_state_t   *sweep = lo_create (0.10000000017);
-    float complex buf[4096];
-    float         worst_m = 0.0f;
+    lo_state_t *sweep = lo_create (0.10000000017);
+    float _Complex buf[4096];
+    float worst_m = 0.0f;
     for (int blk = 0; blk < 64; blk++)
       {
         lo_steps (sweep, 4096, buf, 4096);
@@ -748,9 +748,9 @@ main (void)
     DP_CHECK (lo_get_phase (&steer) == 10430u); /* control path, same word */
 
     /* and the block control port agrees with both */
-    lo_state_t   *bsteer = lo_create (0.0);
-    const double  c1[1]  = { f51 };
-    float complex o1[1];
+    lo_state_t  *bsteer = lo_create (0.0);
+    const double c1[1]  = { f51 };
+    float _Complex o1[1];
     lo_steps_ctrl (bsteer, c1, 1, o1, 1);
     /* float32 rounds the REQUEST before the fold ever sees it, so the
      * two differ by the float32 representation error, not by the

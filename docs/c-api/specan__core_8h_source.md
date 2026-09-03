@@ -39,9 +39,9 @@ extern "C"
   {
     ddc_state_t   *ddc;      
     psd_state_t *psd;      
-    float complex *scratch;  
+    float _Complex *scratch;  
     size_t scratch_cap;      
-    float complex *pend;     
+    float _Complex *pend;     
     size_t         pend_len; 
     size_t         pend_cap; 
     float         *pwr;   
@@ -71,7 +71,7 @@ extern "C"
 
   size_t specan_execute_max_out (specan_state_t *state);
 
-  size_t specan_execute (specan_state_t *state, const float complex *x,
+  size_t specan_execute (specan_state_t *state, const float _Complex *x,
                          size_t x_len, float *out, size_t max_out);
 
   void specan_retune (specan_state_t *state, double center);

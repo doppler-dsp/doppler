@@ -38,7 +38,7 @@ _bind_mpsk_map (PyObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   mpsk_map (sym, sym_len,
-            (float complex *)PyArray_DATA ((PyArrayObject *)_out), m);
+            (float _Complex *)PyArray_DATA ((PyArrayObject *)_out), m);
   Py_DECREF (sym_arr);
   return _out;
 }
@@ -58,10 +58,10 @@ _bind_mpsk_demap (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *x     = (const float complex *)PyArray_DATA (x_arr);
-  size_t               x_len = (size_t)PyArray_SIZE (x_arr);
-  npy_intp             _dim  = (npy_intp)x_len;
-  PyObject            *_out  = PyArray_EMPTY (1, &_dim, NPY_UINT8, 0);
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  npy_intp              _dim  = (npy_intp)x_len;
+  PyObject             *_out  = PyArray_EMPTY (1, &_dim, NPY_UINT8, 0);
   if (!_out)
     {
       Py_DECREF (x_arr);
@@ -97,7 +97,7 @@ _bind_mpsk_diff_map (PyObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
   mpsk_diff_map (sym, sym_len,
-                 (float complex *)PyArray_DATA ((PyArrayObject *)_out), m);
+                 (float _Complex *)PyArray_DATA ((PyArrayObject *)_out), m);
   Py_DECREF (sym_arr);
   return _out;
 }
@@ -117,10 +117,10 @@ _bind_mpsk_diff_demap (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *x     = (const float complex *)PyArray_DATA (x_arr);
-  size_t               x_len = (size_t)PyArray_SIZE (x_arr);
-  npy_intp             _dim  = (npy_intp)x_len;
-  PyObject            *_out  = PyArray_EMPTY (1, &_dim, NPY_UINT8, 0);
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  npy_intp              _dim  = (npy_intp)x_len;
+  PyObject             *_out  = PyArray_EMPTY (1, &_dim, NPY_UINT8, 0);
   if (!_out)
     {
       Py_DECREF (x_arr);
@@ -150,8 +150,8 @@ _bind_mpsk_soft_demap (PyObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  const float complex *x     = (const float complex *)PyArray_DATA (x_arr);
-  size_t               x_len = (size_t)PyArray_SIZE (x_arr);
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
   /* Require the exact dtype AND C-contiguity — either mismatch makes
    * the marshal write into a temp copy, not the caller's buffer. */
   if (!PyArray_Check (llr_obj)

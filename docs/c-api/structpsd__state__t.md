@@ -42,14 +42,14 @@ _PSD state. Allocate with_ [_**psd\_create()**_](psd__core_8h.md#function-psd_cr
 |  float \* | [**dbbuf**](#variable-dbbuf)  <br> |
 |  double | [**enbw**](#variable-enbw)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**fft**](#variable-fft)  <br> |
-|  float complex \* | [**frame**](#variable-frame)  <br> |
+|  float \_Complex \* | [**frame**](#variable-frame)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
 |  double | [**full\_scale**](#variable-full_scale)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
 |  size\_t | [**nfft**](#variable-nfft)  <br> |
 |  float \* | [**pwr**](#variable-pwr)  <br> |
 |  double | [**s2**](#variable-s2)  <br> |
-|  float complex \* | [**spec**](#variable-spec)  <br> |
+|  float \_Complex \* | [**spec**](#variable-spec)  <br> |
 |  float \* | [**w**](#variable-w)  <br> |
 
 
@@ -210,7 +210,7 @@ Forward cf32 plan, size nfft.
 ### variable frame 
 
 ```C++
-float complex* psd_state_t::frame;
+float _Complex* psd_state_t::frame;
 ```
 
 
@@ -335,7 +335,7 @@ Window power, sum(w^2).
 ### variable spec 
 
 ```C++
-float complex* psd_state_t::spec;
+float _Complex* psd_state_t::spec;
 ```
 
 

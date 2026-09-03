@@ -147,10 +147,11 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
-      size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
-      float complex       *_ng2 = (float complex *)PyArray_DATA (out_arr);
-      size_t               n_out;
+      const float _Complex *_ng0
+          = (const float _Complex *)PyArray_DATA (x_arr);
+      size_t          _ng1 = (size_t)PyArray_SIZE (x_arr);
+      float _Complex *_ng2 = (float _Complex *)PyArray_DATA (out_arr);
+      size_t          n_out;
       Py_BEGIN_ALLOW_THREADS
         n_out = burst_despreader_steps (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
@@ -177,14 +178,14 @@ BurstDespreaderObj_steps (BurstDespreaderObject *self, PyObject *args,
       Py_DECREF (x_arr);
       return NULL;
     }
-  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
-  size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t               n_out;
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
+  size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
     n_out = burst_despreader_steps (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS
@@ -276,10 +277,11 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
        * this object is not shared across threads concurrently (one
        * object per stream); the kernel touches only this object's
        * state/buffers and the caller's input. */
-      const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
-      size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
-      uint8_t             *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
-      size_t               n_out;
+      const float _Complex *_ng0
+          = (const float _Complex *)PyArray_DATA (x_arr);
+      size_t   _ng1 = (size_t)PyArray_SIZE (x_arr);
+      uint8_t *_ng2 = (uint8_t *)PyArray_DATA (out_arr);
+      size_t   n_out;
       Py_BEGIN_ALLOW_THREADS
         n_out = burst_despreader_bits (self->handle, _ng0, _ng1, _ng2, _cap);
       Py_END_ALLOW_THREADS
@@ -311,9 +313,9 @@ BurstDespreaderObj_bits (BurstDespreaderObject *self, PyObject *args,
    * this object is not shared across threads concurrently (one
    * object per stream); the kernel touches only this object's
    * state/buffers and the caller's input. */
-  const float complex *_ng0 = (const float complex *)PyArray_DATA (x_arr);
-  size_t               _ng1 = (size_t)PyArray_SIZE (x_arr);
-  size_t               n_out;
+  const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                _ng1 = (size_t)PyArray_SIZE (x_arr);
+  size_t                n_out;
   Py_BEGIN_ALLOW_THREADS
     n_out = burst_despreader_bits (self->handle, _ng0, _ng1, _d0, _cap);
   Py_END_ALLOW_THREADS

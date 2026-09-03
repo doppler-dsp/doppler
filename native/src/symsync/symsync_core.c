@@ -312,11 +312,11 @@ symsync_steps_max_out (symsync_state_t *state)
 }
 
 size_t
-symsync_steps (symsync_state_t *state, const float complex *x, size_t x_len,
-               float complex *out, size_t max_out)
+symsync_steps (symsync_state_t *state, const float _Complex *x, size_t x_len,
+               float _Complex *out, size_t max_out)
 {
-  size_t        emitted = 0;
-  float complex y;
+  size_t emitted = 0;
+  float _Complex y;
   /* The TED selection is hoisted out of the hot loop: a literal ted lets
    * the force-inlined step constant-fold the detector branch, so each
    * specialised loop body carries exactly one TED. The runtime `s->ted`

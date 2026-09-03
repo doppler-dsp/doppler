@@ -36,7 +36,7 @@ _Farrow interpolator state (4-tap delay line + order)._ [More...](#detailed-desc
 
 | Type | Name |
 | ---: | :--- |
-|  float complex | [**d**](#variable-d)  <br> |
+|  float \_Complex | [**d**](#variable-d)  <br> |
 |  int | [**order**](#variable-order)  <br> |
 
 
@@ -97,7 +97,7 @@ Public so a timing loop can embed it by value; treat the delay line as internal 
 ### variable d 
 
 ```C++
-float complex farrow_state_t::d[4];
+float _Complex farrow_state_t::d[4];
 ```
 
 

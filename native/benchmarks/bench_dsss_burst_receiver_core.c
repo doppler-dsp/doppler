@@ -138,7 +138,7 @@ payload_bits (void)
 }
 
 static size_t
-put_symbol (float complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
+put_symbol (float _Complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
 {
   float a = csign (bit);
   for (size_t c = 0; c < DATA_SF; c++)
@@ -149,7 +149,7 @@ put_symbol (float complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
 
 /** @brief One burst: preamble, sync, payload, CRC-16, at zero carrier. */
 static size_t
-build_burst (float complex *y)
+build_burst (float _Complex *y)
 {
   const uint8_t *acode = acq_code (), *dcode = data_code ();
   const uint8_t *sy = sync_word (), *pl = payload_bits ();
@@ -169,7 +169,7 @@ build_burst (float complex *y)
 }
 
 static void
-fill_noise (float complex *x, size_t n, double sigma, uint32_t seed)
+fill_noise (float _Complex *x, size_t n, double sigma, uint32_t seed)
 {
   uint32_t st = seed;
   for (size_t i = 0; i < n; i++)
@@ -209,7 +209,7 @@ make_rx (void)
  *         silently stopped detecting is visible rather than fast.
  */
 static size_t
-time_push (const float complex *x, const char *name, jm_bench_t *bench)
+time_push (const float _Complex *x, const char *name, jm_bench_t *bench)
 {
   double          times[ITERATIONS];
   size_t          decoded = 0;
@@ -241,9 +241,9 @@ time_push (const float complex *x, const char *name, jm_bench_t *bench)
 int
 main (void)
 {
-  static float complex idle[BENCH_N];
-  static float complex hit[BENCH_N];
-  static float complex burst[4096];
+  static float _Complex idle[BENCH_N];
+  static float _Complex hit[BENCH_N];
+  static float _Complex burst[4096];
 
   jm_bench_t _bench = { 0 };
 

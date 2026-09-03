@@ -14,16 +14,16 @@
 typedef struct
 {
   PyObject_HEAD delay_state_t *handle;
-  double complex              *_ptr_buf;     /* pre-allocated output for ptr */
+  double _Complex             *_ptr_buf;     /* pre-allocated output for ptr */
   size_t                       _ptr_buf_cap; /* allocated capacity for ptr */
   void                       **_ptr_retired; /* gh-219 deferred free */
   size_t                       _ptr_retired_n;
   size_t                       _ptr_retired_cap;
-  double complex *_push_ptr_buf;     /* pre-allocated output for push_ptr */
-  size_t          _push_ptr_buf_cap; /* allocated capacity for push_ptr */
-  void          **_push_ptr_retired; /* gh-219 deferred free */
-  size_t          _push_ptr_retired_n;
-  size_t          _push_ptr_retired_cap;
+  double _Complex *_push_ptr_buf;     /* pre-allocated output for push_ptr */
+  size_t           _push_ptr_buf_cap; /* allocated capacity for push_ptr */
+  void           **_push_ptr_retired; /* gh-219 deferred free */
+  size_t           _push_ptr_retired_n;
+  size_t           _push_ptr_retired_cap;
 } DelayCf64Object;
 
 static void
@@ -70,7 +70,7 @@ DelayCf64Obj_init (DelayCf64Object *self, PyObject *args, PyObject *kwds)
     size_t _max = delay_ptr_max_out (self->handle, self->handle->num_taps);
     if (_max)
       {
-        self->_ptr_buf = malloc (_max * sizeof (double complex));
+        self->_ptr_buf = malloc (_max * sizeof (double _Complex));
         if (!self->_ptr_buf)
           {
             PyErr_NoMemory ();
@@ -83,7 +83,7 @@ DelayCf64Obj_init (DelayCf64Object *self, PyObject *args, PyObject *kwds)
     size_t _max = delay_push_ptr_max_out (self->handle);
     if (_max)
       {
-        self->_push_ptr_buf = malloc (_max * sizeof (double complex));
+        self->_push_ptr_buf = malloc (_max * sizeof (double _Complex));
         if (!self->_push_ptr_buf)
           {
             PyErr_NoMemory ();
@@ -119,7 +119,7 @@ DelayCf64Obj_push (DelayCf64Object *self, PyObject *args, PyObject *kwds)
   Py_complex   x_raw     = { 0.0, 0.0 };
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "D", _kwlist, &x_raw))
     return NULL;
-  double complex x = x_raw.real + x_raw.imag * I;
+  double _Complex x = x_raw.real + x_raw.imag * I;
   delay_push (self->handle, x);
   Py_RETURN_NONE;
 }
@@ -192,7 +192,7 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out
           = delay_ptr (self->handle, (size_t)n,
-                       (double complex *)PyArray_DATA (out_arr), _cap);
+                       (double _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
                                                     PyArray_DATA (out_arr));
@@ -223,7 +223,7 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
           self->_ptr_retired     = _rt;
           self->_ptr_retired_cap = _rcap;
         }
-      double complex *_tmp = malloc (_max * sizeof (double complex));
+      double _Complex *_tmp = malloc (_max * sizeof (double _Complex));
       if (!_tmp)
         {
           PyErr_NoMemory ();
@@ -276,7 +276,7 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "D|O", _kwlist, &x_raw,
                                     &out_obj))
     return NULL;
-  double complex x = x_raw.real + x_raw.imag * I;
+  double _Complex x = x_raw.real + x_raw.imag * I;
   /* delay_push_ptr() clamps to its max_out (jm gh-138), so out= only has to
    * be big enough, not exactly num_taps — the same >= rule jm generates for
    * every other object.  The push itself lands regardless of capacity. */
@@ -310,7 +310,7 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = delay_push_ptr (
-          self->handle, x, (double complex *)PyArray_DATA (out_arr), _cap);
+          self->handle, x, (double _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX128,
                                                     PyArray_DATA (out_arr));
@@ -341,7 +341,7 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
           self->_push_ptr_retired     = _rt;
           self->_push_ptr_retired_cap = _rcap;
         }
-      double complex *_tmp = malloc (_max * sizeof (double complex));
+      double _Complex *_tmp = malloc (_max * sizeof (double _Complex));
       if (!_tmp)
         {
           PyErr_NoMemory ();
@@ -376,7 +376,7 @@ DelayCf64Obj_write (DelayCf64Object *self, PyObject *args)
   Py_complex x_raw = { 0.0, 0.0 };
   if (!PyArg_ParseTuple (args, "D", &x_raw))
     return NULL;
-  double complex x = x_raw.real + x_raw.imag * I;
+  double _Complex x = x_raw.real + x_raw.imag * I;
   delay_write (self->handle, x);
   Py_RETURN_NONE;
 }

@@ -97,14 +97,14 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  double | [**burst\_capture\_get\_refine\_margin**](#function-burst_capture_get_refine_margin) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  void | [**burst\_capture\_get\_state**](#function-burst_capture_get_state) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, void \* blob) <br>_Serialize into_ `blob` _, which must be state\_bytes() long._ |
 |  double | [**burst\_capture\_get\_straddle\_loss**](#function-burst_capture_get_straddle_loss) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Correlation kept, worst case, by a burst landing between bins._  |
-|  size\_t | [**burst\_capture\_push**](#function-burst_capture_push) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Stream samples; get back every burst whose window has arrived._  |
+|  size\_t | [**burst\_capture\_push**](#function-burst_capture_push) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream samples; get back every burst whose window has arrived._  |
 |  size\_t | [**burst\_capture\_push\_max\_out**](#function-burst_capture_push_max_out) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t x\_len) <br>_Upper bound on samples push() can return for_ `x_len` _input._ |
 |  size\_t | [**burst\_capture\_ready**](#function-burst_capture_ready) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Windows the last push() completed._  |
 |  int | [**burst\_capture\_release**](#function-burst_capture_release) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t i) <br>_Give back the span that window_ `i` _of the last push() claimed._ |
 |  void | [**burst\_capture\_reset**](#function-burst_capture_reset) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Return to the searching state._  |
 |  int | [**burst\_capture\_set\_state**](#function-burst_capture_set_state) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, const void \* blob) <br>_Restore from_ `blob` _._ |
 |  size\_t | [**burst\_capture\_state\_bytes**](#function-burst_capture_state_bytes) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Bytes one blob occupies: a pure function of CONFIGURATION._  |
-|  const float complex \* | [**burst\_capture\_window**](#function-burst_capture_window) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t i) <br>_Borrow window_ `i` _of the last push(), or NULL if out of range._ |
+|  const float \_Complex \* | [**burst\_capture\_window**](#function-burst_capture_window) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t i) <br>_Borrow window_ `i` _of the last push(), or NULL if out of range._ |
 
 
 
@@ -161,8 +161,8 @@ uint8_t code[31];
 for (size_t i = 0; i < 31; i++) code[i] = (uint8_t)(i & 1u);
 burst_capture_state_t *cap = burst_capture_create (
     code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
-float complex x[2048] = { 0 };
-float complex win[4096];
+float _Complex x[2048] = { 0 };
+float _Complex win[4096];
 size_t n = burst_capture_push (cap, x, 2048, win, 4096);
 // n is a multiple of burst_len: burst i starts at i*burst_len
 burst_capture_destroy (cap);
@@ -322,7 +322,7 @@ Two things follow, and they are the reason to reach for this constructor:
 
 
 
-The file is created if absent and truncated to the ring's byte size, which zeroes it. An existing file of exactly that size is adopted as it stands. Because the capacity rounds up to a page, that size is `capacity * sizeof(float complex)` — do not compute it from `burst_len`.
+The file is created if absent and truncated to the ring's byte size, which zeroes it. An existing file of exactly that size is adopted as it stands. Because the capacity rounds up to a page, that size is `capacity * sizeof(float _Complex)` — do not compute it from `burst_len`.
 
 
 A blob from a backed capture does NOT restore into an in-RAM one, or the reverse: `state_bytes()` differs, so jm's length check rejects it. That is the intent — they are different configurations, and silently accepting one for the other would resume a capture whose history was somewhere else.
@@ -805,9 +805,9 @@ _Stream samples; get back every burst whose window has arrived._
 ```C++
 size_t burst_capture_push (
     burst_capture_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```
@@ -1029,7 +1029,7 @@ size_t burst_capture_state_bytes (
 
 _Borrow window_ `i` _of the last push(), or NULL if out of range._
 ```C++
-const float complex * burst_capture_window (
+const float _Complex * burst_capture_window (
     const burst_capture_state_t * state,
     size_t i
 ) 

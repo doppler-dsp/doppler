@@ -41,7 +41,7 @@ FIRObj_init (FIRObject *self, PyObject *args, PyObject *kwds)
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", kwlist, &taps_obj))
     return -1;
-  /* dtype dispatch: float → fir_create_real, float complex → fir_create */
+  /* dtype dispatch: float → fir_create_real, float _Complex → fir_create */
   {
     PyArrayObject *_taps_probe = (PyArrayObject *)PyArray_CheckFromAny (
         taps_obj, NULL, 1, 1, NPY_ARRAY_C_CONTIGUOUS, NULL);
@@ -70,7 +70,7 @@ FIRObj_init (FIRObject *self, PyObject *args, PyObject *kwds)
           }
         size_t taps_len = (size_t)PyArray_SIZE (taps_arr);
         self->handle    = fir_create (
-            (const float complex *)PyArray_DATA (taps_arr), taps_len);
+            (const float _Complex *)PyArray_DATA (taps_arr), taps_len);
         Py_DECREF (taps_arr);
       }
   }
@@ -159,8 +159,8 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = fir_execute (
-          self->handle, (const float complex *)PyArray_DATA (in_arr),
-          (size_t)n, (float complex *)PyArray_DATA (out_arr));
+          self->handle, (const float _Complex *)PyArray_DATA (in_arr),
+          (size_t)n, (float _Complex *)PyArray_DATA (out_arr));
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -184,9 +184,9 @@ FIRObj_execute (FIRObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (in_arr);
       return NULL;
     }
-  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = fir_execute (self->handle,
-                              (const float complex *)PyArray_DATA (in_arr),
+                              (const float _Complex *)PyArray_DATA (in_arr),
                               (size_t)n, _d0);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)

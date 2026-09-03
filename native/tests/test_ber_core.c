@@ -55,7 +55,7 @@ static uint32_t st = 0x9E3779B9u;
 int
 main (void)
 {
-  static float complex rx[NSYM];
+  static float _Complex rx[NSYM];
 
   /* ── claim 1: EVM[dB] == -(Es/N0)[dB] where the stream is LOCKED ─────
    *
@@ -87,9 +87,9 @@ main (void)
       for (size_t i = 0; i < NSYM; i++)
         {
           int q = (int)(dp_uni (&st) * 4.0) & 3;
-          rx[i] = (float complex) (cos (M_PI_2 * q + M_PI_4)
-                                   + sin (M_PI_2 * q + M_PI_4) * I)
-                  + (float complex) (sigma * dp_cgauss (&st));
+          rx[i] = (float _Complex) (cos (M_PI_2 * q + M_PI_4)
+                                    + sin (M_PI_2 * q + M_PI_4) * I)
+                  + (float _Complex) (sigma * dp_cgauss (&st));
         }
       double evm = ber_evm_db (rx, NSYM, 0, NSYM, 4);
       char   msg[160];
@@ -117,9 +117,9 @@ main (void)
         for (size_t i = 0; i < NSYM; i++)
           {
             int q = (int)(dp_uni (&st) * 4.0) & 3;
-            rx[i] = (float complex) (cos (M_PI_2 * q + M_PI_4)
-                                     + sin (M_PI_2 * q + M_PI_4) * I)
-                    + (float complex) (sigma * dp_cgauss (&st));
+            rx[i] = (float _Complex) (cos (M_PI_2 * q + M_PI_4)
+                                      + sin (M_PI_2 * q + M_PI_4) * I)
+                    + (float _Complex) (sigma * dp_cgauss (&st));
           }
         double flat = -(ber_evm_db (rx, NSYM, 0, NSYM, 4)) - pts[k];
         char   msg[160];
@@ -137,14 +137,14 @@ main (void)
     for (size_t i = 0; i < NSYM; i++)
       {
         int q = (int)(dp_uni (&st) * 4.0) & 3;
-        rx[i] = (float complex) (cos (M_PI_2 * q + M_PI_4)
-                                 + sin (M_PI_2 * q + M_PI_4) * I)
-                + (float complex) (sigma * dp_cgauss (&st));
+        rx[i] = (float _Complex) (cos (M_PI_2 * q + M_PI_4)
+                                  + sin (M_PI_2 * q + M_PI_4) * I)
+                + (float _Complex) (sigma * dp_cgauss (&st));
       }
     double base = ber_evm_db (rx, NSYM, 0, NSYM, 4);
 
-    static float complex y[NSYM];
-    const float complex  rot = (float complex) (cos (0.31) + sin (0.31) * I);
+    static float _Complex y[NSYM];
+    const float _Complex rot = (float _Complex) (cos (0.31) + sin (0.31) * I);
     for (size_t i = 0; i < NSYM; i++)
       y[i] = rx[i] * rot;
     DP_REQUIRE_MSG (fabs (ber_evm_db (y, NSYM, 0, NSYM, 4) - base) < 0.05,
@@ -168,10 +168,10 @@ main (void)
     for (size_t i = 0; i < NSYM; i++)
       {
         int q = (int)(dp_uni (&st) * 4.0) & 3;
-        rx[i] = (float complex) (cos (M_PI_2 * q + M_PI_4)
-                                 + sin (M_PI_2 * q + M_PI_4) * I);
+        rx[i] = (float _Complex) (cos (M_PI_2 * q + M_PI_4)
+                                  + sin (M_PI_2 * q + M_PI_4) * I);
         if (i >= NSYM / 2)
-          rx[i] += (float complex) (sigma * dp_cgauss (&st));
+          rx[i] += (float _Complex) (sigma * dp_cgauss (&st));
       }
     double first = ber_evm_db (rx, NSYM, 0, NSYM / 2, 4);
     double last  = ber_evm_db (rx, NSYM, NSYM / 2, NSYM, 4);
@@ -206,7 +206,7 @@ main (void)
         for (size_t i = 0; i < NSYM; i++)
           {
             double ph = 2.0 * M_PI * dp_uni (&st);
-            rx[i]     = (float complex) (cos (ph) + sin (ph) * I);
+            rx[i]     = (float _Complex) (cos (ph) + sin (ph) * I);
           }
         double evm   = ber_evm_db (rx, NSYM, 0, NSYM, m);
         double floor = ber_evm_scatter_floor_db (m);

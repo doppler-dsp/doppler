@@ -29,8 +29,8 @@ int
 main (void)
 {
   /* Build a 64k BPSK-at-symbol-rate burst with a carrier residual. */
-  float complex *rx  = malloc (BENCH_N * sizeof (*rx));
-  float complex *out = malloc (BENCH_N * sizeof (*out));
+  float _Complex *rx  = malloc (BENCH_N * sizeof (*rx));
+  float _Complex *out = malloc (BENCH_N * sizeof (*out));
   if (!rx || !out)
     {
       fprintf (stderr, "OOM\n");

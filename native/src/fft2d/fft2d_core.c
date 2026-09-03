@@ -7,11 +7,11 @@
  * fft_core.c for the 1-D twin -- same shape, same lazy allocation: every
  * in-tree caller and the Python binding size from *_max_out() and so never
  * reach this path. */
-static double complex *
+static double _Complex *
 trunc_buf (fft2d_state_t *state)
 {
   if (!state->work_trunc)
-    state->work_trunc = (double complex *)dp_xcalloc (
+    state->work_trunc = (double _Complex *)dp_xcalloc (
         state->ny * state->nx, sizeof *state->work_trunc);
   return state->work_trunc;
 }
@@ -63,8 +63,8 @@ fft2d_execute_cf64_max_out (fft2d_state_t *state)
 }
 
 size_t
-fft2d_execute_cf64 (fft2d_state_t *state, const double complex *in,
-                    size_t n_in, double complex *out, size_t max_out)
+fft2d_execute_cf64 (fft2d_state_t *state, const double _Complex *in,
+                    size_t n_in, double _Complex *out, size_t max_out)
 {
   (void)n_in;
   const size_t n = state->ny * state->nx;
@@ -73,7 +73,7 @@ fft2d_execute_cf64 (fft2d_state_t *state, const double complex *in,
       pocketfft_execute_2d (state->plan_f64, in, out);
       return n;
     }
-  double complex *scratch = trunc_buf (state);
+  double _Complex *scratch = trunc_buf (state);
   pocketfft_execute_2d (state->plan_f64, in, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
@@ -86,8 +86,8 @@ fft2d_execute_cf32_max_out (fft2d_state_t *state)
 }
 
 size_t
-fft2d_execute_cf32 (fft2d_state_t *state, const float complex *in, size_t n_in,
-                    float complex *out, size_t max_out)
+fft2d_execute_cf32 (fft2d_state_t *state, const float _Complex *in,
+                    size_t n_in, float _Complex *out, size_t max_out)
 {
   (void)n_in;
   const size_t n = state->ny * state->nx;
@@ -96,7 +96,7 @@ fft2d_execute_cf32 (fft2d_state_t *state, const float complex *in, size_t n_in,
       pocketfft_execute_2d_cf32 (state->plan_f32, in, out);
       return n;
     }
-  float complex *scratch = (float complex *)trunc_buf (state);
+  float _Complex *scratch = (float _Complex *)trunc_buf (state);
   pocketfft_execute_2d_cf32 (state->plan_f32, in, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
   return max_out;
@@ -109,8 +109,8 @@ fft2d_execute_inplace_cf64_max_out (fft2d_state_t *state)
 }
 
 size_t
-fft2d_execute_inplace_cf64 (fft2d_state_t *state, const double complex *in,
-                            size_t n_in, double complex *out, size_t max_out)
+fft2d_execute_inplace_cf64 (fft2d_state_t *state, const double _Complex *in,
+                            size_t n_in, double _Complex *out, size_t max_out)
 {
   /* n_in is documented as ny*nx; clamp so a longer input cannot walk off
    * the end of a correctly sized out. */
@@ -122,7 +122,7 @@ fft2d_execute_inplace_cf64 (fft2d_state_t *state, const double complex *in,
       pocketfft_execute_2d (state->plan_f64, out, out);
       return n;
     }
-  double complex *scratch = trunc_buf (state);
+  double _Complex *scratch = trunc_buf (state);
   memcpy (scratch, in, n_cp * sizeof (*scratch));
   pocketfft_execute_2d (state->plan_f64, scratch, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));
@@ -136,8 +136,8 @@ fft2d_execute_inplace_cf32_max_out (fft2d_state_t *state)
 }
 
 size_t
-fft2d_execute_inplace_cf32 (fft2d_state_t *state, const float complex *in,
-                            size_t n_in, float complex *out, size_t max_out)
+fft2d_execute_inplace_cf32 (fft2d_state_t *state, const float _Complex *in,
+                            size_t n_in, float _Complex *out, size_t max_out)
 {
   const size_t n    = state->ny * state->nx;
   const size_t n_cp = n_in < n ? n_in : n;
@@ -147,7 +147,7 @@ fft2d_execute_inplace_cf32 (fft2d_state_t *state, const float complex *in,
       pocketfft_execute_2d_cf32 (state->plan_f32, out, out);
       return n;
     }
-  float complex *scratch = (float complex *)trunc_buf (state);
+  float _Complex *scratch = (float _Complex *)trunc_buf (state);
   memcpy (scratch, in, n_cp * sizeof (*scratch));
   pocketfft_execute_2d_cf32 (state->plan_f32, scratch, scratch);
   memcpy (out, scratch, max_out * sizeof (*out));

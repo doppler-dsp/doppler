@@ -53,8 +53,8 @@ main (void)
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
-  float complex *x   = malloc (BENCH_N * sizeof *x);
-  acq_result_t  *res = malloc (MAX_RESULTS * sizeof *res);
+  float _Complex *x   = malloc (BENCH_N * sizeof *x);
+  acq_result_t   *res = malloc (MAX_RESULTS * sizeof *res);
   if (!x || !res)
     return 1;
   uint32_t lfsr = 0x77C3u;

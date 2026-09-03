@@ -145,8 +145,8 @@ CICObj_decimate (CICObject *self, PyObject *args, PyObject *kwds)
           return NULL;
         }
       size_t n_out = cic_decimate (
-          self->handle, (const float complex *)PyArray_DATA (in_arr),
-          (size_t)n, (float complex *)PyArray_DATA (out_arr), _cap);
+          self->handle, (const float _Complex *)PyArray_DATA (in_arr),
+          (size_t)n, (float _Complex *)PyArray_DATA (out_arr), _cap);
       Py_DECREF (in_arr);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
@@ -170,9 +170,9 @@ CICObj_decimate (CICObject *self, PyObject *args, PyObject *kwds)
       Py_DECREF (in_arr);
       return NULL;
     }
-  float complex *_d0 = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
   size_t n_out = cic_decimate (self->handle,
-                               (const float complex *)PyArray_DATA (in_arr),
+                               (const float _Complex *)PyArray_DATA (in_arr),
                                (size_t)n, _d0, _cap);
   Py_DECREF (in_arr);
   if ((size_t)n_out == _cap)

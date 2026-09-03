@@ -23,7 +23,7 @@
  * uint8_t code[127] = { ... };  // one code period, 0/1 chips
  * despreader_state_t *ch = despreader_create(code, 127, 8, 0.0, 0.0,
  *                                       0.05, 0.005, 0.0, 0.707, 0.5, 1);
- * float complex sym[64];
+ * float _Complex sym[64];
  * size_t k = despreader_steps(ch, rx, rx_len, sym, 64);  // prompt per period
  * despreader_destroy(ch);
  * @endcode
@@ -233,8 +233,8 @@ extern "C"
    *
    * @endcode
    */
-  size_t despreader_steps (despreader_state_t *state, const float complex *x,
-                           size_t x_len, float complex *out, size_t max_out);
+  size_t despreader_steps (despreader_state_t *state, const float _Complex *x,
+                           size_t x_len, float _Complex *out, size_t max_out);
   size_t despreader_bits_max_out (despreader_state_t *state);
 
   /**
@@ -271,7 +271,7 @@ extern "C"
    *
    * @endcode
    */
-  size_t despreader_bits (despreader_state_t *state, const float complex *x,
+  size_t despreader_bits (despreader_state_t *state, const float _Complex *x,
                           size_t x_len, uint8_t *out, size_t max_out);
   double despreader_get_norm_freq (const despreader_state_t *state);
   void   despreader_set_norm_freq (despreader_state_t *state, double val);

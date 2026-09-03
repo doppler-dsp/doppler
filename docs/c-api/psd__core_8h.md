@@ -61,7 +61,7 @@ _PSD — averaging power-spectral-density estimator (Welch's method) and spectra
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**psd\_accumulate**](#function-psd_accumulate) ([**psd\_state\_t**](structpsd__state__t.md) \* state, const float complex \* x, size\_t x\_len) <br>_Window, FFT and fold complex baseband frames into the average. Processes floor(n\_in / n) full frames; a trailing partial frame is ignored._  |
+|  void | [**psd\_accumulate**](#function-psd_accumulate) ([**psd\_state\_t**](structpsd__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_Window, FFT and fold complex baseband frames into the average. Processes floor(n\_in / n) full frames; a trailing partial frame is ignored._  |
 |  void | [**psd\_accumulate\_real**](#function-psd_accumulate_real) ([**psd\_state\_t**](structpsd__state__t.md) \* state, const float \* x, size\_t x\_len) <br>_Window, zero-pad, FFT and fold real frames into the average. The real-input counterpart to_ [_**psd\_accumulate()**_](psd__core_8h.md#function-psd_accumulate) _: each length-n frame is windowed, zero-padded to nfft, transformed and folded as a DC-centred two-sided power spectrum (a real frame is Hermitian, so the +k and -k bins carry equal power). Read the one-sided fold with_[_**psd\_power\_onesided()**_](psd__core_8h.md#function-psd_power_onesided) _. Processes floor(n\_in / n) full frames._ |
 |  size\_t | [**psd\_band\_power**](#function-psd_band_power) ([**psd\_state\_t**](structpsd__state__t.md) \* state, const double \* bands, size\_t bands\_len, float \* out, size\_t max\_out) <br>_Integrated power per band in dB._ `bands` _is a flat array of_`[lo0, hi0, lo1, hi1, ...]` _band edges in Hz; the output holds one dB value per band (n\_bands = bands\_len / 2). Edges are clamped to the analysed span; a band fully outside the span integrates to the dB floor. Returns 0 before any frame is accumulated._ |
 |  size\_t | [**psd\_band\_power\_max\_out**](#function-psd_band_power_max_out) ([**psd\_state\_t**](structpsd__state__t.md) \* state) <br>_Output capacity hint for band\_power(); 0 (binding sizes from bands)._  |
@@ -152,7 +152,7 @@ _Window, FFT and fold complex baseband frames into the average. Processes floor(
 ```C++
 void psd_accumulate (
     psd_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len
 ) 
 ```

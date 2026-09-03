@@ -103,7 +103,7 @@
  * ratesync_state_t *rx = ratesync_create (17.33389, RATESYNC_PULSE_RRC, 0.35,
  *                                         8, 2, 1024, 0.01, 0.707,
  *                                         RATESYNC_TED_GARDNER);
- * float complex sym;
+ * float _Complex sym;
  * if (ratesync_step (rx, x, &sym))
  *   consume (sym);
  * ratesync_destroy (rx);
@@ -238,9 +238,9 @@ extern "C"
      *  index m/2. (Written without brackets on purpose: mkdoxy renders this
      *  comment into markdown, where a bare `name[i]` parses as a link
      *  reference and fails the --strict docs build.) */
-    float complex ring[RATESYNC_MAX_M / 2 + 1];
+    float _Complex ring[RATESYNC_MAX_M / 2 + 1];
     size_t        ring_n;
-    float complex prev_on; /**< previous on-time strobe.                  */
+    float _Complex prev_on; /**< previous on-time strobe.                  */
 
     /* ── lock detector (always on): tumbling-window block average ───── */
     double lock_sum;      /**< running sum over the current avgs block.      */
@@ -499,8 +499,8 @@ extern "C"
    *                for a specialised (branch-free) instantiation.
    *  @return 1 if this output was an on-time strobe that produced a symbol. */
   JM_FORCEINLINE JM_HOT int
-  ratesync_loop_take_output (ratesync_loop_t *s, float complex y,
-                             float complex *y_out, int ted)
+  ratesync_loop_take_output (ratesync_loop_t *s, float _Complex y,
+                             float _Complex *y_out, int ted)
   {
     /* Newest-first ring: ring[0] is this output, ring[m/2] the gate. */
     const size_t half = s->m >> 1;
@@ -523,8 +523,8 @@ extern "C"
     if (phase != 0 || s->ring_n <= half)
       return 0; /* not a strobe, or the gate is not yet in the ring */
 
-    const float complex on  = y;
-    const float complex mid = s->ring[half];
+    const float _Complex on  = y;
+    const float _Complex mid = s->ring[half];
     if (!s->have_prev)
       {
         s->have_prev = 1;
@@ -644,8 +644,8 @@ extern "C"
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  ratesync_step_ted (ratesync_state_t *s, float complex x,
-                     float complex *y_out, int ted)
+  ratesync_step_ted (ratesync_state_t *s, float _Complex x,
+                     float _Complex *y_out, int ted)
   {
     /* One input can complete MORE THAN ONE output period. It happens
        whenever the terminal stage's own rate is at or near 1.0 (a cascade
@@ -657,7 +657,7 @@ extern "C"
        is m/sps <= 1, so an input can complete at most two output periods, and
        with m >= 2 those can contain at most one on-time strobe: the
        single-symbol return of this function is still correct. */
-    float complex ys[4];
+    float _Complex ys[4];
     size_t n = RateConverter_execute_ctrl_push (s->mf, x, s->loop.ctrl, ys,
                                                 sizeof (ys) / sizeof (ys[0]));
     int    emitted = 0;
@@ -678,7 +678,7 @@ extern "C"
    * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
    */
   JM_FORCEINLINE JM_HOT int
-  ratesync_step (ratesync_state_t *s, float complex x, float complex *y_out)
+  ratesync_step (ratesync_state_t *s, float _Complex x, float _Complex *y_out)
   {
     int r = ratesync_step_ted (s, x, y_out, s->loop.ted);
     if (r && s->loop.tlm.ctx)
@@ -719,8 +719,8 @@ extern "C"
    *
    * @endcode
    */
-  size_t ratesync_steps (ratesync_state_t *state, const float complex *x,
-                         size_t x_len, float complex *out, size_t max_out);
+  size_t ratesync_steps (ratesync_state_t *state, const float _Complex *x,
+                         size_t x_len, float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------
    * Properties / configuration

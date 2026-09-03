@@ -21,9 +21,9 @@
  *
  * Lifecycle:
  * @code
- * float complex ref[N] = { ... };
+ * float _Complex ref[N] = { ... };
  * corr_state_t *c = corr_create(ref, N, 8, 1);   // 8-frame coherent dwell
- * float complex out[N];
+ * float _Complex out[N];
  * for (int i = 0; i < 8; i++) {
  *     size_t n_out = corr_execute(c, frame[i], N, out, N);
  *     if (n_out) process(out, N);   // fires once, on i == 7
@@ -55,10 +55,10 @@ extern "C" {
 typedef struct {
   fft_state_t *fwd;         /**< Forward plan (sign = -1) at n.            */
   fft_state_t *inv;         /**< Inverse plan (sign = +1) at n_out.        */
-  float complex *ref_spec;  /**< conj(FFT(ref)), pre-computed at create.   */
-  float complex *work_fft;  /**< Scratch: FFT(in) · ref_spec (product).    */
-  float complex *accum;     /**< Coherent product-spectrum accumulator.    */
-  float complex *work_pad;  /**< Zero-padded product, n_out (NULL native). */
+  float _Complex *ref_spec;  /**< conj(FFT(ref)), pre-computed at create.   */
+  float _Complex *work_fft;  /**< Scratch: FFT(in) · ref_spec (product).    */
+  float _Complex *accum;     /**< Coherent product-spectrum accumulator.    */
+  float _Complex *work_pad;  /**< Zero-padded product, n_out (NULL native). */
   size_t n;                 /**< FFT / reference length (samples).         */
   size_t n_out;             /**< Output length (== n unless decoupled).    */
   size_t dwell;             /**< Integration depth; dump every dwell calls. */
@@ -68,7 +68,7 @@ typedef struct {
    *  partial surface -- a short `out` has to be served by inverting
    *  here and copying the prefix. Allocated lazily, because the sized
    *  path (everything the Python binding does) never needs it. */
-  float complex *work_trunc;
+  float _Complex *work_trunc;
 } corr_state_t;
 
 /**
@@ -99,7 +99,7 @@ typedef struct {
  * (4, 1, 0)
  * @endcode
  */
-corr_state_t *corr_create(const float complex *ref, size_t ref_len, size_t dwell,
+corr_state_t *corr_create(const float _Complex *ref, size_t ref_len, size_t dwell,
                           int nthreads, size_t n_out);
 
 /** @brief Destroy and free a corr instance.  @param state May be NULL. */
@@ -136,7 +136,7 @@ void corr_reset(corr_state_t *state);
  * @param state Must be non-NULL.
  * @param ref   New reference signal of length state->n.
  */
-void corr_set_ref(corr_state_t *state, const float complex *ref);
+void corr_set_ref(corr_state_t *state, const float _Complex *ref);
 
 /** @brief Maximum output samples per execute call (== n_out). */
 size_t corr_execute_max_out(corr_state_t *state);
@@ -174,8 +174,8 @@ size_t corr_execute_max_out(corr_state_t *state);
  * [(2+0j), (2+0j), (2+0j), (2+0j)]
  * @endcode
  */
-size_t corr_execute(corr_state_t *state, const float complex *in, size_t n_in,
-                    float complex *out, size_t max_out);
+size_t corr_execute(corr_state_t *state, const float _Complex *in, size_t n_in,
+                    float _Complex *out, size_t max_out);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * running product-spectrum accumulator + frame count;

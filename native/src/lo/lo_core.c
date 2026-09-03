@@ -183,7 +183,7 @@ lo_steps_ctrl_max_out (lo_state_t *state)
 /* ================================================================== */
 
 size_t
-lo_steps (lo_state_t *state, size_t n, float complex *out, size_t max_out)
+lo_steps (lo_state_t *state, size_t n, float _Complex *out, size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (n > max_out)
@@ -207,7 +207,7 @@ lo_steps (lo_state_t *state, size_t n, float complex *out, size_t max_out)
 
 size_t
 lo_steps_ctrl (lo_state_t *state, const double *ctrl, size_t ctrl_len,
-               float complex *out, size_t max_out)
+               float _Complex *out, size_t max_out)
 {
   /* Emission stops at the caller's capacity (jm gh-138). */
   if (ctrl_len > max_out)

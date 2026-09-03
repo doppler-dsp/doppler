@@ -122,7 +122,7 @@ AWGNObj_generate (AWGNObject *self, PyObject *args, PyObject *kwds)
         }
       size_t n_out
           = awgn_generate (self->handle, (size_t)n,
-                           (float complex *)PyArray_DATA (out_arr), _cap);
+                           (float _Complex *)PyArray_DATA (out_arr), _cap);
       npy_intp  _odim  = (npy_intp)n_out;
       PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
                                                     PyArray_DATA (out_arr));
@@ -144,8 +144,8 @@ AWGNObj_generate (AWGNObject *self, PyObject *args, PyObject *kwds)
     {
       return NULL;
     }
-  float complex *_d0   = (float complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t         n_out = awgn_generate (self->handle, (size_t)n, _d0, _cap);
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t          n_out = awgn_generate (self->handle, (size_t)n, _d0, _cap);
   if ((size_t)n_out == _cap)
     {
       return arr0;

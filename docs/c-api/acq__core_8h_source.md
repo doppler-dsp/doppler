@@ -44,11 +44,11 @@ extern "C"
     corr2d_state_t *corr; 
     fft_state_t *slow_fft; 
     dp_f32_t    *ring;  
-    float complex *ref; 
-    float complex *yframe;  
-    float complex *colbuf;  
-    float complex *colout;  
-    float complex *out_buf; 
+    float _Complex *ref; 
+    float _Complex *yframe;  
+    float _Complex *colbuf;  
+    float _Complex *colout;  
+    float _Complex *out_buf; 
     float *mag_buf;       
     float *noise_scratch; 
     float *nc_surface;    
@@ -57,11 +57,11 @@ extern "C"
      * left allocated at their trivial coherent_bins=1 size, in this mode). */
     fft_state_t *wide_fwd; 
     fft_state_t *wide_inv; 
-    float complex
+    float _Complex
         *wide_ref_spec; 
-    float complex
+    float _Complex
         *wide_spec; 
-    float complex *wide_prod; 
+    float _Complex *wide_prod; 
     size_t
         coherent_bins; 
     size_t window_bins; 
@@ -144,7 +144,7 @@ extern "C"
   int acq_configure_search_raw (acq_state_t *state, size_t doppler_bins,
                                 size_t n_noncoh);
 
-  size_t acq_push (acq_state_t *state, const float complex *x, size_t n_in,
+  size_t acq_push (acq_state_t *state, const float _Complex *x, size_t n_in,
                    acq_result_t *result, size_t max_results);
 
   typedef struct
@@ -191,7 +191,7 @@ extern "C"
   int acq_set_state (acq_state_t *state, const void *blob);
 
   size_t acq_run (acq_state_t *state, const void *state_in, void *state_out,
-                  const float complex *in, size_t n_in, acq_result_t *result,
+                  const float _Complex *in, size_t n_in, acq_result_t *result,
                   size_t max_results);
 
 #ifdef __cplusplus

@@ -53,10 +53,10 @@ _Stateless SNR / Es-N0 estimators, data-aided and non-data-aided._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  double | [**snr\_data\_aided\_db**](#function-snr_data_aided_db) (const float complex \* soft, size\_t soft\_len, const uint8\_t \* sign\_bits, size\_t sign\_bits\_len) <br>_Data-aided Es/N0 (dB) over a block of despread symbols._  |
-|  void | [**snr\_data\_aided\_db\_series**](#function-snr_data_aided_db_series) (const float complex \* soft, size\_t soft\_len, const uint8\_t \* sign\_bits, size\_t sign\_bits\_len, size\_t window, double \* out) <br>_Sliding-window data-aided Es/N0 (dB), one estimate per index._  |
-|  double | [**snr\_m2m4\_db**](#function-snr_m2m4_db) (const float complex \* x, size\_t x\_len) <br>_Non-data-aided (blind) moment-based Es/N0 (dB) over a block._  |
-|  void | [**snr\_m2m4\_db\_series**](#function-snr_m2m4_db_series) (const float complex \* x, size\_t x\_len, size\_t window, double \* out) <br>_Sliding-window blind (M2M4) Es/N0 (dB), one estimate per index._  |
+|  double | [**snr\_data\_aided\_db**](#function-snr_data_aided_db) (const float \_Complex \* soft, size\_t soft\_len, const uint8\_t \* sign\_bits, size\_t sign\_bits\_len) <br>_Data-aided Es/N0 (dB) over a block of despread symbols._  |
+|  void | [**snr\_data\_aided\_db\_series**](#function-snr_data_aided_db_series) (const float \_Complex \* soft, size\_t soft\_len, const uint8\_t \* sign\_bits, size\_t sign\_bits\_len, size\_t window, double \* out) <br>_Sliding-window data-aided Es/N0 (dB), one estimate per index._  |
+|  double | [**snr\_m2m4\_db**](#function-snr_m2m4_db) (const float \_Complex \* x, size\_t x\_len) <br>_Non-data-aided (blind) moment-based Es/N0 (dB) over a block._  |
+|  void | [**snr\_m2m4\_db\_series**](#function-snr_m2m4_db_series) (const float \_Complex \* x, size\_t x\_len, size\_t window, double \* out) <br>_Sliding-window blind (M2M4) Es/N0 (dB), one estimate per index._  |
 
 
 
@@ -121,7 +121,7 @@ double blind = snr_m2m4_db(x, n);
 _Data-aided Es/N0 (dB) over a block of despread symbols._ 
 ```C++
 double snr_data_aided_db (
-    const float complex * soft,
+    const float _Complex * soft,
     size_t soft_len,
     const uint8_t * sign_bits,
     size_t sign_bits_len
@@ -177,7 +177,7 @@ Es/N0 in dB over `min(soft_len, sign_bits_len)` paired samples, or NaN if that c
 _Sliding-window data-aided Es/N0 (dB), one estimate per index._ 
 ```C++
 void snr_data_aided_db_series (
-    const float complex * soft,
+    const float _Complex * soft,
     size_t soft_len,
     const uint8_t * sign_bits,
     size_t sign_bits_len,
@@ -217,7 +217,7 @@ Same estimator as [**snr\_data\_aided\_db()**](snr__core_8h.md#function-snr_data
 _Non-data-aided (blind) moment-based Es/N0 (dB) over a block._ 
 ```C++
 double snr_m2m4_db (
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len
 ) 
 ```
@@ -269,7 +269,7 @@ Es/N0 in dB, 0-linear for pure noise, +inf for a noiseless constant-modulus sign
 _Sliding-window blind (M2M4) Es/N0 (dB), one estimate per index._ 
 ```C++
 void snr_m2m4_db_series (
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
     size_t window,
     double * out

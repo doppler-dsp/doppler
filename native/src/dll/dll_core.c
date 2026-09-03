@@ -92,7 +92,7 @@ seed (dll_state_t *s)
  * for ~1/alpha looks (~hundreds of epochs) and the noise floor (hence Pfa) is
  * wrong during that warm-up. */
 static void
-lock_look (dll_state_t *s, float complex prompt, float complex offset)
+lock_look (dll_state_t *s, float _Complex prompt, float _Complex offset)
 {
   double po = (double)crealf (offset) * (double)crealf (offset)
               + (double)cimagf (offset) * (double)cimagf (offset);
@@ -420,10 +420,10 @@ dll_set_state (dll_state_t *s, const void *blob)
    * the same way though never packed/restored from the blob body (pure
    * epoch-local scratch, rebuilt from chunk_p at the next epoch boundary
    * regardless of whatever was in it before this call). */
-  float complex *chunk_p = s->chunk_p, *chunk_e = s->chunk_e,
-                *chunk_l = s->chunk_l, *sums = s->sums;
-  float complex *last_backward_p = s->last_backward_p, *last_e = s->last_e,
-                *last_l = s->last_l;
+  float _Complex *chunk_p = s->chunk_p, *chunk_e = s->chunk_e,
+                 *chunk_l = s->chunk_l, *sums = s->sums;
+  float _Complex *last_backward_p = s->last_backward_p, *last_e = s->last_e,
+                 *last_l = s->last_l;
   dp_r_bytes (&_r, s, sizeof *s);
   s->code            = code;
   s->owns_code       = owns;
@@ -474,8 +474,8 @@ dll_steps_max_out (dll_state_t *state)
  * on the symsync loops). Same mechanism as symsync_step_ted's literal
  * TED. */
 static JM_FORCEINLINE size_t
-dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
-                float complex *out, size_t max_out, int tlm_on)
+dll_steps_impl (dll_state_t *state, const float _Complex *x, size_t x_len,
+                float _Complex *out, size_t max_out, int tlm_on)
 {
   size_t emitted = 0;
   /* segments == 1: coherent full-epoch integrate-and-dump (one prompt/period).
@@ -491,8 +491,8 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
           int wrapped = dll_accumulate (state, x[n]);
           if (!wrapped)
             continue;
-          float complex prompt = state->acc_p / (float)tsamps;
-          float complex noise  = state->acc_o / (float)tsamps;
+          float _Complex prompt = state->acc_p / (float)tsamps;
+          float _Complex noise  = state->acc_o / (float)tsamps;
           dll_update (state);
           lock_look (state, prompt, noise);
           if (emitted < max_out)
@@ -551,8 +551,8 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
              noise tap's own statistics aren't biased by a data transition),
              so this stays exactly as it was pre-redesign -- immediate,
              seg_norm-normalized. */
-          float complex part  = state->acc_p / (float)state->seg_norm;
-          float complex noise = state->acc_o / (float)state->seg_norm;
+          float _Complex part  = state->acc_p / (float)state->seg_norm;
+          float _Complex noise = state->acc_o / (float)state->seg_norm;
           lock_look (state, part, noise);
           state->chunk_p[state->seg_idx] = state->acc_p;
           state->chunk_e[state->seg_idx] = state->acc_e;
@@ -603,7 +603,7 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
               if (state->have_prev_epoch)
                 for (size_t k = 0; k + 1 < w; k++)
                   {
-                    float complex combined
+                    float _Complex combined
                         = state->sums[k] + state->last_backward_p[w - 2 - k];
                     double p = cabsf (combined) / tsamps;
                     if (p > best_abs)
@@ -621,7 +621,7 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
                  the borrowed previous-epoch tail) + this epoch's own
                  chunk_e/chunk_l head (w-best_widx chunks) -- trivial when
                  best_widx == 0 (the natural window). */
-              float complex acc_e_tot = 0.0f, acc_l_tot = 0.0f;
+              float _Complex acc_e_tot = 0.0f, acc_l_tot = 0.0f;
               if (best_widx > 0)
                 for (size_t k = w - best_widx; k < w; k++)
                   {
@@ -705,7 +705,7 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
                  running sum + raw chunk sums become the lookback
                  reference for the NEXT epoch (computed only after all
                  reads of the OLD last_backward_p/last_e/last_l above). */
-              float complex bsum = 0.0f;
+              float _Complex bsum = 0.0f;
               for (size_t j = 0; j < w; j++)
                 {
                   bsum += state->chunk_p[w - 1 - j];
@@ -728,8 +728,8 @@ dll_steps_impl (dll_state_t *state, const float complex *x, size_t x_len,
 }
 
 size_t
-dll_steps (dll_state_t *state, const float complex *x, size_t x_len,
-           float complex *out, size_t max_out)
+dll_steps (dll_state_t *state, const float _Complex *x, size_t x_len,
+           float _Complex *out, size_t max_out)
 {
   /* Telemetry hoisted to a literal at entry (attach is setup-time only —
    * SPSC contract): the detached instantiation is the pre-telemetry code

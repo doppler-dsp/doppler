@@ -145,7 +145,7 @@ _SynthEngine_step (_SynthEngineObject *self, PyObject *Py_UNUSED (ignored))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  float complex y = wfm_synth_step (self->handle);
+  float _Complex y = wfm_synth_step (self->handle);
   return PyComplex_FromDoubles ((double)crealf (y), (double)cimagf (y));
 }
 
@@ -167,7 +167,7 @@ _SynthEngine_steps (_SynthEngineObject *self, PyObject *args)
     return NULL;
 
   wfm_synth_steps (self->handle,
-                   (float complex *)PyArray_DATA ((PyArrayObject *)out_arr),
+                   (float _Complex *)PyArray_DATA ((PyArrayObject *)out_arr),
                    (size_t)n);
 
   return out_arr;
@@ -630,7 +630,7 @@ static PyMethodDef _SynthEngine_methods[] = {
     "AWGN internal state, and PN LFSR register to their initial values so the "
     "output sequence is perfectly reproducible from sample 0." },
   { "step", (PyCFunction)_SynthEngine_step, METH_NOARGS,
-    "step() -> float complex\n"
+    "step() -> float _Complex\n"
     "\n"
     "Generate one output sample from internal state. Advances the PN LFSR "
     "(modulated types only, on symbol boundaries), the LO phase accumulator, "
@@ -641,7 +641,7 @@ static PyMethodDef _SynthEngine_methods[] = {
     "Returns\n"
     "-------\n"
     "complex\n"
-    "    Next output sample (float complex).\n"
+    "    Next output sample (float _Complex).\n"
     "\n"
     "Examples\n"
     "--------\n"

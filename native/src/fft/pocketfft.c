@@ -296,7 +296,7 @@ pocketfft_execute_1d (pocketfft_plan *p, const void *in, void *out)
 {
   /* cf64: copy in -> out, transform out in place. */
   if (in != out)
-    memcpy (out, in, sizeof (double complex) * p->n);
+    memcpy (out, in, sizeof (double _Complex) * p->n);
   xform (p->row, p->sign, (double *)out, p->n);
 }
 
@@ -316,17 +316,17 @@ pocketfft_execute_1d_cf32 (pocketfft_plan *p, const void *in, void *out)
                                  dir);
       else
         {
-          memcpy (p->fa, in, sizeof (float complex) * n);
+          memcpy (p->fa, in, sizeof (float _Complex) * n);
           pffft_transform_ordered (p->pf, p->fa, p->fb, p->fw, dir);
-          memcpy (out, p->fb, sizeof (float complex) * n);
+          memcpy (out, p->fb, sizeof (float _Complex) * n);
         }
       return;
     }
 
   /* Fallback: promote to double, transform, demote. */
-  const float complex *fin  = (const float complex *)in;
-  float complex       *fout = (float complex *)out;
-  double              *d    = p->promote;
+  const float _Complex *fin  = (const float _Complex *)in;
+  float _Complex       *fout = (float _Complex *)out;
+  double               *d    = p->promote;
   for (size_t i = 0; i < n; ++i)
     {
       d[2 * i]     = (double)crealf (fin[i]);
@@ -363,7 +363,7 @@ exec_1d_int (pocketfft_plan *p, const void *in, void *out, int is8)
       else
         {
           pffft_transform_ordered (p->pf, fa, p->fb, p->fw, dir);
-          memcpy (out, p->fb, sizeof (float complex) * n);
+          memcpy (out, p->fb, sizeof (float _Complex) * n);
         }
       return;
     }
@@ -378,7 +378,7 @@ exec_1d_int (pocketfft_plan *p, const void *in, void *out, int is8)
     for (size_t i = 0; i < n2; ++i)
       d[i] = (double)s16[i] * (1.0 / 32768.0);
   xform (p->row, p->sign, d, n);
-  float complex *fout = (float complex *)out;
+  float _Complex *fout = (float _Complex *)out;
   for (size_t i = 0; i < n; ++i)
     fout[i] = (float)d[2 * i] + (float)d[2 * i + 1] * I;
 }
@@ -444,7 +444,7 @@ pocketfft_execute_2d (pocketfft_plan *p, const void *in, void *out)
 {
   size_t total = p->ny * p->nx;
   if (in != out)
-    memcpy (out, in, sizeof (double complex) * total);
+    memcpy (out, in, sizeof (double _Complex) * total);
   xform_2d (p, (double *)out);
 }
 
@@ -460,7 +460,7 @@ pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in, void *out)
     {
       float            *a = p->fa, *b = p->fb;
       pffft_direction_t dir = pf_dir (p->sign);
-      memcpy (a, in, sizeof (float complex) * total);
+      memcpy (a, in, sizeof (float _Complex) * total);
       for (size_t r = 0; r < ny; ++r)
         pffft_transform_ordered (p->pf_row, a + 2 * r * nx, b + 2 * r * nx,
                                  p->fw, dir);
@@ -477,13 +477,13 @@ pocketfft_execute_2d_cf32 (pocketfft_plan *p, const void *in, void *out)
    * rowscratch (2*nx) and colscratch (2*ny) are tiny — both fit in L1.
    * This avoids the O(ny*nx) promote buffer and the cache thrash it caused. */
   if (in != out)
-    memcpy (out, in, sizeof (float complex) * total);
-  float complex *fout = (float complex *)out;
+    memcpy (out, in, sizeof (float _Complex) * total);
+  float _Complex *fout = (float _Complex *)out;
 
   double *rb = p->rowscratch;
   for (size_t r = 0; r < ny; ++r)
     {
-      float complex *row = fout + r * nx;
+      float _Complex *row = fout + r * nx;
       for (size_t c = 0; c < nx; ++c)
         {
           rb[2 * c]     = (double)crealf (row[c]);

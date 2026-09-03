@@ -62,10 +62,10 @@ psd_create (size_t n, double fs, int window, float beta, size_t pad,
   s->full_scale     = full_scale;
   s->bits           = bits;
   s->w              = (float *)malloc (n * sizeof (float));
-  s->frame          = (float complex *)malloc (nfft * sizeof (float complex));
-  s->spec           = (float complex *)malloc (nfft * sizeof (float complex));
-  s->pwr            = (float *)malloc (nfft * sizeof (float));
-  s->dbbuf          = (float *)malloc (nfft * sizeof (float));
+  s->frame = (float _Complex *)malloc (nfft * sizeof (float _Complex));
+  s->spec  = (float _Complex *)malloc (nfft * sizeof (float _Complex));
+  s->pwr   = (float *)malloc (nfft * sizeof (float));
+  s->dbbuf = (float *)malloc (nfft * sizeof (float));
   if (!s->w || !s->frame || !s->spec || !s->pwr || !s->dbbuf)
     {
       psd_destroy (s);
@@ -178,14 +178,14 @@ psd_zero_pad (psd_state_t *state)
 }
 
 void
-psd_accumulate (psd_state_t *state, const float complex *x, size_t x_len)
+psd_accumulate (psd_state_t *state, const float _Complex *x, size_t x_len)
 {
   const size_t n      = state->n;
   const size_t nframe = x_len / n;
 
   for (size_t f = 0; f < nframe; f++)
     {
-      const float complex *xf = x + f * n;
+      const float _Complex *xf = x + f * n;
       for (size_t i = 0; i < n; i++)
         state->frame[i] = state->w[i] * xf[i];
       psd_zero_pad (state);
@@ -203,7 +203,7 @@ psd_accumulate_real (psd_state_t *state, const float *x, size_t x_len)
     {
       const float *xf = x + f * n;
       for (size_t i = 0; i < n; i++)
-        state->frame[i] = (float complex) (state->w[i] * xf[i]);
+        state->frame[i] = (float _Complex) (state->w[i] * xf[i]);
       psd_zero_pad (state);
       psd_fold_frame (state);
     }

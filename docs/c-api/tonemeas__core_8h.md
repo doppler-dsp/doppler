@@ -65,7 +65,7 @@ _ToneMeasure — single-tone ADC/converter spectral measurement._ [More...](#det
 | Type | Name |
 | ---: | :--- |
 |  [**tone\_meas\_t**](structtone__meas__t.md) | [**tonemeas\_analyze**](#function-tonemeas_analyze) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float \* x, size\_t n\_in) <br>_Analyse a real capture into the single-tone metric bag._  |
-|  [**tone\_meas\_t**](structtone__meas__t.md) | [**tonemeas\_analyze\_complex**](#function-tonemeas_analyze_complex) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float complex \* x, size\_t n\_in) <br>_Analyse a complex baseband capture (two-sided spectrum)._  |
+|  [**tone\_meas\_t**](structtone__meas__t.md) | [**tonemeas\_analyze\_complex**](#function-tonemeas_analyze_complex) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in) <br>_Analyse a complex baseband capture (two-sided spectrum)._  |
 |  [**tonemeas\_state\_t**](structtonemeas__state__t.md) \* | [**tonemeas\_create**](#function-tonemeas_create) (size\_t n, double fs, size\_t n\_harmonics, double full\_scale, size\_t bits, double dynamic\_range\_db, size\_t dc\_guard) <br>_Create a ToneMeasure analyser (auto Kaiser window)._  |
 |  void | [**tonemeas\_destroy**](#function-tonemeas_destroy) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state) <br>_Destroy a ToneMeasure analyser._  |
 |  void | [**tonemeas\_reset**](#function-tonemeas_reset) ([**tonemeas\_state\_t**](structtonemeas__state__t.md) \* state) <br>_Reset the analyser (a no-op: it holds no state between calls)._  |
@@ -174,7 +174,7 @@ _Analyse a complex baseband capture (two-sided spectrum)._
 ```C++
 tone_meas_t tonemeas_analyze_complex (
     tonemeas_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t n_in
 ) 
 ```

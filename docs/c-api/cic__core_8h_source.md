@@ -63,8 +63,8 @@ size_t cic_decimate_max_out(cic_state_t *state);
 double cic_dc_gain(const cic_state_t *state);
 
 JM_FORCEINLINE JM_HOT size_t
-cic_decimate(cic_state_t *state, const float complex *in,
-             size_t n_in, float complex *out, size_t max_out)
+cic_decimate(cic_state_t *state, const float _Complex *in,
+             size_t n_in, float _Complex *out, size_t max_out)
 {
     const uint32_t R     = state->R;
     const uint32_t shift = state->shift;

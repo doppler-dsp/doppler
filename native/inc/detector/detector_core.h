@@ -19,7 +19,7 @@
  *
  * Lifecycle:
  * @code
- * float complex ref[N] = { ... };
+ * float _Complex ref[N] = { ... };
  * detector_state_t *det = detector_create(ref, N, 1,
  *     1, N-1, DET_NOISE_MEAN, 0.0f, 1);
  * det_result_t results[64];
@@ -89,7 +89,7 @@ typedef struct
 {
   corr_state_t *corr;       /**< FFT correlator + int-dump engine.         */
   dp_f32_t *ring;             /**< Double-mapped ring buffer (auto-sized).    */
-  float complex *out_buf;   /**< Corr output buffer (n complex samples).    */
+  float _Complex *out_buf;   /**< Corr output buffer (n complex samples).    */
   float *mag_buf;           /**< |out_buf&#91;k&#93;|, n floats.                   */
   float *noise_scratch;     /**< Scratch for median sort.                   */
   size_t n;                 /**< Frame / FFT length in complex samples.     */
@@ -137,7 +137,7 @@ typedef struct
  * (8, 1, 512)
  * @endcode
  */
-detector_state_t *detector_create (const float complex *ref,
+detector_state_t *detector_create (const float _Complex *ref,
                                    size_t ref_len,
                                    size_t dwell, size_t noise_lo,
                                    size_t noise_hi,
@@ -176,7 +176,7 @@ void detector_reset (detector_state_t *state);
  * @param state Must be non-NULL.
  * @param ref   New reference, CF32, length state->n.
  */
-void detector_set_ref (detector_state_t *state, const float complex *ref);
+void detector_set_ref (detector_state_t *state, const float _Complex *ref);
 
 /**
  * @brief Change the threshold without rebuilding the object.
@@ -217,7 +217,7 @@ void detector_set_threshold (detector_state_t *state, float threshold);
  * (0, 1.0, 1.0, 1.0)
  * @endcode
  */
-size_t detector_push (detector_state_t *state, const float complex *in,
+size_t detector_push (detector_state_t *state, const float _Complex *in,
                       size_t n_in, det_result_t *result, size_t max_results);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────

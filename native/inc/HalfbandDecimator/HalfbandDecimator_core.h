@@ -11,7 +11,7 @@
  *   float h[] = { ... };  // num_taps FIR branch coefficients
  *   HalfbandDecimator_state_t *r =
  *       HalfbandDecimator_create(h, num_taps);
- *   float complex out[512];
+ *   float _Complex out[512];
  *   size_t n = HalfbandDecimator_execute(r, in, 1024, out, 1024);
  *   HalfbandDecimator_destroy(r);
  * @endcode
@@ -130,8 +130,8 @@ extern "C"
    * @endcode
    */
   size_t HalfbandDecimator_execute (HalfbandDecimator_state_t *state,
-                                    const float complex *x, size_t x_len,
-                                    float complex *out, size_t max_out);
+                                    const float _Complex *x, size_t x_len,
+                                    float _Complex *out, size_t max_out);
 
   /* ------------------------------------------------------------------ */
   /* Properties                                                          */

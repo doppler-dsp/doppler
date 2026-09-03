@@ -31,8 +31,8 @@
  * for (size_t i = 0; i < 31; i++) code[i] = (uint8_t)(i & 1u);
  * burst_capture_state_t *cap = burst_capture_create (
  *     code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
- * float complex x[2048] = { 0 };
- * float complex win[4096];
+ * float _Complex x[2048] = { 0 };
+ * float _Complex win[4096];
  * size_t n = burst_capture_push (cap, x, 2048, win, 4096);
  * // n is a multiple of burst_len: burst i starts at i*burst_len
  * burst_capture_destroy (cap);
@@ -452,7 +452,7 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
  * The file is created if absent and truncated to the ring's byte size, which
  * zeroes it. An existing file of exactly that size is adopted as it stands.
  * Because the capacity rounds up to a page, that size is
- * `capacity * sizeof(float complex)` — do not compute it from `burst_len`.
+ * `capacity * sizeof(float _Complex)` — do not compute it from `burst_len`.
  *
  * A blob from a backed capture does NOT restore into an in-RAM one, or the
  * reverse: `state_bytes()` differs, so jm's length check rejects it. That is
@@ -559,8 +559,8 @@ size_t burst_capture_push_max_out (burst_capture_state_t *state,
  * @endcode
  */
 size_t burst_capture_push (burst_capture_state_t *state,
-                           const float complex *x, size_t x_len,
-                           float complex *out, size_t max_out);
+                           const float _Complex *x, size_t x_len,
+                           float _Complex *out, size_t max_out);
 
 /** @brief Raw detections available from the last push(). @p n is ignored. */
 size_t burst_capture_detections_max_out (burst_capture_state_t *state,
@@ -626,7 +626,7 @@ size_t burst_capture_ready (const burst_capture_state_t *state);
  * Contiguous, `burst_len` samples, valid until the next push(), reset() or
  * set_state(). The caller must not free it.
  */
-const float complex *burst_capture_window (const burst_capture_state_t *state,
+const float _Complex *burst_capture_window (const burst_capture_state_t *state,
                                            size_t i);
 
 /** @brief Borrow event @p i of the last push(), or NULL if out of range. */

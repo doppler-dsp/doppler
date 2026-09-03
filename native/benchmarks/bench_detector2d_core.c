@@ -48,7 +48,7 @@ main (void)
   struct timespec     t0, t1;
   static double       t[N_CFG][ITERATIONS];
   detector2d_state_t *det[N_CFG] = { 0 };
-  float complex      *ref = NULL, *in = NULL;
+  float _Complex     *ref = NULL, *in = NULL;
   det_result2d_t     *res = NULL;
   char                name[72];
 
@@ -63,12 +63,12 @@ main (void)
   for (size_t i = 0; i < BINS; i++)
     {
       const double p = 1e-5 * (double)i * (double)i;
-      ref[i]         = (float complex) (cos (p) + sin (p) * I);
+      ref[i]         = (float _Complex) (cos (p) + sin (p) * I);
     }
   for (size_t i = 0; i < (size_t)FRAMES * BINS; i++)
     {
       const double q = 1e-5 * (double)(i % BINS) * (double)(i % BINS);
-      in[i]          = (float complex) (cos (q) + sin (q) * I);
+      in[i]          = (float _Complex) (cos (q) + sin (q) * I);
     }
 
   for (int c = 0; c < N_CFG; c++)

@@ -7,7 +7,7 @@
  * Example:
  * @code
  * delay_state_t *obj = delay_create();
- * float complex y = delay_step(obj, 0.0f + 0.0f * I);
+ * float _Complex y = delay_step(obj, 0.0f + 0.0f * I);
  * delay_destroy(obj);
  * @endcode
  */
@@ -124,7 +124,7 @@ void delay_reset(delay_state_t *state);
    * [(3+4j), (1+2j), 0j]
    * @endcode
    */
-void delay_push(delay_state_t *state, double complex x);
+void delay_push(delay_state_t *state, double _Complex x);
 
   /**
    * @brief Maximum samples delay_ptr() writes for a request of n.
@@ -165,7 +165,7 @@ size_t delay_ptr_max_out(delay_state_t *state, size_t n);
    * (3,)
    * @endcode
    */
-size_t delay_ptr(delay_state_t *state, size_t n, double complex *out, size_t max_out);
+size_t delay_ptr(delay_state_t *state, size_t n, double _Complex *out, size_t max_out);
 
   /**
    * @brief Return the maximum output capacity for delay_push_ptr().
@@ -201,8 +201,8 @@ size_t delay_push_ptr_max_out(delay_state_t *state);
    * [(2+0j), (1+0j), 0j]
    * @endcode
    */
-size_t delay_push_ptr(delay_state_t *state, double complex x,
-                      double complex *out, size_t max_out);
+size_t delay_push_ptr(delay_state_t *state, double _Complex x,
+                      double _Complex *out, size_t max_out);
 
   /**
    * @brief Alias for delay_push(); insert a sample without reading back.
@@ -220,7 +220,7 @@ size_t delay_push_ptr(delay_state_t *state, double complex x,
    * [(5+6j), 0j]
    * @endcode
    */
-void delay_write(delay_state_t *state, double complex x);
+void delay_write(delay_state_t *state, double _Complex x);
 
 /* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
  * Field-wise: pack running ring buffer + head; capacity/mask/num_taps restored by create. */

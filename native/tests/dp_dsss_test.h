@@ -120,7 +120,7 @@
 static inline void
 dp_dsss_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
                  double tsym, double doppler_hz, double cn0_dbhz, size_t n_sym,
-                 size_t pre_silence, uint32_t seed, float complex **x_out,
+                 size_t pre_silence, uint32_t seed, float _Complex **x_out,
                  size_t *n_out, double **data_out)
 {
   float *csign = malloc (sf * sizeof *csign);
@@ -132,23 +132,23 @@ dp_dsss_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
   for (size_t i = 0; i < n_sym + 4; i++)
     data[i] = (dp_xs32 (&st) & 1u) ? 1.0 : -1.0;
 
-  size_t         n   = (size_t)((double)n_sym * tsym) + 4 * sf * spc;
-  size_t         tot = pre_silence + n;
-  float complex *x   = calloc (tot, sizeof *x);
+  size_t          n   = (size_t)((double)n_sym * tsym) + 4 * sf * spc;
+  size_t          tot = pre_silence + n;
+  float _Complex *x   = calloc (tot, sizeof *x);
 
   double amp_snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
   double sigma   = 1.0 / amp_snr;
   for (size_t i = 0; i < tot; i++)
-    x[i] = (float complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+    x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
 
   for (size_t idx = 0; idx < n; idx++)
     {
       size_t si = (size_t)((double)idx / tsym);
       if (si >= n_sym + 4)
         si = n_sym + 3;
-      size_t        cph     = (idx / spc) % sf;
-      double        ph      = 2.0 * DP_DSSS_PI * doppler_hz / fs * (double)idx;
-      float complex carrier = (float complex) (cos (ph) + I * sin (ph));
+      size_t cph = (idx / spc) % sf;
+      double ph  = 2.0 * DP_DSSS_PI * doppler_hz / fs * (double)idx;
+      float _Complex carrier = (float _Complex) (cos (ph) + I * sin (ph));
       x[pre_silence + idx] += (float)(data[si] * csign[cph]) * carrier;
     }
 
@@ -170,7 +170,7 @@ static inline void
 dp_dsss_ramp_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
                       double tsym, double rate_hz_per_s, double cn0_dbhz,
                       size_t n_sym, size_t pre_silence, uint32_t seed,
-                      float complex **x_out, size_t *n_out, double **data_out)
+                      float _Complex **x_out, size_t *n_out, double **data_out)
 {
   float *csign = malloc (sf * sizeof *csign);
   for (size_t i = 0; i < sf; i++)
@@ -181,24 +181,24 @@ dp_dsss_ramp_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
   for (size_t i = 0; i < n_sym + 4; i++)
     data[i] = (dp_xs32 (&st) & 1u) ? 1.0 : -1.0;
 
-  size_t         n   = (size_t)((double)n_sym * tsym) + 4 * sf * spc;
-  size_t         tot = pre_silence + n;
-  float complex *x   = calloc (tot, sizeof *x);
+  size_t          n   = (size_t)((double)n_sym * tsym) + 4 * sf * spc;
+  size_t          tot = pre_silence + n;
+  float _Complex *x   = calloc (tot, sizeof *x);
 
   double amp_snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
   double sigma   = 1.0 / amp_snr;
   for (size_t i = 0; i < tot; i++)
-    x[i] = (float complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+    x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
 
   for (size_t idx = 0; idx < n; idx++)
     {
       size_t si = (size_t)((double)idx / tsym);
       if (si >= n_sym + 4)
         si = n_sym + 3;
-      size_t        cph     = (idx / spc) % sf;
-      double        t       = (double)idx / fs;
-      double        ph      = 2.0 * DP_DSSS_PI * (0.5 * rate_hz_per_s * t * t);
-      float complex carrier = (float complex) (cos (ph) + I * sin (ph));
+      size_t cph = (idx / spc) % sf;
+      double t   = (double)idx / fs;
+      double ph  = 2.0 * DP_DSSS_PI * (0.5 * rate_hz_per_s * t * t);
+      float _Complex carrier = (float _Complex) (cos (ph) + I * sin (ph));
       x[pre_silence + idx] += (float)(data[si] * csign[cph]) * carrier;
     }
 

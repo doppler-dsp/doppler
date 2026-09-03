@@ -46,9 +46,9 @@ main (void)
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
-  double complex *table = malloc (TABLE_N * sizeof *table);
-  double         *in    = malloc (BENCH_N * sizeof *in);
-  double complex *out   = malloc (BENCH_N * sizeof *out);
+  double _Complex *table = malloc (TABLE_N * sizeof *table);
+  double          *in    = malloc (BENCH_N * sizeof *in);
+  double _Complex *out   = malloc (BENCH_N * sizeof *out);
   if (!table || !in || !out)
     return 1;
 

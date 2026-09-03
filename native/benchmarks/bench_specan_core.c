@@ -52,7 +52,7 @@ main (void)
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
-  float complex *x = malloc (BLOCK * sizeof *x);
+  float _Complex *x = malloc (BLOCK * sizeof *x);
   if (!x)
     return 1;
   for (int i = 0; i < BLOCK; i++)

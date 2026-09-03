@@ -59,7 +59,7 @@ _Halfband 2:1 decimator for CF32 IQ (adapter over hbdecim\_core)._ [More...](#de
 | ---: | :--- |
 |  [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* | [**HalfbandDecimator\_create**](#function-halfbanddecimator_create) (const float \* h, size\_t h\_len) <br>_Create a HalfbandDecimator with caller-supplied FIR taps. Implements a 2:1 polyphase halfband decimator over CF32 IQ. The caller provides the FIR branch coefficient array h; use_ `doppler.resample.kaiser_num_taps(2, atten, pb, sb)` _to size it and scipy or the built-in bank helper to design the prototype. Output length is approximately x\_len / 2 per execute() call._ |
 |  void | [**HalfbandDecimator\_destroy**](#function-halfbanddecimator_destroy) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br> |
-|  size\_t | [**HalfbandDecimator\_execute**](#function-halfbanddecimator_execute) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Decimate x by 2 using the polyphase halfband FIR filter. Processes every second input sample through the FIR branch and passes the other branch through the all-pass (zero-delay) path. State persists between calls — contiguous blocks give identical output to one large block. Output length is floor(x\_len / 2)._  |
+|  size\_t | [**HalfbandDecimator\_execute**](#function-halfbanddecimator_execute) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Decimate x by 2 using the polyphase halfband FIR filter. Processes every second input sample through the FIR branch and passes the other branch through the all-pass (zero-delay) path. State persists between calls — contiguous blocks give identical output to one large block. Output length is floor(x\_len / 2)._  |
 |  size\_t | [**HalfbandDecimator\_execute\_max\_out**](#function-halfbanddecimator_execute_max_out) ([**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br> |
 |  size\_t | [**HalfbandDecimator\_get\_num\_taps**](#function-halfbanddecimator_get_num_taps) (const [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br>_Number of FIR branch taps as passed to create. The all-pass (even-phase) branch has no taps; only the odd-phase FIR branch has length num\_taps. The total prototype length is 2 \* num\_taps - 1._  |
 |  double | [**HalfbandDecimator\_get\_rate**](#function-halfbanddecimator_get_rate) (const [**HalfbandDecimator\_state\_t**](HalfbandDecimator__core_8h.md#typedef-halfbanddecimator_state_t) \* state) <br>_Fixed decimation rate — always 0.5. The halfband decimator is structurally 2:1; this property exists for API parity with Resampler and RateConverter._  |
@@ -111,7 +111,7 @@ Lifecycle:
 float h[] = { ... };  // num_taps FIR branch coefficients
 HalfbandDecimator_state_t *r =
     HalfbandDecimator_create(h, num_taps);
-float complex out[512];
+float _Complex out[512];
 size_t n = HalfbandDecimator_execute(r, in, 1024, out, 1024);
 HalfbandDecimator_destroy(r);
 ```
@@ -210,9 +210,9 @@ _Decimate x by 2 using the polyphase halfband FIR filter. Processes every second
 ```C++
 size_t HalfbandDecimator_execute (
     HalfbandDecimator_state_t * state,
-    const float complex * x,
+    const float _Complex * x,
     size_t x_len,
-    float complex * out,
+    float _Complex * out,
     size_t max_out
 ) 
 ```

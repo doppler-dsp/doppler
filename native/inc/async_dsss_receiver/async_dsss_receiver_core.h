@@ -68,7 +68,7 @@
  *     4, 8, 0,                         // segments, sps, differential
  *     0.5, 4, 14.0, 64, 8, false, 100000,  // refine_* tuning
  *     0.0);                            // carrier_freq_hz (0 = aiding off)
- * float complex syms[4096];
+ * float _Complex syms[4096];
  * size_t n = async_dsss_receiver_steps(rx, x, x_len, syms, 4096);
  * async_dsss_receiver_destroy(rx);
  * @endcode
@@ -209,9 +209,9 @@ extern "C"
      * allocation in the steps() hot path): refine_dll's own emitted
      * partials (capacity refine_segments), then refine_rc's resampled
      * output (capacity refine_segments*refine_rc->rate + margin). */
-    float complex *refine_dll_out_buf;
+    float _Complex *refine_dll_out_buf;
     size_t         refine_dll_out_cap;
-    float complex *refine_rc_out_buf;
+    float _Complex *refine_rc_out_buf;
     size_t         refine_rc_out_cap;
 
     /* Track stage: DsssReceiver's own composition. costas_init()'s tsamps is
@@ -227,8 +227,8 @@ extern "C"
      * run concurrently and both wipe in whole `tsamps`-sample periods, so
      * one buffer set serves either. */
     size_t         tsamps; /**< code_len*spc -- one code period, samples. */
-    float complex *car_wiped_buf;
-    float complex *car_carry_buf;
+    float _Complex *car_wiped_buf;
+    float _Complex *car_carry_buf;
     size_t         car_carry_len;
 
     /* Own copy of the spreading code (same rationale as DsssReceiver's
@@ -533,8 +533,8 @@ extern "C"
    * @endcode
    */
   size_t async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
-                                    const float complex *x, size_t x_len,
-                                    float complex *out, size_t max_out);
+                                    const float _Complex *x, size_t x_len,
+                                    float _Complex *out, size_t max_out);
 
   /**
    * @brief Pin the embedded Acquisition's search grid directly.

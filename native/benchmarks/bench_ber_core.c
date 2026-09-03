@@ -63,8 +63,8 @@ main (void)
   jm_bench_t      _bench = { 0 };
   volatile double sink   = 0.0;
 
-  uint8_t       *sym = malloc (BENCH_N);
-  float complex *rx  = malloc (BENCH_N * sizeof *rx);
+  uint8_t        *sym = malloc (BENCH_N);
+  float _Complex *rx  = malloc (BENCH_N * sizeof *rx);
   if (!sym || !rx)
     return 1;
 

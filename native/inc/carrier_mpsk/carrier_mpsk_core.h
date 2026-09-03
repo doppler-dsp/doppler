@@ -28,7 +28,7 @@
  * @code
  * // QPSK carrier loop, 64 samples/symbol, FLL-assisted
  * carrier_mpsk_state_t *c = carrier_mpsk_create(0.05, 0.707, 0.0, 64, 0.01, 4);
- * float complex sym[16];
+ * float _Complex sym[16];
  * size_t k = carrier_mpsk_steps(c, rx, rx_len, sym, 16);
  * double f = c->nco.norm_freq;                 // tracked residual carrier
  * carrier_mpsk_destroy(c);
@@ -71,9 +71,9 @@ typedef struct {
     double bn_fll;           /**< FLL-assist bandwidth (0 = pure PLL).     */
     double k_fll;            /**< derived FLL gain (per-symbol freq pull).  */
     int m;                   /**< constellation order M (2, 4, 8).         */
-    float complex acc;       /**< running coherent I&D accumulator.        */
+    float _Complex acc;       /**< running coherent I&D accumulator.        */
     size_t acc_n;            /**< samples accumulated into `acc`.          */
-    float complex prev;      /**< previous *data-wiped* prompt (FLL cross). */
+    float _Complex prev;      /**< previous *data-wiped* prompt (FLL cross). */
     double prev_abs;         /**< |previous prompt| (FLL normalization).   */
     int have_prev;           /**< prev valid (skip FLL on the 1st symbol). */
     double lock_metric;      /**< EMA of Re(P conj a)/|P| (1 = locked).    */
@@ -108,8 +108,8 @@ void carrier_mpsk_init(carrier_mpsk_state_t *s, double bn, double zeta,
  * @param x  One input sample.
  * @return The de-rotated sample to feed the integrator.
  */
-JM_FORCEINLINE JM_HOT float complex
-carrier_mpsk_wipeoff(carrier_mpsk_state_t *s, float complex x)
+JM_FORCEINLINE JM_HOT float _Complex
+carrier_mpsk_wipeoff(carrier_mpsk_state_t *s, float _Complex x)
 {
     return x * conjf(lo_step(&s->nco));
 }
@@ -127,11 +127,11 @@ carrier_mpsk_wipeoff(carrier_mpsk_state_t *s, float complex x)
  * @param P  The dumped integrate-and-dump prompt for this symbol.
  */
 JM_FORCEINLINE JM_HOT void
-carrier_mpsk_update(carrier_mpsk_state_t *s, float complex P)
+carrier_mpsk_update(carrier_mpsk_state_t *s, float _Complex P)
 {
-    float complex ahat;
+    float _Complex ahat;
     mpsk_slice(P, s->m, &ahat);          /* nearest unit constellation point */
-    float complex d = P * conjf(ahat);   /* data-wiped prompt (carrier only) */
+    float _Complex d = P * conjf(ahat);   /* data-wiped prompt (carrier only) */
     double aP = (double)cabsf(P) + CARRIER_MPSK_EPS;
     double e = (double)cimagf(d) / aP;   /* sin(phase error) near lock */
     s->last_error = e;
@@ -279,7 +279,7 @@ size_t carrier_mpsk_steps_max_out(carrier_mpsk_state_t *state);
  *
  * @endcode
  */
-size_t carrier_mpsk_steps(carrier_mpsk_state_t *state, const float complex *x, size_t x_len, float complex *out, size_t max_out);
+size_t carrier_mpsk_steps(carrier_mpsk_state_t *state, const float _Complex *x, size_t x_len, float _Complex *out, size_t max_out);
 
 /**
  * @brief Recompute the loop gains for a new (bn, zeta); keep the estimate.

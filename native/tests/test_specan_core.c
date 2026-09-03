@@ -11,7 +11,7 @@ static const double PI = 3.14159265358979323846;
 /* Fill buf with a unit-rate complex exponential of normalised frequency fn
  * (cycles/sample) and amplitude amp. */
 static void
-gen_tone (float complex *buf, size_t len, double fn, double amp)
+gen_tone (float _Complex *buf, size_t len, double fn, double amp)
 {
   for (size_t k = 0; k < len; k++)
     buf[k] = (float)(amp * cos (2.0 * PI * fn * (double)k))
@@ -21,7 +21,7 @@ gen_tone (float complex *buf, size_t len, double fn, double amp)
 /* Drive obj with `total` input samples in `chunk`-sized blocks; return the
  * first emitted frame in out (capacity cap), or 0 if none appeared. */
 static size_t
-drive_first_frame (specan_state_t *obj, const float complex *tone,
+drive_first_frame (specan_state_t *obj, const float _Complex *tone,
                    size_t total, size_t chunk, float *out, size_t cap)
 {
   for (size_t i = 0; i < total; i += chunk)
@@ -47,10 +47,10 @@ argmax (const float *a, size_t n)
 int
 main (void)
 {
-  const double   fs = 1.0e6, span = 200e3, rbw = 1500.0;
-  const size_t   NTONE = 1u << 14; /* 16384 input samples per drive */
-  float complex *tone  = malloc (NTONE * sizeof *tone);
-  float         *out   = malloc (2048 * sizeof *out);
+  const double    fs = 1.0e6, span = 200e3, rbw = 1500.0;
+  const size_t    NTONE = 1u << 14; /* 16384 input samples per drive */
+  float _Complex *tone  = malloc (NTONE * sizeof *tone);
+  float          *out   = malloc (2048 * sizeof *out);
   DP_CHECK (tone && out);
   if (!tone || !out)
     return 1;
@@ -123,8 +123,8 @@ main (void)
    * blob. Driven here well past the point where the old code had already
    * overrun that reservation (268 by the first call, 2146 by the eighth). */
   {
-    float complex big[4096];
-    float         sout[2048];
+    float _Complex big[4096];
+    float sout[2048];
     for (int i = 0; i < 4096; i++)
       big[i] = (float)(i % 7) - 3.0f + 0.2f * I;
     specan_state_t *g
@@ -149,8 +149,8 @@ main (void)
 
   /* serializable state — ddc + psd children + pending samples resume. */
   {
-    float complex in[4096];
-    float         out[2048];
+    float _Complex in[4096];
+    float out[2048];
     for (int i = 0; i < 4096; i++)
       in[i] = (float)(i % 7) - 3.0f + 0.2f * I;
     specan_state_t *a

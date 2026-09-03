@@ -104,6 +104,20 @@ def test_append_to_a_closed_log_raises(tmp_path):
         log.append(1, "seeded")
 
 
+def test_an_event_at_the_line_ceiling_raises(tmp_path):
+    """The writer's half of the one line ceiling: an event that renders to
+    16 KiB is refused and never counted, while a long label short of it is an
+    ordinary event."""
+    path = tmp_path / "run.events"
+    with EventLog(path) as log:
+        with pytest.raises(OSError):
+            log.append(1, "x" * 16384)
+        assert log.count == 0
+        log.append(1, "x" * 1000)
+        assert log.count == 1
+    assert len(path.read_text().splitlines()) == 1
+
+
 def test_unopenable_path_raises(tmp_path):
     with pytest.raises(OSError):
         EventLog(tmp_path / "no_such_dir" / "run.events")

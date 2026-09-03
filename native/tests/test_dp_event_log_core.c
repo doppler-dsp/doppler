@@ -492,13 +492,76 @@ test_a_failed_write_is_reported_and_sticky (void)
   DP_CHECK (dp_event_log_close (log) == DP_ERR_SEND);
   DP_CHECK_MSG (dp_event_log_destroy (log) == DP_ERR_SEND,
                 "the destructor reaches the same verdict as close()");
-  /* NOT finalize: `/dev/full` READS like `/dev/zero`, so rendering a sidecar
-     from it never reaches EOF. The first draft of this test did exactly that
-     and took the machine down with it -- a character device is not a log
-     file, and the fix is to not ask, not to bound the read. */
+  /* And finalize over it. `/dev/full` READS like `/dev/zero`, and the first
+     draft of this test rendered a sidecar from it, never reached EOF, and
+     took the machine down. It is asked again on purpose: write_meta now
+     refuses a non-regular file on its type before reading a byte, and the
+     line cap behind that would stop the read at DP_EVENT_LOG_LINE_MAX if it
+     did not. Each guard has its own test below; this is the pair together,
+     on the input that found the hole. */
+  log = dp_event_log_open ("/dev/full", 0.0);
+  DP_REQUIRE (log != NULL);
+  remove (META_PATH);
+  DP_CHECK_MSG (dp_event_log_finalize (log, META_PATH, 0, 0, 1.0e6, 0.0)
+                    == DP_ERR_INVALID,
+                "a character device is not an event log");
+  DP_CHECK_MSG (fopen (META_PATH, "r") == NULL,
+                "no sidecar is written for a refused file");
+  dp_event_log_destroy (log);
   return 0;
 }
 #endif
+
+/* ── 12. one line ceiling, held on both sides ───────────────────────────── */
+static int
+test_a_line_is_bounded_on_both_sides (void)
+{
+  /* The writer: an event that renders to the ceiling is refused, and one
+     well past any real label is not -- the cap is the LINE, not a smaller
+     number hiding behind it. */
+  char *big = (char *)malloc (DP_EVENT_LOG_LINE_MAX + 1u);
+  DP_REQUIRE (big != NULL);
+  memset (big, 'x', DP_EVENT_LOG_LINE_MAX);
+  big[DP_EVENT_LOG_LINE_MAX] = '\0';
+  dp_event_log_t *log        = dp_event_log_open (LOG_PATH, 0.0);
+  DP_REQUIRE (log != NULL);
+  DP_CHECK_MSG (dp_event_log_append (log, 1, big, 0, 0.0, 0.0)
+                    == DP_ERR_INVALID,
+                "a line at the ceiling must be refused by the writer");
+  DP_CHECK (dp_event_log_count (log) == 0u);
+  big[1000] = '\0';
+  DP_CHECK_MSG (dp_event_log_append (log, 1, big, 0, 0.0, 0.0) == DP_OK,
+                "a long label under the ceiling is an ordinary event");
+  DP_CHECK (dp_event_log_close (log) == DP_OK);
+  dp_event_log_destroy (log);
+
+  /* The reader: a regular file whose one line reaches the ceiling is not an
+     event log. No newline, so a reader without the cap would keep growing
+     until EOF -- here a few KiB, on a capture a few GiB. */
+  FILE *f = fopen (LOG_PATH, "w");
+  DP_REQUIRE (f != NULL);
+  memset (big, 'x', DP_EVENT_LOG_LINE_MAX);
+  DP_REQUIRE (fwrite (big, 1, DP_EVENT_LOG_LINE_MAX, f)
+              == DP_EVENT_LOG_LINE_MAX);
+  fclose (f);
+  free (big);
+  remove (META_PATH);
+  DP_CHECK_MSG (dp_event_log_write_meta (LOG_PATH, META_PATH, 0, 0, 1.0e6, 0.0,
+                                         0.0, NULL, NULL)
+                    == DP_ERR_INVALID,
+                "a line at the ceiling must be refused by the reader");
+  DP_CHECK_MSG (fopen (META_PATH, "r") == NULL,
+                "no sidecar is written for a refused file");
+
+  /* The reader, on type alone: `/dev/null` reads instant EOF, so a reader
+     that only capped the line would happily describe it as an empty run. */
+  DP_CHECK_MSG (dp_event_log_write_meta ("/dev/null", META_PATH, 0, 0, 1.0e6,
+                                         0.0, 0.0, NULL, NULL)
+                    == DP_ERR_INVALID,
+                "a file that is not a regular file is not an event log");
+  DP_CHECK (fopen (META_PATH, "r") == NULL);
+  return 0;
+}
 
 /* ── 11. clearing a run-scoped name ─────────────────────────────────────── */
 static int
@@ -544,6 +607,7 @@ main (void)
 #ifdef __linux__
   (void)test_a_failed_write_is_reported_and_sticky ();
 #endif
+  (void)test_a_line_is_bounded_on_both_sides ();
 
   remove (LOG_PATH);
   remove (META_PATH);

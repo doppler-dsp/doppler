@@ -72,6 +72,17 @@ extern "C" {
 #define DP_EVENT_LOG_NAME_MAX 32
 /** Maximum staged string VALUE length, including the NUL terminator. */
 #define DP_EVENT_LOG_STR_MAX 64
+/**
+ * Longest line, in bytes without the newline, that the writer will emit and
+ * the reader will accept.  One number on both sides, applied where the line
+ * exists: dp_event_log_append() refuses a rendered event that reaches it, and
+ * dp_event_log_write_meta() treats a line that reaches it as proof the file
+ * is not an event log -- a capture handed over by mistake, a device -- and
+ * stops rather than growing a buffer without bound.  A full staging table of
+ * worst-case JSON-escaped strings renders under 10 KiB, so nothing the writer
+ * can be asked to write comes near it.
+ */
+#define DP_EVENT_LOG_LINE_MAX 16384
 
 /** Opaque event log; see dp_event_log_open(). */
 typedef struct dp_event_log dp_event_log_t;
@@ -242,7 +253,8 @@ int dp_event_log_field_str (dp_event_log_t *log, const char *name,
  *                      appear: an event like a stream gap has no frequency,
  *                      and a 0 Hz offset written for it would read as an
  *                      on-centre emitter.
- * @return ::DP_OK, ::DP_ERR_INVALID on NULL or a closed log, or ::DP_ERR_SEND
+ * @return ::DP_OK, ::DP_ERR_INVALID on NULL, a closed log, or an event that
+ *         renders to ::DP_EVENT_LOG_LINE_MAX bytes or more, or ::DP_ERR_SEND
  *         if the line could not be written.
  *
  * @code
@@ -381,6 +393,12 @@ int dp_event_log_set_telemetry (dp_event_log_t *log, const char *path);
  * truncated last line, and refusing to describe the hours before it would
  * lose the whole run to its final millisecond.
  *
+ * A file that is not an event log is REFUSED, not read: a path that is not a
+ * regular file (a device reads as an endless stream, and `/dev/full` once
+ * took a machine down through here), or a line reaching
+ * ::DP_EVENT_LOG_LINE_MAX (a capture, a binary).  Both return
+ * ::DP_ERR_INVALID before a sidecar is written.
+ *
  * @param log_path    Flat event file to read.
  * @param meta_path   Sidecar to write.
  * @param sample_type Dataset wire type (wavegen order) → `core:datatype`.
@@ -393,8 +411,9 @@ int dp_event_log_set_telemetry (dp_event_log_t *log, const char *path);
  * @param t0_unix_sec Capture start in UNIX seconds, or 0.0.
  * @param dataset     Dataset basename, or NULL for `core:metadata_only`.
  * @param telemetry   `dp_tlm` record file for the same run, or NULL.
- * @return ::DP_OK, ::DP_ERR_INVALID on NULL arguments, ::DP_ERR_SEND if the
- *         log could not be read or the sidecar written, or ::DP_ERR_MEMORY.
+ * @return ::DP_OK, ::DP_ERR_INVALID on NULL arguments or a file that is not
+ *         an event log, ::DP_ERR_SEND if the log could not be read or the
+ *         sidecar written, or ::DP_ERR_MEMORY.
  */
 int dp_event_log_write_meta (const char *log_path, const char *meta_path,
                              int sample_type, int endian, double fs, double fc,

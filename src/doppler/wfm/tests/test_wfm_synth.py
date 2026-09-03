@@ -875,3 +875,59 @@ def test_crc_alone_does_not_frame_an_unframed_pattern():
     crc_only = np.asarray(Synth(**common, crc="crc16").steps(64))
 
     np.testing.assert_array_equal(plain, crc_only)
+
+
+def test_dsss_window_opens_each_frame_with_the_pure_code():
+    """The continuous stream's frame lives on the DATA clock: of every
+    ``frame_symbols`` symbols the first ``code_only_symbols`` carry the pure
+    code and no data, the rest the payload; the symbol clock free-runs
+    through the window (no relation to the chip clock, a frame edge at no
+    particular chip phase); ``frame_symbols=0`` is the windowless stream,
+    bit for bit; a window longer than the frame is refused."""
+    from doppler.wfm import _SynthEngine
+
+    rng = np.random.default_rng(3)
+    code = rng.integers(0, 2, 31, dtype=np.uint8)
+    sps, cps = 4, 12.7  # non-integer chips per symbol: the asynchronicity
+    W, F, frames = 3, 8, 3
+
+    def engine():
+        e = _SynthEngine(type="dsss", fs=1.0, freq=0.0, snr=100.0, sps=sps)
+        e.set_dsss_cont(code, cps, data="prbs")
+        return e
+
+    nchips = int(frames * F * cps)
+    n = nchips * sps
+    plain = engine().steps(n)
+    off = engine()
+    off.set_dsss_window(0, 0)
+    assert np.array_equal(off.steps(n), plain)
+
+    win = engine()
+    with pytest.raises(ValueError):
+        win.set_dsss_window(F + 1, F)
+    win.set_dsss_window(code_only_symbols=W, frame_symbols=F)
+    x = win.steps(n)
+    # chip c at its chip start, as a data bit: sign flipped against the code
+    chips = (x.real[::sps] < 0).astype(np.uint8)
+    bits = chips ^ np.resize(code, chips.size)
+    # every chip belongs to symbol floor(c / cps) of the free-running clock
+    sym = (np.arange(nchips) / cps).astype(np.int64)
+    pos = sym % F
+    assert not bits[pos < W].any(), "the window is the pure code"
+    assert bits[pos >= W].any(), "the data section carries data"
+    # the free clock: a data symbol's chips all carry one bit, and the
+    # windowed stream's data-section bits are the windowless stream's
+    # (same PN, stepped on data symbols only) -- the edges never moved
+    plain_bits = (plain.real[::sps] < 0).astype(np.uint8) ^ np.resize(
+        code, nchips
+    )
+    per_sym = [np.unique(bits[sym == j]).size == 1 for j in range(frames * F)]
+    assert all(per_sym), "a symbol's chips carry one data bit"
+    data_syms = np.flatnonzero(np.arange(frames * F) % F >= W)
+    first_chip = np.ceil(data_syms * cps).astype(np.int64)
+    got = bits[first_chip]
+    want = plain_bits[
+        np.ceil(np.arange(data_syms.size) * cps).astype(np.int64)
+    ]
+    assert np.array_equal(got, want), "the payload runs on across frames"

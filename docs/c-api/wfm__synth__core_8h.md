@@ -96,6 +96,7 @@ _Synth component API._ [More...](#detailed-description)
 |  int | [**wfm\_synth\_set\_dsss**](#function-wfm_synth_set_dsss) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* acq\_code, size\_t acq\_len, size\_t acq\_reps, const uint8\_t \* data\_code, size\_t data\_len, const uint8\_t \* sync, size\_t sync\_len, const uint8\_t \* payload, size\_t payload\_len, int crc) <br>_Build and attach a two-code DSSS burst to a type=dsss synth (no-op otherwise)._  |
 |  int | [**wfm\_synth\_set\_dsss\_chips**](#function-wfm_synth_set_dsss_chips) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* chips, size\_t n\_chips) <br>_Install an already-assembled DSSS burst as the chip pattern._  |
 |  int | [**wfm\_synth\_set\_dsss\_cont**](#function-wfm_synth_set_dsss_cont) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const uint8\_t \* code, size\_t code\_len, double chips\_per\_symbol, int data\_mode, const uint8\_t \* data, size\_t n\_data) <br>_Configure a type=dsss synth for CONTINUOUS ASYNCHRONOUS generation._  |
+|  int | [**wfm\_synth\_set\_dsss\_window**](#function-wfm_synth_set_dsss_window) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, size\_t code\_only\_symbols, size\_t frame\_symbols) <br>_Give the continuous DSSS stream a frame with a pure-code window._  |
 |  void | [**wfm\_synth\_set\_nsps**](#function-wfm_synth_set_nsps) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, int val) <br>_Override the samples-per-symbol count in-place. Does not flush the symbol-position counter (sym\_pos); set sym\_pos=0 as well when changing sps mid-stream._  |
 |  int | [**wfm\_synth\_set\_rrc**](#function-wfm_synth_set_rrc) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const float \* taps, size\_t ntaps) <br>_Enable RRC pulse shaping on a symbol synth (pn/bpsk/qpsk/bits)._  |
 |  int | [**wfm\_synth\_set\_state**](#function-wfm_synth_set_state) ([**wfm\_synth\_state\_t**](structwfm__synth__state__t.md) \* state, const void \* blob) <br> |
@@ -293,6 +294,9 @@ JM_FORCEINLINE float wfm_synth_cont_dsss_chip (
 
 
 The per-chip kernel shared by `wfm_synth_step` and `wfm_synth_steps` (and the manifest `impl`), so the single-sample and block paths cannot diverge — they call the SAME function rather than each inlining the arithmetic. Advances the code clock (`n % n_code`) and the INDEPENDENT symbol clock (`floor(n / chips_per_symbol)`) off one running chip counter; at each symbol boundary it refreshes the data bit from the configured source (constant 0 for code-only, the cycled payload, or the next PN bit). Non-integer `chips_per_symbol` is what makes symbol edges land mid-epoch — the asynchronicity.
+
+
+With a frame set (`wfm_synth_set_dsss_window`), the frame lives on the SYMBOL clock: of every `frame_symbols` symbols, the first `code_only_symbols` carry data 0 — the pure code — and the rest carry the payload, whose index counts data symbols only, so the bits run on across frames. The symbol clock never restarts: it is the same free-running `floor(n / chips_per_symbol)` with or without a window, so a frame edge falls at whatever chip phase that clock puts it — the chip and data clocks have no fixed relation, and no frame edge is synchronous with a code epoch. `frame_symbols == 0` is the windowless stream, bit for bit.
 
 
 Requires `chips_per_symbol >= 1` (chip rate &gt;= symbol rate, always true for a real DSSS waveform), so the symbol index advances by 0 or 1 per chip and the PN is never asked to skip. 
@@ -1019,6 +1023,47 @@ The burst frame parameters have no meaning here (no preamble, sync, or CRC); the
 **Returns:**
 
 0 on success; -1 on invalid geometry or allocation failure. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_synth\_set\_dsss\_window 
+
+_Give the continuous DSSS stream a frame with a pure-code window._ 
+```C++
+int wfm_synth_set_dsss_window (
+    wfm_synth_state_t * state,
+    size_t code_only_symbols,
+    size_t frame_symbols
+) 
+```
+
+
+
+The frame is on the DATA clock: of every `frame_symbols` symbols, the first `code_only_symbols` carry the pure spreading code and no data, and the rest carry the payload, running on from the previous frame. The symbol clock is the stream's own free-running one (see wfm\_synth\_cont\_dsss\_chip), so a frame edge lands at whatever chip phase it lands at: the chip and data clocks have no fixed relation, and no frame edge is synchronous with a code epoch. This is the multi-emitter waveform's frame — 450 code-only symbols then 4500 of data in the application it was written for — and the searcher's coherent depth is what the window makes possible. Configuration, not running state: it is kept by reset() and is not serialized. The order against [**wfm\_synth\_set\_dsss\_cont()**](wfm__synth__core_8h.md#function-wfm_synth_set_dsss_cont) does not matter.
+
+
+
+
+**Parameters:**
+
+
+* `state` Synth (no-op unless `wtype == WFM_SYNTH_DSSS`). 
+* `code_only_symbols` Pure-code symbols opening each frame, at most `frame_symbols`. Equal to it means code only, for ever. 
+* `frame_symbols` Frame length in symbols; **0 means no window** — the stream exactly as without this call. 
+
+
+
+**Returns:**
+
+0 on success (and for a non-dsss synth); -1 if `code_only_symbols` exceeds a non-zero `frame_symbols`. 
 
 
 

@@ -374,6 +374,39 @@ _SynthEngine_set_dsss_cont (_SynthEngineObject *self, PyObject *args,
   Py_RETURN_NONE;
 }
 
+/* set_dsss_window(code_only_symbols, frame_symbols) — give the continuous
+ * stream a frame on the data clock: the first code_only_symbols symbols of
+ * every frame_symbols carry the pure code, the rest the data.
+ * frame_symbols=0 is no window at all. */
+static PyObject *
+_SynthEngine_set_dsss_window (_SynthEngineObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *kwlist[] = { "code_only_symbols", "frame_symbols", NULL };
+  Py_ssize_t   w = 0, f = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "nn", kwlist, &w, &f))
+    return NULL;
+  if (w < 0 || f < 0)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "set_dsss_window: symbol counts must be >= 0");
+      return NULL;
+    }
+  if (wfm_synth_set_dsss_window (self->handle, (size_t)w, (size_t)f) != 0)
+    {
+      PyErr_SetString (PyExc_ValueError,
+                       "set_dsss_window: code_only_symbols must not exceed a "
+                       "non-zero frame_symbols");
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 /* set_symbols(symbols) — attach a user complex-symbol stream to a
  * type=symbols synth. symbols is any array-like coerced to complex64; each
  * element is the constellation point itself (no bit->symbol mapping). */
@@ -708,6 +741,18 @@ static PyMethodDef _SynthEngine_methods[] = {
     "data selects the symbol source: 'none' (code only, pure +code), 'prbs'\n"
     "(the synth's seeded PN, reproducible via doppler.wfm.PN), or 'bits'\n"
     "(the payload array, cycled). Supplying payload forces 'bits'.\n" },
+  { "set_dsss_window", (PyCFunction)_SynthEngine_set_dsss_window,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_dsss_window(code_only_symbols, frame_symbols) -> None\n"
+    "\n"
+    "Give the continuous DSSS stream a frame on the data clock: of every\n"
+    "frame_symbols symbols, the first code_only_symbols carry the pure code\n"
+    "and no data, the rest the payload, running on across frames. The\n"
+    "symbol clock free-runs through the window -- the chip and data clocks\n"
+    "have no fixed relation, and a frame edge falls at no particular chip\n"
+    "phase. frame_symbols=0 is no window at all -- the stream exactly as\n"
+    "before. code_only_symbols may not exceed a non-zero frame_symbols\n"
+    "(ValueError).\n" },
   { "set_bits", (PyCFunction)_SynthEngine_set_bits, METH_VARARGS,
     "set_bits(pattern, modulation=1) -> None\n"
     "\n"

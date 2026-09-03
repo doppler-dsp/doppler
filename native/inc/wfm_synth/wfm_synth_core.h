@@ -162,6 +162,8 @@ typedef struct {
     uint8_t * code;          /* config: spreading code (0/1), owned          */
     size_t n_code;           /* config: spreading code length in chips        */
     int data_mode;           /* config: WFM_DSSS_DATA_{NONE,BITS,PRBS}        */
+    size_t code_only_symbols; /* config: pure-code symbols opening each frame  */
+    size_t frame_symbols;     /* config: frame length in symbols; 0 = no window */
     uint64_t chip_n;         /* running: chips emitted so far                 */
     uint64_t sym_idx;        /* running: current data-symbol index            */
     uint8_t cur_data;        /* running: data bit latched for this symbol      */
@@ -237,6 +239,16 @@ wfm_synth_bit_symbol(wfm_synth_state_t *s)
  * the cycled payload, or the next PN bit). Non-integer `chips_per_symbol` is
  * what makes symbol edges land mid-epoch — the asynchronicity.
  *
+ * With a frame set (`wfm_synth_set_dsss_window`), the frame lives on the
+ * SYMBOL clock: of every `frame_symbols` symbols, the first
+ * `code_only_symbols` carry data 0 — the pure code — and the rest carry the
+ * payload, whose index counts data symbols only, so the bits run on across
+ * frames. The symbol clock never restarts: it is the same free-running
+ * `floor(n / chips_per_symbol)` with or without a window, so a frame edge
+ * falls at whatever chip phase that clock puts it — the chip and data clocks
+ * have no fixed relation, and no frame edge is synchronous with a code epoch.
+ * `frame_symbols == 0` is the windowless stream, bit for bit.
+ *
  * Requires `chips_per_symbol >= 1` (chip rate >= symbol rate, always true for a
  * real DSSS waveform), so the symbol index advances by 0 or 1 per chip and the
  * PN is never asked to skip.
@@ -248,14 +260,21 @@ wfm_synth_cont_dsss_chip(wfm_synth_state_t *s)
     uint64_t sym = (uint64_t)((double)n / s->chips_per_symbol);
     if (n == 0 || sym != s->sym_idx) {
         s->sym_idx = sym;
-        if (s->data_mode == WFM_DSSS_DATA_PRBS)
-            s->cur_data = s->pn ? pn_step(s->pn) : 0u;
-        else if (s->data_mode == WFM_DSSS_DATA_BITS)
+        const uint64_t F = s->frame_symbols, W = s->code_only_symbols;
+        if (F && sym % F < W) {
+            s->cur_data = 0u; /* the pure-code window: the code, +polarity */
+        } else if (s->data_mode == WFM_DSSS_DATA_PRBS) {
+            s->cur_data = s->pn ? pn_step(s->pn) : 0u; /* data symbols only */
+        } else if (s->data_mode == WFM_DSSS_DATA_BITS) {
+            /* payload index = data symbols before this one, over every frame:
+               derived from the clock, never latched, so nothing to serialize */
+            uint64_t k = F ? (sym / F) * (F - W) + (sym % F - W) : sym;
             s->cur_data = (s->bits && s->n_bits)
-                              ? (uint8_t)(s->bits[sym % s->n_bits] & 1u)
+                              ? (uint8_t)(s->bits[k % s->n_bits] & 1u)
                               : 0u;
-        else
+        } else {
             s->cur_data = 0u; /* code-only: the pure code, +code polarity */
+        }
     }
     uint8_t code_bit = (uint8_t)(s->code[n % s->n_code] & 1u);
     s->chip_n        = n + 1;
@@ -551,6 +570,33 @@ int wfm_synth_set_dsss_chips(wfm_synth_state_t *state, const uint8_t *chips,
 int wfm_synth_set_dsss_cont(wfm_synth_state_t *state, const uint8_t *code,
                             size_t code_len, double chips_per_symbol,
                             int data_mode, const uint8_t *data, size_t n_data);
+
+/**
+ * @brief Give the continuous DSSS stream a frame with a pure-code window.
+ *
+ * The frame is on the DATA clock: of every @p frame_symbols symbols, the
+ * first @p code_only_symbols carry the pure spreading code and no data, and
+ * the rest carry the payload, running on from the previous frame. The symbol
+ * clock is the stream's own free-running one (see wfm_synth_cont_dsss_chip),
+ * so a frame edge lands at whatever chip phase it lands at: the chip and data
+ * clocks have no fixed relation, and no frame edge is synchronous with a code
+ * epoch. This is the multi-emitter waveform's frame — 450 code-only symbols
+ * then 4500 of data in the application it was written for — and the
+ * searcher's coherent depth is what the window makes possible.
+ * Configuration, not running state: it is kept by reset() and is not
+ * serialized. The order against wfm_synth_set_dsss_cont() does not matter.
+ *
+ * @param state              Synth (no-op unless `wtype == WFM_SYNTH_DSSS`).
+ * @param code_only_symbols  Pure-code symbols opening each frame, at most
+ *                           @p frame_symbols. Equal to it means code only,
+ *                           for ever.
+ * @param frame_symbols      Frame length in symbols; **0 means no window** —
+ *                           the stream exactly as without this call.
+ * @return 0 on success (and for a non-dsss synth); -1 if
+ *         @p code_only_symbols exceeds a non-zero @p frame_symbols.
+ */
+int wfm_synth_set_dsss_window(wfm_synth_state_t *state,
+                              size_t code_only_symbols, size_t frame_symbols);
 
 /**
  * @brief Attach a complex-symbol stream to a type=symbols synth (no-op else).

@@ -116,7 +116,7 @@ to tracking the same signal," only back to searching — matching every other ob
 |  int | [**async\_dsss\_receiver\_set\_state**](#function-async_dsss_receiver_set_state) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**async\_dsss\_receiver\_state\_bytes**](#function-async_dsss_receiver_state_bytes) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br> |
 |  [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) | [**async\_dsss\_receiver\_status**](#function-async_dsss_receiver_status) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br>_Read the status record (see_ [_**async\_dsss\_receiver\_status\_t**_](structasync__dsss__receiver__status__t.md) _)._ |
-|  size\_t | [**async\_dsss\_receiver\_steps**](#function-async_dsss_receiver_steps) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state, const float complex \* x, size\_t x\_len, float complex \* out, size\_t max\_out) <br>_Stream raw cf32 samples; emit demodulated symbols once tracking._  |
+|  size\_t | [**async\_dsss\_receiver\_steps**](#function-async_dsss_receiver_steps) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream raw cf32 samples; emit demodulated symbols once tracking._  |
 |  size\_t | [**async\_dsss\_receiver\_steps\_max\_out**](#function-async_dsss_receiver_steps_max_out) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br> |
 
 
@@ -198,7 +198,7 @@ async_dsss_receiver_state_t *rx = async_dsss_receiver_create(
     0.5, 4, 14.0, 64, 8, false, 100000,  // refine_* tuning
     0.0,                             // carrier_freq_hz (0 = aiding off)
     0.0);                            // lost_confirm_s (0 = never lost)
-float complex syms[4096];
+float _Complex syms[4096];
 size_t n = async_dsss_receiver_steps(rx, x, x_len, syms, 4096);
 async_dsss_receiver_destroy(rx);
 ```

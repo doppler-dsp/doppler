@@ -558,9 +558,9 @@ _test_awgn_esn0_floor (void)
       async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
           code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-3, 0.9, 100.0, 4, 8,
           0, 0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0);
-      float complex *syms   = NULL;
-      size_t         n_syms = rx ? _stream (rx, x, tot, sf * spc, &syms) : 0;
-      double         ber    = _best_ber (syms, n_syms, dsym, n_data);
+      float _Complex *syms   = NULL;
+      size_t          n_syms = rx ? _stream (rx, x, tot, sf * spc, &syms) : 0;
+      double          ber    = _best_ber (syms, n_syms, dsym, n_data);
       double evm = dp_test_evm_db_hard (syms, n_syms); /* no lag/truth */
       double snr = dp_test_m2m4_snr_db (syms, n_syms); /* blind M2M4   */
       ber_at[p]  = ber;
@@ -617,14 +617,14 @@ _test_awgn_esn0_floor (void)
  * created (pre-lock) receiver reaches all of them. */
 /* Noise alone at the capture's own sigma for `cn0_dbhz` -- the emitter
  * switched off, the channel still there. */
-static float complex *
+static float _Complex *
 _noise_tail (size_t n, double fs, double cn0_dbhz, uint32_t seed)
 {
-  float complex *x     = malloc (n * sizeof *x);
-  double         sigma = 1.0 / sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
-  uint32_t       st    = seed;
+  float _Complex *x     = malloc (n * sizeof *x);
+  double          sigma = 1.0 / sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
+  uint32_t        st    = seed;
   for (size_t i = 0; i < n; i++)
-    x[i] = (float complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+    x[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
   return x;
 }
 
@@ -655,9 +655,9 @@ _test_handoff_seed_and_decode (void)
   const size_t pre_silence = te * 5 + 3;
   const double cn0         = 70.0;
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
@@ -679,8 +679,8 @@ _test_handoff_seed_and_decode (void)
   /* Idle: the whole capture -- the emitter included, at chip 0 -- fed in
    * odd-sized blocks, changes nothing and emits nothing; a receiver that
    * were quietly running its chain would emit symbols from the signal. */
-  float complex tmp[1021];
-  size_t        n_idle = 0;
+  float _Complex tmp[1021];
+  size_t n_idle = 0;
   for (size_t pos = 0; pos < n; pos += 1021)
     {
       size_t take = (pos + 1021 <= n) ? 1021 : n - pos;
@@ -701,7 +701,7 @@ _test_handoff_seed_and_decode (void)
   DP_CHECK (async_dsss_receiver_get_refining (rx) == 1);
   DP_CHECK (async_dsss_receiver_get_doppler_hz (rx) == 0.0);
 
-  float complex *syms;
+  float _Complex *syms;
   size_t n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
   DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (n_syms > 20);
@@ -746,9 +746,9 @@ _test_seed_on_searching_flavor (void)
   const size_t pre_silence = te * 5 + 3;
   const double cn0         = 70.0;
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
@@ -775,7 +775,7 @@ _test_seed_on_searching_flavor (void)
   DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
   DP_CHECK (async_dsss_receiver_get_refining (rx) == 1);
 
-  float complex *syms;
+  float _Complex *syms;
   size_t n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
   DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
   DP_CHECK (n_syms > 20);
@@ -799,14 +799,14 @@ _test_seed_on_searching_flavor (void)
  * at the moment lost first reads 1 (or at the end). Returns 1 if lost
  * fired. */
 static int
-_feed_until_lost (async_dsss_receiver_state_t *rx, const float complex *x,
+_feed_until_lost (async_dsss_receiver_state_t *rx, const float _Complex *x,
                   size_t n, size_t chunk, uint64_t *both_down_run_at_lost,
                   uint64_t *fed_at_lost)
 {
-  float complex *tmp  = malloc (chunk * sizeof *tmp);
-  uint64_t       run  = 0;
-  uint64_t       fed  = 0;
-  int            lost = 0;
+  float _Complex *tmp  = malloc (chunk * sizeof *tmp);
+  uint64_t        run  = 0;
+  uint64_t        fed  = 0;
+  int             lost = 0;
   for (size_t pos = 0; pos < n && !lost; pos += chunk)
     {
       size_t take = (pos + chunk <= n) ? chunk : n - pos;
@@ -845,12 +845,12 @@ _test_lost_after_switch_off (void)
   const size_t tail_n      = (size_t)(0.25 * fs); /* 0.25 s of "off"  */
   const size_t chunk       = 1024;
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
-  float complex *off = _noise_tail (tail_n, fs, cn0, 99);
+  float _Complex *off = _noise_tail (tail_n, fs, cn0, 99);
 
   /* Three receivers on the same capture: the rule armed, the rule off, and
    * the rule armed past the tail's length. */
@@ -863,8 +863,8 @@ _test_lost_after_switch_off (void)
       if (!rx)
         continue;
       DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
-      float complex *syms;
-      size_t         n_syms
+      float _Complex *syms;
+      size_t          n_syms
           = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
       free (syms);
       DP_CHECK (n_syms > 20);
@@ -889,8 +889,8 @@ _test_lost_after_switch_off (void)
 
           /* Lost is inert: samples are discarded, a seed is refused, the
            * blob carries the state, and reset() gives the object back. */
-          float complex tmp[64];
-          double        chip_before = async_dsss_receiver_get_chip_phase (rx);
+          float _Complex tmp[64];
+          double chip_before = async_dsss_receiver_get_chip_phase (rx);
           DP_CHECK (
               async_dsss_receiver_steps (rx, x + pre_silence, 64, tmp, 64)
               == 0);
@@ -949,9 +949,9 @@ _test_one_flag_down_is_a_degrade (void)
   const double cn0         = 70.0;
   const double confirm_s   = 0.005; /* the 0.12 s that follow are 24x it */
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
@@ -964,9 +964,9 @@ _test_one_flag_down_is_a_degrade (void)
       return 1;
     }
   DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
-  const size_t   split = pre_silence + (size_t)(400.0 * tsym);
-  float complex *syms;
-  size_t         n_syms
+  const size_t    split = pre_silence + (size_t)(400.0 * tsym);
+  float _Complex *syms;
+  size_t          n_syms
       = _stream (rx, x + pre_silence, split - pre_silence, te, &syms);
   free (syms);
   DP_CHECK (n_syms > 20);
@@ -977,8 +977,8 @@ _test_one_flag_down_is_a_degrade (void)
    * and never comes back, while the symbol detector is untouched. */
   async_dsss_receiver_configure_lock_raw (rx, 1e30, 1e30, 8, 0.1, 1, 1);
 
-  size_t        code_down_blocks = 0, sym_up_blocks = 0, blocks = 0;
-  float complex tmp[1024];
+  size_t code_down_blocks = 0, sym_up_blocks = 0, blocks = 0;
+  float _Complex tmp[1024];
   for (size_t pos = split; pos < n; pos += 1024)
     {
       size_t take = (pos + 1024 <= n) ? 1024 : n - pos;
@@ -1018,9 +1018,9 @@ _test_handoff_state_roundtrip (void)
   const size_t pre_silence = te * 5 + 3;
   const double cn0         = 70.0;
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
@@ -1051,8 +1051,8 @@ _test_handoff_state_roundtrip (void)
   /* Tracking: split the stream, resume the second receiver from the blob,
    * and require the two to emit identical symbols from there on. */
   DP_CHECK (async_dsss_receiver_seed (ra, 0.0, 0.0, cn0) == DP_OK);
-  const size_t   split = pre_silence + te * 300;
-  float complex *syms;
+  const size_t    split = pre_silence + te * 300;
+  float _Complex *syms;
   size_t n_a = _stream (ra, x + pre_silence, split - pre_silence, te, &syms);
   free (syms);
   DP_CHECK (n_a > 20);
@@ -1065,9 +1065,9 @@ _test_handoff_state_roundtrip (void)
   DP_CHECK (async_dsss_receiver_get_tracking (rb) == 1);
   DP_CHECK (async_dsss_receiver_get_idle (rb) == 0);
 
-  float complex *sa, *sb;
-  size_t         na = _stream (ra, x + split, n - split, te, &sa);
-  size_t         nb = _stream (rb, x + split, n - split, te, &sb);
+  float _Complex *sa, *sb;
+  size_t          na = _stream (ra, x + split, n - split, te, &sa);
+  size_t          nb = _stream (rb, x + split, n - split, te, &sb);
   DP_CHECK (na == nb && na > 20);
   int same = (na == nb);
   for (size_t i = 0; same && i < na; i++)
@@ -1121,9 +1121,9 @@ _test_status_record (void)
   const size_t pre_silence = te * 5 + 3;
   const double cn0         = 70.0;
 
-  float complex *x;
-  size_t         n;
-  double        *data;
+  float _Complex *x;
+  size_t          n;
+  double         *data;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
@@ -1142,7 +1142,7 @@ _test_status_record (void)
   DP_CHECK (st.doppler_hz == 0.0);
   DP_CHECK (st.code_locked == 0 && st.locked == 0);
   DP_CHECK (st.state_samples == 0 && st.both_down_samples == 0);
-  float complex tmp[64];
+  float _Complex tmp[64];
   (void)async_dsss_receiver_steps (rx, x, 37, tmp, 64);
   DP_CHECK (async_dsss_receiver_status (rx).state_samples == 37);
 
@@ -1158,7 +1158,7 @@ _test_status_record (void)
   /* Tracking on the real capture: every field equals its getter, and the
    * live Doppler is the carrier loop's, in Hz at the front-end rate. */
   DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
-  float complex *syms;
+  float _Complex *syms;
   size_t n_syms = _stream (rx, x + pre_silence, n - pre_silence, te, &syms);
   free (syms);
   DP_CHECK (n_syms > 20);
@@ -1182,9 +1182,9 @@ _test_status_record (void)
 
   /* The two flags are two fields: pin the code detector out of reach and
    * feed more signal, so code lock is down while symbol lock holds. */
-  float complex *x2;
-  size_t         n2;
-  double        *data2;
+  float _Complex *x2;
+  size_t          n2;
+  double         *data2;
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, 0, 11, &x2, &n2,
                    &data2);
   {
@@ -1193,7 +1193,7 @@ _test_status_record (void)
     if (rd)
       {
         DP_CHECK (async_dsss_receiver_seed (rd, 0.0, 0.0, cn0) == DP_OK);
-        float complex *sd;
+        float _Complex *sd;
         size_t n_sd = _stream (rd, x + pre_silence, n - pre_silence, te, &sd);
         free (sd);
         DP_CHECK (n_sd > 20);
@@ -1214,9 +1214,9 @@ _test_status_record (void)
 
   /* Lost: the record says so, the estimate is frozen where it was, and the
    * release clock reports how long it ran. */
-  float complex *off = _noise_tail ((size_t)(0.25 * fs), fs, cn0, 99);
-  uint64_t       run = 0, fed = 0;
-  double         doppler_before = st.doppler_hz;
+  float _Complex *off = _noise_tail ((size_t)(0.25 * fs), fs, cn0, 99);
+  uint64_t        run = 0, fed = 0;
+  double          doppler_before = st.doppler_hz;
   DP_CHECK (_feed_until_lost (rx, off, (size_t)(0.25 * fs), 1024, &run, &fed));
   st = async_dsss_receiver_status (rx);
   DP_CHECK (st.state == ASYNC_DSSS_RX_LOST);

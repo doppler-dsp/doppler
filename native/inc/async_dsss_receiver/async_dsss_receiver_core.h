@@ -90,7 +90,7 @@
  *     0.5, 4, 14.0, 64, 8, false, 100000,  // refine_* tuning
  *     0.0,                             // carrier_freq_hz (0 = aiding off)
  *     0.0);                            // lost_confirm_s (0 = never lost)
- * float complex syms[4096];
+ * float _Complex syms[4096];
  * size_t n = async_dsss_receiver_steps(rx, x, x_len, syms, 4096);
  * async_dsss_receiver_destroy(rx);
  * @endcode
@@ -262,9 +262,9 @@ extern "C"
      * Dll's partials for ONE code period, then rc's resampled output for
      * it. The chain runs a period at a time, so both are fixed by tsamps
      * and rc->rate; they only ever grow. */
-    float complex *track_dll_out_buf;
+    float _Complex *track_dll_out_buf;
     size_t         track_dll_out_cap;
-    float complex *track_rc_out_buf;
+    float _Complex *track_rc_out_buf;
     size_t         track_rc_out_cap;
 
     /* Shared carrier-wipe scratch/carry -- refine and track stages never

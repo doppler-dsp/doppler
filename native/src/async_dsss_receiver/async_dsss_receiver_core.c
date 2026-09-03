@@ -486,7 +486,7 @@ adr_track_period (async_dsss_receiver_state_t *s, const float _Complex *period,
  * Returns the symbols written. */
 static size_t
 adr_track_period_chain (async_dsss_receiver_state_t *s,
-                        const float complex *period, float complex *out,
+                        const float _Complex *period, float _Complex *out,
                         size_t max_out)
 {
   size_t n_dll = adr_track_period (s, period, s->track_dll_out_buf,
@@ -498,8 +498,8 @@ adr_track_period_chain (async_dsss_receiver_state_t *s,
 }
 
 static size_t
-adr_track_chain (async_dsss_receiver_state_t *s, const float complex *x,
-                 size_t x_len, float complex *out, size_t max_out)
+adr_track_chain (async_dsss_receiver_state_t *s, const float _Complex *x,
+                 size_t x_len, float _Complex *out, size_t max_out)
 {
   size_t emitted = 0;
   size_t pos     = 0;

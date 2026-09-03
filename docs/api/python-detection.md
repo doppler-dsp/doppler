@@ -275,6 +275,8 @@ for why an outer code is blind to a global complement.
 
 ::: doppler.detection.SyncFinder
 
+::: doppler.detection.SyncHit
+
 ______________________________________________________________________
 
 ## Power-SNR (linear)

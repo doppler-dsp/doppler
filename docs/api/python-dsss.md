@@ -344,13 +344,11 @@ own search); only the constructor differs.
 
 ::: doppler.dsss.HandoffAsyncDsssReceiver
 
-Both flavors report one consistent picture by value through `status()`, a
-`ReceiverStatus` record: the state (0 searching, 1 refining, 2 tracking, 3
-idle, 4 lost), where the emitter is now (live Doppler, chip phase, code rate,
-C/N0), both lock flags with the symbol-lock metric and threshold, both
-residual carrier errors, and two clocks in input samples (since the state was
-entered; both flags down without a break). It carries no timestamp: the holder
-owns the sample clock and stamps it (design §8.1).
+Both flavors report one consistent picture by value through `status()`. It
+carries no timestamp: the holder owns the sample clock and stamps it (design
+§8.1).
+
+::: doppler.dsss.ReceiverStatus
 
 ## `bin_to_signed` — read an FFT grid the way numpy does
 

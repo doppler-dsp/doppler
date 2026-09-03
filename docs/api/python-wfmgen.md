@@ -509,6 +509,8 @@ data.
 
 ::: doppler.wfm.Frame
 
+::: doppler.wfm.FrameCheck
+
 ## `FrameDesc` — the same frame, deferred
 
 `Frame` names four fields and materialises them in the constructor. `FrameDesc`

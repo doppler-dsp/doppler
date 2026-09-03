@@ -42,6 +42,13 @@ PyInit_telemetry (void)
   import_array ();
   if (PyType_Ready (&TelemetryObjType) < 0)
     return NULL;
+  if (!TelemetryObj_stats_type)
+    {
+      TelemetryObj_stats_type
+          = PyStructSequence_NewType (&TelemetryObj_stats_desc);
+      if (!TelemetryObj_stats_type)
+        return NULL;
+    }
   if (PyType_Ready (&MemoryCaptureObjType) < 0)
     return NULL;
   if (PyType_Ready (&CaptureObjType) < 0)
@@ -53,6 +60,14 @@ PyInit_telemetry (void)
   if (PyModule_AddObject (m, "Telemetry", (PyObject *)&TelemetryObjType) < 0)
     {
       Py_DECREF (&TelemetryObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  if (PyModule_AddObject (m, "TelemetryStats",
+                          (PyObject *)TelemetryObj_stats_type)
+      < 0)
+    {
+      Py_DECREF (TelemetryObj_stats_type);
       Py_DECREF (m);
       return NULL;
     }

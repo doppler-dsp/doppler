@@ -962,6 +962,13 @@ PyInit_detection (void)
     return NULL;
   if (PyType_Ready (&SyncFinderObjType) < 0)
     return NULL;
+  if (!SyncFinderObj_find_type)
+    {
+      SyncFinderObj_find_type
+          = PyStructSequence_NewType (&SyncFinderObj_find_desc);
+      if (!SyncFinderObj_find_type)
+        return NULL;
+    }
   PyObject *m = PyModule_Create (&detection_moduledef);
   if (!m)
     return NULL;
@@ -976,6 +983,13 @@ PyInit_detection (void)
   if (PyModule_AddObject (m, "SyncFinder", (PyObject *)&SyncFinderObjType) < 0)
     {
       Py_DECREF (&SyncFinderObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  if (PyModule_AddObject (m, "SyncHit", (PyObject *)SyncFinderObj_find_type)
+      < 0)
+    {
+      Py_DECREF (SyncFinderObj_find_type);
       Py_DECREF (m);
       return NULL;
     }

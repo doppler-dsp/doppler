@@ -13,6 +13,143 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.47.0] — 2026-09-03
+
+### Added
+
+- **`Acquisition.set_max_peaks(n)` / `BurstAcquisition.set_max_peaks(n)`
+    — the peak list.** A dwell reports every peak above the same gate,
+    strongest first, with an exclusion zone of one Doppler bin by one chip
+    around each and the two-epoch rule for a peak at an already-listed code
+    phase (a data-split twin is held one dwell and listed only if it recurs
+    at the same tile); each listed peak is one `push()` record. One
+    argmax now serves both detectors (`det_peak_list` in `det_private.h`).
+    Measured at the operating point (`validate_acq_peak_list`,
+    [design §12.6](docs/design/async-dsss-receiver.md)); the false-alarm
+    rate under the list is the configured pfa. State blob v2.
+
+- **`HandoffAsyncDsssReceiver`, `seed()` and the lost state.** The tracking
+    receiver a pool holds: no search of its own, it takes a searcher's
+    detection through `seed()` (assigned once -- a second seed is refused
+    until `reset()`, which returns to idle) and reports its emitter gone
+    (`lost`) when both lock flags stay down past `lost_confirm_s`. A view over
+    the same core, so the chain past the seed is `AsyncDsssReceiver`'s
+    verbatim; §11.1–11.2 of
+    [the design page](https://doppler-dsp.github.io/doppler/design/async-dsss-receiver/).
+
+- **`AsyncDsssReceiver.status()` -- one record, by value.** State, where the
+    emitter is now (live Doppler, chip phase, code rate, C/N0), both lock
+    flags with the symbol-lock metric and threshold, both residual carrier
+    errors, and the two clocks in input samples -- what a pool holder reads
+    per data-free window to key the searcher's exclusion zones on the live
+    estimate. The one-at-a-time properties are the same fields' other face;
+    §11.3 of
+    [the design page](https://doppler-dsp.github.io/doppler/design/async-dsss-receiver/).
+
+- **The continuous async-DSSS receiver has one design page, and its three
+    load-bearing numbers are measured.** `docs/design/async-dsss-receiver.md`
+    consolidates the spec, the despreader, the many-emitters use case and the
+    searcher design; two new C harnesses in `native/validation/` measure the
+    floor one emitter sets on the search surface (the fork moves from −24 to
+    −13 dB) and when the tracking receiver can say an emitter is gone (both
+    lock flags down for longer than the fade — code lock alone chatters), and
+    operating-point rows on three benches price the searcher at 2.1× real
+    time per core over ±50 kHz and one receiver at 0.44 of a core. Details
+    in the page's §12.
+
+- **The DLL's code-lock detector integrates over a symbol once it knows
+    the symbol period.** `Dll.set_symbol_period` lifts the per-epoch
+    max-power look-back to the symbol scale: the hypothesis whose
+    transition-free windows carry the most power is the symbol timing, and
+    its windows are the detector's looks — 7.8 dB more per look at the
+    async-DSSS operating point, never across a transition.
+    `Dll.set_lock_verify` sizes the drop hysteresis from a budget.
+    `AsyncDsssReceiver` applies both from its configuration; before this its
+    detector read "unlocked" 96% of the time at Es/N0 5.7 dB on a loop that
+    never lost the code (`docs/design/async-dsss-receiver.md` §3.7, §12.4).
+
+- **`DopplerChannel.delay_samples`, `Resampler.delay`.** The resampler's
+    group delay, closed-form from the bank (10.5 samples for the built-in
+    bank): output `k` carries the input at `t + excess(t) - delay/fs`. A
+    loop started at the input's phase through the channel was five chips
+    from the peak and locked on a Gold sidelobe with nothing to say so
+    ([#1189](https://github.com/doppler-dsp/doppler/issues/1189)); the
+    resampler test's group-delay pin now holds the accessor instead of a
+    literal, on both entry points.
+
+### Changed
+
+- **`Dll.set_symbol_period` now aids the code loop as well as the lock
+    detector.** The discriminator runs on the symbol-aided window and the
+    loop steers once per symbol, its filter re-timed so `bn` keeps its
+    per-epoch meaning and the tracked rate is continuous across the switch.
+    Measured against the per-epoch look-back at the operating point
+    (`validate_dll_aid_jitter`,
+    [design §12.5](docs/design/async-dsss-receiver.md)): pull-in 20%
+    faster, jitter 0.8× above 45 dB-Hz and 1.3× at the 40 dB-Hz floor —
+    hundredths of a chip either way. State blob version 9.
+
+- **just-makeit pin 0.73.1 → 0.75.2, and every generated and sacred C
+    spelling of the complex types moves from `complex` to `_Complex`**
+    (gh-1246; same type, same ABI). 0.75.0 closed
+    [just-makeit#1257](https://github.com/just-buildit/just-makeit/issues/1257)
+    (the hold: `apply` overwrote an unchanged function's `@param` docs with a
+    neighbour's) and added the `jm upgrade` respelling migration; 0.75.2 fixed
+    [just-makeit#1261](https://github.com/just-buildit/just-makeit/issues/1261),
+    found dry-running this adoption on doppler's own headers. `make jm-upgrade`
+    is new: the migration through make, like every other jm invocation.
+
+- **just-makeit pin 0.75.2 → 0.75.4: record types exist at runtime.** A
+    `single = true` record (`ReceiverStatus`, `BerInterval`, `ToneMetrics`) is
+    created at module init and registered under its public name
+    ([#1264](https://github.com/just-buildit/just-makeit/issues/1264), filed
+    from here), so `isinstance` and a docs directive bind to what the stub
+    declared. 0.75.3 was held: a view and its parent sharing a record name
+    registered two types and freed one
+    ([#1268](https://github.com/just-buildit/just-makeit/issues/1268),
+    a segfault `make test-stubs` caught); 0.75.4 aliases them to one type and
+    carries a record's docs to the runtime face ([#1267](https://github.com/just-buildit/just-makeit/issues/1267)).
+
+### Fixed
+
+- **`AsyncDsssReceiver` allocates nothing per `steps()` while tracking.** The
+    track chain used to `malloc`/`free` two scratch buffers on every call; it
+    now runs one code period at a time through scratch sized once per chain
+    build, the refine stage's own shape. Output is bit-exact before and after
+    at every block size tried; warm cost unchanged (44.5 ns/sample at the 5
+    Mcps operating point). Closes #1192.
+
+- **The CI toolchain image is now published for `linux/amd64` AND
+    `linux/arm64`.** It was amd64-only, so `docker run $(CI_IMAGE)` --
+    `gen-c-api-check`, `ci-shell`, `ci-run`, and `container:` in ci.yml,
+    which all pin the same digest -- failed with `exec format error` on an
+    arm64 dev box or runner. `ci-image.yml` now builds each base with
+    buildx + QEMU, the same pattern already used to publish the
+    runtime/SDK/downstream-jm images.
+
+- **`detector2d::push` no longer pays for the peak list it does not use.**
+    At the default `max_peaks = 1` the detector cleared a mask over the whole
+    surface and ran the zone-excluding scan for one peak on every push, 22–43%
+    slower than the argmax it replaced (measured on the release bench box,
+    both builds). `det_peak_list` takes a NULL mask at one peak and runs the
+    plain loop; the answer is unchanged, pinned by a tie-rich equivalence test.
+    ([#1208](https://github.com/doppler-dsp/doppler/issues/1208))
+
+- **`make gen-c-api` no longer wipes `docs/c-api` before it has a render to
+    put there.** The target built by deleting the committed tree first, so a
+    build that failed in between -- a venv being re-synced under a commit
+    hook, on 2026-09-02 -- left 594 pages and the hand-written `index.md`
+    gone. It now renders beside the tree and swaps by rename; failure is
+    not destructive, and `test_gen_c_api_atomic.py` holds it to that.
+
+- **`PersistentBurstCapture` restores its own post-push checkpoint.** The
+    object that created the backing file refused every blob it took after a
+    push, while a fresh object over the same file accepted them: the guard
+    asked whether the file had been *adopted*, not whether it *held* the
+    span the blob names. It now asks the second, on either flavour, and also
+    refuses a span the ring has wrapped past
+    ([#1190](https://github.com/doppler-dsp/doppler/issues/1190)).
+
 ## [0.46.0] — 2026-09-02
 
 ### Added
@@ -12936,6 +13073,7 @@ ______________________________________________________________________
 [0.44.0]: https://github.com/doppler-dsp/doppler/compare/v0.43.2...v0.44.0
 [0.45.0]: https://github.com/doppler-dsp/doppler/compare/v0.44.0...v0.45.0
 [0.46.0]: https://github.com/doppler-dsp/doppler/compare/v0.45.0...v0.46.0
+[0.47.0]: https://github.com/doppler-dsp/doppler/compare/v0.46.0...v0.47.0
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.6...v0.5.0
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
@@ -12946,4 +13084,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.46.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.47.0...HEAD

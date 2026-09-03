@@ -521,20 +521,10 @@ PyInit_wfm (void)
     }
   if (PyType_Ready (&FrameDescObjType) < 0)
     return NULL;
-  if (!FrameDescObj_layout_type)
-    {
-      FrameDescObj_layout_type
-          = PyStructSequence_NewType (&FrameDescObj_layout_desc);
-      if (!FrameDescObj_layout_type)
-        return NULL;
-    }
-  if (!FrameDescObj_check_type)
-    {
-      FrameDescObj_check_type
-          = PyStructSequence_NewType (&FrameDescObj_check_desc);
-      if (!FrameDescObj_check_type)
-        return NULL;
-    }
+  FrameDescObj_layout_type
+      = FrameObj_layout_type; /* FrameLayout: one public name, one type */
+  FrameDescObj_check_type
+      = FrameObj_check_type; /* FrameCheck: one public name, one type */
   PyObject *m = PyModule_Create (&wfm_moduledef);
   if (!m)
     return NULL;
@@ -585,21 +575,6 @@ PyInit_wfm (void)
   if (PyModule_AddObject (m, "FrameDesc", (PyObject *)&FrameDescObjType) < 0)
     {
       Py_DECREF (&FrameDescObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  if (PyModule_AddObject (m, "FrameLayout",
-                          (PyObject *)FrameDescObj_layout_type)
-      < 0)
-    {
-      Py_DECREF (FrameDescObj_layout_type);
-      Py_DECREF (m);
-      return NULL;
-    }
-  if (PyModule_AddObject (m, "FrameCheck", (PyObject *)FrameDescObj_check_type)
-      < 0)
-    {
-      Py_DECREF (FrameDescObj_check_type);
       Py_DECREF (m);
       return NULL;
     }

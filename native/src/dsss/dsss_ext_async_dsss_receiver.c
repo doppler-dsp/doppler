@@ -846,8 +846,9 @@ static PyStructSequence_Field AsyncDsssReceiverObj_status_fields[] = {
   { "mpsk_last_error", "Post-despread carrier residual, rad." },
   { "state_samples",
     "Running: samples fed since the current state was entered." },
-  { "both_down_samples", "Running: consecutive samples fed while tracking "
-                         "with BOTH lock flags down -- the release clock." },
+  { "both_down_samples",
+    "Running: consecutive samples fed while tracking with BOTH lock flags "
+    "down -- the release clock; lost keeps it counting." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc AsyncDsssReceiverObj_status_desc

@@ -71,16 +71,18 @@ NPRMeasureObj_reset (NPRMeasureObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyStructSequence_Field NPRMeasureObj_analyze_fields[] = {
-  { "npr_db", NULL },
-  { "inband_psd_dbfs", NULL },
-  { "notch_psd_dbfs", NULL },
-  { "n_inband_bins", NULL },
-  { "n_notch_bins", NULL },
-  { "rbw_hz", NULL },
+  { "npr_db", "NPR = 10log10(in-band PSD / notch PSD) (dB)." },
+  { "inband_psd_dbfs", "Mean in-band noise power per bin (dBFS)." },
+  { "notch_psd_dbfs", "Mean power folded into the notch (dBFS)." },
+  { "n_inband_bins", "Bins averaged in the active band." },
+  { "n_notch_bins", "Bins averaged inside the notch." },
+  { "rbw_hz", "Resolution bandwidth = enbw*fs/n (Hz)." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc NPRMeasureObj_analyze_desc
-    = { "doppler.measure.NPRMetrics", NULL, NPRMeasureObj_analyze_fields, 6 };
+    = { "doppler.measure.NPRMetrics",
+        "Noise-power-ratio metrics from a notched-noise-loading test.",
+        NPRMeasureObj_analyze_fields, 6 };
 static PyTypeObject *NPRMeasureObj_analyze_type = NULL;
 
 static PyObject *

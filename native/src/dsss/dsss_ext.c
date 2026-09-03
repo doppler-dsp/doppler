@@ -151,13 +151,9 @@ PyInit_dsss (void)
     return NULL;
   if (PyType_Ready (&HandoffAsyncDsssReceiverObjType) < 0)
     return NULL;
-  if (!HandoffAsyncDsssReceiverObj_status_type)
-    {
-      HandoffAsyncDsssReceiverObj_status_type = PyStructSequence_NewType (
-          &HandoffAsyncDsssReceiverObj_status_desc);
-      if (!HandoffAsyncDsssReceiverObj_status_type)
-        return NULL;
-    }
+  HandoffAsyncDsssReceiverObj_status_type
+      = AsyncDsssReceiverObj_status_type; /* ReceiverStatus: one public name,
+                                             one type */
   PyObject *m = PyModule_Create (&dsss_moduledef);
   if (!m)
     return NULL;
@@ -276,14 +272,6 @@ PyInit_dsss (void)
       < 0)
     {
       Py_DECREF (&HandoffAsyncDsssReceiverObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  if (PyModule_AddObject (m, "ReceiverStatus",
-                          (PyObject *)HandoffAsyncDsssReceiverObj_status_type)
-      < 0)
-    {
-      Py_DECREF (HandoffAsyncDsssReceiverObj_status_type);
       Py_DECREF (m);
       return NULL;
     }

@@ -461,15 +461,16 @@ PyInit_ber (void)
       if (!BerMeterObj_ser_type)
         return NULL;
     }
+  BerMeterObj_ber_type
+      = BerMeterObj_ser_type; /* BerInterval: one public name, one type */
+  BerMeterObj_interval_type
+      = BerMeterObj_ser_type; /* BerInterval: one public name, one type */
   if (PyType_Ready (&FrameMeterObjType) < 0)
     return NULL;
-  if (!FrameMeterObj_fer_type)
-    {
-      FrameMeterObj_fer_type
-          = PyStructSequence_NewType (&FrameMeterObj_fer_desc);
-      if (!FrameMeterObj_fer_type)
-        return NULL;
-    }
+  FrameMeterObj_fer_type
+      = BerMeterObj_ser_type; /* BerInterval: one public name, one type */
+  FrameMeterObj_sync_miss_type
+      = BerMeterObj_ser_type; /* BerInterval: one public name, one type */
   PyObject *m = PyModule_Create (&ber_moduledef);
   if (!m)
     return NULL;
@@ -491,13 +492,6 @@ PyInit_ber (void)
   if (PyModule_AddObject (m, "FrameMeter", (PyObject *)&FrameMeterObjType) < 0)
     {
       Py_DECREF (&FrameMeterObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  if (PyModule_AddObject (m, "BerInterval", (PyObject *)FrameMeterObj_fer_type)
-      < 0)
-    {
-      Py_DECREF (FrameMeterObj_fer_type);
       Py_DECREF (m);
       return NULL;
     }

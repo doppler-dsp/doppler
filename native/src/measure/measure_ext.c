@@ -204,6 +204,9 @@ PyInit_measure (void)
       if (!ToneMeasureObj_analyze_type)
         return NULL;
     }
+  ToneMeasureObj_analyze_complex_type
+      = ToneMeasureObj_analyze_type; /* ToneMetrics: one public name, one type
+                                      */
   if (!ToneMeasureObj_time_stats_type)
     {
       ToneMeasureObj_time_stats_type

@@ -160,3 +160,83 @@ def test_state_roundtrip_resume():
         e2.set_state(b"\x00")
     with pytest.raises(TypeError):  # not bytes
         e2.set_state(42)
+
+
+def _emitter(acq, tile: int, code_phase: int, dwells: int):
+    """A noise-free emitter on window tile ``tile`` at ``code_phase``
+    samples: the rolled replica on the carrier that is ``tile`` bins of the
+    epoch-length FFT, for ``dwells`` decided dwells."""
+    nx = acq.code_bins
+    n = dwells * acq.n_noncoh * nx
+    k = np.arange(n)
+    q = k % nx
+    src = (q + nx - code_phase % nx) % nx
+    chips = CODE[(src // SPC) % SF]
+    return (
+        np.where(chips, -1.0, 1.0) * np.exp(2j * np.pi * tile * k / nx)
+    ).astype(np.complex64)
+
+
+def test_telemetry_probes_and_the_surface_tap():
+    """Design §2.4: ten probes per decided dwell; the surface in the gate's
+    units, its maximum the dwell's test statistic at the reported cell; the
+    axes the hand-off's numbers; nothing kept until ``keep_surface``."""
+    from doppler.telemetry import Telemetry
+
+    a = _acq(doppler_uncertainty=3 * CHIP_RATE / (2 * SF))
+    assert a.doppler_bins > 1
+    tlm = Telemetry(1 << 12)
+    a.set_telemetry(tlm, "acq")
+    names = sorted(tlm.probe_names)
+    assert names == sorted(
+        "acq." + s
+        for s in [
+            "stat",
+            "gate",
+            "noise",
+            "peak",
+            "row",
+            "col",
+            "n_peaks",
+            "n_held",
+            "conc",
+            "hit",
+        ]
+    )
+    assert a.keep_surface == 0
+    x = _emitter(a, tile=1, code_phase=5, dwells=3)
+    a.keep_surface = 1
+    hits = a.push(x)
+    assert len(hits) >= 3
+    recs = tlm.read()
+    assert len(recs) == 10 * 3
+    hit_id = tlm.probe_id("acq.hit")
+    assert np.all(recs["value"][recs["probe"] == hit_id] == 1.0)
+
+    s = np.empty(a.surface_rows * a.code_bins, dtype=np.float32)
+    assert a.surface(s) == s.size
+    # a hit is (doppler_bin, code_phase, peak_mag, noise_est, test_stat,
+    # cn0_dbhz_est, samples_consumed)
+    assert a.surface_at == hits[-1][6]
+    surf = s.reshape(a.surface_rows, a.code_bins)
+    row, col = np.unravel_index(np.argmax(surf), surf.shape)
+    assert (row, col) == (hits[-1][0], hits[-1][1])
+    # to a float rounding: the SIMD build's fast-math may normalise the
+    # surface with a reciprocal where the statistic took a divide
+    assert np.isclose(surf[row, col], hits[-1][4], rtol=4e-7, atol=0)
+    assert a.peak_conc > 0.5
+
+    hz = np.empty(a.surface_rows)
+    ch = np.empty(a.code_bins)
+    assert a.surface_doppler_hz(hz) == hz.size
+    assert a.surface_chip_phase(ch) == ch.size
+    assert hz[0] == 0.0 and hz[1] == CHIP_RATE / SF and hz[-1] == -hz[1]
+    assert ch[0] == 0.0 and ch[col] == (SF - col / SPC) % SF
+
+    # too small a buffer, and nothing kept once the tap is off
+    assert a.surface(np.empty(3, dtype=np.float32)) == 0
+    a.keep_surface = 0
+    a.reset()
+    assert a.surface_at == 0
+    a.push(_emitter(a, tile=1, code_phase=5, dwells=1))
+    assert a.surface(s) == 0

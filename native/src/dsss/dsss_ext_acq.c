@@ -512,6 +512,97 @@ Acquisition_getprop_max_peaks (AcquisitionObject *self,
       (unsigned long long)self->handle->max_peaks);
 }
 
+static PyObject *
+Acquisition_getprop_surface_rows (AcquisitionObject *self,
+                                  void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)((self->handle->n_surf / self->handle->code_bins)));
+}
+
+static PyObject *
+Acquisition_getprop_surface_at (AcquisitionObject *self,
+                                void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->surface_at);
+}
+
+static PyObject *
+Acquisition_getprop_n_peaks (AcquisitionObject *self,
+                             void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->n_peaks);
+}
+
+static PyObject *
+Acquisition_getprop_n_held (AcquisitionObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->n_held);
+}
+
+static PyObject *
+Acquisition_getprop_peak_conc (AcquisitionObject *self,
+                               void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((double)self->handle->peak_conc);
+}
+
+static PyObject *
+Acquisition_getprop_keep_surface (AcquisitionObject *self,
+                                  void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong ((long)self->handle->keep_surface);
+}
+
+static int
+Acquisition_setprop_keep_surface (AcquisitionObject *self, PyObject *value,
+                                  void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return -1;
+    }
+  int v = 0;
+  if (!PyArg_Parse (value, "i", &v))
+    return -1;
+  self->handle->keep_surface = v;
+  return 0;
+}
+
 static PyGetSetDef Acquisition_getset[] = {
   { "code_bins", (getter)Acquisition_getprop_code_bins, NULL,
     "Code-phase hypotheses searched (= sf*spc, one code period).\n", NULL },
@@ -588,6 +679,35 @@ static PyGetSetDef Acquisition_getset[] = {
     "The peak list's capacity per dwell (1 = the classic gated maximum); set "
     "with set_max_peaks().\n",
     NULL },
+  { "surface_rows", (getter)Acquisition_getprop_surface_rows, NULL,
+    "Rows of the surface `surface()` returns: the Doppler axis in surface "
+    "units (tiles x interpolated slow-time rows); its columns are "
+    "`code_bins`.\n",
+    NULL },
+  { "surface_at", (getter)Acquisition_getprop_surface_at, NULL,
+    "`samples_consumed` of the dwell whose surface `surface()` returns (0 "
+    "until one has been captured).\n",
+    NULL },
+  { "n_peaks", (getter)Acquisition_getprop_n_peaks, NULL,
+    "Picks in the last decided dwell, held twins included.\n", NULL },
+  { "n_held", (getter)Acquisition_getprop_n_held, NULL,
+    "Picks of the last decided dwell held as same-code-phase twins rather "
+    "than listed (design §7.1).\n",
+    NULL },
+  { "peak_conc", (getter)Acquisition_getprop_peak_conc, NULL,
+    "Concentration of the last dwell's strongest peak: the power of its main "
+    "lobe (its row and one either side, the exclusion zone's width) over the "
+    "total power of its code-phase column across every Doppler row and tile. "
+    "Near 1 for a clean single emitter, even one straddling two tiles; about "
+    "0.5 when a data transition splits it into twins two or more tiles away; "
+    "lower when a coherent block straddles data (design §2.4).\n",
+    NULL },
+  { "keep_surface", (getter)Acquisition_getprop_keep_surface,
+    (setter)Acquisition_setprop_keep_surface,
+    "1 keeps every decided dwell's surface for `surface()` (normalised into "
+    "the gate's units at each decision); 0 (the default) costs nothing. "
+    "`set_surface_sink()` in C sets it.\n",
+    NULL },
   { NULL }
 };
 
@@ -643,6 +763,162 @@ AcquisitionObj_set_max_peaks (AcquisitionObject *self, PyObject *args,
       return NULL;
     }
   Py_RETURN_NONE;
+}
+
+static PyObject *
+AcquisitionObj_set_telemetry (AcquisitionObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char  *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject     *tlm_obj   = Py_None;
+  const char   *prefix    = NULL;
+  unsigned long decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|k", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            return NULL;
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  int      _rc   = acq_set_telemetry (self->handle, tlm, prefix, decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AcquisitionObj_surface (AcquisitionObject *self, PyObject *args,
+                        PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "out", NULL };
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &out_obj))
+    return NULL;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (out_obj)
+      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!out_arr)
+    {
+      return NULL;
+    }
+  float *out     = (float *)PyArray_DATA (out_arr);
+  size_t out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t y       = acq_surface (self->handle, out, out_len);
+  Py_DECREF (out_arr);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+}
+
+static PyObject *
+AcquisitionObj_surface_doppler_hz (AcquisitionObject *self, PyObject *args,
+                                   PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "out", NULL };
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &out_obj))
+    return NULL;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (out_obj)
+      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_DOUBLE
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      out_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!out_arr)
+    {
+      return NULL;
+    }
+  double *out     = (double *)PyArray_DATA (out_arr);
+  size_t  out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t  y       = acq_surface_doppler_hz (self->handle, out, out_len);
+  Py_DECREF (out_arr);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+}
+
+static PyObject *
+AcquisitionObj_surface_chip_phase (AcquisitionObject *self, PyObject *args,
+                                   PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "out", NULL };
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &out_obj))
+    return NULL;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (out_obj)
+      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_DOUBLE
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      out_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!out_arr)
+    {
+      return NULL;
+    }
+  double *out     = (double *)PyArray_DATA (out_arr);
+  size_t  out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t  y       = acq_surface_chip_phase (self->handle, out, out_len);
+  Py_DECREF (out_arr);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
 static PyMethodDef AcquisitionObj_methods[] = {
@@ -886,6 +1162,186 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> a.set_max_peaks(8)\n"
     ">>> a.max_peaks\n"
     "8\n" },
+  { "set_telemetry", (PyCFunction)(void *)AcquisitionObj_set_telemetry,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_telemetry(tlm, prefix, decim) -> None\n"
+    "\n"
+    "Attach (or detach) a telemetry context and register the engine's\n"
+    "probes on it (design §2.4).\n"
+    "\n"
+    "Registers ten probes, emitted once per DECIDED dwell (a coherent dump,\n"
+    "or the dwell that completes `n_noncoh` looks) and further thinned by\n"
+    "decim: \"<prefix>.stat\" (the dwell's test statistic — the strongest "
+    "cell\n"
+    "against the CFAR reference, in the units the gate is set in),\n"
+    "\"<prefix>.gate\" (that gate: `threshold` on the coherent path, "
+    "`eta_nc`\n"
+    "on the non-coherent one — plotted together they show exactly where a\n"
+    "hit fired), \"<prefix>.noise\" (the CFAR reference `noise_est`),\n"
+    "\"<prefix>.peak\" (the strongest cell's raw value), \"<prefix>.row\" "
+    "and\n"
+    "\"<prefix>.col\" (its native Doppler row and code-phase column — a\n"
+    "surface coordinate, not a physical unit; acq_surface_doppler_hz() and\n"
+    "acq_surface_chip_phase() convert), \"<prefix>.n_peaks\" (picks in the\n"
+    "dwell, held twins included), \"<prefix>.n_held\" (picks held as\n"
+    "same-code-phase twins rather than listed, §7.1), \"<prefix>.conc\" (the\n"
+    "strongest pick's concentration — see `peak_conc`: its main lobe's power\n"
+    "over its whole column's, near 1 for one clean emitter even when it\n"
+    "straddles two tiles, about 0.5 when a data transition splits it into\n"
+    "twins two or more tiles away, lower still when a coherent block\n"
+    "straddles data — the discriminator between one emitter's splatter and a\n"
+    "second emitter) and \"<prefix>.hit\" (1 when the gate fired). Passing\n"
+    "NULL detaches. Setup path, never hot; the context is borrowed and must\n"
+    "outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "tlm : object | None\n"
+    "    Telemetry context to attach, or NULL to detach.\n"
+    "prefix : str\n"
+    "    Probe-name prefix, e.g. \"acq\" or \"ch0.acq\".\n"
+    "decim : int\n"
+    "    Emit every decim-th decided dwell; >= 1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_telemetry failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> from doppler.telemetry import Telemetry\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(\n"
+    "...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)\n"
+    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)\n"
+    ">>> tlm = Telemetry(1 << 12)\n"
+    ">>> a.set_telemetry(tlm, \"acq\")\n"
+    ">>> sorted(tlm.probe_names)[:3]\n"
+    "['acq.col', 'acq.conc', 'acq.gate']\n"
+    ">>> x = np.zeros(a.n_noncoh * 511 * 2 * 3, dtype=np.complex64)\n"
+    ">>> _ = a.push(x)\n"
+    ">>> len(tlm.read()) % 10      # ten records per decided dwell\n"
+    "0\n" },
+  { "surface", (PyCFunction)(void *)AcquisitionObj_surface,
+    METH_VARARGS | METH_KEYWORDS,
+    "surface(out) -> int\n"
+    "\n"
+    "The last decided dwell's surface, in the gate's own units.\n"
+    "\n"
+    "Copies the surface the last dwell was decided on into out, row-major\n"
+    "`surface_rows` (Doppler: tiles, or interpolated slow-time rows) by\n"
+    "`code_bins` (code phase), every cell divided by the same CFAR reference\n"
+    "the gate used — so a cell reads as its own test statistic, to a float\n"
+    "rounding (the SIMD build's fast-math may take a reciprocal in this loop\n"
+    "and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on\n"
+    "the non-coherent path) is a flat plane on a plot. The engine keeps this\n"
+    "only while `keep_surface` is set (a caller sets it, or\n"
+    "acq_set_surface_sink() does): set it, push, then read. `surface_at`\n"
+    "says which dwell it is; a time-decimated record is the caller reading\n"
+    "every k-th dwell, or a sink with `decim`.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "out : NDArray[np.float32]\n"
+    "    At least `surface_rows * code_bins` floats.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Cells written (`surface_rows * code_bins`), or 0 when no dwell has\n"
+    "    been decided with `keep_surface` set, or out is too small.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(\n"
+    "...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)\n"
+    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)\n"
+    ">>> a.keep_surface = 1\n"
+    ">>> x = np.zeros(a.n_noncoh * 511 * 2, dtype=np.complex64)\n"
+    ">>> _ = a.push(x)\n"
+    ">>> s = np.empty(a.surface_rows * a.code_bins, dtype=np.float32)\n"
+    ">>> a.surface(s) == s.size\n"
+    "True\n"
+    ">>> s.reshape(a.surface_rows, a.code_bins).shape == (a.surface_rows, "
+    "1022)\n"
+    "True\n" },
+  { "surface_doppler_hz",
+    (PyCFunction)(void *)AcquisitionObj_surface_doppler_hz,
+    METH_VARARGS | METH_KEYWORDS,
+    "surface_doppler_hz(out) -> int\n"
+    "\n"
+    "The surface's Doppler axis: the frequency of each row, in Hz.\n"
+    "\n"
+    "One value per surface row, the fold and scale a hit's `doppler_hz_est`\n"
+    "uses (dp_fftfreq_index() times `doppler_res_hz`, on the interpolated\n"
+    "grid where the slow-time axis is interpolated), so a plot of\n"
+    "acq_surface() carries the same axis a DetectionEvent reports on.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "out : NDArray[np.float64]\n"
+    "    At least `surface_rows` doubles.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Values written (`surface_rows`), or 0 if out is too small.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(\n"
+    "...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)\n"
+    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,\n"
+    "...                 doppler_uncertainty=4000.0)\n"
+    ">>> f = np.empty(a.surface_rows, dtype=np.float64)\n"
+    ">>> a.surface_doppler_hz(f) == a.surface_rows\n"
+    "True\n"
+    ">>> bool(f[0] == 0.0 and f.min() < 0.0 < f.max())\n"
+    "True\n" },
+  { "surface_chip_phase",
+    (PyCFunction)(void *)AcquisitionObj_surface_chip_phase,
+    METH_VARARGS | METH_KEYWORDS,
+    "surface_chip_phase(out) -> int\n"
+    "\n"
+    "The surface's code-phase axis: the chip phase of each column.\n"
+    "\n"
+    "One value per surface column, in chips, the same mapping\n"
+    "acq_build_handoff() applies to a hit's `code_phase` — so a plotted peak\n"
+    "sits at the chip phase the DetectionEvent would carry.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "out : NDArray[np.float64]\n"
+    "    At least `code_bins` doubles.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Values written (`code_bins`), or 0 if out is too small.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(\n"
+    "...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)\n"
+    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)\n"
+    ">>> c = np.empty(a.code_bins, dtype=np.float64)\n"
+    ">>> a.surface_chip_phase(c) == a.code_bins\n"
+    "True\n"
+    ">>> bool(c[0] == 0.0 and c[1] == 510.5)\n"
+    "True\n" },
   { NULL }
 };
 

@@ -108,6 +108,7 @@
 /* detector2d_core.h supplies det_noise_mode_t (guarded typedef). */
 #include "detector2d/detector2d_core.h"
 #include "fft2d/fft2d_core.h"
+#include "dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -157,6 +158,39 @@ extern "C"
                                      material a caller with a real clock
                                      converts.                            */
   } acq_result_t;
+
+  /**
+   * @brief Telemetry attachment: a borrowed context + this engine's probe
+   *        ids (design §2.4). NULL ctx (the default) means detached — the
+   *        one probe site is then a single predicted-not-taken branch per
+   *        decided dwell. Never in a state blob; preserved across
+   *        acq_set_state() like the borrowed code.
+   */
+  typedef struct
+  {
+    dp_tlm_t *ctx;      /**< NULL = detached                                */
+    int32_t id_stat;    /**< "<prefix>.stat"    — the dwell's test statistic */
+    int32_t id_gate;    /**< "<prefix>.gate"    — the gate it was held to    */
+    int32_t id_noise;   /**< "<prefix>.noise"   — the CFAR reference         */
+    int32_t id_peak;    /**< "<prefix>.peak"    — the strongest cell's value */
+    int32_t id_row;     /**< "<prefix>.row"     — its native Doppler row     */
+    int32_t id_col;     /**< "<prefix>.col"     — its code-phase column      */
+    int32_t id_n_peaks; /**< "<prefix>.n_peaks" — picks in the dwell         */
+    int32_t id_n_held;  /**< "<prefix>.n_held"  — picks held as twins        */
+    int32_t id_conc;    /**< "<prefix>.conc"    — the peak's concentration   */
+    int32_t id_hit;     /**< "<prefix>.hit"     — 1 when the gate fired      */
+  } acq_tlm_t;
+
+  /**
+   * @brief A surface sink: called once per decided dwell (every `decim`-th)
+   *        with the dwell's surface in test-statistic units, row-major
+   *        `rows` x `cols` (Doppler rows by code-phase columns), and the
+   *        dwell's `samples_consumed`. The pointer is the engine's and is
+   *        valid only for the call. See acq_set_surface_sink().
+   */
+  typedef void (*acq_surface_sink_fn) (void *ctx, const float *surface,
+                                       size_t rows, size_t cols,
+                                       uint64_t samples_consumed);
 
   /**
    * @brief Streaming acquisition-engine state.
@@ -304,6 +338,21 @@ extern "C"
     uint32_t   *twin_col;  /**< max_peaks: last dwell's picks, code phases */
     size_t      n_twins;   /**< picks carried over from the last dwell     */
 
+    /* Observability (design §2.4): attach-on-demand, nothing in blobs. */
+    acq_tlm_t tlm;       /**< telemetry attachment; ctx NULL = detached      */
+    int       keep_surface; /**< 1 = normalise every decided dwell into
+                                 `stat_surface` for acq_surface(); set by a
+                                 caller or by acq_set_surface_sink()        */
+    float *stat_surface; /**< n_surf: the last decided dwell in the gate's
+                              units; allocated on the first dwell decided
+                              with keep_surface set                       */
+    uint64_t surface_at; /**< samples_consumed of that dwell; 0 = none      */
+    uint64_t dwells;     /**< dwells decided since create/reset             */
+    acq_surface_sink_fn sink; /**< NULL = none                              */
+    void    *sink_ctx;
+    uint32_t sink_decim; /**< the sink sees every sink_decim-th dwell       */
+    size_t   n_held;     /**< the last dwell's picks held as twins (§7.1)  */
+    float    peak_conc;  /**< the strongest pick's column concentration     */
     /* Last-dump bookkeeping (for inspection): the strongest pick. */
     size_t peak_row;
     size_t peak_col;
@@ -589,6 +638,178 @@ extern "C"
    * @endcode
    */
   int acq_set_max_peaks (acq_state_t *state, size_t n);
+
+  /**
+   * @brief Attach (or detach) a telemetry context and register the
+   *        engine's probes on it (design §2.4).
+   *
+   * Registers ten probes, emitted once per DECIDED dwell (a coherent dump,
+   * or the dwell that completes `n_noncoh` looks) and further thinned by
+   * @p decim: "<prefix>.stat" (the dwell's test statistic — the strongest
+   * cell against the CFAR reference, in the units the gate is set in),
+   * "<prefix>.gate" (that gate: `threshold` on the coherent path, `eta_nc`
+   * on the non-coherent one — plotted together they show exactly where a
+   * hit fired), "<prefix>.noise" (the CFAR reference `noise_est`),
+   * "<prefix>.peak" (the strongest cell's raw value), "<prefix>.row" and
+   * "<prefix>.col" (its native Doppler row and code-phase column — a
+   * surface coordinate, not a physical unit; acq_surface_doppler_hz() and
+   * acq_surface_chip_phase() convert), "<prefix>.n_peaks" (picks in the
+   * dwell, held twins included), "<prefix>.n_held" (picks held as
+   * same-code-phase twins rather than listed, §7.1), "<prefix>.conc" (the
+   * strongest pick's concentration — see `peak_conc`: its main lobe's
+   * power over its whole column's, near 1 for one clean emitter even
+   * when it straddles two tiles, about 0.5 when a data transition splits
+   * it into twins two or more tiles away, lower still when a coherent
+   * block straddles data — the discriminator between one emitter's
+   * splatter and a second emitter) and
+   * "<prefix>.hit" (1 when the gate fired). Passing NULL detaches. Setup
+   * path, never hot; the context is borrowed and must outlive the
+   * attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
+   *
+   * @param state  Must be non-NULL.
+   * @param tlm    Telemetry context to attach, or NULL to detach.
+   * @param prefix Probe-name prefix, e.g. "acq" or "ch0.acq".
+   * @param decim  Emit every decim-th decided dwell; >= 1.
+   * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
+   *         ten probes (the attach fails whole; the engine stays detached).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.telemetry import Telemetry
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(
+   * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
+   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> tlm = Telemetry(1 << 12)
+   * >>> a.set_telemetry(tlm, "acq")
+   * >>> sorted(tlm.probe_names)[:3]
+   * ['acq.col', 'acq.conc', 'acq.gate']
+   * >>> x = np.zeros(a.n_noncoh * 511 * 2 * 3, dtype=np.complex64)
+   * >>> _ = a.push(x)
+   * >>> len(tlm.read()) % 10      # ten records per decided dwell
+   * 0
+   *
+   * @endcode
+   */
+  int acq_set_telemetry (acq_state_t *state, dp_tlm_t *tlm,
+                         const char *prefix, uint32_t decim);
+
+  /**
+   * @brief The last decided dwell's surface, in the gate's own units.
+   *
+   * Copies the surface the last dwell was decided on into @p out, row-major
+   * `surface_rows` (Doppler: tiles, or interpolated slow-time rows) by
+   * `code_bins` (code phase), every cell divided by the same CFAR reference
+   * the gate used — so a cell reads as its own test statistic, to a float
+   * rounding (the SIMD build's fast-math may take a reciprocal in this
+   * loop and a divide in the gate's), and the gate (`threshold`, or
+   * `eta_nc` on the non-coherent path) is a flat plane on a plot. The engine keeps this only while `keep_surface` is set (a
+   * caller sets it, or acq_set_surface_sink() does): set it, push, then
+   * read. `surface_at` says which dwell it is; a time-decimated record is
+   * the caller reading every k-th dwell, or a sink with `decim`.
+   *
+   * @param state Must be non-NULL.
+   * @param out   At least `surface_rows * code_bins` floats.
+   * @param n_out Capacity of @p out.
+   * @return Cells written (`surface_rows * code_bins`), or 0 when no dwell
+   *         has been decided with `keep_surface` set, or @p out is too small.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(
+   * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
+   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> a.keep_surface = 1
+   * >>> x = np.zeros(a.n_noncoh * 511 * 2, dtype=np.complex64)
+   * >>> _ = a.push(x)
+   * >>> s = np.empty(a.surface_rows * a.code_bins, dtype=np.float32)
+   * >>> a.surface(s) == s.size
+   * True
+   * >>> s.reshape(a.surface_rows, a.code_bins).shape == (a.surface_rows, 1022)
+   * True
+   *
+   * @endcode
+   */
+  size_t acq_surface (acq_state_t *state, float *out, size_t n_out);
+
+  /**
+   * @brief The surface's Doppler axis: the frequency of each row, in Hz.
+   *
+   * One value per surface row, the fold and scale a hit's `doppler_hz_est`
+   * uses (dp_fftfreq_index() times `doppler_res_hz`, on the interpolated
+   * grid where the slow-time axis is interpolated), so a plot of
+   * acq_surface() carries the same axis a DetectionEvent reports on.
+   *
+   * @param state Must be non-NULL.
+   * @param out   At least `surface_rows` doubles.
+   * @param n_out Capacity of @p out.
+   * @return Values written (`surface_rows`), or 0 if @p out is too small.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(
+   * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
+   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,
+   * ...                 doppler_uncertainty=4000.0)
+   * >>> f = np.empty(a.surface_rows, dtype=np.float64)
+   * >>> a.surface_doppler_hz(f) == a.surface_rows
+   * True
+   * >>> bool(f[0] == 0.0 and f.min() < 0.0 < f.max())
+   * True
+   *
+   * @endcode
+   */
+  size_t acq_surface_doppler_hz (acq_state_t *state, double *out,
+                                 size_t n_out);
+
+  /**
+   * @brief The surface's code-phase axis: the chip phase of each column.
+   *
+   * One value per surface column, in chips, the same mapping
+   * acq_build_handoff() applies to a hit's `code_phase` — so a plotted
+   * peak sits at the chip phase the DetectionEvent would carry.
+   *
+   * @param state Must be non-NULL.
+   * @param out   At least `code_bins` doubles.
+   * @param n_out Capacity of @p out.
+   * @return Values written (`code_bins`), or 0 if @p out is too small.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(
+   * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
+   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+   * >>> c = np.empty(a.code_bins, dtype=np.float64)
+   * >>> a.surface_chip_phase(c) == a.code_bins
+   * True
+   * >>> bool(c[0] == 0.0 and c[1] == 510.5)
+   * True
+   *
+   * @endcode
+   */
+  size_t acq_surface_chip_phase (acq_state_t *state, double *out,
+                                 size_t n_out);
+
+  /**
+   * @brief Attach (or detach) a C surface sink: every @p decim-th decided
+   *        dwell's surface, in test-statistic units, handed to @p fn on the
+   *        pushing thread (design §2.4).
+   *
+   * Sets `keep_surface`, so acq_surface() reads the same dwell afterwards.
+   * The pointer handed to @p fn is the engine's and is valid only for the
+   * call: copy or write it out there. This is how a long run records the
+   * surface decimated in time without a copy per dwell it does not keep.
+   *
+   * @param state Must be non-NULL.
+   * @param fn    The sink, or NULL to detach.
+   * @param ctx   Passed through to @p fn.
+   * @param decim Hand over every decim-th dwell; 0 reads as 1.
+   */
+  void acq_set_surface_sink (acq_state_t *state, acq_surface_sink_fn fn,
+                             void *ctx, uint32_t decim);
 
   /**
    * @brief Stream raw samples; emit one event per CFAR dump above threshold.

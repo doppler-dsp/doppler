@@ -13,6 +13,7 @@
 * [**acq\_handoff\_t**](structacq__handoff__t.md)
 * [**acq\_result\_t**](structacq__result__t.md)
 * [**acq\_state\_t**](structacq__state__t.md)
+* [**acq\_tlm\_t**](structacq__tlm__t.md)
 * [**adc\_state\_t**](structadc__state__t.md)
 * [**agc\_state\_t**](structagc__state__t.md)
 * [**agc\_tlm\_t**](structagc__tlm__t.md)

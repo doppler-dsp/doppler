@@ -26,6 +26,9 @@ depends_on = [
     { name = "fft2d", link = true },
     { name = "fft", link = true },
     { name = "detection", link = true },
+    # dp_tlm_probe() is out of line (set_telemetry, a setup path); the emit
+    # in the dwell path is the header inline.
+    { name = "dp_tlm", link = true },
 ]
 
 # ── Construction: physics in, grid out ───────────────────────────────────────
@@ -274,3 +277,82 @@ name = "epochs_per_symbol"
 type = "double"
 field = true
 doc = "(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when symbol_rate is 0."
+
+# ── Observability (design §2.4): telemetry probes and the surface tap ────────
+# Attach-on-demand, like Dll/SymSync: detached, every probe site is one
+# predicted-not-taken branch per dwell and the surface costs nothing.
+
+[[acq.methods]]
+name = "set_telemetry"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "tlm", type = "dp_tlm_t *", capsule = "doppler.telemetry.dp_tlm", header = "dp_tlm/dp_tlm_core.h" },
+  { name = "prefix", type = "const char *" },
+  { name = "decim", type = "uint32_t", default = "1" },
+]
+
+# The last decided dwell's surface in the gate's own units (the per-cell
+# test statistic), row-major `surface_rows` x `code_bins`, into a caller
+# buffer; returns the cells written, 0 until a dwell has been decided.
+# The explicit buffer is the rs_codec.generator shape, not the self-sizing
+# `variable_output` one: the surface has exactly one size, so a `count`
+# parameter would lie (just-makeit#1042). The first read arms the tap; the
+# engine keeps the surface only while a reader is armed.
+[[acq.methods]]
+name = "surface"
+arg_type = "void"
+return_type = "size_t"
+params = [{ name = "out", type = "float[]", out = true }]
+
+# The surface's axes, for a plot: Doppler in Hz per row and code phase in
+# chips per column, the same mappings a hit's DetectionEvent uses.
+[[acq.methods]]
+name = "surface_doppler_hz"
+arg_type = "void"
+return_type = "size_t"
+params = [{ name = "out", type = "double[]", out = true }]
+
+[[acq.methods]]
+name = "surface_chip_phase"
+arg_type = "void"
+return_type = "size_t"
+params = [{ name = "out", type = "double[]", out = true }]
+
+[[acq.properties]]
+name = "keep_surface"
+type = "int"
+field = true
+writable = true
+doc = "1 keeps every decided dwell's surface for `surface()` (normalised into the gate's units at each decision); 0 (the default) costs nothing. `set_surface_sink()` in C sets it."
+
+[[acq.properties]]
+name = "surface_rows"
+type = "size_t"
+expr = "(self->handle->n_surf / self->handle->code_bins)"
+doc = "Rows of the surface `surface()` returns: the Doppler axis in surface units (tiles x interpolated slow-time rows); its columns are `code_bins`."
+
+[[acq.properties]]
+name = "surface_at"
+type = "size_t"
+field = true
+doc = "`samples_consumed` of the dwell whose surface `surface()` returns (0 until one has been captured)."
+
+[[acq.properties]]
+name = "n_peaks"
+type = "size_t"
+field = true
+doc = "Picks in the last decided dwell, held twins included."
+
+[[acq.properties]]
+name = "n_held"
+type = "size_t"
+field = true
+doc = "Picks of the last decided dwell held as same-code-phase twins rather than listed (design §7.1)."
+
+[[acq.properties]]
+name = "peak_conc"
+type = "float"
+field = true
+doc = "Concentration of the last dwell's strongest peak: the power of its main lobe (its row and one either side, the exclusion zone's width) over the total power of its code-phase column across every Doppler row and tile. Near 1 for a clean single emitter, even one straddling two tiles; about 0.5 when a data transition splits it into twins two or more tiles away; lower when a coherent block straddles data (design §2.4)."

@@ -3035,9 +3035,14 @@ pr-watch: ## Watch PR=<n>'s checks to a settled verdict (never merges)
 
 # The gate. Two questions, both answerable with no network and no docker:
 #
-#   1. Do the workflows and the pin file agree? A `container:` naming anything
-#      other than a pinned digest is how a run stops being reproducible --
-#      including a tag, which is mutable by definition.
+#   1. Does every image a workflow can run in trace back to the pin file? A
+#      `container:` naming anything else is how a run stops being
+#      reproducible -- including a tag, which is mutable by definition.
+#      Delegated to scripts/ci_image_refs_check.py: the refs are expressions
+#      now, so answering this means RESOLVING `${{ … }}` rather than
+#      skipping it, which is more than a grep should be asked to do. Its own
+#      header carries why the previous shell scan could not survive the
+#      change (#1215).
 #   2. Is the pin still describing the current inputs? bootstrap.toml gaining
 #      a package with no rebuild means CI provisions an environment the repo
 #      no longer describes, and the failure would land later, somewhere else,
@@ -3062,34 +3067,9 @@ ci-image-check: ## Fail when the pinned CI image no longer matches its inputs
 	     echo "  commit the pin block it prints into $(CI_IMAGE_PIN)."; \
 	     rc=1; \
 	 fi; \
-	 refs=$$(grep -rhoE '^[[:space:]]*image:[[:space:]]*\S+' \
-	     .github/workflows/*.yml | awk '{print $$2}' | sort -u); \
-	 for r in $$refs; do \
-	     case "$$r" in \
-	     *'$${{'*) \
-	         : "A workflow expression rather than a literal ref. What it" ; \
-	         : "resolves to is a matrix image: line, which this same scan" ; \
-	         : "sees and checks as a literal -- so the pin is still gated," ; \
-	         : "and a per-leg image stays expressible." ; \
-	         continue;; \
-	     esac; \
-	     case "$$r" in \
-	     *@sha256:*) ;; \
-	     *) echo "ci-image-check: a container: names '$$r', which is not a"; \
-	        echo "  digest — a tag is mutable, so the image a PR passed on"; \
-	        echo "  need not be the one it merges with."; \
-	        rc=1;; \
-	     esac; \
-	     case "$$r" in \
-	     $(CI_IMAGE_2204)|$(CI_IMAGE_2404)) ;; \
-	     *@sha256:*) echo "ci-image-check: '$$r' is pinned but is not one of"; \
-	                 echo "  the two digests in $(CI_IMAGE_PIN)."; \
-	                 rc=1;; \
-	     esac; \
-	 done; \
+	 $(UV) run python scripts/ci_image_refs_check.py || rc=1; \
 	 [ $$rc -eq 0 ] || exit 1; \
-	 echo "ci-image-check: OK — pin matches its inputs;" \
-	      "$$(echo "$$refs" | grep -c . ) container ref(s), all digest-pinned"
+	 echo "ci-image-check: OK — pin matches its inputs"
 
 # The OTHER half of the same question, and the half `ci-image-check` above
 # deliberately cannot answer: it is a no-network gate, so it compares OUR

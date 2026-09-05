@@ -114,6 +114,24 @@ published.
 Jobs pin the image **by digest**, so an image rebuild cannot change what an
 in-flight PR was tested against.
 
+**The digest is written in exactly one place: `.github/ci-images.env`.** No
+workflow names one. A `pin` job reads that file and publishes the two refs as
+job outputs, and every containerised job consumes
+`${{ needs.pin.outputs.image_2404 }}`.
+
+It was not always so, and the reason is worth keeping. The digest used to live
+in the pin file *and* in six literal `container:` refs in `ci.yml`, which
+`ci-image-check` required to agree — while nothing could move both.
+`ci-image.yml` writes the pin file, and the platform refuses any
+`GITHUB_TOKEN` push touching `.github/workflows/**`. So the nightly's repin
+branch was **born failing lint**, and the repin path had never once completed
+end to end ([#1215](https://github.com/doppler-dsp/doppler/issues/1215)).
+
+A whole job for two `echo`s is the price of `container:` being resolved
+*before* any of its job's steps run: nothing a step sets can reach it, so the
+value must arrive from a job that already finished. The jobs still fan out in
+parallel behind it, so it costs one hop, not one per job.
+
 `ci-image.yml` rebuilds nightly, compares the *package fingerprint* baked into
 the image, and publishes and pushes the refreshed pin to `ci/repin-image` only
 when the content actually moved. Rebuilding nightly is not the same as
@@ -165,10 +183,24 @@ git push                # ci-image.yml rebuilds and prints the pin block
 # commit the printed block into .github/ci-images.env
 ```
 
-`ci-image-check` runs inside `make lint`. It is offline and instant: it hashes
-the image's inputs and compares that to what the pin recorded, and it refuses
-any `container:` naming a mutable tag, because a tag is mutable by definition
-and the image a PR passed on would not have to be the one it merges with.
+`ci-image-check` runs inside `make lint`. It is offline and instant, and asks
+two questions: does the tree's input hash still match what the pin recorded,
+and does every image a workflow can run in trace back to the pin file?
+
+The second half is `scripts/ci_image_refs_check.py`. It **resolves**
+`${{ … }}` rather than skipping it — a `needs.<job>.outputs.<name>` ref is
+accepted only when that job is in the consumer's `needs`, declares the output,
+and genuinely reads `.github/ci-images.env`; a `matrix.<key>` ref is followed
+into the include entries and each result re-checked. A literal is still legal
+and still must be a pinned digest, because a tag is mutable by definition and
+the image a PR passed on would not have to be the one it merges with. Anything
+else fails: the gate refuses to guess at an interpolation.
+
+The scan it replaced *skipped* expressions, on the reasoning that a matrix
+`image:` line elsewhere carried the literal they resolved to. Removing the
+literals voided exactly that reasoning — it would have walked six expressions,
+checked none, and printed OK. Finding **zero** references is therefore a
+failure too: a scan that matches nothing has not passed, it has not run.
 
 **"Inputs" is narrower than "those two files", and the difference matters.**
 The hash was `cat bootstrap.toml Dockerfile.ci | sha256sum` — the *files*, not

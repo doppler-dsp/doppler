@@ -302,6 +302,55 @@ keeps the engine usable by a baseband-only caller with no carrier at all.
 
 ______________________________________________________________________
 
+### 2.4 Observability — the searcher is watched, not trusted (decided 2026-09-05)
+
+The searcher is the one stage nobody can check by its output alone: a
+hit says where a peak was, and nothing about what else stood on the
+surface, how close the gate came on the dwells that fired nothing, or
+whether one emitter's splatter was about to be listed as two. So the
+engine carries its own instruments, attach-on-demand like every other
+object's (`Dll.set_telemetry`): detached, a decided dwell costs three
+predicted-not-taken branches; nothing rides in a state blob.
+
+- **Ten probes per decided dwell**, `set_telemetry(tlm, prefix, decim)`:
+    the test statistic and the gate it was held to (`threshold`, or
+    `eta_nc` on the non-coherent path — plotted together they show
+    exactly where a hit fired, and how close the misses came), the CFAR
+    reference, the strongest cell's value and its native row and column,
+    the picks in the dwell and how many were held as same-code-phase
+    twins (§7.1), the strongest pick's **concentration**, and whether the
+    gate fired. `decim` thins by dwells.
+- **The surface itself**, `keep_surface` then `surface(out)`: the dwell's
+    whole surface, `surface_rows × code_bins`, every cell divided by the
+    reference the gate used — so a cell reads as its own test statistic
+    and the gate is a flat plane on a plot. `surface_doppler_hz()` and
+    `surface_chip_phase()` are its axes, from the same fold and the same
+    chip-phase mapping a `DetectionEvent` carries, so a plotted peak sits
+    where the hand-off says. In C, `acq_set_surface_sink(fn, ctx, decim)`
+    hands every `decim`-th dwell's surface to a callback on the pushing
+    thread — a run of hours records the surface decimated in time without
+    a copy per dwell it does not keep. The surface is normalised only
+    while a reader is armed.
+- **The concentration is the splatter discriminator.** One emitter does
+    not make one peak: a data transition inside the epoch splits it into
+    equal twins on other tiles (§12.2), and at `D > 1` a block that
+    straddles a transition — or the edge of the pure-code window, which
+    falls at no particular chip phase (§5.4) — spreads it over its
+    slow-time rows, `10·log10 D` down and smeared across the data's
+    spectrum. All of that is at the emitter's **own code phase**; a
+    second emitter is a second column. So the probe is the strongest
+    pick's **main-lobe** power — its row and one either side, the
+    exclusion zone's width, so an emitter halfway between two tiles is
+    not charged for its own scalloping — over the total power of its
+    column across every tile and row: near 1 for one clean emitter,
+    about 0.5 for a transition's twins two or more tiles away, lower for
+    a straddling block. Beside the two-epoch
+    rule it is the number that separates one emitter's splatter from two
+    emitters, and the surface tap shows the same thing in two dimensions.
+    §12 step 11 measures it on aligned and straddling blocks.
+
+______________________________________________________________________
+
 ## 3. The asynchronous despreader
 
 **Scope:** the receive-side despreader when the **data-symbol rate is on the

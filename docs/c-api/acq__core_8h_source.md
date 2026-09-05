@@ -22,6 +22,7 @@
 /* detector2d_core.h supplies det_noise_mode_t (guarded typedef). */
 #include "detector2d/detector2d_core.h"
 #include "fft2d/fft2d_core.h"
+#include "dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -38,6 +39,25 @@ extern "C"
     float cn0_dbhz_est;        
     uint64_t samples_consumed; 
   } acq_result_t;
+
+  typedef struct
+  {
+    dp_tlm_t *ctx;      
+    int32_t id_stat;    
+    int32_t id_gate;    
+    int32_t id_noise;   
+    int32_t id_peak;    
+    int32_t id_row;     
+    int32_t id_col;     
+    int32_t id_n_peaks; 
+    int32_t id_n_held;  
+    int32_t id_conc;    
+    int32_t id_hit;     
+  } acq_tlm_t;
+
+  typedef void (*acq_surface_sink_fn) (void *ctx, const float *surface,
+                                       size_t rows, size_t cols,
+                                       uint64_t samples_consumed);
 
   typedef struct
   {
@@ -122,6 +142,17 @@ extern "C"
     uint32_t   *twin_row;  
     uint32_t   *twin_col;  
     size_t      n_twins;   
+    /* Observability (design §2.4): attach-on-demand, nothing in blobs. */
+    acq_tlm_t tlm;       
+    int       keep_surface; 
+    float *stat_surface; 
+    uint64_t surface_at; 
+    uint64_t dwells;     
+    acq_surface_sink_fn sink; 
+    void    *sink_ctx;
+    uint32_t sink_decim; 
+    size_t   n_held;     
+    float    peak_conc;  
     /* Last-dump bookkeeping (for inspection): the strongest pick. */
     size_t peak_row;
     size_t peak_col;
@@ -169,6 +200,20 @@ extern "C"
                                 size_t n_noncoh);
 
   int acq_set_max_peaks (acq_state_t *state, size_t n);
+
+  int acq_set_telemetry (acq_state_t *state, dp_tlm_t *tlm,
+                         const char *prefix, uint32_t decim);
+
+  size_t acq_surface (acq_state_t *state, float *out, size_t n_out);
+
+  size_t acq_surface_doppler_hz (acq_state_t *state, double *out,
+                                 size_t n_out);
+
+  size_t acq_surface_chip_phase (acq_state_t *state, double *out,
+                                 size_t n_out);
+
+  void acq_set_surface_sink (acq_state_t *state, acq_surface_sink_fn fn,
+                             void *ctx, uint32_t decim);
 
   size_t acq_push (acq_state_t *state, const float _Complex *x, size_t n_in,
                    acq_result_t *result, size_t max_results);

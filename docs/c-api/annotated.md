@@ -14,6 +14,7 @@ Here are the classes, structs, unions and interfaces with brief descriptions:
 * **struct** [**acq\_handoff\_t**](structacq__handoff__t.md) _Wire-ready hand-off record built from one_ [_**acq\_result\_t**_](structacq__result__t.md) _hit._    
 * **struct** [**acq\_result\_t**](structacq__result__t.md) _One acquisition detection event._     
 * **struct** [**acq\_state\_t**](structacq__state__t.md) _Streaming acquisition-engine state._     
+* **struct** [**acq\_tlm\_t**](structacq__tlm__t.md) _Telemetry attachment: a borrowed context + this engine's probe ids (design §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**acq\_set\_state()**_](acq__core_8h.md#function-acq_set_state) _like the borrowed code._    
 * **struct** [**adc\_state\_t**](structadc__state__t.md) _ADC state._     
 * **struct** [**agc\_state\_t**](structagc__state__t.md) _AGC state._     
 * **struct** [**agc\_tlm\_t**](structagc__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM); telemetry is observation, not DSP state that migrates._     

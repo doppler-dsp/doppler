@@ -1194,6 +1194,185 @@ class Acquisition:
 
         """
 
+    def set_telemetry(
+        self,
+        tlm: object | None,
+        prefix: str,
+        decim: int = 1,
+    ) -> None:
+        """Attach (or detach) a telemetry context and register the engine's
+        probes on it (design §2.4).
+
+        Registers ten probes, emitted once per DECIDED dwell (a coherent dump,
+        or the dwell that completes `n_noncoh` looks) and further thinned by
+        decim: "<prefix>.stat" (the dwell's test statistic — the strongest cell
+        against the CFAR reference, in the units the gate is set in),
+        "<prefix>.gate" (that gate: `threshold` on the coherent path, `eta_nc`
+        on the non-coherent one — plotted together they show exactly where a
+        hit fired), "<prefix>.noise" (the CFAR reference `noise_est`),
+        "<prefix>.peak" (the strongest cell's raw value), "<prefix>.row" and
+        "<prefix>.col" (its native Doppler row and code-phase column — a
+        surface coordinate, not a physical unit; acq_surface_doppler_hz() and
+        acq_surface_chip_phase() convert), "<prefix>.n_peaks" (picks in the
+        dwell, held twins included), "<prefix>.n_held" (picks held as
+        same-code-phase twins rather than listed, §7.1), "<prefix>.conc" (the
+        strongest pick's concentration — see `peak_conc`: its main lobe's power
+        over its whole column's, near 1 for one clean emitter even when it
+        straddles two tiles, about 0.5 when a data transition splits it into
+        twins two or more tiles away, lower still when a coherent block
+        straddles data — the discriminator between one emitter's splatter and a
+        second emitter) and "<prefix>.hit" (1 when the gate fired). Passing
+        NULL detaches. Setup path, never hot; the context is borrowed and must
+        outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
+
+        Parameters
+        ----------
+        tlm : object | None
+            Telemetry context to attach, or NULL to detach.
+        prefix : str
+            Probe-name prefix, e.g. "acq" or "ch0.acq".
+        decim : int
+            Emit every decim-th decided dwell; >= 1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_telemetry failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.telemetry import Telemetry
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(
+        ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
+        >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+        >>> tlm = Telemetry(1 << 12)
+        >>> a.set_telemetry(tlm, "acq")
+        >>> sorted(tlm.probe_names)[:3]
+        ['acq.col', 'acq.conc', 'acq.gate']
+        >>> x = np.zeros(a.n_noncoh * 511 * 2 * 3, dtype=np.complex64)
+        >>> _ = a.push(x)
+        >>> len(tlm.read()) % 10      # ten records per decided dwell
+        0
+
+        """
+
+    def surface(self, out: NDArray[np.float32]) -> int:
+        """The last decided dwell's surface, in the gate's own units.
+
+        Copies the surface the last dwell was decided on into out, row-major
+        `surface_rows` (Doppler: tiles, or interpolated slow-time rows) by
+        `code_bins` (code phase), every cell divided by the same CFAR reference
+        the gate used — so a cell reads as its own test statistic, to a float
+        rounding (the SIMD build's fast-math may take a reciprocal in this loop
+        and a divide in the gate's), and the gate (`threshold`, or `eta_nc` on
+        the non-coherent path) is a flat plane on a plot. The engine keeps this
+        only while `keep_surface` is set (a caller sets it, or
+        acq_set_surface_sink() does): set it, push, then read. `surface_at`
+        says which dwell it is; a time-decimated record is the caller reading
+        every k-th dwell, or a sink with `decim`.
+
+        Parameters
+        ----------
+        out : NDArray[np.float32]
+            At least `surface_rows * code_bins` floats.
+
+        Returns
+        -------
+        int
+            Cells written (`surface_rows * code_bins`), or 0 when no dwell has
+            been decided with `keep_surface` set, or out is too small.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(
+        ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
+        >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+        >>> a.keep_surface = 1
+        >>> x = np.zeros(a.n_noncoh * 511 * 2, dtype=np.complex64)
+        >>> _ = a.push(x)
+        >>> s = np.empty(a.surface_rows * a.code_bins, dtype=np.float32)
+        >>> a.surface(s) == s.size
+        True
+        >>> s.reshape(a.surface_rows, a.code_bins).shape == (a.surface_rows, 1022)
+        True
+
+        """
+
+    def surface_doppler_hz(self, out: NDArray[np.float64]) -> int:
+        """The surface's Doppler axis: the frequency of each row, in Hz.
+
+        One value per surface row, the fold and scale a hit's `doppler_hz_est`
+        uses (dp_fftfreq_index() times `doppler_res_hz`, on the interpolated
+        grid where the slow-time axis is interpolated), so a plot of
+        acq_surface() carries the same axis a DetectionEvent reports on.
+
+        Parameters
+        ----------
+        out : NDArray[np.float64]
+            At least `surface_rows` doubles.
+
+        Returns
+        -------
+        int
+            Values written (`surface_rows`), or 0 if out is too small.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(
+        ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
+        >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,
+        ...                 doppler_uncertainty=4000.0)
+        >>> f = np.empty(a.surface_rows, dtype=np.float64)
+        >>> a.surface_doppler_hz(f) == a.surface_rows
+        True
+        >>> bool(f[0] == 0.0 and f.min() < 0.0 < f.max())
+        True
+
+        """
+
+    def surface_chip_phase(self, out: NDArray[np.float64]) -> int:
+        """The surface's code-phase axis: the chip phase of each column.
+
+        One value per surface column, in chips, the same mapping
+        acq_build_handoff() applies to a hit's `code_phase` — so a plotted peak
+        sits at the chip phase the DetectionEvent would carry.
+
+        Parameters
+        ----------
+        out : NDArray[np.float64]
+            At least `code_bins` doubles.
+
+        Returns
+        -------
+        int
+            Values written (`code_bins`), or 0 if out is too small.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(
+        ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
+        >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0)
+        >>> c = np.empty(a.code_bins, dtype=np.float64)
+        >>> a.surface_chip_phase(c) == a.code_bins
+        True
+        >>> bool(c[0] == 0.0 and c[1] == 510.5)
+        True
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 
@@ -1370,6 +1549,49 @@ class Acquisition:
     def epochs_per_symbol(self) -> float:
         """(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when
         symbol_rate is 0.
+        """
+
+    @property
+    def keep_surface(self) -> int:
+        """1 keeps every decided dwell's surface for `surface()` (normalised
+        into the gate's units at each decision); 0 (the default) costs nothing.
+        `set_surface_sink()` in C sets it.
+        """
+    @keep_surface.setter
+    def keep_surface(self, value: int) -> None: ...
+
+    @property
+    def surface_rows(self) -> int:
+        """Rows of the surface `surface()` returns: the Doppler axis in surface
+        units (tiles x interpolated slow-time rows); its columns are
+        `code_bins`.
+        """
+
+    @property
+    def surface_at(self) -> int:
+        """`samples_consumed` of the dwell whose surface `surface()` returns (0
+        until one has been captured).
+        """
+
+    @property
+    def n_peaks(self) -> int:
+        """Picks in the last decided dwell, held twins included."""
+
+    @property
+    def n_held(self) -> int:
+        """Picks of the last decided dwell held as same-code-phase twins rather
+        than listed (design §7.1).
+        """
+
+    @property
+    def peak_conc(self) -> float:
+        """Concentration of the last dwell's strongest peak: the power of its
+        main lobe (its row and one either side, the exclusion zone's width)
+        over the total power of its code-phase column across every Doppler row
+        and tile. Near 1 for a clean single emitter, even one straddling two
+        tiles; about 0.5 when a data transition splits it into twins two or
+        more tiles away; lower when a coherent block straddles data (design
+        §2.4).
         """
 
     def destroy(self) -> None:

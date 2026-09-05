@@ -20,7 +20,9 @@
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include <complex.h>
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -624,6 +626,29 @@ _acq_continuous_check (void)
   return 0;
 }
 
+/* The surface sink of the observability section below: counts the calls
+   and keeps the last surface's shape and maximum. */
+typedef struct
+{
+  size_t calls, rows, cols;
+  float  last_max;
+} acq_obs_sink_t;
+
+static void
+acq_obs_sink (void *ctx, const float *s, size_t rows, size_t cols, uint64_t at)
+{
+  acq_obs_sink_t *c = (acq_obs_sink_t *)ctx;
+  (void)at;
+  c->calls++;
+  c->rows = rows;
+  c->cols = cols;
+  float m = s[0];
+  for (size_t k = 1; k < rows * cols; k++)
+    if (s[k] > m)
+      m = s[k];
+  c->last_max = m;
+}
+
 int
 main (void)
 {
@@ -1172,6 +1197,171 @@ main (void)
     DP_CHECK (acq_set_max_peaks (a, 4) == 0 && a->n_twins == 0);
     acq_destroy (b);
     acq_destroy (a);
+  }
+
+  /* ── observability (design §2.4): probes, the surface tap, its axes ──────
+   * A continuous engine tiled over +-200 kHz (3 tiles at 7 chips x 2), one
+   * noise-free emitter on tile +1 at code phase 5. Every claim below is one
+   * the header makes: the surface's maximum IS the dwell's test statistic;
+   * its argmax is the reported cell; the axes are the hand-off's numbers;
+   * the sink sees every decim-th dwell; ten records per decided dwell. */
+  {
+    const size_t spc = 2, sf = 7, nx = sf * spc;
+    const double crate = 1.0e6;
+    acq_state_t *c = acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0,
+                                            200.0e3, 1e-2, 0.9, 0);
+    DP_REQUIRE (c != NULL);
+    DP_CHECK (c->window_bins == 3);
+    const size_t rows = c->n_surf / c->code_bins;
+    DP_CHECK (rows == 3); /* rows = tiles at D = 1 */
+    dp_tlm_t *t = dp_tlm_create (1 << 12);
+    DP_REQUIRE (t != NULL);
+    DP_CHECK (acq_set_telemetry (c, t, "acq", 1) == DP_OK);
+    DP_CHECK (dp_tlm_probe_count (t) == 10);
+    DP_CHECK (dp_tlm_probe_id (t, "acq.conc") >= 0);
+    DP_CHECK (c->keep_surface == 0); /* off until a reader asks */
+    acq_obs_sink_t sc = { 0, 0, 0, 0.0f };
+    acq_set_surface_sink (c, acq_obs_sink, &sc, 2);
+    DP_CHECK (c->keep_surface == 1); /* the sink arms the tap */
+
+    /* One emitter: the rolled replica on the carrier of tile +1, which is
+       one bin of the epoch-length FFT -- f = 1/nx cycles per sample. */
+    const size_t    d   = 5;
+    const size_t    ndw = 4, per_dwell = c->n_noncoh * nx;
+    const size_t    n = ndw * per_dwell;
+    float _Complex *x = malloc (n * sizeof *x);
+    DP_REQUIRE (x != NULL);
+    for (size_t k = 0; k < n; k++)
+      {
+        size_t  q    = k % nx;
+        size_t  src  = (q + nx - (d % nx)) % nx;
+        uint8_t chip = CODE7[(src / spc) % sf];
+        double  ph   = 2.0 * PI * (double)k / (double)nx;
+        x[k]         = ((chip & 1u) ? -1.0f : 1.0f)
+                       * (float _Complex) (cos (ph) + I * sin (ph));
+      }
+    acq_result_t hits[16];
+    size_t       nh = acq_push (c, x, n, hits, 16);
+    DP_CHECK (nh >= ndw); /* every dwell lists the emitter */
+    DP_CHECK (c->dwells == ndw);
+    DP_CHECK (c->peak_row == 1 && c->peak_col == d);
+
+    /* Ten records per decided dwell, the hit probe 1 on every one. */
+    DP_CHECK (dp_tlm_emitted (t, dp_tlm_probe_id (t, "acq.hit")) == ndw);
+    DP_CHECK (dp_tlm_avail (t) == 10 * ndw);
+    {
+      dp_tlm_rec_t recs[64];
+      size_t       nr      = dp_tlm_read (t, 64, recs, 64);
+      int          hid     = dp_tlm_probe_id (t, "acq.hit");
+      int          sid     = dp_tlm_probe_id (t, "acq.stat");
+      int          all_hit = 1, stat_seen = 0;
+      for (size_t i = 0; i < nr; i++)
+        {
+          if (recs[i].probe == (uint16_t)hid && recs[i].value != 1.0f)
+            all_hit = 0;
+          if (recs[i].probe == (uint16_t)sid && recs[i].value == c->test_stat)
+            stat_seen = 1;
+        }
+      DP_CHECK (nr == 10 * ndw);
+      DP_CHECK_MSG (all_hit,
+                    "a noise-free emitter fires the gate every dwell");
+      DP_CHECK_MSG (stat_seen, "the stat probe carries test_stat itself");
+    }
+
+    /* The surface: the gate's units, the reported cell, the same dwell. */
+    float *s = malloc (c->n_surf * sizeof *s);
+    DP_REQUIRE (s != NULL);
+    DP_CHECK (acq_surface (c, s, c->n_surf - 1) == 0); /* too small */
+    DP_CHECK (acq_surface (c, s, c->n_surf) == c->n_surf);
+    DP_CHECK (c->surface_at == c->samples_consumed);
+    size_t am = 0;
+    for (size_t k = 1; k < c->n_surf; k++)
+      if (s[k] > s[am])
+        am = k;
+    /* To a float rounding: the SIMD build's fast-math may normalise the
+       surface with a reciprocal where the statistic took a divide. */
+    DP_CHECK_MSG (fabsf (s[am] - c->test_stat) <= 4.0f * FLT_EPSILON * s[am],
+                  "the surface's maximum is the dwell's test statistic");
+    DP_CHECK (am / nx == c->peak_row && am % nx == c->peak_col);
+    DP_CHECK_MSG (c->peak_conc > 0.5f, "one clean emitter: concentrated");
+    /* Its axes are the hand-off's numbers for the same cell. */
+    acq_handoff_t ho;
+    acq_build_handoff (c, &hits[0], sf, spc, &ho);
+    double hz[3], chips[14];
+    DP_CHECK (acq_surface_doppler_hz (c, hz, 2) == 0); /* too small */
+    DP_CHECK (acq_surface_doppler_hz (c, hz, rows) == rows);
+    DP_CHECK (acq_surface_chip_phase (c, chips, nx) == nx);
+    DP_CHECK_MSG (hz[c->peak_row] == ho.doppler_hz_est,
+                  "the Doppler axis is the hand-off's estimate");
+    DP_CHECK (hz[1] == crate / (double)sf && hz[2] == -hz[1]);
+    DP_CHECK_MSG (chips[c->peak_col] == ho.chip_phase,
+                  "the chip-phase axis is the hand-off's phase");
+    /* The sink saw dwells 2 and 4, this shape, this surface. */
+    DP_CHECK (sc.calls == ndw / 2);
+    DP_CHECK (sc.rows == rows && sc.cols == nx);
+    DP_CHECK (fabsf (sc.last_max - c->test_stat)
+              <= 4.0f * FLT_EPSILON * sc.last_max);
+
+    /* Detach the sink and the probes: nothing more is written or kept. */
+    acq_set_surface_sink (c, NULL, NULL, 0);
+    DP_CHECK (acq_set_telemetry (c, NULL, NULL, 1) == DP_OK);
+    c->keep_surface = 0;
+    acq_reset (c);
+    DP_CHECK (c->surface_at == 0 && c->dwells == 0);
+    DP_CHECK (acq_surface (c, s, c->n_surf) == 0); /* nothing kept */
+    (void)acq_push (c, x, per_dwell, hits, 16);
+    DP_CHECK (c->dwells == 1);
+    DP_CHECK (acq_surface (c, s, c->n_surf) == 0); /* still off */
+    DP_CHECK (dp_tlm_avail (t) == 0 && sc.calls == ndw / 2);
+    /* An emitter halfway between two tiles straddles them (0.5 bins: tiles
+       0 and +1 share it): its main lobe is both, so the concentration must
+       not charge it for its own scalloping -- the lobe over the column, not
+       the cell over the column. */
+    {
+      acq_reset (c);
+      for (size_t k = 0; k < per_dwell; k++)
+        {
+          size_t  q    = k % nx;
+          size_t  src  = (q + nx - (d % nx)) % nx;
+          uint8_t chip = CODE7[(src / spc) % sf];
+          double  ph   = 2.0 * PI * 0.5 * (double)k / (double)nx;
+          x[k]         = ((chip & 1u) ? -1.0f : 1.0f)
+                         * (float _Complex) (cos (ph) + I * sin (ph));
+        }
+      (void)acq_push (c, x, per_dwell, hits, 16);
+      DP_CHECK (c->peak_col == d);
+      DP_CHECK_MSG (c->peak_conc > 0.8f,
+                    "a half-tile straddle is one main lobe, not splatter");
+    }
+
+    /* A restored engine has decided nothing since the restore. */
+    c->keep_surface = 1;
+    (void)acq_push (c, x, per_dwell, hits, 16);
+    DP_CHECK (c->surface_at != 0);
+    {
+      size_t nb   = acq_state_bytes (c);
+      void  *blob = malloc (nb);
+      acq_get_state (c, blob);
+      DP_CHECK (acq_set_state (c, blob) == DP_OK);
+      DP_CHECK (c->surface_at == 0);
+      free (blob);
+    }
+    /* A full probe table refuses the attach whole; the engine stays off. */
+    dp_tlm_t *full = dp_tlm_create (1 << 8);
+    DP_REQUIRE (full != NULL);
+    for (size_t i = 0; dp_tlm_probe_count (full) < DP_TLM_MAX_PROBES - 3; i++)
+      {
+        char nm[DP_TLM_NAME_MAX];
+        (void)snprintf (nm, sizeof nm, "pad.%zu", i);
+        (void)dp_tlm_probe (full, nm, 1);
+      }
+    DP_CHECK (acq_set_telemetry (c, full, "acq", 1) == DP_ERR_INVALID);
+    DP_CHECK (c->tlm.ctx == NULL);
+    dp_tlm_destroy (full);
+    free (s);
+    free (x);
+    dp_tlm_destroy (t);
+    acq_destroy (c);
   }
 
   DP_TEST_END ("test_acq_core");

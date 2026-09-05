@@ -13,11 +13,11 @@ target_link_libraries(async_dsss_receiver_core PUBLIC
     fft2d_core
     fft_core
     detection_core
+    dp_tlm_core
     carrier_acq_core
     dll_core
     loop_filter_core
     lockdet_core
-    dp_tlm_core
     costas_core
     lo_core
     RateConverter_core
@@ -54,11 +54,11 @@ target_link_libraries(test_async_dsss_receiver_core
     fft2d_core
     fft_core
     detection_core
+    dp_tlm_core
     carrier_acq_core
     dll_core
     loop_filter_core
     lockdet_core
-    dp_tlm_core
     costas_core
     lo_core
     RateConverter_core
@@ -100,11 +100,11 @@ target_link_libraries(bench_async_dsss_receiver_core
     fft2d_core
     fft_core
     detection_core
+    dp_tlm_core
     carrier_acq_core
     dll_core
     loop_filter_core
     lockdet_core
-    dp_tlm_core
     costas_core
     lo_core
     RateConverter_core

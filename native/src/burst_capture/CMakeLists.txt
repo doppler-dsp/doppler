@@ -10,6 +10,7 @@ target_link_libraries(burst_capture_core PUBLIC
     fft2d_core
     fft_core
     detection_core
+    dp_tlm_core
     pn_core)
 
 add_executable(test_burst_capture_core
@@ -21,6 +22,7 @@ target_link_libraries(test_burst_capture_core
     fft2d_core
     fft_core
     detection_core
+    dp_tlm_core
     pn_core
     m)
 target_include_directories(test_burst_capture_core
@@ -37,6 +39,7 @@ target_link_libraries(bench_burst_capture_core
     fft2d_core
     fft_core
     detection_core
+    dp_tlm_core
     pn_core
     m)
 target_include_directories(

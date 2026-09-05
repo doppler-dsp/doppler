@@ -47,15 +47,18 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
 |  double | [**doppler\_span\_hz**](#variable-doppler_span_hz)  <br> |
 |  double | [**doppler\_uncertainty**](#variable-doppler_uncertainty)  <br> |
+|  uint64\_t | [**dwells**](#variable-dwells)  <br> |
 |  double | [**epochs\_per\_symbol**](#variable-epochs_per_symbol)  <br> |
 |  float | [**eta**](#variable-eta)  <br> |
 |  float | [**eta\_nc**](#variable-eta_nc)  <br> |
 |  size\_t | [**frame\_n**](#variable-frame_n)  <br> |
 |  double | [**fs**](#variable-fs)  <br> |
 |  size\_t | [**interp**](#variable-interp)  <br> |
+|  int | [**keep\_surface**](#variable-keep_surface)  <br> |
 |  float \* | [**mag\_buf**](#variable-mag_buf)  <br> |
 |  size\_t | [**max\_peaks**](#variable-max_peaks)  <br> |
 |  size\_t | [**n**](#variable-n)  <br> |
+|  size\_t | [**n\_held**](#variable-n_held)  <br> |
 |  size\_t | [**n\_noncoh**](#variable-n_noncoh)  <br> |
 |  size\_t | [**n\_peaks**](#variable-n_peaks)  <br> |
 |  size\_t | [**n\_surf**](#variable-n_surf)  <br> |
@@ -71,6 +74,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  double | [**pd**](#variable-pd)  <br> |
 |  double | [**pd\_predicted**](#variable-pd_predicted)  <br> |
 |  size\_t | [**peak\_col**](#variable-peak_col)  <br> |
+|  float | [**peak\_conc**](#variable-peak_conc)  <br> |
 |  float | [**peak\_mag**](#variable-peak_mag)  <br> |
 |  uint8\_t \* | [**peak\_mask**](#variable-peak_mask)  <br> |
 |  size\_t | [**peak\_row**](#variable-peak_row)  <br> |
@@ -84,12 +88,18 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  uint64\_t | [**samples\_consumed**](#variable-samples_consumed)  <br> |
 |  size\_t | [**searched\_bins**](#variable-searched_bins)  <br> |
 |  size\_t | [**sf**](#variable-sf)  <br> |
+|  [**acq\_surface\_sink\_fn**](acq__core_8h.md#typedef-acq_surface_sink_fn) | [**sink**](#variable-sink)  <br> |
+|  void \* | [**sink\_ctx**](#variable-sink_ctx)  <br> |
+|  uint32\_t | [**sink\_decim**](#variable-sink_decim)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \* | [**slow\_fft**](#variable-slow_fft)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
+|  float \* | [**stat\_surface**](#variable-stat_surface)  <br> |
 |  double | [**straddle\_loss**](#variable-straddle_loss)  <br> |
+|  uint64\_t | [**surface\_at**](#variable-surface_at)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  float | [**test\_stat**](#variable-test_stat)  <br> |
 |  float | [**threshold**](#variable-threshold)  <br> |
+|  [**acq\_tlm\_t**](structacq__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  uint32\_t \* | [**twin\_col**](#variable-twin_col)  <br> |
 |  uint32\_t \* | [**twin\_row**](#variable-twin_row)  <br> |
 |  uint8\_t | [**underpowered**](#variable-underpowered)  <br> |
@@ -351,6 +361,24 @@ One-sided Doppler search half-range (Hz); 0 = full native span.
 
 
 
+### variable dwells 
+
+```C++
+uint64_t acq_state_t::dwells;
+```
+
+
+
+dwells decided since create/reset 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable epochs\_per\_symbol 
 
 ```C++
@@ -459,6 +487,24 @@ Doppler-axis interpolation factor of the inverse (1 = none). Zero-padding the pr
 
 
 
+### variable keep\_surface 
+
+```C++
+int acq_state_t::keep_surface;
+```
+
+
+
+1 = normalise every decided dwell into `stat_surface` for [**acq\_surface()**](acq__core_8h.md#function-acq_surface); set by a caller or by [**acq\_set\_surface\_sink()**](acq__core_8h.md#function-acq_set_surface_sink) 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable mag\_buf 
 
 ```C++
@@ -503,6 +549,24 @@ size_t acq_state_t::n;
 
 
 NATIVE grid size in samples: coherent\_bins \* window\_bins \* code\_bins (one of coherent\_bins/window\_bins is always 1). This is the INPUT frame and the count of statistically independent cells  it is what the threshold ladder is sized from, and it is what `doppler_bin` is reported on. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable n\_held 
+
+```C++
+size_t acq_state_t::n_held;
+```
+
+
+
+the last dwell's picks held as twins (§7.1) 
  
 
 
@@ -768,6 +832,24 @@ size_t acq_state_t::peak_col;
 
 
 
+### variable peak\_conc 
+
+```C++
+float acq_state_t::peak_conc;
+```
+
+
+
+the strongest pick's column concentration 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable peak\_mag 
 
 ```C++
@@ -990,6 +1072,55 @@ Chips per PN segment (= len(code)).
 
 
 
+### variable sink 
+
+```C++
+acq_surface_sink_fn acq_state_t::sink;
+```
+
+
+
+NULL = none 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable sink\_ctx 
+
+```C++
+void* acq_state_t::sink_ctx;
+```
+
+
+
+
+<hr>
+
+
+
+### variable sink\_decim 
+
+```C++
+uint32_t acq_state_t::sink_decim;
+```
+
+
+
+the sink sees every sink\_decim-th dwell 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable slow\_fft 
 
 ```C++
@@ -1025,6 +1156,24 @@ Samples per chip (chip-rate oversample factor).
 
 
 
+### variable stat\_surface 
+
+```C++
+float* acq_state_t::stat_surface;
+```
+
+
+
+n\_surf: the last decided dwell in the gate's units; allocated on the first dwell decided with keep\_surface set 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable straddle\_loss 
 
 ```C++
@@ -1034,6 +1183,24 @@ double acq_state_t::straddle_loss;
 
 
 Mean AMPLITUDE derating from grid straddle — a diagnostic summary (~20\*log10 of it in dB); sizing and pd\_predicted average Pd itself over the priors. Derived config, recomputed by create(). 
+
+
+        
+
+<hr>
+
+
+
+### variable surface\_at 
+
+```C++
+uint64_t acq_state_t::surface_at;
+```
+
+
+
+samples\_consumed of that dwell; 0 = none 
+ 
 
 
         
@@ -1082,6 +1249,24 @@ float acq_state_t::threshold;
 
 
 CFAR gate on test\_stat (theta); coherent path. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tlm 
+
+```C++
+acq_tlm_t acq_state_t::tlm;
+```
+
+
+
+telemetry attachment; ctx NULL = detached 
  
 
 

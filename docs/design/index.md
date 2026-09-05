@@ -62,10 +62,10 @@ instead.)
     permutation, the three ways to reason about it wrongly, and the measured
     gain: E to E×depth, and the bound that still bites
 - [A Frame as a Description](frame-description.md) — a frame as a list of
-    fields and a list of stages, each stage carrying the span it covers: why
-    a chain of optional transforms is the representation that cannot express
-    CCSDS, and why the standard is the first configuration rather than the
-    subject
+    fields and a list of stages, each stage carrying the span it covers: why a
+    chain of optional transforms is the representation that cannot express
+    CCSDS, how a caller adds a stage doppler has never heard of, and how far
+    that openness actually reaches
 - [Receiver Test Harness](rx-test.md) — inventory of the stimulus, measurement and gate layers a receiver measurement rests on, and where they do not yet meet
 - [Corr2D Interpolated Inverse](corr2d-interpolated-inverse.md) — decoupled, pffft-friendly inverse FFT size + free sub-bin interpolation
 - [Spectral & Measurement API Map](spectral-api-map.md) — module dependency graph

@@ -125,9 +125,13 @@ inside the waveform's pure-code window (§2.3), and `D` is auto-sized as
 the smaller of two bounds: `⌊(code_only_epochs + 1)/2⌋`, so a whole block
 always fits in the window, and `f_epoch/√1000` from `doppler_rate`, so
 the drift over one block stays inside half a slow-time bin.
-`code_only_epochs` **defaults to 1**, which is `D = 1` and exactly the
-engine as it ran before — a waveform with no window loses nothing and
-sets nothing. Nothing else sizes it — no `doppler_resolution`, no
+`code_only_epochs` is the count of **whole** epochs a window holds at any
+chip phase: the window is `W` symbols on the data clock (§5.4), which has
+no fixed relation to the code clock, so a partial epoch is lost at each
+edge and `code_only_epochs = ⌊W · cps / L⌋ − 1` — 813 at 5 Mcps, 324 at
+2, for the 450-symbol window. It **defaults to 1**, which is `D = 1` and
+exactly the engine as it ran before — a waveform with no window loses
+nothing and sets nothing. Nothing else sizes it — no `doppler_resolution`, no
 `max_noncoh`. `n_noncoh`
 is auto-selected to meet `pd` at `pfa` and exposed read-only; its only
 bound is an internal safety valve (`ACQ_N_NONCOH_SAFETY_CEILING`, 256
@@ -222,14 +226,15 @@ keeps the engine usable by a baseband-only caller with no carrier at all.
     2026-09-03).** Coherent multi-epoch combining across data aliases the
     data's own spectrum across the Doppler axis and mislocks structurally
     ([`dsss-acquisition.md`](dsss-acquisition.md)). The waveform carries a
-    **500-epoch pure-code window every 5500 epochs** (§5.4), and inside it
-    there is nothing to alias. The searcher does not know any emitter's
-    window phase, so it sums **non-overlapping blocks of `D` epochs**, one
-    coherent surface per block, detected per block: a window of `W`
-    epochs holds a whole block whatever its phase once `W ≥ 2D − 1`, and
-    holds `⌊W/D⌋` of them in a row for `n_noncoh` to accumulate — `W` is
-    the engine's `code_only_epochs`, and `D` never exceeds what it holds
-    (§2.1). A block
+    **450-symbol pure-code window every 4950 symbols on the data clock**
+    (§5.4) — 813 whole epochs at 5 Mcps, 324 at 2, at any chip phase — and
+    inside it there is nothing to alias. The searcher does not know any
+    emitter's window phase, so it sums **non-overlapping blocks of `D`
+    epochs**, one coherent surface per block, detected per block: the `W`
+    whole epochs a window holds hold a whole block whatever the block's
+    phase once `W ≥ 2D − 1`, and hold `⌊W/D⌋` of them in a row for
+    `n_noncoh` to accumulate — `W` is the engine's `code_only_epochs`
+    (§2.1), and `D` never exceeds what it holds. A block
     that straddles data spreads that emitter over its `D` rows, about
     `10·log10 D` below an aligned block's peak at the same code phase — a
     weaker copy of an emitter the assigned table already excludes, not a
@@ -998,12 +1003,17 @@ record — is already there.
     emitter lies inside its window, which locates the window to within
     `D` epochs; the exact boundary is the tracking chain's to find, and
     the receiver is not told it (§8.2).
-1. ~~**The data-free window's length.**~~ **Answered (2026-09-03):**
-    **500 epochs of code only, then 5000 epochs of data** — a frame of
-    5500 epochs, so one (re)acquisition opportunity every 1.1 s at 5 Mcps
-    and 2.8 s at 2, and up to 0.56–1.4 kHz of drift between them at
-    500 Hz/s. The window is long enough for any coherent depth the
-    Doppler rate allows (§2.3), and it is why the searcher has one.
+1. ~~**The data-free window's length.**~~ **Answered (2026-09-03, in
+    symbols 2026-09-05): 450 symbols of code only, then 4500 of data — a
+    frame of 4950 symbols on the data clock.** There is no fixed relation
+    between the chip and data clocks, and a frame edge falls at no
+    particular chip phase — never on a code epoch (maintainer,
+    2026-09-05); 500/5500 epochs was this frame at the spec's 3.069 Mcps.
+    So one (re)acquisition opportunity every 1.83 s at any chip rate, and
+    up to 0.92 kHz of drift between them at 500 Hz/s; in whole epochs the
+    window is 813 at 5 Mcps and 324 at 2, long enough for any coherent
+    depth the Doppler rate allows (§2.3), and it is why the searcher has
+    one.
 1. ~~**Who owns the lifecycle.**~~ **Answered (2026-09-03):** a C
     object in doppler, the pool of §8.2, owns the receivers and the
     assigned table; the receiver's half — how "gone" is decided and what
@@ -1044,7 +1054,7 @@ of it is re-derived here (§5):
     1023-chip code in the same band; what tells them apart is Doppler, code
     phase and power — three coordinates on **one** (Doppler × code phase)
     surface, the surface a channel already computes.
-- **A 500-epoch pure-code window every 5500 epochs.** The search is
+- **A 450-symbol pure-code window every 4950 symbols.** The search is
     the continuous engine's, run in coherent blocks inside that window
     (§2.3): 18–22 dB of coherent gain, a 32 Hz Doppler bin, and the
     transition-free floor, at a cost the engine already pays per tile.
@@ -1060,7 +1070,7 @@ of it is re-derived here (§5):
     powering up** (maintainer, 2026-09-03): it appears at whatever point of its frame it has reached, mid-payload as
     often as not, and its first window arrives at its own phase,
     uniformly within one frame — so the acquisition latency after an emitter appears
-    is bounded by a frame (1.1 s at 5 Mcps, 2.8 at 2) and averages half
+    is bounded by a frame (1.83 s) and averages half
     of one. Every window of every emitter is a re-acquisition
     opportunity, and an emitter appearing between two of them is the normal event the
     searcher exists for. This answers `burst-bank.md`
@@ -1077,23 +1087,23 @@ of it is re-derived here (§5):
 The numbers the page is worked at — these
 supersede §5.2's, which were the async spec's waveform:
 
-| quantity                       | value                                                                                                                                         | from                                                                                                                                            |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| chip rate                      | **2 to 5 Mcps** — design to the worst case, which is per quantity: 5 Mcps for anything priced per sample, 2 Mcps for anything priced per tile | given                                                                                                                                           |
-| code                           | 1023 chips → one epoch is **204.6 µs** at 5 Mcps, **511.5 µs** at 2                                                                           | given                                                                                                                                           |
-| pure-code window / frame       | **500 / 5500 epochs** — 102 ms / 1.13 s at 5 Mcps, 256 ms / 2.81 s at 2                                                                       | given (2026-09-03)                                                                                                                              |
-| coherent depth                 | **`D ≤ f_epoch/√1000`** in non-overlapping blocks: **154** at 5 Mcps, **61** at 2 — a 32 Hz bin, 3 and 8 aligned blocks per window            | the Doppler rate (< 500 Hz/s) over one block, §2.3                                                                                              |
-| DDC input                      | **13 MSa/s**                                                                                                                                  | given — chosen to force the arbitrary-ratio path (§6.4)                                                                                         |
-| DDC output                     | **2× chip rate**: 10 MSa/s at 5 Mcps, 4 at 2 (`spc = 2`)                                                                                      | given; the ratios 1.3 and 3.25 both lack an integer factor                                                                                      |
-| samples per epoch              | 2046, at every rate                                                                                                                           | `1023 · spc`                                                                                                                                    |
-| chip pulse                     | **rectangular** — no pulse shaping on the chips                                                                                               | given (2026-09-03); every §12 harness renders rect chips and correlates against a rect replica                                                  |
-| Doppler tile                   | `1/T_epoch` = **4.89 kHz** at 5 Mcps, **1.96 kHz** at 2; a tile spans ± half that, subdivided into `D` rows of 32 Hz                          | the `window_bins` tile index × the slow-time row                                                                                                |
-| uncertainty                    | **±50 kHz to start**; Doppler pre-compensation will likely bring it to **±5 kHz**                                                             | given — design at the full width, and record what the narrow one saves                                                                          |
-| tiles over ±50 kHz             | **21** at 5 Mcps, **53** at 2                                                                                                                 | the engine's own rule, `acq_cover_window_bins`: `2·ceil((U − span)/(2·span)) + 1`, measured in §12.1; the searcher's worst case is the low rate |
-| tiles over ±5 kHz              | 3 at 5 Mcps, 7 at 2                                                                                                                           | same rule, after pre-compensation                                                                                                               |
-| cores                          | **at least 48** on the one server                                                                                                             | given (2026-09-03) — the population's ~7.6 cores at the operating point and ~17 at the floor (§12.1) are a third of the box, not a fit          |
-| budget, one core, operating    | **77 ns per input sample**; per output sample **100 ns** at 5 Mcps, 250 at 2                                                                  | `1/13e6`, `1/10e6`, `1/4e6`                                                                                                                     |
-| budget, one core, at the floor | **33 ns per input sample**; 43 per output at 5 Mcps                                                                                           | `1/30e6`, same ratio                                                                                                                            |
+| quantity                       | value                                                                                                                                                          | from                                                                                                                                            |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| chip rate                      | **2 to 5 Mcps** — design to the worst case, which is per quantity: 5 Mcps for anything priced per sample, 2 Mcps for anything priced per tile                  | given                                                                                                                                           |
+| code                           | 1023 chips → one epoch is **204.6 µs** at 5 Mcps, **511.5 µs** at 2                                                                                            | given                                                                                                                                           |
+| pure-code window / frame       | **450 / 4950 symbols** on the data clock — 167 ms / 1.83 s at any chip rate; 813 / 8960 whole epochs at 5 Mcps, 324 / 3584 at 2; a frame edge at no chip phase | given (2026-09-03; in symbols, no epoch alignment, 2026-09-05)                                                                                  |
+| coherent depth                 | **`D ≤ f_epoch/√1000`** in non-overlapping blocks: **154** at 5 Mcps, **61** at 2 — a 32 Hz bin, 3 and 8 aligned blocks per window                             | the Doppler rate (< 500 Hz/s) over one block, §2.3                                                                                              |
+| DDC input                      | **13 MSa/s**                                                                                                                                                   | given — chosen to force the arbitrary-ratio path (§6.4)                                                                                         |
+| DDC output                     | **2× chip rate**: 10 MSa/s at 5 Mcps, 4 at 2 (`spc = 2`)                                                                                                       | given; the ratios 1.3 and 3.25 both lack an integer factor                                                                                      |
+| samples per epoch              | 2046, at every rate                                                                                                                                            | `1023 · spc`                                                                                                                                    |
+| chip pulse                     | **rectangular** — no pulse shaping on the chips                                                                                                                | given (2026-09-03); every §12 harness renders rect chips and correlates against a rect replica                                                  |
+| Doppler tile                   | `1/T_epoch` = **4.89 kHz** at 5 Mcps, **1.96 kHz** at 2; a tile spans ± half that, subdivided into `D` rows of 32 Hz                                           | the `window_bins` tile index × the slow-time row                                                                                                |
+| uncertainty                    | **±50 kHz to start**; Doppler pre-compensation will likely bring it to **±5 kHz**                                                                              | given — design at the full width, and record what the narrow one saves                                                                          |
+| tiles over ±50 kHz             | **21** at 5 Mcps, **53** at 2                                                                                                                                  | the engine's own rule, `acq_cover_window_bins`: `2·ceil((U − span)/(2·span)) + 1`, measured in §12.1; the searcher's worst case is the low rate |
+| tiles over ±5 kHz              | 3 at 5 Mcps, 7 at 2                                                                                                                                            | same rule, after pre-compensation                                                                                                               |
+| cores                          | **at least 48** on the one server                                                                                                                              | given (2026-09-03) — the population's ~7.6 cores at the operating point and ~17 at the floor (§12.1) are a third of the box, not a fit          |
+| budget, one core, operating    | **77 ns per input sample**; per output sample **100 ns** at 5 Mcps, 250 at 2                                                                                   | `1/13e6`, `1/10e6`, `1/4e6`                                                                                                                     |
+| budget, one core, at the floor | **33 ns per input sample**; 43 per output at 5 Mcps                                                                                                            | `1/30e6`, same ratio                                                                                                                            |
 
 The maintainer's description of the running system (2026-09-02) adds the
 lifecycle the policy serves, and it is the shape everything below is fitted
@@ -1525,7 +1535,7 @@ Everything it holds is sized once, at create:
 - **The assigned table**: one row per slot — the seed's coordinates, and
     the receiver's *current* Doppler and chip phase, refreshed from
     `status()` before every dwell is read (§9: an emitter drifts up to
-    1.4 kHz between windows, so the seed is the wrong key).
+    0.92 kHz between windows, so the seed is the wrong key).
 - **The clock and the event log**, borrowed at create (the
     `dp_tlm_capture` shape): the pool is the one component that stamps,
     and it stages the slot, the Doppler, the chip phase and the C/N0 on
@@ -1961,10 +1971,12 @@ ______________________________________________________________________
     step 5's residual is the number its characterization pins.
     **Done (2026-09-03): 10 dB, inside; branch one, no replica.**
 1. **The stimulus with the window.** `wfm_synth`'s continuous DSSS
-    gains the frame of §5.4 as two parameters, `code_only_epochs` and
-    `frame_epochs`: `W` epochs of pure code every `F` epochs, at each
-    emitter's own phase — 500 and 5500 here, and 0 is today's waveform,
-    no window at all. C first, in the synth,
+    gains the frame of §5.4 as two parameters, `code_only_symbols` and
+    `frame_symbols`: `W` symbols of pure code every `F` symbols on the
+    data clock, the symbol clock free-running through the window and a
+    frame edge at no particular chip phase, at each emitter's own frame
+    phase — 450 and 4950 here, and 0 is today's waveform, no window at
+    all. C first, in the synth,
     so every harness below renders the same waveform the application
     sends.
 1. **The block-coherent searcher.** The continuous engine with

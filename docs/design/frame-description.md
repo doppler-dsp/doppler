@@ -333,21 +333,24 @@ on `wfm/wfm_frame.h`, which knows nothing about CCSDS — no include, no
 constant, no default, no kernel. What does not yet hold is the direction
 **into** the descriptor from the layers above it.
 
-### The five sites
+### The one site that is still a leak
 
-| #   | site                                                       | what it is today                                                  | after                                                            |
-| --- | ---------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------- |
-| 1   | `wfm_synth_bridge.c` — the `ccsds_tm_frame_spec_t` literal | the only route from a wfmgen source to a `wfm_frame_desc_t`       | the source holds a description; the adapter is deleted           |
-| 2   | the same file's `ccsds_tm_frame_ops()` calls               | the generic assembler borrowing the standard's stage-kernel table | the ops table is promoted beside the descriptor                  |
-| 3   | the same file's `CCSDS_TM_RS_K` / `_2E` arithmetic         | the standard's code parameters sizing buffers                     | both lengths come from the layout the descriptor returns         |
-| 4   | `native/src/wfm/ccsds_asm_bits.c`                          | a CCSDS translation unit inside the generic `wfm` component       | the ASM is a literal field of a preset, not code living in `wfm` |
-| 5   | `frame_core.c` and `burst_demod_core.c`                    | include `ccsds_tm/ccsds_tm_frame.h` for the stage kernels         | follows from 2                                                   |
+Of the five the earlier plan listed, **site 1 is done** —
+`wfm_source_describe_frame()` builds through the by-name builder rather than
+`ccsds_tm_frame_desc_of()`. Three others turned out not to be leaks at all:
+`frame_core.c`, `wfm_synth_bridge.c` and `burst_demod_core.c` include
+`ccsds_tm` to *compose* it, in the acyclic direction the design intends, and
+each is the place a caller is meant to meet the standard's kernels.
 
-**Site 1 is done** — `wfm_source_describe_frame()` builds through the by-name
-builder rather than `ccsds_tm_frame_desc_of()`. Sites 2–5 are not started, and
-site 5 is the one a caller feels: `frame_core.c` hard-codes
-`ccsds_tm_frame_ops()` in `build`, `deframe` and `check`, which is what makes
-CCSDS's three kernels the only ones reachable from Python.
+What remains is one, and it is a different kind of thing:
+
+| site                              | what it is                                                        | why it is a leak                                                                                                                                                               |
+| --------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `native/src/wfm/ccsds_asm_bits.c` | a CCSDS translation unit compiled into the **general** `wfm_core` | `ccsds_asm_bits()` is declared in `wfm/wfm_core.h` and exported from `doppler.wfm.__all__` beside `PN` and `Gold`, then leaks on into `doppler.detection`'s doctests and tests |
+
+A marker one standard picked is a **literal field of a preset**, not a symbol
+in the general namespace. Tracked as
+[#1220](https://github.com/doppler-dsp/doppler/issues/1220).
 
 Two things changed with site 1 that the plan did not anticipate:
 
@@ -375,18 +378,27 @@ Two things changed with site 1 that the plan did not anticipate:
 
 ### The gate
 
-**No component outside `ccsds_tm` includes a `ccsds_tm` header.**
-`make ccsds-isolation-check` enforces it, inside `make lint`. It is a ratchet
-started at the four sites above and it fails in **both** directions: a new
-violator, and an allowlist entry that no longer violates. The second is what
-stops the list rotting into an exemption nobody rereads — it may only shrink.
+**`wfm/wfm_frame.h` and `wfm_frame.c` contain no `ccsds_tm` include and call
+no `ccsds_tm` kernel.** `make ccsds-isolation-check` enforces exactly that,
+inside `make lint`. It reads the two files the primitive is made of, strips
+comments — the header explains the layering *by naming* the component on the
+other side of it — and fails on an include, on a call reached through a
+forward declaration, or on reading nothing at all.
 
-Scope is components (`native/inc`, `native/src`). A test or benchmark that
-includes `ccsds_tm` is exercising it, not depending on it.
+That is the rule the header states about itself, and no more. An earlier
+version of this gate scanned every component and allowlisted the four that
+include a `ccsds_tm` header, as a ratchet meant to fall to zero. That was
+wrong, and worth recording because the mistake is easy to repeat: **a consumer
+composing the two is the design working.** `frame -> ccsds_tm -> wfm_frame` is
+acyclic and deliberate — `ccsds_tm` has no Python binding and is not getting
+one, so `frame` is where a caller meets the outer code, the randomiser and the
+inner code. A ratchet over a rule that should never reach zero is a slow push
+toward a refactor nobody wants.
 
-Until that gate existed, this page asserted a layering that four components
-did not honour. A rule this page states and nothing enforces is how the tree
-acquired two disjoint framers in the first place.
+What a cycle would actually cost is not a link error. It is a general layer
+that quietly acquires a standard's defaults, and a build that starts depending
+on link order — a failure that arrives late and reads as something else. Cheap
+and exact is the right shape for that.
 
 ______________________________________________________________________
 

@@ -575,6 +575,34 @@ jobs:
         CHANGELOG_BASE: ${{ github.event.pull_request.base.sha || 'origin/main' }}
       run: make lint
 
+  # The pending-repin gate. `ci-image-check` (in `pre-commit`'s `make lint`)
+  # is a no-network check of OUR inputs; it cannot see that the nightly
+  # rebuild produced a different PACKAGE SET under an unchanged Dockerfile.
+  # That is the drift ci-image.yml exists to find, and it had no gate at all:
+  # the nightly's only way to report it was a PR the org forbids Actions from
+  # opening, so the workflow force-pushed `ci/repin-image`, died on
+  # `gh pr create`, and was red on every `main` run for three releases while
+  # gating nothing (doppler#1212).
+  #
+  # Its own job, not a step on `pre-commit`, for the reason `ci-image-check`
+  # is not in it either: this one needs the network, and folding a fetch into
+  # the lint job would make `make lint` mean something different here than on
+  # a dev box.
+  #
+  # `fetch-depth: 0` is NOT needed -- the script fetches the one branch it
+  # reads at depth 1 -- but `persist-credentials` must stay on so that fetch
+  # authenticates on a private fork.
+  ci-image-repin:
+    name: CI image repin pending
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - name: Check for an unmerged CI-image repin
+      run: make ci-image-repin-check
+
   manifest-drift:
     name: jm manifest drift gate
     runs-on: ubuntu-latest
@@ -797,6 +825,7 @@ jobs:
       - docker
       - pre-commit
       - manifest-drift
+      - ci-image-repin
       - coverage
       - sanitizers
     runs-on: ubuntu-latest

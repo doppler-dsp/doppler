@@ -1142,6 +1142,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 doc-sections-check \
                 installed-headers-check \
                 ci-image ci-image-check ci-image-repin-check \
+                ccsds-isolation-check \
                 ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats pr-watch \
                 wheel-check wheel-smoke release-smoke \
@@ -1182,7 +1183,8 @@ include standard.mk
 lint: tests-ssot characterization-check validation-report-check changelog-check \
       workflow-syntax-check release-notes-size-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
-      bench-coverage-check kwarg-parity-check doc-sections-check
+      bench-coverage-check kwarg-parity-check doc-sections-check \
+      ccsds-isolation-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -3084,6 +3086,19 @@ ci-image-check: ## Fail when the pinned CI image no longer matches its inputs
 # blocks instead of fabricating a scratch repository and a remote.
 ci-image-repin-check: ## Fail when a rebuilt CI-image pin is pending and unmerged
 	@bash scripts/ci-image-repin-check.sh
+
+# The layering `wfm/wfm_frame.h` states about itself -- "`ccsds_tm` must depend
+# on this file ... so this file must not call `ccsds_tm`'s kernels" -- is a
+# property of the include graph, and nothing measured it. The design page
+# proposed exactly this gate and it went unwritten, so four components reached
+# into `ccsds_tm` while the page said none did.
+#
+# A ratchet: it fails on a NEW violator and equally on an allowlist entry that
+# no longer violates, so the list can only shrink and cannot rot into an
+# exemption nobody rereads. Logic in a script so the gate's own test can drive
+# it over a seeded tree, as `issue-link-check` does.
+ccsds-isolation-check: ## Fail when a component outside ccsds_tm includes its headers
+	@$(UV) run python scripts/check_ccsds_isolation.py
 
 # The recorded specan demo frames are a projection of the specan source, so a
 # change to one without the other ships a demo that no longer matches the code.

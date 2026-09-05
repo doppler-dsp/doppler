@@ -312,7 +312,7 @@ dsss_receiver_create (const uint8_t *code, size_t code_len, double chip_rate,
 
   obj->acq = dp_xnn (acq_create_continuous (
       obj->code, code_len, spc, chip_rate, symbol_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */));
+      doppler_uncertainty, pfa, pd, 0 /* noise_mode=mean */, 1, 0.0));
 
   obj->spc          = spc;
   obj->m            = m;

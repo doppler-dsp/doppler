@@ -112,6 +112,10 @@ extern "C"
     double doppler_uncertainty; 
     double symbol_rate; 
     double epochs_per_symbol;  
+    size_t code_only_epochs; 
+    double doppler_rate; 
+    float _Complex *blk; 
+    size_t blk_epoch;    
     float  threshold; 
     float  eta;       
     float  eta_nc;    
@@ -172,10 +176,11 @@ extern "C"
     uint32_t n_unconsumed; 
     uint32_t max_peaks;    
     uint32_t n_twins;      
+    uint32_t blk_epoch; 
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
-#define ACQ_STATE_VERSION 2u /* v2: the peak list's held twins ride along */
+#define ACQ_STATE_VERSION 3u /* v3: the block-coherent accumulator rides along */
 
 #define ACQ_MAX_PEAKS 64u
 
@@ -190,7 +195,9 @@ extern "C"
                                       size_t spc, double chip_rate,
                                       double symbol_rate, double cn0_dbhz,
                                       double doppler_uncertainty, double pfa,
-                                      double pd, int noise_mode);
+                                      double pd, int noise_mode,
+                                      size_t code_only_epochs,
+                                      double doppler_rate);
 
   void acq_destroy (acq_state_t *state);
 

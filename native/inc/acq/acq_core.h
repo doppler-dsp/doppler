@@ -76,10 +76,30 @@
  * a public knob to tune around that). `doppler_bin` in @ref acq_result_t
  * reports the frequency-window index (0 … window_bins-1, native FFT-bin
  * ordering) instead of a slow-time-FFT row when this mode is active;
- * `doppler_res_hz` still reports the per-window spacing (chip_rate/sf,
- * unchanged formula at coherent_bins=1); combining wideband search WITH a
- * coherent depth > 1 per window is not supported (a possible future
- * extension, not needed by any current use case).
+ * `doppler_res_hz` reports the per-window spacing (chip_rate/sf) at
+ * coherent_bins=1.
+ *
+ * **Block-coherent depth inside the tiles** (docs/design/async-dsss-receiver.md
+ * §2.3): the engine allows a coherent depth, to accommodate waveforms with
+ * code-only windows. Given `code_only_epochs > 1` -- the whole code-only
+ * epochs such a window holds at any chip phase -- it runs a coherent depth
+ * `D` inside every tile: the per-tile epoch
+ * correlations are gathered for `D` epochs, then a zero-padded slow-time
+ * FFT per code-phase column turns each tile into `D` Doppler rows
+ * `chip_rate/(sf*D)` apart, detected per block. Blocks are non-overlapping
+ * and the engine does not know any emitter's window phase, so `D` is at
+ * most `(code_only_epochs+1)/2` (a whole block always lands inside the
+ * window) and, when `doppler_rate` is given, at most
+ * `f_epoch/sqrt(2*doppler_rate)` (the drift over a block stays inside half a
+ * row). The Doppler axis is then ONE uniform grid of
+ * `window_bins*coherent_bins` bins of `doppler_res_hz = chip_rate/(sf*D)`
+ * over the tiled span, in native FFT-bin order (0 = DC, ascending, then
+ * wrapping negative): `doppler_bin` indexes it, and acq_build_handoff()
+ * folds it with dp_fftfreq_index() over that count. A block that straddles
+ * data spreads that emitter over its rows, `10*log10(D)` below an aligned
+ * block, at its own code phase -- the `conc` probe (§2.4) reads it.
+ * `code_only_epochs = 1` (the default) is `D = 1` and the engine exactly as
+ * described above.
  *
  * @code
  * // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
@@ -227,14 +247,15 @@ extern "C"
                                     length code_bins; reused per hypothesis. */
 
     size_t
-        coherent_bins; /**< Coherent depth = slow-time FFT length (<= reps).
-                             Forced to 1 in wideband mode (window_bins > 1),
-                             and always in acq_create_continuous().         */
+        coherent_bins; /**< Coherent depth = slow-time FFT length (<= reps
+                             on a burst engine). In wideband mode the block
+                             depth D inside every tile (file doc); 1 = one
+                             epoch, the continuous engine's default.        */
     size_t window_bins; /**< Wideband frequency-window hypotheses (1 =
                               disabled/native — see the file doc comment).   */
     size_t code_bins; /**< One segment in samples = sf*spc.                 */
     size_t n; /**< NATIVE grid size in samples: coherent_bins * window_bins *
-                   code_bins (one of coherent_bins/window_bins is always 1).
+                   code_bins (both may exceed 1: D rows inside each tile).
                    This is the INPUT frame and the count of statistically
                    independent cells -- it is what the threshold ladder is
                    sized from, and it is what `doppler_bin` is reported on.  */
@@ -286,6 +307,16 @@ extern "C"
                               informational, doesn't feed sizing.         */
     double epochs_per_symbol;  /**< (chip_rate/sf)/symbol_rate; 0 when
                                      symbol_rate <= 0.                    */
+    size_t code_only_epochs; /**< Whole code-only epochs a waveform's
+                                  code-only window holds at any chip phase
+                                  (§2.1); 1 = no window, D = 1.          */
+    double doppler_rate; /**< Doppler rate the depth is bounded against
+                              (Hz/s); 0 = no bound from the rate.       */
+    float _Complex *blk; /**< window_bins * coherent_bins * code_bins: the
+                              block's per-tile epoch correlations; NULL
+                              unless both exceed 1.                     */
+    size_t blk_epoch;    /**< Epochs gathered in the current block
+                              (0 … coherent_bins-1).                    */
 
     float  threshold; /**< CFAR gate on test_stat (theta); coherent path.   */
     float  eta;       /**< Raw per-cell Rayleigh amplitude threshold.       */
@@ -390,10 +421,11 @@ extern "C"
     uint32_t n_unconsumed; /**< Partial-frame samples that follow (< n).  */
     uint32_t max_peaks;    /**< List capacity; must equal the engine's.   */
     uint32_t n_twins;      /**< Last dwell's picks that follow.           */
+    uint32_t blk_epoch; /**< v3: epochs gathered in the block being built */
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
-#define ACQ_STATE_VERSION 2u /* v2: the peak list's held twins ride along */
+#define ACQ_STATE_VERSION 3u /* v3: the block-coherent accumulator rides along */
 
 /** The largest `max_peaks` acq_set_max_peaks() accepts: one push's
  *  result array is sized to this many in the binding, so one dwell can
@@ -476,7 +508,8 @@ extern "C"
 
   /**
    * @brief Create a continuous-mode acquisition engine: always wideband
-   *        window-tiling, never coherent multi-epoch combining.
+   *        window-tiling, allowing a block-coherent depth inside the
+   *        tiles to accommodate waveforms with code-only windows.
    *
    * Builds the single-row oversampled BPSK reference from @p code, infers
    * sf = @p code_len, converts @p cn0_dbhz to a per-sample amplitude SNR,
@@ -484,12 +517,16 @@ extern "C"
    * (chip_rate/(2*sf))))` parallel frequency-window hypotheses (see the file
    * doc comment's "Wideband window-tiling mode") -- unconditionally, even
    * when @p doppler_uncertainty is narrower than one native span.
-   * `coherent_bins` is pinned to 1 always: a continuous, data-modulated
-   * signal's own bit transitions make coherent multi-epoch combining a
-   * structural aliasing mislock, not a graceful SNR loss (see
-   * docs/design/dsss-acquisition.md), so this engine never attempts it.
-   * Sensitivity margin comes entirely from auto-selected non-coherent looks
-   * (up to the internal @ref ACQ_N_NONCOH_SAFETY_CEILING).
+   * A continuous, data-modulated signal's own bit transitions make coherent
+   * multi-epoch combining across DATA a structural aliasing mislock (see
+   * docs/design/dsss-acquisition.md), so the depth is bounded by what a
+   * waveform's code-only window holds: `coherent_bins = D =
+   * min((code_only_epochs+1)/2, f_epoch/sqrt(2*doppler_rate))`, at least 1,
+   * run in non-overlapping D-epoch blocks inside every tile (file doc,
+   * design §2.3). With @p code_only_epochs = 1 it is 1 and the engine is
+   * exactly the epoch-by-epoch search. Sensitivity margin beyond the depth
+   * comes from auto-selected non-coherent looks over blocks (up to the
+   * internal @ref ACQ_N_NONCOH_SAFETY_CEILING).
    *
    * @param code        PN chips (0/1), length @p code_len.
    * @param code_len    Number of chips supplied (= sf, the spreading factor).
@@ -507,6 +544,12 @@ extern "C"
    * @param pfa         Target system (max-of-N) false-alarm probability (0,1).
    * @param pd          Target detection probability (0,1).
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+   * @param code_only_epochs  Whole code-only epochs a waveform's code-only
+   *                    window holds at any chip phase (design §2.1:
+   *                    `floor(W_symbols * chips_per_symbol / sf) - 1`); 1
+   *                    (>= 1) means no window and a depth of 1.
+   * @param doppler_rate  Doppler rate in Hz/s the depth is bounded against
+   *                    (>= 0); 0 leaves the window as the only bound.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    * failure.
    * @code
@@ -521,6 +564,12 @@ extern "C"
    * >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
    * >>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
    * (0, 17)
+   * >>> a.coherent_bins            # no window given: one epoch
+   * 1
+   * >>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
+   * ...                 code_only_epochs=7)
+   * >>> b.coherent_bins            # (7 + 1) // 2: a whole block fits
+   * 4
    *
    * @endcode
    */
@@ -528,7 +577,9 @@ extern "C"
                                       size_t spc, double chip_rate,
                                       double symbol_rate, double cn0_dbhz,
                                       double doppler_uncertainty, double pfa,
-                                      double pd, int noise_mode);
+                                      double pd, int noise_mode,
+                                      size_t code_only_epochs,
+                                      double doppler_rate);
 
   /** @brief Destroy and free an engine.  @param state May be NULL. */
   void acq_destroy (acq_state_t *state);

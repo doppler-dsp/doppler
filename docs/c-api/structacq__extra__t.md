@@ -37,6 +37,7 @@ _Per-object extra header for an engine's cross-call state._ [More...](#detailed-
 | Type | Name |
 | ---: | :--- |
 |  uint16\_t | [**\_pad**](#variable-_pad)  <br> |
+|  uint32\_t | [**blk\_epoch**](#variable-blk_epoch)  <br> |
 |  uint16\_t | [**has\_nc**](#variable-has_nc)  <br> |
 |  uint32\_t | [**max\_peaks**](#variable-max_peaks)  <br> |
 |  uint64\_t | [**n**](#variable-n)  <br> |
@@ -115,6 +116,23 @@ uint16_t acq_extra_t::_pad;
 
 
 
+
+<hr>
+
+
+
+### variable blk\_epoch 
+
+```C++
+uint32_t acq_extra_t::blk_epoch;
+```
+
+
+
+v3: epochs gathered in the block being built 
+
+
+        
 
 <hr>
 

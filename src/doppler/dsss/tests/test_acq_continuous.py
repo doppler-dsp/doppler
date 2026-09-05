@@ -240,3 +240,44 @@ def test_telemetry_probes_and_the_surface_tap():
     assert a.surface_at == 0
     a.push(_emitter(a, tile=1, code_phase=5, dwells=1))
     assert a.surface(s) == 0
+
+
+def test_block_coherent_depth_inside_the_tiles():
+    """Design §2.3: a pure-code window buys a coherent depth D inside every
+    tile; the Doppler axis becomes one grid of ``doppler_bins`` native bins
+    of ``doppler_res_hz = chip_rate / (sf * D)``; an emitter one row above
+    tile +1 is reported at bin ``1 * D + 1``."""
+    du = 3 * CHIP_RATE / (2 * SF)
+    a = _acq(doppler_uncertainty=du, code_only_epochs=7)
+    assert a.coherent_bins == 4
+    assert a.doppler_bins == 3 * 4
+    assert a.doppler_res_hz == pytest.approx(CHIP_RATE / (SF * 4))
+    r = _acq(doppler_uncertainty=du, code_only_epochs=7, doppler_rate=1e9)
+    assert r.coherent_bins == 1  # the rate bound floors at one epoch
+    with pytest.raises((ValueError, MemoryError)):
+        _acq(doppler_uncertainty=du, code_only_epochs=0)
+
+    nx = a.code_bins
+    k = np.arange(3 * a.n_noncoh * 4 * nx)
+    src = (k % nx + nx - 5) % nx
+    chips = CODE[(src // SPC) % SF]
+    x = (
+        np.where(chips, -1.0, 1.0) * np.exp(2j * np.pi * 1.25 * k / nx)
+    ).astype(np.complex64)
+    hits = a.push(x)
+    assert len(hits) >= 1
+    assert (hits[0][0], hits[0][1]) == (1 * 4 + 1, 5)
+    # one row BELOW tile +1: bin 1 * D - 1, adjacent on the one folded grid
+    a.reset()
+    x = (
+        np.where(chips, -1.0, 1.0) * np.exp(2j * np.pi * 0.75 * k / nx)
+    ).astype(np.complex64)
+    hits = a.push(x)
+    assert (hits[0][0], hits[0][1]) == (1 * 4 - 1, 5)
+    # tile -1, one row below: bin -4 - 1 = -5 -> 12 - 5 = 7 in FFT order
+    a.reset()
+    x = (
+        np.where(chips, -1.0, 1.0) * np.exp(-2j * np.pi * 1.25 * k / nx)
+    ).astype(np.complex64)
+    hits = a.push(x)
+    assert (hits[0][0], hits[0][1]) == (3 * 4 - 4 - 1, 5)

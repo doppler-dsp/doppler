@@ -36,24 +36,28 @@ AcquisitionObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[] = { "code",        "spc",      "chip_rate",
-                            "symbol_rate", "cn0_dbhz", "doppler_uncertainty",
-                            "pfa",         "pd",       "noise_mode",
-                            NULL };
-  PyObject    *code_obj = NULL;
-  unsigned long long spc_raw             = 4;
-  double             chip_rate           = 1000000.0;
-  double             symbol_rate         = 1000.0;
-  double             cn0_dbhz            = 50.0;
-  double             doppler_uncertainty = 0.0;
-  double             pfa                 = 1e-3;
-  double             pd                  = 0.9;
-  const char        *noise_mode_str      = "mean";
+  static char       *kwlist[]    = { "code",         "spc",
+                                     "chip_rate",    "symbol_rate",
+                                     "cn0_dbhz",     "doppler_uncertainty",
+                                     "pfa",          "pd",
+                                     "noise_mode",   "code_only_epochs",
+                                     "doppler_rate", NULL };
+  PyObject          *code_obj    = NULL;
+  unsigned long long spc_raw     = 4;
+  double             chip_rate   = 1000000.0;
+  double             symbol_rate = 1000.0;
+  double             cn0_dbhz    = 50.0;
+  double             doppler_uncertainty  = 0.0;
+  double             pfa                  = 1e-3;
+  double             pd                   = 0.9;
+  const char        *noise_mode_str       = "mean";
+  unsigned long long code_only_epochs_raw = 1;
+  double             doppler_rate         = 0.0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|Kdddddds", kwlist, &code_obj, &spc_raw, &chip_rate,
+          args, kwds, "O|KddddddsKd", kwlist, &code_obj, &spc_raw, &chip_rate,
           &symbol_rate, &cn0_dbhz, &doppler_uncertainty, &pfa, &pd,
-          &noise_mode_str))
+          &noise_mode_str, &code_only_epochs_raw, &doppler_rate))
     return -1;
   size_t spc        = (size_t)spc_raw;
   int    noise_mode = 0;
@@ -73,7 +77,8 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
                     noise_mode_str);
       return -1;
     }
-  PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
+  size_t         code_only_epochs = (size_t)code_only_epochs_raw;
+  PyArrayObject *code_arr         = (PyArrayObject *)PyArray_FROM_OTF (
       code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!code_arr)
     {
@@ -82,7 +87,8 @@ AcquisitionObj_init (AcquisitionObject *self, PyObject *args, PyObject *kwds)
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
   self->handle    = acq_create_continuous (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, spc, chip_rate,
-      symbol_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode);
+      symbol_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
+      code_only_epochs, doppler_rate);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
@@ -148,10 +154,17 @@ AcquisitionObj_push (AcquisitionObject *self, PyObject *args)
   for (size_t i = 0; i < n_out; i++)
     {
       PyObject *tup = Py_BuildValue (
-          "(KKffffK)", (unsigned long long)results[i].doppler_bin,
-          (unsigned long long)results[i].code_phase, results[i].peak_mag,
-          results[i].noise_est, results[i].test_stat, results[i].cn0_dbhz_est,
-          (unsigned long long)results[i].samples_consumed);
+          "(NNNNNNN)",
+          PyLong_FromUnsignedLongLong (
+              (unsigned long long)results[i].doppler_bin),
+          PyLong_FromUnsignedLongLong (
+              (unsigned long long)results[i].code_phase),
+          PyFloat_FromDouble ((double)results[i].peak_mag),
+          PyFloat_FromDouble ((double)results[i].noise_est),
+          PyFloat_FromDouble ((double)results[i].test_stat),
+          PyFloat_FromDouble ((double)results[i].cn0_dbhz_est),
+          PyLong_FromUnsignedLongLong (
+              (unsigned long long)results[i].samples_consumed));
       if (!tup)
         {
           Py_DECREF (lst);
@@ -182,11 +195,191 @@ AcquisitionObj_configure_search_raw (AcquisitionObject *self, PyObject *args,
   int    _rc = acq_configure_search_raw (self->handle, doppler_bins, n_noncoh);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "configure_search_raw failed (rc=%d)",
-                    _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "configure_search_raw failed", (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
+}
+
+static PyObject *
+AcquisitionObj_set_max_peaks (AcquisitionObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "n", NULL };
+  unsigned long long n_raw     = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
+    return NULL;
+  size_t n   = (size_t)n_raw;
+  int    _rc = acq_set_max_peaks (self->handle, n);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AcquisitionObj_set_telemetry (AcquisitionObject *self, PyObject *args,
+                              PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char  *_kwlist[] = { "tlm", "prefix", "decim", NULL };
+  PyObject     *tlm_obj   = Py_None;
+  const char   *prefix    = NULL;
+  unsigned long decim_raw = 1;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|k", _kwlist, &tlm_obj,
+                                    &prefix, &decim_raw))
+    return NULL;
+  dp_tlm_t *tlm = NULL;
+  if (tlm_obj != Py_None)
+    {
+      PyObject *tlm_cap = tlm_obj;
+      Py_INCREF (tlm_cap);
+      if (!PyCapsule_CheckExact (tlm_cap))
+        {
+          Py_DECREF (tlm_cap);
+          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
+          if (!tlm_cap)
+            return NULL;
+        }
+      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
+                                              "doppler.telemetry.dp_tlm");
+      Py_DECREF (tlm_cap);
+      if (!tlm)
+        return NULL;
+    }
+  uint32_t decim = (uint32_t)decim_raw;
+  int      _rc   = acq_set_telemetry (self->handle, tlm, prefix, decim);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AcquisitionObj_surface (AcquisitionObject *self, PyObject *args,
+                        PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "out", NULL };
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &out_obj))
+    return NULL;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (out_obj)
+      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!out_arr)
+    {
+      return NULL;
+    }
+  float *out     = (float *)PyArray_DATA (out_arr);
+  size_t out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t y       = acq_surface (self->handle, out, out_len);
+  Py_DECREF (out_arr);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+}
+
+static PyObject *
+AcquisitionObj_surface_doppler_hz (AcquisitionObject *self, PyObject *args,
+                                   PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "out", NULL };
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &out_obj))
+    return NULL;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (out_obj)
+      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_DOUBLE
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      out_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!out_arr)
+    {
+      return NULL;
+    }
+  double *out     = (double *)PyArray_DATA (out_arr);
+  size_t  out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t  y       = acq_surface_doppler_hz (self->handle, out, out_len);
+  Py_DECREF (out_arr);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+}
+
+static PyObject *
+AcquisitionObj_surface_chip_phase (AcquisitionObject *self, PyObject *args,
+                                   PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "out", NULL };
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &out_obj))
+    return NULL;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (out_obj)
+      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_DOUBLE
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      out_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!out_arr)
+    {
+      return NULL;
+    }
+  double *out     = (double *)PyArray_DATA (out_arr);
+  size_t  out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t  y       = acq_surface_chip_phase (self->handle, out, out_len);
+  Py_DECREF (out_arr);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
 static PyObject *
@@ -244,6 +437,18 @@ AcquisitionObj_set_state (AcquisitionObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
+Acquisition_getprop_max_peaks (AcquisitionObject *self,
+                               void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->max_peaks);
+}
+static PyObject *
 Acquisition_getprop_code_bins (AcquisitionObject *self,
                                void              *Py_UNUSED (closure))
 {
@@ -264,10 +469,20 @@ Acquisition_getprop_doppler_bins (AcquisitionObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
+  return PyLong_FromUnsignedLongLong ((unsigned long long)((
+      self->handle->window_bins * self->handle->coherent_bins)));
+}
+static PyObject *
+Acquisition_getprop_coherent_bins (AcquisitionObject *self,
+                                   void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)((self->handle->window_bins > 1)
-                               ? self->handle->window_bins
-                               : self->handle->coherent_bins));
+      (unsigned long long)self->handle->coherent_bins);
 }
 static PyObject *
 Acquisition_getprop_sf (AcquisitionObject *self, void *Py_UNUSED (closure))
@@ -498,83 +713,6 @@ Acquisition_getprop_epochs_per_symbol (AcquisitionObject *self,
     }
   return PyFloat_FromDouble (self->handle->epochs_per_symbol);
 }
-
-static PyObject *
-Acquisition_getprop_max_peaks (AcquisitionObject *self,
-                               void              *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->max_peaks);
-}
-
-static PyObject *
-Acquisition_getprop_surface_rows (AcquisitionObject *self,
-                                  void              *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)((self->handle->n_surf / self->handle->code_bins)));
-}
-
-static PyObject *
-Acquisition_getprop_surface_at (AcquisitionObject *self,
-                                void              *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->surface_at);
-}
-
-static PyObject *
-Acquisition_getprop_n_peaks (AcquisitionObject *self,
-                             void              *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->n_peaks);
-}
-
-static PyObject *
-Acquisition_getprop_n_held (AcquisitionObject *self, void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->n_held);
-}
-
-static PyObject *
-Acquisition_getprop_peak_conc (AcquisitionObject *self,
-                               void              *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble ((double)self->handle->peak_conc);
-}
-
 static PyObject *
 Acquisition_getprop_keep_surface (AcquisitionObject *self,
                                   void              *Py_UNUSED (closure))
@@ -586,7 +724,6 @@ Acquisition_getprop_keep_surface (AcquisitionObject *self,
     }
   return PyLong_FromLong ((long)self->handle->keep_surface);
 }
-
 static int
 Acquisition_setprop_keep_surface (AcquisitionObject *self, PyObject *value,
                                   void *Py_UNUSED (closure))
@@ -602,14 +739,82 @@ Acquisition_setprop_keep_surface (AcquisitionObject *self, PyObject *value,
   self->handle->keep_surface = v;
   return 0;
 }
+static PyObject *
+Acquisition_getprop_surface_rows (AcquisitionObject *self,
+                                  void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)((self->handle->n_surf / self->handle->code_bins)));
+}
+static PyObject *
+Acquisition_getprop_surface_at (AcquisitionObject *self,
+                                void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->surface_at);
+}
+static PyObject *
+Acquisition_getprop_n_peaks (AcquisitionObject *self,
+                             void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->n_peaks);
+}
+static PyObject *
+Acquisition_getprop_n_held (AcquisitionObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->n_held);
+}
+static PyObject *
+Acquisition_getprop_peak_conc (AcquisitionObject *self,
+                               void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((double)self->handle->peak_conc);
+}
 
 static PyGetSetDef Acquisition_getset[] = {
+  { "max_peaks", (getter)Acquisition_getprop_max_peaks, NULL,
+    "The peak list's capacity per dwell (1 = the classic gated maximum); set "
+    "with set_max_peaks().\n",
+    NULL },
   { "code_bins", (getter)Acquisition_getprop_code_bins, NULL,
     "Code-phase hypotheses searched (= sf*spc, one code period).\n", NULL },
   { "doppler_bins", (getter)Acquisition_getprop_doppler_bins, NULL,
-    "Effective Doppler search granularity this engine picked: the window-tile "
-    "count (this engine always window-tiles -- see acq_core.h's file doc "
-    "comment -- so this is window_bins, never a coherent-depth axis).\n",
+    "Native Doppler bins this engine searches: the window-tile count times "
+    "the block-coherent depth inside each tile (`coherent_bins`), one uniform "
+    "grid of `doppler_res_hz` over the tiled span in FFT-bin order -- what a "
+    "hit's `doppler_bin` indexes.\n",
+    NULL },
+  { "coherent_bins", (getter)Acquisition_getprop_coherent_bins, NULL,
+    "The block-coherent depth D inside every window tile (design §2.3): "
+    "epochs per block and Doppler rows per tile. 1 without a code-only "
+    "window.\n",
     NULL },
   { "sf", (getter)Acquisition_getprop_sf, NULL,
     "Chips per PN segment, inferred from len(code).\n", NULL },
@@ -675,9 +880,11 @@ static PyGetSetDef Acquisition_getset[] = {
     "(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when "
     "symbol_rate is 0.\n",
     NULL },
-  { "max_peaks", (getter)Acquisition_getprop_max_peaks, NULL,
-    "The peak list's capacity per dwell (1 = the classic gated maximum); set "
-    "with set_max_peaks().\n",
+  { "keep_surface", (getter)Acquisition_getprop_keep_surface,
+    (setter)Acquisition_setprop_keep_surface,
+    "1 keeps every decided dwell's surface for `surface()` (normalised into "
+    "the gate's units at each decision); 0 (the default) costs nothing. "
+    "`set_surface_sink()` in C sets it.\n",
     NULL },
   { "surface_rows", (getter)Acquisition_getprop_surface_rows, NULL,
     "Rows of the surface `surface()` returns: the Doppler axis in surface "
@@ -701,12 +908,6 @@ static PyGetSetDef Acquisition_getset[] = {
     "Near 1 for a clean single emitter, even one straddling two tiles; about "
     "0.5 when a data transition splits it into twins two or more tiles away; "
     "lower when a coherent block straddles data (design §2.4).\n",
-    NULL },
-  { "keep_surface", (getter)Acquisition_getprop_keep_surface,
-    (setter)Acquisition_setprop_keep_surface,
-    "1 keeps every decided dwell's surface for `surface()` (normalised into "
-    "the gate's units at each decision); 0 (the default) costs nothing. "
-    "`set_surface_sink()` in C sets it.\n",
     NULL },
   { NULL }
 };
@@ -741,189 +942,31 @@ AcquisitionObj_exit (AcquisitionObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-AcquisitionObj_set_max_peaks (AcquisitionObject *self, PyObject *args,
-                              PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[] = { "n", NULL };
-  unsigned long long n_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
-    return NULL;
-  size_t n   = (size_t)n_raw;
-  int    _rc = acq_set_max_peaks (self->handle, n);
-  if (_rc != 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
-                    (long long)_rc);
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-AcquisitionObj_set_telemetry (AcquisitionObject *self, PyObject *args,
-                              PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char  *_kwlist[] = { "tlm", "prefix", "decim", NULL };
-  PyObject     *tlm_obj   = Py_None;
-  const char   *prefix    = NULL;
-  unsigned long decim_raw = 1;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "Os|k", _kwlist, &tlm_obj,
-                                    &prefix, &decim_raw))
-    return NULL;
-  dp_tlm_t *tlm = NULL;
-  if (tlm_obj != Py_None)
-    {
-      PyObject *tlm_cap = tlm_obj;
-      Py_INCREF (tlm_cap);
-      if (!PyCapsule_CheckExact (tlm_cap))
-        {
-          Py_DECREF (tlm_cap);
-          tlm_cap = PyObject_GetAttrString (tlm_obj, "_capsule");
-          if (!tlm_cap)
-            return NULL;
-        }
-      tlm = (dp_tlm_t *)PyCapsule_GetPointer (tlm_cap,
-                                              "doppler.telemetry.dp_tlm");
-      Py_DECREF (tlm_cap);
-      if (!tlm)
-        return NULL;
-    }
-  uint32_t decim = (uint32_t)decim_raw;
-  int      _rc   = acq_set_telemetry (self->handle, tlm, prefix, decim);
-  if (_rc != 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
-                    (long long)_rc);
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-AcquisitionObj_surface (AcquisitionObject *self, PyObject *args,
-                        PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[] = { "out", NULL };
-  PyObject    *out_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &out_obj))
-    return NULL;
-  /* Require the exact dtype AND C-contiguity — either mismatch makes
-   * the marshal write into a temp copy, not the caller's buffer. */
-  if (!PyArray_Check (out_obj)
-      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_FLOAT
-      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
-      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
-    {
-      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
-                                        " ndarray of the output dtype");
-      return NULL;
-    }
-  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      out_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
-  if (!out_arr)
-    {
-      return NULL;
-    }
-  float *out     = (float *)PyArray_DATA (out_arr);
-  size_t out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t y       = acq_surface (self->handle, out, out_len);
-  Py_DECREF (out_arr);
-  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
-}
-
-static PyObject *
-AcquisitionObj_surface_doppler_hz (AcquisitionObject *self, PyObject *args,
-                                   PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[] = { "out", NULL };
-  PyObject    *out_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &out_obj))
-    return NULL;
-  /* Require the exact dtype AND C-contiguity — either mismatch makes
-   * the marshal write into a temp copy, not the caller's buffer. */
-  if (!PyArray_Check (out_obj)
-      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_DOUBLE
-      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
-      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
-    {
-      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
-                                        " ndarray of the output dtype");
-      return NULL;
-    }
-  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      out_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
-  if (!out_arr)
-    {
-      return NULL;
-    }
-  double *out     = (double *)PyArray_DATA (out_arr);
-  size_t  out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t  y       = acq_surface_doppler_hz (self->handle, out, out_len);
-  Py_DECREF (out_arr);
-  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
-}
-
-static PyObject *
-AcquisitionObj_surface_chip_phase (AcquisitionObject *self, PyObject *args,
-                                   PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[] = { "out", NULL };
-  PyObject    *out_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &out_obj))
-    return NULL;
-  /* Require the exact dtype AND C-contiguity — either mismatch makes
-   * the marshal write into a temp copy, not the caller's buffer. */
-  if (!PyArray_Check (out_obj)
-      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_DOUBLE
-      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
-      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
-    {
-      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
-                                        " ndarray of the output dtype");
-      return NULL;
-    }
-  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      out_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
-  if (!out_arr)
-    {
-      return NULL;
-    }
-  double *out     = (double *)PyArray_DATA (out_arr);
-  size_t  out_len = (size_t)PyArray_SIZE (out_arr);
-  size_t  y       = acq_surface_chip_phase (self->handle, out, out_len);
-  Py_DECREF (out_arr);
-  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
-}
-
 static PyMethodDef AcquisitionObj_methods[] = {
   { "reset", (PyCFunction)AcquisitionObj_reset, METH_NOARGS,
-    "Drain the input ring and reset the coherent accumulator." },
+    "Drain the input ring and reset the coherent accumulator.\n"
+    "\n"
+    "Discards any buffered samples that have not yet completed a frame and\n"
+    "clears the non-coherent power accumulator and dwell bookkeeping, so the\n"
+    "next push() begins a fresh search from an empty ring. The construction\n"
+    "parameters — grid, thresholds, and PN reference — are untouched; only\n"
+    "the in-flight streaming state is dropped.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1,\n"
+    "...                      length=5).generate(31)).astype(np.uint8)\n"
+    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
+    "...     np.complex64)\n"
+    ">>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)\n"
+    ">>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)\n"
+    ">>> _ = a.push(burst[:100])   # a partial frame, buffered mid-stream\n"
+    ">>> a.reset()                 # drop it before it can bias a detection\n"
+    ">>> a.push(burst)[0][:2]      # (Doppler bin, code phase)\n"
+    "(0, 17)\n" },
 
   { "push", (PyCFunction)AcquisitionObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"
@@ -1022,90 +1065,6 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> burst = np.tile(np.roll(s0, 17), 4).astype(np.complex64)\n"
     ">>> a.push(burst)[0][:2]      # detects at the pinned grid\n"
     "(0, 17)\n" },
-  { "state_bytes", (PyCFunction)AcquisitionObj_state_bytes, METH_NOARGS,
-    "Size in bytes of this object's serialized state.\n"
-    "\n"
-    "The exact length `get_state` returns and `set_state` requires. It\n"
-    "depends on how the object was constructed (state arrays are sized at\n"
-    "construction), so read it from the instance rather than assuming a\n"
-    "constant.\n"
-    "\n"
-    "Raises ``RuntimeError`` if the Acquisition has already been destroyed.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    Byte length of one serialized state blob.\n" },
-  { "get_state", (PyCFunction)AcquisitionObj_get_state, METH_NOARGS,
-    "Serialize this object's mutable state to bytes.\n"
-    "\n"
-    "Captures exactly the state that evolves as the object runs, so a blob\n"
-    "taken now and restored later resumes from this point. Construction\n"
-    "parameters are not included: restore into an object built the same way.\n"
-    "\n"
-    "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
-    "implementation detail of the C core and is not a stable format across\n"
-    "builds.\n"
-    "\n"
-    "Raises ``RuntimeError`` if the Acquisition has already been destroyed.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "bytes\n"
-    "    Opaque snapshot, `state_bytes()` bytes long.\n" },
-  { "set_state", (PyCFunction)AcquisitionObj_set_state, METH_O,
-    "Restore mutable state from a `get_state()` blob.\n"
-    "\n"
-    "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()`\n"
-    "before the blob is handed to the C core, and the core may reject it as\n"
-    "well.\n"
-    "\n"
-    "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
-    "length differs from `state_bytes()` or the core rejects it, and\n"
-    "``RuntimeError`` if the Acquisition has already been destroyed.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "blob : bytes\n"
-    "    A `get_state()` blob from this type, exactly `state_bytes()` "
-    "long.\n" },
-  { "destroy", (PyCFunction)AcquisitionObj_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
-    "\n"
-    "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
-    "exit.\n"
-    "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)AcquisitionObj_enter, METH_NOARGS,
-    "Enter a context manager, returning this object.\n"
-    "\n"
-    "Lets a Acquisition be used in a `with` statement so its C resources are\n"
-    "released deterministically on exit rather than at collection time.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "Acquisition\n"
-    "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)AcquisitionObj_exit, METH_VARARGS,
-    "Exit a context manager, releasing the Acquisition.\n"
-    "\n"
-    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never\n"
-    "suppresses one.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "exc_type : object | None\n"
-    "    Exception class, or None. Ignored.\n"
-    "exc : object | None\n"
-    "    Exception instance, or None. Ignored.\n"
-    "tb : object | None\n"
-    "    Traceback object, or None. Ignored.\n" },
   { "set_max_peaks", (PyCFunction)(void *)AcquisitionObj_set_max_peaks,
     METH_VARARGS | METH_KEYWORDS,
     "set_max_peaks(n) -> None\n"
@@ -1342,6 +1301,89 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "True\n"
     ">>> bool(c[0] == 0.0 and c[1] == 510.5)\n"
     "True\n" },
+  { "state_bytes", (PyCFunction)AcquisitionObj_state_bytes, METH_NOARGS,
+    "Size in bytes of this object's serialized state.\n"
+    "\n"
+    "The exact length `get_state` returns and `set_state` requires. It\n"
+    "depends on how the object was constructed (state arrays are sized at\n"
+    "construction), so read it from the instance rather than assuming a\n"
+    "constant.\n"
+    "\n"
+    "Raises ``RuntimeError`` if the Acquisition has already been destroyed.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Byte length of one serialized state blob.\n" },
+  { "get_state", (PyCFunction)AcquisitionObj_get_state, METH_NOARGS,
+    "Serialize this object's mutable state to bytes.\n"
+    "\n"
+    "Captures exactly the state that evolves as the object runs, so a blob\n"
+    "taken now and restored later resumes from this point. Construction\n"
+    "parameters are not included: restore into an object built the same way.\n"
+    "\n"
+    "The blob is opaque and always `state_bytes()` long. Its layout is an\n"
+    "implementation detail of the C core and is not a stable format across\n"
+    "builds.\n"
+    "\n"
+    "Raises ``RuntimeError`` if the Acquisition has already been destroyed.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "bytes\n"
+    "    Opaque snapshot, `state_bytes()` bytes long.\n" },
+  { "set_state", (PyCFunction)AcquisitionObj_set_state, METH_O,
+    "Restore mutable state from a `get_state()` blob.\n"
+    "\n"
+    "Overwrites the live state in place; the object keeps the parameters it\n"
+    "was constructed with. Length is validated against `state_bytes()`\n"
+    "before the blob is handed to the C core, and the core may reject it as\n"
+    "well.\n"
+    "\n"
+    "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
+    "length differs from `state_bytes()` or the core rejects it, and\n"
+    "``RuntimeError`` if the Acquisition has already been destroyed.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "blob : bytes\n"
+    "    A `get_state()` blob from this type, exactly `state_bytes()` "
+    "long.\n" },
+  { "destroy", (PyCFunction)AcquisitionObj_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on\n"
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)AcquisitionObj_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a Acquisition be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "Acquisition\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)AcquisitionObj_exit, METH_VARARGS,
+    "Exit a context manager, releasing the Acquisition.\n"
+    "\n"
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
   { NULL }
 };
 
@@ -1350,7 +1392,79 @@ static PyTypeObject AcquisitionObjType = {
   .tp_basicsize                           = sizeof (AcquisitionObject),
   .tp_dealloc                             = (destructor)AcquisitionObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a streaming DSSS acquisition engine.\n",
+  .tp_doc
+  = "Create a continuous-mode acquisition engine: always wideband\n"
+    "window-tiling, with a block-coherent depth inside the tiles when the\n"
+    "waveform has a pure-code window.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "code : NDArray[np.uint8]\n"
+    "    PN chips (0/1), length code_len.\n"
+    "spc : int, default 4\n"
+    "    Samples per chip (>= 1).\n"
+    "chip_rate : float, default 1000000.0\n"
+    "    Chip rate in Hz (> 0).\n"
+    "symbol_rate : float, default 1000.0\n"
+    "    Continuous data-symbol rate in Hz; <= 0 means no known clock.\n"
+    "    Diagnostic only (exposed via acq_state_t::epochs_per_symbol), "
+    "doesn't\n"
+    "    feed sizing: this engine never coherently combines regardless of "
+    "the\n"
+    "    data-modulation clock.\n"
+    "cn0_dbhz : float, default 50.0\n"
+    "    Carrier-to-noise density in dB-Hz (> 0).\n"
+    "doppler_uncertainty : float, default 0.0\n"
+    "    One-sided Doppler search half-range in Hz; 0 uses the full native "
+    "span\n"
+    "    +/- chip_rate/(2*sf) (still window-tiled, at window_bins=1).\n"
+    "pfa : float, default 1e-3\n"
+    "    Target system (max-of-N) false-alarm probability (0,1).\n"
+    "pd : float, default 0.9\n"
+    "    Target detection probability (0,1).\n"
+    "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
+    "\"mean\"\n"
+    "    CFAR mode index: 0=mean, 1=median, 2=min, 3=max.\n"
+    "code_only_epochs : int, default 1\n"
+    "    Whole pure-code epochs the waveform's data-free window holds at any\n"
+    "    chip phase (floor(W_symbols * chips_per_symbol / sf) - 1; design "
+    "§2.1).\n"
+    "    1 = no window: a coherent depth of 1.\n"
+    "doppler_rate : float, default 0.0\n"
+    "    Doppler rate in Hz/s the coherent depth is bounded against (the "
+    "drift\n"
+    "    over one block stays inside half a slow-time row); 0 leaves the "
+    "window\n"
+    "    as the only bound.\n"
+    "\n"
+    "Warns\n"
+    "-----\n"
+    "UserWarning\n"
+    "    Emitted after construction when ``underpowered`` holds: "
+    "``Acquisition\n"
+    "    is under-powered: pd_predicted < pd at this cn0_dbhz. Raise cn0_dbhz "
+    "or\n"
+    "    narrow doppler_uncertainty.``.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1,\n"
+    "...                      length=5).generate(31)).astype(np.uint8)\n"
+    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
+    "...     np.complex64)\n"
+    ">>> burst = np.tile(np.roll(s0, 17), 23).astype(np.complex64)\n"
+    ">>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)\n"
+    ">>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)\n"
+    "(0, 17)\n"
+    ">>> a.coherent_bins            # no window given: one epoch\n"
+    "1\n"
+    ">>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,\n"
+    "...                 code_only_epochs=7)\n"
+    ">>> b.coherent_bins            # (7 + 1) // 2: a whole block fits\n"
+    "4\n",
   .tp_methods = AcquisitionObj_methods,
   .tp_getset  = Acquisition_getset,
   .tp_new     = AcquisitionObj_new,

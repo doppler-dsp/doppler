@@ -163,7 +163,7 @@ main (void)
            * above. */
           acq_state_t *a = acq_create_continuous (
               code, SF, SPC, cfg->chip_rate, SYMBOL_RATE, CN0_DBHZ, cfg->du,
-              PFA, pd_target, 0);
+              PFA, pd_target, 0, 1, 0.0);
           if (!a)
             {
               fprintf (stderr, "acq_create_continuous failed at pd=%.3f\n",

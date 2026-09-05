@@ -37,9 +37,9 @@ jobs:
         # job below and by manylinux_2_28 wheels at release.)
         include:
           - os: ubuntu-22.04
-            image: ghcr.io/doppler-dsp/doppler-ci@sha256:87b852bde18e02108b83dbbd786906384d2fa475507a492f2ceea1b7ab5b6f55
+            image: ghcr.io/doppler-dsp/doppler-ci@sha256:a807df52c0f21e7551e70ccc3919fbdc46f689c38446662ad23e6614702e5d03
           - os: ubuntu-24.04
-            image: ghcr.io/doppler-dsp/doppler-ci@sha256:ba070a9b2ebc674f956026160ca806a3e7a572e4553a95cc67c6d4fe13bde6d4
+            image: ghcr.io/doppler-dsp/doppler-ci@sha256:d90a5c895fd7394e7347a3fe8bedcf4fb1081f721e3d102861233d7c77f62484
     container:
       image: ${{ matrix.image }}
       credentials:
@@ -228,7 +228,7 @@ jobs:
     # No provisioning step: the toolchain is the image. See
     # deploy/docker/Dockerfile.ci and .github/ci-images.env.
     container:
-      image: ghcr.io/doppler-dsp/doppler-ci@sha256:ba070a9b2ebc674f956026160ca806a3e7a572e4553a95cc67c6d4fe13bde6d4
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:d90a5c895fd7394e7347a3fe8bedcf4fb1081f721e3d102861233d7c77f62484
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -404,7 +404,7 @@ jobs:
     # doxygen + graphviz come from the image's `docs` group, which is the
     # same bootstrap.toml group `make install-docs-deps` installs.
     container:
-      image: ghcr.io/doppler-dsp/doppler-ci@sha256:ba070a9b2ebc674f956026160ca806a3e7a572e4553a95cc67c6d4fe13bde6d4
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:d90a5c895fd7394e7347a3fe8bedcf4fb1081f721e3d102861233d7c77f62484
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -652,7 +652,7 @@ jobs:
     # reason the coverage job takes libclang-rt from here rather than naming
     # it in bootstrap.toml.
     container:
-      image: ghcr.io/doppler-dsp/doppler-ci@sha256:ba070a9b2ebc674f956026160ca806a3e7a572e4553a95cc67c6d4fe13bde6d4
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:d90a5c895fd7394e7347a3fe8bedcf4fb1081f721e3d102861233d7c77f62484
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -707,7 +707,7 @@ jobs:
     # from the image -- including libclang-rt, which bootstrap.toml cannot
     # name because the package is per-release and that file is not.
     container:
-      image: ghcr.io/doppler-dsp/doppler-ci@sha256:ba070a9b2ebc674f956026160ca806a3e7a572e4553a95cc67c6d4fe13bde6d4
+      image: ghcr.io/doppler-dsp/doppler-ci@sha256:d90a5c895fd7394e7347a3fe8bedcf4fb1081f721e3d102861233d7c77f62484
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}

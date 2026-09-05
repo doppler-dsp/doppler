@@ -1069,8 +1069,9 @@ record — is already there.
     it releases — is §10.
 1. ~~**How many emitters at once**, and how long an emitter is typically
     in view.~~ **Answered**: at least one always
-    on, up to 10 at once, each on for 5 to 15 minutes on average. The pool
-    and the soak follow in §6.1,
+    on, up to 10 at once, each on for 5 to 15 minutes and **never more
+    than 15** (maintainer, 2026-09-05) — a bound, and an adjustable one.
+    The pool and the soak follow in §6.1,
     §5 and §6.
 1. ~~**Can two emitters sit within one span of each other?**~~
     **Answered: yes** — one frequency channel, one code; emitters are
@@ -1113,7 +1114,12 @@ of it is re-derived here (§5):
     per bank, and not a property of the channel.
 - **The population**: **at least one emitter is
     always on**, there may be **up to 10 at once**, and each is on for **5
-    to 15 minutes** on average. So the surface never has fewer than one
+    to 15 minutes** — **15 minutes is the maximum on-air time of a single
+    emitter** (maintainer, 2026-09-05), and it is **adjustable**: the
+    pool's `max_emitter_on_time_secs` (§8.2), the soak's draw (§12 step
+    7\) and the false-release budget (§10) all take it as a parameter,
+    whose default is the one constant `MAX_EMITTER_ON_TIME_SECS = 15*60`;
+    nothing else bakes it in. So the surface never has fewer than one
     peak, has up to ten, and an emitter comes into or leaves view about once a minute
     at the full population. **An emitter transmits continuously, and coming into view is not
     powering up** (maintainer, 2026-09-03): it appears at whatever point of its frame it has reached, mid-payload as
@@ -1564,7 +1570,9 @@ The other half of §5.4's question 5 is answered the way this library
 answers it: the holder is a **C object**, `async_dsss_pool`, and the Python
 face is glue. It is the one composition on the air side of the bank, and
 **nothing about this waveform or this population is baked into it**:
-every number below is a create parameter whose default is the operating
+every number below — the maximum on-air time of an emitter among them,
+`max_emitter_on_time_secs`, default `MAX_EMITTER_ON_TIME_SECS = 15*60`
+(§6.1) — is a create parameter whose default is the operating
 point of §6.1, the searcher's and the receivers' own parameters pass
 through it untouched, and the pool knows only what it was given —
 another code, another frame, another population is another `create()`.
@@ -1704,7 +1712,8 @@ in fact still present is re-detected at its next data-free window and
 seeded into a fresh receiver, which is a recovery, not a hand-back.
 
 **What the interval costs, and what it buys.** Against on-times of 5 to
-15 minutes, release latency is nothing: both flags are down within 25 ms
+15 minutes — 15 the maximum, adjustable (§6.1) — release latency is
+nothing: both flags are down within 25 ms
 of a switch-off (§12.3), and a confirm interval of even two seconds —
 longer than the one-second fades measured — is under 1% of the shortest
 on-time. The number that matters
@@ -1714,7 +1723,8 @@ data-free window plus a refine (the cadence of §5.4
 question 4), and on the cancellation branch its replica leaves the
 searcher's input for the same interval, so the floor rises under every
 weaker emitter for a frame. The confirm interval is therefore sized from
-a false-release budget — far rarer than once per on-time, per receiver —
+a false-release budget — far rarer than once per on-time, per receiver,
+the on-time being the 15-minute maximum, not a typical one —
 in exactly the vocabulary `lockdet` documents: at the per-look miss
 probability the tracked C/N0 gives, `n_down` consecutive misses set the
 false-drop rate, and `det_verify_count()` sizes `n_down` against the
@@ -1978,7 +1988,8 @@ ______________________________________________________________________
     dips a few times a second on a healthy signal. The rule in §10 was
     rewritten to both flags down for longer than the fade.
 1. **The lifecycle soak.** The population of §6.1 — one emitter always
-    on, up to ten, on-times drawn around 5 to 15 minutes — at random
+    on, up to ten, on-times drawn around 5 to 15 minutes and capped at
+    the adjustable maximum (§6.1) — at random
     Dopplers within one span and a spread on each side of the knee. Each
     emitter's synth runs for the whole soak and visibility is a gain of 1
     or 0 at the sum, so an emitter appears at a random frame phase and nothing
@@ -2268,10 +2279,11 @@ down for its duration; what the fix buys is a clock that starts within
 milliseconds of a real loss and never starts on a healthy signal.
 
 Not measured yet: the false-release
-rate over an hour rather than half a minute (the both-down rate at 5.7 dB
-is 0.5% of blocks in runs of tens of milliseconds; whether a run ever
-reaches seconds is what an hour would say), and any of this on the
-hand-off-mode receiver, which does not exist.
+rate over a whole on-time — the 15-minute maximum of §6.1 — rather than
+half a minute (the both-down rate at 5.7 dB is 0.5% of blocks in runs of
+tens of milliseconds; whether a run ever reaches seconds is what fifteen
+minutes would say), and any of this on the hand-off-mode receiver, which
+does not exist.
 
 ### 12.4 What was measured (2026-09-02) — the DLL's telemetry, and the aid
 
@@ -2464,8 +2476,8 @@ before anything is priced on them. Two things the measurements raised
 and this page only names: the peak list's same-code-phase rule (§7.1)
 passes a strong emitter's persistent sidelobes under long non-coherent
 integration (§12.6, #1191), and the false-release rate of the
-both-flags-down rule is bounded only over half a minute, not the hour an
-on-time deserves.
+both-flags-down rule is bounded only over half a minute, not the
+15-minute maximum on-time (§6.1) it must hold for.
 
 ______________________________________________________________________
 

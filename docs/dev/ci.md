@@ -115,9 +115,39 @@ Jobs pin the image **by digest**, so an image rebuild cannot change what an
 in-flight PR was tested against.
 
 `ci-image.yml` rebuilds nightly, compares the *package fingerprint* baked into
-the image, and publishes and opens a repin PR only when the content actually
-moved. Rebuilding nightly is not the same as consuming a nightly image: a run
-stays reproducible, while drift still surfaces within a day.
+the image, and publishes and pushes the refreshed pin to `ci/repin-image` only
+when the content actually moved. Rebuilding nightly is not the same as
+consuming a nightly image: a run stays reproducible, while drift still
+surfaces within a day.
+
+**The nightly pushes a branch; it does not open a PR.** It used to try, and
+could never succeed — the `doppler-dsp` org forbids GitHub Actions from
+creating pull requests, so the step force-pushed the branch and then died on
+`gh pr create`. That left the workflow red on every `main` run for three
+releases; because it feeds no aggregator, its red gated nothing and was
+indistinguishable from the image genuinely breaking
+([#1212](https://github.com/doppler-dsp/doppler/issues/1212)).
+
+So the branch is the deliverable, and a **gate** reads it rather than a human
+noticing a PR. `make ci-image-repin-check` — its own required job in `ci.yml`
+— fails while `ci/repin-image` carries a pin the tree does not:
+
+```sh
+gh pr create --head ci/repin-image --fill   # land it; the gate goes green
+```
+
+It compares the two `CI_IMAGE_FINGERPRINT_*` values and
+`CI_IMAGE_SOURCE_HASH`, and deliberately **not** the digests: a rebuild
+changes the digest every time while the content is identical, so a file diff
+would be red every morning and everyone would learn to ignore the one morning
+that mattered. Comparing values also makes it self-clearing — once the repin
+lands, the tree's fingerprints equal the branch's and the gate goes green on
+its own.
+
+This is the half `ci-image-check` structurally cannot cover. That one is
+offline, so it compares *our* inputs; only the nightly learns that *upstream*
+moved under an unchanged Dockerfile. Blocking is the point: an unmerged repin
+means every Linux job is running in an image the repo no longer describes.
 
 The fingerprint covers every dpkg package plus `rustc`, `cargo` and
 `nats-server` — the tools that arrive outside dpkg. It did not, at first, and

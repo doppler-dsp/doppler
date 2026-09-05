@@ -595,7 +595,14 @@ jobs:
   ci-image-repin:
     name: CI image repin pending
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 25, not the 10 this job's actual work justifies (a checkout, a depth-1
+    # fetch of one branch, and a shell comparison -- seconds). `make
+    # deps-budget-check` requires EVERY `timeout-minutes` in the tree to
+    # exceed the provisioning budget (DEPS_DEADLINE x DEPS_TRIES + backoff =
+    # 1290s), because a ceiling under it would kill a retry mid-download. 25
+    # is the tightest value that clears it, and is a backstop against a hung
+    # fetch rather than an estimate.
+    timeout-minutes: 25
 
     steps:
     - uses: actions/checkout@v7

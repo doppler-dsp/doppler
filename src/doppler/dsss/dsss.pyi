@@ -949,7 +949,8 @@ class BurstDespreader:
 @final
 class Acquisition:
     """Create a continuous-mode acquisition engine: always wideband
-    window-tiling, never coherent multi-epoch combining.
+    window-tiling, allowing a block-coherent depth inside the tiles to
+    accommodate waveforms with code-only windows.
 
     Parameters
     ----------
@@ -975,6 +976,15 @@ class Acquisition:
         Target detection probability (0,1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+    code_only_epochs : int, default 1
+        Whole code-only epochs a waveform's code-only window holds at any chip
+        phase (floor(W_symbols * chips_per_symbol / sf) - 1; design §2.1) --
+        the engine allows a coherent depth to accommodate such waveforms. 1 =
+        no window: a coherent depth of 1.
+    doppler_rate : float, default 0.0
+        Doppler rate in Hz/s the coherent depth is bounded against (the drift
+        over one block stays inside half a slow-time row); 0 leaves the window
+        as the only bound.
 
     Warns
     -----
@@ -996,6 +1006,12 @@ class Acquisition:
     >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
     >>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
     (0, 17)
+    >>> a.coherent_bins            # no window given: one epoch
+    1
+    >>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
+    ...                 code_only_epochs=7)
+    >>> b.coherent_bins            # (7 + 1) // 2: a whole block fits
+    4
 
     """
     def __init__(
@@ -1009,6 +1025,8 @@ class Acquisition:
         pfa: float = ...,
         pd: float = ...,
         noise_mode: Literal["mean", "median", "min", "max"] = "mean",
+        code_only_epochs: int = ...,
+        doppler_rate: float = ...,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -1438,10 +1456,17 @@ class Acquisition:
 
     @property
     def doppler_bins(self) -> int:
-        """Effective Doppler search granularity this engine picked: the
-        window-tile count (this engine always window-tiles -- see acq_core.h's
-        file doc comment -- so this is window_bins, never a coherent-depth
-        axis).
+        """Native Doppler bins this engine searches: the window-tile count
+        times the block-coherent depth inside each tile (`coherent_bins`), one
+        uniform grid of `doppler_res_hz` over the tiled span in FFT-bin order
+        -- what a hit's `doppler_bin` indexes.
+        """
+
+    @property
+    def coherent_bins(self) -> int:
+        """The block-coherent depth D inside every window tile (design §2.3):
+        epochs per block and Doppler rows per tile. 1 without a code-only
+        window.
         """
 
     @property

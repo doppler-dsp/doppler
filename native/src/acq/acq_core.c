@@ -375,11 +375,15 @@ acq_report_peaks (acq_state_t *st, const float *surf,
         }
       listed_col[n_listed++] = c;
       const float stat       = stat_of (st, st->peaks[i].value);
+      /* The coherent length behind one look: the frame on a burst engine
+         (D epochs already), the block of D epochs on a tiled one. */
+      const float coh_n
+          = (float)(st->window_bins > 1 ? st->coherent_bins * st->frame_n
+                                        : st->frame_n);
       const float amp_snr
           = stat
-            / (st->n_noncoh > 1
-                   ? sqrtf (2.0f * (float)st->frame_n * (float)st->n_noncoh)
-                   : ACQ_SQRT_2_OVER_PI * sqrtf (2.0f * (float)st->frame_n));
+            / (st->n_noncoh > 1 ? sqrtf (2.0f * coh_n * (float)st->n_noncoh)
+                                : ACQ_SQRT_2_OVER_PI * sqrtf (2.0f * coh_n));
       result[ndet++] = (acq_result_t){
         .doppler_bin      = r,
         .code_phase       = c,
@@ -506,7 +510,44 @@ acq_intra_umax (size_t D, size_t sb, double du, double span)
 static size_t
 acq_interp_for (size_t D, size_t window_bins)
 {
-  return (window_bins > 1 || D <= 1) ? 1u : ACQ_DOPPLER_INTERP;
+  /* Any slow-time axis is interpolated: the burst engine's, and the block
+     depth inside every tile of a continuous one. Tiles alone (D == 1) are
+     hypotheses, not FFT bins, with no scalloping to fix. */
+  (void)window_bins;
+  return D <= 1 ? 1u : ACQ_DOPPLER_INTERP;
+}
+
+/* The block-coherent depth a continuous engine runs inside every tile
+ * (docs/design/async-dsss-receiver.md §2.1): the larger of one and the
+ * smaller of two bounds -- a whole block always fits in the window
+ * (non-overlapping blocks at an unknown window phase need W >= 2D - 1), and
+ * the drift over one block stays inside half a slow-time row
+ * (rate * D * T_epoch <= f_epoch / (2 D)). */
+static size_t
+acq_block_depth (double f_epoch, size_t code_only_epochs, double doppler_rate)
+{
+  size_t d = (code_only_epochs + 1) / 2;
+  if (doppler_rate > 0.0)
+    {
+      double dr = floor (f_epoch / sqrt (2.0 * doppler_rate));
+      if (dr < (double)d)
+        d = dr < 1.0 ? 1 : (size_t)dr;
+    }
+  return d < 1 ? 1 : d;
+}
+
+/* The surface row of slow-time row `i` (of `dI = D * interp`, in FFT order)
+ * inside tile `r` (of `tiles`, in FFT order): the tiles and the rows inside
+ * them make ONE uniform grid of tiles * dI fine bins over the tiled span,
+ * kept in native FFT-bin order so every fold downstream -- the zone, the
+ * native-row report, acq_build_handoff(), the surface axis -- is the same
+ * dp_fftfreq_index() over the combined count. */
+static inline size_t
+acq_block_row (size_t r, size_t tiles, size_t i, size_t dI)
+{
+  const long total = (long)(tiles * dI);
+  long m = dp_fftfreq_index (r, tiles) * (long)dI + dp_fftfreq_index (i, dI);
+  return (size_t)(((m % total) + total) % total);
 }
 
 static double
@@ -598,7 +639,7 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
    * window_bins windows (no further within-mode narrowing prior exists), so
    * every window is "searched" by construction -- unlike the native
    * du-narrows-the-native-span case acq_searched_bins models. */
-  st->searched_bins  = (st->window_bins > 1) ? st->window_bins
+  st->searched_bins  = (st->window_bins > 1) ? st->window_bins * D
                                              : acq_searched_bins (D, du, span);
   st->doppler_res_hz = st->chip_rate / ((double)st->sf * (double)D);
   st->pfa_cell = 1.0 - pow (1.0 - pfa, 1.0 / (double)(st->searched_bins * cb));
@@ -803,8 +844,8 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
  * coherent-depth search -- see the file doc comment for why this mode never
  * attempts coherent multi-epoch combining at all. */
 static void
-acq_auto_config_continuous (const acq_state_t *st, double pfa, double pd,
-                            double snr, double du, size_t *out_nc,
+acq_auto_config_continuous (const acq_state_t *st, size_t D, double pfa,
+                            double pd, double snr, double du, size_t *out_nc,
                             size_t *out_window_bins)
 {
   const size_t cb          = st->code_bins;
@@ -812,8 +853,9 @@ acq_auto_config_continuous (const acq_state_t *st, double pfa, double pd,
   const size_t window_bins = acq_cover_window_bins (du, span);
 
   *out_window_bins = window_bins;
-  *out_nc = acq_ascend_n_noncoh (snr, 1, window_bins, cb, pfa, pd, st->spc, du,
-                                 span);
+  /* The searched Doppler cells are the tiles times the rows inside each. */
+  *out_nc = acq_ascend_n_noncoh (snr, D, window_bins * D, cb, pfa, pd, st->spc,
+                                 du, span);
 }
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
@@ -872,7 +914,7 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
   float _Complex *new_wide_ref_spec = NULL;
   float _Complex *new_wide_spec     = NULL;
   float _Complex *new_wide_prod     = NULL;
-
+  float _Complex *new_blk           = NULL;
   if (grid_changed)
     {
       /* Single-row oversampled BPSK reference: row 0 (indices [0, cb))
@@ -897,7 +939,9 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
          axis, so more rows is simply more independent code correlations --
          no double transform, and `ny_out` stays 0 deliberately (see
          ACQ_DOPPLER_INTERP). */
-      new_corr = corr2d_create (new_ref, new_db * new_interp, cb, 1, 1, 0, 0);
+      new_corr = corr2d_create (
+          new_ref, (new_freq_bins > 1) ? 1 : new_db * new_interp, cb, 1, 1, 0,
+          0); /* wideband mode never runs it: one row, not D * interp */
       if (!new_corr)
         goto fail;
       /* Zero-padded slow-time transform: `new_db` real inputs into a
@@ -942,6 +986,12 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
           fft_execute_cf32 (new_wide_fwd, new_ref, cb, new_wide_ref_spec, cb);
           for (size_t j = 0; j < cb; j++)
             new_wide_ref_spec[j] = conjf (new_wide_ref_spec[j]);
+          /* The block: D epochs of every tile's correlation row, gathered
+             before the slow-time transform (file doc). A fixed size from
+             validated arguments: abort-on-OOM, no unwind path. */
+          if (new_db > 1)
+            new_blk = (float _Complex *)dp_xmalloc (new_freq_bins * new_db * cb
+                                                    * sizeof (float _Complex));
         }
     }
 
@@ -1001,6 +1051,9 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
       st->wide_ref_spec = new_wide_ref_spec;
       st->wide_spec     = new_wide_spec;
       st->wide_prod     = new_wide_prod;
+      free (st->blk);
+      st->blk       = new_blk;
+      st->blk_epoch = 0;
     }
   if (new_ring)
     {
@@ -1050,6 +1103,7 @@ fail:
   free (new_wide_ref_spec);
   free (new_wide_spec);
   free (new_wide_prod);
+  free (new_blk);
   if (new_ring)
     dp_f32_destroy (new_ring);
   return -1;
@@ -1064,7 +1118,8 @@ static acq_state_t *
 acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
                      size_t spc, double chip_rate, double symbol_rate,
                      double cn0_dbhz, double doppler_uncertainty, double pfa,
-                     double pd, int noise_mode, int continuous)
+                     double pd, int noise_mode, int continuous,
+                     size_t code_only_epochs, double doppler_rate)
 {
   /* Validate: bad arguments yield NULL (the binding maps this to a clear
    * MemoryError) rather than undefined behaviour downstream.  chip_rate > 0
@@ -1082,7 +1137,9 @@ acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
   if (!code || code_len < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
       || !(continuous ? cn0_dbhz > 0.0 : cn0_dbhz >= 0.0)
       || !isfinite (cn0_dbhz) || !(pfa > 0.0 && pfa < 1.0)
-      || !(pd > 0.0 && pd < 1.0) || doppler_uncertainty < 0.0)
+      || !(pd > 0.0 && pd < 1.0) || doppler_uncertainty < 0.0
+      || code_only_epochs < 1 || !(doppler_rate >= 0.0)
+      || !isfinite (doppler_rate))
     return NULL;
 
   acq_state_t *st = (acq_state_t *)calloc (1, sizeof (*st));
@@ -1106,13 +1163,18 @@ acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
                                 ? (chip_rate / (double)sf) / st->symbol_rate
                                 : 0.0;
 
+  st->code_only_epochs = code_only_epochs;
+  st->doppler_rate     = doppler_rate;
+
   const double snr    = acq_design_snr (cn0_dbhz, st->fs);
   size_t       best_d = 0, best_nc = 0, best_window_bins = 1;
   if (continuous)
     {
-      best_d = 1;
-      acq_auto_config_continuous (st, pfa, pd, snr, doppler_uncertainty,
-                                  &best_nc, &best_window_bins);
+      best_d = acq_block_depth (chip_rate / (double)sf, code_only_epochs,
+                                doppler_rate);
+      acq_auto_config_continuous (st, best_d, pfa, pd, snr,
+                                  doppler_uncertainty, &best_nc,
+                                  &best_window_bins);
     }
   else
     acq_auto_config_burst (st, pfa, pd, snr, doppler_uncertainty, &best_d,
@@ -1140,18 +1202,20 @@ acq_create_burst (const uint8_t *code, size_t code_len, size_t reps,
   return acq_acq_create_impl (code, code_len, reps, spc, chip_rate,
                               /* symbol_rate= */ 0.0, cn0_dbhz,
                               doppler_uncertainty, pfa, pd, noise_mode,
-                              /* continuous= */ 0);
+                              /* continuous= */ 0, 1, 0.0);
 }
 
 acq_state_t *
 acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
                        double chip_rate, double symbol_rate, double cn0_dbhz,
                        double doppler_uncertainty, double pfa, double pd,
-                       int noise_mode)
+                       int noise_mode, size_t code_only_epochs,
+                       double doppler_rate)
 {
   return acq_acq_create_impl (code, code_len, /* reps= */ 1, spc, chip_rate,
                               symbol_rate, cn0_dbhz, doppler_uncertainty, pfa,
-                              pd, noise_mode, /* continuous= */ 1);
+                              pd, noise_mode, /* continuous= */ 1,
+                              code_only_epochs, doppler_rate);
 }
 
 int
@@ -1206,6 +1270,7 @@ acq_destroy (acq_state_t *st)
   free (st->wide_spec);
   free (st->wide_prod);
   free (st->stat_surface);
+  free (st->blk);
   free (st);
 }
 
@@ -1237,6 +1302,7 @@ acq_reset (acq_state_t *st)
   if (st->nc_surface)
     memset (st->nc_surface, 0, st->n_surf * sizeof (float));
   st->nc_count         = 0;
+  st->blk_epoch        = 0;
   st->samples_consumed = 0;
   st->n_peaks          = 0;
   st->n_twins          = 0;
@@ -1310,6 +1376,8 @@ acq_push (acq_state_t *st, const float _Complex *x, size_t n_in,
                * requested uncertainty, nx = sf*spc is the full code
                * length). */
               fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec, nx);
+              const size_t D  = st->coherent_bins;
+              const size_t dI = D * st->interp;
               for (size_t r = 0; r < st->window_bins; r++)
                 {
                   long signed_r = dp_fftfreq_index (r, st->window_bins);
@@ -1318,10 +1386,45 @@ acq_push (acq_state_t *st, const float _Complex *x, size_t n_in,
                   for (size_t j = 0; j < nx; j++)
                     st->wide_prod[j] = st->wide_spec[(j + roll) % nx]
                                        * st->wide_ref_spec[j];
-                  fft_execute_cf32 (st->wide_inv, st->wide_prod, nx,
-                                    st->out_buf + r * nx, nx);
+                  /* D == 1: the tile IS its row. D > 1: this epoch's row of
+                     the tile goes into the block, transformed at its end. */
+                  float _Complex *row
+                      = (D > 1) ? st->blk + (r * D + st->blk_epoch) * nx
+                                : st->out_buf + r * nx;
+                  fft_execute_cf32 (st->wide_inv, st->wide_prod, nx, row, nx);
                 }
-              n_out = n;
+              if (D > 1)
+                {
+                  if (++st->blk_epoch < D)
+                    n_out = 0; /* mid-block: no surface yet */
+                  else
+                    {
+                      /* The block is whole: per tile, per code-phase
+                         column, the zero-padded slow-time transform of its
+                         D epochs, scattered onto the one combined Doppler
+                         axis (acq_block_row). The roll kept each epoch's
+                         phase continuous at the tile's centre, so the
+                         residual inside the tile is what the transform
+                         resolves. */
+                      st->blk_epoch = 0;
+                      for (size_t r = 0; r < st->window_bins; r++)
+                        for (size_t j = 0; j < nx; j++)
+                          {
+                            for (size_t i = 0; i < D; i++)
+                              st->colbuf[i] = st->blk[(r * D + i) * nx + j];
+                            fft_execute_cf32 (st->slow_fft, st->colbuf, dI,
+                                              st->colout, dI);
+                            for (size_t i = 0; i < dI; i++)
+                              st->out_buf[acq_block_row (r, st->window_bins, i,
+                                                         dI)
+                                              * nx
+                                          + j] = st->colout[i];
+                          }
+                      n_out = n;
+                    }
+                }
+              else
+                n_out = n;
             }
           else
             {
@@ -1401,7 +1504,8 @@ acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
   /* Shared with the wideband search's own row->roll mapping — see
      dp_fftfreq_index()'s doc comment for the sign inversion that a second,
      drifted copy of this formula used to cause here. */
-  long k_fold = dp_fftfreq_index (hit->doppler_bin, state->window_bins);
+  long k_fold = dp_fftfreq_index (hit->doppler_bin,
+                                  state->window_bins * state->coherent_bins);
 
   *out = (acq_handoff_t){
     .samples_consumed = hit->samples_consumed,
@@ -1522,6 +1626,20 @@ acq_state_twins (void *blob, const acq_state_t *st)
                       + (st->n_noncoh > 1 ? st->n_surf * sizeof (float) : 0));
 }
 
+/* The block accumulator's cells, when the engine has one. */
+static size_t
+acq_blk_cells (const acq_state_t *st)
+{
+  return st->blk ? st->window_bins * st->coherent_bins * st->code_bins : 0;
+}
+
+static float _Complex *
+acq_state_blk (void *blob, const acq_state_t *st)
+{
+  return (float _Complex *)((char *)acq_state_twins (blob, st)
+                            + 2 * st->max_peaks * sizeof (uint32_t));
+}
+
 size_t
 acq_state_bytes (const acq_state_t *st)
 {
@@ -1529,6 +1647,7 @@ acq_state_bytes (const acq_state_t *st)
   if (st->n_noncoh > 1)
     b += st->n_surf * sizeof (float);
   b += 2 * st->max_peaks * sizeof (uint32_t);
+  b += acq_blk_cells (st) * sizeof (float _Complex);
   return b;
 }
 
@@ -1542,15 +1661,21 @@ acq_get_state (const acq_state_t *st, void *blob)
 
   dp_writer_t w = dp_writer_init (blob, acq_state_bytes (st));
   dp_w_hdr (&w, ACQ_STATE_MAGIC, ACQ_STATE_VERSION, acq_state_bytes (st));
-  acq_extra_t ex = { .has_nc           = (uint16_t)(st->n_noncoh > 1),
-                     ._pad             = 0,
-                     .n_noncoh         = (uint32_t)st->n_noncoh,
-                     .n                = (uint64_t)n,
-                     .samples_consumed = st->samples_consumed,
-                     .nc_count         = (uint32_t)st->nc_count,
-                     .n_unconsumed     = (uint32_t)nun,
-                     .max_peaks        = (uint32_t)st->max_peaks,
-                     .n_twins          = (uint32_t)st->n_twins };
+  /* Zeroed first: the blob is compared byte for byte by round-trip tests
+     and composed into other objects' blobs, so the struct's padding must be
+     deterministic, and a designated initialiser leaves it unspecified. */
+  acq_extra_t ex;
+  memset (&ex, 0, sizeof ex);
+  ex.has_nc           = (uint16_t)(st->n_noncoh > 1);
+  ex._pad             = 0;
+  ex.n_noncoh         = (uint32_t)st->n_noncoh;
+  ex.n                = (uint64_t)n;
+  ex.samples_consumed = st->samples_consumed;
+  ex.nc_count         = (uint32_t)st->nc_count;
+  ex.n_unconsumed     = (uint32_t)nun;
+  ex.max_peaks        = (uint32_t)st->max_peaks;
+  ex.n_twins          = (uint32_t)st->n_twins;
+  ex.blk_epoch        = (uint32_t)st->blk_epoch;
   dp_w_bytes (&w, &ex, sizeof ex);
 
   float _Complex *dst = acq_state_samples (blob);
@@ -1569,6 +1694,9 @@ acq_get_state (const acq_state_t *st, void *blob)
       tw[2 * k]     = st->twin_row[k];
       tw[2 * k + 1] = st->twin_col[k];
     }
+  if (st->blk)
+    memcpy (acq_state_blk (blob, st), st->blk,
+            acq_blk_cells (st) * sizeof (float _Complex));
 }
 
 int
@@ -1582,7 +1710,8 @@ acq_set_state (acq_state_t *st, const void *blob)
   memcpy (&ex, (const char *)blob + sizeof (dp_state_hdr_t), sizeof ex);
   if (ex.n != (uint64_t)st->n || ex.n_noncoh != (uint32_t)st->n_noncoh
       || ex.n_unconsumed > (uint32_t)st->ring_cap
-      || ex.max_peaks != (uint32_t)st->max_peaks || ex.n_twins > ex.max_peaks)
+      || ex.max_peaks != (uint32_t)st->max_peaks || ex.n_twins > ex.max_peaks
+      || ex.blk_epoch >= (uint32_t)st->coherent_bins)
     return DP_ERR_INVALID;
 
   /* Reset the live state, then replay the blob's buffered samples + nc. */
@@ -1611,6 +1740,10 @@ acq_set_state (acq_state_t *st, const void *blob)
       st->twin_row[k] = tw[2 * k];
       st->twin_col[k] = tw[2 * k + 1];
     }
+  st->blk_epoch = ex.blk_epoch;
+  if (st->blk)
+    memcpy (st->blk, acq_state_blk ((void *)blob, st),
+            acq_blk_cells (st) * sizeof (float _Complex));
   st->n_peaks    = 0;
   st->n_held     = 0;
   st->peak_conc  = 0.0f;

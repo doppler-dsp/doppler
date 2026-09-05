@@ -37,13 +37,17 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  uint8\_t \* | [**band\_mask**](#variable-band_mask)  <br> |
+|  float \_Complex \* | [**blk**](#variable-blk)  <br> |
+|  size\_t | [**blk\_epoch**](#variable-blk_epoch)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  size\_t | [**code\_bins**](#variable-code_bins)  <br> |
+|  size\_t | [**code\_only\_epochs**](#variable-code_only_epochs)  <br> |
 |  size\_t | [**coherent\_bins**](#variable-coherent_bins)  <br> |
 |  float \_Complex \* | [**colbuf**](#variable-colbuf)  <br> |
 |  float \_Complex \* | [**colout**](#variable-colout)  <br> |
 |  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**corr**](#variable-corr)  <br> |
+|  double | [**doppler\_rate**](#variable-doppler_rate)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
 |  double | [**doppler\_span\_hz**](#variable-doppler_span_hz)  <br> |
 |  double | [**doppler\_uncertainty**](#variable-doppler_uncertainty)  <br> |
@@ -184,6 +188,42 @@ n\_surf; 1 = outside the searched band
 
 
 
+### variable blk 
+
+```C++
+float _Complex* acq_state_t::blk;
+```
+
+
+
+window\_bins \* coherent\_bins \* code\_bins: the block's per-tile epoch correlations; NULL unless both exceed 1. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable blk\_epoch 
+
+```C++
+size_t acq_state_t::blk_epoch;
+```
+
+
+
+Epochs gathered in the current block (0 … coherent\_bins-1). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable chip\_rate 
 
 ```C++
@@ -238,6 +278,24 @@ One segment in samples = sf\*spc.
 
 
 
+### variable code\_only\_epochs 
+
+```C++
+size_t acq_state_t::code_only_epochs;
+```
+
+
+
+Whole code-only epochs a waveform's code-only window holds at any chip phase (§2.1); 1 = no window, D = 1. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable coherent\_bins 
 
 ```C++
@@ -246,7 +304,7 @@ size_t acq_state_t::coherent_bins;
 
 
 
-Coherent depth = slow-time FFT length (&lt;= reps). Forced to 1 in wideband mode (window\_bins &gt; 1), and always in [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous). 
+Coherent depth = slow-time FFT length (&lt;= reps on a burst engine). In wideband mode the block depth D inside every tile (file doc); 1 = one epoch, the continuous engine's default. 
  
 
 
@@ -300,6 +358,24 @@ corr2d_state_t* acq_state_t::corr;
 
 
 Single-row-ref correlator (dwell=1). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable doppler\_rate 
+
+```C++
+double acq_state_t::doppler_rate;
+```
+
+
+
+Doppler rate the depth is bounded against (Hz/s); 0 = no bound from the rate. 
  
 
 
@@ -548,7 +624,7 @@ size_t acq_state_t::n;
 
 
 
-NATIVE grid size in samples: coherent\_bins \* window\_bins \* code\_bins (one of coherent\_bins/window\_bins is always 1). This is the INPUT frame and the count of statistically independent cells  it is what the threshold ladder is sized from, and it is what `doppler_bin` is reported on. 
+NATIVE grid size in samples: coherent\_bins \* window\_bins \* code\_bins (both may exceed 1: D rows inside each tile). This is the INPUT frame and the count of statistically independent cells  it is what the threshold ladder is sized from, and it is what `doppler_bin` is reported on. 
  
 
 

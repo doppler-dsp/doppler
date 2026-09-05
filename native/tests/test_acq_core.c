@@ -508,7 +508,7 @@ _acq_wideband_coverage_check (void)
     code[i] = (uint8_t)(i & 1u);
 
   acq_state_t *w = acq_create_continuous (code, sf, spc, crate, 2700.0, 44.31,
-                                          du, 1e-3, 0.9, 0);
+                                          du, 1e-3, 0.9, 0, 1, 0.0);
   DP_CHECK (w != NULL);
   if (!w)
     {
@@ -584,7 +584,7 @@ _acq_continuous_check (void)
    * window_bins == 1 -- native span, single window -- never a coherent
    * axis. */
   acq_state_t *narrow = acq_create_continuous (
-      CODE31, 31, spc, crate, sym_rate, cn0_dbhz, 0.0, 1e-3, 0.9, 0);
+      CODE31, 31, spc, crate, sym_rate, cn0_dbhz, 0.0, 1e-3, 0.9, 0, 1, 0.0);
   DP_CHECK (narrow != NULL);
   if (narrow)
     {
@@ -596,8 +596,9 @@ _acq_continuous_check (void)
   /* 0 < du <= span: still window-tiled (window_bins == 1, same as above) --
    * the point being it's the SAME mechanism/formula as the du > span case
    * below, not a different code path. */
-  acq_state_t *within = acq_create_continuous (
-      CODE31, 31, spc, crate, sym_rate, cn0_dbhz, 0.5 * span, 1e-3, 0.9, 0);
+  acq_state_t *within
+      = acq_create_continuous (CODE31, 31, spc, crate, sym_rate, cn0_dbhz,
+                               0.5 * span, 1e-3, 0.9, 0, 1, 0.0);
   DP_CHECK (within != NULL);
   if (within)
     {
@@ -609,8 +610,9 @@ _acq_continuous_check (void)
   /* du > span: window_bins tiles the uncertainty, exactly like
    * acq_create_burst's wideband fallback -- coherent_bins stays pinned at 1
    * either way. */
-  acq_state_t *wide = acq_create_continuous (
-      CODE31, 31, spc, crate, sym_rate, cn0_dbhz, 3.5 * span, 1e-3, 0.9, 0);
+  acq_state_t *wide
+      = acq_create_continuous (CODE31, 31, spc, crate, sym_rate, cn0_dbhz,
+                               3.5 * span, 1e-3, 0.9, 0, 1, 0.0);
   DP_CHECK (wide != NULL);
   if (wide)
     {
@@ -668,9 +670,9 @@ main (void)
             == NULL); /* cn0_dbhz < 0 */
   /* A continuous engine has no sizing without a design C/N0 -- non-coherent
      looks are its only lever -- so 0 stays an argument error THERE. */
-  DP_CHECK (
-      acq_create_continuous (CODE7, 7, spc, crate, 0.0, 0.0, 0.0, 1e-3, 0.9, 0)
-      == NULL);
+  DP_CHECK (acq_create_continuous (CODE7, 7, spc, crate, 0.0, 0.0, 0.0, 1e-3,
+                                   0.9, 0, 1, 0.0)
+            == NULL);
 
   /* ── the design C/N0 is OPTIONAL on a burst engine (doppler#1181) ──────
    * 0 means none was given: the whole preamble is integrated in ONE look,
@@ -713,7 +715,7 @@ main (void)
         acq_destroy (weak);
       }
     acq_state_t *cont = acq_create_continuous (CODE7, 7, spc, crate, 0.0, 20.0,
-                                               0.0, 1e-3, 0.9, 0);
+                                               0.0, 1e-3, 0.9, 0, 1, 0.0);
     DP_CHECK (cont != NULL);
     if (cont)
       {
@@ -1168,7 +1170,7 @@ main (void)
    */
   {
     acq_state_t *a = acq_create_continuous (CODE7, 7, 4, 1.0e6, 1000.0, 50.0,
-                                            0.0, 1e-3, 0.9, 0);
+                                            0.0, 1e-3, 0.9, 0, 1, 0.0);
     DP_REQUIRE (a != NULL);
     DP_CHECK (a->max_peaks == 1);
     DP_CHECK (acq_set_max_peaks (a, 0) == -1 && a->max_peaks == 1);
@@ -1181,7 +1183,7 @@ main (void)
     a->twin_row[1] = 0;
     a->twin_col[1] = 27;
     acq_state_t *b = acq_create_continuous (CODE7, 7, 4, 1.0e6, 1000.0, 50.0,
-                                            0.0, 1e-3, 0.9, 0);
+                                            0.0, 1e-3, 0.9, 0, 1, 0.0);
     DP_REQUIRE (b != NULL && acq_set_max_peaks (b, 4) == 0);
     size_t nb   = acq_state_bytes (a);
     void  *blob = malloc (nb);
@@ -1209,7 +1211,7 @@ main (void)
     const size_t spc = 2, sf = 7, nx = sf * spc;
     const double crate = 1.0e6;
     acq_state_t *c = acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0,
-                                            200.0e3, 1e-2, 0.9, 0);
+                                            200.0e3, 1e-2, 0.9, 0, 1, 0.0);
     DP_REQUIRE (c != NULL);
     DP_CHECK (c->window_bins == 3);
     const size_t rows = c->n_surf / c->code_bins;
@@ -1361,6 +1363,206 @@ main (void)
     free (s);
     free (x);
     dp_tlm_destroy (t);
+    acq_destroy (c);
+  }
+
+  /* ── block-coherent depth inside the tiles (design §2.1/§2.3) ───────────
+   * A continuous engine tiled over +-200 kHz (3 tiles at 7 chips x 2) with
+   * a 7-epoch pure-code window: D = (7+1)/2 = 4 epochs per block, 4 rows
+   * per tile, one combined Doppler grid of 12 native bins (24 interpolated
+   * rows) of chip_rate/(sf*4). Pinned: the depth's two bounds; where an
+   * emitter one row above tile +1 is reported and what the hand-off makes of
+   * it; the CFAR cell count; a mid-block state split; and a block that
+   * straddles a data transition -- a low concentration at the same code
+   * phase, as §2.4 promises. */
+  {
+    const size_t spc = 2, sf = 7, nx = sf * spc, tiles = 3, D = 4;
+    const double crate = 1.0e6, f_epoch = crate / (double)sf;
+    /* The window bound, and the rate bound below it. */
+    acq_state_t *w1 = acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0,
+                                             200.0e3, 1e-2, 0.9, 0, 1, 0.0);
+    acq_state_t *w7 = acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0,
+                                             200.0e3, 1e-2, 0.9, 0, 7, 0.0);
+    DP_REQUIRE (w1 && w7);
+    DP_CHECK_MSG (w7->n_noncoh < w1->n_noncoh,
+                  "the depth buys looks: fewer non-coherent dwells at D = 4");
+    /* f_epoch/sqrt(2*rate) = 2.9 at this rate: the drift bound wins */
+    const double rate = f_epoch * f_epoch / (2.0 * 2.9 * 2.9);
+    acq_state_t *wr = acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0,
+                                             200.0e3, 1e-2, 0.9, 0, 7, rate);
+    DP_REQUIRE (w1 && w7 && wr);
+    DP_CHECK (w1->coherent_bins == 1 && w1->blk == NULL);
+    DP_CHECK_MSG (w7->coherent_bins == D, "D = (code_only_epochs + 1) / 2");
+    DP_CHECK_MSG (wr->coherent_bins == 2, "the Doppler rate bounds D");
+    DP_CHECK (acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0, 200.0e3,
+                                     1e-2, 0.9, 0, 0, 0.0)
+              == NULL); /* code_only_epochs < 1 */
+    DP_CHECK (acq_create_continuous (CODE7, sf, spc, crate, 0.0, 60.0, 200.0e3,
+                                     1e-2, 0.9, 0, 7, -1.0)
+              == NULL); /* a negative rate */
+    acq_destroy (w1);
+    acq_destroy (wr);
+
+    acq_state_t *c = w7;
+    DP_CHECK (c->window_bins == tiles && c->interp == 2);
+    DP_CHECK (c->n == tiles * D * nx && c->n_surf == 2 * c->n);
+    DP_CHECK (c->blk != NULL && c->frame_n == nx);
+    DP_CHECK_MSG (c->searched_bins == tiles * D,
+                  "the CFAR counts every row of every tile");
+    DP_CHECK (fabs (c->pfa_cell
+                    - (1.0 - pow (1.0 - 1e-2, 1.0 / (double)(tiles * D * nx))))
+              < 1e-12);
+    DP_CHECK (fabs (c->doppler_res_hz - f_epoch / (double)D) < 1e-9);
+    /* At 70 dB-Hz the sizer needs one look (measured: 7 at D = 1 and 60
+       dB-Hz, 2 at D = 4, 1 at D = 8), so one block is one decision. */
+    acq_destroy (c);
+    c = acq_create_continuous (CODE7, sf, spc, crate, 0.0, 70.0, 200.0e3, 1e-2,
+                               0.9, 0, 7, 0.0);
+    DP_REQUIRE (c != NULL);
+    DP_CHECK (c->n_noncoh == 1 && c->coherent_bins == D);
+
+    /* One emitter, one row above the centre of tile +1: (1 + 1/D) bins of
+       the epoch-length FFT. On the combined grid that is bin 1*D + 1 = 5. */
+    const size_t    d    = 5;
+    const size_t    nblk = 3, per_blk = D * nx, n = nblk * per_blk;
+    const double    f_bins = 1.0 + 1.0 / (double)D;
+    float _Complex *x      = malloc (n * sizeof *x);
+    DP_REQUIRE (x != NULL);
+    for (size_t k = 0; k < n; k++)
+      {
+        size_t  q    = k % nx;
+        size_t  src  = (q + nx - (d % nx)) % nx;
+        uint8_t chip = CODE7[(src / spc) % sf];
+        double  ph   = 2.0 * PI * f_bins * (double)k / (double)nx;
+        x[k]         = ((chip & 1u) ? -1.0f : 1.0f)
+                       * (float _Complex) (cos (ph) + I * sin (ph));
+      }
+    acq_result_t hits[16];
+    size_t       nh = acq_push (c, x, n, hits, 16);
+    DP_CHECK_MSG (nh == nblk, "one decision per whole block, none mid-block");
+    DP_CHECK (c->dwells == nblk && c->blk_epoch == 0);
+    DP_CHECK_MSG (hits[0].doppler_bin == 1 * D + 1,
+                  "the combined grid: tile * D + row, in FFT order");
+    DP_CHECK (hits[0].code_phase == d);
+    acq_handoff_t ho;
+    acq_build_handoff (c, &hits[0], sf, spc, &ho);
+    DP_CHECK_MSG (fabs (ho.doppler_hz_est - f_bins * f_epoch) < 1e-6,
+                  "the hand-off folds over tiles * D and scales by f_epoch/D");
+    /* The surface axis agrees with the hand-off at the reported row. */
+    double *hz = malloc ((c->n_surf / nx) * sizeof *hz);
+    DP_REQUIRE (hz != NULL);
+    DP_CHECK (acq_surface_doppler_hz (c, hz, c->n_surf / nx)
+              == c->n_surf / nx);
+    DP_CHECK (fabs (hz[hits[0].doppler_bin * c->interp] - ho.doppler_hz_est)
+              < 1e-9);
+    const float aligned_mag  = c->peak_mag;
+    const float aligned_conc = c->peak_conc;
+    DP_CHECK_MSG (aligned_conc > 0.8f, "an aligned block: one main lobe");
+
+    /* The same emitter one row BELOW tile +1's centre: (1 - 1/D) bins, bin
+       1*D - 1 = 3 on the combined grid. A tile-major layout without the
+       fold would put a negative row at the tile's far end (native row 7);
+       the one grid keeps it adjacent to the centre. */
+    {
+      const double f_neg = 1.0 - 1.0 / (double)D;
+      acq_reset (c);
+      for (size_t k = 0; k < per_blk; k++)
+        {
+          size_t  q    = k % nx;
+          size_t  src  = (q + nx - (d % nx)) % nx;
+          uint8_t chip = CODE7[(src / spc) % sf];
+          double  ph   = 2.0 * PI * f_neg * (double)k / (double)nx;
+          x[k]         = ((chip & 1u) ? -1.0f : 1.0f)
+                         * (float _Complex) (cos (ph) + I * sin (ph));
+        }
+      acq_result_t hn[4];
+      DP_CHECK (acq_push (c, x, per_blk, hn, 4) >= 1);
+      DP_CHECK_MSG (hn[0].doppler_bin == 1 * D - 1,
+                    "a negative row folds next to its tile's centre");
+      acq_build_handoff (c, &hn[0], sf, spc, &ho);
+      DP_CHECK (fabs (ho.doppler_hz_est - f_neg * f_epoch) < 1e-6);
+      /* And on tile -1 (index 2), one row below its centre: (-1 - 1/D)
+         bins, bin -D - 1 = -5, i.e. tiles*D - 5 = 7 in FFT order -- both
+         folds move this one. */
+      const double f_nt = -1.0 - 1.0 / (double)D;
+      acq_reset (c);
+      for (size_t k = 0; k < per_blk; k++)
+        {
+          size_t  q    = k % nx;
+          size_t  src  = (q + nx - (d % nx)) % nx;
+          uint8_t chip = CODE7[(src / spc) % sf];
+          double  ph   = 2.0 * PI * f_nt * (double)k / (double)nx;
+          x[k]         = ((chip & 1u) ? -1.0f : 1.0f)
+                         * (float _Complex) (cos (ph) + I * sin (ph));
+        }
+      DP_CHECK (acq_push (c, x, per_blk, hn, 4) >= 1);
+      DP_CHECK_MSG (hn[0].doppler_bin == tiles * D - D - 1,
+                    "a negative tile's negative row folds to the grid's end");
+      acq_build_handoff (c, &hn[0], sf, spc, &ho);
+      DP_CHECK (fabs (ho.doppler_hz_est - f_nt * f_epoch) < 1e-6);
+      for (size_t k = 0; k < n; k++) /* back to the row-above emitter */
+        {
+          size_t  q    = k % nx;
+          size_t  src  = (q + nx - (d % nx)) % nx;
+          uint8_t chip = CODE7[(src / spc) % sf];
+          double  ph   = 2.0 * PI * f_bins * (double)k / (double)nx;
+          x[k]         = ((chip & 1u) ? -1.0f : 1.0f)
+                         * (float _Complex) (cos (ph) + I * sin (ph));
+        }
+    }
+
+    /* A mid-block state split resumes bit-for-bit: engine A runs 1.5
+       blocks, its state moves to B, both finish; the same hits. */
+    {
+      acq_state_t *b = acq_create_continuous (CODE7, sf, spc, crate, 0.0, 70.0,
+                                              200.0e3, 1e-2, 0.9, 0, 7, 0.0);
+      DP_REQUIRE (b != NULL);
+      acq_reset (c);
+      const size_t cut = per_blk + per_blk / 2;
+      acq_result_t ha[16], hb[16];
+      size_t       na = acq_push (c, x, cut, ha, 16);
+      DP_CHECK (na == 1 && c->blk_epoch == D / 2);
+      size_t nb   = acq_state_bytes (c);
+      void  *blob = malloc (nb);
+      DP_REQUIRE (blob != NULL);
+      DP_CHECK (nb >= tiles * D * nx * sizeof (float _Complex));
+      acq_get_state (c, blob);
+      DP_CHECK (acq_set_state (b, blob) == DP_OK);
+      DP_CHECK (b->blk_epoch == D / 2);
+      na += acq_push (c, x + cut, n - cut, ha + na, 16 - na);
+      size_t nb2 = acq_push (b, x + cut, n - cut, hb, 16);
+      DP_CHECK_MSG (na == nblk && nb2 == nblk - 1,
+                    "the resumed engine finishes the block it was given");
+      for (size_t i = 0; i < nb2; i++)
+        {
+          DP_CHECK (hb[i].doppler_bin == ha[i + 1].doppler_bin);
+          DP_CHECK (hb[i].code_phase == ha[i + 1].code_phase);
+          DP_CHECK (hb[i].peak_mag == ha[i + 1].peak_mag);
+        }
+      ((uint8_t *)blob)[0] ^= 0xFFu;
+      DP_CHECK (acq_set_state (b, blob) == DP_ERR_INVALID);
+      free (blob);
+      acq_destroy (b);
+    }
+
+    /* A block that straddles a data transition: the sign flips halfway,
+       and the emitter's energy leaves its row for the others of its
+       column -- weaker, spread, at the same code phase. */
+    {
+      acq_reset (c);
+      for (size_t k = 0; k < per_blk; k++)
+        if (k >= per_blk / 2)
+          x[k] = -x[k];
+      (void)acq_push (c, x, per_blk, hits, 16);
+      DP_CHECK (c->dwells == 1);
+      DP_CHECK_MSG (c->peak_col == d, "the splatter stays at its code phase");
+      DP_CHECK_MSG (c->peak_mag < 0.8f * aligned_mag,
+                    "a straddling block is weaker than an aligned one");
+      DP_CHECK_MSG (c->peak_conc < 0.6f && c->peak_conc < aligned_conc,
+                    "and spread: the concentration reads it");
+    }
+    free (hz);
+    free (x);
     acq_destroy (c);
   }
 

@@ -1052,6 +1052,23 @@ record — is already there.
     emitter lies inside its window, which locates the window to within
     `D` epochs; the exact boundary is the tracking chain's to find, and
     the receiver is not told it (§8.2).
+    **As built (2026-09-05):** the engine now allows a coherent depth to
+    accommodate waveforms with code-only windows:
+    `Acquisition(code_only_epochs, doppler_rate)` sizes `D` exactly so; the per-tile epoch rows are gathered for `D`
+    epochs and a zero-padded slow-time FFT per code-phase column turns each
+    tile into `D` rows, scattered onto **one uniform Doppler grid** of
+    `window_bins · D` native bins of `chip_rate/(sf·D)` over the tiled
+    span, in FFT-bin order — so `doppler_bin`, the exclusion zone, the
+    native-row report, the hand-off's fold and the surface axis are all
+    the one `dp_fftfreq_index` over that count. The CFAR counts every row
+    of every tile; the C/N0 estimate counts the block. The block
+    accumulator rides in the state blob (v3), so a mid-block split resumes
+    bit-for-bit. `code_only_epochs = 1` is `D = 1` and the engine
+    byte-for-byte as before. Pinned in `test_acq_core.c`: the two bounds,
+    an emitter one row above tile +1 reported at bin `1·D + 1` and handed
+    off at its frequency, the cell count, the mid-block split, and a block
+    straddling a data transition reading weaker and spread at the same
+    code phase — the §2.4 concentration at work.
 1. ~~**The data-free window's length.**~~ **Answered (2026-09-03, in
     symbols 2026-09-05): 450 symbols of code only, then 4500 of data — a
     frame of 4950 symbols on the data clock.** There is no fixed relation
@@ -2047,6 +2064,9 @@ ______________________________________________________________________
     number), the knee, and Pfa per block; and the sensitivity against
     `D` at the design C/N0 — the gain is 18–22 dB on paper and a number
     here.
+    \*\*Engine built (2026-09-05, §2.3 "as built"), with §2.4's instruments
+    first; the characterization — steps 1, 3 and 4 on the block engine
+    and the sensitivity against `D` — is the next PR.
 1. **The tracker through the window.** A hand-off receiver locked at
     the design C/N0 across ten frames: the symbol-lock flag through 500
     epochs without a transition (the symbol clock is unobservable there

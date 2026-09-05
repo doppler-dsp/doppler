@@ -83,7 +83,8 @@ main (void)
                                 double, double, double, double, double, int)
       = acq_create_burst;
   acq_state_t *(*create_cont) (const uint8_t *, size_t, size_t, double,
-                               double, double, double, double, double, int)
+                               double, double, double, double, double, int,
+                               size_t, double)
       = acq_create_continuous;
 
   /* serializable state (jm `serializable` flag generates the Python

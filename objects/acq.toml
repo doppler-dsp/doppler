@@ -91,6 +91,21 @@ name = "noise_mode"
 type = "string_enum:mean,median,min,max"
 default = "mean"
 
+# The block-coherent depth (design §2.1/§2.3): D = min((code_only_epochs+1)/2,
+# f_epoch/sqrt(2*doppler_rate)), at least 1. The defaults are D = 1 and the
+# engine exactly as it ran without them.
+[[acq.init_params]]
+name = "code_only_epochs"
+type = "size_t"
+default = "1"
+doc = "Whole code-only epochs a waveform's code-only window holds at any chip phase (floor(W_symbols * chips_per_symbol / sf) - 1; design §2.1) -- the engine allows a coherent depth to accommodate such waveforms. 1 = no window: a coherent depth of 1."
+
+[[acq.init_params]]
+name = "doppler_rate"
+type = "double"
+default = "0.0"
+doc = "Doppler rate in Hz/s the coherent depth is bounded against (the drift over one block stays inside half a slow-time row); 0 leaves the window as the only bound."
+
 [[acq.methods]]
 name = "push"
 arg_type = "float _Complex"
@@ -149,8 +164,14 @@ name = "doppler_bins"
 type = "size_t"
 # Outer parens are load-bearing: jm renders `expr` as `(cast)<expr>`, so a
 # bare ternary would bind the cast to the condition alone.
-expr = "((self->handle->window_bins > 1) ? self->handle->window_bins : self->handle->coherent_bins)"
-doc = "Effective Doppler search granularity this engine picked: the window-tile count (this engine always window-tiles -- see acq_core.h's file doc comment -- so this is window_bins, never a coherent-depth axis)."
+expr = "(self->handle->window_bins * self->handle->coherent_bins)"
+doc = "Native Doppler bins this engine searches: the window-tile count times the block-coherent depth inside each tile (`coherent_bins`), one uniform grid of `doppler_res_hz` over the tiled span in FFT-bin order -- what a hit's `doppler_bin` indexes."
+
+[[acq.properties]]
+name = "coherent_bins"
+type = "size_t"
+field = true
+doc = "The block-coherent depth D inside every window tile (design §2.3): epochs per block and Doppler rows per tile. 1 without a code-only window."
 
 [[acq.properties]]
 name = "sf"

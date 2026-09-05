@@ -190,7 +190,7 @@ scene_open (scene_t *sc, const uint8_t *code, const emitter_t *em, size_t n_em,
 {
   memset (sc, 0, sizeof *sc);
   sc->a = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYM_RATE, size_cn0,
-                                 DU, PFA, PD, 0);
+                                 DU, PFA, PD, 0, 1, 0.0);
   if (!sc->a || acq_set_max_peaks (sc->a, max_peaks) != 0)
     return 1;
   sc->W        = sc->a->window_bins;
@@ -450,8 +450,9 @@ main (int argc, char **argv)
         int reported[2] = { 0, 0 };
         for (size_t mp = 1; mp <= 4; mp += 3)
           {
-            acq_state_t *a = acq_create_continuous (
-                code, SF, SPC, CHIP_RATE, SYM_RATE, 45.0, DU, 1e-2, PD, 0);
+            acq_state_t *a
+                = acq_create_continuous (code, SF, SPC, CHIP_RATE, SYM_RATE,
+                                         45.0, DU, 1e-2, PD, 0, 1, 0.0);
             DP_REQUIRE (a != NULL && acq_set_max_peaks (a, mp) == 0);
             awgn_state_t *g = awgn_create (
                 31u, awgn_amplitude_for_snr ((float)(45.0 - 10.0 * log10 (FS)),
@@ -557,8 +558,8 @@ main (int argc, char **argv)
   const size_t mps[] = { 1, 4, 8 };
   for (int mi = 0; mi < 3; mi++)
     {
-      acq_state_t *a = acq_create_continuous (code, SF, SPC, CHIP_RATE,
-                                              SYM_RATE, 45.0, DU, 1e-2, PD, 0);
+      acq_state_t *a = acq_create_continuous (
+          code, SF, SPC, CHIP_RATE, SYM_RATE, 45.0, DU, 1e-2, PD, 0, 1, 0.0);
       if (!a || acq_set_max_peaks (a, mps[mi]) != 0)
         return 1;
       awgn_state_t *g = awgn_create (

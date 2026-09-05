@@ -78,7 +78,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._ |
 |  int | [**acq\_configure\_search\_raw**](#function-acq_configure_search_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst**](#function-acq_create_burst) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine: coherent multi-epoch combining, up to_ `reps` _deep (today's classic behavior)._ |
-|  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_continuous**](#function-acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, never coherent multi-epoch combining._  |
+|  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_continuous**](#function-acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
 |  void | [**acq\_destroy**](#function-acq_destroy) ([**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Destroy and free an engine._  |
 |  void | [**acq\_get\_state**](#function-acq_get_state) (const [**acq\_state\_t**](structacq__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**acq\_state\_bytes()**_](acq__core_8h.md#function-acq_state_bytes) _long). Call between pushes (no partial dump pending)._ |
 |  size\_t | [**acq\_push**](#function-acq_push) ([**acq\_state\_t**](structacq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
@@ -126,7 +126,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 | define  | [**ACQ\_MAX\_PEAKS**](acq__core_8h.md#define-acq_max_peaks)  `64u`<br> |
 | define  | [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)  `256u`<br>_Internal safety-valve ceiling on auto-selected non-coherent looks_  _not a public knob (no caller-facing equivalent of the retired_`max_noncoh` _parameter)._ |
 | define  | [**ACQ\_STATE\_MAGIC**](acq__core_8h.md#define-acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'Q', 'R')`<br> |
-| define  | [**ACQ\_STATE\_VERSION**](acq__core_8h.md#define-acq_state_version)  `2u /\* v2: the peak list's held twins ride along \*/`<br> |
+| define  | [**ACQ\_STATE\_VERSION**](acq__core_8h.md#define-acq_state_version)  `3u /\* v3: the block-coherent accumulator rides along \*/`<br> |
 
 ## Detailed Description
 
@@ -153,7 +153,10 @@ The fast-time axis (code\_bins = sf\*spc columns) is the circular code matched f
 Both convert C/N0 to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / (chip\_rate\*spc))). Every reported detection inverts this same relationship to report an estimated C/N0 ([**acq\_result\_t::cn0\_dbhz\_est**](structacq__result__t.md#variable-cn0_dbhz_est)) — a bandwidth/integration-time-independent figure of merit directly comparable to `cn0_dbhz`, unlike a raw per-sample or coherently-integrated ratio (both scale with `spc/ reps and` so aren't portable across configurations).
 
 
-**Wideband window-tiling mode**: instead of coherent combining, tiles the requested uncertainty with `window_bins = ceil(doppler_uncertainty / (chip_rate/(2*sf)))` parallel frequency-window hypotheses, each one native span wide, searched every epoch from a SINGLE shared forward FFT of that epoch: hypothesis r's spectrum is the shared FFT circularly rolled by r bins (exact — the window spacing IS this code\_bins-point FFT's own bin spacing) against one fixed precomputed replica spectrum, then inverse-FFT'd — `window_bins` inverse FFTs plus the one shared forward FFT per epoch, not `window_bins` independent down-conversions. Empirically the cheaper of the two realizations benchmarked for this (a frequency-bank benchmark): ~1.2x-1.55x faster than an equivalent tuned-mixer bank, measured with real doppler.spectral.FFT. SNR margin in this mode comes entirely from auto-selected non-coherent looks (magnitude-squared accumulation, immune to data-modulation sign flips) rather than coherent depth, sized against an internal safety-valve ceiling rather than a caller-supplied cap (the semi-analytical Pd model this engine sizes against grows unreliable past a few hundred looks — not a public knob to tune around that). `doppler_bin` in [**acq\_result\_t**](structacq__result__t.md) reports the frequency-window index (0 … window\_bins-1, native FFT-bin ordering) instead of a slow-time-FFT row when this mode is active; `doppler_res_hz` still reports the per-window spacing (chip\_rate/sf, unchanged formula at coherent\_bins=1); combining wideband search WITH a coherent depth &gt; 1 per window is not supported (a possible future extension, not needed by any current use case).
+**Wideband window-tiling mode**: instead of coherent combining, tiles the requested uncertainty with `window_bins = ceil(doppler_uncertainty / (chip_rate/(2*sf)))` parallel frequency-window hypotheses, each one native span wide, searched every epoch from a SINGLE shared forward FFT of that epoch: hypothesis r's spectrum is the shared FFT circularly rolled by r bins (exact — the window spacing IS this code\_bins-point FFT's own bin spacing) against one fixed precomputed replica spectrum, then inverse-FFT'd — `window_bins` inverse FFTs plus the one shared forward FFT per epoch, not `window_bins` independent down-conversions. Empirically the cheaper of the two realizations benchmarked for this (a frequency-bank benchmark): ~1.2x-1.55x faster than an equivalent tuned-mixer bank, measured with real doppler.spectral.FFT. SNR margin in this mode comes entirely from auto-selected non-coherent looks (magnitude-squared accumulation, immune to data-modulation sign flips) rather than coherent depth, sized against an internal safety-valve ceiling rather than a caller-supplied cap (the semi-analytical Pd model this engine sizes against grows unreliable past a few hundred looks — not a public knob to tune around that). `doppler_bin` in [**acq\_result\_t**](structacq__result__t.md) reports the frequency-window index (0 … window\_bins-1, native FFT-bin ordering) instead of a slow-time-FFT row when this mode is active; `doppler_res_hz` reports the per-window spacing (chip\_rate/sf) at coherent\_bins=1.
+
+
+**Block-coherent depth inside the tiles** (docs/design/async-dsss-receiver.md §2.3): the engine allows a coherent depth, to accommodate waveforms with code-only windows. Given `code_only_epochs > 1`  the whole code-only epochs such a window holds at any chip phase  it runs a coherent depth `D` inside every tile: the per-tile epoch correlations are gathered for `D` epochs, then a zero-padded slow-time FFT per code-phase column turns each tile into `D` Doppler rows `chip_rate/(sf*D)` apart, detected per block. Blocks are non-overlapping and the engine does not know any emitter's window phase, so `D` is at most `(code_only_epochs+1)/2` (a whole block always lands inside the window) and, when `doppler_rate` is given, at most `f_epoch/sqrt(2*doppler_rate)` (the drift over a block stays inside half a row). The Doppler axis is then ONE uniform grid of `window_bins*coherent_bins` bins of `doppler_res_hz = chip_rate/(sf*D)` over the tiled span, in native FFT-bin order (0 = DC, ascending, then wrapping negative): `doppler_bin` indexes it, and [**acq\_build\_handoff()**](acq__core_8h.md#function-acq_build_handoff) folds it with dp\_fftfreq\_index() over that count. A block that straddles data spreads that emitter over its rows, `10*log10(D)` below an aligned block, at its own code phase  the `conc` probe (§2.4) reads it. `code_only_epochs = 1` (the default) is `D = 1` and the engine exactly as described above.
 
 
 
@@ -361,7 +364,7 @@ Heap-allocated state, or NULL on bad arguments / allocation failure.
 
 ### function acq\_create\_continuous 
 
-_Create a continuous-mode acquisition engine: always wideband window-tiling, never coherent multi-epoch combining._ 
+_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._ 
 ```C++
 acq_state_t * acq_create_continuous (
     const uint8_t * code,
@@ -373,13 +376,15 @@ acq_state_t * acq_create_continuous (
     double doppler_uncertainty,
     double pfa,
     double pd,
-    int noise_mode
+    int noise_mode,
+    size_t code_only_epochs,
+    double doppler_rate
 ) 
 ```
 
 
 
-Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR, and ALWAYS tiles `window_bins = max(1, ceil(doppler_uncertainty / (chip_rate/(2*sf))))` parallel frequency-window hypotheses (see the file doc comment's "Wideband window-tiling mode")  unconditionally, even when `doppler_uncertainty` is narrower than one native span. `coherent_bins` is pinned to 1 always: a continuous, data-modulated signal's own bit transitions make coherent multi-epoch combining a structural aliasing mislock, not a graceful SNR loss (see docs/design/dsss-acquisition.md), so this engine never attempts it. Sensitivity margin comes entirely from auto-selected non-coherent looks (up to the internal [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)).
+Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_len`, converts `cn0_dbhz` to a per-sample amplitude SNR, and ALWAYS tiles `window_bins = max(1, ceil(doppler_uncertainty / (chip_rate/(2*sf))))` parallel frequency-window hypotheses (see the file doc comment's "Wideband window-tiling mode")  unconditionally, even when `doppler_uncertainty` is narrower than one native span. A continuous, data-modulated signal's own bit transitions make coherent multi-epoch combining across DATA a structural aliasing mislock (see docs/design/dsss-acquisition.md), so the depth is bounded by what a waveform's code-only window holds: `coherent_bins = D = min((code_only_epochs+1)/2, f_epoch/sqrt(2*doppler_rate))`, at least 1, run in non-overlapping D-epoch blocks inside every tile (file doc, design §2.3). With `code_only_epochs` = 1 it is 1 and the engine is exactly the epoch-by-epoch search. Sensitivity margin beyond the depth comes from auto-selected non-coherent looks over blocks (up to the internal [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)).
 
 
 
@@ -397,6 +402,8 @@ Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_
 * `pfa` Target system (max-of-N) false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1). 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
+* `code_only_epochs` Whole code-only epochs a waveform's code-only window holds at any chip phase (design §2.1: `floor(W_symbols * chips_per_symbol / sf) - 1`); 1 (&gt;= 1) means no window and a depth of 1. 
+* `doppler_rate` Doppler rate in Hz/s the depth is bounded against (&gt;= 0); 0 leaves the window as the only bound. 
 
 
 
@@ -415,6 +422,12 @@ Heap-allocated state, or NULL on bad arguments / allocation failure.
 >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0)
 >>> a.push(burst)[0][:2]    # detects (Doppler-window bin, code phase)
 (0, 17)
+>>> a.coherent_bins            # no window given: one epoch
+1
+>>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=50.0,
+...                 code_only_epochs=7)
+>>> b.coherent_bins            # (7 + 1) // 2: a whole block fits
+4
 ```
  
 
@@ -1031,7 +1044,7 @@ The semi-analytical Pd model both auto-sizers ascend against turns non-monotonic
 ### define ACQ\_STATE\_VERSION 
 
 ```C++
-#define ACQ_STATE_VERSION `2u /* v2: the peak list's held twins ride along */`
+#define ACQ_STATE_VERSION `3u /* v3: the block-coherent accumulator rides along */`
 ```
 
 

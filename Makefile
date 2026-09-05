@@ -523,7 +523,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 test-asan test-ubsan test-tsan \
                 consumer-faces-check burst-pipeline-check glibc-gate \
                 specan-check check-isotime-parity coverage coverage-gate \
-                docker-examples
+                docker-examples ci-image-repin-check
 
 # ── Build ────────────────────────────────────────────────────────────────────
 # Compile through ccache when it is installed, and silently not when it is
@@ -1141,7 +1141,8 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 bench-coverage-check kwarg-parity-check issues \
                 doc-sections-check \
                 installed-headers-check \
-                ci-image ci-image-check ci-image-shell ci-image-source-hash \
+                ci-image ci-image-check ci-image-repin-check \
+                ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats pr-watch \
                 wheel-check wheel-smoke release-smoke \
                 bench-python \
@@ -3089,6 +3090,20 @@ ci-image-check: ## Fail when the pinned CI image no longer matches its inputs
 	 [ $$rc -eq 0 ] || exit 1; \
 	 echo "ci-image-check: OK — pin matches its inputs;" \
 	      "$$(echo "$$refs" | grep -c . ) container ref(s), all digest-pinned"
+
+# The OTHER half of the same question, and the half `ci-image-check` above
+# deliberately cannot answer: it is a no-network gate, so it compares OUR
+# inputs (CI_IMAGE_SOURCE_HASH) and never the package fingerprints the image
+# actually came out with. Upstream moving underneath an unchanged Dockerfile
+# is exactly the drift the nightly exists to find, and until doppler#1212
+# nothing gated it -- the nightly's only delivery mechanism was a PR the org
+# forbids Actions from opening, so it force-pushed `ci/repin-image` and died.
+#
+# Logic in a script rather than an inline recipe for the same reason
+# `issue-link-check` is: the gate's own test drives it over two seeded pin
+# blocks instead of fabricating a scratch repository and a remote.
+ci-image-repin-check: ## Fail when a rebuilt CI-image pin is pending and unmerged
+	@bash scripts/ci-image-repin-check.sh
 
 # The recorded specan demo frames are a projection of the specan source, so a
 # change to one without the other ships a demo that no longer matches the code.

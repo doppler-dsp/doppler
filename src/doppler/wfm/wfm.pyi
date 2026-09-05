@@ -1197,13 +1197,13 @@ class Frame:
     def add_field(
         self,
         lit: NDArray[np.uint8],
-        kind: int = 0,
+        kind: str = 'literal',
         gen_len: int = 0,
         reps: int = 0,
         poly: int = 0,
         seed: int = 0,
         reg_bits: int = 0,
-        lfsr: int = 0,
+        lfsr: str = 'galois',
         taps_a: int = 0,
         seed_a: int = 0,
         taps_b: int = 0,
@@ -1211,16 +1211,15 @@ class Frame:
         derived_by: int = 0,
         derived_bits: int = 0,
     ) -> int:
-        """Append one field to a description (see `FrameDesc`). `kind` is a
-        `wfm_seq_kind_t` index -- 0 literal, 1 pn, 2 gold, 3 dotted -- and
-        `lfsr` a `wfm_lfsr` one (0 galois, 1 fibonacci); they are ints rather
-        than the strings the constructor takes because a method parameter
-        cannot yet be a string enum (jm gh-1021), and the C enum is the SSOT
-        either way. Either the caller supplies the bits (`lit`, or a generated
-        `kind`) or a stage derives them (`derived_by` non-zero) -- both are
-        fields, because both are on the wire. Returns the new field's index,
-        which is what `derived_by` and a stage's `first_field` are counted in.
-        Refuses once the frame is built.
+        """Append one field to a description (see `FrameDesc`). `kind` names
+        where the bits come from -- `literal`, `pn`, `gold`, `dotted` -- and
+        `lfsr` is `galois` or `fibonacci`, the same spellings the constructor
+        takes, from the one `[[enum]]` the C enum backs. Either the caller
+        supplies the bits (`lit`, or a generated `kind`) or a stage derives
+        them (`derived_by` non-zero) -- both are fields, because both are on
+        the wire. Returns the new field's index, which is what `derived_by` and
+        a stage's `first_field` are counted in. Refuses once the frame is
+        built.
 
         Either the caller supplies the bits (lit, or a generated kind) or a
         stage derives them (derived_by non-zero). Both are fields, because both
@@ -1231,7 +1230,7 @@ class Frame:
         lit : NDArray[np.uint8]
             Literal bits, copied here so the description outlives the call; may
             be NULL.
-        kind : int
+        kind : str
             wfm_seq_kind_t index; 0=literal…3=dotted.
         gen_len : int
             Output bits for a GENERATED kind.
@@ -1243,7 +1242,7 @@ class Frame:
             PN seed; 0 selects 1.
         reg_bits : int
             PN/Gold register width.
-        lfsr : int
+        lfsr : str
             0=galois, 1=fibonacci.
         taps_a : int
             Gold: first register's taps.
@@ -1299,14 +1298,14 @@ class Frame:
         unit_bits: int = 0,
     ) -> int:
         """Append one transform and -- the load-bearing part -- the span of
-        fields it covers. `kind` is a `wfm_stage_kind_t` index: 0 crc16, 1 rs,
-        2 randomise, 3 conv, 4 interleave (jm gh-1021 -- a method parameter
-        cannot yet be a string enum). `n_fields = 0` means the stage does not
-        run. A stage that inherited whatever ran before it is the
-        representation that cannot express a CCSDS CADU, where the marker is
-        covered by the inner code and by neither the outer code nor the
-        randomiser. `unit_bits` applies to `interleave` alone and is the bits
-        per permuted unit (0 reads as 1); its ROW count is `depth` and its
+        fields it covers. `kind` names the transform -- `crc16`, `rs`,
+        `randomise`, `conv`, `interleave` -- the same spelling the scene JSON
+        takes, from the one `[[enum]]` both faces read. `n_fields = 0` means
+        the stage does not run. A stage that inherited whatever ran before it
+        is the representation that cannot express a CCSDS CADU, where the
+        marker is covered by the inner code and by neither the outer code nor
+        the randomiser. `unit_bits` applies to `interleave` alone and is the
+        bits per permuted unit (0 reads as 1); its ROW count is `depth` and its
         column count is derived from the span the stage covers.
 
         n_fields is the load-bearing part and 0 means the stage does not run. A
@@ -1576,9 +1575,8 @@ class Frame:
         It wires a derived field's producer for you, which applies the
         invariant the layout already enforces: a field with a declared length
         and no source sitting at the end of a cover has exactly one possible
-        producer. `kind` is a `wfm_stage_kind_t` index (jm gh-1021 -- a method
-        parameter cannot yet be a string enum). Returns the new stage's index,
-        or -1.
+        producer. `kind` is a `wfm_stage_kind_t` index. Returns the new stage's
+        index, or -1.
 
         The cover is the load-bearing part of the representation and this is
         the form that reads. It wires a derived field's producer for you, which
@@ -2364,13 +2362,13 @@ class FrameDesc:
     def add_field(
         self,
         lit: NDArray[np.uint8],
-        kind: int = 0,
+        kind: str = 'literal',
         gen_len: int = 0,
         reps: int = 0,
         poly: int = 0,
         seed: int = 0,
         reg_bits: int = 0,
-        lfsr: int = 0,
+        lfsr: str = 'galois',
         taps_a: int = 0,
         seed_a: int = 0,
         taps_b: int = 0,
@@ -2378,16 +2376,15 @@ class FrameDesc:
         derived_by: int = 0,
         derived_bits: int = 0,
     ) -> int:
-        """Append one field to a description (see `FrameDesc`). `kind` is a
-        `wfm_seq_kind_t` index -- 0 literal, 1 pn, 2 gold, 3 dotted -- and
-        `lfsr` a `wfm_lfsr` one (0 galois, 1 fibonacci); they are ints rather
-        than the strings the constructor takes because a method parameter
-        cannot yet be a string enum (jm gh-1021), and the C enum is the SSOT
-        either way. Either the caller supplies the bits (`lit`, or a generated
-        `kind`) or a stage derives them (`derived_by` non-zero) -- both are
-        fields, because both are on the wire. Returns the new field's index,
-        which is what `derived_by` and a stage's `first_field` are counted in.
-        Refuses once the frame is built.
+        """Append one field to a description (see `FrameDesc`). `kind` names
+        where the bits come from -- `literal`, `pn`, `gold`, `dotted` -- and
+        `lfsr` is `galois` or `fibonacci`, the same spellings the constructor
+        takes, from the one `[[enum]]` the C enum backs. Either the caller
+        supplies the bits (`lit`, or a generated `kind`) or a stage derives
+        them (`derived_by` non-zero) -- both are fields, because both are on
+        the wire. Returns the new field's index, which is what `derived_by` and
+        a stage's `first_field` are counted in. Refuses once the frame is
+        built.
 
         Either the caller supplies the bits (lit, or a generated kind) or a
         stage derives them (derived_by non-zero). Both are fields, because both
@@ -2398,7 +2395,7 @@ class FrameDesc:
         lit : NDArray[np.uint8]
             Literal bits, copied here so the description outlives the call; may
             be NULL.
-        kind : int
+        kind : str
             wfm_seq_kind_t index; 0=literal…3=dotted.
         gen_len : int
             Output bits for a GENERATED kind.
@@ -2410,7 +2407,7 @@ class FrameDesc:
             PN seed; 0 selects 1.
         reg_bits : int
             PN/Gold register width.
-        lfsr : int
+        lfsr : str
             0=galois, 1=fibonacci.
         taps_a : int
             Gold: first register's taps.
@@ -2466,14 +2463,14 @@ class FrameDesc:
         unit_bits: int = 0,
     ) -> int:
         """Append one transform and -- the load-bearing part -- the span of
-        fields it covers. `kind` is a `wfm_stage_kind_t` index: 0 crc16, 1 rs,
-        2 randomise, 3 conv, 4 interleave (jm gh-1021 -- a method parameter
-        cannot yet be a string enum). `n_fields = 0` means the stage does not
-        run. A stage that inherited whatever ran before it is the
-        representation that cannot express a CCSDS CADU, where the marker is
-        covered by the inner code and by neither the outer code nor the
-        randomiser. `unit_bits` applies to `interleave` alone and is the bits
-        per permuted unit (0 reads as 1); its ROW count is `depth` and its
+        fields it covers. `kind` names the transform -- `crc16`, `rs`,
+        `randomise`, `conv`, `interleave` -- the same spelling the scene JSON
+        takes, from the one `[[enum]]` both faces read. `n_fields = 0` means
+        the stage does not run. A stage that inherited whatever ran before it
+        is the representation that cannot express a CCSDS CADU, where the
+        marker is covered by the inner code and by neither the outer code nor
+        the randomiser. `unit_bits` applies to `interleave` alone and is the
+        bits per permuted unit (0 reads as 1); its ROW count is `depth` and its
         column count is derived from the span the stage covers.
 
         n_fields is the load-bearing part and 0 means the stage does not run. A
@@ -2743,9 +2740,8 @@ class FrameDesc:
         It wires a derived field's producer for you, which applies the
         invariant the layout already enforces: a field with a declared length
         and no source sitting at the end of a cover has exactly one possible
-        producer. `kind` is a `wfm_stage_kind_t` index (jm gh-1021 -- a method
-        parameter cannot yet be a string enum). Returns the new stage's index,
-        or -1.
+        producer. `kind` is a `wfm_stage_kind_t` index. Returns the new stage's
+        index, or -1.
 
         The cover is the load-bearing part of the representation and this is
         the form that reads. It wires a derived field's producer for you, which

@@ -55,7 +55,6 @@ EMPTY = np.empty(0, np.uint8)
 CRC_BITS = 16
 
 # Sequence kinds, as add_field() indexes them.
-SEQ_LITERAL, SEQ_PN, SEQ_GOLD, SEQ_DOTTED = 0, 1, 2, 3
 # Stage kinds, as add_stage() indexes them.
 ST_CRC16, ST_RS, ST_RANDOMISE = 0, 1, 2
 # The first kind reserved for callers; doppler never allocates here.
@@ -312,11 +311,11 @@ def measure_sequences(d: Data) -> None:
     R.md()
     # DOTTED starts high, so a one-bit field is not silently zeros
     one = FrameDesc(EMPTY, EMPTY, EMPTY)
-    one.add_field(EMPTY, kind=SEQ_DOTTED, gen_len=1)
+    one.add_field(EMPTY, kind="dotted", gen_len=1)
     one.build()
     d.dotted_starts_high = int(np.asarray(one.bits(1))[0]) == 1
     dot = FrameDesc(EMPTY, EMPTY, EMPTY)
-    dot.add_field(EMPTY, kind=SEQ_DOTTED, gen_len=9)
+    dot.add_field(EMPTY, kind="dotted", gen_len=9)
     dot.build()
     dbits = np.asarray(dot.bits(1))
     alternates = bool(np.array_equal(dbits, (np.arange(9) & 1) ^ 1))
@@ -326,7 +325,7 @@ def measure_sequences(d: Data) -> None:
         period = (1 << n) - 1
         p = FrameDesc(EMPTY, EMPTY, EMPTY)
         p.add_field(
-            EMPTY, kind=SEQ_PN, gen_len=period, reg_bits=n, poly=0, seed=0
+            EMPTY, kind="pn", gen_len=period, reg_bits=n, poly=0, seed=0
         )
         p.build()
         ones = int(np.asarray(p.bits(1)).sum())
@@ -348,7 +347,7 @@ def measure_sequences(d: Data) -> None:
         g = FrameDesc(EMPTY, EMPTY, EMPTY)
         g.add_field(
             EMPTY,
-            kind=SEQ_GOLD,
+            kind="gold",
             gen_len=255,
             reg_bits=8,
             seed_a=1,

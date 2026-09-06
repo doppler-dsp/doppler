@@ -856,14 +856,15 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
           = (uint64_t)llround (elapsed_s * front_end_rate);
 
       /* Round UP to a whole number of code periods (tsamps) -- critical,
-       * not cosmetic: the live tracking chain below is seeded with
-       * `seed_chip_phase`, the code phase at the ORIGINAL handoff, not
-       * wherever the refine-stage Dll's own tracking drifted to. That
-       * reuse is only valid if the live chain's first sample is an EXACT
-       * whole number of code periods after the handoff -- one whole
-       * period is by definition zero net code-phase advance, so the
-       * phase at any such boundary equals the phase at the handoff
-       * itself. Python's own e2e_acq_to_despreader.py relies on exactly
+       * not cosmetic: the live tracking chain below is seeded from
+       * `seed_chip_phase`, the code phase at the ORIGINAL handoff (advanced
+       * by the clock dilation over the refine, below), not wherever the
+       * refine-stage Dll's own tracking drifted to. That reuse is only
+       * valid if the live chain's first sample is an EXACT whole number of
+       * code periods after the handoff -- one whole period is zero net
+       * code-phase advance on the nominal clock, so the phase at any such
+       * boundary is the handoff's plus the dilation alone. Python's own
+       * e2e_acq_to_despreader.py relies on exactly
        * this (`n_epochs_used`'s own ceiling-to-whole-epoch rounding
        * before slicing `track_rx`); omitting it here was a real bug --
        * confirmed directly: without this rounding, the live chain is
@@ -890,7 +891,29 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
       size_t   tail_len  = (unused > (uint64_t)x_len) ? 0 : (size_t)unused;
       const float _Complex *tail = x + (x_len - tail_len);
 
-      adr_rebuild_track_chain (state, state->seed_chip_phase,
+      /* The code phase the live chain starts from: the seed's, ADVANCED by
+       * the clock dilation over the refine. A whole number of periods is
+       * zero net advance only on an undilated clock; at 20 ppm the code
+       * runs 100 chips/s ahead, 1.2 chips over a 12 ms refine and 5 over
+       * 53 ms, and a live Dll seeded 1.5 chips off is outside its pull-in
+       * -- nothing downstream locked (doppler#1249). The refine-stage
+       * Dll's own tracked phase is NOT the answer: at the floor it wanders
+       * by 13 chips over the same 53 ms (measured), where the dilation
+       * model from the refined Doppler is within a tenth of a chip. Off
+       * when carrier_freq_hz == 0: no carrier, no dilation to model. */
+      double handover_chip_phase = state->seed_chip_phase;
+      if (state->carrier_freq_hz > 0.0)
+        {
+          double dilation = refined_doppler_hz_est / state->carrier_freq_hz;
+          double chips_elapsed
+              = (double)samples_consumed_refine / (double)state->spc;
+          handover_chip_phase
+              = fmod (handover_chip_phase + dilation * chips_elapsed,
+                      (double)state->code_len);
+          if (handover_chip_phase < 0.0)
+            handover_chip_phase += (double)state->code_len;
+        }
+      adr_rebuild_track_chain (state, handover_chip_phase,
                                refined_doppler_hz_est, state->segments,
                                state->sps, state->n);
 

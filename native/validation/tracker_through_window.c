@@ -32,22 +32,23 @@
  * channel's own delay (0.6 chip through the resampler) leaves the code
  * loop outside its pull-in, and that was measured here first. The release
  * clock is the design's 2 s. Two
- * conditions: `static`, no Doppler at all, and `ramp`, the shipped
- * doppler_channel at SPEC's dynamics -- 20 ppm of a 2.5 GHz carrier (50
- * kHz) ramping 0.2 ppm/s (500 Hz/s), the chip clock dilated with it -- so
- * that coasting through the window costs the symbol clock something real;
- * the receiver's carrier-to-code aiding is on for it, as in §12.5. Nothing
+ * dynamics: `static`, no Doppler at all, and the shipped doppler_channel
+ * at SPEC's -- 20 ppm of a 2.5 GHz carrier (50 kHz, the chip clock dilated
+ * with it), and 0.2 ppm/s (500 Hz/s) from zero -- so that coasting through
+ * the window costs the symbol clock something real;
+ * the receiver's carrier-to-code aiding is on for it, as in §12.5. They are
+ * two conditions, `offset` and `rate`, because SPEC's worst cases do not
+ * coincide: the largest Doppler is at the horizon where the rate is nil,
+ * the largest rate at closest approach where the Doppler is nil. Nothing
  * here builds a chip, a bit, a sigma, a ramp or a seed by hand.
  *
  * What the ramp measured first is not about the window (§12.9): from the
- * searcher's seed, the chain settles in 2 of 3 trials at 45 dB-Hz and 0
- * of 3 at 40 within 6 s -- the refine's Doppler error at the floor is
- * 230-450 Hz, the carrier loop never pulls in, and the aid walks the code
- * loop off at about a chip per second; the searching flavor did the same
- * when it was tried here (#1249). When it does settle, every window is
- * clean. So
- * `--check` pins the static condition; the ramp's rows are in the full
- * table, and the finding is #1249.
+ * searcher's seed, the chain settled in 2 of 3 trials at 45 dB-Hz and 0
+ * of 3 at 40 -- the refine -> track hand-over re-seeded the live code
+ * loop with a phase the clock dilation had moved on from (#1249, fixed:
+ * 10 of 10 at 45 dB-Hz). What remains at the floor is carrier margin (5-7
+ * of 10 under the ramp, #1252), so `--check` pins the static condition;
+ * the ramp's rows are in the full table.
  *
  * The receiver is fed one epoch (2046 samples) at a time and the flags are
  * read after every block. A block is IN the window when its centre sample
@@ -70,10 +71,10 @@
  *                                              the design's expectations
  *                                              asserted
  *   validate_tracker_through_window --trace [ppm ppm_s [cn0 [seed]]]
- *                                              one ramp trial (the
- *                                              channel's Doppler and rate,
- *                                              the C/N0 and the seed as
- *                                              given), one line per
+ *                                              one trial through the
+ *                                              channel (its Doppler and
+ *                                              rate, the C/N0 and the seed
+ *                                              as given), one line per
  *                                              0.2 s: the state, the
  *                                              receiver's Doppler and the
  *                                              channel's truth, the code
@@ -113,13 +114,17 @@
 #define RAMP_D0_PPM 20.0 /* 50 kHz at the carrier                       */
 #define RAMP_PPM_S 0.2   /* 500 Hz/s, SPEC's dynamics                   */
 
+/* SPEC's two dynamics are two conditions because its worst cases do not
+   coincide: the largest Doppler is at the horizon where the rate is nil,
+   the largest rate at closest approach where the Doppler is nil. */
 enum
 {
-  COND_STATIC,
-  COND_RAMP,
+  COND_STATIC, /* no channel at all                       */
+  COND_OFFSET, /* 20 ppm, no rate: 50 kHz, the chip clock */
+  COND_RATE,   /* 0.2 ppm/s from zero: 500 Hz/s           */
   N_COND
 };
-static const char *cond_name[N_COND] = { "static", "ramp" };
+static const char *cond_name[N_COND] = { "static", "offset", "rate" };
 
 typedef struct
 {
@@ -161,8 +166,8 @@ make_emitter (const uint8_t *code, uint32_t seed)
 }
 
 /* The hand-off flavor, §12.3's tracker parameters, the design's release
-   interval; the carrier-to-code aid on under the ramp (§12.5). */
-static double g_d0_ppm      = RAMP_D0_PPM; /* --trace overrides of the ramp */
+   interval; the carrier-to-code aid on through the channel (§12.5). */
+static double g_d0_ppm      = 0.0; /* --trace: the channel's own numbers  */
 static double g_ppm_s       = RAMP_PPM_S;
 static size_t g_trace_every = 0; /* trace line cadence, blocks; 0 = none  */
 
@@ -171,8 +176,8 @@ make_rx (const uint8_t *code, double cn0_dbhz, int cond)
 {
   return async_dsss_receiver_create_handoff (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 4, 8, 0,
-      100.0, 4, 14.0, 32, 8, false, 100000,
-      cond == COND_RAMP ? CARRIER_HZ : 0.0, LOST_CONFIRM_S);
+      100.0, 4, 14.0, 64, 8, false, 100000,
+      cond != COND_STATIC ? CARRIER_HZ : 0.0, LOST_CONFIRM_S);
 }
 
 /* Is global sample `n` inside the code-only window, by the synth's clock? */
@@ -203,13 +208,17 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
       seed * 7919u + 1u,
       awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
   async_dsss_receiver_state_t *rx = make_rx (code, cn0_dbhz, cond);
-  /* The ramp: the emitter's clean signal through the channel, the noise
-     added at the receiver (it does not ride the emitter's clock). */
+  /* The channel: the emitter's clean signal through it, the noise added at
+     the receiver (it does not ride the emitter's clock). The table's
+     conditions are fixed; --trace hands the RATE condition its own numbers. */
+  const double             d0   = cond == COND_OFFSET ? RAMP_D0_PPM
+                                  : cond == COND_RATE ? g_d0_ppm
+                                                      : 0.0;
+  const double             rate = cond == COND_RATE ? g_ppm_s : 0.0;
   doppler_channel_state_t *ch
-      = cond == COND_RAMP
-            ? doppler_channel_create (FS, CARRIER_HZ, g_d0_ppm, g_ppm_s)
-            : NULL;
-  const double   f0  = cond == COND_RAMP ? g_d0_ppm * 1e-6 * CARRIER_HZ : 0.0;
+      = cond != COND_STATIC ? doppler_channel_create (FS, CARRIER_HZ, d0, rate)
+                            : NULL;
+  const double   f0  = d0 * 1e-6 * CARRIER_HZ;
   float complex *sig = dp_xmalloc (TE * sizeof *sig);
   float complex *blk = dp_xmalloc (TE * sizeof *blk);
   /* The channel's output runs a few samples off TE per block; a carry
@@ -218,16 +227,15 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
   size_t         pend = 0;
   size_t         cap  = async_dsss_receiver_steps_max_out (rx);
   float complex *syms = dp_xmalloc ((cap ? cap : TE) * sizeof *syms);
-  DP_REQUIRE_MSG (syn && g && rx && out->frames && (cond != COND_RAMP || ch),
+  DP_REQUIRE_MSG (syn && g && rx && out->frames && (cond == COND_STATIC || ch),
                   "the emitter, the noise, the channel and the receiver open");
-  /* The seed the searcher would have handed over: the stimulus's own chip
-     phase at sample zero and its Doppler, the trial's C/N0. */
-  /* The searcher that seeds it: the shipped continuous engine over the
-     ramp's span (one native span when there is no ramp), fed the same
-     blocks until its first hit. */
+  /* The searcher that seeds it: the shipped continuous engine over SPEC's
+     Doppler span (one native span without a channel), fed the same blocks
+     until its first hit. */
   acq_state_t *acq = acq_create_continuous (
       code, SF, SPC, CHIP_RATE, SYM_RATE, cn0_dbhz,
-      cond == COND_RAMP ? 1.2 * f0 : 0.0, 1e-3, 0.9, 0, 1, 0.0);
+      cond != COND_STATIC ? 1.2 * RAMP_D0_PPM * 1e-6 * CARRIER_HZ : 0.0, 1e-3,
+      0.9, 0, 1, 0.0);
   DP_REQUIRE_MSG (acq != NULL, "the searcher opens");
   int seeded = 0;
 
@@ -459,16 +467,17 @@ main (int argc, char **argv)
   if (argc > 1 && strcmp (argv[1], "--trace") == 0)
     {
       g_trace_every = 1000;
-      /* --trace [d0_ppm ppm_s [cn0 [seed]]]: one ramp trial, the channel's
-         Doppler and ramp, the C/N0 and the seed as given (45 dB-Hz, 100). */
-      g_d0_ppm           = argc > 3 ? atof (argv[2]) : RAMP_D0_PPM;
+      /* --trace [d0_ppm ppm_s [cn0 [seed]]]: one trial through the channel,
+         its Doppler and rate, the C/N0 and the seed as given (the RATE
+         condition, 45 dB-Hz, 100). */
+      g_d0_ppm           = argc > 3 ? atof (argv[2]) : 0.0;
       g_ppm_s            = argc > 3 ? atof (argv[3]) : RAMP_PPM_S;
       const double   cn0 = argc > 4 ? atof (argv[4]) : 45.0;
       const uint32_t sd  = argc > 5 ? (uint32_t)atoi (argv[5]) : 100u;
       trial_t        t;
       printf ("--- channel %.1f ppm, %.2f ppm/s; %.0f dB-Hz, seed %u ---\n",
               g_d0_ppm, g_ppm_s, cn0, sd);
-      DP_REQUIRE (run_trial (code, COND_RAMP, cn0, sd, 2, &t) == 0);
+      DP_REQUIRE (run_trial (code, COND_RATE, cn0, sd, 2, &t) == 0);
       printf ("    settled %d after %.1f ms\n", t.settled, t.settle_s * 1e3);
       free (t.frames);
       return 0;
@@ -482,10 +491,10 @@ main (int argc, char **argv)
           (double)F_SYM / SYM_RATE, LOST_CONFIRM_S, (double)TE / FS * 1e3);
 
   const double cn0s[] = { 45.0, 40.0 };
-  /* --check: 45 dB-Hz, one seed, both conditions -- the ramp's seed 100
-     is one of the two that settle (#1249), and once settled the windows
-     are as clean as the static ones; the check says so. A line of trace
-     every ~4 s keeps the diagnostics in the record. */
+  /* --check: 45 dB-Hz, one seed, every condition -- with #1249's
+     hand-over fix all three settle in tens of ms, and the windows are as
+     clean through the channel as without it; the check says so. A line of
+     trace every ~4 s keeps the diagnostics in the record. */
   const size_t n_cn0   = check ? 1 : 2;
   const size_t n_seeds = check ? 1 : N_SEEDS;
   const size_t frames  = check ? CHECK_FRAMES : N_FRAMES;

@@ -2677,16 +2677,24 @@ epoch (0.2 ms) at a time, both lock flags read after every block, the
 release clock at the design's 2 s. Once tracking with symbol lock held for
 200 blocks, ten windows per trial, three trials per C/N0; per window the
 fraction of blocks with each flag off, the longest both-off run, whether
-`lost` fired, and the pull-in after the data resumes. Two conditions: no
-Doppler, and SPEC's ramp through the shipped `doppler_channel` (50 kHz at
-a 2.5 GHz carrier, 500 Hz/s, the chip clock dilated with it).
+`lost` fired, and the pull-in after the data resumes. Three
+conditions: no Doppler, and SPEC's two worst cases through the shipped
+`doppler_channel`, apart, since they do not coincide on a pass — the
+offset (20 ppm of a 2.5 GHz carrier, 50 kHz, the chip clock dilated with
+it) and the rate (500 Hz/s from zero).
 
-| condition, C/N0 (Es/N0) | settled | window blocks | code lock off | symbol lock off        | both off | release | pull-in after the window |
-| ----------------------- | ------- | ------------- | ------------- | ---------------------- | -------- | ------- | ------------------------ |
-| static, 45 dB-Hz (10.7) | 3 of 3  | 24 435        | **0**         | **0**                  | 0        | never   | none needed              |
-| static, 40 dB-Hz (5.7)  | 3 of 3  | 24 435        | **0**         | 0.8% (one window, 24%) | 0        | never   | none needed              |
-| ramp, 45 dB-Hz          | 2 of 3  | 16 290        | **0**         | **0**                  | 0        | never   | none needed              |
-| ramp, 40 dB-Hz          | 0 of 3  | —             |               |                        |          |         |                          |
+| condition, C/N0 (Es/N0) | settled            | window blocks | code lock off | symbol lock off    | both off | release | pull-in after the window |
+| ----------------------- | ------------------ | ------------- | ------------- | ------------------ | -------- | ------- | ------------------------ |
+| static, 45 dB-Hz (10.7) | 3 of 3, 68 ms      | 24 435        | **0**         | **0**              | 0        | never   | none needed              |
+| static, 40 dB-Hz (5.7)  | 3 of 3, 110–163 ms | 24 435        | **0**         | 1.5% (two windows) | 0        | never   | 6 ms                     |
+| offset, 45 dB-Hz        | 3 of 3, 76–81 ms   | 24 435        | **0**         | **0**              | 0        | never   | none needed              |
+| offset, 40 dB-Hz        | 3 of 3, 0.30–2.8 s | 24 436        | **0**         | **0**              | 0        | never   | none needed              |
+| rate, 45 dB-Hz          | 3 of 3, 68–70 ms   | 24 435        | **0**         | **0**              | 0        | never   | none needed              |
+| rate, 40 dB-Hz          | 3 of 3, 145–172 ms | 24 435        | **0**         | **0**              | 0        | never   | none needed              |
+
+(Measured with the hand-over fix of #1249 below and the object's default
+refine length. The first run took the offset and the rate together and,
+before the fix, settled 2 of 3 at 45 dB-Hz and 0 of 3 at 40.)
 
 What it settles:
 
@@ -2708,19 +2716,43 @@ What it settles:
     nothing downstream locked. `acq_build_handoff()` of the searcher's
     hit — measured on the received stream — is the seed, and with it the
     same trials lock in 70–280 ms.
-- **What the ramp found is a pull-in defect, not a window one.** From
-    the searcher's seed under SPEC's ramp the chain settles in 2 of 3
-    trials at 45 dB-Hz and 0 of 3 at 40 within 6 s, the searching flavor
-    alike (1 of 2, 0 of 2). The `--trace` shows the mechanism: at the
-    floor the refine stage's Doppler lands 230–450 Hz off (its stated
-    accuracy is tens of Hz), the post-despread carrier loop never pulls
-    in, and the carrier-to-code aid then walks the code loop off at about
-    a chip per second; at 45 dB-Hz one seed fails with a refine within 5
-    Hz, so the code loop's own pull-in from a half-chip seed is a second
-    suspect. Filed as [#1249](https://github.com/doppler-dsp/doppler/issues/1249);
-    §12.5 measured the aided DLL on a ramp it was already locked to, this
-    is the chain from the seed. The static case, and the channel with no
-    Doppler, lock every time.
+- **What the ramp found was a hand-over defect, not a window one
+    ([#1249](https://github.com/doppler-dsp/doppler/issues/1249)).** From
+    the searcher's seed at 20 ppm with the 500 Hz/s ramp on top (the first
+    run took SPEC's two worst cases together, which a pass never does) the
+    chain settled in 2 of 3 trials at 45 dB-Hz and 0 of 3 at 40, the
+    searching flavor alike. The
+    refine → track hand-over re-seeded the live chain with the seed's code
+    phase, rounded to whole code periods — zero net advance only on an
+    undilated clock. At 20 ppm the code runs 100 chips/s ahead: 1.2 chips
+    over the 12 ms refine at 45 dB-Hz, 5 over the 53 ms refine at 40, and a
+    Dll seeded 1.5 chips off never pulls in; the trial that lost at 45
+    dB-Hz was 1.45 chips off, the one that won 1.13. (The refine-stage
+    Dll's own tracked phase is not the answer either: at the floor it
+    wanders 13 chips over the same 53 ms.) The hand-over now advances the
+    seed's phase by the refined Doppler's dilation over the refine's whole
+    periods: 45 dB-Hz under the ramp settles 10 of 10 seeds in 70 ms, and
+    `test_async_dsss_receiver_core` pins it at SPEC's 20 ppm with the
+    floor's refine length, where the old hand-over was 5 chips off.
+- **What remains at the floor is the offset case, and it is the estimate,
+    not the window ([#1252](https://github.com/doppler-dsp/doppler/issues/1252)).**
+    SPEC's two worst cases do not coincide — the largest Doppler is at the
+    horizon where the rate is nil, the largest rate at closest approach
+    where the Doppler is nil — so they are measured apart. The rate (500
+    Hz/s from zero) is no problem: 10 of 10 seeds settle at both C/N0s,
+    113–432 ms at the floor. The offset (50 kHz) settles 10 of 10 in 80 ms
+    at 45 dB-Hz but 9 of 10 at 40, in 0.3–3.6 s, several past the 2 s
+    release clock — the code loop locked from the first block, the carrier
+    slow to follow. The refine lands the Doppler 200–460 Hz low on every
+    seed with the floor's 18-block dwell (a bias, worse than the 4-block
+    dwell's ±20 Hz), and loop 1 — `bn` 0.04, 195 Hz at the code-period
+    cadence, a measured pull-in bound of 60 Hz — then acquires it slowly
+    or not at all, at 17 dB of loop SNR (15.5 after the squaring loss)
+    where the rule wants 20. Narrowing the loop toward the rule is measured
+    to cost the floor entirely (under the combined stress: `bn` 0.02, 10 of
+    10 at 45 dB-Hz and **0 of 10** at 40; 0.01, 6 and 0), so the two rules
+    conflict as built and the way out is the estimate the loop starts
+    from.
 
 ______________________________________________________________________
 

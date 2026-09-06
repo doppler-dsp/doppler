@@ -84,6 +84,7 @@
 #ifndef DP_DSSS_TEST_H
 #define DP_DSSS_TEST_H
 
+#include "doppler_channel/doppler_channel_core.h"
 #include "dp_rng_test.h"
 #include <complex.h>
 #include <math.h>
@@ -206,6 +207,61 @@ dp_dsss_ramp_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
   *x_out    = x;
   *n_out    = tot;
   *data_out = data;
+}
+
+/**
+ * As dp_dsss_capture(), but through the shipped `doppler_channel`: the
+ * clean signal is resampled by `1/(1 + d(t))` and its carrier moved by
+ * `carrier_hz * d(t)`, `d` in ppm ramping `ppm_s` per second -- the chip,
+ * symbol AND carrier clocks all dilated together, as a real link's are --
+ * and the noise is added after the channel, at the receiver, where it
+ * belongs (sized exactly as dp_dsss_capture() sizes it). The channel's
+ * resampler delays the signal by a few chips, so the code phase on the
+ * first signal sample is NOT zero here: a receiver must find it, as the
+ * searching flavor does.
+ * @param carrier_hz  the RF carrier the ppm scale to (0 dilates the clocks
+ *                    and never moves the carrier).
+ * @param ppm         initial Doppler, ppm of the time base (positive =
+ *                    closing, clocks fast, carrier up).
+ * @param ppm_s       its ramp, ppm per second. Every other parameter is as
+ *                    dp_dsss_capture().
+ */
+static inline void
+dp_dsss_dilated_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
+                         double tsym, double carrier_hz, double ppm,
+                         double ppm_s, double cn0_dbhz, size_t n_sym,
+                         size_t pre_silence, uint32_t seed,
+                         float _Complex **x_out, size_t *n_out,
+                         double **data_out)
+{
+  /* Clean render (a C/N0 no noise survives), then the channel. */
+  float _Complex *clean;
+  size_t          n;
+  dp_dsss_capture (code, sf, spc, fs, tsym, 0.0, 300.0, n_sym, pre_silence,
+                   seed, &clean, &n, data_out);
+  doppler_channel_state_t *ch
+      = doppler_channel_create (fs, carrier_hz, ppm, ppm_s);
+  float _Complex *x   = malloc ((n + DOPPLER_CHANNEL_MAX_BLOCK) * sizeof *x);
+  size_t          out = 0;
+  for (size_t pos = 0; pos < n; pos += DOPPLER_CHANNEL_MAX_BLOCK)
+    {
+      size_t take = n - pos < DOPPLER_CHANNEL_MAX_BLOCK
+                        ? n - pos
+                        : DOPPLER_CHANNEL_MAX_BLOCK;
+      out += doppler_channel_execute (ch, clean + pos, take, x + out,
+                                      n + DOPPLER_CHANNEL_MAX_BLOCK - out);
+    }
+  doppler_channel_destroy (ch);
+  free (clean);
+
+  double   amp_snr = sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
+  double   sigma   = 1.0 / amp_snr;
+  uint32_t st      = seed ^ 0x9e3779b9u; /* the data's stream, decorrelated */
+  for (size_t i = 0; i < out; i++)
+    x[i] += (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+
+  *x_out = x;
+  *n_out = out;
 }
 
 #endif /* DP_DSSS_TEST_H */

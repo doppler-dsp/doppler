@@ -412,6 +412,93 @@ _test_spec_ramp_decode (void)
   return 0;
 }
 
+/* doppler#1249: the refine -> track hand-over under a CLOCK OFFSET. The
+ * live chain used to start from the seed's code phase, rounded to whole
+ * code periods -- zero net advance only on an undilated clock. At 20 ppm
+ * the code runs 100 chips/s ahead, 5 chips over the 53 ms refine the
+ * floor's C/N0 sizes, and a Dll seeded 5 chips off never pulls in: the
+ * receiver reported tracking, code lock never came, and after
+ * `lost_confirm_s` it released an emitter that was there all along. The
+ * hand-over now advances the seed's phase by the refined Doppler's
+ * dilation over the refine's whole periods. The stimulus is the shipped
+ * channel at SPEC's 20 ppm of a 2.5 GHz carrier with no ramp (the ramp's
+ * own margin at the floor is a separate matter, #1252); three seeds,
+ * every one must lock the code. Sabotage: seed the live chain with the
+ * original phase -> every seed red. */
+static int
+_test_handover_under_clock_offset (void)
+{
+  const size_t sf        = 1023;
+  const size_t spc       = 2;
+  const double chip_rate = 5.0e6;
+  const double fs        = chip_rate * (double)spc;
+  const double sym_rate  = 2700.0;
+  const double tsym      = fs / sym_rate;
+  const size_t te        = sf * spc;
+  const double carrier   = 2.5e9;
+  /* SPEC's 20 ppm: 50 kHz, 100 chips/s of dilation. The refine is given
+     the length the floor gives it -- a design margin of 19 dB sizes an
+     18-block dwell at this C/N0, as 14 dB does at 40 dB-Hz -- so the old
+     hand-over is 5 chips off, unambiguously outside the Dll's pull-in
+     (over its 12 ms dwell it was 1.2 chips, a coin toss), while the
+     carrier still locks in tens of ms. */
+  const double ppm         = 20.0;
+  const double margin_db   = 19.0;
+  const size_t n_sym       = 2700; /* one second */
+  const size_t pre_silence = te * 5 + 3;
+  const double cn0         = 45.0; /* Es/N0 10.7 dB */
+
+  uint8_t *code = malloc (sf);
+  uint32_t cst  = 13;
+  for (size_t i = 0; i < sf; i++)
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
+
+  int decoded = 0;
+  for (uint32_t seed = 100; seed < 103; seed++)
+    {
+      float _Complex *x;
+      size_t          n;
+      double         *data;
+      dp_dsss_dilated_capture (code, sf, spc, fs, tsym, carrier, ppm, 0.0, cn0,
+                               n_sym, pre_silence, seed, &x, &n, &data);
+      async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+          code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9,
+          1.2 * ppm * 1e-6 * carrier, 4, 8, 0, 100.0, 4, margin_db, 64, 8,
+          false, 100000, carrier, 0.0);
+      DP_REQUIRE (rx != NULL);
+      float _Complex *syms;
+      size_t          n_syms = _stream (rx, x, n, te, &syms);
+      double          ber    = _best_ber (syms, n_syms, data, n_sym + 4);
+      printf ("  hand-over at %.0f ppm, seed %u: tracking %d, code %d, "
+              "symbol %d, %zu symbols, BER %.3f, Doppler est %.0f Hz "
+              "(truth %.0f), chip %.2f\n",
+              ppm, seed, async_dsss_receiver_get_tracking (rx),
+              async_dsss_receiver_get_code_locked (rx),
+              async_dsss_receiver_get_locked (rx), n_syms, ber,
+              async_dsss_receiver_get_doppler_hz (rx), ppm * 1e-6 * carrier,
+              async_dsss_receiver_get_chip_phase (rx));
+      /* The hand-over's own claim, per seed: the live chain locks the
+         dilated code. The carrier and the decode ride on the refine's
+         Doppler, which mis-picks by a kHz on about one seed in three at
+         this C/N0 (#1249's remainder, printed above), so those are asked
+         of the majority. */
+      DP_CHECK_MSG (async_dsss_receiver_get_tracking (rx) == 1
+                        && async_dsss_receiver_get_code_locked (rx) == 1,
+                    "the live chain locks the dilated code from the "
+                    "hand-over");
+      decoded += async_dsss_receiver_get_locked (rx) == 1 && n_syms > n_sym / 2
+                 && ber < 0.05;
+      free (syms);
+      free (x);
+      free (data);
+      async_dsss_receiver_destroy (rx);
+    }
+  DP_CHECK_MSG (decoded >= 2, "and the carrier locks and decodes on the "
+                              "majority of seeds");
+  free (code);
+  return 0;
+}
+
 /* SPEC's own literal Es/N0=5dB floor, same geometry/ramp as
  * _test_spec_ramp_decode() above. task #99's own cliff at this exact
  * operating point was ALREADY characterized as "pure-SNR, rate-
@@ -1284,6 +1371,7 @@ main (void)
   (void)_test_acquire_and_decode ();
   (void)_test_give_up_cap ();
   (void)_test_spec_ramp_decode ();
+  (void)_test_handover_under_clock_offset ();
   (void)_test_spec_combined_scenario_at_spec_floor ();
   (void)_test_awgn_esn0_floor ();
   (void)_test_accessor_coverage ();

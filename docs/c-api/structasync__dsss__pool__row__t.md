@@ -141,7 +141,7 @@ double async_dsss_pool_row_t::doppler_hz;
 
 
 
-The row's current coordinates: the exclusion zone is keyed on these, refreshed every push. 
+The row's current coordinates: the exclusion zone is keyed on these  refreshed every push from a LOCKED loop, held otherwise (#1261). 
 
 
         

@@ -5061,13 +5061,14 @@ class AsyncDsssReceiver:
 
     def status(self) -> ReceiverStatus:
         """One consistent picture of the receiver, by value (design section
-        11.3): state, where the emitter is now (live Doppler, chip phase, code
-        rate, C/N0), both lock flags with the symbol-lock metric and threshold,
-        both residual carrier errors, and the two clocks in input samples
-        (since the state was entered; both flags down without a break). Read on
-        demand by the holder of a pool -- the one-at-a-time properties are the
-        same fields' other face. No timestamp: the holder owns the sample clock
-        and stamps it.
+        11.3): state, where the emitter is now (the whole carrier estimate --
+        loop 1's plus what loop 2 took up beyond it -- only as good as
+        `locked`; chip phase, code rate, C/N0), both lock flags with the
+        symbol-lock metric and threshold, both residual carrier errors, and the
+        two clocks in input samples (since the state was entered; both flags
+        down without a break). Read on demand by the holder of a pool -- the
+        one-at-a-time properties are the same fields' other face. No timestamp:
+        the holder owns the sample clock and stamps it.
 
         Cheap and allocation-free: every field is a read of live state. The
         one-at-a-time getters below report the same fields; this is the face a
@@ -5805,13 +5806,14 @@ class HandoffAsyncDsssReceiver:
 
     def status(self) -> ReceiverStatus:
         """One consistent picture of the receiver, by value (design section
-        11.3): state, where the emitter is now (live Doppler, chip phase, code
-        rate, C/N0), both lock flags with the symbol-lock metric and threshold,
-        both residual carrier errors, and the two clocks in input samples
-        (since the state was entered; both flags down without a break). Read on
-        demand by the holder of a pool -- the one-at-a-time properties are the
-        same fields' other face. No timestamp: the holder owns the sample clock
-        and stamps it.
+        11.3): state, where the emitter is now (the whole carrier estimate --
+        loop 1's plus what loop 2 took up beyond it -- only as good as
+        `locked`; chip phase, code rate, C/N0), both lock flags with the
+        symbol-lock metric and threshold, both residual carrier errors, and the
+        two clocks in input samples (since the state was entered; both flags
+        down without a break). Read on demand by the holder of a pool -- the
+        one-at-a-time properties are the same fields' other face. No timestamp:
+        the holder owns the sample clock and stamps it.
 
         Cheap and allocation-free: every field is a read of live state. The
         one-at-a-time getters below report the same fields; this is the face a

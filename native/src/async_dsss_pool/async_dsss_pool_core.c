@@ -206,8 +206,15 @@ async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
   /* 1. The searcher. */
   size_t nh = acq_push (s->acq, x, x_len, s->hits, s->max_peaks);
 
-  /* 2. The table: a tracking receiver's live coordinates, a refining one's
-     seed advanced to this block's start on the dilated clock. */
+  /* 2. The table: a tracking receiver's live coordinates -- each only
+     while its own lock flag says the loop holds them: the carrier's
+     Doppler under `locked`, the Dll's phase under `code_locked`. An
+     unlocked loop free-runs (loop 1 wandered 800 Hz in a second on a
+     hand-over past its pull-in, doppler#1261), and a zone keyed on it
+     would let the searcher's next hit on the same emitter look new. With a
+     flag down the row keeps its last locked value; a receiver not yet
+     tracking has the seed, its phase advanced to this block's start on
+     the dilated clock. */
   for (size_t i = 0; i < s->n_slots; i++)
     {
       async_dsss_pool_row_t *row = &s->rows[i];
@@ -216,8 +223,10 @@ async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
       async_dsss_receiver_status_t st = async_dsss_receiver_status (s->rx[i]);
       if (st.state == ASYNC_DSSS_RX_TRACKING)
         {
-          row->doppler_hz = st.doppler_hz;
-          row->chip_phase = st.chip_phase;
+          if (st.locked)
+            row->doppler_hz = st.doppler_hz;
+          if (st.code_locked)
+            row->chip_phase = st.chip_phase;
         }
       else
         {

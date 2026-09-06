@@ -821,9 +821,12 @@ extern "C"
   typedef struct
   {
     int state; /**< ASYNC_DSSS_RX_SEARCHING .. _LOST -- where it is.      */
-    double doppler_hz; /**< Where the emitter is NOW: the live carrier
-                            loop's estimate, Hz (the seed while refining,
-                            0 when idle, frozen where it was when lost). */
+    double doppler_hz; /**< Where the emitter is NOW: the whole carrier
+                            estimate, Hz -- loop 1's plus what loop 2 has
+                            taken up beyond it (the seed while refining,
+                            0 when idle, frozen where it was when lost).
+                            Only as good as `locked`: with the carrier
+                            unlocked, loop 1 free-runs and this wanders. */
     double chip_phase; /**< Live Dll code phase, chips.                     */
     double code_rate;  /**< Live Dll code rate, chips/sample.               */
     double cn0_dbhz_est; /**< C/N0 estimate, dB-Hz (the hit's).             */

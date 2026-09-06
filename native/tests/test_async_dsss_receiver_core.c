@@ -1293,7 +1293,13 @@ _test_status_record (void)
   DP_CHECK (st.car_last_error == async_dsss_receiver_get_car_last_error (rx));
   DP_CHECK (st.mpsk_last_error
             == async_dsss_receiver_get_mpsk_last_error (rx));
-  DP_CHECK (st.doppler_hz == costas_get_norm_freq (&rx->car) * fs);
+  /* doppler#1261: the whole carrier estimate -- loop 1 plus what loop 2
+     took up beyond it, the sum configure_chain_raw() re-seeds from. */
+  DP_CHECK (fabs (st.doppler_hz
+                  - (costas_get_norm_freq (&rx->car) * fs
+                     + async_dsss_receiver_get_norm_freq (rx)
+                           * ((double)rx->sps * rx->symbol_rate)))
+            < 1e-9);
   DP_CHECK (fabs (st.doppler_hz) < 50.0); /* the capture has no Doppler */
   DP_CHECK (st.state_samples == rx->state_samples && st.state_samples > 0);
   DP_CHECK (st.both_down_samples == 0); /* both flags up */

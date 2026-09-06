@@ -3017,22 +3017,33 @@ Two things the build found:
     `lost_confirm_s`, which is the release headroom of §8.2's twelve
     slots for ten emitters. Every expectation is therefore about the
     emitter's slot, never an exact count of slots.
-- **A receiver's reported Doppler is loop 1's, and loop 1 can miss.** With
-    the refine's shortest dwell (2 blocks at 47 dB-Hz and the shipped
-    margin, ±200 Hz) a hand-over past loop 1's 60 Hz pull-in leaves the
-    receiver code-locked and decoding on loop 2 while `status().doppler_hz`
-    wanders hundreds of Hz. At D = 1 the zone is 4.9 kHz wide and nothing
-    notices; at the pool's D = 154 it is 31.7 Hz, and a wandering row would
-    let the searcher's next hit on the same emitter look new. The status
-    record should report the whole carrier estimate, loop 1 plus loop 2's
-    NCO — [#1261](https://github.com/doppler-dsp/doppler/issues/1261),
-    before the soak of §12 step 7.
+- **An unlocked carrier loop free-runs, and the table must not key on
+    it ([#1261](https://github.com/doppler-dsp/doppler/issues/1261),
+    fixed).** With the refine's shortest dwell (2 blocks at 47 dB-Hz and
+    the shipped margin, ±200 Hz) a hand-over past loop 1's pull-in
+    (measured: 1847 Hz for a 1500 Hz emitter) leaves the receiver
+    code-locked — the code loop is non-coherent — with the carrier
+    unlocked on every block (symbol lock down, `lock_metric` at zero) and
+    loop 1 wandering 800 Hz in a second. That is not loop 2 decoding, as
+    first read: it is a degraded receiver, and `degrade` is the event it
+    logs. At D = 1 the zone is 4.9 kHz wide and nothing notices; at the
+    pool's D = 154 it is 31.7 Hz, and a row keyed on the wander would let
+    the searcher's next hit on the same emitter look new. Two fixes: the
+    receiver's `status().doppler_hz` is the whole carrier estimate — loop
+    1 plus what loop 2 has taken up beyond it, the sum
+    `configure_chain_raw()` already re-seeds from — and the pool refreshes
+    a row's Doppler only while `locked` holds and its chip phase only
+    while `code_locked` does, keeping the last locked value (the seed's
+    row, until the first lock) otherwise. `test_async_dsss_pool_core`
+    pins it on the reproducing stimulus: the status wanders 843 Hz off
+    with the carrier unlocked on 4858 of 4858 tracking blocks and the row
+    stays the seed's; at pfa 1e-3 the same emitter locks and the row
+    follows within 100 Hz.
 
 **Next:** the lifecycle soak (§12 step 7) — the shipped synth with the
 window, the block-coherent searcher at D = 154, several emitters at
 random Dopplers through the channel, arrivals and departures — is the
-measurement that certifies the pool; it needs the bank's stimulus and runs
-once the finding above is closed.
+measurement that certifies the pool.
 
 ______________________________________________________________________
 

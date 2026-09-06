@@ -162,7 +162,8 @@ extern "C"
     double   seed_doppler_hz;
     double   seed_cn0_dbhz;
     double   doppler_hz; /**< The row's current coordinates: the exclusion
-                              zone is keyed on these, refreshed every push. */
+                              zone is keyed on these -- refreshed every push
+                              from a LOCKED loop, held otherwise (#1261). */
     double   chip_phase;
     int      prev_state; /**< The receiver's state at the last push, for
                               the transitions' edges.                       */

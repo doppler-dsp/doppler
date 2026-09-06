@@ -45,6 +45,9 @@ depends_on = [
     { name = "detector", link = true },
     { name = "detection", link = true },
     { name = "spectral", link = true },
+    # the hand-over test's stimulus (dp_dsss_dilated_capture), the test's
+    # link only, as `ber` above; resamp is its own dependency, already here.
+    { name = "doppler_channel" },
     { name = "corr", link = true },
     { name = "fft", link = true },
     { name = "acc_trace", link = true },

@@ -40,7 +40,8 @@ target_link_libraries(async_dsss_receiver_core PUBLIC
     spectral_core
     acc_trace_core
     detector_core
-    corr_core)
+    corr_core
+    doppler_channel_core)
 
 add_executable(test_async_dsss_receiver_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_async_dsss_receiver_core.c)
@@ -82,6 +83,7 @@ target_link_libraries(test_async_dsss_receiver_core
     acc_trace_core
     detector_core
     corr_core
+    doppler_channel_core
     m)
 target_include_directories(test_async_dsss_receiver_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -128,6 +130,7 @@ target_link_libraries(bench_async_dsss_receiver_core
     acc_trace_core
     detector_core
     corr_core
+    doppler_channel_core
     m)
 target_include_directories(
   bench_async_dsss_receiver_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

@@ -35,6 +35,7 @@
 #include "fft/fft_core.h"
 #include "acc_trace/acc_trace_core.h"
 #include "ber/ber_core.h"
+#include "doppler_channel/doppler_channel_core.h"
 
 #ifdef __cplusplus
 extern "C"

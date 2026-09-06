@@ -113,20 +113,20 @@ static int
 _test_arg_validation (void)
 {
   DP_CHECK (async_dsss_receiver_create (NULL, 0, 1e6, 1e3, 2, 2, 55.0, 1e-3,
-                                        0.9, 100.0, 4, 8, 0, 100.0, 4, 14.0,
-                                        64, 8, false, 100000, 0.0, 0.0)
+                                        0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64,
+                                        8, false, 100000, 0.0, 0.0)
             == NULL);
   DP_CHECK (async_dsss_receiver_create (CODE7, 7, 0.0, 1e3, 2, 2, 55.0, 1e-3,
-                                        0.9, 100.0, 4, 8, 0, 100.0, 4, 14.0,
-                                        64, 8, false, 100000, 0.0, 0.0)
+                                        0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64,
+                                        8, false, 100000, 0.0, 0.0)
             == NULL); /* chip_rate <= 0 */
   DP_CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 3, 55.0, 1e-3,
-                                        0.9, 100.0, 4, 8, 0, 100.0, 4, 14.0,
-                                        64, 8, false, 100000, 0.0, 0.0)
+                                        0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64,
+                                        8, false, 100000, 0.0, 0.0)
             == NULL); /* m not in {2,4,8} */
   DP_CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3,
-                                        0.9, 100.0, 0, 8, 0, 100.0, 4, 14.0,
-                                        64, 8, false, 100000, 0.0, 0.0)
+                                        0.9, 100.0, 0, 8, 0, 0.5, 4, 14.0, 64,
+                                        8, false, 100000, 0.0, 0.0)
             == NULL); /* segments < 1 */
   DP_CHECK (async_dsss_receiver_create (CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3,
                                         0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64,
@@ -183,8 +183,8 @@ _test_acquire_and_decode (void)
                    &x, &n, &data);
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
-      CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
+      CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -213,8 +213,8 @@ _test_acquire_and_decode (void)
   async_dsss_receiver_get_state (rx, blob);
 
   async_dsss_receiver_state_t *rx2 = async_dsss_receiver_create (
-      CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
+      CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx2 != NULL);
   if (rx2)
     {
@@ -233,8 +233,8 @@ _test_acquire_and_decode (void)
 
   /* ── state-serialization round trip, while searching ─────────────────── */
   async_dsss_receiver_state_t *rx3 = async_dsss_receiver_create (
-      CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
+      CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx3 != NULL);
   if (rx3)
     {
@@ -244,7 +244,7 @@ _test_acquire_and_decode (void)
 
       async_dsss_receiver_state_t *rx4 = async_dsss_receiver_create (
           CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-          100.0, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
+          0.5, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
       DP_CHECK (rx4 != NULL);
       if (rx4)
         {
@@ -382,7 +382,7 @@ _test_spec_ramp_decode (void)
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -437,9 +437,10 @@ _test_handover_under_clock_offset (void)
   const size_t te        = sf * spc;
   const double carrier   = 2.5e9;
   /* SPEC's 20 ppm: 50 kHz, 100 chips/s of dilation. The refine is given
-     the length the floor gives it -- a design margin of 19 dB sizes an
-     18-block dwell at this C/N0, as 14 dB does at 40 dB-Hz -- so the old
-     hand-over is 5 chips off, unambiguously outside the Dll's pull-in
+     the length the floor gives it -- a design margin of 19 dB sizes a
+     7-block, 42 ms dwell at this C/N0, as 14 dB does at 40 dB-Hz
+     (validate_refine_bias prints the margin -> dwell table) -- so the old
+     hand-over is 4 chips off, unambiguously outside the Dll's pull-in
      (over its 12 ms dwell it was 1.2 chips, a coin toss), while the
      carrier still locks in tens of ms. */
   const double ppm         = 20.0;
@@ -467,8 +468,8 @@ _test_handover_under_clock_offset (void)
                                &data);
       async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
           code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9,
-          1.2 * ppm * 1e-6 * carrier, 4, 8, 0, 100.0, 4, margin_db, 64, 8,
-          false, 100000, carrier, 0.0);
+          1.2 * ppm * 1e-6 * carrier, 4, 8, 0, 0.5, 4, margin_db, 64, 8, false,
+          100000, carrier, 0.0);
       DP_REQUIRE (rx != NULL);
       float _Complex *syms;
       size_t          n_syms = _stream (rx, x, n, te, &syms);
@@ -484,9 +485,11 @@ _test_handover_under_clock_offset (void)
               async_dsss_receiver_get_chip_phase (rx));
       /* The hand-over's own claim, per seed: the live chain locks the
          dilated code. The carrier and the decode ride on the refine's
-         Doppler, which mis-picks by a kHz on about one seed in three at
-         this C/N0 (#1249's remainder, printed above), so those are asked
-         of the majority. */
+         Doppler; on the shipped look-back (0.5 dB, eleven dumps per
+         epoch) it lands within tens of Hz and every seed decodes. On
+         the retired 100 dB look-back this test used to pass, the
+         estimate keeps a third of the seed's error (#1252, measured by
+         validate_refine_bias) and only a majority decoded. */
       DP_CHECK_MSG (async_dsss_receiver_get_tracking (rx) == 1
                         && async_dsss_receiver_get_code_locked (rx) == 1,
                     "the live chain locks the dilated code from the "
@@ -498,8 +501,8 @@ _test_handover_under_clock_offset (void)
       free (data);
       async_dsss_receiver_destroy (rx);
     }
-  DP_CHECK_MSG (decoded >= 3, "and the carrier locks and decodes on the "
-                              "majority of seeds");
+  DP_CHECK_MSG (decoded == 4, "and the carrier locks and decodes on "
+                              "every seed");
   free (code);
   return 0;
 }
@@ -551,7 +554,7 @@ _test_spec_combined_scenario_at_spec_floor (void)
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
       code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0);
+      0.5, 4, 14.0, 64, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -726,7 +729,7 @@ static async_dsss_receiver_state_t *
 _handoff_rx (double cn0, double lost_confirm_s)
 {
   return async_dsss_receiver_create_handoff (
-      CODE7, 7, 1.0e6, 35714.29, 4, 2, cn0, 1e-2, 0.9, 4, 8, 0, 100.0, 4, 14.0,
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, cn0, 1e-2, 0.9, 4, 8, 0, 0.5, 4, 14.0,
       32, 8, false, 100000, 0.0, lost_confirm_s);
 }
 
@@ -845,8 +848,8 @@ _test_seed_on_searching_flavor (void)
                    &x, &n, &data);
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
-      CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
+      CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
+      4, 14.0, 32, 8, false, 100000, 0.0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -1170,8 +1173,8 @@ _test_handoff_state_roundtrip (void)
 
   /* Across flavors: refused both ways, and the envelope reject still holds. */
   async_dsss_receiver_state_t *rs = async_dsss_receiver_create (
-      CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0,
-      100.0, 4, 14.0, 32, 8, false, 100000, 0.0, 2.0);
+      CODE7, sf, 1.0e6, sym_rate, spc, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
+      4, 14.0, 32, 8, false, 100000, 0.0, 2.0);
   DP_CHECK (rs != NULL);
   if (rs)
     {

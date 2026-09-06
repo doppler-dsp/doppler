@@ -411,6 +411,19 @@ target_compile_options(validate_tracker_through_window
 add_test(NAME validate_tracker_through_window
          COMMAND validate_tracker_through_window --check)
 
+# The refine stage's Doppler estimate on its own: its error against the
+# seed's offset, the dwell, and the despread stream it estimates on
+# (docs/design/async-dsss-receiver.md §4, §12.10, #1252). The capture is the
+# shipped C stimulus at a chosen carrier offset, the receiver the hand-off
+# flavor; native/tests is reached for dp_test.h and dp_dsss_test.h.
+add_executable(validate_refine_bias ${CMAKE_CURRENT_SOURCE_DIR}/refine_bias.c)
+target_include_directories(validate_refine_bias
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_refine_bias PRIVATE doppler_lib_static m)
+target_compile_options(validate_refine_bias PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_refine_bias COMMAND validate_refine_bias --check)
+
 # The code loop on the symbol-aided window against the per-epoch look-back:
 # jitter, pull-in and the loop gain under a code-rate ramp at the continuous
 # async-DSSS operating point (docs/design/async-dsss-receiver.md §3.7, §12.5).

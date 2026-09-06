@@ -70,10 +70,18 @@ Ask one question:
 ### How to run jm — through `make`, never `uvx`
 
 **jm is a dev-group dependency, pinned once in `pyproject.toml`** (keep it in
-sync with `jm_version` in `just-makeit.toml`). Run it as `uv run just-makeit …`,
-and in CI only through a **Makefile target** — the Makefile is the single driver
-for every jm invocation (`make drift-check`, `make bench`, `make bench-baseline`,
-`make bench-check`).
+sync with `jm_version` in `just-makeit.toml`). The Makefile is the single
+driver for every jm invocation — **`make jm-apply`**, `make drift-check`,
+`make jm-upgrade`, `make bench`, `make bench-save`, `make bench-compare` — and
+`~/mcp-store/hooks/make-ssot.sh` BLOCKS a raw one, because the target is what
+runs `uv sync` first and pins the version.
+
+**That includes `.venv/bin/just-makeit apply`**, which reads like the pinned
+binary and is not the target. Every `Drive doppler with …` line in the dated
+adoption notes below — `uvx --from 'just-makeit==X'` in the older ones,
+`.venv/bin/just-makeit` in the newer — records **which pin was current when
+that note was written**. None of them is an instruction about how to invoke
+jm; `make jm-apply` is, and it is the only spelling that survives a pin bump.
 
 **Never `uvx just-makeit`.** An unpinned `uvx <tool>` does NOT fetch the latest
 release: it silently reuses whatever version is installed as a uv *tool*, which
@@ -83,8 +91,7 @@ repo pinned 0.33.12, so it did not understand the `[codec.blue_keyword]` table
 (jm 0.33.9), derived a bogus `codec` component, and died on
 `No rule to make target 'bench_codec_core'`. The local benchmark path was
 unrunnable from then on, which is why `benchmarks/published` stalled at v0.35.0.
-(Historical `uvx --from 'just-makeit==X'` lines in the adoption notes below are
-a record of which pin was current at the time, not an instruction.)
+(This is why the notes below are a record of pins, not a menu of commands.)
 
 ### Step 1 — declare the interface
 

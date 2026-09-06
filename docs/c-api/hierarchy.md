@@ -71,6 +71,7 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**dp\_header\_t**](structdp__header__t.md) _Frame metadata carried in every stream message._ 
 * **struct** [**dp\_peak\_t**](structdp__peak__t.md) _One spectral peak returned by_ [_**find\_peaks\_f32()**_](spectral__core_8h.md#function-find_peaks_f32) _._
 * **struct** [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md) 
+* **struct** [**dp\_pool\_t**](structdp__pool__t.md) 
 * **struct** [**dp\_reader\_t**](structdp__reader__t.md) 
 * **struct** [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md) 
 * **struct** [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md) _Common 16-byte envelope at the head of every state blob._ 

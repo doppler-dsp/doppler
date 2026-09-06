@@ -82,6 +82,7 @@
 * [**dp\_header\_t**](structdp__header__t.md)
 * [**dp\_peak\_t**](structdp__peak__t.md)
 * [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md)
+* [**dp\_pool\_t**](structdp__pool__t.md)
 * [**dp\_reader\_t**](structdp__reader__t.md)
 * [**dp\_sample\_clock\_t**](structdp__sample__clock__t.md)
 * [**dp\_state\_hdr\_t**](structdp__state__hdr__t.md)

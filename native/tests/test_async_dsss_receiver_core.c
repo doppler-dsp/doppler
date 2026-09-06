@@ -454,8 +454,7 @@ _test_handover_under_clock_offset (void)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
 
   /* Three seeds closing (the code clock fast, the phase advancing), one
-     opening (negative ppm: the clock slow, the phase retreating through
-     the wrap below zero). */
+     opening (negative ppm: the clock slow, the phase retreating). */
   int decoded = 0;
   for (uint32_t seed = 100; seed < 104; seed++)
     {

@@ -256,7 +256,7 @@ params = [
 
 [[async_dsss_receiver.methods]]
 name = "status"
-doc = "One consistent picture of the receiver, by value (design section 11.3): state, where the emitter is now (live Doppler, chip phase, code rate, C/N0), both lock flags with the symbol-lock metric and threshold, both residual carrier errors, and the two clocks in input samples (since the state was entered; both flags down without a break). Read on demand by the holder of a pool -- the one-at-a-time properties are the same fields' other face. No timestamp: the holder owns the sample clock and stamps it."
+doc = "One consistent picture of the receiver, by value (design section 11.3): state, where the emitter is now (the whole carrier estimate -- loop 1's plus what loop 2 took up beyond it -- only as good as `locked`; chip phase, code rate, C/N0), both lock flags with the symbol-lock metric and threshold, both residual carrier errors, and the two clocks in input samples (since the state was entered; both flags down without a break). Read on demand by the holder of a pool -- the one-at-a-time properties are the same fields' other face. No timestamp: the holder owns the sample clock and stamps it."
 arg_type = "void"
 return_type = "async_dsss_receiver_status_t"
 result_fields = [

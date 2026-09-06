@@ -457,11 +457,76 @@ _test_state_roundtrip (void)
   return 0;
 }
 
+/* doppler#1261: a hand-over past loop 1's pull-in leaves the receiver
+   code-locked, carrier-unlocked, and loop 1 free-running -- measured here:
+   the searcher at pfa 1e-2 (a 6-epoch dwell) seeds this capture 1847 Hz
+   for a 1500 Hz emitter and the reported Doppler climbs to 2300 Hz within
+   a second with the symbol lock down throughout. The table must not key
+   its zone on that: the row holds the last LOCKED Doppler (the seed, here)
+   while the status wanders. The same stimulus at pfa 1e-3 seeds 1395 Hz,
+   loop 1 pulls in, and the row follows the locked loop. Sabotage: refresh
+   the row from the status regardless of `locked` -> red. */
+static int
+_test_table_holds_the_locked_doppler (void)
+{
+  cap_t e = emitter (1500.0, 40, 101u);
+  for (int k = 0; k < 2; k++)
+    {
+      const double             pfa = k ? 1e-3 : 1e-2;
+      async_dsss_pool_state_t *p   = async_dsss_pool_create (
+          g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, pfa, 0.9, DU, 1, 0.0,
+          4, 3, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
+          100000);
+      DP_REQUIRE (p != NULL);
+      double worst_status = 0.0;
+      int    unlocked = 0, tracking = 0;
+      size_t slot = p->n_slots;
+      for (size_t pos = 0; pos + TE <= e.n; pos += TE)
+        {
+          (void)async_dsss_pool_push (p, e.x + pos, TE);
+          slot = slot_of (p, 1500.0, 40, NULL);
+          if (slot == p->n_slots)
+            continue;
+          async_dsss_pool_slot_t r = async_dsss_pool_status (p, slot);
+          if (r.state != ASYNC_DSSS_RX_TRACKING)
+            continue;
+          tracking++;
+          unlocked += !r.locked;
+          if (fabs (r.doppler_hz - 1500.0) > worst_status)
+            worst_status = fabs (r.doppler_hz - 1500.0);
+        }
+      DP_REQUIRE (slot < p->n_slots);
+      const async_dsss_pool_slot_t r   = async_dsss_pool_status (p, slot);
+      const double                 row = p->rows[slot].doppler_hz;
+      printf ("  pfa %.0e: status wandered to %.0f Hz off; carrier unlocked "
+              "on %d of %d tracking blocks; the row ends at %.0f Hz, the "
+              "seed was %.0f\n",
+              pfa, worst_status, unlocked, tracking, row, r.seed_doppler_hz);
+      if (k == 0)
+        {
+          DP_CHECK_MSG (worst_status > 500.0 && unlocked > tracking / 2,
+                        "the stimulus reproduces #1261: loop 1 wanders "
+                        "with the carrier unlocked");
+          DP_CHECK_MSG (row == r.seed_doppler_hz,
+                        "and the table never took the unlocked estimate: "
+                        "the row is still the seed's");
+        }
+      else
+        DP_CHECK_MSG (fabs (row - 1500.0) < 100.0 && unlocked < tracking / 10,
+                      "locked, the row follows the loop within 100 Hz");
+      async_dsss_pool_destroy (p);
+    }
+  free (e.x);
+  free (e.data);
+  return 0;
+}
+
 int
 main (void)
 {
   make_code ();
   (void)_test_arg_validation ();
+  (void)_test_table_holds_the_locked_doppler ();
   (void)_test_one_emitter_lifecycle ();
   (void)_test_two_emitters_and_a_full_pool ();
   (void)_test_event_log ();

@@ -810,8 +810,10 @@ HandoffAsyncDsssReceiverObj_exit (HandoffAsyncDsssReceiverObject *self,
 static PyStructSequence_Field HandoffAsyncDsssReceiverObj_status_fields[] = {
   { "state", "One of the ASYNC_DSSS_RX_SEARCHING .. _LOST values." },
   { "doppler_hz",
-    "Where the emitter is NOW: the live carrier loop's estimate, Hz (the seed "
-    "while refining, 0 when idle, frozen where it was when lost)." },
+    "Where the emitter is NOW: the whole carrier estimate, Hz -- loop 1's "
+    "plus what loop 2 has taken up beyond it (the seed while refining, 0 when "
+    "idle, frozen where it was when lost). Only as good as `locked`: with the "
+    "carrier unlocked, loop 1 free-runs and this wanders." },
   { "chip_phase", "Live Dll code phase, chips." },
   { "code_rate", "Live Dll code rate, chips/sample." },
   { "cn0_dbhz_est", "Cached from the winning acquisition hit." },
@@ -1249,13 +1251,14 @@ static PyMethodDef HandoffAsyncDsssReceiverObj_methods[] = {
     "both_down_samples)\n"
     "\n"
     "One consistent picture of the receiver, by value (design section\n"
-    "11.3): state, where the emitter is now (live Doppler, chip phase, code\n"
-    "rate, C/N0), both lock flags with the symbol-lock metric and threshold,\n"
-    "both residual carrier errors, and the two clocks in input samples\n"
-    "(since the state was entered; both flags down without a break). Read on\n"
-    "demand by the holder of a pool -- the one-at-a-time properties are the\n"
-    "same fields' other face. No timestamp: the holder owns the sample clock\n"
-    "and stamps it.\n"
+    "11.3): state, where the emitter is now (the whole carrier estimate --\n"
+    "loop 1's plus what loop 2 took up beyond it -- only as good as\n"
+    "`locked`; chip phase, code rate, C/N0), both lock flags with the\n"
+    "symbol-lock metric and threshold, both residual carrier errors, and the\n"
+    "two clocks in input samples (since the state was entered; both flags\n"
+    "down without a break). Read on demand by the holder of a pool -- the\n"
+    "one-at-a-time properties are the same fields' other face. No timestamp:\n"
+    "the holder owns the sample clock and stamps it.\n"
     "\n"
     "Cheap and allocation-free: every field is a read of live state. The\n"
     "one-at-a-time getters below report the same fields; this is the face a\n"

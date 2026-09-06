@@ -981,17 +981,22 @@ async_dsss_receiver_get_refining (const async_dsss_receiver_state_t *state)
 async_dsss_receiver_status_t
 async_dsss_receiver_status (const async_dsss_receiver_state_t *s)
 {
-  /* Where the emitter is NOW. The live loop owns the estimate once
-   * tracking (and holds it where it was in lost); while refining the frozen
-   * carrier IS the seed; idle has no emitter. Both loops are seeded in
-   * cycles per front-end sample, so one scale serves. */
+  /* Where the emitter is NOW. Once tracking (and held where it was in
+   * lost) the estimate is the WHOLE carrier: loop 1's, in cycles per
+   * front-end sample, plus what loop 2 -- the post-despread MpskReceiver
+   * loop, at sps * symbol_rate -- has taken up beyond it, its loop-filter
+   * integrator, the same sum configure_chain_raw() re-seeds a rebuilt
+   * chain from (doppler#1261). While refining the frozen carrier IS the
+   * seed; idle has no emitter. */
   double fs = s->chip_rate * (double)s->spc;
   double doppler_hz;
   switch (s->state)
     {
     case ASYNC_DSSS_RX_TRACKING:
     case ASYNC_DSSS_RX_LOST:
-      doppler_hz = costas_get_norm_freq (&s->car) * fs;
+      doppler_hz = costas_get_norm_freq (&s->car) * fs
+                   + mpsk_receiver_get_norm_freq (s->rx)
+                         * ((double)s->sps * s->symbol_rate);
       break;
     case ASYNC_DSSS_RX_REFINING:
       doppler_hz = costas_get_norm_freq (&s->car_frozen) * fs;

@@ -196,6 +196,11 @@ typedef struct {
     size_t  aid_ring;        /**< ring capacity, partials (power of two).   */
     size_t  aid_best;        /**< current best hypothesis (the timing).     */
     uint64_t aid_count;      /**< partials seen since enable (ring index). */
+    uint64_t aid_last_end;   /**< one past the last look's last partial;
+                                  the next look's window must start there or
+                                  later, so no two looks share noise (the
+                                  best hypothesis flips between overlapping
+                                  neighbours on noise, #1264).           */
     double  aid_alpha;       /**< EMA over symbols of each window's power.  */
     float _Complex *aid_ring_p; /**< last `aid_ring` partial prompts.        */
     float _Complex *aid_ring_o; /**< last `aid_ring` offset (noise) partials.*/
@@ -988,7 +993,7 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 9u /* v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 10u /* v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

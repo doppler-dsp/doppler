@@ -445,6 +445,74 @@ main (void)
   }
 
   /* ---------------------------------------------------------------- *
+   * 6b'. Symbol-period aid on NOISE: the detector's per-decision      *
+   *      exceedance rate is its configured pfa, and it declares       *
+   *      nothing (#1264)                                              *
+   * ---------------------------------------------------------------- */
+  {
+    /* 6b's geometry and sizing, pure noise in. On noise the best timing
+       hypothesis flips between neighbours whose windows share all but
+       one partial; a decision whose n_looks were taken through
+       overlapping windows read the same noise n times against a
+       threshold sized for n independent looks -- measured 1.7e-2 per
+       decision for a configured 1e-3, a false lock every one to two
+       seconds, before a window overlapping the last look's stopped
+       counting as a look. Sabotage: drop the aid_last_end guard in
+       aid_look() -> red on both checks. */
+    const size_t sf = 63, sps = 4, K = 4;
+    const size_t te = sf * sps;
+    const double P = 7.24, pfa = 1e-3;
+    const double a = 0.16; /* per-sample amplitude: about three looks, the
+                              receiver's own regime at 45 dB-Hz */
+    uint8_t *code = malloc (sf);
+    uint32_t cst  = 7u;
+    for (size_t i = 0; i < sf; i++)
+      code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 1u : 0u);
+    dll_state_t *d = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
+    DP_CHECK (dll_set_symbol_period (d, P) == DP_OK);
+    int nl = det_n_noncoh (a, (int)(6 * (te / K)), 0.99, pfa, 4000);
+    DP_CHECK (nl >= 1);
+    DP_CHECK (dll_configure_lock (d, pfa, (size_t)nl, 0.0) == DP_OK);
+    const size_t    n_ep = 40000; /* ~1.5e5 partials, thousands of looks */
+    float _Complex *x    = malloc (te * sizeof *x);
+    float _Complex *out  = malloc (te * sizeof *out);
+    uint32_t        nst  = 0x9e3779b9u;
+    size_t          dec = 0, exceed = 0, locks = 0;
+    double          last = -1.0;
+    int             prev = 0;
+    for (size_t e = 0; e < n_ep; e++)
+      {
+        for (size_t i = 0; i < te; i++)
+          x[i] = dp_cgauss (&nst);
+        for (size_t q = 0; q < K; q++)
+          {
+            dll_steps (d, x + q * (te / K), te / K, out, te);
+            if (d->lock_stat != last && d->lock_stat > 0.0)
+              {
+                dec++;
+                exceed += d->lock_stat > d->lock.up_thresh;
+                last = d->lock_stat;
+              }
+            int lk = dll_get_locked (d);
+            locks += lk && !prev;
+            prev = lk;
+          }
+      }
+    printf ("  6b': aided detector on noise, N=%d: %zu decisions, %zu over "
+            "the gate (%.2e per decision for pfa %.0e), %zu lock(s)\n",
+            nl, dec, exceed, (double)exceed / (double)dec, pfa, locks);
+    DP_CHECK (dec > 1000);
+    /* Within a few times the configured pfa (the unaided detector's own
+       realized rate is about twice it), and no false lock. */
+    DP_CHECK ((double)exceed <= 4.0 * pfa * (double)dec);
+    DP_CHECK (locks == 0);
+    free (out);
+    free (x);
+    dll_destroy (d);
+    free (code);
+  }
+
+  /* ---------------------------------------------------------------- *
    * 6c. Symbol-period aid: the code loop steers on the aided window,  *
    *     once per symbol, with bn kept per epoch                       *
    *     (docs/design/async-dsss-receiver.md §3.7, §12.5)              *

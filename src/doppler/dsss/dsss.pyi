@@ -1212,6 +1212,67 @@ class Acquisition:
 
         """
 
+    def set_carrier_freq_hz(self, carrier_freq_hz: float) -> None:
+        """Couple the code clock to the carrier: the chip rate dilates by
+        doppler_hz / carrier_freq_hz, and the engine accounts for it -- every
+        window tile's epochs are shifted along the code axis by the drift the
+        tile's own frequency implies before the slow-time transform (inside a
+        coherent block of D epochs), and the hand-off advances the hit's code
+        phase by the drift over half the dwell (design section 12.11, 12.12).
+        Config, not running state: not in the state blob, so a resumed engine
+        wants it set again. 0.0 (the default) = uncoupled, the engine as it ran
+        without it. Raises ValueError for a negative or non-finite value.
+
+        A physically-coupled Doppler moves the code as well as the carrier --
+        100 chips/s at 20 ppm of 5 Mcps -- and the engine's two long
+        integrations both smear over it (doppler#1256, #1254):
+
+        - **Inside a coherent block** of D epochs every tile's epoch
+          correlations are shifted along the code axis by the drift the tile's
+          own frequency implies, `f_tile / carrier` chips per chip, aligned to
+          the block's middle, before the slow-time transform (a linear phase on
+          each epoch's product, exact to a fraction of a sample). Measured at
+          SPEC's 20 ppm with D = 154 (3.1 chips of drift across the block):
+          without it the block's peak is 13 dB down and 3 chips wide and the
+          depth detects nothing at 34 dB-Hz; with it the block reads as a still
+          one.
+        - **The hand-off** (acq_build_handoff()) advances the hit's code phase
+          by the drift over half the dwell -- the non-coherent sum's peak is
+          the phase at the dwell's middle, the seed is wanted at its end: 0.9
+          chip at the 40 dB-Hz floor, past a refine loop's pull-in.
+
+        Config, not running state: it is not in the state blob, so a resumed
+        engine wants it set again by its holder, as at create. Default 0.0
+        (uncoupled) is the engine exactly as it ran without it.
+
+        Parameters
+        ----------
+        carrier_freq_hz : float
+            RF carrier, Hz; 0.0 = uncoupled.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_carrier_freq_hz failed``, with the return code appended
+            (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> a = Acquisition(code, spc=2, chip_rate=5e6, symbol_rate=2700.0,
+        ...                 cn0_dbhz=45.0, doppler_uncertainty=50e3)
+        >>> a.carrier_freq_hz
+        0.0
+        >>> a.set_carrier_freq_hz(2.5e9)
+        >>> a.carrier_freq_hz
+        2500000000.0
+
+        """
+
     def set_threads(self, n: int) -> None:
         """Set how many threads the searcher fans its tiles across (design
         §2.3: a roll per thread on persistent workers).
@@ -1491,6 +1552,12 @@ class Acquisition:
     def max_peaks(self) -> int:
         """The peak list's capacity per dwell (1 = the classic gated maximum);
         set with set_max_peaks().
+        """
+
+    @property
+    def carrier_freq_hz(self) -> float:
+        """RF carrier the Doppler is physically coupled to, Hz (0.0 =
+        uncoupled); set with set_carrier_freq_hz().
         """
 
     @property

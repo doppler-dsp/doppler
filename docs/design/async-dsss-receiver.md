@@ -2891,17 +2891,91 @@ zeroed at the receiver's call site the floor's seeds go red and the 45
 dB-Hz ones survive, which is why the floor is in the test. The rate case
 and the static condition are unchanged.
 
-**Two things this leaves open.** The block-coherent searcher (§12.7) was
+**What this left open.** The block-coherent searcher (§12.7) had been
 measured with the Doppler *rate* but never through a dilated chip clock:
 at 20 ppm its D = 154 epochs (31 ms) coherent sum spans 3 chips of code
-drift, and the hand-off's half-dwell advance covers its non-coherent
-looks (`coherent_bins` is in the formula) but not a smear inside the
-coherent block —
-[#1256](https://github.com/doppler-dsp/doppler/issues/1256). And
-`doppler.dsss.handoff.dll_init_chip_from_acq`,
-the Python lag → phase helper for a hand-built Acquisition → Dll chain,
-restates `acq_build_handoff()`'s fold and does not carry the advance —
+drift — §12.12 measured it and gave the engine the code-rate hypothesis
+([#1256](https://github.com/doppler-dsp/doppler/issues/1256)); the carrier
+now lives on the engine (`set_carrier_freq_hz`), one declaration for the
+hand-off's advance and the block's alignment. And
+`doppler.dsss.handoff.dll_init_chip_from_acq`, the Python lag → phase
+helper for a hand-built Acquisition → Dll chain, restates
+`acq_build_handoff()`'s fold and does not carry the advance —
 [#1257](https://github.com/doppler-dsp/doppler/issues/1257).
+
+______________________________________________________________________
+
+### 12.12 What was measured (2026-09-06) — the block-coherent searcher under the dilated clock
+
+**Harness:** the `dilated` section of `native/validation/acq_block_coherent.c`
+(`--check` on ctest). One aligned block of a clean emitter at SPEC's
+Doppler, 20 ppm of 2.5 GHz = 50 kHz, three ways: the synth's own carrier
+offset with the code standing still; the synth at baseband through the
+shipped `doppler_channel`, the chips dilated with it (100 chips/s at
+5 Mcps); and the same, the engine told the carrier. Per depth D of 1, 16
+and the window's 154: the peak against the gate, `conc`, the peak's
+width along the code axis, and the hand-off's chip phase raw and with
+the half-dwell advance. Then the depth's realized Pd, 20 trials per
+C/N0, noise from the shipped awgn after the channel.
+
+| D   | code                  | peak/gate      | `conc` | width    | drift/block |
+| --- | --------------------- | -------------- | ------ | -------- | ----------- |
+| 1   | still                 | 40 / 4.7       | 0.97   | 0.5 chip | 0           |
+| 1   | dilated               | 34 / 4.7       | 0.98   | 1.0      | 0.02 chip   |
+| 16  | still                 | 273 / 5.1      | 0.86   | 0.5      | 0           |
+| 16  | dilated               | 256 / 5.1      | 0.87   | 0.5      | 0.33        |
+| 16  | dilated, carrier told | 262 / 5.1      | 0.86   | 0.5      | 0.33        |
+| 154 | still                 | 2065 / 5.4     | 0.85   | 0.5      | 0           |
+| 154 | dilated               | **459** / 5.4  | 0.72   | **3.0**  | 3.15        |
+| 154 | dilated, carrier told | **1462** / 5.4 | 0.85   | 1.0      | 3.15        |
+
+| D = 154, realized Pd (mean peak/gate) | 34 dB-Hz       | 38 dB-Hz   | 42 dB-Hz   |
+| ------------------------------------- | -------------- | ---------- | ---------- |
+| still                                 | 1.00 (1.7)     | 1.00 (2.7) | 1.00 (4.2) |
+| dilated                               | **0.00** (0.9) | 0.65 (1.0) | 1.00 (1.4) |
+| dilated, carrier told                 | 1.00 (1.5)     | 1.00 (2.5) | 1.00 (3.9) |
+
+- **Told nothing, the depth is gone at 20 ppm.** Across a D = 154 block
+    the code drifts 3.15 chips; the coherent sum at any fixed lag sees the
+    emitter for a third of the block, so the peak is 13 dB down and three
+    chips wide, and at 34 dB-Hz — where §12.7's aligned floor detects
+    every block — it detects none. D = 16 (a third of a chip) loses
+    0.6 dB; a single epoch nothing. The pool's searcher, as measured in
+    §12.7, had this loss hidden in it.
+- **The code-rate hypothesis is the tile's own frequency.** A window
+    tile at `signed_r` bins of `fs/nx` implies a chip clock dilated by
+    `f_tile / carrier`, `signed_r × fs / carrier` samples of drift per
+    epoch (0.041 at 50 kHz). `acq_tile_epoch` shifts each epoch's
+    correlation along the code axis to the block's middle — a linear
+    phase over the signed frequency index on the tile's product before
+    its inverse transform, exact for a fractional shift, one complex
+    multiply per bin — so the slow-time transform sums a standing peak.
+    The sign was measured, not derived: the other one doubles the smear
+    (6 chips, 247). No new search dimension: the hypothesis rides the
+    tile.
+- **Told the carrier, the block reads as a still one.** 1462 against
+    2065 is 3.0 dB, of which 1.4 dB is the channel's own resampler
+    (the D = 1 row shows it, and the peak's width of a chip instead of
+    half), so the alignment leaves about 1.6 dB — the emitter sits a
+    quarter row off its tile's centre, and a tile's hypothesis is one
+    number for its ±2.4 kHz. `conc` is the still block's; Pd at 34 dB-Hz
+    is 20 of 20 at 1.5× the gate against the still 1.7×.
+- **The hand-off is the block's end within a tenth of a chip.** With the
+    epochs aligned to the block's middle the peak IS the middle (raw
+    385.00 against the D = 1 start of 383.50 plus 1.58), and the
+    half-dwell advance of #1254 — `coherent_bins` was already in its
+    formula — lands 386.57 against a truth of 386.65 at the block's end.
+    Told nothing, the smeared peak's argmax wandered (385.50) and the
+    advanced seed was 0.4 chip off, inside the refine's pull-in only by
+    luck.
+- **One declaration.** The carrier moved from `acq_build_handoff()`'s
+    argument (#1258, the previous PR) to the engine:
+    `acq_set_carrier_freq_hz()`, a jm method with a read-back property,
+    drives both the block's alignment and the hand-off's advance. Config,
+    not running state: it is not in the blob, so a resumed engine wants it
+    set again by its holder. The searching receiver sets it from its own
+    `carrier_freq_hz`; the hand-off flavor's holder sets it on the searcher
+    it seeds from, as the window harness does.
 
 ______________________________________________________________________
 

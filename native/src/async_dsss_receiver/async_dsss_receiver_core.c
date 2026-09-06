@@ -583,6 +583,12 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
                                symbol_rate, cn0_dbhz, doppler_uncertainty, pfa,
                                pd, 0 /* noise_mode=mean */, 1, 0.0))
                          : NULL;
+  /* A physically-coupled carrier moves the code too: the searcher's
+     hand-off advances its hit's phase by the drift over half its dwell
+     (#1254), and a coherent block aligns its epochs (#1256). The same
+     carrier the tracking Dll's aid uses. */
+  if (obj->acq && carrier_freq_hz > 0.0)
+    (void)acq_set_carrier_freq_hz (obj->acq, carrier_freq_hz);
 
   obj->spc          = spc;
   obj->m            = m;
@@ -815,8 +821,7 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
        * outside detection takes. acq_build_handoff() folds the phase into
        * [0, code_len), so the seed is never refused from here. */
       acq_handoff_t ho;
-      acq_build_handoff (state->acq, &hit, state->code_len, state->spc,
-                         state->carrier_freq_hz, &ho);
+      acq_build_handoff (state->acq, &hit, state->code_len, state->spc, &ho);
       (void)async_dsss_receiver_seed (state, ho.chip_phase, ho.doppler_hz_est,
                                       ho.cn0_dbhz_est);
 

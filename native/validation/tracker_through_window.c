@@ -244,6 +244,10 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
       cond != COND_STATIC ? 1.2 * RAMP_D0_PPM * 1e-6 * CARRIER_HZ : 0.0, 1e-3,
       0.9, 0, 1, 0.0);
   DP_REQUIRE_MSG (acq != NULL, "the searcher opens");
+  /* Through the channel the code clock rides the carrier's Doppler: the
+     searcher is told the carrier, as the receiver is (#1254, #1256). */
+  if (cond != COND_STATIC)
+    DP_REQUIRE (acq_set_carrier_freq_hz (acq, CARRIER_HZ) == DP_OK);
   int seeded = 0;
 
   uint64_t n        = 0; /* received samples handed to the receiver */
@@ -286,8 +290,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
               continue;
             }
           acq_handoff_t ho;
-          acq_build_handoff (acq, &hit, SF, SPC,
-                             cond != COND_STATIC ? CARRIER_HZ : 0.0, &ho);
+          acq_build_handoff (acq, &hit, SF, SPC, &ho);
           DP_REQUIRE_MSG (async_dsss_receiver_seed (rx, ho.chip_phase,
                                                     ho.doppler_hz_est,
                                                     ho.cn0_dbhz_est)

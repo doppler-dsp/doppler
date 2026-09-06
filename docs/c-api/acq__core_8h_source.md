@@ -121,6 +121,7 @@ extern "C"
     double epochs_per_symbol;  
     size_t code_only_epochs; 
     double doppler_rate; 
+    double carrier_freq_hz; 
     float _Complex *blk; 
     size_t blk_epoch;    
     /* The roll per thread (design §2.3): the tiles are independent after
@@ -232,6 +233,8 @@ extern "C"
 
   int acq_set_max_peaks (acq_state_t *state, size_t n);
 
+  int acq_set_carrier_freq_hz (acq_state_t *state, double carrier_freq_hz);
+
   int acq_set_threads (acq_state_t *state, int n);
   int acq_set_telemetry (acq_state_t *state, dp_tlm_t *tlm,
                          const char *prefix, uint32_t decim);
@@ -274,8 +277,7 @@ extern "C"
    * SAME inline rather than restating the formula. */
 
   void acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
-                          size_t code_len, size_t spc,
-                          double carrier_freq_hz, acq_handoff_t *out);
+                          size_t code_len, size_t spc, acq_handoff_t *out);
 
   /* ── Serializable state — the elastic / pure-transducer face
    * ─────────────────

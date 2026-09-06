@@ -79,6 +79,7 @@
 * **acq\_push** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_reset** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_run** ([**acq\_core.h**](acq__core_8h.md))
+* **acq\_set\_carrier\_freq\_hz** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_set\_max\_peaks** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_set\_state** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_set\_surface\_sink** ([**acq\_core.h**](acq__core_8h.md))

@@ -8,18 +8,33 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* The exclusion zone (section 7.1): one Doppler row by one chip around a
-   live row, circular on the code. */
+/* The exclusion zone: a live row's code phase, within a chip, at ANY
+   Doppler -- circular on the code. Not section 7.1's one row by one chip:
+   that is the width of one emitter's main lobe on the surface, and at the
+   pool's depth (D = 154, a 31.7 Hz row) a tracked emitter puts far more
+   than its main lobe on the surface at its own code phase. Every block the
+   searcher sums across its data is a smeared copy spread over the rows of
+   its column (design section 12.7), at 45 dB-Hz still over the gate, and
+   its argmax lands hundreds of Hz from the emitter block to block; with
+   the zone one row wide each one seeded a fresh receiver onto the same
+   emitter until the pool was full (section 12.14). The searcher's list
+   carries no per-peak concentration to tell that copy from a whole
+   emitter, and a strong emitter's coherent tile sidelobes at its own
+   phase would read concentrated anyway; the code axis is the one key
+   that holds. The cost is the resolution it gives up: a second emitter
+   within a chip of a live one is not seen until the first leaves -- a
+   pair the surface could not tell apart within a tile in any case
+   (section 7.1), and the searcher's own twin rule already holds a
+   same-phase peak at any tile as suspect. */
 static int
 in_zone (const async_dsss_pool_state_t *s, const async_dsss_pool_row_t *row,
-         double doppler_hz, double chip_phase)
+         double chip_phase)
 {
-  double df = fabs (doppler_hz - row->doppler_hz);
   double dc = fabs (chip_phase - row->chip_phase);
   double cl = (double)s->code_len;
   if (dc > cl / 2.0)
     dc = cl - dc;
-  return df <= s->acq->doppler_res_hz && dc <= 1.0;
+  return dc <= 1.0;
 }
 
 /* One transition to the log (when attached) and to the count. The stamp
@@ -237,8 +252,9 @@ async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
         }
     }
 
-  /* 3. The hits: a live row's own are dropped silently; the rest seed a
-     free slot or are counted dropped. A hit's phase is at its dwell's end,
+  /* 3. The hits: a live row's own -- at its code phase, whatever the
+     Doppler -- are dropped silently; the rest seed a free slot or are
+     counted dropped. A hit's phase is at its dwell's end,
      inside this block; referred to the block's start, since the receiver
      is fed the whole block. */
   for (size_t h = 0; h < nh; h++)
@@ -250,8 +266,7 @@ async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
           = advanced_phase (s, ho.chip_phase, ho.doppler_hz_est, -offset);
       int own = 0;
       for (size_t i = 0; i < s->n_slots && !own; i++)
-        own = s->rows[i].assigned
-              && in_zone (s, &s->rows[i], ho.doppler_hz_est, phase);
+        own = s->rows[i].assigned && in_zone (s, &s->rows[i], phase);
       if (own)
         continue;
       size_t free_slot = s->n_slots;

@@ -1633,8 +1633,10 @@ Everything it holds is sized once, at create:
     every transition it logs.
 
 One `push()` per block does, in order: feed the searcher; refresh the
-table; drop every peak inside one exclusion zone (§7.1) of a live row;
-for each survivor, `acq_build_handoff()` and `seed()` into a free slot,
+table; drop every peak within one chip of a live row's code phase, at
+any Doppler, as that emitter's own (the code axis alone, not §7.1's one
+row by one chip: a tracked emitter's data blocks put smeared copies of it
+at its own phase rows away, §12.14); for each survivor, `acq_build_handoff()` and `seed()` into a free slot,
 or count it dropped when there is none; feed every receiver; then, for
 each slot whose receiver reports `lost`, clear the row, `reset()` the
 receiver to idle, and log `released`. `seed()`'s own refusal while a
@@ -2037,6 +2039,11 @@ ______________________________________________________________________
     enough to count misses and false releases; the hours-long form with
     the memory and scratch checks is §5.1's duration
     requirement and runs once the bank exists.
+    **Done (§12.14), scaled to what a harness runs:** ten emitters over
+    two minutes at each C/N0, nothing missed, every arrival held within
+    0.2 s at 45 dB-Hz and 1.3 s at 40; the pool's zone was the wrong
+    shape for its own depth (fixed), and the release fires one to three
+    intervals late because the code flag comes back on noise (open).
 1. **The budget, per stage.** Its own bench target, on one core,
     minimum of runs, at the operating point's numbers (§6.1): the
     front-end DDC in ns per input sample at 13 MSa/s — confirmed to be on
@@ -2555,8 +2562,10 @@ Five things this settles:
 - **The concentration is the discriminator.** 0.92 aligned, 0.49 for the
     twins, 0.43 at the edge, 0.04 under data: a second emitter is a second
     column and leaves its neighbour's column alone, so a low `conc` at one
-    code phase is one emitter's splatter and never two emitters. The pool
-    reads it from the status of every peak it considers seeding (§8.2).
+    code phase is one emitter's splatter and never two emitters. The engine
+    emits it as `acq.conc` (§2.4), for the strongest pick only; the pool
+    does not read it — the list carries no per-peak concentration, and the
+    pool keys its zone on the code axis alone (§8.2, §12.14).
 
 **Pfa per block** (pure noise, D = 16, 21 tiles, 300 blocks): configured
 0.10, realized **64 of 300 = 0.21**; configured 0.20 over 100 blocks, 37.
@@ -3043,7 +3052,120 @@ Two things the build found:
 **Next:** the lifecycle soak (§12 step 7) — the shipped synth with the
 window, the block-coherent searcher at D = 154, several emitters at
 random Dopplers through the channel, arrivals and departures — is the
-measurement that certifies the pool.
+measurement that certifies the pool. **Done, §12.14.**
+
+### 12.14 What was measured (2026-09-06) — step 7, the lifecycle soak
+
+`native/validation/async_dsss_pool_soak.c` (`make validate-c`; its
+`--check` is in the C suite): per emitter one shipped continuous-DSSS
+synth with the window (450 of 4950 symbols, Gold-1023 at 5 Mcps, 2700
+sym/s PRBS BPSK) through the shipped `doppler_channel` at its own Doppler
+drawn within ±20 ppm of 2.5 GHz, no rate, from a random burn-in of up to a
+frame; visibility a gain of 1 or 0 at the sum; the shipped awgn at 45 and
+40 dB-Hz. One `AsyncDsssPool` at the operating point — `code_only_epochs`
+813 so D = 154 (31.7 Hz rows), 500 Hz/s, ±50 kHz, `max_peaks` 16, twelve
+slots, the carrier told, a 2 s release interval, the machine's 20
+threads — fed one epoch at a time with the event log attached. Emitter 0
+always on; nine more with on-times uniform in 15–30 s and off-times in
+4–8 s (the design's 5–15 minutes scaled thirty-fold; the pool's maximum
+on-air time 35 s, so the always-on emitter is released for its on-time and
+re-acquired). An emitter's slot is the one whose seed is at its code phase
+within a chip of the synth's own clock through the channel's documented
+mapping (`k(1+d) − delay`, plus the burn-in) and within one native tile of
+its Doppler — a tile, not a row, for the first reason below. The `--check`
+is two emitters for 16 s at 45 dB-Hz: the always-on one released for its
+on-time and re-acquired, the other leaving, released, returning and
+re-acquired.
+
+**What the soak found before it could run — the zone (fixed).** The first
+run filled all twelve slots in 0.4 s with one emitter on the air. A
+tracked emitter's *data* blocks are §12.7's smeared copy — at 45 dB-Hz
+still over the gate, C/N0 estimated at 30–33 dB-Hz, at the emitter's own
+code phase within 0.3 chip and hundreds of Hz off in Doppler, a different
+row every block — and the zone of §7.1, one row by one chip, is the
+width of one emitter's *main lobe*, 31.7 Hz at this depth. Every such hit
+looked new and seeded a fresh receiver onto the same emitter (each pulled
+in and reported tracking); the true aligned hit, when its window came,
+found no slot. The searcher's list carries no per-peak concentration to
+tell the copy from a whole emitter, and a strong emitter's coherent tile
+sidelobes at its own phase would read concentrated anyway; so the pool's
+zone is now **the code axis alone** — a hit within one chip of a live
+row's code phase is that emitter's own at any Doppler. Pinned in
+`test_async_dsss_pool_core` with the cost stated: a second emitter within
+a chip of a live one is not seen until the first leaves (a pair the
+surface could not tell apart within a tile in any case, and the
+searcher's own twin rule already holds a same-phase peak at any tile as
+suspect). After the fix every seed of the two-minute runs was an
+emitter's own or a noise false alarm; none a duplicate of a healthy
+receiver's emitter.
+
+**The run**, 43 stints per C/N0 (38 scored; the five cut by the run's end
+before the design's own acquisition bound are not):
+
+|                                                                     | 45 dB-Hz                   | 40 dB-Hz                    |
+| ------------------------------------------------------------------- | -------------------------- | --------------------------- |
+| stints missed                                                       | 0                          | 0                           |
+| arrival → held, min / mean / max                                    | 0.00 / 0.04 / 0.17 s       | 0.00 / 0.24 / 1.24 s        |
+| arrival → tracking, mean / max                                      | 0.05 / 0.18 s              | 0.29 / 1.30 s               |
+| seed error, worst                                                   | 1296 Hz, 0.30 chip         | 4877 Hz, 0.29 chip          |
+| held, of on-air blocks after first tracking                         | 0.9965                     | 0.9994                      |
+| tracking with code lock, of held blocks                             | 0.9908                     | 0.9957                      |
+| departure → release, min / mean / max                               | 2.02 / 3.07 / 6.81 s (24)  | 2.01 / 2.71 / 5.44 s (30)   |
+| released later than the interval + 0.5 s, or not at all             | **23** of 38               | **18** of 38                |
+| stints re-locked by their own receiver on return                    | 7                          | 1                           |
+| false releases (`lost` while on the air)                            | **1**                      | **1**                       |
+| double assignments (two receivers code-locked on one emitter)       | **1**, for 3.0 s           | 0                           |
+| seeds matching no emitter                                           | 1                          | 11                          |
+| hits dropped for want of a slot                                     | 2                          | 0                           |
+| most slots assigned                                                 | 12                         | 12                          |
+| log: seeded / tracking / degrade / lost / released (lost + on-time) | 49 / 49 / 47 / 33 / 33 + 9 | 57 / 57 / 255 / 43 / 43 + 6 |
+
+- **Nothing is missed and the assignment is fast.** At 45 dB-Hz the
+    emitter's own data-block copy seeds it in the first block or two
+    (0.04 s mean, 0.17 s worst) — the window is not waited for; a
+    receiver seeded from a copy hundreds of Hz off pulls in through the
+    refine's range. At 40 dB-Hz the copy is under the gate more often
+    than not and the window matters: 0.24 s mean, 1.24 s worst, under the
+    frame the design allows. A seed at the tile's edge (4.9 kHz) still
+    pulled in.
+- **The release fires late — the open finding.** After a departure both
+    flags drop within milliseconds, exactly as §12.3 measured, and then
+    the *code* flag comes back for a block on noise about once a second
+    (103 restarts of the release clock in the 45 dB-Hz run, 63 at 40,
+    every one `code 1 sym 0`); `adr_release_clock()` restarts on either
+    flag, so the interval runs from the last flicker and the release
+    comes at 2.0–6.8 s for a 2 s interval, more than half of them past
+    the interval plus half a second, and seven emitters at 45 dB-Hz came
+    back inside their own receiver's overrun interval and were re-locked
+    by it (the recovered assignment of §12.3, only unintended). §12.3's
+    harness watched 1.5 s after switch-off and could not see it. The
+    mechanism, read and not yet measured on its own: the Dll's lock look
+    is the max over the symbol-scale windows of §3.7, and its threshold is
+    sized for one cell at pfa 1e-3 with two verifies, so the false-lock
+    rate on noise is the max's, not the cell's. The fix is the detector's,
+    proven first in `async_dsss_receiver_release.c` with a longer watch
+    on noise ([#1264](https://github.com/doppler-dsp/doppler/issues/1264));
+    the pool's `--check` pins three intervals until then, and the sweep
+    asks the design's number and stays red.
+- **Two receiver failures in 76 stints.** At each C/N0 one receiver lost
+    a healthy emitter and was released `lost` — a false release; at 45
+    dB-Hz that receiver's carrier loop wandered 1.3 then 2.7 kHz off
+    while its code flag stayed up and its Dll walked 150 chips off the
+    code under the wrong aid, so the emitter's next aligned hit was a new
+    seed and two receivers reported code lock on one emitter for 3 s
+    until the first was released. The second seed is the recovery §10
+    describes; the first receiver's code flag on a walked-off code is
+    the same false-lock finding as above, seen with the emitter present
+    ([#1265](https://github.com/doppler-dsp/doppler/issues/1265)).
+- **The pool holds.** Never past twelve; at 40 dB-Hz eleven noise seeds
+    (0.09 per second against the configured 0.03 and #1064's 0.06), each
+    refining to nothing, "tracking" with both flags down and released an
+    interval later, as §12.13 said; two hits dropped at 45 dB-Hz while
+    twelve slots held ten emitters and two departed ones inside their
+    overrun intervals — this soak's churn is a departure every few
+    seconds against the design's one a minute, and the headroom is the
+    design's. The two hundred and fifty-five `degrade` events at 40 dB-Hz
+    are the flags' chatter at the floor, none of it a release.
 
 ______________________________________________________________________
 
@@ -3068,7 +3190,9 @@ and this page only names: the peak list's same-code-phase rule (§7.1)
 passes a strong emitter's persistent sidelobes under long non-coherent
 integration (§12.6, #1191), and the false-release rate of the
 both-flags-down rule is bounded only over half a minute, not the
-15-minute maximum on-time (§6.1) it must hold for.
+15-minute maximum on-time (§6.1) it must hold for — and, from the soak
+(§12.14, #1264), the code flag's false re-locks on noise make the rule
+fire one to three intervals late as built.
 
 ______________________________________________________________________
 

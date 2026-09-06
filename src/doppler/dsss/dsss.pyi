@@ -6324,27 +6324,29 @@ class AsyncDsssPool:
     def push(self, x: NDArray[np.complex64]) -> int:
         """One block of raw cf32 samples through the population (design section
         8.2), in order: the searcher; the table refreshed from every live
-        receiver's status(); every peak inside one exclusion zone (one Doppler
-        row by one chip, section 7.1) of a live row dropped as that emitter's
-        own; each survivor seeded into a free slot, or counted dropped when
-        there is none; every receiver fed (an idle or lost one consumes and
-        discards, so the feed has no per-state branch), across the threads the
-        pool was given; then every receiver that reports lost, or has held its
-        slot past max_emitter_on_time_secs, released -- the row cleared, the
-        receiver reset to idle. Every transition -- seeded, tracking, degrade,
-        lost, released, dropped -- goes to the attached event log at the sample
-        it happened. Accepts any block size; a searcher dwell is decided when
-        its samples arrive. Returns the receivers assigned after this push.
+        receiver's status(); every peak within one chip of a live row's code
+        phase, at any Doppler, dropped as that emitter's own (the zone is the
+        code axis alone: a tracked emitter's data blocks put smeared copies of
+        it at its own phase rows away, section 12.14); each survivor seeded
+        into a free slot, or counted dropped when there is none; every receiver
+        fed (an idle or lost one consumes and discards, so the feed has no
+        per-state branch), across the threads the pool was given; then every
+        receiver that reports lost, or has held its slot past
+        max_emitter_on_time_secs, released -- the row cleared, the receiver
+        reset to idle. Every transition -- seeded, tracking, degrade, lost,
+        released, dropped -- goes to the attached event log at the sample it
+        happened. Accepts any block size; a searcher dwell is decided when its
+        samples arrive. Returns the receivers assigned after this push.
 
-        In order: the searcher; the table refreshed; every peak inside one
-        exclusion zone of a live row dropped as that emitter's own; each
-        survivor seeded into a free slot or counted dropped; every receiver
-        fed, across the pool's threads; every receiver that reports lost, or
-        has held its slot past the maximum on-air time, released. Every
-        transition goes to the attached log at the sample it happened. Accepts
-        any block size: a hit decided inside the block is referred to the
-        block's start before it seeds (the receiver is fed the whole block), on
-        the dilated clock when the carrier is known.
+        In order: the searcher; the table refreshed; every peak within one chip
+        of a live row's code phase, at any Doppler, dropped as that emitter's
+        own; each survivor seeded into a free slot or counted dropped; every
+        receiver fed, across the pool's threads; every receiver that reports
+        lost, or has held its slot past the maximum on-air time, released.
+        Every transition goes to the attached log at the sample it happened.
+        Accepts any block size: a hit decided inside the block is referred to
+        the block's start before it seeds (the receiver is fed the whole
+        block), on the dilated clock when the carrier is known.
 
         Parameters
         ----------
@@ -6584,7 +6586,9 @@ class AsyncDsssPool:
 
     @property
     def doppler_res_hz(self) -> float:
-        """The searcher's Doppler row, Hz -- one side of the exclusion zone."""
+        """The searcher's Doppler row, Hz -- the resolution a seed's Doppler is
+        reported at.
+        """
 
     @property
     def coherent_bins(self) -> int:

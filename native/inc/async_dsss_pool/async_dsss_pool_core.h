@@ -25,8 +25,10 @@
  *     pool is the one component that stamps.
  *
  * One `push()` per block does, in order: feed the searcher; refresh the
- * table; drop every peak inside one exclusion zone -- one Doppler row by
- * one chip, section 7.1 -- of a live row, as that emitter's own; for each
+ * table; drop every peak within one chip of a live row's code phase, at
+ * any Doppler, as that emitter's own (the zone is the code axis alone: a
+ * tracked emitter's data blocks put smeared copies of it at its own phase
+ * rows away, section 12.14); for each
  * survivor, `acq_build_handoff()` and `seed()` into a free slot, or count
  * it dropped when there is none; feed every receiver; then, for each slot
  * whose receiver reports lost, or has held its slot past the maximum
@@ -329,8 +331,9 @@ void async_dsss_pool_reset(async_dsss_pool_state_t *state);
 /**
  * @brief One block of raw cf32 samples through the population.
  *
- * In order: the searcher; the table refreshed; every peak inside one
- * exclusion zone of a live row dropped as that emitter's own; each
+ * In order: the searcher; the table refreshed; every peak within one chip
+ * of a live row's code phase, at any Doppler, dropped as that emitter's
+ * own; each
  * survivor seeded into a free slot or counted dropped; every receiver
  * fed, across the pool's threads; every receiver that reports lost, or
  * has held its slot past the maximum on-air time, released. Every

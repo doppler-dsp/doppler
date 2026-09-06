@@ -154,6 +154,14 @@ make build
 ./build/native/examples/wfmgen_frame_demo
 ```
 
+**From Python**, where there is no ops table by design, the same end is
+reached by running the transform in the caller and handing the wire the
+result — `src/doppler/examples/frame_own_stage_demo.py`, which describes the
+same generic frame, whitens it with its own kernel and checks the recovered
+bits against the same description. The trade is the one
+[#1125](https://github.com/doppler-dsp/doppler/issues/1125) chose: once per
+frame in Python, rather than per stage inside the assembler.
+
 ## Reaching it from the other interfaces
 
 The C struct is the primary interface, and the other two carry the same

@@ -455,6 +455,26 @@ target_compile_options(validate_acq_peak_list PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_acq_peak_list
          COMMAND validate_acq_peak_list --check)
 
+# The pool's lifecycle soak: emitters from the shipped synth with its
+# window, each through the shipped doppler_channel at its own Doppler,
+# arriving and leaving at the sum; one AsyncDsssPool at the operating point
+# with the event log attached; each emitter scored by its own slot
+# (docs/design/async-dsss-receiver.md §12 step 7, §12.14). Threads::Threads
+# explicitly, as for rx_dynamics: the pool's receivers and the harness's
+# emitters both fan across dp_parallel.h, and doppler_lib_static carries no
+# usage requirement for it.
+add_executable(validate_async_dsss_pool_soak
+               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_pool_soak.c)
+target_include_directories(validate_async_dsss_pool_soak
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_async_dsss_pool_soak
+                      PRIVATE doppler_lib_static Threads::Threads m)
+target_compile_options(validate_async_dsss_pool_soak
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_async_dsss_pool_soak
+         COMMAND validate_async_dsss_pool_soak --check)
+
 # So `sweep` is what a sanitizer suite excludes (`ctest -LE sweep`). The spot
 # check still runs on every PR in the ordinary C suite, which is where it is
 # cheap and where it was always the point.

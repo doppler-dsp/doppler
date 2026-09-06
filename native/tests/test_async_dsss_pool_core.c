@@ -480,11 +480,15 @@ _test_table_holds_the_locked_doppler (void)
       DP_REQUIRE (p != NULL);
       double worst_status = 0.0;
       int    unlocked = 0, tracking = 0;
-      size_t slot = p->n_slots;
+      /* The row and the seed at the LAST tracking block, read inside the
+         loop: the slot can be empty once the capture ends (the receiver
+         released), and a record read then is all zeros -- an assertion on
+         it passed vacuously until this was noticed (2026-09-06). */
+      double row = 0.0, seed = 0.0;
       for (size_t pos = 0; pos + TE <= e.n; pos += TE)
         {
           (void)async_dsss_pool_push (p, e.x + pos, TE);
-          slot = slot_of (p, 1500.0, 40, NULL);
+          size_t slot = slot_of (p, 1500.0, 40, NULL);
           if (slot == p->n_slots)
             continue;
           async_dsss_pool_slot_t r = async_dsss_pool_status (p, slot);
@@ -494,20 +498,20 @@ _test_table_holds_the_locked_doppler (void)
           unlocked += !r.locked;
           if (fabs (r.doppler_hz - 1500.0) > worst_status)
             worst_status = fabs (r.doppler_hz - 1500.0);
+          row  = p->rows[slot].doppler_hz;
+          seed = r.seed_doppler_hz;
         }
-      DP_REQUIRE (slot < p->n_slots);
-      const async_dsss_pool_slot_t r   = async_dsss_pool_status (p, slot);
-      const double                 row = p->rows[slot].doppler_hz;
+      DP_REQUIRE (tracking > 0);
       printf ("  pfa %.0e: status wandered to %.0f Hz off; carrier unlocked "
-              "on %d of %d tracking blocks; the row ends at %.0f Hz, the "
+              "on %d of %d tracking blocks; the row ended at %.0f Hz, the "
               "seed was %.0f\n",
-              pfa, worst_status, unlocked, tracking, row, r.seed_doppler_hz);
+              pfa, worst_status, unlocked, tracking, row, seed);
       if (k == 0)
         {
           DP_CHECK_MSG (worst_status > 500.0 && unlocked > tracking / 2,
                         "the stimulus reproduces #1261: loop 1 wanders "
                         "with the carrier unlocked");
-          DP_CHECK_MSG (row == r.seed_doppler_hz,
+          DP_CHECK_MSG (row == seed,
                         "and the table never took the unlocked estimate: "
                         "the row is still the seed's");
         }

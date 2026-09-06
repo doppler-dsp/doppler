@@ -366,6 +366,16 @@ target_compile_options(validate_acq_emitter_floor PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_acq_emitter_floor
          COMMAND validate_acq_emitter_floor --check)
 
+add_executable(validate_acq_block_coherent
+               ${CMAKE_CURRENT_SOURCE_DIR}/acq_block_coherent.c)
+target_include_directories(validate_acq_block_coherent
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_acq_block_coherent PRIVATE doppler_lib_static m)
+target_compile_options(validate_acq_block_coherent PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_acq_block_coherent
+         COMMAND validate_acq_block_coherent --check)
+
 # The tracking receiver's release: samples from switch-off, fade and phase
 # step to each lock flag dropping, and the per-block miss rate while on
 # (docs/design/async-dsss-receiver.md §10, §12 step 6). The emitter is the

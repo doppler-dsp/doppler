@@ -1372,6 +1372,10 @@ class EventLog:
         disk.
         """
 
+    @property
+    def _capsule(self) -> Any:
+        """capsule."""
+
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 

@@ -1597,7 +1597,8 @@ does not.
 ### 8.2 The pool — one object holds the population (decided 2026-09-03)
 
 *Decided by the maintainer 2026-09-03; the surfaces it composes are the
-shipped ones of §4.1, §7.1 and §8.1.*
+shipped ones of §4.1, §7.1 and §8.1. Built 2026-09-06 as `async_dsss_pool`
+(`AsyncDsssPool`), §12.13.*
 
 The other half of §5.4's question 5 is answered the way this library
 answers it: the holder is a **C object**, `async_dsss_pool`, and the Python
@@ -2976,6 +2977,62 @@ C/N0, noise from the shipped awgn after the channel.
     set again by its holder. The searching receiver sets it from its own
     `carrier_freq_hz`; the hand-off flavor's holder sets it on the searcher
     it seeds from, as the window harness does.
+
+______________________________________________________________________
+
+### 12.13 What was built (2026-09-06) — the pool, §8.2
+
+`native/src/async_dsss_pool/` (`AsyncDsssPool`, Python glue only): one
+searcher, `n_slots` hand-off receivers created idle, the assigned table,
+the event log by attachment, exactly the object of §8.2 — and nothing
+about the waveform or the population baked in: 28 create parameters, every
+default the operating point of §6.1, the searcher's and the receivers' own
+passed through untouched. The carrier is told to the searcher as well as
+the receivers (§12.11, §12.12), and the table's rows advance by the same
+dilation while a receiver still refines, so the exclusion zone is keyed on
+where the emitter IS. The composition serializes as a whole (its own
+counters and the table, then the searcher's blob and every receiver's).
+
+**What `test_async_dsss_pool_core` pins**, on the shipped C stimulus (one
+capture per emitter, summed; the continuous engine at D = 1 over ±6 kHz;
+pfa 1e-3; a 0.3 s release interval): one emitter takes exactly one slot
+however many dwells hit it — the zone drops its own — with the seed at
+its row and within the searcher's half-chip cell; it tracks with code
+lock, the live Doppler converged within 100 Hz, the symbols readable by
+slot; off the air it is lost and released, and back on the air it is a
+new detection into a free slot; two emitters two rows apart hold one slot
+each, both locked, with nothing dropped; a one-slot pool holds one of them
+and counts the other dropped every dwell; every counted transition
+reaches the log, seeded → tracking → lost → released in order; across
+threads the assignments, the counts and every receiver's symbols are
+bit-identical; and a mid-stream split resumes bit for bit in a fresh pool,
+the envelope and a foreign slot count rejected.
+
+Two things the build found:
+
+- **The searcher's false alarms are part of the lifecycle.** At pfa 1e-3
+    a noise peak seeds a free slot every few hundred milliseconds, the
+    receiver refines to nothing, reports tracking on noise, and is
+    released one interval later: a false alarm costs a slot for
+    `lost_confirm_s`, which is the release headroom of §8.2's twelve
+    slots for ten emitters. Every expectation is therefore about the
+    emitter's slot, never an exact count of slots.
+- **A receiver's reported Doppler is loop 1's, and loop 1 can miss.** With
+    the refine's shortest dwell (2 blocks at 47 dB-Hz and the shipped
+    margin, ±200 Hz) a hand-over past loop 1's 60 Hz pull-in leaves the
+    receiver code-locked and decoding on loop 2 while `status().doppler_hz`
+    wanders hundreds of Hz. At D = 1 the zone is 4.9 kHz wide and nothing
+    notices; at the pool's D = 154 it is 31.7 Hz, and a wandering row would
+    let the searcher's next hit on the same emitter look new. The status
+    record should report the whole carrier estimate, loop 1 plus loop 2's
+    NCO — [#1261](https://github.com/doppler-dsp/doppler/issues/1261),
+    before the soak of §12 step 7.
+
+**Next:** the lifecycle soak (§12 step 7) — the shipped synth with the
+window, the block-coherent searcher at D = 154, several emitters at
+random Dopplers through the channel, arrivals and departures — is the
+measurement that certifies the pool; it needs the bank's stimulus and runs
+once the finding above is closed.
 
 ______________________________________________________________________
 

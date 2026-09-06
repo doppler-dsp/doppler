@@ -1,6 +1,7 @@
 /*
  * marcum_q.c — detection module-level function.
  */
+#include "clib_common.h"
 #include "detection/detection_core.h"
 #include <math.h>
 
@@ -62,12 +63,27 @@ gser (double a, double x)
   return sum;
 }
 
+/* The library's one reentrant lgamma (clib_common.h's dp_lgamma): lgamma()
+   writes the global signgam and races across threads (doppler#1260).
+   lgamma_r() is POSIX, in libm everywhere this builds, but macOS's math.h
+   declares it only outside a strict C99 dialect -- measured on CI -- so the
+   prototype is spelled here, in the one file that calls it. */
+#if defined(__APPLE__)
+double lgamma_r (double, int *);
+#endif
+double
+dp_lgamma (double x)
+{
+  int sign;
+  return lgamma_r (x, &sign);
+}
+
 static double
 gammaq (double a, double x)
 {
   if (x <= 0.0)
     return 1.0;
-  double lfront = -x + a * log (x) - lgamma (a);
+  double lfront = -x + a * log (x) - dp_lgamma (a);
   if (x < a + 1.0)
     return 1.0 - exp (lfront) * gser (a, x);
   return exp (lfront) * gcf (a, x);
@@ -87,7 +103,7 @@ marcum_poisson_cdf (int n, double v)
 static double
 marcum_poisson_pmf (double v, int n)
 {
-  return exp ((double)n * log (v) - v - lgamma ((double)n + 1.0));
+  return exp ((double)n * log (v) - v - dp_lgamma ((double)n + 1.0));
 }
 
 double

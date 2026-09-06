@@ -303,10 +303,25 @@ EventLog_getprop_count (EventLogObject *self, void *Py_UNUSED (closure))
       (unsigned long long)(dp_event_log_count (self->handle)));
 }
 
+static PyObject *
+EventLog_getprop__capsule (EventLogObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* Borrowed: NULL destructor, so the capsule never
+     frees a pointer EventLog still owns. */
+  return PyCapsule_New ((void *)(self->handle),
+                        "doppler.telemetry.dp_event_log", NULL);
+}
+
 static PyGetSetDef EventLog_getset[] = {
   { "count", (getter)EventLog_getprop_count, NULL,
     "Events appended so far, counting only the ones that reached the disk.\n",
     NULL },
+  { "_capsule", (getter)EventLog_getprop__capsule, NULL, " capsule.\n", NULL },
   { NULL }
 };
 

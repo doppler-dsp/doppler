@@ -42,8 +42,10 @@ target_include_directories(ccsds_tm_core PUBLIC
 # `pthread_once` (gh-817). PUBLIC so every consumer -- the tests, the
 # benches, and the .so -- picks up -pthread transitively, the same way
 # wfm_compose_core carries it for dp_parallel.
+# detection_core: dp_syncword.h's binomial tail calls dp_lgamma(), which
+# is defined beside marcum_q() (the library's one reentrant lgamma, #1260).
 target_link_libraries(ccsds_tm_core PUBLIC conv_core rs_core wfm_frame_core
-                                           Threads::Threads)
+                                           detection_core Threads::Threads)
 
 # ── tests ───────────────────────────────────────────────────────────────────
 add_executable(test_ccsds_tm_rand

@@ -1,3 +1,4 @@
+#include "clib_common.h"
 #include "detection/detection_core.h"
 #include <math.h>
 
@@ -52,8 +53,8 @@ ibeta (double a, double b, double x)
     return 0.0;
   if (x >= 1.0)
     return 1.0;
-  double lfront = lgamma (a + b) - lgamma (a) - lgamma (b) + a * log (x)
-                  + b * log (1.0 - x);
+  double lfront = dp_lgamma (a + b) - dp_lgamma (a) - dp_lgamma (b)
+                  + a * log (x) + b * log (1.0 - x);
   if (x < (a + 1.0) / (a + b + 2.0))
     return exp (lfront) * betacf (a, b, x) / a;
   return 1.0 - exp (lfront) * betacf (b, a, 1.0 - x) / b;

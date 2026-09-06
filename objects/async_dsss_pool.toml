@@ -1,0 +1,290 @@
+# async_dsss_pool — AsyncDsssPool: one object holds the population
+# (docs/design/async-dsss-receiver.md §8.2, decided 2026-09-03).
+#
+# One searcher (Acquisition in continuous mode with the block coherence of
+# §2.3 and a peak list), n_slots hand-off receivers created idle, the
+# assigned table, and the event log borrowed by attachment. One push() per
+# block: feed the searcher, refresh the table from every live receiver's
+# status(), drop every peak inside one exclusion zone of a live row, seed
+# each survivor into a free slot or count it dropped, feed every receiver
+# (across the threads the pool is given), then release every receiver that
+# reports lost or has held its slot past the maximum on-air time. Nothing
+# about the waveform or the population is baked in: every number is a
+# create parameter whose default is the operating point of §6.1, and the
+# searcher's and the receivers' own parameters pass through untouched.
+
+[async_dsss_pool]
+arg_type = "float _Complex"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+class_name = "AsyncDsssPool"
+serializable = "true"
+# dp_parallel.h's persistent pool is pthreads (the receivers across threads).
+extra_link_libs = ["Threads::Threads"]
+depends_on = [
+    { name = "async_dsss_receiver", link = true },
+    { name = "acq", link = true },
+    { name = "dp_event_log", link = true },
+    # The receiver's own composition -- jm's depends_on linking is not
+    # recursively transitive (async_dsss_receiver.toml's comment applies).
+    { name = "carrier_acq", link = true },
+    { name = "dll", link = true },
+    { name = "costas", link = true },
+    { name = "RateConverter", link = true },
+    { name = "mpsk_receiver", link = true },
+    { name = "resamp", link = true },
+    { name = "hbdecim", link = true },
+    { name = "cic", link = true },
+    { name = "resample", link = true },
+    { name = "psd", link = true },
+    { name = "detector", link = true },
+    { name = "detection", link = true },
+    { name = "corr2d", link = true },
+    { name = "fft2d", link = true },
+    { name = "fft", link = true },
+    { name = "dp_tlm", link = true },
+]
+
+# ── The pool's own numbers (§8.2) ────────────────────────────────────────
+[[async_dsss_pool.init_params]]
+name = "code"
+type = "uint8_t[]"
+
+[[async_dsss_pool.init_params]]
+name = "chip_rate"
+type = "double"
+default = "1000000.0"
+
+[[async_dsss_pool.init_params]]
+name = "symbol_rate"
+type = "double"
+default = "1000.0"
+
+[[async_dsss_pool.init_params]]
+name = "spc"
+type = "size_t"
+default = "2"
+
+[[async_dsss_pool.init_params]]
+name = "m"
+type = "int"
+default = "2"
+
+[[async_dsss_pool.init_params]]
+name = "cn0_dbhz"
+type = "double"
+default = "55.0"
+
+[[async_dsss_pool.init_params]]
+name = "pfa"
+type = "double"
+default = "1e-3"
+
+[[async_dsss_pool.init_params]]
+name = "pd"
+type = "double"
+default = "0.9"
+
+# The searcher's: the span, the window's whole code-only epochs (the block
+# depth of §2.3), the rate bound, and the peak list's capacity (§7.1).
+[[async_dsss_pool.init_params]]
+name = "doppler_uncertainty"
+type = "double"
+default = "100.0"
+
+[[async_dsss_pool.init_params]]
+name = "code_only_epochs"
+type = "size_t"
+default = "1"
+
+[[async_dsss_pool.init_params]]
+name = "doppler_rate"
+type = "double"
+default = "0.0"
+
+[[async_dsss_pool.init_params]]
+name = "max_peaks"
+type = "size_t"
+default = "16"
+
+# The population: slots (§10's ten plus release headroom), the threads the
+# receivers and the searcher's fan run across, the release rule's interval
+# (§10) and the maximum on-air time of one emitter (§6.1, adjustable).
+[[async_dsss_pool.init_params]]
+name = "n_slots"
+type = "size_t"
+default = "12"
+
+[[async_dsss_pool.init_params]]
+name = "threads"
+type = "int"
+default = "1"
+
+[[async_dsss_pool.init_params]]
+name = "carrier_freq_hz"
+type = "double"
+default = "0.0"
+
+[[async_dsss_pool.init_params]]
+name = "lost_confirm_s"
+type = "double"
+default = "2.0"
+
+[[async_dsss_pool.init_params]]
+name = "max_emitter_on_time_secs"
+type = "double"
+default = "900.0"
+
+# ── The receivers' own, passed through untouched ─────────────────────────
+[[async_dsss_pool.init_params]]
+name = "segments"
+type = "size_t"
+default = "4"
+
+[[async_dsss_pool.init_params]]
+name = "sps"
+type = "size_t"
+default = "8"
+
+[[async_dsss_pool.init_params]]
+name = "differential"
+type = "int"
+default = "0"
+
+[[async_dsss_pool.init_params]]
+name = "refine_max_error_db"
+type = "double"
+default = "0.5"
+
+[[async_dsss_pool.init_params]]
+name = "refine_samples_per_symbol"
+type = "size_t"
+default = "4"
+
+[[async_dsss_pool.init_params]]
+name = "refine_design_margin_db"
+type = "double"
+default = "14.0"
+
+[[async_dsss_pool.init_params]]
+name = "refine_n_fft"
+type = "size_t"
+default = "64"
+
+[[async_dsss_pool.init_params]]
+name = "refine_zero_pad"
+type = "size_t"
+default = "8"
+
+[[async_dsss_pool.init_params]]
+name = "refine_sequential"
+type = "bool"
+default = "false"
+
+[[async_dsss_pool.init_params]]
+name = "refine_max_n_blocks"
+type = "size_t"
+default = "100000"
+
+# ── Methods ──────────────────────────────────────────────────────────────
+[[async_dsss_pool.methods]]
+name = "push"
+doc = "One block of raw cf32 samples through the population (design section 8.2), in order: the searcher; the table refreshed from every live receiver's status(); every peak inside one exclusion zone (one Doppler row by one chip, section 7.1) of a live row dropped as that emitter's own; each survivor seeded into a free slot, or counted dropped when there is none; every receiver fed (an idle or lost one consumes and discards, so the feed has no per-state branch), across the threads the pool was given; then every receiver that reports lost, or has held its slot past max_emitter_on_time_secs, released -- the row cleared, the receiver reset to idle. Every transition -- seeded, tracking, degrade, lost, released, dropped -- goes to the attached event log at the sample it happened. Accepts any block size; a searcher dwell is decided when its samples arrive. Returns the receivers assigned after this push."
+arg_type = "void"
+return_type = "size_t"
+nogil = true
+params = [{ name = "x", type = "float _Complex[]" }]
+
+[[async_dsss_pool.methods]]
+name = "status"
+doc = "One slot's picture, by value: whether it is assigned, the seed it was assigned from (sample, chip phase, Doppler, C/N0 -- the searcher's hand-off record, verbatim), the receiver's own status record (state, the live Doppler, chip phase, code rate and C/N0, both lock flags, the symbol-lock metric, the two clocks), and the samples since the assignment. Raises ValueError for a slot outside [0, n_slots)."
+arg_type = "void"
+return_type = "async_dsss_pool_slot_t"
+params = [{ name = "slot", type = "size_t" }]
+result_fields = [
+    { name = "slot", type = "size_t" },
+    { name = "assigned", type = "int" },
+    { name = "state", type = "int" },
+    { name = "seed_sample", type = "uint64_t" },
+    { name = "seed_chip_phase", type = "double" },
+    { name = "seed_doppler_hz", type = "double" },
+    { name = "seed_cn0_dbhz", type = "double" },
+    { name = "doppler_hz", type = "double" },
+    { name = "chip_phase", type = "double" },
+    { name = "code_rate", type = "double" },
+    { name = "cn0_dbhz_est", type = "double" },
+    { name = "code_locked", type = "int" },
+    { name = "locked", type = "int" },
+    { name = "lock_metric", type = "double" },
+    { name = "state_samples", type = "uint64_t" },
+    { name = "both_down_samples", type = "uint64_t" },
+    { name = "assigned_samples", type = "uint64_t" },
+]
+single = true
+record_name = "PoolSlot"
+record_doc = "AsyncDsssPool's slot record: whether the slot is assigned, the seed it was assigned from, the receiver's live status (state 1 refining, 2 tracking, 3 idle, 4 lost), and the samples since the assignment."
+record_module = "doppler.dsss"
+
+[[async_dsss_pool.methods]]
+name = "symbols"
+doc = "The symbols slot `slot`'s receiver decided on the last push(), borrowed from the pool's own buffer (sized once at create by the receiver's steps_max_out()): empty while the slot is idle, refining or lost. Valid until the next push(), reset() or set_state(). Raises ValueError for a slot outside [0, n_slots)."
+arg_type = "void"
+return_type = "float _Complex"
+variable_output = true
+pass_capacity = true
+params = [{ name = "slot", type = "size_t" }]
+
+[[async_dsss_pool.methods]]
+name = "set_event_log"
+doc = "Attach the run's event log (design section 8.1): from now on every transition -- seeded, tracking, degrade, lost, released, dropped -- is appended at the sample it happened, with the slot, the receiver's state, the Doppler, the chip phase and the C/N0 staged as doppler:<name> fields beside the label (core:label). The pool is the one component that stamps; the log is borrowed, never owned. None detaches."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "log", type = "dp_event_log_t *", capsule = "doppler.telemetry.dp_event_log", header = "dp_event_log/dp_event_log_core.h" },
+]
+
+# ── Read-back ────────────────────────────────────────────────────────────
+[[async_dsss_pool.properties]]
+name = "n_slots"
+type = "size_t"
+field = true
+doc = "Receivers the pool holds; it never exceeds this."
+
+[[async_dsss_pool.properties]]
+name = "n_assigned"
+type = "size_t"
+field = true
+doc = "Slots assigned right now."
+
+[[async_dsss_pool.properties]]
+name = "dropped"
+type = "uint64_t"
+field = true
+doc = "Detections dropped for want of a free slot since create or reset."
+
+[[async_dsss_pool.properties]]
+name = "events"
+type = "uint64_t"
+field = true
+doc = "Transitions since create or reset, logged or not."
+
+[[async_dsss_pool.properties]]
+name = "samples_consumed"
+type = "uint64_t"
+field = true
+doc = "Input samples pushed since create or reset -- the stream position every event is stamped at."
+
+[[async_dsss_pool.properties]]
+name = "doppler_res_hz"
+type = "double"
+expr = "(self->handle->acq->doppler_res_hz)"
+doc = "The searcher's Doppler row, Hz -- one side of the exclusion zone."
+
+[[async_dsss_pool.properties]]
+name = "coherent_bins"
+type = "size_t"
+expr = "(self->handle->acq->coherent_bins)"
+doc = "The searcher's block-coherent depth D, from code_only_epochs and doppler_rate (section 2.3)."

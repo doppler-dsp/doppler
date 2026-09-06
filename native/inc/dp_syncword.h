@@ -50,6 +50,7 @@
 #define DP_SYNCWORD_H
 
 #include <math.h>
+#include "clib_common.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -154,15 +155,15 @@ dp_syncword_pfa (size_t n_marker, unsigned max_errors)
     return 0.0;
 
   const double n     = (double)n_marker;
-  const double lgn1  = lgamma (n + 1.0);
+  const double lgn1  = dp_lgamma (n + 1.0);
   const double lg2   = n * log (2.0);
   const size_t t_max = (size_t)max_errors < n_marker ? (size_t)max_errors
                                                      : n_marker;
 
   double s = 0.0;
   for (size_t i = 0; i <= t_max; i++)
-    s += exp (lgn1 - lgamma ((double)i + 1.0)
-              - lgamma (n - (double)i + 1.0) - lg2);
+    s += exp (lgn1 - dp_lgamma ((double)i + 1.0)
+              - dp_lgamma (n - (double)i + 1.0) - lg2);
 
   const double p = 2.0 * s;
   return p > 1.0 ? 1.0 : p;

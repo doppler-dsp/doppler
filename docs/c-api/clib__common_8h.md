@@ -59,6 +59,7 @@
 | Type | Name |
 | ---: | :--- |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dp\_fmod\_pos**](#function-dp_fmod_pos) (double x, double m) <br>`x` _folded into_`[0, m)` _for either sign of_`x` _._ |
+|  double | [**dp\_lgamma**](#function-dp_lgamma) (double x) <br>_log\|Gamma(x)\|, reentrant_  _the one spelling of_`lgamma` _in this library._ |
 
 
 ## Public Static Functions
@@ -149,6 +150,43 @@ External inline (JM\_FORCEINLINE), not `static inline` like its neighbours: the 
 **Returns:**
 
 `x` modulo `m`, in `[0, m)`. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_lgamma 
+
+_log\|Gamma(x)\|, reentrant_  _the one spelling of_`lgamma` _in this library._
+```C++
+double dp_lgamma (
+    double x
+) 
+```
+
+
+
+C's `lgamma()` writes the sign of Gamma into the global `signgam`, so two threads calling it race on a variable neither of them reads. That is exactly what happens when a pool of receivers rebuilds their tracking chains on different threads at once: every chain sizes a detector threshold through `marcum_q()`, and ThreadSanitizer stopped the first multi-threaded test on it (doppler#1260). `lgamma_r()` takes the sign by pointer and touches no global. Declared here and defined in `native/src/detection/marcum_q.c` (detection\_core, which every threshold links) rather than inline, because an installed header may not name libm's `lgamma_r`  the shipped libraries do not define it, and `scripts/check_installed_headers.py` says so  and a strict C99 dialect does not declare it. `scripts/check_lgamma_sites.py` fails on a bare `lgamma` in `native/inc` or `native/src`.
+
+
+
+
+**Parameters:**
+
+
+* `x` Any real value. 
+
+
+
+**Returns:**
+
+`log|Gamma(x)|`, as `lgamma()` returns it. 
 
 
 

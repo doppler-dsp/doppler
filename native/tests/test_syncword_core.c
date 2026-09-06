@@ -70,7 +70,7 @@ main (void)
   /* ── 2. the marker is COPIED ──────────────────────────────────────────────
    *
    * The header promises a searcher outlives the array it was built from,
-   * which is what lets `SyncFinder(ccsds_asm_bits())` work at all: numpy
+   * which is what lets `SyncFinder(asm_bits())` work at all: numpy
    * frees that temporary the moment the constructor returns. A searcher
    * holding the caller's pointer would search whatever landed there next,
    * and would do it silently.

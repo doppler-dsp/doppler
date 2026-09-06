@@ -159,6 +159,7 @@
 * **awgn\_set\_amplitude** ([**awgn\_core.h**](awgn__core_8h.md))
 * **awgn\_set\_state** ([**awgn\_core.h**](awgn__core_8h.md))
 * **awgn\_state\_bytes** ([**awgn\_core.h**](awgn__core_8h.md))
+* **asm\_bits** ([**ccsds\_core.h**](ccsds__core_8h.md))
 
 
 ## b
@@ -455,7 +456,6 @@
 * **cvt\_bit\_slot** ([**cvt\_core.h**](cvt__core_8h.md))
 * **cvt\_unit\_width** ([**cvt\_core.h**](cvt__core_8h.md))
 * **ciccompmf** ([**resample\_core.h**](resample__core_8h.md))
-* **ccsds\_asm\_bits** ([**wfm\_core.h**](wfm__core_8h.md))
 * **crc16** ([**wfm\_core.h**](wfm__core_8h.md))
 
 

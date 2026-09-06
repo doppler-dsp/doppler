@@ -955,24 +955,6 @@ return_type = "uint64_t"
 name = "n"
 type = "uint32_t"
 
-# The CCSDS Attached Sync Marker as bits a Python receiver can search for.
-#
-# doppler#900 (2b). Without it the only Python path to the marker is to
-# transcribe `0x1ACFFC1D` MSB-first by hand -- which is precisely the hazard
-# `ccsds_tm_asm_bits` exists to remove ("an MSB-first expansion written out
-# twice is a transcription that can disagree with itself"), and which this
-# tree's own `.pyi` doctests were doing in four places.
-#
-# Hosted on `wfm` rather than on `detection`, where `SyncFinder` lives,
-# because wfm already links ccsds_tm through `frame`'s `depends_on` and
-# `detection` is a general module that must not learn one standard's picks.
-[[module.wfm.functions]]
-name = "ccsds_asm_bits"
-doc = "The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits — `out[0]` is the first bit on the wire (the top of 0x1A). Pass it to `doppler.detection.SyncFinder` to acquire a CADU in a bit stream; it is NOT randomised, so it reads the same in every frame and in exactly one polarity, which is what makes it the thing that reports a 180-degree carrier ambiguity."
-out_type = "uint8_t"
-variable_output = true
-out_size = "32"
-
 [[module.wfm.functions]]
 name = "crc16"
 doc = "CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit array, MSB-first — the DSSS burst frame trailer wfmgen appends and BurstDemod validates."
@@ -2964,6 +2946,58 @@ objects = ["loop_filter", "costas", "dll", "symsync", "ratesync", "carrier_mpsk"
 # NOT `fec`: doppler#828 retired that identifier prefix across 30 symbols, and
 # a module by that name regenerates it into its own generated filenames — the
 # retired-names gate catches it, which is the gate working.
+# CCSDS 131.0-B's picks, as a module BESIDE the general layer rather than
+# inside it (doppler#1220). `ccsds_asm_bits` used to be a function on
+# `[module.wfm]`, which meant a CCSDS translation unit compiled into the
+# general `wfm_core` and a standard's name in `doppler.wfm.__all__` beside
+# `PN` and `Gold` -- and from there into `doppler.detection`'s doctests,
+# tests and benchmark. Every other module states in its own docstring that it
+# is general (`coding`, below, says "rather than any standard's picks"), so
+# there was no honest home for one standard's literal until this one.
+#
+# This is NOT a Python binding of `ccsds_tm`'s kernels, and must not become
+# one: the outer code, the randomiser and the inner code are reached by
+# DESCRIBING a CADU through `doppler.wfm.FrameDesc`, which is the general
+# door and is the design working (docs/design/frame-description.md). What
+# lives here is the standard's published DATA -- the marker today, and
+# whatever else is a literal a mission copies out of the Blue Book.
+#
+# extra_link_libs rather than an object's `depends_on { link = true }`
+# because the module has no objects: `ccsds_tm` is a hand-owned c_dep and
+# this module is a function over it. conv/rs/wfm_frame come with it -- an
+# OBJECT library propagates usage requirements but not its objects, so every
+# consumer must name them.
+[module.ccsds]
+doc = """
+CCSDS 131.0-B TM Synchronization and Channel Coding — the literals the standard picked, beside the general layer rather than inside it.
+
+`asm_bits()` is the Attached Sync Marker as bits, which is what a receiver acquires on: pair it with `doppler.detection.SyncFinder` to find where a CADU starts in a bit stream. The standard's *transforms* are not here and are not coming here — describe a CADU with `doppler.wfm.FrameDesc` and the outer code, the randomiser and the inner code run through the general assembler.
+
+Examples
+--------
+>>> from doppler.ccsds import asm_bits
+>>> b = asm_bits()
+>>> int("".join(map(str, b.tolist())), 2) == 0x1ACFFC1D
+True
+
+"""
+objects = []
+extra_link_libs = ["ccsds_tm_core", "conv_core", "rs_core", "wfm_frame_core", "pn_core", "gold_core"]
+
+# The Attached Sync Marker as bits a Python receiver can search for.
+#
+# doppler#900 (2b). Without it the only Python path to the marker is to
+# transcribe `0x1ACFFC1D` MSB-first by hand -- which is precisely the hazard
+# `ccsds_tm_asm_bits` exists to remove ("an MSB-first expansion written out
+# twice is a transcription that can disagree with itself"), and which this
+# tree's own `.pyi` doctests were doing in four places.
+[[module.ccsds.functions]]
+name = "asm_bits"
+doc = "The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits — `out[0]` is the first bit on the wire (the top of 0x1A). Pass it to `doppler.detection.SyncFinder` to acquire a CADU in a bit stream; it is NOT randomised, so it reads the same in every frame and in exactly one polarity, which is what makes it the thing that reports a 180-degree carrier ambiguity."
+out_type = "uint8_t"
+variable_output = true
+out_size = "32"
+
 [module.coding]
 objects = ["conv_enc", "viterbi", "rs_codec", "interleaver"]
 doc = """

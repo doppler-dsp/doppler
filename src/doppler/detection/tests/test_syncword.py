@@ -23,8 +23,9 @@ import math
 import numpy as np
 import pytest
 
+from doppler.ccsds import asm_bits
 from doppler.detection import SyncFinder
-from doppler.wfm import FrameDesc, ccsds_asm_bits
+from doppler.wfm import FrameDesc
 
 EMPTY = np.empty(0, np.uint8)
 
@@ -39,7 +40,7 @@ def test_the_asm_is_the_published_constant_msb_first():
     bit-by-bit expansion, so this is a check against the STANDARD and not a
     restatement of the code under test.
     """
-    b = ccsds_asm_bits()
+    b = asm_bits()
     assert b.dtype == np.uint8
     assert b.size == 32
     assert int("".join(map(str, b.tolist())), 2) == 0x1ACFFC1D
@@ -47,7 +48,7 @@ def test_the_asm_is_the_published_constant_msb_first():
 
 def test_the_asm_is_a_fresh_array_each_call():
     """A caller may keep, mutate or free it without touching the next one."""
-    a, b = ccsds_asm_bits(), ccsds_asm_bits()
+    a, b = asm_bits(), asm_bits()
     a[:] = 0
     assert b.any()
 
@@ -71,7 +72,7 @@ def test_the_hit_is_a_named_record():
     A receiver that took the offset without the polarity would hand its frame
     decoder a complemented stream and read every bit backwards, silently.
     """
-    asm = ccsds_asm_bits()
+    asm = asm_bits()
     f = SyncFinder(asm)
     hit = f.find(np.concatenate([np.zeros(96, np.uint8), asm]), max_errors=0)
     assert (hit.found, hit.offset, hit.inverted, hit.errors) == (1, 96, 0, 0)
@@ -85,19 +86,19 @@ def test_a_miss_is_legible_rather_than_a_sentinel_offset():
     So a miss cannot be spelled as one, and `found` is what the other three
     fields mean nothing without.
     """
-    f = SyncFinder(ccsds_asm_bits())
+    f = SyncFinder(asm_bits())
     hit = f.find(np.zeros(4096, np.uint8), max_errors=0)
     assert hit.found == 0
     assert (hit.offset, hit.inverted, hit.errors) == (0, 0, 0)
 
 
 def test_nbits_reports_the_marker_it_was_built_from():
-    assert SyncFinder(ccsds_asm_bits()).nbits == 32
+    assert SyncFinder(asm_bits()).nbits == 32
     assert SyncFinder(np.ones(7, np.uint8)).nbits == 7
 
 
 def test_the_searcher_outlives_the_array_it_was_built_from():
-    """`SyncFinder(ccsds_asm_bits())` is the ordinary spelling.
+    """`SyncFinder(asm_bits())` is the ordinary spelling.
 
     numpy frees that temporary the moment the constructor returns, so a
     searcher holding the caller's pointer would search whatever landed there
@@ -147,7 +148,7 @@ def test_the_threshold_falls_as_the_search_window_grows():
     A caller reading only the marker length picks 8 from "half of 32", and
     what they actually need depends on how much stream they sweep first.
     """
-    f = SyncFinder(ccsds_asm_bits())
+    f = SyncFinder(asm_bits())
     got = [f.max_errors_for(w, pfa=1e-3) for w in (32, 96, 4096, 100_000)]
     assert got == sorted(got, reverse=True)
     assert got[0] > got[-1], "a longer window must not afford MORE tolerance"
@@ -159,7 +160,7 @@ def test_the_threshold_is_the_largest_one_that_holds():
     Too strict and the caller loses frames the channel only grazed; one step
     looser and they get the false-frame rate they asked not to have.
     """
-    f = SyncFinder(ccsds_asm_bits())
+    f = SyncFinder(asm_bits())
     w, target = 4096, 1e-3
     t = f.max_errors_for(w, pfa=target)
     assert 1 - (1 - f.pfa(t)) ** w <= target
@@ -168,7 +169,7 @@ def test_the_threshold_is_the_largest_one_that_holds():
 
 def test_an_unachievable_rate_is_reported_rather_than_rounded_to_zero():
     """0 would read as "exact matches only", which a caller would act on."""
-    f = SyncFinder(ccsds_asm_bits())
+    f = SyncFinder(asm_bits())
     assert f.max_errors_for(10**12, pfa=1e-9) == -1
 
 
@@ -186,7 +187,7 @@ def _cadu(depth: int = 2) -> tuple[FrameDesc, np.ndarray]:
         [(i * 37 + 11) & 0xFF for i in range(K * depth)], np.uint8
     )
     d = FrameDesc(EMPTY, EMPTY, EMPTY)
-    d.add_field(ccsds_asm_bits())
+    d.add_field(asm_bits())
     d.add_field(np.unpackbits(octets).astype(np.uint8))
     d.add_field(EMPTY, derived_by=1, derived_bits=E2 * depth * 8)
     d.add_stage(RS, first_field=1, n_fields=2, depth=depth)
@@ -218,7 +219,7 @@ def test_a_python_receiver_can_acquire_a_cadu_and_then_check_it(invert):
     if invert:
         stream = (stream ^ 1).astype(np.uint8)
 
-    f = SyncFinder(ccsds_asm_bits())
+    f = SyncFinder(asm_bits())
     hit = f.find(stream, max_errors=f.max_errors_for(lead, pfa=1e-3))
 
     assert hit.found, "the marker is there and within tolerance"
@@ -262,7 +263,7 @@ def test_the_outer_code_cannot_see_an_inversion_but_the_marker_can():
     assert r.passed == 1, "the outer code is blind to a global complement"
     assert (r.corrected, r.symbols) == (0, 0), "...and does not even work"
 
-    hit = SyncFinder(ccsds_asm_bits()).find(flipped, max_errors=0)
+    hit = SyncFinder(asm_bits()).find(flipped, max_errors=0)
     assert (hit.found, hit.offset, hit.inverted) == (1, 0, 1)
 
 
@@ -288,7 +289,7 @@ def test_acquisition_survives_the_errors_the_outer_code_then_repairs():
     stream[lead + 500] ^= 1  # in the codeblock: costs the outer code a repair
     stream[lead + 900] ^= 1
 
-    f = SyncFinder(ccsds_asm_bits())
+    f = SyncFinder(asm_bits())
     assert f.find(stream, max_errors=0).found == 0, (
         "an exact-match search loses a frame the outer code would have kept"
     )

@@ -330,10 +330,10 @@ ______________________________________________________________________
 
 The layering holds in one direction and the code says so: `ccsds_tm` depends
 on `wfm/wfm_frame.h`, which knows nothing about CCSDS — no include, no
-constant, no default, no kernel. What does not yet hold is the direction
-**into** the descriptor from the layers above it.
+constant, no default, no kernel. The direction **into** the descriptor from
+the layers above it is now clean as well.
 
-### The one site that is still a leak
+### The sites, and how each was settled
 
 Of the five the earlier plan listed, **site 1 is done** —
 `wfm_source_describe_frame()` builds through the by-name builder rather than
@@ -342,15 +342,23 @@ Of the five the earlier plan listed, **site 1 is done** —
 `ccsds_tm` to *compose* it, in the acyclic direction the design intends, and
 each is the place a caller is meant to meet the standard's kernels.
 
-What remains is one, and it is a different kind of thing:
+The fifth was a different kind of thing, and it is **closed**
+([#1220](https://github.com/doppler-dsp/doppler/issues/1220)):
 
-| site                              | what it is                                                        | why it is a leak                                                                                                                                                               |
-| --------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `native/src/wfm/ccsds_asm_bits.c` | a CCSDS translation unit compiled into the **general** `wfm_core` | `ccsds_asm_bits()` is declared in `wfm/wfm_core.h` and exported from `doppler.wfm.__all__` beside `PN` and `Gold`, then leaks on into `doppler.detection`'s doctests and tests |
+| site                              | what it was                                                                                | how it was settled                                                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the marker's own translation unit | a CCSDS translation unit compiled into the **general** `wfm_core`, under `native/src/wfm/` | deleted. The marker is `doppler.ccsds.asm_bits()` now, over a `ccsds` component that delegates to `ccsds_tm_asm_bits` — the standard beside the general layer, not under it |
 
 A marker one standard picked is a **literal field of a preset**, not a symbol
-in the general namespace. Tracked as
-[#1220](https://github.com/doppler-dsp/doppler/issues/1220).
+in the general namespace. The move needed somewhere to put it, and every
+existing module says in its own docstring that it is general — `coding`'s
+opening line is *"the general channel codes … rather than any standard's
+picks"* — so `doppler.ccsds` was created to be the one place a published
+literal is at home. Its rule is narrow, and stated on the component's own
+header so it travels with the code: **a literal a mission copies out of the
+Blue Book belongs there; a transform does not.** The outer code, the
+randomiser and the inner code stay reachable only by describing a CADU, which
+is the next section's point.
 
 Two things changed with site 1 that the plan did not anticipate:
 

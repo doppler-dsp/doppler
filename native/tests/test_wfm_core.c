@@ -156,23 +156,6 @@ main (void)
     DP_CHECK (crc16 (bits, k) == 0x29B1); /* restored */
   }
 
-  /* ── ccsds_asm_bits: the CCSDS attached sync marker, exactly ────── */
-  {
-    uint8_t  asm_[32];
-    uint32_t v = 0;
-
-    memset (asm_, 0xAA, sizeof asm_);
-    ccsds_asm_bits (asm_);
-    for (int i = 0; i < 32; i++)
-      {
-        DP_CHECK (asm_[i] == 0 || asm_[i] == 1);
-        v = (v << 1) | asm_[i];
-      }
-    /* 0x1ACFFC1D, MSB first. A frame synchroniser that disagrees with
-       this by one bit finds nothing, forever, silently. */
-    DP_CHECK (v == 0x1ACFFC1Du);
-  }
-
   /* ── rrc_h / rc_h: even, and NOT the same filter ────────────────── */
   {
     const double beta = 0.35;

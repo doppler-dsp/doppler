@@ -220,6 +220,7 @@ nav:
       - "Python: Detection Statistics": api/python-detection.md
       - "Python: Error-Rate Measurement": api/python-ber.md
       - "Python: Channel Coding": api/python-coding.md
+      - "Python: CCSDS Literals": api/python-ccsds.md
       - "Python: M-PSK Constellation": api/python-mpsk.md
       - "Python: Source (NCO / LO / AWGN)": api/python-nco.md
       - "Python: Impairment (DopplerChannel)": api/python-impairment.md

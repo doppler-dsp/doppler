@@ -41,9 +41,10 @@ from pathlib import Path
 
 import numpy as np
 
+from doppler.ccsds import asm_bits
 from doppler.tests._repo import repo_root
 from doppler.tests._validation_common import Report, cli
-from doppler.wfm import FrameDesc, ccsds_asm_bits
+from doppler.wfm import FrameDesc
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
@@ -215,7 +216,7 @@ def measure_cadu(d: Data) -> None:
         "different covers."
     )
     R.md()
-    asm = ccsds_asm_bits()
+    asm = asm_bits()
     f = FrameDesc(EMPTY, EMPTY, EMPTY)
     f.add_field(asm)
     f.add_field(octets(223))

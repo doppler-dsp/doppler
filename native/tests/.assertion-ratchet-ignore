@@ -51,3 +51,12 @@ test_doppler_channel_core.c  -25: the per-sample Doppler profile
   correct to make this entry explicit: nothing that still ships stopped
   being asserted, because the feature those 25 assertions covered no longer
   ships. Delete this line when the profile lands again with its tests.
+
+test_wfm_core.c -> test_ccsds_core.c  -2: the ASM section (the marker is
+  0/1-valued, and it spells 0x1ACFFC1D) moved to the new `ccsds` component's
+  own file when `ccsds_asm_bits` left the general `wfm_core` for
+  `doppler.ccsds.asm_bits` (doppler#1220). Nothing stopped being asserted --
+  the destination is a new file, so it gained all four of its checks over the
+  same base, and two of those are new: the alias may not diverge from the
+  `ccsds_tm_asm_bits` it delegates to, which is the failure the move itself
+  could have introduced.

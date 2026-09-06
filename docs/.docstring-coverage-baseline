@@ -13,17 +13,18 @@ doppler.analyzer stub=2 runtime=2
 doppler.arith stub=0 runtime=8
 doppler.ber stub=8 runtime=9
 doppler.buffer stub=1 runtime=13
+doppler.ccsds stub=0 runtime=0
 doppler.coding stub=0 runtime=0
 doppler.cvt stub=0 runtime=22
 doppler.ddc stub=0 runtime=0
 doppler.delay stub=0 runtime=5
 doppler.detection stub=0 runtime=2
-doppler.dsss stub=9 runtime=16
+doppler.dsss stub=9 runtime=12
 doppler.filter stub=1 runtime=5
 doppler.impairment stub=0 runtime=2
 doppler.interp stub=0 runtime=3
 doppler.interrupt stub=0 runtime=0
-doppler.measure stub=4 runtime=64
+doppler.measure stub=4 runtime=13
 doppler.mpsk stub=0 runtime=0
 doppler.resample stub=0 runtime=16
 doppler.snr stub=2 runtime=2
@@ -279,6 +280,8 @@ doppler.buffer.I16Buffer.destroy sr
 doppler.buffer.I16Buffer.dropped sr
 doppler.buffer.I16Buffer.wait s
 doppler.buffer.I16Buffer.write s
+doppler.ccsds sr
+doppler.ccsds.asm_bits sr
 doppler.coding sr
 doppler.coding.ConvEncoder sr
 doppler.coding.ConvEncoder.__enter__ sr
@@ -609,22 +612,32 @@ doppler.dsss.Acquisition.eta sr
 doppler.dsss.Acquisition.eta_nc sr
 doppler.dsss.Acquisition.fs sr
 doppler.dsss.Acquisition.get_state sr
+doppler.dsss.Acquisition.keep_surface sr
 doppler.dsss.Acquisition.max_peaks sr
+doppler.dsss.Acquisition.n_held sr
 doppler.dsss.Acquisition.n_noncoh sr
+doppler.dsss.Acquisition.n_peaks sr
 doppler.dsss.Acquisition.noise_hi sr
 doppler.dsss.Acquisition.noise_lo sr
 doppler.dsss.Acquisition.pd sr
 doppler.dsss.Acquisition.pd_predicted sr
+doppler.dsss.Acquisition.peak_conc sr
 doppler.dsss.Acquisition.pfa_cell sr
 doppler.dsss.Acquisition.push sr
 doppler.dsss.Acquisition.reset s
 doppler.dsss.Acquisition.ring_cap sr
 doppler.dsss.Acquisition.set_max_peaks sr
 doppler.dsss.Acquisition.set_state sr
+doppler.dsss.Acquisition.set_telemetry sr
 doppler.dsss.Acquisition.sf sr
 doppler.dsss.Acquisition.spc sr
 doppler.dsss.Acquisition.state_bytes sr
 doppler.dsss.Acquisition.straddle_loss sr
+doppler.dsss.Acquisition.surface sr
+doppler.dsss.Acquisition.surface_at sr
+doppler.dsss.Acquisition.surface_chip_phase sr
+doppler.dsss.Acquisition.surface_doppler_hz sr
+doppler.dsss.Acquisition.surface_rows sr
 doppler.dsss.Acquisition.symbol_rate sr
 doppler.dsss.Acquisition.threshold sr
 doppler.dsss.Acquisition.underpowered sr
@@ -922,10 +935,10 @@ doppler.dsss.PersistentBurstCapture.set_state sr
 doppler.dsss.PersistentBurstCapture.state_bytes sr
 doppler.dsss.PersistentBurstCapture.straddle_loss sr
 doppler.dsss.PersistentBurstCapture.underpowered sr
-doppler.dsss.PolynomialPhaseEstimate s
-doppler.dsss.PolynomialPhaseEstimate.freq_norm s
-doppler.dsss.PolynomialPhaseEstimate.rate_norm s
-doppler.dsss.PolynomialPhaseEstimate.snr_db s
+doppler.dsss.PolynomialPhaseEstimate sr
+doppler.dsss.PolynomialPhaseEstimate.freq_norm sr
+doppler.dsss.PolynomialPhaseEstimate.rate_norm sr
+doppler.dsss.PolynomialPhaseEstimate.snr_db sr
 doppler.dsss.PolynomialPhaseEstimator s
 doppler.dsss.PolynomialPhaseEstimator.__enter__ sr
 doppler.dsss.PolynomialPhaseEstimator.__exit__ sr
@@ -1024,19 +1037,19 @@ doppler.measure.IMDMeasure.nfft sr
 doppler.measure.IMDMeasure.reset s
 doppler.measure.IMDMeasure.spectrum_dbfs sr
 doppler.measure.IMDMeasure.spectrum_dbfs_max_out s
-doppler.measure.IMDMetrics s
-doppler.measure.IMDMetrics.f1 s
-doppler.measure.IMDMetrics.f2 s
-doppler.measure.IMDMetrics.imd2_dbc s
-doppler.measure.IMDMetrics.imd2_freq s
-doppler.measure.IMDMetrics.imd3_dbc s
-doppler.measure.IMDMetrics.imd3_hi_freq s
-doppler.measure.IMDMetrics.imd3_lo_freq s
-doppler.measure.IMDMetrics.p1_dbfs s
-doppler.measure.IMDMetrics.p2_dbfs s
-doppler.measure.IMDMetrics.rbw_hz s
-doppler.measure.IMDMetrics.soi_dbfs s
-doppler.measure.IMDMetrics.toi_dbfs s
+doppler.measure.IMDMetrics sr
+doppler.measure.IMDMetrics.f1 sr
+doppler.measure.IMDMetrics.f2 sr
+doppler.measure.IMDMetrics.imd2_dbc sr
+doppler.measure.IMDMetrics.imd2_freq sr
+doppler.measure.IMDMetrics.imd3_dbc sr
+doppler.measure.IMDMetrics.imd3_hi_freq sr
+doppler.measure.IMDMetrics.imd3_lo_freq sr
+doppler.measure.IMDMetrics.p1_dbfs sr
+doppler.measure.IMDMetrics.p2_dbfs sr
+doppler.measure.IMDMetrics.rbw_hz sr
+doppler.measure.IMDMetrics.soi_dbfs sr
+doppler.measure.IMDMetrics.toi_dbfs sr
 doppler.measure.NPRMeasure s
 doppler.measure.NPRMeasure.__enter__ sr
 doppler.measure.NPRMeasure.__exit__ sr
@@ -1049,20 +1062,20 @@ doppler.measure.NPRMeasure.rbw sr
 doppler.measure.NPRMeasure.reset s
 doppler.measure.NPRMeasure.spectrum_dbfs sr
 doppler.measure.NPRMeasure.spectrum_dbfs_max_out s
-doppler.measure.NPRMetrics s
-doppler.measure.NPRMetrics.inband_psd_dbfs s
-doppler.measure.NPRMetrics.n_inband_bins s
-doppler.measure.NPRMetrics.n_notch_bins s
-doppler.measure.NPRMetrics.notch_psd_dbfs s
-doppler.measure.NPRMetrics.npr_db s
-doppler.measure.NPRMetrics.rbw_hz s
-doppler.measure.TimeStats s
-doppler.measure.TimeStats.crest_db s
-doppler.measure.TimeStats.dc_offset s
-doppler.measure.TimeStats.fs_util_pct s
-doppler.measure.TimeStats.papr_db s
-doppler.measure.TimeStats.peak s
-doppler.measure.TimeStats.rms s
+doppler.measure.NPRMetrics sr
+doppler.measure.NPRMetrics.inband_psd_dbfs sr
+doppler.measure.NPRMetrics.n_inband_bins sr
+doppler.measure.NPRMetrics.n_notch_bins sr
+doppler.measure.NPRMetrics.notch_psd_dbfs sr
+doppler.measure.NPRMetrics.npr_db sr
+doppler.measure.NPRMetrics.rbw_hz sr
+doppler.measure.TimeStats sr
+doppler.measure.TimeStats.crest_db sr
+doppler.measure.TimeStats.dc_offset sr
+doppler.measure.TimeStats.fs_util_pct sr
+doppler.measure.TimeStats.papr_db sr
+doppler.measure.TimeStats.peak sr
+doppler.measure.TimeStats.rms sr
 doppler.measure.ToneMeasure s
 doppler.measure.ToneMeasure.__enter__ sr
 doppler.measure.ToneMeasure.__exit__ sr
@@ -1083,30 +1096,30 @@ doppler.measure.ToneMeasure.spectrum_dbfs sr
 doppler.measure.ToneMeasure.spectrum_dbfs_max_out s
 doppler.measure.ToneMeasure.spur_guard_bins sr
 doppler.measure.ToneMeasure.time_stats sr
-doppler.measure.ToneMetrics s
-doppler.measure.ToneMetrics.amp_uncert_db s
-doppler.measure.ToneMetrics.bin_hz s
-doppler.measure.ToneMetrics.enbw_hz s
-doppler.measure.ToneMetrics.enob s
-doppler.measure.ToneMetrics.enob_fs s
-doppler.measure.ToneMetrics.floor_uncert_db s
-doppler.measure.ToneMetrics.fund_dbfs s
-doppler.measure.ToneMetrics.fund_freq s
-doppler.measure.ToneMetrics.lobe_bins s
-doppler.measure.ToneMetrics.n_noise_bins s
-doppler.measure.ToneMetrics.noise_floor_dbfs s
-doppler.measure.ToneMetrics.proc_gain_db s
-doppler.measure.ToneMetrics.rbw_hz s
-doppler.measure.ToneMetrics.sfdr_dbc s
-doppler.measure.ToneMetrics.sfdr_dbfs s
-doppler.measure.ToneMetrics.sinad s
-doppler.measure.ToneMetrics.snr s
-doppler.measure.ToneMetrics.thd s
-doppler.measure.ToneMetrics.thd_n s
-doppler.measure.ToneMetrics.thd_pct s
-doppler.measure.ToneMetrics.worst_spur_dbc s
-doppler.measure.ToneMetrics.worst_spur_freq s
-doppler.measure.ToneMetrics.worst_spur_is_harm s
+doppler.measure.ToneMetrics sr
+doppler.measure.ToneMetrics.amp_uncert_db sr
+doppler.measure.ToneMetrics.bin_hz sr
+doppler.measure.ToneMetrics.enbw_hz sr
+doppler.measure.ToneMetrics.enob sr
+doppler.measure.ToneMetrics.enob_fs sr
+doppler.measure.ToneMetrics.floor_uncert_db sr
+doppler.measure.ToneMetrics.fund_dbfs sr
+doppler.measure.ToneMetrics.fund_freq sr
+doppler.measure.ToneMetrics.lobe_bins sr
+doppler.measure.ToneMetrics.n_noise_bins sr
+doppler.measure.ToneMetrics.noise_floor_dbfs sr
+doppler.measure.ToneMetrics.proc_gain_db sr
+doppler.measure.ToneMetrics.rbw_hz sr
+doppler.measure.ToneMetrics.sfdr_dbc sr
+doppler.measure.ToneMetrics.sfdr_dbfs sr
+doppler.measure.ToneMetrics.sinad sr
+doppler.measure.ToneMetrics.snr sr
+doppler.measure.ToneMetrics.thd sr
+doppler.measure.ToneMetrics.thd_n sr
+doppler.measure.ToneMetrics.thd_pct sr
+doppler.measure.ToneMetrics.worst_spur_dbc sr
+doppler.measure.ToneMetrics.worst_spur_freq sr
+doppler.measure.ToneMetrics.worst_spur_is_harm sr
 doppler.mpsk sr
 doppler.mpsk.mpsk_bits_per_symbol sr
 doppler.mpsk.mpsk_demap sr
@@ -1454,6 +1467,18 @@ doppler.telemetry.Capture.close sr
 doppler.telemetry.Capture.count sr
 doppler.telemetry.Capture.destroy sr
 doppler.telemetry.Capture.dropped sr
+doppler.telemetry.EventLog sr
+doppler.telemetry.EventLog.__enter__ sr
+doppler.telemetry.EventLog.__exit__ sr
+doppler.telemetry.EventLog.append sr
+doppler.telemetry.EventLog.close sr
+doppler.telemetry.EventLog.count sr
+doppler.telemetry.EventLog.destroy sr
+doppler.telemetry.EventLog.field sr
+doppler.telemetry.EventLog.field_str sr
+doppler.telemetry.EventLog.finalize sr
+doppler.telemetry.EventLog.set_dataset sr
+doppler.telemetry.EventLog.set_telemetry sr
 doppler.telemetry.MemoryCapture sr
 doppler.telemetry.MemoryCapture.__enter__ sr
 doppler.telemetry.MemoryCapture.__exit__ sr
@@ -1866,7 +1891,6 @@ doppler.wfm.Writer.peak_dbfs sr
 doppler.wfm.Writer.track_clipping r
 doppler.wfm.Writer.write sr
 doppler.wfm.bpsk_map sr
-doppler.wfm.ccsds_asm_bits sr
 doppler.wfm.crc16 sr
 doppler.wfm.mls_poly sr
 doppler.wfm.qpsk_map sr

@@ -96,7 +96,7 @@ _Frame synchronisation: find a known marker in a bit stream, and choose the thre
 ## Detailed Description
 
 
-`dp_syncword.h` owns the kernel — correlate a known pattern against every bit offset, in both polarities, and report the first offset close enough. This owns the DETECTOR built over one: a caller names the marker and gets a searcher for it, plus the arithmetic for setting its tolerance. Nothing here knows about CCSDS, which is a configuration of the same kernel (see `ccsds_tm`); reach it with `doppler.wfm.ccsds_asm_bits()`.
+`dp_syncword.h` owns the kernel — correlate a known pattern against every bit offset, in both polarities, and report the first offset close enough. This owns the DETECTOR built over one: a caller names the marker and gets a searcher for it, plus the arithmetic for setting its tolerance. Nothing here knows about CCSDS, which is a configuration of the same kernel (see `ccsds_tm`); reach it with `doppler.ccsds.asm_bits()`.
 
 
 ### The threshold is not a property of the marker
@@ -119,8 +119,8 @@ Lifecycle: `create -> [find / pfa / max_errors_for]* -> destroy`.
 ```C++
 >>> import numpy as np
 >>> from doppler.detection import SyncFinder
->>> from doppler.wfm import ccsds_asm_bits
->>> asm = ccsds_asm_bits()
+>>> from doppler.ccsds import asm_bits
+>>> asm = asm_bits()
 >>> f = SyncFinder(asm)
 >>> rx = np.concatenate([np.zeros(96, np.uint8), asm])
 >>> hit = f.find(rx, max_errors=4)
@@ -149,7 +149,7 @@ syncword_state_t * syncword_create (
 
 
 
-The marker is COPIED. A searcher outlives the array it was built from, which is what lets a caller construct one from a temporary — the CCSDS marker arrives from `ccsds_asm_bits()` as exactly that.
+The marker is COPIED. A searcher outlives the array it was built from, which is what lets a caller construct one from a temporary — the CCSDS marker arrives from `asm_bits()` as exactly that.
 
 
 
@@ -178,8 +178,8 @@ Caller must call [**syncword\_destroy()**](syncword__core_8h.md#function-syncwor
 ```C++
   >>> import numpy as np
   >>> from doppler.detection import SyncFinder
-  >>> from doppler.wfm import ccsds_asm_bits
->>> asm = ccsds_asm_bits()   # 0x1ACFFC1D, no transcription
+  >>> from doppler.ccsds import asm_bits
+>>> asm = asm_bits()          # 0x1ACFFC1D, no transcription
   >>> f = SyncFinder(asm)
   >>> f.nbits
   32
@@ -315,8 +315,8 @@ Tolerance in bits, or -1 when even an exact match exceeds `pfa` over that window
 
 ```C++
 >>> from doppler.detection import SyncFinder
->>> from doppler.wfm import ccsds_asm_bits
->>> f = SyncFinder(ccsds_asm_bits())
+>>> from doppler.ccsds import asm_bits
+>>> f = SyncFinder(asm_bits())
 >>> f.max_errors_for(window_bits=96, pfa=1e-3)
 3
 >>> f.max_errors_for(window_bits=100000, pfa=1e-3)   # search further
@@ -368,8 +368,8 @@ Probability in &#91;0, 1&#93;.
 ```C++
 >>> import numpy as np
 >>> from doppler.detection import SyncFinder
->>> from doppler.wfm import ccsds_asm_bits
->>> f = SyncFinder(ccsds_asm_bits())
+>>> from doppler.ccsds import asm_bits
+>>> f = SyncFinder(asm_bits())
 >>> # the marker and its complement, out of 2**32 windows
 >>> round(f.pfa(0) * 2**32)
 2

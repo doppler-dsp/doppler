@@ -8,7 +8,7 @@
  * This owns the DETECTOR built over one: a caller names the marker and gets
  * a searcher for it, plus the arithmetic for setting its tolerance. Nothing
  * here knows about CCSDS, which is a configuration of the same kernel (see
- * `ccsds_tm`); reach it with `doppler.wfm.ccsds_asm_bits()`.
+ * `ccsds_tm`); reach it with `doppler.ccsds.asm_bits()`.
  *
  * ## The threshold is not a property of the marker
  *
@@ -33,8 +33,8 @@
  * @code
  * >>> import numpy as np
  * >>> from doppler.detection import SyncFinder
- * >>> from doppler.wfm import ccsds_asm_bits
- * >>> asm = ccsds_asm_bits()
+ * >>> from doppler.ccsds import asm_bits
+ * >>> asm = asm_bits()
  * >>> f = SyncFinder(asm)
  * >>> rx = np.concatenate([np.zeros(96, np.uint8), asm])
  * >>> hit = f.find(rx, max_errors=4)
@@ -94,7 +94,7 @@ typedef struct
  *
  * The marker is COPIED. A searcher outlives the array it was built from,
  * which is what lets a caller construct one from a temporary — the CCSDS
- * marker arrives from `ccsds_asm_bits()` as exactly that.
+ * marker arrives from `asm_bits()` as exactly that.
  *
  * @param marker      Unpacked bits, one per byte; only the LSB is used.
  * @param marker_len  Marker length in bits; must be non-zero.
@@ -105,8 +105,8 @@ typedef struct
  * @code
  * >>> import numpy as np
  * >>> from doppler.detection import SyncFinder
- * >>> from doppler.wfm import ccsds_asm_bits
- >>> asm = ccsds_asm_bits()   # 0x1ACFFC1D, no transcription
+ * >>> from doppler.ccsds import asm_bits
+ >>> asm = asm_bits()          # 0x1ACFFC1D, no transcription
  * >>> f = SyncFinder(asm)
  * >>> f.nbits
  * 32
@@ -175,8 +175,8 @@ syncword_hit_t syncword_find (syncword_state_t *state, const uint8_t *bits,
  * @code
  * >>> import numpy as np
  * >>> from doppler.detection import SyncFinder
- * >>> from doppler.wfm import ccsds_asm_bits
- * >>> f = SyncFinder(ccsds_asm_bits())
+ * >>> from doppler.ccsds import asm_bits
+ * >>> f = SyncFinder(asm_bits())
  * >>> # the marker and its complement, out of 2**32 windows
  * >>> round(f.pfa(0) * 2**32)
  * 2
@@ -208,8 +208,8 @@ double syncword_pfa (syncword_state_t *state, uint32_t max_errors);
  *
  * @code
  * >>> from doppler.detection import SyncFinder
- * >>> from doppler.wfm import ccsds_asm_bits
- * >>> f = SyncFinder(ccsds_asm_bits())
+ * >>> from doppler.ccsds import asm_bits
+ * >>> f = SyncFinder(asm_bits())
  * >>> f.max_errors_for(window_bits=96, pfa=1e-3)
  * 3
  * >>> f.max_errors_for(window_bits=100000, pfa=1e-3)   # search further

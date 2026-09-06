@@ -14,15 +14,15 @@ receiver hunting for lock is in — every offset examined, no early exit.
 import numpy as np
 import pytest
 
+from doppler.ccsds import asm_bits
 from doppler.detection import SyncFinder
-from doppler.wfm import ccsds_asm_bits
 
 BLOCK_64K = 65_536
 
 
 @pytest.fixture
 def obj():
-    return SyncFinder(ccsds_asm_bits())
+    return SyncFinder(asm_bits())
 
 
 @pytest.fixture

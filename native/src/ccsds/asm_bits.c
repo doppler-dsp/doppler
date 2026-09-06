@@ -1,7 +1,7 @@
 /*
- * ccsds_asm_bits.c — wfm module-level function.
+ * asm_bits.c — ccsds module-level function.
  */
-#include "wfm/wfm_core.h"
+#include "ccsds/ccsds_core.h"
 
 #include "ccsds_tm/ccsds_tm.h"
 
@@ -12,7 +12,7 @@
  * assembler about the marker syncs to nothing. Python transcribing it a
  * third time was the state of this tree until doppler#900. */
 void
-ccsds_asm_bits (uint8_t *out)
+asm_bits (uint8_t *out)
 {
   ccsds_tm_asm_bits (out);
 }

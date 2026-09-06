@@ -344,8 +344,8 @@ class SyncFinder:
     --------
     >>> import numpy as np
     >>> from doppler.detection import SyncFinder
-    >>> from doppler.wfm import ccsds_asm_bits
-    >>> asm = ccsds_asm_bits()   # 0x1ACFFC1D, no transcription
+    >>> from doppler.ccsds import asm_bits
+    >>> asm = asm_bits()          # 0x1ACFFC1D, no transcription
     >>> f = SyncFinder(asm)
     >>> f.nbits
     32
@@ -420,8 +420,8 @@ class SyncFinder:
         --------
         >>> import numpy as np
         >>> from doppler.detection import SyncFinder
-        >>> from doppler.wfm import ccsds_asm_bits
-        >>> f = SyncFinder(ccsds_asm_bits())
+        >>> from doppler.ccsds import asm_bits
+        >>> f = SyncFinder(asm_bits())
         >>> # the marker and its complement, out of 2**32 windows
         >>> round(f.pfa(0) * 2**32)
         2
@@ -459,8 +459,8 @@ class SyncFinder:
         Examples
         --------
         >>> from doppler.detection import SyncFinder
-        >>> from doppler.wfm import ccsds_asm_bits
-        >>> f = SyncFinder(ccsds_asm_bits())
+        >>> from doppler.ccsds import asm_bits
+        >>> f = SyncFinder(asm_bits())
         >>> f.max_errors_for(window_bits=96, pfa=1e-3)
         3
         >>> f.max_errors_for(window_bits=100000, pfa=1e-3)   # search further

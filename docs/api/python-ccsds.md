@@ -52,10 +52,17 @@ it takes whatever marker you hand it — to find where a CADU starts in a bit
 stream:
 
 ```python
+import numpy as np
 from doppler.detection import SyncFinder
 
-f = SyncFinder(asm_bits())
+marker = np.asarray(asm_bits())
+rng = np.random.default_rng(1220)
+stream = rng.integers(0, 2, 500, dtype=np.uint8)
+stream[173 : 173 + marker.size] = marker
+
+f = SyncFinder(marker)
 hit = f.find(stream, max_errors=f.max_errors_for(96, pfa=1e-3))
+assert (hit.found, hit.offset, hit.inverted) == (1, 173, 0)
 ```
 
 **And it is the only thing in a CADU that can report a 180-degree carrier

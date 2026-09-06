@@ -13,9 +13,10 @@ the same stage on the OTHER face, and that the parameter stays open.
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
-import tomllib
 
 from doppler.tests._repo import repo_root
 from doppler.wfm import (
@@ -40,15 +41,40 @@ NAMED = (
 )
 
 
+#: Where the scene schema states the stage-kind names.
+SCHEMA = (
+    "$defs",
+    "frame_desc",
+    "properties",
+    "stages",
+    "items",
+    "properties",
+    "kind",
+)
+
+
 def _json_face() -> list[str]:
-    """`[[enum]] stage_kind` — the names the scene JSON writes, in order."""
-    man = tomllib.loads(
-        (repo_root() / "just-makeit.toml").read_text(encoding="utf-8")
+    """The names the scene JSON accepts, in order, from the SHIPPED schema.
+
+    `docs/schema/wfmgen.schema.json` rather than `[[enum]] stage_kind`, for
+    two reasons. It is the face a user actually writes against, so comparing
+    against it tests the join rather than the declaration both sides derive
+    from. And it is JSON: `tomllib` arrives in 3.11 and this repo's floor is
+    3.9, which CI caught on the first push of this file.
+    """
+    doc = json.loads(
+        (repo_root() / "docs" / "schema" / "wfmgen.schema.json").read_text(
+            encoding="utf-8"
+        )
     )
-    for e in man["enum"]:
-        if e["name"] == "stage_kind":
-            return list(e["values"])
-    raise AssertionError("no [[enum]] stage_kind in just-makeit.toml")
+    node = doc
+    for key in SCHEMA:
+        assert key in node, f"schema shape moved: no {key!r} under {SCHEMA}"
+        node = node[key]
+    for alt in node["oneOf"]:
+        if "enum" in alt:
+            return list(alt["enum"])
+    raise AssertionError("no stage-kind enum in the scene schema")
 
 
 def test_the_constant_is_the_index_the_json_name_resolves_to() -> None:

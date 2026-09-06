@@ -81,6 +81,10 @@
  *                                            and re-acquired, the other
  *                                            leaving, released, returning
  *                                            and re-acquired
+ *   ... --refine-margin DB                   the receivers' refine design
+ *                                            margin (the pool's 14 dB
+ *                                            unless given): the dwell it
+ *                                            sizes is #1265's axis
  *   ... --events DIR                         keep each run's event log as
  *                                            DIR/pool_soak_<cn0>.events
  *                                            (otherwise a temporary file,
@@ -155,11 +159,13 @@ typedef struct
   uint64_t t_track;       /* first block reported tracking              */
   size_t   held_blocks;   /* blocks a slot held it                      */
   size_t   trk_blocks;    /* of them, tracking with code lock           */
-  size_t   on_blocks;     /* blocks from the first tracking to t_off    */
-  int      false_rel;     /* `lost` releases while on the air           */
-  int      on_time_rel;   /* `on_time` releases while on the air        */
-  size_t   dbl;           /* blocks two slots held it                   */
-  size_t   dbl_locked;    /* of them, both tracking with code lock: a
+  size_t   sym_blocks;    /* of them, tracking with symbol lock: the
+                             carrier pulled in (#1265)                    */
+  size_t on_blocks;       /* blocks from the first tracking to t_off    */
+  int    false_rel;       /* `lost` releases while on the air           */
+  int    on_time_rel;     /* `on_time` releases while on the air        */
+  size_t dbl;             /* blocks two slots held it                   */
+  size_t dbl_locked;      /* of them, both tracking with code lock: a
                              double assignment, not a recovery          */
   int      waited;        /* hits dropped while it had no slot          */
   uint64_t t_rel;         /* the release after t_off, or 0              */
@@ -347,7 +353,7 @@ typedef struct
   size_t   waited, false_alarms, relocked;
   double   wait_max;
   uint64_t dropped, events;
-  size_t   held_blocks, trk_blocks, on_blocks;
+  size_t   held_blocks, trk_blocks, sym_blocks, on_blocks;
   double   assign_min, assign_sum, assign_max; /* arrival -> seed, s   */
   double   track_min, track_sum, track_max;    /* arrival -> tracking  */
   double   rel_min, rel_sum, rel_max;          /* departure -> release */
@@ -403,6 +409,9 @@ count_log (const char *path, totals_t *t)
 }
 
 static const char *g_events_dir = NULL;
+/* --refine-margin: the receivers' refine_design_margin_db, the pool's
+   default of 14 dB unless given -- the dwell it sizes is #1265's axis. */
+static double g_refine_margin_db = 14.0;
 
 static int
 run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
@@ -419,8 +428,8 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
   async_dsss_pool_state_t *p = async_dsss_pool_create (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cfg->cn0_dbhz, 1e-3, 0.9, DU,
       CODE_ONLY_EPOCHS, DOPPLER_RATE, MAX_PEAKS, N_SLOTS, THREADS, CARRIER_HZ,
-      LOST_CONFIRM_S, cfg->max_on_s, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
-      100000);
+      LOST_CONFIRM_S, cfg->max_on_s, 4, 8, 0, 0.5, 4, g_refine_margin_db, 64,
+      8, false, 100000);
   DP_REQUIRE_MSG (g && p, "the noise and the pool open");
   char path[256];
   if (g_events_dir)
@@ -437,10 +446,11 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
 
   printf ("  %zu emitters, %.0f s at %.0f dB-Hz; D = %zu (%.1f Hz rows), "
           "%d threads; on [%.1f, %.1f] s, off [%.1f, %.1f] s, the pool's "
-          "maximum on-air time %.0f s\n",
+          "maximum on-air time %.0f s; refine margin %.0f dB\n",
           cfg->n_emit, cfg->duration_s, cfg->cn0_dbhz, p->acq->coherent_bins,
           p->acq->doppler_res_hz, dp_pool_threads (fan), cfg->on_min_s,
-          cfg->on_max_s, cfg->off_min_s, cfg->off_max_s, cfg->max_on_s);
+          cfg->on_max_s, cfg->off_min_s, cfg->off_max_s, cfg->max_on_s,
+          g_refine_margin_db);
   for (size_t k = 0; k < cfg->n_emit; k++)
     printf ("    emitter %zu: %+.2f ppm (%+.0f Hz), burn-in %.3f s%s\n", k,
             e[k].ppm, e[k].doppler_hz, (double)e[k].burn / FS,
@@ -644,6 +654,7 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
                 {
                   s->held_blocks++;
                   s->trk_blocks += trk && r[slot].code_locked;
+                  s->sym_blocks += trk && r[slot].locked;
                 }
             }
         }
@@ -715,9 +726,10 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
 
   /* The report: one line per stint, then the run. */
   printf ("    emitter  stint   on at    off at   assigned  seed err      "
-          "tracking   held   tracked  false  on-time  dbl  released\n");
+          "tracking   held   tracked  symbol  false  on-time  dbl  "
+          "released\n");
   printf ("                       s         s      +s      Hz   chip       "
-          "+s                            rel    rel    (lkd)    +s\n");
+          "+s                     locked    rel    rel    (lkd)    +s\n");
   const uint64_t min_on = samples (cfg->on_min_s);
   for (size_t k = 0; k < cfg->n_emit; k++)
     for (size_t j = 0; j < e[k].n_st; j++)
@@ -743,10 +755,12 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
           printf ("%7.2f  ", (double)(s->t_track - s->t_on) / FS);
         else
           printf ("%7s  ", "--");
-        printf ("%5.3f  %7.3f  %5d  %7d  %3zu (%zu)  ",
+        printf ("%5.3f  %7.3f  %6.3f  %5d  %7d  %3zu (%zu)  ",
                 s->on_blocks ? (double)s->held_blocks / (double)s->on_blocks
                              : 0.0,
                 s->held_blocks ? (double)s->trk_blocks / (double)s->held_blocks
+                               : 0.0,
+                s->held_blocks ? (double)s->sym_blocks / (double)s->held_blocks
                                : 0.0,
                 s->false_rel, s->on_time_rel, s->dbl, s->dbl_locked);
         if (s->truncated)
@@ -795,6 +809,7 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
         t->dbl_locked += s->dbl_locked;
         t->held_blocks += s->held_blocks;
         t->trk_blocks += s->trk_blocks;
+        t->sym_blocks += s->sym_blocks;
         t->on_blocks += s->on_blocks;
         if (!s->truncated && s->t_held)
           {
@@ -847,13 +862,15 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
   if (t->n_rel)
     printf ("  departure -> release %.2f / %.2f / %.2f s (%zu)\n", t->rel_min,
             t->rel_sum / (double)t->n_rel, t->rel_max, t->n_rel);
-  printf ("  on the air after first tracking: held %.4f of %zu blocks; held "
-          "and tracking with code lock %.4f of %zu\n",
-          t->on_blocks ? (double)t->held_blocks / (double)t->on_blocks : 0.0,
-          t->on_blocks,
-          t->held_blocks ? (double)t->trk_blocks / (double)t->held_blocks
-                         : 0.0,
-          t->held_blocks);
+  printf (
+      "  on the air after first tracking: held %.4f of %zu blocks; held "
+      "and tracking with code lock %.4f of %zu, with symbol lock "
+      "%.4f\n",
+      t->on_blocks ? (double)t->held_blocks / (double)t->on_blocks : 0.0,
+      t->on_blocks,
+      t->held_blocks ? (double)t->trk_blocks / (double)t->held_blocks : 0.0,
+      t->held_blocks,
+      t->held_blocks ? (double)t->sym_blocks / (double)t->held_blocks : 0.0);
   printf ("  event log: %zu lines for %llu transitions -- seeded %zu, "
           "tracking %zu, degrade %zu, lost %zu, released %zu (lost) + %zu "
           "(on_time), dropped %zu\n\n",
@@ -914,6 +931,8 @@ main (int argc, char **argv)
         check = 1;
       else if (strcmp (argv[a], "--events") == 0 && a + 1 < argc)
         g_events_dir = argv[++a];
+      else if (strcmp (argv[a], "--refine-margin") == 0 && a + 1 < argc)
+        g_refine_margin_db = atof (argv[++a]);
     }
   uint8_t code[SF];
   gold_1023 (code);

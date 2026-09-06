@@ -65,12 +65,12 @@ _A frame's bit layout, held as an object so Python can describe one._ [More...](
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**frame\_add\_derived**](#function-frame_add_derived) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, size\_t bits) <br>_Append a named field a stage will fill. Returns its index, or -1._  |
+|  int | [**frame\_add\_derived**](#function-frame_add_derived) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, size\_t bits) <br>_Append a named field a stage will fill. Returns its index; -1 in C,_ `ValueError` _from Python._ |
 |  int | [**frame\_add\_field**](#function-frame_add_field) ([**frame\_state\_t**](structframe__state__t.md) \* state, const uint8\_t \* lit, size\_t lit\_len, int kind, size\_t gen\_len, size\_t reps, uint64\_t poly, uint64\_t seed, uint32\_t reg\_bits, int lfsr, uint64\_t taps\_a, uint64\_t seed\_a, uint64\_t taps\_b, uint64\_t seed\_b, uint32\_t derived\_by, size\_t derived\_bits) <br>_Append one field to a description._  |
-|  int | [**frame\_add\_hex**](#function-frame_add_hex) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, const char \* hex, size\_t reps) <br>_Append a named field from a hex literal. Returns its index, or -1._  |
+|  int | [**frame\_add\_hex**](#function-frame_add_hex) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, const char \* hex, size\_t reps) <br>_Append a named field from a hex literal. Returns its index; -1 in C,_ `ValueError` _from Python._ |
 |  int | [**frame\_add\_stage**](#function-frame_add_stage) ([**frame\_state\_t**](structframe__state__t.md) \* state, int kind, uint32\_t first\_field, uint32\_t n\_fields, uint32\_t depth, uint32\_t emit\_num, uint32\_t emit\_den, uint32\_t unit\_bits) <br>_Append one stage, and the span of fields it covers._  |
 |  int | [**frame\_add\_stage\_over**](#function-frame_add_stage_over) ([**frame\_state\_t**](structframe__state__t.md) \* state, int kind, const char \* first, const char \* last, uint32\_t depth, uint32\_t unit\_bits) <br>_Append a stage covering_ `[first .. last]` _by name._ |
-|  int | [**frame\_add\_value**](#function-frame_add_value) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, uint64\_t value, uint32\_t bits, size\_t reps) <br>_Append a named field from an integer. Returns its index, or -1._  |
+|  int | [**frame\_add\_value**](#function-frame_add_value) ([**frame\_state\_t**](structframe__state__t.md) \* state, const char \* name, uint64\_t value, uint32\_t bits, size\_t reps) <br>_Append a named field from an integer. Returns its index; -1 in C,_ `ValueError` _from Python._ |
 |  size\_t | [**frame\_bits**](#function-frame_bits) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t n, uint8\_t \* out, size\_t max\_out) <br>_Materialise_ `n` _consecutive frames, one bit per byte._ |
 |  size\_t | [**frame\_bits\_max\_out**](#function-frame_bits_max_out) ([**frame\_state\_t**](structframe__state__t.md) \* state, size\_t n) <br>_Bits_ [_**frame\_bits**_](frame__core_8h.md#function-frame_bits) _will write for_`n` _frames —_`n * nbits` _._ |
 |  int | [**frame\_build**](#function-frame_build) ([**frame\_state\_t**](structframe__state__t.md) \* state) <br>_Lay out and materialise a described frame._  |
@@ -181,7 +181,7 @@ frame_destroy(f);
 
 ### function frame\_add\_derived 
 
-_Append a named field a stage will fill. Returns its index, or -1._ 
+_Append a named field a stage will fill. Returns its index; -1 in C,_ `ValueError` _from Python._
 ```C++
 int frame_add_derived (
     frame_state_t * state,
@@ -213,7 +213,6 @@ A field with a declared length and no source: a CRC trailer, a block of check sy
 >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
 0
 >>> d.name_field(0, "payload")
-0
 >>> d.add_derived("crc", 16)          # a stage will fill it
 1
 ```
@@ -281,7 +280,7 @@ Either the caller supplies the bits (`lit`, or a generated kind) or a stage deri
 
 **Returns:**
 
-The new field's index, or -1 if the description is full, already built, or the literal could not be copied.
+The new field's index, or -1 if the description is full, already built, or the literal could not be copied. The Python binding raises `ValueError` rather than handing back the -1.
 
 
 
@@ -317,7 +316,7 @@ on the wire -- `derived_by` names the stage that fills it, PLUS ONE:
 
 ### function frame\_add\_hex 
 
-_Append a named field from a hex literal. Returns its index, or -1._ 
+_Append a named field from a hex literal. Returns its index; -1 in C,_ `ValueError` _from Python._
 ```C++
 int frame_add_hex (
     frame_state_t * state,
@@ -402,7 +401,7 @@ int frame_add_stage (
 
 **Returns:**
 
-The new stage's index, or -1 if the description is full or already built.
+The new stage's index, or -1 if the description is full or already built. The Python binding raises `ValueError` rather than handing back the -1.
 
 
 
@@ -474,7 +473,7 @@ The cover is the load-bearing part of the representation and this is the form th
 
 **Returns:**
 
-the new stage's index, or -1 on NULL, a full description, a name neither field carries, `last` before `first`, or once built.
+the new stage's index, or -1 on NULL, a full description, a name neither field carries, `last` before `first`, or once built. The Python binding raises `ValueError` rather than handing back the -1.
 
 
 
@@ -486,7 +485,6 @@ the new stage's index, or -1 on NULL, a full description, a name neither field c
 >>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
 0
 >>> d.name_field(0, "payload")
-0
 >>> d.add_derived("crc", 16)
 1
 >>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16
@@ -506,7 +504,7 @@ the new stage's index, or -1 on NULL, a full description, a name neither field c
 
 ### function frame\_add\_value 
 
-_Append a named field from an integer. Returns its index, or -1._ 
+_Append a named field from an integer. Returns its index; -1 in C,_ `ValueError` _from Python._
 ```C++
 int frame_add_value (
     frame_state_t * state,
@@ -671,7 +669,7 @@ The inner encoder starts from the all-zero register on every build: a descriptio
 
 **Returns:**
 
-0 on success, -1 if the description is empty, unbuildable, names a stage with no kernel here, or was already built.
+0 on success, -1 if the description is empty, unbuildable, names a stage with no kernel here, or was already built. The Python binding raises `ValueError` and returns nothing.
 
 
 
@@ -692,7 +690,7 @@ rather than half-built:
 >>> FrameDesc(empty, empty, empty).build()
 Traceback (most recent call last):
     ...
-ValueError: build failed (rc=-1)
+ValueError: cannot build: the description is empty, unbuildable, ...
 ```
  
 
@@ -1292,7 +1290,7 @@ The one lookup that resolves a name, so every index-taking entry point keeps wor
 
 **Returns:**
 
-the index, or -1 on NULL or a name no field carries.
+the index, or -1 on NULL or a name no field carries. This is the one verb whose -1 survives into Python: a name that matches nothing is an ANSWER, not a refusal, so there is nothing to raise about.
 
 
 
@@ -1542,7 +1540,7 @@ int frame_name_field (
 
 **Returns:**
 
-0, or -1 on NULL, an out-of-range `index`, a name another field already carries, or once the frame is built.
+0, or -1 on NULL, an out-of-range `index`, a name another field already carries, or once the frame is built. It is a command rather than a query, so the Python binding raises `ValueError` on the -1 and returns nothing on the 0.
 
 
 
@@ -1554,7 +1552,6 @@ int frame_name_field (
 >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
 0
 >>> d.name_field(0, "payload")
-0
 >>> d.field_index("payload")
 0
 ```

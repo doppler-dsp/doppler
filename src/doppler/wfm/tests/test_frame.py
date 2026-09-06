@@ -356,10 +356,22 @@ def test_a_description_is_closed_once_built():
     """A built frame is finished: extending it would strand its own bits."""
     d = FrameDesc(EMPTY, SYNC, PAYLOAD, crc="crc16")
     d.build()
-    assert d.add_field(PAYLOAD) == -1
-    assert d.add_stage(0, first_field=0, n_fields=1) == -1
-    with pytest.raises(ValueError):
-        d.build()
+    # Every refusal RAISES (doppler#1222). It used to return -1, which is a
+    # valid index everywhere the return is used -- `derived_by` and a stage's
+    # `first_field` are counted in it -- so a caller who did not check got a
+    # wrong frame rather than an error.
+    for refused in (
+        lambda: d.add_field(PAYLOAD),
+        lambda: d.add_stage(0, first_field=0, n_fields=1),
+        lambda: d.add_derived("late", 8),
+        lambda: d.add_hex("late", "ff"),
+        lambda: d.add_value("late", 3, 4),
+        lambda: d.add_stage_over(0, "sync", "payload"),
+        lambda: d.name_field(0, "late"),
+        lambda: d.build(),
+    ):
+        with pytest.raises(ValueError):
+            refused()
 
 
 # ── the scoring path: what a coded frame reports, and why it beats a CRC ────
@@ -511,7 +523,11 @@ def test_names_resolve_and_a_duplicate_is_refused() -> None:
     # An unnamed field is anonymous, not named "".
     assert d.field_index("") == -1
     # A rename onto a taken name would make field_index ambiguous.
-    assert d.name_field(0, "payload") == -1
+    with pytest.raises(ValueError):
+        d.name_field(0, "payload")
+    # ...but a name that matches nothing is an ANSWER, not a refusal, so
+    # field_index is the one verb whose -1 survives into Python.
+    assert d.field_index("still-absent") == -1
 
 
 def test_a_value_field_is_msb_first() -> None:

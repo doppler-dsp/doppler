@@ -588,11 +588,19 @@ FrameObj_add_field (FrameObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *lit     = (const uint8_t *)PyArray_DATA (lit_arr);
   size_t         lit_len = (size_t)PyArray_SIZE (lit_arr);
-  int y = frame_add_field (self->handle, lit, lit_len, _arg_kind, gen_len,
-                           reps, poly, seed, reg_bits, _arg_lfsr, taps_a,
-                           seed_a, taps_b, seed_b, derived_by, derived_bits);
+  int _rc = frame_add_field (self->handle, lit, lit_len, _arg_kind, gen_len,
+                             reps, poly, seed, reg_bits, _arg_lfsr, taps_a,
+                             seed_a, taps_b, seed_b, derived_by, derived_bits);
   Py_DECREF (lit_arr);
-  return PyLong_FromLong ((long)y);
+  if (_rc < 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "cannot append a field: the description is full, already "
+                    "built, or the literal could not be copied",
+                    (long long)_rc);
+      return NULL;
+    }
+  return PyLong_FromLong ((long)_rc);
 }
 
 static PyObject *
@@ -623,9 +631,17 @@ FrameObj_add_stage (FrameObject *self, PyObject *args, PyObject *kwds)
   uint32_t emit_num    = (uint32_t)emit_num_raw;
   uint32_t emit_den    = (uint32_t)emit_den_raw;
   uint32_t unit_bits   = (uint32_t)unit_bits_raw;
-  int y = frame_add_stage (self->handle, kind, first_field, n_fields, depth,
-                           emit_num, emit_den, unit_bits);
-  return PyLong_FromLong ((long)y);
+  int _rc = frame_add_stage (self->handle, kind, first_field, n_fields, depth,
+                             emit_num, emit_den, unit_bits);
+  if (_rc < 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "cannot append a stage: the description is full or "
+                    "already built",
+                    (long long)_rc);
+      return NULL;
+    }
+  return PyLong_FromLong ((long)_rc);
 }
 
 static PyObject *
@@ -659,8 +675,17 @@ FrameObj_name_field (FrameObject *self, PyObject *args, PyObject *kwds)
                                     &name))
     return NULL;
   uint32_t index = (uint32_t)index_raw;
-  int      y     = frame_name_field (self->handle, index, name);
-  return PyLong_FromLong ((long)y);
+  int      _rc   = frame_name_field (self->handle, index, name);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "cannot name a field: the index is out of range, another "
+                    "field already carries the name, or the frame is already "
+                    "built",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -679,8 +704,16 @@ FrameObj_add_hex (FrameObject *self, PyObject *args, PyObject *kwds)
                                     &reps_raw))
     return NULL;
   size_t reps = (size_t)reps_raw;
-  int    y    = frame_add_hex (self->handle, name, hex, reps);
-  return PyLong_FromLong ((long)y);
+  int    _rc  = frame_add_hex (self->handle, name, hex, reps);
+  if (_rc < 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "cannot append a hex field: the description is full, "
+                    "already built, or the digits could not be expanded",
+                    (long long)_rc);
+      return NULL;
+    }
+  return PyLong_FromLong ((long)_rc);
 }
 
 static PyObject *
@@ -702,8 +735,17 @@ FrameObj_add_value (FrameObject *self, PyObject *args, PyObject *kwds)
   uint64_t value = (uint64_t)value_raw;
   uint32_t bits  = (uint32_t)bits_raw;
   size_t   reps  = (size_t)reps_raw;
-  int      y     = frame_add_value (self->handle, name, value, bits, reps);
-  return PyLong_FromLong ((long)y);
+  int      _rc   = frame_add_value (self->handle, name, value, bits, reps);
+  if (_rc < 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "cannot append a value field: the description is full, "
+                    "already built, or the value does not fit the declared "
+                    "width",
+                    (long long)_rc);
+      return NULL;
+    }
+  return PyLong_FromLong ((long)_rc);
 }
 
 static PyObject *
@@ -721,8 +763,16 @@ FrameObj_add_derived (FrameObject *self, PyObject *args, PyObject *kwds)
                                     &bits_raw))
     return NULL;
   size_t bits = (size_t)bits_raw;
-  int    y    = frame_add_derived (self->handle, name, bits);
-  return PyLong_FromLong ((long)y);
+  int    _rc  = frame_add_derived (self->handle, name, bits);
+  if (_rc < 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "cannot append a derived field: the description is full "
+                    "or already built",
+                    (long long)_rc);
+      return NULL;
+    }
+  return PyLong_FromLong ((long)_rc);
 }
 
 static PyObject *
@@ -745,9 +795,18 @@ FrameObj_add_stage_over (FrameObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   uint32_t depth     = (uint32_t)depth_raw;
   uint32_t unit_bits = (uint32_t)unit_bits_raw;
-  int      y = frame_add_stage_over (self->handle, kind, first, last, depth,
-                                     unit_bits);
-  return PyLong_FromLong ((long)y);
+  int      _rc = frame_add_stage_over (self->handle, kind, first, last, depth,
+                                       unit_bits);
+  if (_rc < 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "cannot append a stage: the description is full, already "
+                    "built, or names a field the description does not carry "
+                    "(and `last` must not precede `first`)",
+                    (long long)_rc);
+      return NULL;
+    }
+  return PyLong_FromLong ((long)_rc);
 }
 
 static PyObject *
@@ -761,7 +820,10 @@ FrameObj_build (FrameObject *self, PyObject *Py_UNUSED (ignored))
   int _rc = frame_build (self->handle);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "build failed",
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "cannot build: the description is empty, unbuildable, "
+                    "names a stage no kernel here covers, or was already "
+                    "built",
                     (long long)_rc);
       return NULL;
     }
@@ -1337,7 +1399,16 @@ static PyMethodDef FrameObj_methods[] = {
     "-------\n"
     "int\n"
     "    The new field's index, or -1 if the description is full, already\n"
-    "    built, or the literal could not be copied.\n"
+    "    built, or the literal could not be copied. The Python binding\n"
+    "    raises `ValueError` rather than handing back the -1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    ``cannot append a field: the description is full, already built, or\n"
+    "    the literal could not be copied``, with the return code appended\n"
+    "    (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1413,7 +1484,15 @@ static PyMethodDef FrameObj_methods[] = {
     "-------\n"
     "int\n"
     "    The new stage's index, or -1 if the description is full or already\n"
-    "    built.\n"
+    "    built. The Python binding raises `ValueError` rather than handing\n"
+    "    back the -1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    ``cannot append a stage: the description is full or already\n"
+    "    built``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1444,10 +1523,13 @@ static PyMethodDef FrameObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "field_index(name) -> int\n"
     "\n"
-    "Index of the field called `name`, or -1. The one lookup that\n"
-    "resolves a name, so every index-taking method keeps working and a\n"
-    "rename can only be wrong once. An unnamed field is ANONYMOUS rather\n"
-    "than named \"\", so the empty name matches nothing.\n"
+    "Index of the field called `name`, or -1 -- the one verb whose\n"
+    "sentinel survives into Python, because a name that matches nothing is\n"
+    "an ANSWER rather than a refusal. The one lookup that resolves a name,\n"
+    "so every index-taking method keeps working and a rename can only be\n"
+    "wrong once. An unnamed field is ANONYMOUS rather than named \"\", so "
+    "the\n"
+    "empty name matches nothing.\n"
     "\n"
     "The one lookup that resolves a name, so every index-taking entry point\n"
     "keeps working unchanged and a rename can only be wrong once. An unnamed\n"
@@ -1462,7 +1544,9 @@ static PyMethodDef FrameObj_methods[] = {
     "Returns\n"
     "-------\n"
     "int\n"
-    "    the index, or -1 on NULL or a name no field carries.\n"
+    "    the index, or -1 on NULL or a name no field carries. This is the\n"
+    "    one verb whose -1 survives into Python: a name that matches nothing\n"
+    "    is an ANSWER, not a refusal, so there is nothing to raise about.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1478,7 +1562,7 @@ static PyMethodDef FrameObj_methods[] = {
     "-1\n" },
   { "name_field", (PyCFunction)(void *)FrameObj_name_field,
     METH_VARARGS | METH_KEYWORDS,
-    "name_field(index, name) -> int\n"
+    "name_field(index, name) -> None\n"
     "\n"
     "Give an already-appended field a name, or clear it with \"\". Refuses\n"
     "a name another field already carries, because `field_index` would then\n"
@@ -1492,11 +1576,13 @@ static PyMethodDef FrameObj_methods[] = {
     "name : str\n"
     "    the new name; truncated at `WFM_FRAME_NAME_MAX - 1`.\n"
     "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    0, or -1 on NULL, an out-of-range index, a name another field\n"
-    "    already carries, or once the frame is built.\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``cannot name a field: the index is out of range, another field\n"
+    "    already carries the name, or the frame is already built``, with the\n"
+    "    return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1507,7 +1593,6 @@ static PyMethodDef FrameObj_methods[] = {
     ">>> d.add_field(np.array([1, 0, 1, 0], np.uint8))\n"
     "0\n"
     ">>> d.name_field(0, \"payload\")\n"
-    "0\n"
     ">>> d.field_index(\"payload\")\n"
     "0\n" },
   { "add_hex", (PyCFunction)(void *)FrameObj_add_hex,
@@ -1519,7 +1604,7 @@ static PyMethodDef FrameObj_methods[] = {
     "odd\n"
     "number of digits gives a 4-bit tail. The expansion is cvt's\n"
     "`hex_to_bin`, not a second parser, so a bad digit is refused there.\n"
-    "Returns the new field's index, or -1.\n"
+    "Returns the new field's index; a refusal raises `ValueError`.\n"
     "\n"
     "Four bits per digit, MSB-first, so an odd number of digits gives a\n"
     "4-bit tail. The expansion is `cvt`'s `hex_to_bin` rather than a second\n"
@@ -1540,6 +1625,14 @@ static PyMethodDef FrameObj_methods[] = {
     "int\n"
     "    Output.\n"
     "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    ``cannot append a hex field: the description is full, already\n"
+    "    built, or the digits could not be expanded``, with the return code\n"
+    "    appended (gh-869).\n"
+    "\n"
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
@@ -1559,7 +1652,8 @@ static PyMethodDef FrameObj_methods[] = {
     "Append a named field from an integer, `bits` wide, MSB-first. The\n"
     "form to reach for when a literal fits in 64 bits: exact, and with no\n"
     "failure mode a typo can reach. Wider literals want `add_hex` or\n"
-    "`add_field`. Returns the new field's index, or -1.\n"
+    "`add_field`. Returns the new field's index; a refusal raises\n"
+    "`ValueError`.\n"
     "\n"
     "The form to reach for when a literal fits in 64 bits: exact, and with\n"
     "no failure mode a typo can reach. Wider ones want frame_add_hex.\n"
@@ -1580,6 +1674,14 @@ static PyMethodDef FrameObj_methods[] = {
     "int\n"
     "    Output.\n"
     "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    ``cannot append a value field: the description is full, already\n"
+    "    built, or the value does not fit the declared width``, with the\n"
+    "    return code appended (gh-869).\n"
+    "\n"
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
@@ -1598,7 +1700,7 @@ static PyMethodDef FrameObj_methods[] = {
     "Append a named field a STAGE will fill -- a CRC trailer, a block of\n"
     "check symbols. Its producer is not named here because no stage exists\n"
     "yet when the field it derives is appended; `add_stage_over` wires it.\n"
-    "Returns the new field's index, or -1.\n"
+    "Returns the new field's index; a refusal raises `ValueError`.\n"
     "\n"
     "A field with a declared length and no source: a CRC trailer, a block of\n"
     "check symbols. Its producer is wired by frame_add_stage_over rather\n"
@@ -1617,6 +1719,13 @@ static PyMethodDef FrameObj_methods[] = {
     "int\n"
     "    Output.\n"
     "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    ``cannot append a derived field: the description is full or already\n"
+    "    built``, with the return code appended (gh-869).\n"
+    "\n"
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
@@ -1626,7 +1735,6 @@ static PyMethodDef FrameObj_methods[] = {
     ">>> d.add_field(np.array([1, 0, 1, 0], np.uint8))\n"
     "0\n"
     ">>> d.name_field(0, \"payload\")\n"
-    "0\n"
     ">>> d.add_derived(\"crc\", 16)          # a stage will fill it\n"
     "1\n" },
   { "add_stage_over", (PyCFunction)(void *)FrameObj_add_stage_over,
@@ -1639,7 +1747,7 @@ static PyMethodDef FrameObj_methods[] = {
     "applies the invariant the layout already enforces: a field with a\n"
     "declared length and no source sitting at the end of a cover has exactly\n"
     "one possible producer. `kind` is a stage kind, as for `add_stage`.\n"
-    "Returns the new stage's index, or -1.\n"
+    "Returns the new stage's index; a refusal raises `ValueError`.\n"
     "\n"
     "The cover is the load-bearing part of the representation and this is\n"
     "the form that reads. It wires a derived field's producer for you, which\n"
@@ -1664,7 +1772,16 @@ static PyMethodDef FrameObj_methods[] = {
     "-------\n"
     "int\n"
     "    the new stage's index, or -1 on NULL, a full description, a name\n"
-    "    neither field carries, last before first, or once built.\n"
+    "    neither field carries, last before first, or once built. The Python\n"
+    "    binding raises `ValueError` rather than handing back the -1.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a negative value. The exception message is\n"
+    "    ``cannot append a stage: the description is full, already built, or\n"
+    "    names a field the description does not carry (and `last` must not\n"
+    "    precede `first`)``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1675,7 +1792,6 @@ static PyMethodDef FrameObj_methods[] = {
     ">>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))\n"
     "0\n"
     ">>> d.name_field(0, \"payload\")\n"
-    "0\n"
     ">>> d.add_derived(\"crc\", 16)\n"
     "1\n"
     ">>> d.add_stage_over(0, \"payload\", \"crc\")   # 0 = crc16\n"
@@ -1714,7 +1830,9 @@ static PyMethodDef FrameObj_methods[] = {
     "------\n"
     "ValueError\n"
     "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``build failed``, with the return code appended (gh-869).\n"
+    "    ``cannot build: the description is empty, unbuildable, names a\n"
+    "    stage no kernel here covers, or was already built``, with the\n"
+    "    return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -1734,7 +1852,7 @@ static PyMethodDef FrameObj_methods[] = {
     ">>> FrameDesc(empty, empty, empty).build()\n"
     "Traceback (most recent call last):\n"
     "    ...\n"
-    "ValueError: build failed (rc=-1)\n" },
+    "ValueError: cannot build: the description is empty, unbuildable, ...\n" },
   { "deframe", (PyCFunction)(void *)FrameObj_deframe,
     METH_VARARGS | METH_KEYWORDS,
     "deframe(rx_bits, out) -> ndarray\n"

@@ -2824,21 +2824,84 @@ both streams; `det_n_noncoh()` sizes it from the derated C/N0 alone):
 - **The floor's dwell is 7 blocks, not 18.** Margin 19 dB at 45 dB-Hz
     (the hand-over test's stand-in for 14 at 40) sizes 7; 18 needs 22 dB.
     The test's comment, #1252 and §12.9 all said 18.
-- **What the shipped stream does at the floor is a different defect
-    ([#1254](https://github.com/doppler-dsp/doppler/issues/1254)).** With
-    the window harness on 0.5 dB, the offset case at 45 dB-Hz settles 10
-    of 10 in 76–81 ms, as before. At 40 dB-Hz it settles 2 of 10 at the
-    shipped margin, 4 at 17 dB, 6 at 19 and 6 at 22 (122 blocks, 0.7 s);
-    every failure is a give-up — the refine's detector does not fire
-    within the dwell, and the hand-over is the unrefined seed, 1.1 kHz
-    off, which loop 1 can never acquire. The same seeds fail at every
-    dwell, so it is not the averaging; the frame's window is not it
-    either (disabled: 1 of 10); a static capture at 40 dB-Hz fires 10 of
-    10 at 7 blocks, and the channel capture of the hand-over test fires 4
-    of 4 at 37 blocks. On the retired stream the detector always fired,
-    because the aliasing folds the whole data lobe into the band — which
-    is why #1252 saw slow locks and not give-ups. What to look at is in
-    the issue.
+- **What the shipped stream did at the floor was the searcher's seed,
+    not the refine ([#1254](https://github.com/doppler-dsp/doppler/issues/1254),
+    §12.11).** With the window harness on 0.5 dB, the offset case at 45
+    dB-Hz settled 10 of 10 in 76–81 ms, as before; at 40 dB-Hz it settled 2
+    of 10 at the shipped margin, 4 at 17 dB, 6 at 19 and 6 at 22 (122
+    blocks, 0.7 s) — every failure a give-up, the refine's detector not
+    firing within the dwell and the hand-over the unrefined seed, 1.1 kHz
+    off, which loop 1 can never acquire. The same seeds failed at every
+    dwell, so it was not the averaging; the frame's window was not it
+    either (disabled: 1 of 10). On the retired stream the detector always
+    fired, because the aliasing folds the whole data lobe into the band —
+    which is why #1252 saw slow locks and not give-ups.
+
+______________________________________________________________________
+
+### 12.11 What was measured (2026-09-06) — the searcher's seed under the dilated clock
+
+**Where the give-up came from.** The refine's detector statistic at the
+floor's hand-over was noise-like on every failing seed (1.15–1.30 against
+a 1.69 gate, the peak at a random lag), while at 45 dB-Hz it was 8.3 at
+the right lag after two blocks. A static capture at 40 dB-Hz with an exact
+seed fires 10 of 10 at 7 blocks, so two variables separated the stimuli:
+the seed's chip phase and the dilation. The seed's phase alone, on the
+static capture (`validate_refine_bias` with the seed offset, 40 dB-Hz, the
+shipped stream): 0 and 0.25 chip off fire 10 of 10; 0.5 chip, 5 of 10;
+0.75 chip and beyond, none — the refine Dll's pull-in is under half a
+chip, and from a chip off it sits where it was seeded (its own lock
+statistic reading 5–8 regardless). The searcher's seed's error through
+the channel, measured at 45 dB-Hz where the live chain converges to the
+truth: +0.05 chip on every seed; at 40 dB-Hz, on the one seed that
+eventually settled, **+0.91 chip**.
+
+**Why: the dwell's centroid.** The continuous searcher decides a hit on a
+non-coherent sum over `n_noncoh` epochs — 15 at 45 dB-Hz (3.1 ms), 88 at
+40 (18 ms) — and the code phase it reports is that sum's peak, the phase
+at the *middle* of the dwell. The hand-off applies it at the dwell's
+*end*. Under 20 ppm the code moves 100 chips/s, so the seed is late by
+the drift over half the dwell: 0.15 chip at 45 dB-Hz (inside the
+pull-in), 0.9 at the floor (past it, and exactly the +0.91 measured). The
+same class as #1249, one hand-over earlier; and it is why the retired
+1-dump refine "worked" — its Dll wanders chips across the code and crosses
+the truth, and its aliasing folds the whole lobe into the band, so its
+detector fired on a seed a chip off and handed over a biased estimate
+instead of none.
+
+**The fix.** `acq_build_handoff()` takes the RF carrier (0.0 = no
+coupling) and advances the hit's phase by `doppler_hz_est / carrier_freq_hz × n_noncoh × coherent_bins × code_len / 2` chips — the
+drift over half the dwell — folded with `dp_fmod_pos()`. The searching
+receiver passes its own `carrier_freq_hz`; the hand-off flavor's holder
+passes the same carrier it gives the receiver. The formula and its sign
+are pinned in `test_acq_core` (positive Doppler, fast chip clock,
+advances). Measured after it, the window harness's offset case at 40
+dB-Hz on the shipped stream and margin:
+
+|                    | before       | after                      |
+| ------------------ | ------------ | -------------------------- |
+| seed error (chips) | +0.91        | +0.16, −0.30, +0.29, −0.06 |
+| settled, of 10     | 2            | **10**, in 114–205 ms      |
+| 45 dB-Hz, of 10    | 10, 76–81 ms | 10, unchanged              |
+
+`test_async_dsss_receiver_core`'s hand-over test now runs both operating
+points — 45 dB-Hz with margin 19 and the 40 dB-Hz floor with the shipped
+14 — and asks every seed to lock the code and decode; with the carrier
+zeroed at the receiver's call site the floor's seeds go red and the 45
+dB-Hz ones survive, which is why the floor is in the test. The rate case
+and the static condition are unchanged.
+
+**Two things this leaves open.** The block-coherent searcher (§12.7) was
+measured with the Doppler *rate* but never through a dilated chip clock:
+at 20 ppm its D = 154 epochs (31 ms) coherent sum spans 3 chips of code
+drift, and the hand-off's half-dwell advance covers its non-coherent
+looks (`coherent_bins` is in the formula) but not a smear inside the
+coherent block —
+[#1256](https://github.com/doppler-dsp/doppler/issues/1256). And
+`doppler.dsss.handoff.dll_init_chip_from_acq`,
+the Python lag → phase helper for a hand-built Acquisition → Dll chain,
+restates `acq_build_handoff()`'s fold and does not carry the advance —
+[#1257](https://github.com/doppler-dsp/doppler/issues/1257).
 
 ______________________________________________________________________
 

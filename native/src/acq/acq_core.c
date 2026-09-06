@@ -1763,20 +1763,36 @@ acq_push (acq_state_t *st, const float _Complex *x, size_t n_in,
 
 void
 acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
-                   size_t code_len, size_t spc, acq_handoff_t *out)
+                   size_t code_len, size_t spc, double carrier_freq_hz,
+                   acq_handoff_t *out)
 {
   double phase = acq_chip_phase_of_col (hit->code_phase, code_len, spc);
 
   /* Shared with the wideband search's own row->roll mapping — see
      dp_fftfreq_index()'s doc comment for the sign inversion that a second,
      drifted copy of this formula used to cause here. */
-  long k_fold = dp_fftfreq_index (hit->doppler_bin,
-                                  state->window_bins * state->coherent_bins);
+  long   k_fold = dp_fftfreq_index (hit->doppler_bin,
+                                    state->window_bins * state->coherent_bins);
+  double doppler_hz = (double)k_fold * state->doppler_res_hz;
+
+  /* The dwell's dilation (doppler#1254): the non-coherent sum's peak is the
+     phase at the middle of the dwell; the seed is wanted at its end. A
+     positive Doppler runs the chip clock fast, so the code is AHEAD of the
+     peak by the drift over half the dwell -- n_noncoh looks of
+     coherent_bins epochs each, code_len chips per epoch. */
+  if (carrier_freq_hz > 0.0)
+    {
+      double dwell_chips = (double)state->n_noncoh
+                           * (double)state->coherent_bins * (double)code_len;
+      phase              = dp_fmod_pos (
+          phase + doppler_hz / carrier_freq_hz * 0.5 * dwell_chips,
+          (double)code_len);
+    }
 
   *out = (acq_handoff_t){
     .samples_consumed = hit->samples_consumed,
     .chip_phase       = phase,
-    .doppler_hz_est   = (double)k_fold * state->doppler_res_hz,
+    .doppler_hz_est   = doppler_hz,
     .doppler_res_hz   = state->doppler_res_hz,
     .cn0_dbhz_est     = (double)hit->cn0_dbhz_est,
     .peak_mag         = hit->peak_mag,

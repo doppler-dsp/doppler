@@ -77,7 +77,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 
 | Type | Name |
 | ---: | :--- |
-|  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._ |
+|  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, double carrier\_freq\_hz, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._ |
 |  int | [**acq\_configure\_search\_raw**](#function-acq_configure_search_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst**](#function-acq_create_burst) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine: coherent multi-epoch combining, up to_ `reps` _deep (today's classic behavior)._ |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_continuous**](#function-acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
@@ -214,6 +214,7 @@ void acq_build_handoff (
     const acq_result_t * hit,
     size_t code_len,
     size_t spc,
+    double carrier_freq_hz,
     acq_handoff_t * out
 ) 
 ```
@@ -226,20 +227,19 @@ Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`
 
 * **Chip phase**: `hit's` `code_phase` is a correlation LAG (0 … code\_bins-1); a code-tracking loop's `init_chip` wants the code's own instantaneous phase instead — the mirror-image inversion `phase = fmod(code_len - code_phase/spc, code_len)`, folded non-negative.
 * **Doppler**: `state` is assumed built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) (coherent\_bins pinned at 1, `window_bins` the active mechanism, the only mode this function supports), so `hit`'s `doppler_bin` is a frequency-WINDOW index, mapped to a signed bin by `dp_fftfreq_index()` — the SAME helper the search uses — and scaled by `state->doppler_res_hz`.
-
-
-
-
-
+* **The dwell's dilation** (doppler#1254): a hit is decided on a non-coherent sum over `n_noncoh` looks, and the code phase it reports is that sum's peak  the phase at the MIDDLE of the dwell, not at its end, when the chip clock is dilated by the same Doppler the hit reports (a physically-coupled carrier, `doppler_hz / carrier_freq_hz` chips per chip). The seed a code loop wants is the phase at the next sample, so given `carrier_freq_hz` the phase is advanced by the drift over HALF the dwell, `doppler_hz_est / carrier_freq_hz * n_noncoh * coherent_bins * code_len / 2` chips. At SPEC's 20 ppm the continuous engine's dwell at 45 dB-Hz is 15 epochs (0.15 chip, inside any code loop's pull-in) and at the 40 dB-Hz floor 88 epochs  0.9 chip, measured directly, past the refine Dll's; without this the floor's hand-offs never refined. `0.0` = no coupling, no advance. 
 
 **Parameters:**
 
 
-* `state` The engine `hit` came from (non-NULL, built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous)). 
-* `hit` One hit from [**acq\_push()**](acq__core_8h.md#function-acq_push) (non-NULL). 
-* `code_len` Spreading-code length (chips) — the same value passed to whichever acq\_create\_\*() built `state`. 
-* `spc` Samples/chip — likewise. 
-* `out` Written on return (non-NULL). 
+  * `state` The engine `hit` came from (non-NULL, built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous)). 
+  * `hit` One hit from [**acq\_push()**](acq__core_8h.md#function-acq_push) (non-NULL). 
+  * `code_len` Spreading-code length (chips) — the same value passed to whichever acq\_create\_\*() built `state`. 
+  * `spc` Samples/chip — likewise. 
+  * `carrier_freq_hz` RF carrier the Doppler is physically coupled to (Hz), for the dwell's dilation above; 0.0 = none. 
+  * `out` Written on return (non-NULL). 
+
+
 
 
 

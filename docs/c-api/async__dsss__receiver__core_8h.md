@@ -114,6 +114,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 |  void | [**async\_dsss\_receiver\_reset**](#function-async_dsss_receiver_reset) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br>_Return to the searching state_  _or, in hand-off mode, to idle. Resets the embedded Acquisition (if any) and rebuilds both the refine-stage and live-tracking chains back to their placeholder seed (phase 0, no Doppler). A receiver that has locked cannot be "reset back
 to tracking the same signal," only back to searching — matching every other object's reset() semantics in this codebase. In hand-off mode there is no search to return to, so this is how the holder of a pool releases a lost receiver for its next seed, with no reallocation._ |
 |  int | [**async\_dsss\_receiver\_seed**](#function-async_dsss_receiver_seed) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state, double chip\_phase, double doppler\_hz\_est, double cn0\_dbhz\_est) <br>_Take a detection from outside and start refining from it._  |
+|  int | [**async\_dsss\_receiver\_set\_refine\_min\_blocks**](#function-async_dsss_receiver_set_refine_min_blocks) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state, size\_t n\_blocks) <br>_Floor the refine's dwell at_ `n_blocks` _, whatever the detection sizing asks (design section 12.16, #1265)._ |
 |  int | [**async\_dsss\_receiver\_set\_state**](#function-async_dsss_receiver_set_state) ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**async\_dsss\_receiver\_state\_bytes**](#function-async_dsss_receiver_state_bytes) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br> |
 |  [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) | [**async\_dsss\_receiver\_status**](#function-async_dsss_receiver_status) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br>_Read the status record (see_ [_**async\_dsss\_receiver\_status\_t**_](structasync__dsss__receiver__status__t.md) _)._ |
@@ -161,6 +162,7 @@ to tracking the same signal," only back to searching — matching every other ob
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_N\_UP**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_n_up)  `30u`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_LOCK\_UP**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lock_up)  `0.5`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_LOST**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_lost)  `4`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_REFINE\_MIN\_BLOCKS**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_refine_min_blocks)  `7u`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_REFINING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_refining)  `1`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_SEARCHING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_searching)  `0`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_TRACKING**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_tracking)  `2`<br> |
@@ -1110,6 +1112,56 @@ ValueError: seed refused: ...
 
 
 
+### function async\_dsss\_receiver\_set\_refine\_min\_blocks 
+
+_Floor the refine's dwell at_ `n_blocks` _, whatever the detection sizing asks (design section 12.16, #1265)._
+```C++
+int async_dsss_receiver_set_refine_min_blocks (
+    async_dsss_receiver_state_t * state,
+    size_t n_blocks
+) 
+```
+
+
+
+CarrierAcquisition's dwell is sized for DETECTION at the derated C/N0 (`cn0_dbhz - refine_design_margin_db`), so it shortens as the C/N0 rises  two blocks at 45 dB-Hz with the shipped margin  while the noise of the estimate it hands the tracking chain does not shorten with it: 210 Hz at two blocks against a chain that pulls in from a few hundred, so one hand-over in sixty landed outside and tracked the code with the carrier never locked. Seven blocks (42 ms, the default and section 12.10's floor dwell) hold the estimate to 77 Hz. Applied to the next refine chain built  a receiver already refining keeps its dwell. Config, not running state: not in the blob. `n_blocks` of 0 removes the floor; the value is clamped by `refine_max_n_blocks` where that cap is lower.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `n_blocks` The floor, blocks. 
+
+
+
+**Returns:**
+
+`DP_OK`. 
+```C++
+>>> from doppler.dsss import AsyncDsssReceiver
+>>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
+...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+>>> rx.refine_min_blocks                     # the default floor
+7
+>>> rx.set_refine_min_blocks(12)
+>>> rx.refine_min_blocks
+12
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function async\_dsss\_receiver\_set\_state 
 
 ```C++
@@ -1441,6 +1493,23 @@ size_t async_dsss_receiver_steps_max_out (
 
 
 
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_REFINE\_MIN\_BLOCKS 
+
+```C++
+#define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS `7u`
+```
+
+
+
+Default floor on the refine's dwell, blocks  section 12.10's floor dwell (77 Hz of estimate noise at 45 dB-Hz); see [**async\_dsss\_receiver\_set\_refine\_min\_blocks()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_set_refine_min_blocks). 
+
+
+        
 
 <hr>
 

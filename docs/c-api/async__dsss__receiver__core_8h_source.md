@@ -106,6 +106,7 @@ extern "C"
    * (>= 30). A hysteretic lockdet (lockdet_core.h) then declares `locked`
    * after LOCK_N_UP consecutive symbols with the metric >= LOCK_UP and drops
    * it after LOCK_N_DOWN below LOCK_DOWN. */
+#define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
 #define ASYNC_DSSS_RX_LOCK_DWELL 30u
 #define ASYNC_DSSS_RX_LOCK_UP 0.5
 #define ASYNC_DSSS_RX_LOCK_DOWN 0.3
@@ -199,6 +200,7 @@ extern "C"
     size_t refine_zero_pad;
     bool   refine_sequential;
     size_t refine_max_n_blocks;
+    size_t refine_min_blocks; 
     double carrier_freq_hz; 
     int state; 
     double   lost_confirm_s;       
@@ -283,6 +285,9 @@ extern "C"
   int async_dsss_receiver_configure_search_raw (
       async_dsss_receiver_state_t *state, size_t doppler_bins,
       size_t n_noncoh);
+
+  int async_dsss_receiver_set_refine_min_blocks (
+      async_dsss_receiver_state_t *state, size_t n_blocks);
 
   void async_dsss_receiver_configure_lock_raw (
       async_dsss_receiver_state_t *state, double up_thresh,

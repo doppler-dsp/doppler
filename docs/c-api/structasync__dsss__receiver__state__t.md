@@ -70,6 +70,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  size\_t | [**refine\_dll\_out\_cap**](#variable-refine_dll_out_cap)  <br> |
 |  double | [**refine\_max\_error\_db**](#variable-refine_max_error_db)  <br> |
 |  size\_t | [**refine\_max\_n\_blocks**](#variable-refine_max_n_blocks)  <br> |
+|  size\_t | [**refine\_min\_blocks**](#variable-refine_min_blocks)  <br> |
 |  size\_t | [**refine\_n\_fft**](#variable-refine_n_fft)  <br> |
 |  [**RateConverter\_state\_t**](structRateConverter__state__t.md) \* | [**refine\_rc**](#variable-refine_rc)  <br> |
 |  float \_Complex \* | [**refine\_rc\_out\_buf**](#variable-refine_rc_out_buf)  <br> |
@@ -644,6 +645,23 @@ size_t async_dsss_receiver_state_t::refine_max_n_blocks;
 
 
 
+
+<hr>
+
+
+
+### variable refine\_min\_blocks 
+
+```C++
+size_t async_dsss_receiver_state_t::refine_min_blocks;
+```
+
+
+
+floor on the refine's dwell, blocks: the detection sizing above needs fewer blocks the higher the C/N0, but the estimate the carrier chain must pull in from does not sharpen with it (design section 12.16, #1265). Config; set\_refine\_min\_blocks(). 
+
+
+        
 
 <hr>
 

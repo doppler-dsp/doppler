@@ -5136,6 +5136,55 @@ class AsyncDsssReceiver:
 
         """
 
+    def set_refine_min_blocks(self, n_blocks: int) -> None:
+        """Floor the refine's dwell at n_blocks whatever the detection sizing
+        asks (design section 12.16, #1265): CarrierAcquisition's dwell is sized
+        for detection at the derated C/N0 and shortens as the C/N0 rises -- two
+        blocks at 45 dB-Hz with the shipped margin -- while the noise of the
+        estimate it hands the tracking chain does not shorten with it (210 Hz
+        at two blocks against a chain that pulls in from a few hundred). The
+        default of 7 blocks (42 ms) holds it to 77 Hz. Applied to the next
+        refine chain built; 0 removes the floor; clamped by
+        refine_max_n_blocks. Config, not running state.
+
+        CarrierAcquisition's dwell is sized for DETECTION at the derated C/N0
+        (`cn0_dbhz - refine_design_margin_db`), so it shortens as the C/N0
+        rises -- two blocks at 45 dB-Hz with the shipped margin -- while the
+        noise of the estimate it hands the tracking chain does not shorten with
+        it: 210 Hz at two blocks against a chain that pulls in from a few
+        hundred, so one hand-over in sixty landed outside and tracked the code
+        with the carrier never locked. Seven blocks (42 ms, the default and
+        section 12.10's floor dwell) hold the estimate to 77 Hz. Applied to the
+        next refine chain built -- a receiver already refining keeps its dwell.
+        Config, not running state: not in the blob. `n_blocks` of 0 removes the
+        floor; the value is clamped by `refine_max_n_blocks` where that cap is
+        lower.
+
+        Parameters
+        ----------
+        n_blocks : int
+            The floor, blocks.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_refine_min_blocks failed``, with the return code appended
+            (gh-869).
+
+        Examples
+        --------
+        >>> from doppler.dsss import AsyncDsssReceiver
+        >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
+        ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+        >>> rx.refine_min_blocks                     # the default floor
+        7
+        >>> rx.set_refine_min_blocks(12)
+        >>> rx.refine_min_blocks
+        12
+
+        """
+
     def configure_lock_raw(
         self,
         up_thresh: float,
@@ -5291,6 +5340,12 @@ class AsyncDsssReceiver:
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def refine_min_blocks(self) -> int:
+        """Floor on the refine's dwell, blocks (default 7); set with
+        set_refine_min_blocks().
         """
 
     @property
@@ -5845,6 +5900,55 @@ class HandoffAsyncDsssReceiver:
 
         """
 
+    def set_refine_min_blocks(self, n_blocks: int) -> None:
+        """Floor the refine's dwell at n_blocks whatever the detection sizing
+        asks (design section 12.16, #1265): CarrierAcquisition's dwell is sized
+        for detection at the derated C/N0 and shortens as the C/N0 rises -- two
+        blocks at 45 dB-Hz with the shipped margin -- while the noise of the
+        estimate it hands the tracking chain does not shorten with it (210 Hz
+        at two blocks against a chain that pulls in from a few hundred). The
+        default of 7 blocks (42 ms) holds it to 77 Hz. Applied to the next
+        refine chain built; 0 removes the floor; clamped by
+        refine_max_n_blocks. Config, not running state.
+
+        CarrierAcquisition's dwell is sized for DETECTION at the derated C/N0
+        (`cn0_dbhz - refine_design_margin_db`), so it shortens as the C/N0
+        rises -- two blocks at 45 dB-Hz with the shipped margin -- while the
+        noise of the estimate it hands the tracking chain does not shorten with
+        it: 210 Hz at two blocks against a chain that pulls in from a few
+        hundred, so one hand-over in sixty landed outside and tracked the code
+        with the carrier never locked. Seven blocks (42 ms, the default and
+        section 12.10's floor dwell) hold the estimate to 77 Hz. Applied to the
+        next refine chain built -- a receiver already refining keeps its dwell.
+        Config, not running state: not in the blob. `n_blocks` of 0 removes the
+        floor; the value is clamped by `refine_max_n_blocks` where that cap is
+        lower.
+
+        Parameters
+        ----------
+        n_blocks : int
+            The floor, blocks.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_refine_min_blocks failed``, with the return code appended
+            (gh-869).
+
+        Examples
+        --------
+        >>> from doppler.dsss import AsyncDsssReceiver
+        >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
+        ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+        >>> rx.refine_min_blocks                     # the default floor
+        7
+        >>> rx.set_refine_min_blocks(12)
+        >>> rx.refine_min_blocks
+        12
+
+        """
+
     def configure_lock_raw(
         self,
         up_thresh: float,
@@ -6001,6 +6105,12 @@ class HandoffAsyncDsssReceiver:
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def refine_min_blocks(self) -> int:
+        """Floor on the refine's dwell, blocks (default 7); set with
+        set_refine_min_blocks().
         """
 
     @property
@@ -6507,6 +6617,45 @@ class AsyncDsssPool:
 
         """
 
+    def set_refine_min_blocks(self, n_blocks: int) -> None:
+        """Floor every receiver's refine dwell at n_blocks
+        (AsyncDsssReceiver.set_refine_min_blocks(); design section 12.16,
+        #1265): forwarded to all n_slots receivers, each applying it to the
+        next refine chain it builds. The receivers' default is 7 blocks; 0
+        removes the floor. Config, not running state.
+
+        Forwarded to all `n_slots` receivers; each applies it to the next
+        refine chain it builds, so a slot already refining keeps its dwell. The
+        receivers' default is 7 blocks. Config, not running state.
+
+        Parameters
+        ----------
+        n_blocks : int
+            The floor, blocks; 0 removes it.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_refine_min_blocks failed``, with the return code appended
+            (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssPool
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+        ...                      spc=2, cn0_dbhz=45.0, n_slots=2)
+        >>> pool.refine_min_blocks
+        7
+        >>> pool.set_refine_min_blocks(12)
+        >>> pool.refine_min_blocks
+        12
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 
@@ -6560,6 +6709,12 @@ class AsyncDsssPool:
         ----------
         blob : bytes
             A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def refine_min_blocks(self) -> int:
+        """The receivers' floor on the refine dwell, blocks (default 7); set
+        with set_refine_min_blocks().
         """
 
     @property

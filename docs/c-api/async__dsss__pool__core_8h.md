@@ -87,6 +87,7 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of hand-of
 |  size\_t | [**async\_dsss\_pool\_push**](#function-async_dsss_pool_push) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_One block of raw cf32 samples through the population._  |
 |  void | [**async\_dsss\_pool\_reset**](#function-async_dsss_pool_reset) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state) <br>_Release every slot and start over: the searcher reset, every receiver back to idle, the table cleared, the counters zeroed._  |
 |  int | [**async\_dsss\_pool\_set\_event\_log**](#function-async_dsss_pool_set_event_log) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, [**dp\_event\_log\_t**](dp__event__log__core_8h.md#typedef-dp_event_log_t) \* log) <br>_Attach the run's event log (design section 8.1); NULL detaches._  |
+|  int | [**async\_dsss\_pool\_set\_refine\_min\_blocks**](#function-async_dsss_pool_set_refine_min_blocks) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, size\_t n\_blocks) <br>_Floor every receiver's refine dwell at_ `n_blocks` _(_[_**async\_dsss\_receiver\_set\_refine\_min\_blocks()**_](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_set_refine_min_blocks) _; design section 12.16, #1265)._ |
 |  int | [**async\_dsss\_pool\_set\_state**](#function-async_dsss_pool_set_state) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**async\_dsss\_pool\_state\_bytes**](#function-async_dsss_pool_state_bytes) (const [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state) <br> |
 |  [**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md) | [**async\_dsss\_pool\_status**](#function-async_dsss_pool_status) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, size\_t slot) <br>_One slot's picture, by value (_ [_**async\_dsss\_pool\_slot\_t**_](structasync__dsss__pool__slot__t.md) _)._ |
@@ -476,6 +477,59 @@ Borrowed, never owned: the holder opens, finalizes and closes it. From now on ev
 >>> _ = pool.push(np.zeros(2046, np.complex64))
 >>> pool.set_event_log(None)              # detached
 >>> log.close()
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function async\_dsss\_pool\_set\_refine\_min\_blocks 
+
+_Floor every receiver's refine dwell at_ `n_blocks` _(_[_**async\_dsss\_receiver\_set\_refine\_min\_blocks()**_](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_set_refine_min_blocks) _; design section 12.16, #1265)._
+```C++
+int async_dsss_pool_set_refine_min_blocks (
+    async_dsss_pool_state_t * state,
+    size_t n_blocks
+) 
+```
+
+
+
+Forwarded to all `n_slots` receivers; each applies it to the next refine chain it builds, so a slot already refining keeps its dwell. The receivers' default is 7 blocks. Config, not running state.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `n_blocks` The floor, blocks; 0 removes it. 
+
+
+
+**Returns:**
+
+`DP_OK`. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import AsyncDsssPool
+>>> from doppler.wfm import Gold
+>>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+>>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+...                      spc=2, cn0_dbhz=45.0, n_slots=2)
+>>> pool.refine_min_blocks
+7
+>>> pool.set_refine_min_blocks(12)
+>>> pool.refine_min_blocks
+12
 ```
  
 

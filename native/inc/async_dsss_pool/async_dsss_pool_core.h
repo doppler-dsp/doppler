@@ -451,6 +451,35 @@ size_t async_dsss_pool_symbols(async_dsss_pool_state_t *state, size_t slot, floa
  */
 int async_dsss_pool_set_event_log(async_dsss_pool_state_t *state, dp_event_log_t * log);
 
+/**
+ * @brief Floor every receiver's refine dwell at @p n_blocks
+ *        (async_dsss_receiver_set_refine_min_blocks(); design section
+ *        12.16, #1265).
+ *
+ * Forwarded to all `n_slots` receivers; each applies it to the next
+ * refine chain it builds, so a slot already refining keeps its dwell.
+ * The receivers' default is 7 blocks. Config, not running state.
+ *
+ * @param state     Must be non-NULL.
+ * @param n_blocks  The floor, blocks; 0 removes it.
+ * @return `DP_OK`.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import AsyncDsssPool
+ * >>> from doppler.wfm import Gold
+ * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+ * >>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+ * ...                      spc=2, cn0_dbhz=45.0, n_slots=2)
+ * >>> pool.refine_min_blocks
+ * 7
+ * >>> pool.set_refine_min_blocks(12)
+ * >>> pool.refine_min_blocks
+ * 12
+ *
+ * @endcode
+ */
+int async_dsss_pool_set_refine_min_blocks(async_dsss_pool_state_t *state, size_t n_blocks);
+
   /* ── Serializable state (docs/design/state-serialization.md) ──────────
    * A composition: the pool's own counters and the table, then the
    * searcher's blob and every receiver's, each self-validating. Config

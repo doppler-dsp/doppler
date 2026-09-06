@@ -478,6 +478,12 @@ _test_table_holds_the_locked_doppler (void)
           4, 3, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
           100000);
       DP_REQUIRE (p != NULL);
+      /* The reproduction needs the refine's OLD two-block dwell: the floor
+         of #1265 (seven blocks) hands over within loop 1's pull-in and
+         the wander never happens -- which is that fix's own pin, in
+         test_async_dsss_receiver_core. Removed here so the table's rule
+         is still tested against a carrier that free-runs. */
+      DP_CHECK (async_dsss_pool_set_refine_min_blocks (p, 0) == DP_OK);
       double worst_status = 0.0;
       int    unlocked = 0, tracking = 0;
       /* The row and the seed at the LAST tracking block, read inside the

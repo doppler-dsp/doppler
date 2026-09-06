@@ -178,6 +178,8 @@
 
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
 
+#include "async_dsss_pool/async_dsss_pool_core.h"
+
 #include "dsss_burst_receiver/dsss_burst_receiver_core.h"
 
 #include "carrier_acq/carrier_acq_core.h"

@@ -51,6 +51,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**analyzer\_core.h**](analyzer__core_8h.md) _Analyzer module — public C API._ 
         * **dir** [**arith**](dir_51d42af7a43550d997314136379d62d2.md)     
             * **file** [**arith\_core.h**](arith__core_8h.md) _Arith module — public C API for fixed-point arithmetic on Q15 (int16\_t) and Q8 (int8\_t) arrays. All elementwise operations write into a caller-supplied output buffer of the same length as the shorter input. Saturation clamps results to the representable range rather than wrapping, matching the two's-complement DSP convention._     
+        * **dir** [**async\_dsss\_pool**](dir_24b3a88e64d64c92fdc3841f769b80af.md)     
+            * **file** [**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md) _AsyncDsssPool_  _one object holds the population: a searcher, a pool of hand-off receivers, the assigned table and the event log (docs/design/async-dsss-receiver.md section 8.2)._    
         * **dir** [**async\_dsss\_receiver**](dir_385ab33ef0b6337dfa5d36daa80c4b8c.md)     
             * **file** [**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md) _Composed continuous DSSS receiver: Acquisition -&gt; handoff -&gt; CarrierAcquisition refine -&gt; Costas/Dll/RateConverter/ MpskReceiver track, one object._     
         * **dir** [**awgn**](dir_b535f71dd6c18f769df9e4bf89a97331.md)     

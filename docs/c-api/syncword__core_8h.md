@@ -13,6 +13,7 @@ _Frame synchronisation: find a known marker in a bit stream, and choose the thre
 * `#include "clib_common.h"`
 * `#include "dp_syncword.h"`
 * `#include "jm_perf.h"`
+* `#include "detection/detection_core.h"`
 
 
 

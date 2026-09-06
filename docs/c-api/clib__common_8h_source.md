@@ -117,6 +117,8 @@ dp_fmod_pos (double x, double m)
   return r < 0.0 ? r + m : r;
 }
 
+double dp_lgamma (double x);
+
 #endif /* DOPPLER_CLIB_COMMON_H */
 ```
 

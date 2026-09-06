@@ -119,6 +119,15 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # lgamma() writes the global signgam and races across threads; the
+      # reentrant spelling is dp_lgamma() and nowhere else (#1260).
+      - id: lgamma-reentrant
+        name: lgamma has one reentrant home
+        entry: make -s lint-lgamma-reentrant
+        language: system
+        pass_filenames: false
+        types_or: [c]
+
       # A header's @code example is compiled by NOTHING -- doxygen renders it,
       # jm transplants a constructor's into the .pyi, and neither type-checks
       # it. Fires on any C change, since the example and the declaration it

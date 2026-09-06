@@ -350,6 +350,28 @@ carries no timestamp: the holder owns the sample clock and stamps it (design
 
 ::: doppler.dsss.ReceiverStatus
 
+## `AsyncDsssPool` — one object holds the population
+
+The holder of the
+[continuous multi-emitter design](../design/async-dsss-receiver.md) (§8.2):
+one searcher (`Acquisition` in continuous mode with the block coherence of
+§2.3 and a peak list), `n_slots` `HandoffAsyncDsssReceiver`s created idle,
+the assigned table, and the run's `EventLog` attached through
+`set_event_log()`. One `push()` per block feeds the searcher, drops every
+peak inside one exclusion zone of a live row as that emitter's own, seeds
+each survivor into a free slot or counts it dropped, feeds every receiver
+across the threads the pool is given, and releases every receiver that
+reports lost or has held its slot past `max_emitter_on_time_secs`. Every
+transition — seeded, tracking, degrade, lost, released, dropped — is an
+event at the sample it happened. Per slot and by index: `status(slot)`
+by value and `symbols(slot)`, the last push's symbols. Nothing about the
+waveform or the population is baked in; every number is a constructor
+parameter whose default is the operating point of §6.1.
+
+::: doppler.dsss.AsyncDsssPool
+
+::: doppler.dsss.PoolSlot
+
 ## `bin_to_signed` — read an FFT grid the way numpy does
 
 Maps a reported Doppler **bin index** to its **signed** frequency index —

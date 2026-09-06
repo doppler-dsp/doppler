@@ -19,6 +19,9 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**adc\_state\_t**](structadc__state__t.md) _ADC state._ 
 * **struct** [**agc\_state\_t**](structagc__state__t.md) _AGC state._ 
 * **struct** [**agc\_tlm\_t**](structagc__tlm__t.md) _Telemetry attachment: a borrowed context + this object's probe ids. NULL ctx (the default) means detached — every probe site is then a single predicted-not-taken branch. Zeroed in state blobs and preserved across set\_state (DP\_DEFINE\_POD\_STATE\_TLM); telemetry is observation, not DSP state that migrates._ 
+* **struct** [**async\_dsss\_pool\_row\_t**](structasync__dsss__pool__row__t.md) 
+* **struct** [**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md) _One slot's picture, by value_  _what_`status()` _returns._
+* **struct** [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) _AsyncDsssPool state._ 
 * **struct** [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md) 
 * **struct** [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) _Composed receiver state._ 
 * **struct** [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md) _One consistent picture of what the receiver is doing, by value._ 

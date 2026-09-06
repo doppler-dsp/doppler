@@ -130,7 +130,7 @@ SYNC_CMD   = $(UV) sync
 LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
                retired-names ci-pipefail rust-abi header-example-arity \
-               wfm-enum-tables fmod-fold
+               wfm-enum-tables fmod-fold lgamma-reentrant
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -242,6 +242,12 @@ LINT_phase-conversion = $(UV) run python scripts/check_phase_conversion_sites.py
 # hand-over phase) before #1249 gave it one. No allowlist -- every copy was
 # converted when the gate landed.
 LINT_fmod-fold = $(UV) run python scripts/check_fmod_fold_sites.py
+
+# lgamma() writes the global signgam, so two threads race on it -- found by
+# TSan the first time a pool of receivers rebuilt their chains across
+# threads (#1260). dp_lgamma() in clib_common.h wraps lgamma_r() once; a
+# bare lgamma in library C is the next race. No allowlist.
+LINT_lgamma-reentrant = $(UV) run python scripts/check_lgamma_sites.py
 
 # A trusted internal allocation goes through clib_common.h's abort-on-OOM
 # helpers, because the alternative is an unwind path no test can reach --

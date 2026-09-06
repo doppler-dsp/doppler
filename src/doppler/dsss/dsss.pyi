@@ -39,7 +39,7 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
     Attributes
     ----------
     state : int
-        One of the ASYNC_DSSS_RX_SEARCHING .. _LOST values.
+        The receiver's ASYNC_DSSS_RX_* state; -1 for a slot that does not exist.
     doppler_hz : float
         Signed coarse Doppler, folded, Hz.
     chip_phase : float
@@ -49,9 +49,9 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
     cn0_dbhz_est : float
         C/N0 lower bound from the hit, dB-Hz.
     code_locked : int
-        Presence flag: the Dll's lock detector.
+        Presence flag.
     locked : int
-        Health flag: the symbol-lock detector.
+        Health flag (symbol lock).
     lock_metric : float
         mean of |Re P|/|P| over the burst (~1 locked, ~2/pi with no carrier).
     lock_threshold : float
@@ -61,14 +61,16 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
     mpsk_last_error : float
         Post-despread carrier residual, rad.
     state_samples : int
-        Running: samples fed since the current state was entered.
+        Samples since the receiver's state was entered.
     both_down_samples : int
-        Running: consecutive samples fed while tracking with BOTH lock flags down -- the release clock; lost keeps it counting.
+        The release clock, samples.
     """
 
     @property
     def state(self) -> int:
-        """One of the ASYNC_DSSS_RX_SEARCHING .. _LOST values."""
+        """The receiver's ASYNC_DSSS_RX_* state; -1 for a slot that does not
+        exist.
+        """
 
     @property
     def doppler_hz(self) -> float:
@@ -91,11 +93,11 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
 
     @property
     def code_locked(self) -> int:
-        """Presence flag: the Dll's lock detector."""
+        """Presence flag."""
 
     @property
     def locked(self) -> int:
-        """Health flag: the symbol-lock detector."""
+        """Health flag (symbol lock)."""
 
     @property
     def lock_metric(self) -> float:
@@ -117,13 +119,130 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
 
     @property
     def state_samples(self) -> int:
-        """Running: samples fed since the current state was entered."""
+        """Samples since the receiver's state was entered."""
 
     @property
     def both_down_samples(self) -> int:
-        """Running: consecutive samples fed while tracking with BOTH lock flags
-        down -- the release clock; lost keeps it counting.
+        """The release clock, samples."""
+
+@final
+class PoolSlot(tuple[int, int, int, int, float, float, float, float, float, float, float, int, int, float, int, int, int]):
+    """AsyncDsssPool's slot record: whether the slot is assigned, the seed it
+    was assigned from, the receiver's live status (state 1 refining, 2
+    tracking, 3 idle, 4 lost), and the samples since the assignment.
+
+    Attributes
+    ----------
+    slot : int
+        The slot asked for.
+    assigned : int
+        1 while a receiver holds an emitter.
+    state : int
+        The receiver's ASYNC_DSSS_RX_* state; -1 for a slot that does not exist.
+    seed_sample : int
+        Stream position the row was assigned at.
+    seed_chip_phase : float
+        The seed's code phase, chips.
+    seed_doppler_hz : float
+        The seed's Doppler, Hz.
+    seed_cn0_dbhz : float
+        The seed's C/N0 estimate, dB-Hz.
+    doppler_hz : float
+        Signed coarse Doppler, folded, Hz.
+    chip_phase : float
+        Chips, Dll's own instantaneous-phase convention (the mirror image of acq_result_t::code_phase's correlation-lag convention -- see acq_build_handoff()'s doc comment).
+    code_rate : float
+        chips advanced per nominal chip (~1.0).
+    cn0_dbhz_est : float
+        C/N0 lower bound from the hit, dB-Hz.
+    code_locked : int
+        Presence flag.
+    locked : int
+        Health flag (symbol lock).
+    lock_metric : float
+        mean of |Re P|/|P| over the burst (~1 locked, ~2/pi with no carrier).
+    state_samples : int
+        Samples since the receiver's state was entered.
+    both_down_samples : int
+        The release clock, samples.
+    assigned_samples : int
+        Samples since the row was assigned.
+    """
+
+    @property
+    def slot(self) -> int:
+        """The slot asked for."""
+
+    @property
+    def assigned(self) -> int:
+        """1 while a receiver holds an emitter."""
+
+    @property
+    def state(self) -> int:
+        """The receiver's ASYNC_DSSS_RX_* state; -1 for a slot that does not
+        exist.
         """
+
+    @property
+    def seed_sample(self) -> int:
+        """Stream position the row was assigned at."""
+
+    @property
+    def seed_chip_phase(self) -> float:
+        """The seed's code phase, chips."""
+
+    @property
+    def seed_doppler_hz(self) -> float:
+        """The seed's Doppler, Hz."""
+
+    @property
+    def seed_cn0_dbhz(self) -> float:
+        """The seed's C/N0 estimate, dB-Hz."""
+
+    @property
+    def doppler_hz(self) -> float:
+        """Signed coarse Doppler, folded, Hz."""
+
+    @property
+    def chip_phase(self) -> float:
+        """Chips, Dll's own instantaneous-phase convention (the mirror image of
+        acq_result_t::code_phase's correlation-lag convention -- see
+        acq_build_handoff()'s doc comment).
+        """
+
+    @property
+    def code_rate(self) -> float:
+        """chips advanced per nominal chip (~1.0)."""
+
+    @property
+    def cn0_dbhz_est(self) -> float:
+        """C/N0 lower bound from the hit, dB-Hz."""
+
+    @property
+    def code_locked(self) -> int:
+        """Presence flag."""
+
+    @property
+    def locked(self) -> int:
+        """Health flag (symbol lock)."""
+
+    @property
+    def lock_metric(self) -> float:
+        """mean of |Re P|/|P| over the burst (~1 locked, ~2/pi with no
+        carrier).
+        """
+
+    @property
+    def state_samples(self) -> int:
+        """Samples since the receiver's state was entered."""
+
+    @property
+    def both_down_samples(self) -> int:
+        """The release clock, samples."""
+
+    @property
+    def assigned_samples(self) -> int:
+        """Samples since the row was assigned."""
 
 @final
 class Despreader:
@@ -6047,6 +6166,462 @@ class HandoffAsyncDsssReceiver:
         tb: object | None = ...,
     ) -> None:
         """Exit a context manager, releasing the HandoffAsyncDsssReceiver.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class AsyncDsssPool:
+    """Create a async_dsss_pool instance.
+
+    Parameters
+    ----------
+    code : NDArray[np.uint8]
+        Spreading code, one 0/1 chip per element.
+    chip_rate : float, default 1000000.0
+        Chip rate, Hz (default: 1000000.0).
+    symbol_rate : float, default 1000.0
+        Data-symbol rate, Hz (default: 1000.0).
+    spc : int, default 2
+        Samples per chip (default: 2).
+    m : int, default 2
+        PSK order of the receivers (default: 2).
+    cn0_dbhz : float, default 55.0
+        Design C/N0 for the searcher's sizing and the receivers' (default:
+        55.0).
+    pfa : float, default 1e-3
+        False-alarm target, the searcher's and the refine's (default: 1e-3).
+    pd : float, default 0.9
+        Detection-probability target (default: 0.9).
+    doppler_uncertainty : float, default 100.0
+        The searcher's one-sided span, Hz (default: 100.0).
+    code_only_epochs : int, default 1
+        Whole code-only epochs the waveform's window holds at any chip phase --
+        the block depth of section 2.3; 1 = no window (default: 1).
+    doppler_rate : float, default 0.0
+        Doppler rate the depth is bounded against, Hz/s; 0 leaves the window as
+        the only bound (default: 0.0).
+    max_peaks : int, default 16
+        The searcher's list capacity per dwell (default: 16).
+    n_slots : int, default 12
+        Receivers held (default: 12).
+    threads : int, default 1
+        Threads the receivers and the searcher's fan run across; <= 0 picks the
+        online core count, 1 is serial (default: 1).
+    carrier_freq_hz : float, default 0.0
+        RF carrier the Doppler is physically coupled to, Hz, told to the
+        searcher and every receiver; 0.0 = uncoupled (default: 0.0).
+    lost_confirm_s : float, default 2.0
+        The release rule's interval, seconds (section 10) (default: 2.0).
+    max_emitter_on_time_secs : float, default 900.0
+        Maximum on-air time of one emitter, seconds: a slot held longer is
+        released (`reason` on_time); 0 = never (default: 900.0,
+        ASYNC_DSSS_POOL_MAX_EMITTER_ON_ TIME_SECS).
+    segments : int, default 4
+        The receivers' live Dll segments (default: 4).
+    sps : int, default 8
+        The receivers' samples per symbol (default: 8).
+    differential : int, default 0
+        The receivers' differential demap (default: 0).
+    refine_max_error_db : float, default 0.5
+        As async_dsss_receiver_create() (default: 0.5).
+    refine_samples_per_symbol : int, default 4
+        As async_dsss_receiver_create() (default: 4).
+    refine_design_margin_db : float, default 14.0
+        As async_dsss_receiver_create() (default: 14.0).
+    refine_n_fft : int, default 64
+        As async_dsss_receiver_create() (default: 64).
+    refine_zero_pad : int, default 8
+        As async_dsss_receiver_create() (default: 8).
+    refine_sequential : bool, default False
+        As async_dsss_receiver_create() (default: false).
+    refine_max_n_blocks : int, default 100000
+        As async_dsss_receiver_create() (default: 100000).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.dsss import AsyncDsssPool
+    >>> from doppler.wfm import Gold
+    >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+    >>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+    ...                      spc=2, cn0_dbhz=45.0, doppler_uncertainty=5e3,
+    ...                      n_slots=4, lost_confirm_s=0.5)
+    >>> (pool.n_slots, pool.n_assigned, pool.coherent_bins)
+    (4, 0, 1)
+    >>> round(pool.doppler_res_hz)          # one Doppler row of the searcher
+    4888
+
+    """
+    def __init__(
+        self,
+        code: NDArray[np.uint8],
+        chip_rate: float = ...,
+        symbol_rate: float = ...,
+        spc: int = ...,
+        m: int = ...,
+        cn0_dbhz: float = ...,
+        pfa: float = ...,
+        pd: float = ...,
+        doppler_uncertainty: float = ...,
+        code_only_epochs: int = ...,
+        doppler_rate: float = ...,
+        max_peaks: int = ...,
+        n_slots: int = ...,
+        threads: int = ...,
+        carrier_freq_hz: float = ...,
+        lost_confirm_s: float = ...,
+        max_emitter_on_time_secs: float = ...,
+        segments: int = ...,
+        sps: int = ...,
+        differential: int = ...,
+        refine_max_error_db: float = ...,
+        refine_samples_per_symbol: int = ...,
+        refine_design_margin_db: float = ...,
+        refine_n_fft: int = ...,
+        refine_zero_pad: int = ...,
+        refine_sequential: bool = ...,
+        refine_max_n_blocks: int = ...,
+    ) -> None: ...
+
+    def reset(self) -> None:
+        """Release every slot and start over: the searcher reset, every
+        receiver back to idle, the table cleared, the counters zeroed.
+
+        The attached log stays attached and nothing is logged -- a reset is the
+        holder's decision, not an emitter's transition.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssPool
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+        ...                      spc=2, cn0_dbhz=45.0, n_slots=2)
+        >>> _ = pool.push(np.zeros(2046, np.complex64))
+        >>> pool.samples_consumed
+        2046
+        >>> pool.reset()
+        >>> (pool.samples_consumed, pool.n_assigned, pool.events)
+        (0, 0, 0)
+
+        """
+
+    def push(self, x: NDArray[np.complex64]) -> int:
+        """One block of raw cf32 samples through the population (design section
+        8.2), in order: the searcher; the table refreshed from every live
+        receiver's status(); every peak inside one exclusion zone (one Doppler
+        row by one chip, section 7.1) of a live row dropped as that emitter's
+        own; each survivor seeded into a free slot, or counted dropped when
+        there is none; every receiver fed (an idle or lost one consumes and
+        discards, so the feed has no per-state branch), across the threads the
+        pool was given; then every receiver that reports lost, or has held its
+        slot past max_emitter_on_time_secs, released -- the row cleared, the
+        receiver reset to idle. Every transition -- seeded, tracking, degrade,
+        lost, released, dropped -- goes to the attached event log at the sample
+        it happened. Accepts any block size; a searcher dwell is decided when
+        its samples arrive. Returns the receivers assigned after this push.
+
+        In order: the searcher; the table refreshed; every peak inside one
+        exclusion zone of a live row dropped as that emitter's own; each
+        survivor seeded into a free slot or counted dropped; every receiver
+        fed, across the pool's threads; every receiver that reports lost, or
+        has held its slot past the maximum on-air time, released. Every
+        transition goes to the attached log at the sample it happened. Accepts
+        any block size: a hit decided inside the block is referred to the
+        block's start before it seeds (the receiver is fed the whole block), on
+        the dilated clock when the carrier is known.
+
+        Parameters
+        ----------
+        x : NDArray[np.complex64]
+            Input samples.
+
+        Returns
+        -------
+        int
+            Receivers assigned after this push.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssPool
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+        ...                      spc=2, cn0_dbhz=45.0, n_slots=2)
+        >>> int(pool.push(np.zeros(4 * 2046, np.complex64)))  # silence: no one
+        0
+        >>> pool.samples_consumed                  # the stream position
+        8184
+
+        """
+
+    def status(self, slot: int) -> PoolSlot:
+        """One slot's picture, by value: whether it is assigned, the seed it
+        was assigned from (sample, chip phase, Doppler, C/N0 -- the searcher's
+        hand-off record, verbatim), the receiver's own status record (state,
+        the live Doppler, chip phase, code rate and C/N0, both lock flags, the
+        symbol-lock metric, the two clocks), and the samples since the
+        assignment. Raises ValueError for a slot outside [0, n_slots).
+
+        Allocation-free: the row plus the receiver's own status record. A slot
+        outside `[0, n_slots)` returns a zero record with `state` -1.
+
+        Parameters
+        ----------
+        slot : int
+            The slot.
+
+        Returns
+        -------
+        PoolSlot
+            The record.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssPool
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+        ...                      spc=2, cn0_dbhz=45.0, n_slots=2)
+        >>> r = pool.status(1)
+        >>> (r.slot, r.assigned, r.state)         # idle: 3, nothing assigned
+        (1, 0, 3)
+        >>> pool.status(2).state                  # no such slot
+        -1
+
+        """
+
+    def symbols(
+        self,
+        slot: int,
+        out: NDArray[np.complex64] | None = None,
+    ) -> NDArray[np.complex64]:
+        """The symbols slot `slot`'s receiver decided on the last push(),
+        borrowed from the pool's own buffer (sized once at create by the
+        receiver's steps_max_out()): empty while the slot is idle, refining or
+        lost. Valid until the next push(), reset() or set_state(). Raises
+        ValueError for a slot outside [0, n_slots).
+
+        Copied from the pool's own buffer, which the next push() overwrites.
+        Empty while the slot is idle, refining or lost, and for a slot outside
+        `[0, n_slots)`.
+
+        Parameters
+        ----------
+        slot : int
+            The slot.
+        out : NDArray[np.complex64] | None
+            Caller buffer.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            Symbols written.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssPool
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+        ...                      spc=2, cn0_dbhz=45.0, n_slots=2)
+        >>> _ = pool.push(np.zeros(2046, np.complex64))
+        >>> pool.symbols(0).shape                 # idle: nothing decided
+        (0,)
+
+        """
+
+    def symbols_max_out(self) -> int:
+        """The per-slot symbol capacity `symbols()` can return -- grown with
+        the largest block pushed so far (0 before the first push).
+
+        Returns
+        -------
+        int
+            Output.
+        """
+
+    def set_event_log(self, log: object | None) -> None:
+        """Attach the run's event log (design section 8.1): from now on every
+        transition -- seeded, tracking, degrade, lost, released, dropped -- is
+        appended at the sample it happened, with the slot, the receiver's
+        state, the Doppler, the chip phase and the C/N0 staged as
+        doppler:<name> fields beside the label (core:label). The pool is the
+        one component that stamps; the log is borrowed, never owned. None
+        detaches.
+
+        Borrowed, never owned: the holder opens, finalizes and closes it. From
+        now on every transition is appended at the sample it happened, with
+        `slot`, `state`, `doppler_hz`, `chip_phase` and `cn0_dbhz` staged as
+        `doppler:<name>` fields beside the label (`core:label`) and, on
+        `released`, `reason` (`lost` or `on_time`). A log that has already
+        failed keeps failing (its error is sticky); the pool counts the
+        transition either way.
+
+        Parameters
+        ----------
+        log : object | None
+            The log, or NULL.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_event_log failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import os, tempfile
+        >>> import numpy as np
+        >>> from doppler.dsss import AsyncDsssPool
+        >>> from doppler.telemetry import EventLog
+        >>> from doppler.wfm import Gold
+        >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+        >>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+        ...                      spc=2, cn0_dbhz=45.0, n_slots=2)
+        >>> log = EventLog(os.path.join(tempfile.mkdtemp(), "run.events"))
+        >>> pool.set_event_log(log)               # attached: transitions go here
+        >>> _ = pool.push(np.zeros(2046, np.complex64))
+        >>> pool.set_event_log(None)              # detached
+        >>> log.close()
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the AsyncDsssPool has already been
+        destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the AsyncDsssPool has already been
+        destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the AsyncDsssPool has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def n_slots(self) -> int:
+        """Receivers the pool holds; it never exceeds this."""
+
+    @property
+    def n_assigned(self) -> int:
+        """Slots assigned right now."""
+
+    @property
+    def dropped(self) -> int:
+        """Detections dropped for want of a free slot since create or reset."""
+
+    @property
+    def events(self) -> int:
+        """Transitions since create or reset, logged or not."""
+
+    @property
+    def samples_consumed(self) -> int:
+        """Input samples pushed since create or reset -- the stream position
+        every event is stamped at.
+        """
+
+    @property
+    def doppler_res_hz(self) -> float:
+        """The searcher's Doppler row, Hz -- one side of the exclusion zone."""
+
+    @property
+    def coherent_bins(self) -> int:
+        """The searcher's block-coherent depth D, from code_only_epochs and
+        doppler_rate (section 2.3).
+        """
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "AsyncDsssPool":
+        """Enter a context manager, returning this object.
+
+        Lets a AsyncDsssPool be used in a `with` statement so its C resources
+        are released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        AsyncDsssPool
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the AsyncDsssPool.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

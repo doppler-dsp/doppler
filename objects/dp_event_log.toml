@@ -157,3 +157,11 @@ name = "count"
 type = "size_t"
 expr = "dp_event_log_count(self->handle)"
 doc = "Events appended so far, counting only the ones that reached the disk."
+
+# The producing side of the capsule triangle: AsyncDsssPool.set_event_log
+# unwraps this exact name (design §8.2 -- the pool is the one component that
+# stamps transitions into the log), so the string is load-bearing.
+[[dp_event_log.properties]]
+name = "_capsule"
+type = "capsule"
+capsule = "doppler.telemetry.dp_event_log"

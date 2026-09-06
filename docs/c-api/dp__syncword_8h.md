@@ -11,6 +11,7 @@
 _Finding a known bit pattern in an unpacked bit stream — the sync word search, and the arithmetic for choosing its threshold._ [More...](#detailed-description)
 
 * `#include <math.h>`
+* `#include "clib_common.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 

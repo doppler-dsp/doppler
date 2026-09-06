@@ -34,6 +34,7 @@
 * **aid\_alpha** ([**dll\_state\_t**](structdll__state__t.md))
 * **aid\_best** ([**dll\_state\_t**](structdll__state__t.md))
 * **aid\_count** ([**dll\_state\_t**](structdll__state__t.md))
+* **aid\_last\_end** ([**dll\_state\_t**](structdll__state__t.md))
 * **aid\_len** ([**dll\_state\_t**](structdll__state__t.md))
 * **aid\_nhyp** ([**dll\_state\_t**](structdll__state__t.md))
 * **aid\_power** ([**dll\_state\_t**](structdll__state__t.md))

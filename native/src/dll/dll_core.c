@@ -95,8 +95,9 @@ seed (dll_state_t *s)
   lock_clear (s);
   /* The symbol-period aid keeps its config (period/window) but forgets what
      it has seen: rings, per-hypothesis power, the chosen phase. */
-  s->aid_count = 0;
-  s->aid_best  = 0;
+  s->aid_count    = 0;
+  s->aid_last_end = 0;
+  s->aid_best     = 0;
   if (s->aid_ring_p)
     {
       memset (s->aid_ring_p, 0, s->aid_ring * sizeof (*s->aid_ring_p));
@@ -239,6 +240,17 @@ aid_look (dll_state_t *s, float _Complex part, float _Complex noise,
     }
   if (!aid_window_starts (s, s->aid_best, start))
     return;
+  /* One look per window of noise: on a signal the best hypothesis holds
+     and its windows are a symbol apart, but on noise it flips between
+     neighbours whose windows share all but one partial, and a decision's
+     n_looks then read the same noise n times -- a chi-square of two
+     degrees of freedom scaled by n against a threshold sized for 2n, an
+     exceedance rate 17x the configured pfa at 45 dB-Hz and a false lock
+     every second or two (#1264). A window that overlaps the last look's is
+     not a look. */
+  if (s->aid_last_end && start < s->aid_last_end)
+    return;
+  s->aid_last_end   = i + 1;
   float _Complex sp = 0.0f, so = 0.0f, se = 0.0f, sl = 0.0f;
   for (uint64_t k = start; k <= i; k++)
     {
@@ -994,18 +1006,19 @@ dll_set_symbol_period (dll_state_t *state, double partials_per_symbol)
   free_aid_buffers (state);
   /* Fixed sizes from already-validated arguments: abort-on-OOM helpers,
      so there is no unwind path nothing can reach. */
-  state->aid_ring_p = dp_xcalloc (ring, sizeof (*state->aid_ring_p));
-  state->aid_ring_o = dp_xcalloc (ring, sizeof (*state->aid_ring_o));
-  state->aid_ring_e = dp_xcalloc (ring, sizeof (*state->aid_ring_e));
-  state->aid_ring_l = dp_xcalloc (ring, sizeof (*state->aid_ring_l));
-  state->aid_power  = dp_xcalloc (Q, sizeof (*state->aid_power));
-  state->sym_period = partials_per_symbol;
-  state->aid_len    = L;
-  state->aid_nhyp   = Q;
-  state->aid_ring   = ring;
-  state->aid_best   = 0;
-  state->aid_count  = 0;
-  state->aid_alpha  = 1.0 / DLL_AID_EMA_SYMBOLS;
+  state->aid_ring_p   = dp_xcalloc (ring, sizeof (*state->aid_ring_p));
+  state->aid_ring_o   = dp_xcalloc (ring, sizeof (*state->aid_ring_o));
+  state->aid_ring_e   = dp_xcalloc (ring, sizeof (*state->aid_ring_e));
+  state->aid_ring_l   = dp_xcalloc (ring, sizeof (*state->aid_ring_l));
+  state->aid_power    = dp_xcalloc (Q, sizeof (*state->aid_power));
+  state->sym_period   = partials_per_symbol;
+  state->aid_len      = L;
+  state->aid_nhyp     = Q;
+  state->aid_ring     = ring;
+  state->aid_best     = 0;
+  state->aid_count    = 0;
+  state->aid_last_end = 0;
+  state->aid_alpha    = 1.0 / DLL_AID_EMA_SYMBOLS;
   /* The looks change scale (L partials summed), so the detector's running
      reference and statistic restart; its configuration stays. */
   lock_clear (state);

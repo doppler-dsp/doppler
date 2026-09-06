@@ -40,8 +40,13 @@
  *   on       nothing happens; the flags are watched for ON_S seconds
  *
  * Measured per trial: samples from the event to the first block with each
- * flag off (or "held" if it never dropped within POST_S), and whether each
- * flag is back on at the end (recovered). For `on`: the fraction of blocks
+ * flag off (or "held" if it never dropped within the watch), whether each
+ * flag is back on at the end (recovered), and -- for `off`, watched for
+ * OFF_WATCH_S, several release intervals -- how many times each flag came
+ * back on noise after its drop: a return restarts the receiver's release
+ * clock (§10), and the aided code flag returned about once a second until
+ * #1264 (a look whose window overlapped the last look's read the same
+ * noise again). For `on`: the fraction of blocks
  * with each flag off, and the count of separate drop episodes -- the
  * per-look miss probability the confirm interval is sized from.
  *
@@ -71,10 +76,13 @@
 
 #define SETTLE_BLOCKS 200 /* both flags on for this many blocks first  */
 #define MAX_LOCK_S 6.0    /* give up on a trial that never settles      */
-#define POST_S 1.5        /* watch this long after the event            */
-#define FADE_S 1.0        /* the fade's duration                        */
-#define ON_S 3.0          /* the on-time watched for false drops        */
-#define CHECK_MAX_S 0.5   /* --check: code lock must drop within this   */
+#define POST_S 1.5        /* watch this long after a fade or a step     */
+#define OFF_WATCH_S                                                           \
+  8.0                   /* after a switch-off: the flags' returns on          \
+                           noise over several release intervals        */
+#define FADE_S 1.0      /* the fade's duration                        */
+#define ON_S 3.0        /* the on-time watched for false drops        */
+#define CHECK_MAX_S 0.5 /* --check: code lock must drop within this   */
 
 enum
 {
@@ -90,18 +98,21 @@ static const char *ev_name[N_EV]
 
 typedef struct
 {
-  int    settled;    /* tracking + symbol lock on before MAX_LOCK_S  */
-  double t_code_s;   /* event -> code lock off, s; <0 = held         */
-  double t_sym_s;    /* event -> symbol lock off, s; <0 = held       */
-  double t_both_s;   /* event -> both flags off at once; <0 = never  */
-  double both_max_s; /* longest run of both-off during the watch, s  */
-  int    code_back;  /* code lock on at the end of the watch         */
-  int    sym_back;   /* symbol lock on at the end of the watch       */
-  double p_code_off; /* `on` only: fraction of blocks code lock off  */
-  double p_sym_off;  /* `on` only: fraction of blocks symbol lock off */
-  double p_both_off; /* `on` only: fraction of blocks both flags off  */
-  size_t code_drops; /* `on` only: separate code-lock drop episodes  */
-  size_t sym_drops;  /* `on` only: separate symbol-lock drop episodes */
+  int    settled;      /* tracking + symbol lock on before MAX_LOCK_S  */
+  double t_code_s;     /* event -> code lock off, s; <0 = held         */
+  double t_sym_s;      /* event -> symbol lock off, s; <0 = held       */
+  double t_both_s;     /* event -> both flags off at once; <0 = never  */
+  double both_max_s;   /* longest run of both-off during the watch, s  */
+  int    code_back;    /* code lock on at the end of the watch         */
+  int    sym_back;     /* symbol lock on at the end of the watch       */
+  double p_code_off;   /* `on` only: fraction of blocks code lock off  */
+  double p_sym_off;    /* `on` only: fraction of blocks symbol lock off */
+  double p_both_off;   /* `on` only: fraction of blocks both flags off  */
+  size_t code_drops;   /* `on` only: separate code-lock drop episodes  */
+  size_t sym_drops;    /* `on` only: separate symbol-lock drop episodes */
+  size_t code_returns; /* `off`: code lock back on after its drop, times */
+  size_t sym_returns;  /* `off`: symbol lock back on after its drop     */
+  double watch_s;      /* the watch, s                                  */
 } trial_t;
 
 /* The emitter: the shipped continuous-DSSS synth, clean (no AWGN child),
@@ -138,11 +149,14 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
   memset (out, 0, sizeof *out);
   out->t_code_s = out->t_sym_s = out->t_both_s = -1.0;
 
-  const size_t watch_blocks
-      = (size_t)((ev == EV_ON ? ON_S : POST_S) * FS / (double)TE);
-  const size_t lock_blocks = (size_t)(MAX_LOCK_S * FS / (double)TE);
-  const size_t fade_blocks = (size_t)(FADE_S * FS / (double)TE);
-  const size_t max_blocks  = lock_blocks + watch_blocks + 2;
+  const double watch_s      = ev == EV_ON    ? ON_S
+                              : ev == EV_OFF ? OFF_WATCH_S
+                                             : POST_S;
+  const size_t watch_blocks = (size_t)(watch_s * FS / (double)TE);
+  out->watch_s              = watch_s;
+  const size_t lock_blocks  = (size_t)(MAX_LOCK_S * FS / (double)TE);
+  const size_t fade_blocks  = (size_t)(FADE_S * FS / (double)TE);
+  const size_t max_blocks   = lock_blocks + watch_blocks + 2;
 
   wfm_synth_state_t *syn = make_emitter (code, seed);
   /* C/N0 to SNR over fs is the one conversion; the amplitude is the
@@ -219,6 +233,8 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
           if (prev_code)
             out->code_drops++;
         }
+      else if (!prev_code && out->t_code_s >= 0.0)
+        out->code_returns++; /* back on, after it had dropped */
       if (!sym_on)
         {
           off_sym++;
@@ -227,6 +243,8 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
           if (prev_sym)
             out->sym_drops++;
         }
+      else if (!prev_sym && out->t_sym_s >= 0.0)
+        out->sym_returns++;
       if (!code_on && !sym_on)
         {
           off_both++;
@@ -297,9 +315,18 @@ main (int argc, char **argv)
           DP_CHECK (t.t_code_s >= 0.0 && t.t_code_s <= CHECK_MAX_S);
           DP_CHECK (t.t_sym_s >= 0.0 && t.t_sym_s <= CHECK_MAX_S);
           DP_CHECK (!t.code_back && !t.sym_back);
+          /* And neither comes back on noise for the whole watch -- four
+             release intervals. The aided code flag used to return about
+             once a second (#1264: a look whose window overlapped the last
+             look's read the same noise again), which restarted the
+             receiver's release clock. */
+          DP_CHECK_MSG (t.code_returns == 0 && t.sym_returns == 0,
+                        "no flag returns on noise within the watch");
           printf ("  trial %u: code lock off at %.1f ms, symbol lock off at "
-                  "%.1f ms\n",
-                  sd, t.t_code_s * 1e3, t.t_sym_s * 1e3);
+                  "%.1f ms; over %.0f s of noise code lock returned %zu "
+                  "time(s), symbol lock %zu\n",
+                  sd, t.t_code_s * 1e3, t.t_sym_s * 1e3, t.watch_s,
+                  t.code_returns, t.sym_returns);
         }
       DP_TEST_END ("validate_async_dsss_receiver_release");
     }
@@ -323,6 +350,8 @@ main (int argc, char **argv)
           int    nc = 0, ns = 0, nb = 0, settled = 0, held_c = 0, held_s = 0;
           int    back_c = 0, back_s = 0;
           double both_run_max = 0.0;
+          size_t ret_c = 0, ret_s = 0;
+          double watched = 0.0;
           for (int k = 0; k < n_trial; k++)
             {
               trial_t t;
@@ -331,6 +360,9 @@ main (int argc, char **argv)
               if (!t.settled)
                 continue;
               settled++;
+              ret_c += t.code_returns;
+              ret_s += t.sym_returns;
+              watched += t.watch_s;
               if (t.t_code_s < 0.0)
                 held_c++;
               else
@@ -380,6 +412,13 @@ main (int argc, char **argv)
                   ev_name[ev], settled, n_trial, mc, xc, held_c, settled, ms,
                   xs, held_s, settled, mb, xb, back_c, settled, back_s,
                   settled);
+          if (ev == EV_OFF && watched > 0.0)
+            printf (
+                "           over %.0f s of noise after the switch-off: code "
+                "lock returned %zu time(s) (%.3f per s), symbol lock %zu "
+                "(%.3f per s)\n",
+                watched, ret_c, (double)ret_c / watched, ret_s,
+                (double)ret_s / watched);
         }
       /* The on-time: false drops. */
       double pc = 0.0, ps = 0.0, pb = 0.0, brun = 0.0;

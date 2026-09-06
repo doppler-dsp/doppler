@@ -43,6 +43,7 @@ _DLL state._ [More...](#detailed-description)
 |  double | [**aid\_alpha**](#variable-aid_alpha)  <br> |
 |  size\_t | [**aid\_best**](#variable-aid_best)  <br> |
 |  uint64\_t | [**aid\_count**](#variable-aid_count)  <br> |
+|  uint64\_t | [**aid\_last\_end**](#variable-aid_last_end)  <br> |
 |  size\_t | [**aid\_len**](#variable-aid_len)  <br> |
 |  size\_t | [**aid\_nhyp**](#variable-aid_nhyp)  <br> |
 |  double \* | [**aid\_power**](#variable-aid_power)  <br> |
@@ -268,6 +269,24 @@ uint64_t dll_state_t::aid_count;
 
 
 partials seen since enable (ring index). 
+
+
+        
+
+<hr>
+
+
+
+### variable aid\_last\_end 
+
+```C++
+uint64_t dll_state_t::aid_last_end;
+```
+
+
+
+one past the last look's last partial; the next look's window must start there or later, so no two looks share noise (the best hypothesis flips between overlapping neighbours on noise, #1264). 
+ 
 
 
         

@@ -43,8 +43,9 @@
  * searcher's seed, the chain settles in 2 of 3 trials at 45 dB-Hz and 0
  * of 3 at 40 within 6 s -- the refine's Doppler error at the floor is
  * 230-450 Hz, the carrier loop never pulls in, and the aid walks the code
- * loop off at about a chip per second; the searching flavor does the same
- * (`--trace`, see below). When it does settle, every window is clean. So
+ * loop off at about a chip per second; the searching flavor did the same
+ * when it was tried here (#1249). When it does settle, every window is
+ * clean. So
  * `--check` pins the static condition; the ramp's rows are in the full
  * table, and the finding is #1249.
  *
@@ -161,21 +162,13 @@ make_emitter (const uint8_t *code, uint32_t seed)
 
 /* The hand-off flavor, §12.3's tracker parameters, the design's release
    interval; the carrier-to-code aid on under the ramp (§12.5). */
-static double g_d0_ppm    = RAMP_D0_PPM; /* --trace overrides of the ramp */
-static double g_ppm_s     = RAMP_PPM_S;
-static int    g_searching = 0;   /* --trace: the searching flavor, its own
-                                    searcher seeding it, for comparison     */
+static double g_d0_ppm      = RAMP_D0_PPM; /* --trace overrides of the ramp */
+static double g_ppm_s       = RAMP_PPM_S;
 static size_t g_trace_every = 0; /* trace line cadence, blocks; 0 = none  */
 
 static async_dsss_receiver_state_t *
 make_rx (const uint8_t *code, double cn0_dbhz, int cond)
 {
-  if (g_searching)
-    return async_dsss_receiver_create (
-        code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9,
-        cond == COND_RAMP ? 1.2 * RAMP_D0_PPM * 1e-6 * CARRIER_HZ : 0.0, 4, 8,
-        0, 100.0, 4, 14.0, 32, 8, false, 100000,
-        cond == COND_RAMP ? CARRIER_HZ : 0.0, LOST_CONFIRM_S);
   return async_dsss_receiver_create_handoff (
       code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 4, 8, 0,
       100.0, 4, 14.0, 32, 8, false, 100000,
@@ -236,7 +229,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
       code, SF, SPC, CHIP_RATE, SYM_RATE, cn0_dbhz,
       cond == COND_RAMP ? 1.2 * f0 : 0.0, 1e-3, 0.9, 0, 1, 0.0);
   DP_REQUIRE_MSG (acq != NULL, "the searcher opens");
-  int seeded = g_searching; /* the searching flavor seeds itself */
+  int seeded = 0;
 
   uint64_t n        = 0; /* received samples handed to the receiver */
   size_t   held     = 0;
@@ -311,9 +304,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
                   t,
                   async_dsss_receiver_get_lost (rx) == 1       ? "lost"
                   : async_dsss_receiver_get_tracking (rx) == 1 ? "tracking"
-                  : async_dsss_receiver_get_refining (rx) == 1 ? "refining"
-                  : async_dsss_receiver_get_idle (rx) == 1     ? "idle"
-                                                               : "?",
+                                                               : "refining",
                   async_dsss_receiver_get_doppler_hz (rx),
                   async_dsss_receiver_get_nco_freq (rx),
                   async_dsss_receiver_get_mpsk_last_error (rx),
@@ -470,22 +461,15 @@ main (int argc, char **argv)
       g_trace_every = 1000;
       /* --trace [d0_ppm ppm_s [cn0 [seed]]]: one ramp trial, the channel's
          Doppler and ramp, the C/N0 and the seed as given (45 dB-Hz, 100). */
-      if (argc > 3)
-        {
-          g_d0_ppm = atof (argv[2]);
-          g_ppm_s  = atof (argv[3]);
-        }
+      g_d0_ppm           = argc > 3 ? atof (argv[2]) : RAMP_D0_PPM;
+      g_ppm_s            = argc > 3 ? atof (argv[3]) : RAMP_PPM_S;
       const double   cn0 = argc > 4 ? atof (argv[4]) : 45.0;
       const uint32_t sd  = argc > 5 ? (uint32_t)atoi (argv[5]) : 100u;
-      g_searching        = argc > 6;
-      trial_t t;
-      printf ("--- channel %.1f ppm, %.2f ppm/s; %.0f dB-Hz, seed %u, %s "
-              "flavor ---\n",
-              g_d0_ppm, g_ppm_s, cn0, sd,
-              g_searching ? "searching" : "hand-off");
+      trial_t        t;
+      printf ("--- channel %.1f ppm, %.2f ppm/s; %.0f dB-Hz, seed %u ---\n",
+              g_d0_ppm, g_ppm_s, cn0, sd);
       DP_REQUIRE (run_trial (code, COND_RAMP, cn0, sd, 2, &t) == 0);
-      printf ("    settled %d after %.1f ms; windows %zu\n", t.settled,
-              t.settle_s * 1e3, t.n_frames);
+      printf ("    settled %d after %.1f ms\n", t.settled, t.settle_s * 1e3);
       free (t.frames);
       return 0;
     }

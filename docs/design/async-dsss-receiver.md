@@ -2091,6 +2091,11 @@ ______________________________________________________________________
     within its dwell, and no release fires — one flag down is a degrade.
     If the flag reads a pure-code stretch as unhealthy, that is a
     detector finding to fix, not a rule to loosen.
+    **Done (§12.9):** both flags hold through every window at both
+    C/N0s — code lock never drops, the symbol flag's only dips are its
+    own chatter at the floor and no worse in a window than in the data —
+    and the release never fires. The ramp found a pull-in defect from
+    the searcher's seed instead (#1249).
 1. **The searcher's cost with `D`, and its scaling across threads.**
     Step 8's per-tile number again with the block transform in it, at both
     ends of the rate range and both uncertainties, beside the memory per
@@ -2659,6 +2664,63 @@ second emitter in the comparison so the list's second scan is part of it.
     beside twelve receivers at 44 each; over ±5 kHz, 0.35× real time on
     four threads. Comfortable. Bit-identity across thread counts is
     pinned in `test_acq_core.c` and the C suite runs under TSan.
+
+### 12.9 What was measured (2026-09-06) — step 12, the tracker through the window
+
+`native/validation/tracker_through_window.c` (`make validate-c`; its
+`--check` is in the C suite): the hand-off receiver, seeded by the shipped
+searcher's first hit on the same received blocks (the pool's own path,
+§8.2), tracking one emitter from the shipped synth with its own window
+(450 code-only symbols of every 4950 on the data clock: a 167 ms window in
+a 1.83 s frame) at the operating point and the shipped `awgn`, fed one
+epoch (0.2 ms) at a time, both lock flags read after every block, the
+release clock at the design's 2 s. Once tracking with symbol lock held for
+200 blocks, ten windows per trial, three trials per C/N0; per window the
+fraction of blocks with each flag off, the longest both-off run, whether
+`lost` fired, and the pull-in after the data resumes. Two conditions: no
+Doppler, and SPEC's ramp through the shipped `doppler_channel` (50 kHz at
+a 2.5 GHz carrier, 500 Hz/s, the chip clock dilated with it).
+
+| condition, C/N0 (Es/N0) | settled | window blocks | code lock off | symbol lock off        | both off | release | pull-in after the window |
+| ----------------------- | ------- | ------------- | ------------- | ---------------------- | -------- | ------- | ------------------------ |
+| static, 45 dB-Hz (10.7) | 3 of 3  | 24 435        | **0**         | **0**                  | 0        | never   | none needed              |
+| static, 40 dB-Hz (5.7)  | 3 of 3  | 24 435        | **0**         | 0.8% (one window, 24%) | 0        | never   | none needed              |
+| ramp, 45 dB-Hz          | 2 of 3  | 16 290        | **0**         | **0**                  | 0        | never   | none needed              |
+| ramp, 40 dB-Hz          | 0 of 3  | —             |               |                        |          |         |                          |
+
+What it settles:
+
+- **The window costs the tracker nothing.** Code lock never drops in a
+    window, at either C/N0, with or without the ramp: the symbol-aided
+    detector's looks are as good on a constant symbol as on data. Symbol
+    lock holds too — the phase-lock statistic `cos(2φ)` reads a constant
+    symbol as locked, and the symbol clock coasts 167 ms without a
+    transition and picks the data up with no pull-in at all (the one
+    dip, at the floor, is the flag's own chatter: 3.6% of that frame's
+    data blocks were off too, §12.3's 0.5% under a different seed). The
+    release never fires. The expectation that the symbol flag "may drop
+    and recover within its dwell" was pessimistic; nothing here needs a
+    rule loosened or a detector fixed.
+- **The pool must seed from the searcher, not from the truth.** The
+    harness first seeded the hand-off receiver with the stimulus's own
+    chip phase; through the channel the received code is five chips late
+    (the resampler's delay), the code loop sat outside its pull-in and
+    nothing downstream locked. `acq_build_handoff()` of the searcher's
+    hit — measured on the received stream — is the seed, and with it the
+    same trials lock in 70–280 ms.
+- **What the ramp found is a pull-in defect, not a window one.** From
+    the searcher's seed under SPEC's ramp the chain settles in 2 of 3
+    trials at 45 dB-Hz and 0 of 3 at 40 within 6 s, the searching flavor
+    alike (1 of 2, 0 of 2). The `--trace` shows the mechanism: at the
+    floor the refine stage's Doppler lands 230–450 Hz off (its stated
+    accuracy is tens of Hz), the post-despread carrier loop never pulls
+    in, and the carrier-to-code aid then walks the code loop off at about
+    a chip per second; at 45 dB-Hz one seed fails with a refine within 5
+    Hz, so the code loop's own pull-in from a half-chip seed is a second
+    suspect. Filed as [#1249](https://github.com/doppler-dsp/doppler/issues/1249);
+    §12.5 measured the aided DLL on a ramp it was already locked to, this
+    is the chain from the seed. The static case, and the channel with no
+    Doppler, lock every time.
 
 ______________________________________________________________________
 

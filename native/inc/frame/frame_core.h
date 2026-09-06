@@ -665,7 +665,8 @@ int frame_add_value(frame_state_t *state, const char *name, uint64_t value,
  * applies the invariant the layout already enforces rather than adding one.
  *
  * @param state      the frame.
- * @param kind       a `wfm_stage_kind_t` index, or a caller's own kind.
+ * @param kind       a stage kind — `doppler.wfm.STAGE_CRC16` and its
+ *                   siblings, or a caller's own from `STAGE_USER` up.
  * @param first      name of the first field covered.
  * @param last       name of the last field covered; may equal @p first.
  * @param depth      RS / interleave depth; 0 when unused.

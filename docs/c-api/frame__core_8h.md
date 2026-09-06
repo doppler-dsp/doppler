@@ -464,7 +464,7 @@ The cover is the load-bearing part of the representation and this is the form th
 
 
 * `state` the frame. 
-* `kind` a `wfm_stage_kind_t` index, or a caller's own kind. 
+* `kind` a stage kind — `doppler.wfm.STAGE_CRC16` and its siblings, or a caller's own from `STAGE_USER` up. 
 * `first` name of the first field covered. 
 * `last` name of the last field covered; may equal `first`. 
 * `depth` RS / interleave depth; 0 when unused. 

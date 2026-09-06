@@ -28,6 +28,9 @@ import pytest
 from doppler.ber import FrameMeter
 from doppler.ccsds import asm_bits
 from doppler.wfm import (
+    STAGE_CONV,
+    STAGE_RANDOMISE,
+    STAGE_RS,
     Composer,
     Frame,
     FrameDesc,
@@ -309,7 +312,6 @@ def test_a_ccsds_cadu_can_be_described_from_python():
     checked here is that the description survives the binding.
     """
     K, N, E2, DEPTH = 223, 255, 32, 2
-    _CRC16, RS, RANDOMISE, CONV = 0, 1, 2, 3
 
     octets = np.array(
         [(i * 29 + 5) & 0xFF for i in range(K * DEPTH)], np.uint8
@@ -323,10 +325,12 @@ def test_a_ccsds_cadu_can_be_described_from_python():
     assert d.add_field(asm) == 0
     assert d.add_field(fbits) == 1
     assert d.add_field(EMPTY, derived_by=1, derived_bits=E2 * DEPTH * 8) == 2
-    assert d.add_stage(RS, first_field=1, n_fields=2, depth=DEPTH) == 0
-    assert d.add_stage(RANDOMISE, first_field=1, n_fields=2) == 1
+    assert d.add_stage(STAGE_RS, first_field=1, n_fields=2, depth=DEPTH) == 0
+    assert d.add_stage(STAGE_RANDOMISE, first_field=1, n_fields=2) == 1
     assert (
-        d.add_stage(CONV, first_field=0, n_fields=3, emit_num=2, emit_den=1)
+        d.add_stage(
+            STAGE_CONV, first_field=0, n_fields=3, emit_num=2, emit_den=1
+        )
         == 2
     )
     d.build()
@@ -368,7 +372,6 @@ def _cadu(depth=5):
     synchronisation, which is where `check()` begins too.
     """
     K, E2 = 223, 32
-    RS, RANDOMISE = 1, 2
     octets = np.array(
         [(i * 37 + 11) & 0xFF for i in range(K * depth)], np.uint8
     )
@@ -379,8 +382,8 @@ def _cadu(depth=5):
     d.add_field(asm)
     d.add_field(fbits)
     d.add_field(EMPTY, derived_by=1, derived_bits=E2 * depth * 8)
-    d.add_stage(RS, first_field=1, n_fields=2, depth=depth)
-    d.add_stage(RANDOMISE, first_field=1, n_fields=2)
+    d.add_stage(STAGE_RS, first_field=1, n_fields=2, depth=depth)
+    d.add_stage(STAGE_RANDOMISE, first_field=1, n_fields=2)
     d.build()
     return d
 

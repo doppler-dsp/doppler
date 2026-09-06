@@ -1299,15 +1299,18 @@ class Frame:
         unit_bits: int = 0,
     ) -> int:
         """Append one transform and -- the load-bearing part -- the span of
-        fields it covers. `kind` names the transform -- `crc16`, `rs`,
-        `randomise`, `conv`, `interleave` -- the same spelling the scene JSON
-        takes, from the one `[[enum]]` both faces read. `n_fields = 0` means
-        the stage does not run. A stage that inherited whatever ran before it
-        is the representation that cannot express a CCSDS CADU, where the
-        marker is covered by the inner code and by neither the outer code nor
-        the randomiser. `unit_bits` applies to `interleave` alone and is the
-        bits per permuted unit (0 reads as 1); its ROW count is `depth` and its
-        column count is derived from the span the stage covers.
+        fields it covers. `kind` is a stage kind: `STAGE_CRC16`, `STAGE_RS`,
+        `STAGE_RANDOMISE`, `STAGE_CONV`, `STAGE_INTERLEAVE` from `doppler.wfm`,
+        or a caller's own from `STAGE_USER` up. It stays an INT rather than a
+        name because the kind is an open `uint32_t` a caller extends -- the
+        constants are generated from the C enum, so there is nothing to
+        transcribe. `n_fields = 0` means the stage does not run. A stage that
+        inherited whatever ran before it is the representation that cannot
+        express a CCSDS CADU, where the marker is covered by the inner code and
+        by neither the outer code nor the randomiser. `unit_bits` applies to
+        `interleave` alone and is the bits per permuted unit (0 reads as 1);
+        its ROW count is `depth` and its column count is derived from the span
+        the stage covers.
 
         n_fields is the load-bearing part and 0 means the stage does not run. A
         stage that inherited "everything before me" instead of declaring its
@@ -1573,12 +1576,12 @@ class Frame:
         unit_bits: int = 0,
     ) -> int:
         """Append a stage covering `[first .. last]` BY NAME --
-        `add_stage_over(0, "payload", "crc")` says what three integers used to.
-        It wires a derived field's producer for you, which applies the
-        invariant the layout already enforces: a field with a declared length
-        and no source sitting at the end of a cover has exactly one possible
-        producer. `kind` is a `wfm_stage_kind_t` index. Returns the new stage's
-        index, or -1.
+        `add_stage_over(STAGE_CRC16, "payload", "crc")` says what three
+        integers used to. It wires a derived field's producer for you, which
+        applies the invariant the layout already enforces: a field with a
+        declared length and no source sitting at the end of a cover has exactly
+        one possible producer. `kind` is a stage kind, as for `add_stage`.
+        Returns the new stage's index, or -1.
 
         The cover is the load-bearing part of the representation and this is
         the form that reads. It wires a derived field's producer for you, which
@@ -1588,7 +1591,8 @@ class Frame:
         Parameters
         ----------
         kind : int
-            a `wfm_stage_kind_t` index, or a caller's own kind.
+            a stage kind — `doppler.wfm.STAGE_CRC16` and its siblings, or a
+            caller's own from `STAGE_USER` up.
         first : str
             name of the first field covered.
         last : str
@@ -2466,15 +2470,18 @@ class FrameDesc:
         unit_bits: int = 0,
     ) -> int:
         """Append one transform and -- the load-bearing part -- the span of
-        fields it covers. `kind` names the transform -- `crc16`, `rs`,
-        `randomise`, `conv`, `interleave` -- the same spelling the scene JSON
-        takes, from the one `[[enum]]` both faces read. `n_fields = 0` means
-        the stage does not run. A stage that inherited whatever ran before it
-        is the representation that cannot express a CCSDS CADU, where the
-        marker is covered by the inner code and by neither the outer code nor
-        the randomiser. `unit_bits` applies to `interleave` alone and is the
-        bits per permuted unit (0 reads as 1); its ROW count is `depth` and its
-        column count is derived from the span the stage covers.
+        fields it covers. `kind` is a stage kind: `STAGE_CRC16`, `STAGE_RS`,
+        `STAGE_RANDOMISE`, `STAGE_CONV`, `STAGE_INTERLEAVE` from `doppler.wfm`,
+        or a caller's own from `STAGE_USER` up. It stays an INT rather than a
+        name because the kind is an open `uint32_t` a caller extends -- the
+        constants are generated from the C enum, so there is nothing to
+        transcribe. `n_fields = 0` means the stage does not run. A stage that
+        inherited whatever ran before it is the representation that cannot
+        express a CCSDS CADU, where the marker is covered by the inner code and
+        by neither the outer code nor the randomiser. `unit_bits` applies to
+        `interleave` alone and is the bits per permuted unit (0 reads as 1);
+        its ROW count is `depth` and its column count is derived from the span
+        the stage covers.
 
         n_fields is the load-bearing part and 0 means the stage does not run. A
         stage that inherited "everything before me" instead of declaring its
@@ -2740,12 +2747,12 @@ class FrameDesc:
         unit_bits: int = 0,
     ) -> int:
         """Append a stage covering `[first .. last]` BY NAME --
-        `add_stage_over(0, "payload", "crc")` says what three integers used to.
-        It wires a derived field's producer for you, which applies the
-        invariant the layout already enforces: a field with a declared length
-        and no source sitting at the end of a cover has exactly one possible
-        producer. `kind` is a `wfm_stage_kind_t` index. Returns the new stage's
-        index, or -1.
+        `add_stage_over(STAGE_CRC16, "payload", "crc")` says what three
+        integers used to. It wires a derived field's producer for you, which
+        applies the invariant the layout already enforces: a field with a
+        declared length and no source sitting at the end of a cover has exactly
+        one possible producer. `kind` is a stage kind, as for `add_stage`.
+        Returns the new stage's index, or -1.
 
         The cover is the load-bearing part of the representation and this is
         the form that reads. It wires a derived field's producer for you, which
@@ -2755,7 +2762,8 @@ class FrameDesc:
         Parameters
         ----------
         kind : int
-            a `wfm_stage_kind_t` index, or a caller's own kind.
+            a stage kind — `doppler.wfm.STAGE_CRC16` and its siblings, or a
+            caller's own from `STAGE_USER` up.
         first : str
             name of the first field covered.
         last : str

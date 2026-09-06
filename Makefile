@@ -627,6 +627,7 @@ uv run python scripts/gen_related_pages.py --check
 uv run python scripts/gen_readme.py --check
 uv run python scripts/gen_install_scripts.py --check
 uv run python scripts/gen_wfm_defaults.py --check
+uv run python scripts/gen_stage_kinds.py --check
 uv run python scripts/gen_validation_log.py --check
 uv run python scripts/gen_doc_versions.py --check
 uv run python scripts/gen_changelog_links.py --check

@@ -44,7 +44,13 @@ import numpy as np
 from doppler.ccsds import asm_bits
 from doppler.tests._repo import repo_root
 from doppler.tests._validation_common import Report, cli
-from doppler.wfm import FrameDesc
+from doppler.wfm import (
+    STAGE_CRC16,
+    STAGE_RANDOMISE,
+    STAGE_RS,
+    STAGE_USER,
+    FrameDesc,
+)
 
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
@@ -56,10 +62,6 @@ EMPTY = np.empty(0, np.uint8)
 CRC_BITS = 16
 
 # Sequence kinds, as add_field() indexes them.
-# Stage kinds, as add_stage() indexes them.
-ST_CRC16, ST_RS, ST_RANDOMISE = 0, 1, 2
-# The first kind reserved for callers; doppler never allocates here.
-ST_USER = 0x1000
 
 
 def _csv(path: Path, header: str, rows: list[list[float]]) -> None:
@@ -86,7 +88,7 @@ def plain_frame(sync: list[int], payload_octets: int, crc: bool = True):
     d.add_field(octets(payload_octets))
     if crc:
         d.add_field(EMPTY, derived_by=1, derived_bits=CRC_BITS)
-        d.add_stage(ST_CRC16, first_field=1, n_fields=2)
+        d.add_stage(STAGE_CRC16, first_field=1, n_fields=2)
     d.build()
     return d
 
@@ -221,8 +223,8 @@ def measure_cadu(d: Data) -> None:
     f.add_field(asm)
     f.add_field(octets(223))
     f.add_field(EMPTY, derived_by=1, derived_bits=32 * 8)
-    f.add_stage(ST_RS, first_field=1, n_fields=2, depth=1)
-    f.add_stage(ST_RANDOMISE, first_field=1, n_fields=2)
+    f.add_stage(STAGE_RS, first_field=1, n_fields=2, depth=1)
+    f.add_stage(STAGE_RANDOMISE, first_field=1, n_fields=2)
     f.build()
     n_st = f.n_stages()
     d.cadu_bits = int(f.nbits)
@@ -236,7 +238,7 @@ def measure_cadu(d: Data) -> None:
         [
             [
                 str(s),
-                ["crc16", "rs", "randomise"][[ST_RS, ST_RANDOMISE][s]],
+                ["crc16", "rs", "randomise"][[STAGE_RS, STAGE_RANDOMISE][s]],
                 str(f.stage_first(s)),
                 str(f.stage_bits(s)),
             ]
@@ -405,7 +407,7 @@ def measure_extension(d: Data) -> None:
     f = FrameDesc(EMPTY, EMPTY, EMPTY)
     f.add_field(np.array([1, 0, 1, 0], np.uint8))
     f.add_field(octets(4))
-    idx = f.add_stage(ST_USER + 1, first_field=0, n_fields=2)
+    idx = f.add_stage(STAGE_USER + 1, first_field=0, n_fields=2)
     d.user_kind_accepted = idx >= 0
     try:
         f.build()
@@ -414,7 +416,7 @@ def measure_extension(d: Data) -> None:
     except ValueError as exc:
         d.user_kind_unbuildable = True
         outcome = f"refused: `{exc}`"
-    d.user_above_builtins = ST_USER > ST_RANDOMISE
+    d.user_above_builtins = STAGE_USER > STAGE_RANDOMISE
     R.table(
         ["step", "result"],
         [

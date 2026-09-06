@@ -42,7 +42,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from doppler.ccsds import asm_bits
-from doppler.wfm import FrameDesc
+from doppler.wfm import (
+    STAGE_CONV,
+    STAGE_RANDOMISE,
+    STAGE_RS,
+    FrameDesc,
+)
 
 # The four numbers CCSDS 131.0-B-3 section 4.3 picks. The marker 9.4.1 picks
 # comes from `asm_bits()` rather than from a constant expanded here:
@@ -51,8 +56,6 @@ from doppler.wfm import FrameDesc
 K, N, E = 223, 255, 16  # RS(255,223), 16 correctable symbols
 DEPTH = 5  # interleaving depth (4.3.5.1 allows 1,2,3,4,5,8)
 
-# Stage kinds — indices of wfm_stage_kind_t.
-CRC16, RS, RANDOMISE, CONV = 0, 1, 2, 3
 
 EMPTY = np.zeros(0, np.uint8)
 
@@ -84,10 +87,12 @@ def describe_cadu(payload: np.ndarray, depth: int, *, inner: bool):
 
     # THE COVERS. Fields 1..2 are the data group; field 0 is the marker, and
     # only the inner code reaches over it.
-    d.add_stage(RS, first_field=1, n_fields=2, depth=depth)
-    d.add_stage(RANDOMISE, first_field=1, n_fields=2)
+    d.add_stage(STAGE_RS, first_field=1, n_fields=2, depth=depth)
+    d.add_stage(STAGE_RANDOMISE, first_field=1, n_fields=2)
     if inner:
-        d.add_stage(CONV, first_field=0, n_fields=3, emit_num=2, emit_den=1)
+        d.add_stage(
+            STAGE_CONV, first_field=0, n_fields=3, emit_num=2, emit_den=1
+        )
     d.build()
     return d
 

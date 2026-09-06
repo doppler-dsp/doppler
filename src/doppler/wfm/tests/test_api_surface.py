@@ -65,6 +65,13 @@ COVERAGE: dict[str, str] = {
     "rc_h": "TestModuleFunctions",
     "dsss_spread": "TestModuleFunctions",
     "write_blue_header": "TestModuleFunctions",
+    # stage kinds — generated from the C enum; suite in test_stage_kinds.py
+    "STAGE_CRC16": "test_stage_kinds.py",
+    "STAGE_RS": "test_stage_kinds.py",
+    "STAGE_RANDOMISE": "test_stage_kinds.py",
+    "STAGE_CONV": "test_stage_kinds.py",
+    "STAGE_INTERLEAVE": "test_stage_kinds.py",
+    "STAGE_USER": "test_stage_kinds.py",
     # stimulus engine (component cache) — dedicated suite in test_plan.py
     "Plan": "test_plan.py",
     "prepare": "test_plan.py",

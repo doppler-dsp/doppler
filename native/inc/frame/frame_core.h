@@ -384,7 +384,8 @@ frame_state_t *frame_create_desc(int preamble_kind, const uint8_t *preamble, siz
  *                     index of the producing stage, PLUS ONE.
  * @param derived_bits Length of a derived field, in bits.
  * @return The new field's index, or -1 if the description is full, already
- *         built, or the literal could not be copied.
+ *         built, or the literal could not be copied. The Python binding
+ *         raises `ValueError` rather than handing back the -1.
  *
  * @code
  * >>> import numpy as np
@@ -441,7 +442,8 @@ int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
  *                     a code over GF(256), and permuting bits inside one
  *                     spreads a burst within a symbol that is already wrong.
  * @return The new stage's index, or -1 if the description is full or already
- *         built.
+ *         built. The Python binding raises `ValueError` rather than
+ *         handing back the -1.
  *
  * @code
  * >>> import numpy as np
@@ -494,7 +496,8 @@ int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
  *
  * @param state  A frame from @ref frame_create_desc.
  * @return 0 on success, -1 if the description is empty, unbuildable, names a
- *         stage with no kernel here, or was already built.
+ *         stage with no kernel here, or was already built. The Python
+ *         binding raises `ValueError` and returns nothing.
  *
  * @code
  * >>> import numpy as np
@@ -513,7 +516,7 @@ int frame_add_stage(frame_state_t *state, int kind, uint32_t first_field,
  * >>> FrameDesc(empty, empty, empty).build()
  * Traceback (most recent call last):
  *     ...
- * ValueError: build failed (rc=-1)
+ * ValueError: cannot build: the description is empty, unbuildable, ...
  *
  * @endcode
  */
@@ -529,7 +532,10 @@ int frame_build(frame_state_t *state);
  *
  * @param state  the frame.
  * @param name   the field name.
- * @return the index, or -1 on NULL or a name no field carries.
+ * @return the index, or -1 on NULL or a name no field carries. This is the
+ *         one verb whose -1 survives into Python: a name that matches
+ *         nothing is an ANSWER, not a refusal, so there is nothing to
+ *         raise about.
  *
  * @code
  * >>> import numpy as np
@@ -554,7 +560,9 @@ int frame_field_index(frame_state_t *state, const char *name);
  * @param index  the field to name.
  * @param name   the new name; truncated at `WFM_FRAME_NAME_MAX - 1`.
  * @return 0, or -1 on NULL, an out-of-range @p index, a name another field
- *         already carries, or once the frame is built.
+ *         already carries, or once the frame is built. It is a command
+ *         rather than a query, so the Python binding raises `ValueError`
+ *         on the -1 and returns nothing on the 0.
  *
  * @code
  * >>> import numpy as np
@@ -564,7 +572,6 @@ int frame_field_index(frame_state_t *state, const char *name);
  * >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
  * 0
  * >>> d.name_field(0, "payload")
- * 0
  * >>> d.field_index("payload")
  * 0
  *
@@ -573,7 +580,8 @@ int frame_field_index(frame_state_t *state, const char *name);
 int frame_name_field(frame_state_t *state, uint32_t index, const char *name);
 
 /**
- * @brief Append a named field a stage will fill. Returns its index, or -1.
+ * @brief Append a named field a stage will fill. Returns its index; -1 in C,
+ * `ValueError` from Python.
  *
  * A field with a declared length and no source: a CRC trailer, a block of
  * check symbols. Its producer is wired by @ref frame_add_stage_over rather
@@ -592,7 +600,6 @@ int frame_name_field(frame_state_t *state, uint32_t index, const char *name);
  * >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
  * 0
  * >>> d.name_field(0, "payload")
- * 0
  * >>> d.add_derived("crc", 16)          # a stage will fill it
  * 1
  *
@@ -601,7 +608,8 @@ int frame_name_field(frame_state_t *state, uint32_t index, const char *name);
 int frame_add_derived(frame_state_t *state, const char *name, size_t bits);
 
 /**
- * @brief Append a named field from a hex literal. Returns its index, or -1.
+ * @brief Append a named field from a hex literal. Returns its index; -1 in C,
+ * `ValueError` from Python.
  *
  * Four bits per digit, MSB-first, so an odd number of digits gives a 4-bit
  * tail. The expansion is `cvt`'s `hex_to_bin` rather than a second parser
@@ -630,7 +638,8 @@ int frame_add_hex(frame_state_t *state, const char *name, const char *hex,
                   size_t reps);
 
 /**
- * @brief Append a named field from an integer. Returns its index, or -1.
+ * @brief Append a named field from an integer. Returns its index; -1 in C,
+ * `ValueError` from Python.
  *
  * The form to reach for when a literal fits in 64 bits: exact, and with no
  * failure mode a typo can reach. Wider ones want @ref frame_add_hex.
@@ -673,6 +682,8 @@ int frame_add_value(frame_state_t *state, const char *name, uint64_t value,
  * @param unit_bits  interleave unit; 0 reads as 1.
  * @return the new stage's index, or -1 on NULL, a full description, a name
  *         neither field carries, @p last before @p first, or once built.
+ *         The Python binding raises `ValueError` rather than handing back
+ *         the -1.
  *
  * @code
  * >>> import numpy as np
@@ -682,7 +693,6 @@ int frame_add_value(frame_state_t *state, const char *name, uint64_t value,
  * >>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
  * 0
  * >>> d.name_field(0, "payload")
- * 0
  * >>> d.add_derived("crc", 16)
  * 1
  * >>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16

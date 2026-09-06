@@ -1262,7 +1262,16 @@ class Frame:
         -------
         int
             The new field's index, or -1 if the description is full, already
-            built, or the literal could not be copied.
+            built, or the literal could not be copied. The Python binding
+            raises `ValueError` rather than handing back the -1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a field: the description is full, already built, or
+            the literal could not be copied``, with the return code appended
+            (gh-869).
 
         Examples
         --------
@@ -1345,7 +1354,15 @@ class Frame:
         -------
         int
             The new stage's index, or -1 if the description is full or already
-            built.
+            built. The Python binding raises `ValueError` rather than handing
+            back the -1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a stage: the description is full or already
+            built``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -1375,10 +1392,12 @@ class Frame:
         """
 
     def field_index(self, name: str) -> int:
-        """Index of the field called `name`, or -1. The one lookup that
-        resolves a name, so every index-taking method keeps working and a
-        rename can only be wrong once. An unnamed field is ANONYMOUS rather
-        than named "", so the empty name matches nothing.
+        """Index of the field called `name`, or -1 -- the one verb whose
+        sentinel survives into Python, because a name that matches nothing is
+        an ANSWER rather than a refusal. The one lookup that resolves a name,
+        so every index-taking method keeps working and a rename can only be
+        wrong once. An unnamed field is ANONYMOUS rather than named "", so the
+        empty name matches nothing.
 
         The one lookup that resolves a name, so every index-taking entry point
         keeps working unchanged and a rename can only be wrong once. An unnamed
@@ -1393,7 +1412,9 @@ class Frame:
         Returns
         -------
         int
-            the index, or -1 on NULL or a name no field carries.
+            the index, or -1 on NULL or a name no field carries. This is the
+            one verb whose -1 survives into Python: a name that matches nothing
+            is an ANSWER, not a refusal, so there is nothing to raise about.
 
         Examples
         --------
@@ -1410,7 +1431,7 @@ class Frame:
 
         """
 
-    def name_field(self, index: int, name: str) -> int:
+    def name_field(self, index: int, name: str) -> None:
         """Give an already-appended field a name, or clear it with "". Refuses
         a name another field already carries, because `field_index` would then
         answer with whichever it reached first. Refuses once the frame is
@@ -1423,11 +1444,13 @@ class Frame:
         name : str
             the new name; truncated at `WFM_FRAME_NAME_MAX - 1`.
 
-        Returns
-        -------
-        int
-            0, or -1 on NULL, an out-of-range index, a name another field
-            already carries, or once the frame is built.
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``cannot name a field: the index is out of range, another field
+            already carries the name, or the frame is already built``, with the
+            return code appended (gh-869).
 
         Examples
         --------
@@ -1438,7 +1461,6 @@ class Frame:
         >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
         0
         >>> d.name_field(0, "payload")
-        0
         >>> d.field_index("payload")
         0
 
@@ -1449,7 +1471,7 @@ class Frame:
         `add_hex("asm", "1ACFFC1D")` is 32 bits. Four bits per digit, so an odd
         number of digits gives a 4-bit tail. The expansion is cvt's
         `hex_to_bin`, not a second parser, so a bad digit is refused there.
-        Returns the new field's index, or -1.
+        Returns the new field's index; a refusal raises `ValueError`.
 
         Four bits per digit, MSB-first, so an odd number of digits gives a
         4-bit tail. The expansion is `cvt`'s `hex_to_bin` rather than a second
@@ -1469,6 +1491,14 @@ class Frame:
         -------
         int
             Output.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a hex field: the description is full, already
+            built, or the digits could not be expanded``, with the return code
+            appended (gh-869).
 
         Examples
         --------
@@ -1494,7 +1524,8 @@ class Frame:
         """Append a named field from an integer, `bits` wide, MSB-first. The
         form to reach for when a literal fits in 64 bits: exact, and with no
         failure mode a typo can reach. Wider literals want `add_hex` or
-        `add_field`. Returns the new field's index, or -1.
+        `add_field`. Returns the new field's index; a refusal raises
+        `ValueError`.
 
         The form to reach for when a literal fits in 64 bits: exact, and with
         no failure mode a typo can reach. Wider ones want frame_add_hex.
@@ -1515,6 +1546,14 @@ class Frame:
         int
             Output.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a value field: the description is full, already
+            built, or the value does not fit the declared width``, with the
+            return code appended (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -1533,7 +1572,7 @@ class Frame:
         """Append a named field a STAGE will fill -- a CRC trailer, a block of
         check symbols. Its producer is not named here because no stage exists
         yet when the field it derives is appended; `add_stage_over` wires it.
-        Returns the new field's index, or -1.
+        Returns the new field's index; a refusal raises `ValueError`.
 
         A field with a declared length and no source: a CRC trailer, a block of
         check symbols. Its producer is wired by frame_add_stage_over rather
@@ -1552,6 +1591,13 @@ class Frame:
         int
             Output.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a derived field: the description is full or already
+            built``, with the return code appended (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -1561,7 +1607,6 @@ class Frame:
         >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
         0
         >>> d.name_field(0, "payload")
-        0
         >>> d.add_derived("crc", 16)          # a stage will fill it
         1
 
@@ -1581,7 +1626,7 @@ class Frame:
         applies the invariant the layout already enforces: a field with a
         declared length and no source sitting at the end of a cover has exactly
         one possible producer. `kind` is a stage kind, as for `add_stage`.
-        Returns the new stage's index, or -1.
+        Returns the new stage's index; a refusal raises `ValueError`.
 
         The cover is the load-bearing part of the representation and this is
         the form that reads. It wires a derived field's producer for you, which
@@ -1606,7 +1651,16 @@ class Frame:
         -------
         int
             the new stage's index, or -1 on NULL, a full description, a name
-            neither field carries, last before first, or once built.
+            neither field carries, last before first, or once built. The Python
+            binding raises `ValueError` rather than handing back the -1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a stage: the description is full, already built, or
+            names a field the description does not carry (and `last` must not
+            precede `first`)``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -1617,7 +1671,6 @@ class Frame:
         >>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
         0
         >>> d.name_field(0, "payload")
-        0
         >>> d.add_derived("crc", 16)
         1
         >>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16
@@ -1657,7 +1710,9 @@ class Frame:
         ------
         ValueError
             If the C call returns a non-zero status. The exception message is
-            ``build failed``, with the return code appended (gh-869).
+            ``cannot build: the description is empty, unbuildable, names a
+            stage no kernel here covers, or was already built``, with the
+            return code appended (gh-869).
 
         Examples
         --------
@@ -1677,7 +1732,7 @@ class Frame:
         >>> FrameDesc(empty, empty, empty).build()
         Traceback (most recent call last):
             ...
-        ValueError: build failed (rc=-1)
+        ValueError: cannot build: the description is empty, unbuildable, ...
 
         """
 
@@ -2433,7 +2488,16 @@ class FrameDesc:
         -------
         int
             The new field's index, or -1 if the description is full, already
-            built, or the literal could not be copied.
+            built, or the literal could not be copied. The Python binding
+            raises `ValueError` rather than handing back the -1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a field: the description is full, already built, or
+            the literal could not be copied``, with the return code appended
+            (gh-869).
 
         Examples
         --------
@@ -2516,7 +2580,15 @@ class FrameDesc:
         -------
         int
             The new stage's index, or -1 if the description is full or already
-            built.
+            built. The Python binding raises `ValueError` rather than handing
+            back the -1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a stage: the description is full or already
+            built``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -2546,10 +2618,12 @@ class FrameDesc:
         """
 
     def field_index(self, name: str) -> int:
-        """Index of the field called `name`, or -1. The one lookup that
-        resolves a name, so every index-taking method keeps working and a
-        rename can only be wrong once. An unnamed field is ANONYMOUS rather
-        than named "", so the empty name matches nothing.
+        """Index of the field called `name`, or -1 -- the one verb whose
+        sentinel survives into Python, because a name that matches nothing is
+        an ANSWER rather than a refusal. The one lookup that resolves a name,
+        so every index-taking method keeps working and a rename can only be
+        wrong once. An unnamed field is ANONYMOUS rather than named "", so the
+        empty name matches nothing.
 
         The one lookup that resolves a name, so every index-taking entry point
         keeps working unchanged and a rename can only be wrong once. An unnamed
@@ -2564,7 +2638,9 @@ class FrameDesc:
         Returns
         -------
         int
-            the index, or -1 on NULL or a name no field carries.
+            the index, or -1 on NULL or a name no field carries. This is the
+            one verb whose -1 survives into Python: a name that matches nothing
+            is an ANSWER, not a refusal, so there is nothing to raise about.
 
         Examples
         --------
@@ -2581,7 +2657,7 @@ class FrameDesc:
 
         """
 
-    def name_field(self, index: int, name: str) -> int:
+    def name_field(self, index: int, name: str) -> None:
         """Give an already-appended field a name, or clear it with "". Refuses
         a name another field already carries, because `field_index` would then
         answer with whichever it reached first. Refuses once the frame is
@@ -2594,11 +2670,13 @@ class FrameDesc:
         name : str
             the new name; truncated at `WFM_FRAME_NAME_MAX - 1`.
 
-        Returns
-        -------
-        int
-            0, or -1 on NULL, an out-of-range index, a name another field
-            already carries, or once the frame is built.
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``cannot name a field: the index is out of range, another field
+            already carries the name, or the frame is already built``, with the
+            return code appended (gh-869).
 
         Examples
         --------
@@ -2609,7 +2687,6 @@ class FrameDesc:
         >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
         0
         >>> d.name_field(0, "payload")
-        0
         >>> d.field_index("payload")
         0
 
@@ -2620,7 +2697,7 @@ class FrameDesc:
         `add_hex("asm", "1ACFFC1D")` is 32 bits. Four bits per digit, so an odd
         number of digits gives a 4-bit tail. The expansion is cvt's
         `hex_to_bin`, not a second parser, so a bad digit is refused there.
-        Returns the new field's index, or -1.
+        Returns the new field's index; a refusal raises `ValueError`.
 
         Four bits per digit, MSB-first, so an odd number of digits gives a
         4-bit tail. The expansion is `cvt`'s `hex_to_bin` rather than a second
@@ -2640,6 +2717,14 @@ class FrameDesc:
         -------
         int
             Output.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a hex field: the description is full, already
+            built, or the digits could not be expanded``, with the return code
+            appended (gh-869).
 
         Examples
         --------
@@ -2665,7 +2750,8 @@ class FrameDesc:
         """Append a named field from an integer, `bits` wide, MSB-first. The
         form to reach for when a literal fits in 64 bits: exact, and with no
         failure mode a typo can reach. Wider literals want `add_hex` or
-        `add_field`. Returns the new field's index, or -1.
+        `add_field`. Returns the new field's index; a refusal raises
+        `ValueError`.
 
         The form to reach for when a literal fits in 64 bits: exact, and with
         no failure mode a typo can reach. Wider ones want frame_add_hex.
@@ -2686,6 +2772,14 @@ class FrameDesc:
         int
             Output.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a value field: the description is full, already
+            built, or the value does not fit the declared width``, with the
+            return code appended (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -2704,7 +2798,7 @@ class FrameDesc:
         """Append a named field a STAGE will fill -- a CRC trailer, a block of
         check symbols. Its producer is not named here because no stage exists
         yet when the field it derives is appended; `add_stage_over` wires it.
-        Returns the new field's index, or -1.
+        Returns the new field's index; a refusal raises `ValueError`.
 
         A field with a declared length and no source: a CRC trailer, a block of
         check symbols. Its producer is wired by frame_add_stage_over rather
@@ -2723,6 +2817,13 @@ class FrameDesc:
         int
             Output.
 
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a derived field: the description is full or already
+            built``, with the return code appended (gh-869).
+
         Examples
         --------
         >>> import numpy as np
@@ -2732,7 +2833,6 @@ class FrameDesc:
         >>> d.add_field(np.array([1, 0, 1, 0], np.uint8))
         0
         >>> d.name_field(0, "payload")
-        0
         >>> d.add_derived("crc", 16)          # a stage will fill it
         1
 
@@ -2752,7 +2852,7 @@ class FrameDesc:
         applies the invariant the layout already enforces: a field with a
         declared length and no source sitting at the end of a cover has exactly
         one possible producer. `kind` is a stage kind, as for `add_stage`.
-        Returns the new stage's index, or -1.
+        Returns the new stage's index; a refusal raises `ValueError`.
 
         The cover is the load-bearing part of the representation and this is
         the form that reads. It wires a derived field's producer for you, which
@@ -2777,7 +2877,16 @@ class FrameDesc:
         -------
         int
             the new stage's index, or -1 on NULL, a full description, a name
-            neither field carries, last before first, or once built.
+            neither field carries, last before first, or once built. The Python
+            binding raises `ValueError` rather than handing back the -1.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a negative value. The exception message is
+            ``cannot append a stage: the description is full, already built, or
+            names a field the description does not carry (and `last` must not
+            precede `first`)``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -2788,7 +2897,6 @@ class FrameDesc:
         >>> d.add_field(np.array([0, 1, 1, 0, 1, 0, 0, 1], np.uint8))
         0
         >>> d.name_field(0, "payload")
-        0
         >>> d.add_derived("crc", 16)
         1
         >>> d.add_stage_over(0, "payload", "crc")   # 0 = crc16
@@ -2828,7 +2936,9 @@ class FrameDesc:
         ------
         ValueError
             If the C call returns a non-zero status. The exception message is
-            ``build failed``, with the return code appended (gh-869).
+            ``cannot build: the description is empty, unbuildable, names a
+            stage no kernel here covers, or was already built``, with the
+            return code appended (gh-869).
 
         Examples
         --------
@@ -2848,7 +2958,7 @@ class FrameDesc:
         >>> FrameDesc(empty, empty, empty).build()
         Traceback (most recent call last):
             ...
-        ValueError: build failed (rc=-1)
+        ValueError: cannot build: the description is empty, unbuildable, ...
 
         """
 

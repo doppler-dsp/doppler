@@ -299,6 +299,9 @@ name = "add_field"
 doc = "Append one field to a description (see `FrameDesc`). `kind` names where the bits come from -- `literal`, `pn`, `gold`, `dotted` -- and `lfsr` is `galois` or `fibonacci`, the same spellings the constructor takes, from the one `[[enum]]` the C enum backs. Either the caller supplies the bits (`lit`, or a generated `kind`) or a stage derives them (`derived_by` non-zero) -- both are fields, because both are on the wire. Returns the new field's index, which is what `derived_by` and a stage's `first_field` are counted in. Refuses once the frame is built."
 arg_type = "void"
 return_type = "int"
+error_negative = true
+error = "ValueError"
+error_message = "cannot append a field: the description is full, already built, or the literal could not be copied"
 params = [
     { name = "lit", type = "uint8_t[]" },
     { name = "kind", type = "int", enum = "wfm_seq_kind", default = "literal" },
@@ -321,6 +324,9 @@ name = "add_stage"
 doc = "Append one transform and -- the load-bearing part -- the span of fields it covers. `kind` is a stage kind: `STAGE_CRC16`, `STAGE_RS`, `STAGE_RANDOMISE`, `STAGE_CONV`, `STAGE_INTERLEAVE` from `doppler.wfm`, or a caller's own from `STAGE_USER` up. It stays an INT rather than a name because the kind is an open `uint32_t` a caller extends -- the constants are generated from the C enum, so there is nothing to transcribe. `n_fields = 0` means the stage does not run. A stage that inherited whatever ran before it is the representation that cannot express a CCSDS CADU, where the marker is covered by the inner code and by neither the outer code nor the randomiser. `unit_bits` applies to `interleave` alone and is the bits per permuted unit (0 reads as 1); its ROW count is `depth` and its column count is derived from the span the stage covers."
 arg_type = "void"
 return_type = "int"
+error_negative = true
+error = "ValueError"
+error_message = "cannot append a stage: the description is full or already built"
 params = [
     { name = "kind", type = "int", default = "0" },
     { name = "first_field", type = "uint32_t", default = "0" },
@@ -333,7 +339,7 @@ params = [
 
 [[frame.methods]]
 name = "field_index"
-doc = "Index of the field called `name`, or -1. The one lookup that resolves a name, so every index-taking method keeps working and a rename can only be wrong once. An unnamed field is ANONYMOUS rather than named \"\", so the empty name matches nothing."
+doc = "Index of the field called `name`, or -1 -- the one verb whose sentinel survives into Python, because a name that matches nothing is an ANSWER rather than a refusal. The one lookup that resolves a name, so every index-taking method keeps working and a rename can only be wrong once. An unnamed field is ANONYMOUS rather than named \"\", so the empty name matches nothing."
 arg_type = "void"
 return_type = "int"
 params = [
@@ -345,6 +351,9 @@ name = "name_field"
 doc = "Give an already-appended field a name, or clear it with \"\". Refuses a name another field already carries, because `field_index` would then answer with whichever it reached first. Refuses once the frame is built."
 arg_type = "void"
 return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "cannot name a field: the index is out of range, another field already carries the name, or the frame is already built"
 params = [
     { name = "index", type = "uint32_t" },
     { name = "name", type = "const char *" },
@@ -352,9 +361,12 @@ params = [
 
 [[frame.methods]]
 name = "add_hex"
-doc = "Append a named field from a hex literal, MSB-first -- `add_hex(\"asm\", \"1ACFFC1D\")` is 32 bits. Four bits per digit, so an odd number of digits gives a 4-bit tail. The expansion is cvt's `hex_to_bin`, not a second parser, so a bad digit is refused there. Returns the new field's index, or -1."
+doc = "Append a named field from a hex literal, MSB-first -- `add_hex(\"asm\", \"1ACFFC1D\")` is 32 bits. Four bits per digit, so an odd number of digits gives a 4-bit tail. The expansion is cvt's `hex_to_bin`, not a second parser, so a bad digit is refused there. Returns the new field's index; a refusal raises `ValueError`."
 arg_type = "void"
 return_type = "int"
+error_negative = true
+error = "ValueError"
+error_message = "cannot append a hex field: the description is full, already built, or the digits could not be expanded"
 params = [
     { name = "name", type = "const char *" },
     { name = "hex", type = "const char *" },
@@ -363,9 +375,12 @@ params = [
 
 [[frame.methods]]
 name = "add_value"
-doc = "Append a named field from an integer, `bits` wide, MSB-first. The form to reach for when a literal fits in 64 bits: exact, and with no failure mode a typo can reach. Wider literals want `add_hex` or `add_field`. Returns the new field's index, or -1."
+doc = "Append a named field from an integer, `bits` wide, MSB-first. The form to reach for when a literal fits in 64 bits: exact, and with no failure mode a typo can reach. Wider literals want `add_hex` or `add_field`. Returns the new field's index; a refusal raises `ValueError`."
 arg_type = "void"
 return_type = "int"
+error_negative = true
+error = "ValueError"
+error_message = "cannot append a value field: the description is full, already built, or the value does not fit the declared width"
 params = [
     { name = "name", type = "const char *" },
     { name = "value", type = "uint64_t" },
@@ -375,9 +390,12 @@ params = [
 
 [[frame.methods]]
 name = "add_derived"
-doc = "Append a named field a STAGE will fill -- a CRC trailer, a block of check symbols. Its producer is not named here because no stage exists yet when the field it derives is appended; `add_stage_over` wires it. Returns the new field's index, or -1."
+doc = "Append a named field a STAGE will fill -- a CRC trailer, a block of check symbols. Its producer is not named here because no stage exists yet when the field it derives is appended; `add_stage_over` wires it. Returns the new field's index; a refusal raises `ValueError`."
 arg_type = "void"
 return_type = "int"
+error_negative = true
+error = "ValueError"
+error_message = "cannot append a derived field: the description is full or already built"
 params = [
     { name = "name", type = "const char *" },
     { name = "bits", type = "size_t" },
@@ -385,9 +403,12 @@ params = [
 
 [[frame.methods]]
 name = "add_stage_over"
-doc = "Append a stage covering `[first .. last]` BY NAME -- `add_stage_over(STAGE_CRC16, \"payload\", \"crc\")` says what three integers used to. It wires a derived field's producer for you, which applies the invariant the layout already enforces: a field with a declared length and no source sitting at the end of a cover has exactly one possible producer. `kind` is a stage kind, as for `add_stage`. Returns the new stage's index, or -1."
+doc = "Append a stage covering `[first .. last]` BY NAME -- `add_stage_over(STAGE_CRC16, \"payload\", \"crc\")` says what three integers used to. It wires a derived field's producer for you, which applies the invariant the layout already enforces: a field with a declared length and no source sitting at the end of a cover has exactly one possible producer. `kind` is a stage kind, as for `add_stage`. Returns the new stage's index; a refusal raises `ValueError`."
 arg_type = "void"
 return_type = "int"
+error_negative = true
+error = "ValueError"
+error_message = "cannot append a stage: the description is full, already built, or names a field the description does not carry (and `last` must not precede `first`)"
 params = [
     { name = "kind", type = "int" },
     { name = "first", type = "const char *" },
@@ -403,6 +424,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 error = "ValueError"
+error_message = "cannot build: the description is empty, unbuildable, names a stage no kernel here covers, or was already built"
 
 [[frame.methods]]
 name = "deframe"

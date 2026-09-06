@@ -1487,6 +1487,38 @@ ______________________________________________________________________
 
 ## 8. The shapes — where each piece lives
 
+The air side of the bank, end to end, as built — every box is a shipped
+object and every number the operating point of §6.1:
+
+```mermaid
+flowchart LR
+    E["up to ten emitters on ONE Gold-1023 code<br/>5 Mcps, 2700 sym/s, 450 code-only symbols of every 4950<br/>each at its own Doppler within ±50 kHz (§6.1)"]
+    E --> DDC["DDC: 13 MSa/s → 2 samples per chip (§6.4)"]
+    DDC --> X["one block per push,<br/>stamped by the feeder's clock (§8.1)"]
+    subgraph POOL["AsyncDsssPool (§8.2) — one push(), in this order"]
+        direction LR
+        X --> S["the searcher: Acquisition, continuous<br/>D = 154 epochs coherent per window tile (§2.3)<br/>21 tiles, a roll per thread; a list of 16 peaks (§7.1)"]
+        S -->|every peak| Z{"within a chip of a<br/>live row's code phase?"}
+        Z -->|yes| OWN["that emitter's own:<br/>nothing"]
+        Z -->|no, a slot free| SEED["acq_build_handoff() → seed()<br/>«seeded»"]
+        Z -->|no slot free| DROP["«dropped»"]
+        SEED --> RX["12 hand-off receivers, idle until seeded<br/>refine → track (§4, §11); every one fed every block,<br/>across the threads"]
+        X --> RX
+        RX -->|"status(): Doppler, chip phase, flags"| T["the assigned table:<br/>one row per slot, keyed on locked loops"]
+        T --> Z
+        RX -->|"both flags down for 2 s (§10),<br/>or held past the on-time"| REL["release: row cleared, reset() to idle<br/>«lost», «released»"]
+        REL --> RX
+    end
+    RX --> OUT["per slot: status() by value,<br/>symbols() borrowed"]
+    POOL --> LOG["event log (§8.1): every transition<br/>a sample-stamped SigMF annotation"]
+    S -.->|"acq.* (§2.4)"| TLM["telemetry"]
+```
+
+No replica leaves a receiver and nothing is subtracted before the
+searcher: the operating spread is inside the knee (§9, §12.6), so branch
+one is what shipped and §11.4 is not built. The lifecycle of one slot is
+§8.2's state diagram; the measurement that certifies the whole is §12.14.
+
 The peak list has one place it belongs and two it could be put:
 
 |                                                 | mechanism                                                                                                                                                                                                    | fits                                                                                                                                                              | cost                                                                                                                                                                                   |

@@ -3,7 +3,7 @@
  *
  * Every line of arithmetic here is dp_syncword.h's. What this file owns is
  * the marker's LIFETIME: a searcher copies the pattern it was built from, so
- * `SyncFinder(ccsds_asm_bits())` — a temporary that numpy frees the moment
+ * `SyncFinder(asm_bits())` — a temporary that numpy frees the moment
  * the constructor returns — is a valid searcher rather than a dangling one.
  */
 #include "syncword/syncword_core.h"

@@ -388,9 +388,10 @@ frame_state_t *frame_create_desc(int preamble_kind, const uint8_t *preamble, siz
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.wfm import FrameDesc, ccsds_asm_bits
+ * >>> from doppler.wfm import FrameDesc
+ * >>> from doppler.ccsds import asm_bits
  * >>> empty = np.empty(0, np.uint8)
- * >>> asm = ccsds_asm_bits()
+ * >>> asm = asm_bits()
  * >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
  * ...                   np.uint8)
  * >>> data = np.unpackbits(octets).astype(np.uint8)
@@ -444,9 +445,10 @@ int frame_add_field(frame_state_t *state, const uint8_t *lit, size_t lit_len,
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.wfm import FrameDesc, ccsds_asm_bits
+ * >>> from doppler.wfm import FrameDesc
+ * >>> from doppler.ccsds import asm_bits
  * >>> empty = np.empty(0, np.uint8)
- * >>> asm = ccsds_asm_bits()
+ * >>> asm = asm_bits()
  * >>> octets = np.array([(i * 29 + 5) & 0xFF for i in range(223)],
  * ...                   np.uint8)
  * >>> data = np.unpackbits(octets).astype(np.uint8)

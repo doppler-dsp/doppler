@@ -77,6 +77,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**carrier\_mpsk\_core.h**](carrier__mpsk__core_8h.md) _M-PSK carrier-tracking loop (integer-NCO de-rotation + decision PLL)._     
         * **dir** [**carrier\_nda**](dir_425637d1941eacd8ae8cdd8750b207f0.md)     
             * **file** [**carrier\_nda\_core.h**](carrier__nda__core_8h.md) _Non-data-aided (NDA) M-th-power carrier-tracking loop._     
+        * **dir** [**ccsds**](dir_dc3b6b0faf00f348f137e45d38cdc7fa.md)     
+            * **file** [**ccsds\_core.h**](ccsds__core_8h.md) _CCSDS 131.0-B's published literals, as a Python-facing component._     
         * **dir** [**ccsds\_tm**](dir_c2a51186254da91e75ac1924b4969fdd.md)     
             * **file** [**ccsds\_tm.h**](ccsds__tm_8h.md) _CCSDS TM channel coding — the transforms a transfer frame passes through on its way to symbols._     
             * **file** [**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md) _The CCSDS frame assembler — where the ASM goes, and the one place the stages' disagreements about what they cover become visible._     

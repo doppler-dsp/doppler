@@ -46,7 +46,6 @@ enum
   C_RRC_H,
   C_RC_H,
   C_MLS_POLY,
-  C_ASM_BITS,
   N_CFG
 };
 
@@ -59,16 +58,14 @@ static const char *const cfg_name[N_CFG] = {
   "rrc_h[4096]",
   "rc_h[4096]",
   "mls_poly",
-  "ccsds_asm_bits",
 };
 
 /* Calls per round, and the output elements one call produces. */
-static const int    cfg_reps[N_CFG] = { 8, 8, 8, 4, 1024, 16, 16, 8192, 2048 };
-static const size_t cfg_out[N_CFG]  = {
-  N_BITS, N_BITS, N_BITS, (size_t)N_SYMS *SF, RRC_TAPS, N_T, N_T, 1u, 32u
-};
+static const int    cfg_reps[N_CFG] = { 8, 8, 8, 4, 1024, 16, 16, 8192 };
+static const size_t cfg_out[N_CFG]
+    = { N_BITS, N_BITS, N_BITS, (size_t)N_SYMS *SF, RRC_TAPS, N_T, N_T, 1u };
 static const char *const cfg_unit[N_CFG] = {
-  "bit", "sym", "bit", "chip", "tap", "eval", "eval", "call", "bit",
+  "bit", "sym", "bit", "chip", "tap", "eval", "eval", "call",
 };
 
 static uint8_t bits[N_BITS];
@@ -77,9 +74,8 @@ static float _Complex map_out[N_BITS];
 static float _Complex syms[N_SYMS];
 static uint8_t code[CODE_LEN];
 static float _Complex chips[(size_t)N_SYMS * SF];
-static float   taps[RRC_TAPS];
-static double  tvec[N_T], hout[N_T];
-static uint8_t asm_out[32];
+static float  taps[RRC_TAPS];
+static double tvec[N_T], hout[N_T];
 
 static volatile double sink = 0.0;
 
@@ -115,12 +111,8 @@ run (int cfg, int i)
       rc_h (tvec, N_T, hout, 0.35);
       sink += hout[0];
       break;
-    case C_MLS_POLY:
-      sink += (double)mls_poly (7u + (uint32_t)(i & 7));
-      break;
     default:
-      ccsds_asm_bits (asm_out);
-      sink += asm_out[3];
+      sink += (double)mls_poly (7u + (uint32_t)(i & 7));
       break;
     }
 }

@@ -26,12 +26,12 @@ import numpy as np
 import pytest
 
 from doppler.ber import FrameMeter
+from doppler.ccsds import asm_bits
 from doppler.wfm import (
     Composer,
     Frame,
     FrameDesc,
     Segment,
-    ccsds_asm_bits,
     crc16,
 )
 
@@ -317,10 +317,10 @@ def test_a_ccsds_cadu_can_be_described_from_python():
     fbits = np.unpackbits(octets).astype(np.uint8)
     # Not a transcription of 0x1ACFFC1D: a test that spells the marker out
     # itself agrees with a receiver that spells it out the same wrong way.
-    asm_bits = ccsds_asm_bits()
+    asm = asm_bits()
 
     d = FrameDesc(EMPTY, EMPTY, EMPTY)
-    assert d.add_field(asm_bits) == 0
+    assert d.add_field(asm) == 0
     assert d.add_field(fbits) == 1
     assert d.add_field(EMPTY, derived_by=1, derived_bits=E2 * DEPTH * 8) == 2
     assert d.add_stage(RS, first_field=1, n_fields=2, depth=DEPTH) == 0
@@ -373,10 +373,10 @@ def _cadu(depth=5):
         [(i * 37 + 11) & 0xFF for i in range(K * depth)], np.uint8
     )
     fbits = np.unpackbits(octets).astype(np.uint8)
-    asm_bits = ccsds_asm_bits()
+    asm = asm_bits()
 
     d = FrameDesc(EMPTY, EMPTY, EMPTY)
-    d.add_field(asm_bits)
+    d.add_field(asm)
     d.add_field(fbits)
     d.add_field(EMPTY, derived_by=1, derived_bits=E2 * depth * 8)
     d.add_stage(RS, first_field=1, n_fields=2, depth=depth)

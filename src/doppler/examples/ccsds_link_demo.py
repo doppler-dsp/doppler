@@ -41,10 +41,11 @@ import matplotlib.pyplot as plt
 # --8<-- [start:cadu]
 import numpy as np
 
-from doppler.wfm import FrameDesc, ccsds_asm_bits
+from doppler.ccsds import asm_bits
+from doppler.wfm import FrameDesc
 
 # The four numbers CCSDS 131.0-B-3 section 4.3 picks. The marker 9.4.1 picks
-# comes from `ccsds_asm_bits()` rather than from a constant expanded here:
+# comes from `asm_bits()` rather than from a constant expanded here:
 # an MSB-first transcription written out twice is one that can disagree with
 # itself. Everything else in this file is general.
 K, N, E = 223, 255, 16  # RS(255,223), 16 correctable symbols
@@ -72,7 +73,7 @@ def describe_cadu(payload: np.ndarray, depth: int, *, inner: bool):
     undone before frame synchronisation and a frame checker never sees
     channel symbols.
     """
-    marker = ccsds_asm_bits()  # 0x1ACFFC1D, figure 9-1
+    marker = asm_bits()  # 0x1ACFFC1D, figure 9-1
 
     d = FrameDesc(EMPTY, EMPTY, EMPTY)  # start from nothing
     d.add_field(marker)  # 0: the ASM

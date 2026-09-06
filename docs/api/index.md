@@ -34,3 +34,4 @@ The Python modules are thin CPython extensions over the C ABI — no reimplement
 | `doppler.measure` — tone/NPR/IMD metrics                   | [Python: Measurement Suite](python-measure.md)        |
 | Polyphase filter bank                                      | [Polyphase → Resample](python-polyphase.md)           |
 | `doppler.util` — shared numeric helpers                    | [Python: Utilities](python-util.md)                   |
+| `doppler.ccsds` — CCSDS 131.0-B literals                   | [Python: CCSDS Literals](python-ccsds.md)             |

@@ -216,7 +216,7 @@ before it can answer and a synchroniser reading a live capture cannot wait.
 
 It is the general kernel, not any one standard's: pass the marker. CCSDS's
 32-bit attached sync marker comes from
-[`ccsds_asm_bits()`](python-wfmgen.md#acquiring-one-where-a-received-frame-starts),
+[`asm_bits()`](python-wfmgen.md#acquiring-one-where-a-received-frame-starts),
 so nothing transcribes `0x1ACFFC1D` twice.
 
 !!! warning "`max_errors` is not a property of the marker"
@@ -239,8 +239,8 @@ false-frame rate you name.
 
 ```pycon
 >>> from doppler.detection import SyncFinder
->>> from doppler.wfm import ccsds_asm_bits
->>> f = SyncFinder(ccsds_asm_bits())
+>>> from doppler.ccsds import asm_bits
+>>> f = SyncFinder(asm_bits())
 >>> round(f.pfa(1) * 2**32)     # marker + complement, each with 32 neighbours
 66
 >>> [f.max_errors_for(w, pfa=1e-3) for w in (96, 4096, 100_000)]
@@ -255,9 +255,9 @@ and is invisible from the signature alone.
 import numpy as np
 
 from doppler.detection import SyncFinder
-from doppler.wfm import ccsds_asm_bits
+from doppler.ccsds import asm_bits
 
-asm = ccsds_asm_bits()
+asm = asm_bits()
 rng = np.random.default_rng(3)
 stream = np.concatenate([rng.integers(0, 2, 96).astype(np.uint8), asm])
 stream = (stream ^ 1).astype(np.uint8)      # a 180-degree carrier ambiguity

@@ -620,6 +620,7 @@
 * **peaks** ([**acq\_state\_t**](structacq__state__t.md))
 * **pfa** ([**acq\_state\_t**](structacq__state__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md), [**carrier\_acq\_state\_t**](structcarrier__acq__state__t.md))
 * **pfa\_cell** ([**acq\_state\_t**](structacq__state__t.md))
+* **pool** ([**acq\_state\_t**](structacq__state__t.md))
 * **p\_avg** ([**agc\_state\_t**](structagc__state__t.md))
 * **phase** ([**ber\_align\_t**](structber__align__t.md), [**cic\_state\_t**](structcic__state__t.md), [**dp\_tlm\_probe\_t**](structdp__tlm__probe__t.md), [**lo\_state\_t**](structlo__state__t.md), [**nco\_state\_t**](structnco__state__t.md), [**node\_sync\_t**](structnode__sync__t.md), [**resamp\_state\_t**](structresamp__state__t.md))
 * **p\_hat** ([**ber\_interval\_t**](structber__interval__t.md))
@@ -869,7 +870,12 @@
 ## t
 
 * **test\_stat** ([**acq\_handoff\_t**](structacq__handoff__t.md), [**acq\_result\_t**](structacq__result__t.md), [**acq\_state\_t**](structacq__state__t.md), [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md), [**det\_result2d\_t**](structdet__result2d__t.md), [**det\_result\_t**](structdet__result__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
+* **threads** ([**acq\_state\_t**](structacq__state__t.md))
 * **threshold** ([**acq\_state\_t**](structacq__state__t.md), [**ber\_align\_t**](structber__align__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
+* **tile\_col** ([**acq\_state\_t**](structacq__state__t.md))
+* **tile\_inv** ([**acq\_state\_t**](structacq__state__t.md))
+* **tile\_prod** ([**acq\_state\_t**](structacq__state__t.md))
+* **tile\_slow** ([**acq\_state\_t**](structacq__state__t.md))
 * **tlm** ([**acq\_state\_t**](structacq__state__t.md), [**agc\_state\_t**](structagc__state__t.md), [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md), [**costas\_state\_t**](structcostas__state__t.md), [**dll\_state\_t**](structdll__state__t.md), [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md), [**ratesync\_loop\_t**](structratesync__loop__t.md), [**symsync\_state\_t**](structsymsync__state__t.md))
 * **twin\_col** ([**acq\_state\_t**](structacq__state__t.md))
 * **twin\_row** ([**acq\_state\_t**](structacq__state__t.md))

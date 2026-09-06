@@ -798,6 +798,18 @@ Acquisition_getprop_peak_conc (AcquisitionObject *self,
   return PyFloat_FromDouble ((double)self->handle->peak_conc);
 }
 
+static PyObject *
+Acquisition_getprop_threads (AcquisitionObject *self,
+                             void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong ((long)self->handle->threads);
+}
+
 static PyGetSetDef Acquisition_getset[] = {
   { "max_peaks", (getter)Acquisition_getprop_max_peaks, NULL,
     "The peak list's capacity per dwell (1 = the classic gated maximum); set "
@@ -909,6 +921,11 @@ static PyGetSetDef Acquisition_getset[] = {
     "0.5 when a data transition splits it into twins two or more tiles away; "
     "lower when a coherent block straddles data (design §2.4).\n",
     NULL },
+  { "threads", (getter)Acquisition_getprop_threads, NULL,
+    "Workers the searcher fans its tiles across, the calling thread included "
+    "(design §2.3); 1 = serial. Set with set_threads(); a continuous engine "
+    "with more than one tile starts at the machine's online core count.\n",
+    NULL },
   { NULL }
 };
 
@@ -938,6 +955,29 @@ AcquisitionObj_exit (AcquisitionObject *self, PyObject *args)
     {
       acq_destroy (self->handle);
       self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AcquisitionObj_set_threads (AcquisitionObject *self, PyObject *args,
+                            PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "n", NULL };
+  int          n         = 0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "i", _kwlist, &n))
+    return NULL;
+  int _rc = acq_set_threads (self->handle, n);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_threads failed",
+                    (long long)_rc);
+      return NULL;
     }
   Py_RETURN_NONE;
 }
@@ -1384,6 +1424,49 @@ static PyMethodDef AcquisitionObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "set_threads", (PyCFunction)(void *)AcquisitionObj_set_threads,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_threads(n) -> None\n"
+    "\n"
+    "Set how many threads the searcher fans its tiles across (design\n"
+    "§2.3: a roll per thread on persistent workers).\n"
+    "\n"
+    "A continuous engine is created with a pool of the machine's online\n"
+    "cores when it has more than one tile; a burst engine, and a single-tile\n"
+    "one, run serially. This sets the count: 0 auto-selects the online core\n"
+    "count, 1 runs everything on the calling thread, n runs on n workers\n"
+    "(the caller included). The workers are created here, once, and parked\n"
+    "between pushes; nothing is created per push. The surface is\n"
+    "bit-identical at every count -- the tiles are independent after the one\n"
+    "forward transform and each writes its own rows -- so this changes the\n"
+    "cost of a push and nothing about its result. Setup path, never hot; not\n"
+    "while another thread is inside push().\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    Thread count; 0 = online cores, 1 = serial.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_threads failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(\n"
+    "...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)\n"
+    ">>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,\n"
+    "...                 doppler_uncertainty=4000.0)\n"
+    ">>> a.threads >= 1               # a pool, sized to the machine\n"
+    "True\n"
+    ">>> a.set_threads(1)\n"
+    ">>> a.threads\n"
+    "1\n" },
   { NULL }
 };
 

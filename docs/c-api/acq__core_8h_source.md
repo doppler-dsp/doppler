@@ -22,6 +22,7 @@
 /* detector2d_core.h supplies det_noise_mode_t (guarded typedef). */
 #include "detector2d/detector2d_core.h"
 #include "fft2d/fft2d_core.h"
+#include "dp_parallel.h"
 #include "dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
@@ -116,6 +117,19 @@ extern "C"
     double doppler_rate; 
     float _Complex *blk; 
     size_t blk_epoch;    
+    /* The roll per thread (design §2.3): the tiles are independent after
+       the one forward transform, so the per-epoch tile loop and the
+       block-end column loop run through a persistent pool. The scratch is
+       PER TILE, not per thread -- a pocketfft plan carries its own work
+       buffers, and a tile lands on whichever worker takes it -- so the
+       serial and the fanned paths run the same code on the same buffers
+       and the surface is bit-identical either way. */
+    dp_pool_t       *pool;      
+    int              threads;   
+    fft_state_t    **tile_inv;  
+    float _Complex **tile_prod; 
+    fft_state_t    **tile_slow; 
+    float _Complex **tile_col;  
     float  threshold; 
     float  eta;       
     float  eta_nc;    
@@ -208,6 +222,7 @@ extern "C"
 
   int acq_set_max_peaks (acq_state_t *state, size_t n);
 
+  int acq_set_threads (acq_state_t *state, int n);
   int acq_set_telemetry (acq_state_t *state, dp_tlm_t *tlm,
                          const char *prefix, uint32_t decim);
 

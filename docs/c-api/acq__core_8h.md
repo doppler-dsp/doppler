@@ -19,6 +19,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 * `#include "jm_perf.h"`
 * `#include "detector2d/detector2d_core.h"`
 * `#include "fft2d/fft2d_core.h"`
+* `#include "dp_parallel.h"`
 * `#include "dp_tlm/dp_tlm_core.h"`
 
 
@@ -88,6 +89,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  int | [**acq\_set\_state**](#function-acq_set_state) ([**acq\_state\_t**](structacq__state__t.md) \* state, const void \* blob) <br>_Restore cross-call state from_ `blob` _into_`state` _(replacing it)._ |
 |  void | [**acq\_set\_surface\_sink**](#function-acq_set_surface_sink) ([**acq\_state\_t**](structacq__state__t.md) \* state, [**acq\_surface\_sink\_fn**](acq__core_8h.md#typedef-acq_surface_sink_fn) fn, void \* ctx, uint32\_t decim) <br>_Attach (or detach) a C surface sink: every_ `decim-th` _decided dwell's surface, in test-statistic units, handed to_`fn` _on the pushing thread (design §2.4)._ |
 |  int | [**acq\_set\_telemetry**](#function-acq_set_telemetry) ([**acq\_state\_t**](structacq__state__t.md) \* state, [**dp\_tlm\_t**](dp__tlm__core_8h.md#typedef-dp_tlm_t) \* tlm, const char \* prefix, uint32\_t decim) <br>_Attach (or detach) a telemetry context and register the engine's probes on it (design §2.4)._  |
+|  int | [**acq\_set\_threads**](#function-acq_set_threads) ([**acq\_state\_t**](structacq__state__t.md) \* state, int n) <br>_Set how many threads the searcher fans its tiles across (design §2.3: a roll per thread on persistent workers)._  |
 |  size\_t | [**acq\_state\_bytes**](#function-acq_state_bytes) (const [**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob (header + unconsumed + nc)._ |
 |  size\_t | [**acq\_surface**](#function-acq_surface) ([**acq\_state\_t**](structacq__state__t.md) \* state, float \* out, size\_t n\_out) <br>_The last decided dwell's surface, in the gate's own units._  |
 |  size\_t | [**acq\_surface\_chip\_phase**](#function-acq_surface_chip_phase) ([**acq\_state\_t**](structacq__state__t.md) \* state, double \* out, size\_t n\_out) <br>_The surface's code-phase axis: the chip phase of each column._  |
@@ -157,6 +159,9 @@ Both convert C/N0 to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / 
 
 
 **Block-coherent depth inside the tiles** (docs/design/async-dsss-receiver.md §2.3): the engine allows a coherent depth, to accommodate waveforms with code-only windows. Given `code_only_epochs > 1`  the whole code-only epochs such a window holds at any chip phase  it runs a coherent depth `D` inside every tile: the per-tile epoch correlations are gathered for `D` epochs, then a zero-padded slow-time FFT per code-phase column turns each tile into `D` Doppler rows `chip_rate/(sf*D)` apart, detected per block. Blocks are non-overlapping and the engine does not know any emitter's window phase, so `D` is at most `(code_only_epochs+1)/2` (a whole block always lands inside the window) and, when `doppler_rate` is given, at most `f_epoch/sqrt(2*doppler_rate)` (the drift over a block stays inside half a row). The Doppler axis is then ONE uniform grid of `window_bins*coherent_bins` bins of `doppler_res_hz = chip_rate/(sf*D)` over the tiled span, in native FFT-bin order (0 = DC, ascending, then wrapping negative): `doppler_bin` indexes it, and [**acq\_build\_handoff()**](acq__core_8h.md#function-acq_build_handoff) folds it with dp\_fftfreq\_index() over that count. A block that straddles data spreads that emitter over its rows, `10*log10(D)` below an aligned block, at its own code phase  the `conc` probe (§2.4) reads it. `code_only_epochs = 1` (the default) is `D = 1` and the engine exactly as described above.
+
+
+**A roll per thread** (design §2.3): the tiles are independent after the one forward transform, so the per-epoch tile loop and, at `D > 1`, the block-end column loop run across a persistent pool of workers ([**dp\_parallel.h**](dp__parallel_8h.md)'s `dp_pool_*`), created once with the engine and parked between pushes. Each tile owns its inverse plan and scratch, so the result is bit-identical at any thread count; the noise estimate and the peak list stay serial after the fan. [**acq\_set\_threads()**](acq__core_8h.md#function-acq_set_threads) sets the count.
 
 
 
@@ -792,6 +797,60 @@ DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all ten probes (the
 >>> _ = a.push(x)
 >>> len(tlm.read()) % 10      # ten records per decided dwell
 0
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_set\_threads 
+
+_Set how many threads the searcher fans its tiles across (design §2.3: a roll per thread on persistent workers)._ 
+```C++
+int acq_set_threads (
+    acq_state_t * state,
+    int n
+) 
+```
+
+
+
+A continuous engine is created with a pool of the machine's online cores when it has more than one tile; a burst engine, and a single-tile one, run serially. This sets the count: 0 auto-selects the online core count, 1 runs everything on the calling thread, n runs on n workers (the caller included). The workers are created here, once, and parked between pushes; nothing is created per push. The surface is bit-identical at every count  the tiles are independent after the one forward transform and each writes its own rows  so this changes the cost of a push and nothing about its result. Setup path, never hot; not while another thread is inside push().
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `n` Thread count; 0 = online cores, 1 = serial. 
+
+
+
+**Returns:**
+
+DP\_OK. The count actually running is `threads`. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(
+...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
+>>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,
+...                 doppler_uncertainty=4000.0)
+>>> a.threads >= 1               # a pool, sized to the machine
+True
+>>> a.set_threads(1)
+>>> a.threads
+1
 ```
  
 

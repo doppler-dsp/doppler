@@ -101,6 +101,14 @@
  * `code_only_epochs = 1` (the default) is `D = 1` and the engine exactly as
  * described above.
  *
+ * **A roll per thread** (design §2.3): the tiles are independent after the
+ * one forward transform, so the per-epoch tile loop and, at `D > 1`, the
+ * block-end column loop run across a persistent pool of workers
+ * (dp_parallel.h's `dp_pool_*`), created once with the engine and parked
+ * between pushes. Each tile owns its inverse plan and scratch, so the
+ * result is bit-identical at any thread count; the noise estimate and the
+ * peak list stay serial after the fan. acq_set_threads() sets the count.
+ *
  * @code
  * // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
  * uint8_t code[31] = { 0 };   // ... fill with PN chips (0/1) ...
@@ -128,6 +136,7 @@
 /* detector2d_core.h supplies det_noise_mode_t (guarded typedef). */
 #include "detector2d/detector2d_core.h"
 #include "fft2d/fft2d_core.h"
+#include "dp_parallel.h"
 #include "dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
@@ -317,6 +326,22 @@ extern "C"
                               unless both exceed 1.                     */
     size_t blk_epoch;    /**< Epochs gathered in the current block
                               (0 … coherent_bins-1).                    */
+    /* The roll per thread (design §2.3): the tiles are independent after
+       the one forward transform, so the per-epoch tile loop and the
+       block-end column loop run through a persistent pool. The scratch is
+       PER TILE, not per thread -- a pocketfft plan carries its own work
+       buffers, and a tile lands on whichever worker takes it -- so the
+       serial and the fanned paths run the same code on the same buffers
+       and the surface is bit-identical either way. */
+    dp_pool_t       *pool;      /**< NULL or one thread = serial          */
+    int              threads;   /**< workers the pool runs on, the caller
+                                     included; 1 without a pool          */
+    fft_state_t    **tile_inv;  /**< window_bins inverse plans (code_bins) */
+    float _Complex **tile_prod; /**< window_bins product buffers          */
+    fft_state_t    **tile_slow; /**< window_bins slow-time plans (D*interp),
+                                     NULL at D == 1                      */
+    float _Complex **tile_col;  /**< window_bins column scratch, 2*D*interp
+                                     (in, then out), NULL at D == 1      */
 
     float  threshold; /**< CFAR gate on test_stat (theta); coherent path.   */
     float  eta;       /**< Raw per-cell Rayleigh amplitude threshold.       */
@@ -690,6 +715,41 @@ extern "C"
    */
   int acq_set_max_peaks (acq_state_t *state, size_t n);
 
+  /**
+   * @brief Set how many threads the searcher fans its tiles across
+   *        (design §2.3: a roll per thread on persistent workers).
+   *
+   * A continuous engine is created with a pool of the machine's online
+   * cores when it has more than one tile; a burst engine, and a
+   * single-tile one, run serially. This sets the count: 0 auto-selects the
+   * online core count, 1 runs everything on the calling thread, n runs on
+   * n workers (the caller included). The workers are created here, once,
+   * and parked between pushes; nothing is created per push. The surface
+   * is bit-identical at every count -- the tiles are independent after the
+   * one forward transform and each writes its own rows -- so this changes
+   * the cost of a push and nothing about its result. Setup path, never
+   * hot; not while another thread is inside push().
+   *
+   * @param state Must be non-NULL.
+   * @param n     Thread count; 0 = online cores, 1 = serial.
+   * @return DP_OK. The count actually running is `threads`.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(
+   * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
+   * >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,
+   * ...                 doppler_uncertainty=4000.0)
+   * >>> a.threads >= 1               # a pool, sized to the machine
+   * True
+   * >>> a.set_threads(1)
+   * >>> a.threads
+   * 1
+   *
+   * @endcode
+   */
+  int acq_set_threads (acq_state_t *state, int n);
   /**
    * @brief Attach (or detach) a telemetry context and register the
    *        engine's probes on it (design §2.4).

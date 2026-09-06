@@ -1212,6 +1212,49 @@ class Acquisition:
 
         """
 
+    def set_threads(self, n: int) -> None:
+        """Set how many threads the searcher fans its tiles across (design
+        §2.3: a roll per thread on persistent workers).
+
+        A continuous engine is created with a pool of the machine's online
+        cores when it has more than one tile; a burst engine, and a single-tile
+        one, run serially. This sets the count: 0 auto-selects the online core
+        count, 1 runs everything on the calling thread, n runs on n workers
+        (the caller included). The workers are created here, once, and parked
+        between pushes; nothing is created per push. The surface is
+        bit-identical at every count -- the tiles are independent after the one
+        forward transform and each writes its own rows -- so this changes the
+        cost of a push and nothing about its result. Setup path, never hot; not
+        while another thread is inside push().
+
+        Parameters
+        ----------
+        n : int
+            Thread count; 0 = online cores, 1 = serial.
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``set_threads failed``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(
+        ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
+        >>> a = Acquisition(code, spc=2, chip_rate=1e6, cn0_dbhz=50.0,
+        ...                 doppler_uncertainty=4000.0)
+        >>> a.threads >= 1               # a pool, sized to the machine
+        True
+        >>> a.set_threads(1)
+        >>> a.threads
+        1
+
+        """
+
     def set_telemetry(
         self,
         tlm: object | None,
@@ -1574,6 +1617,14 @@ class Acquisition:
     def epochs_per_symbol(self) -> float:
         """(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when
         symbol_rate is 0.
+        """
+
+    @property
+    def threads(self) -> int:
+        """Workers the searcher fans its tiles across, the calling thread
+        included (design §2.3); 1 = serial. Set with set_threads(); a
+        continuous engine with more than one tile starts at the machine's
+        online core count.
         """
 
     @property

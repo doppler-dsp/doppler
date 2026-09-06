@@ -393,6 +393,24 @@ target_compile_options(validate_async_dsss_receiver_release
 add_test(NAME validate_async_dsss_receiver_release
          COMMAND validate_async_dsss_receiver_release --check)
 
+# The tracking receiver through the frame's pure-code window: what each lock
+# flag does while the symbol clock coasts, the pull-in when the data resumes,
+# and whether the release rule ever fires (docs/design/async-dsss-receiver.md
+# §12 step 12, §12.9). The emitter is the shipped continuous-DSSS synth with
+# its own window, the noise the shipped awgn, the receiver the hand-off flavor;
+# native/tests is reached for dp_test.h's assertions only.
+add_executable(validate_tracker_through_window
+               ${CMAKE_CURRENT_SOURCE_DIR}/tracker_through_window.c)
+target_include_directories(validate_tracker_through_window
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_tracker_through_window
+                      PRIVATE doppler_lib_static m)
+target_compile_options(validate_tracker_through_window
+                       PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_tracker_through_window
+         COMMAND validate_tracker_through_window --check)
+
 # The code loop on the symbol-aided window against the per-epoch look-back:
 # jitter, pull-in and the loop gain under a code-rate ramp at the continuous
 # async-DSSS operating point (docs/design/async-dsss-receiver.md §3.7, §12.5).

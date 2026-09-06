@@ -412,19 +412,37 @@ _test_spec_ramp_decode (void)
   return 0;
 }
 
-/* doppler#1249: the refine -> track hand-over under a CLOCK OFFSET. The
- * live chain used to start from the seed's code phase, rounded to whole
- * code periods -- zero net advance only on an undilated clock. At 20 ppm
- * the code runs 100 chips/s ahead, 5 chips over the 53 ms refine the
- * floor's C/N0 sizes, and a Dll seeded 5 chips off never pulls in: the
- * receiver reported tracking, code lock never came, and after
- * `lost_confirm_s` it released an emitter that was there all along. The
- * hand-over now advances the seed's phase by the refined Doppler's
- * dilation over the refine's whole periods. The stimulus is the shipped
- * channel at SPEC's 20 ppm of a 2.5 GHz carrier with no ramp (the ramp's
- * own margin at the floor is a separate matter, #1252); three seeds closing
- * and one opening, every one must lock the code. Sabotage: seed the live chain
- * with the original phase -> every seed red. */
+/* Both hand-overs under a CLOCK OFFSET, at two operating points.
+ *
+ * doppler#1249, the refine -> track hand-over: the live chain used to
+ * start from the seed's code phase, rounded to whole code periods -- zero
+ * net advance only on an undilated clock. At 20 ppm the code runs
+ * 100 chips/s ahead, 4 chips over the 42 ms refine the floor's C/N0
+ * sizes, and a Dll seeded 4 chips off never pulls in: the receiver
+ * reported tracking, code lock never came, and after `lost_confirm_s` it
+ * released an emitter that was there all along. The hand-over now
+ * advances the seed's phase by the refined Doppler's dilation over the
+ * refine's whole periods. Sabotage: seed the live chain with the original
+ * phase -> every seed red.
+ *
+ * doppler#1254, the search -> refine hand-off, one hand-over earlier: the
+ * searcher decides a hit on a non-coherent sum over its dwell, and the
+ * code phase it reports is that sum's peak -- the phase at the MIDDLE of
+ * the dwell -- while the seed is applied at its end. At 45 dB-Hz the dwell
+ * is 15 epochs (0.15 chip of drift, inside the refine Dll's pull-in); at
+ * the 40 dB-Hz floor it is 88 epochs, 0.9 chip, past it: the refine Dll
+ * sat where it was seeded, its detector saw no lobe, and the hand-over
+ * was the unrefined seed, 1.1 kHz off, which the carrier loop can never
+ * acquire. acq_build_handoff() now advances the phase by the drift over
+ * half the dwell. Sabotage: pass 0.0 for the carrier at the receiver's
+ * call site -> the floor's seeds red (the 45 dB-Hz ones survive it, which
+ * is why the floor is in the test).
+ *
+ * The stimulus is the shipped channel at SPEC's 20 ppm of a 2.5 GHz
+ * carrier with no rate (SPEC's two worst cases do not coincide); three
+ * seeds closing and one opening, every one must lock the code and decode,
+ * at 45 dB-Hz with the margin the old test used and at the floor with the
+ * shipped one. */
 static int
 _test_handover_under_clock_offset (void)
 {
@@ -436,18 +454,19 @@ _test_handover_under_clock_offset (void)
   const double tsym      = fs / sym_rate;
   const size_t te        = sf * spc;
   const double carrier   = 2.5e9;
-  /* SPEC's 20 ppm: 50 kHz, 100 chips/s of dilation. The refine is given
-     the length the floor gives it -- a design margin of 19 dB sizes a
-     7-block, 42 ms dwell at this C/N0, as 14 dB does at 40 dB-Hz
-     (validate_refine_bias prints the margin -> dwell table) -- so the old
-     hand-over is 4 chips off, unambiguously outside the Dll's pull-in
-     (over its 12 ms dwell it was 1.2 chips, a coin toss), while the
-     carrier still locks in tens of ms. */
+  /* SPEC's 20 ppm: 50 kHz, 100 chips/s of dilation. Two operating points:
+     45 dB-Hz with a design margin of 19 dB, which sizes the same 7-block,
+     42 ms refine dwell that the shipped 14 dB does at 40 dB-Hz
+     (validate_refine_bias prints the margin -> dwell table) -- so #1249's
+     old hand-over is 4 chips off, unambiguously outside the Dll's pull-in
+     (over its 12 ms dwell it was 1.2 chips, a coin toss) -- and the
+     40 dB-Hz floor itself with the shipped margin, where the searcher's
+     dwell is long enough for #1254's smear to bite. */
   const double ppm         = 20.0;
-  const double margin_db   = 19.0;
   const size_t n_sym       = 2700; /* one second */
   const size_t pre_silence = te * 5 + 3;
-  const double cn0         = 45.0; /* Es/N0 10.7 dB */
+  const double cn0s[2]     = { 45.0, 40.0 }; /* Es/N0 10.7 and 5.7 dB */
+  const double margins[2]  = { 19.0, 14.0 };
 
   uint8_t *code = malloc (sf);
   uint32_t cst  = 13;
@@ -455,11 +474,15 @@ _test_handover_under_clock_offset (void)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
 
   /* Three seeds closing (the code clock fast, the phase advancing), one
-     opening (negative ppm: the clock slow, the phase retreating). */
+     opening (negative ppm: the clock slow, the phase retreating), at each
+     operating point. */
   int decoded = 0;
-  for (uint32_t seed = 100; seed < 104; seed++)
+  for (uint32_t trial = 0; trial < 8; trial++)
     {
-      const double    sign = seed == 103 ? -1.0 : 1.0;
+      const uint32_t  seed      = 100 + trial % 4;
+      const double    cn0       = cn0s[trial / 4];
+      const double    margin_db = margins[trial / 4];
+      const double    sign      = seed == 103 ? -1.0 : 1.0;
       float _Complex *x;
       size_t          n;
       double         *data;
@@ -474,10 +497,10 @@ _test_handover_under_clock_offset (void)
       float _Complex *syms;
       size_t          n_syms = _stream (rx, x, n, te, &syms);
       double          ber    = _best_ber (syms, n_syms, data, n_sym + 4);
-      printf ("  hand-over at %+.0f ppm, seed %u: tracking %d, code %d, "
-              "symbol %d, %zu symbols, BER %.3f, Doppler est %.0f Hz "
-              "(truth %.0f), chip %.2f\n",
-              sign * ppm, seed, async_dsss_receiver_get_tracking (rx),
+      printf ("  hand-over at %+.0f ppm, %.0f dB-Hz, seed %u: tracking %d, "
+              "code %d, symbol %d, %zu symbols, BER %.3f, Doppler est "
+              "%.0f Hz (truth %.0f), chip %.2f\n",
+              sign * ppm, cn0, seed, async_dsss_receiver_get_tracking (rx),
               async_dsss_receiver_get_code_locked (rx),
               async_dsss_receiver_get_locked (rx), n_syms, ber,
               async_dsss_receiver_get_doppler_hz (rx),
@@ -501,8 +524,8 @@ _test_handover_under_clock_offset (void)
       free (data);
       async_dsss_receiver_destroy (rx);
     }
-  DP_CHECK_MSG (decoded == 4, "and the carrier locks and decodes on "
-                              "every seed");
+  DP_CHECK_MSG (decoded == 8, "and the carrier locks and decodes on "
+                              "every seed at both operating points");
   free (code);
   return 0;
 }

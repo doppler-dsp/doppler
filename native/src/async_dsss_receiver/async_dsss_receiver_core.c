@@ -815,7 +815,8 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
        * outside detection takes. acq_build_handoff() folds the phase into
        * [0, code_len), so the seed is never refused from here. */
       acq_handoff_t ho;
-      acq_build_handoff (state->acq, &hit, state->code_len, state->spc, &ho);
+      acq_build_handoff (state->acq, &hit, state->code_len, state->spc,
+                         state->carrier_freq_hz, &ho);
       (void)async_dsss_receiver_seed (state, ho.chip_phase, ho.doppler_hz_est,
                                       ho.cn0_dbhz_est);
 

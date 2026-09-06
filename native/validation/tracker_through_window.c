@@ -50,10 +50,12 @@
  * estimate, not the window (#1252, §12.10): this harness used to give
  * the refine the retired 100 dB look-back (one dump per epoch, which
  * aliases the data lobe and keeps a third of the seed's error); on the
- * shipped 0.5 dB look-back the estimate is unbiased, and at the floor
- * the refine's detector gives up on some seeds at any dwell (#1254).
- * So `--check` pins the static condition; the channel's rows are in the
- * full table.
+ * shipped 0.5 dB look-back the estimate is unbiased -- and what failed at
+ * the floor was the searcher's seed (#1254, fixed): its hit's code phase
+ * is the middle of its dwell, 0.9 chip behind the code at 40 dB-Hz, and
+ * acq_build_handoff() now advances it by the drift over half the dwell,
+ * given the carrier. `--check` pins the static condition; the channel's
+ * rows are in the full table.
  *
  * The receiver is fed one epoch (2046 samples) at a time and the flags are
  * read after every block. A block is IN the window when its centre sample
@@ -284,7 +286,8 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
               continue;
             }
           acq_handoff_t ho;
-          acq_build_handoff (acq, &hit, SF, SPC, &ho);
+          acq_build_handoff (acq, &hit, SF, SPC,
+                             cond != COND_STATIC ? CARRIER_HZ : 0.0, &ho);
           DP_REQUIRE_MSG (async_dsss_receiver_seed (rx, ho.chip_phase,
                                                     ho.doppler_hz_est,
                                                     ho.cn0_dbhz_est)

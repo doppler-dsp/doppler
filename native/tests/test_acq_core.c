@@ -615,8 +615,24 @@ _acq_wideband_coverage_check (void)
       DP_CHECK (k >= -kmax && k <= kmax);
       acq_result_t  hit = { .doppler_bin = b, .code_phase = 0 };
       acq_handoff_t ho;
-      acq_build_handoff (w, &hit, sf, spc, &ho);
+      acq_build_handoff (w, &hit, sf, spc, 0.0, &ho);
       DP_CHECK (fabs (ho.doppler_hz_est - (double)k * res) < 1e-6);
+
+      /* doppler#1254: with the carrier given, the phase is advanced by the
+         chip drift over half the dwell -- a positive Doppler (fast chip
+         clock) advances it, a negative one retards it, and the fold stays
+         in [0, sf). Without the carrier, the phase is the raw peak's. */
+      acq_handoff_t hc;
+      acq_build_handoff (w, &hit, sf, spc, 2.5e9, &hc);
+      double expect = (double)k * res / 2.5e9 * 0.5 * (double)w->n_noncoh
+                      * (double)w->coherent_bins * (double)sf;
+      double got    = hc.chip_phase - ho.chip_phase;
+      if (got > (double)sf / 2.0)
+        got -= (double)sf;
+      if (got < -(double)sf / 2.0)
+        got += (double)sf;
+      DP_CHECK (fabs (got - expect) < 1e-9);
+      DP_CHECK (hc.chip_phase >= 0.0 && hc.chip_phase < (double)sf);
     }
 
   /* Coverage sweep: every true Doppler across the band has a hypothesis
@@ -1367,7 +1383,7 @@ main (void)
     DP_CHECK_MSG (c->peak_conc > 0.5f, "one clean emitter: concentrated");
     /* Its axes are the hand-off's numbers for the same cell. */
     acq_handoff_t ho;
-    acq_build_handoff (c, &hits[0], sf, spc, &ho);
+    acq_build_handoff (c, &hits[0], sf, spc, 0.0, &ho);
     double hz[3], chips[14];
     DP_CHECK (acq_surface_doppler_hz (c, hz, 2) == 0); /* too small */
     DP_CHECK (acq_surface_doppler_hz (c, hz, rows) == rows);
@@ -1524,7 +1540,7 @@ main (void)
                   "the combined grid: tile * D + row, in FFT order");
     DP_CHECK (hits[0].code_phase == d);
     acq_handoff_t ho;
-    acq_build_handoff (c, &hits[0], sf, spc, &ho);
+    acq_build_handoff (c, &hits[0], sf, spc, 0.0, &ho);
     DP_CHECK_MSG (fabs (ho.doppler_hz_est - f_bins * f_epoch) < 1e-6,
                   "the hand-off folds over tiles * D and scales by f_epoch/D");
     /* The surface axis agrees with the hand-off at the reported row. */
@@ -1558,7 +1574,7 @@ main (void)
       DP_CHECK (acq_push (c, x, per_blk, hn, 4) >= 1);
       DP_CHECK_MSG (hn[0].doppler_bin == 1 * D - 1,
                     "a negative row folds next to its tile's centre");
-      acq_build_handoff (c, &hn[0], sf, spc, &ho);
+      acq_build_handoff (c, &hn[0], sf, spc, 0.0, &ho);
       DP_CHECK (fabs (ho.doppler_hz_est - f_neg * f_epoch) < 1e-6);
       /* And on tile -1 (index 2), one row below its centre: (-1 - 1/D)
          bins, bin -D - 1 = -5, i.e. tiles*D - 5 = 7 in FFT order -- both
@@ -1577,7 +1593,7 @@ main (void)
       DP_CHECK (acq_push (c, x, per_blk, hn, 4) >= 1);
       DP_CHECK_MSG (hn[0].doppler_bin == tiles * D - D - 1,
                     "a negative tile's negative row folds to the grid's end");
-      acq_build_handoff (c, &hn[0], sf, spc, &ho);
+      acq_build_handoff (c, &hn[0], sf, spc, 0.0, &ho);
       DP_CHECK (fabs (ho.doppler_hz_est - f_nt * f_epoch) < 1e-6);
       for (size_t k = 0; k < n; k++) /* back to the row-above emitter */
         {

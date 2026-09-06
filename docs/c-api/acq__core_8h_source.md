@@ -274,7 +274,8 @@ extern "C"
    * SAME inline rather than restating the formula. */
 
   void acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
-                          size_t code_len, size_t spc, acq_handoff_t *out);
+                          size_t code_len, size_t spc,
+                          double carrier_freq_hz, acq_handoff_t *out);
 
   /* ── Serializable state — the elastic / pure-transducer face
    * ─────────────────

@@ -1050,16 +1050,32 @@ extern "C"
    *   `dp_fftfreq_index()` — the SAME helper the search uses — and scaled
    *   by `state->doppler_res_hz`.
    *
+   * - **The dwell's dilation** (doppler#1254): a hit is decided on a
+   *   non-coherent sum over `n_noncoh` looks, and the code phase it reports
+   *   is that sum's peak -- the phase at the MIDDLE of the dwell, not at
+   *   its end, when the chip clock is dilated by the same Doppler the hit
+   *   reports (a physically-coupled carrier, `doppler_hz / carrier_freq_hz`
+   *   chips per chip). The seed a code loop wants is the phase at the next
+   *   sample, so given @p carrier_freq_hz the phase is advanced by the
+   *   drift over HALF the dwell, `doppler_hz_est / carrier_freq_hz *
+   *   n_noncoh * coherent_bins * code_len / 2` chips. At SPEC's 20 ppm the
+   *   continuous engine's dwell at 45 dB-Hz is 15 epochs (0.15 chip, inside
+   *   any code loop's pull-in) and at the 40 dB-Hz floor 88 epochs -- 0.9
+   *   chip, measured directly, past the refine Dll's; without this the
+   *   floor's hand-offs never refined. `0.0` = no coupling, no advance.
    * @param state    The engine @p hit came from (non-NULL, built via
    *                 acq_create_continuous()).
    * @param hit      One hit from acq_push() (non-NULL).
    * @param code_len Spreading-code length (chips) — the same value passed
    *                 to whichever acq_create_*() built @p state.
    * @param spc      Samples/chip — likewise.
+   * @param carrier_freq_hz  RF carrier the Doppler is physically coupled
+   *                 to (Hz), for the dwell's dilation above; 0.0 = none.
    * @param out      Written on return (non-NULL).
    */
   void acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
-                          size_t code_len, size_t spc, acq_handoff_t *out);
+                          size_t code_len, size_t spc,
+                          double carrier_freq_hz, acq_handoff_t *out);
 
   /* ── Serializable state — the elastic / pure-transducer face
    * ─────────────────

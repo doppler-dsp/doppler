@@ -11,6 +11,7 @@
 * [**acc\_trace\_state\_t**](structacc__trace__state__t.md)
 * [**acq\_extra\_t**](structacq__extra__t.md)
 * [**acq\_handoff\_t**](structacq__handoff__t.md)
+* [**acq\_part\_t**](structacq__part__t.md)
 * [**acq\_result\_t**](structacq__result__t.md)
 * [**acq\_state\_t**](structacq__state__t.md)
 * [**acq\_tlm\_t**](structacq__tlm__t.md)

@@ -156,25 +156,159 @@ acq_native_row (const acq_state_t *st, const float *surf, size_t row,
   return best / st->interp;
 }
 
-/* The list over a surface: the working mask starts as the band mask, the
- * gate is `eta` in the surface's units, the zone one Doppler row (`interp`
- * surface rows) by one chip (`spc` columns). When nothing crosses the
- * gate the strongest cell is still taken for the inspection fields, as
- * the classic detector always reported its maximum. */
+/* ── The decided surface's passes, per tile ─────────────────────────────
+ *
+ * Every pass that reads or writes a whole surface after the fan -- the
+ * magnitude of the coherent dump, the CFAR reference, the working mask's
+ * copy of the band mask, each scan of the peak list, the non-coherent
+ * accumulate -- runs per CHUNK on the pool (design §2.3, #1243): the
+ * surface is `window_bins` chunks of whole rows, cells [r*len, (r+1)*len),
+ * one per tile, and a body writes only its chunk's cells and its own
+ * acq_part_t slot. The merges are serial in chunk order, so the result is
+ * bit-identical at any thread count and their cost is per tile, not per
+ * cell. A single-tile engine has one chunk and no pool: the same code,
+ * serially, and the classic result to the bit. */
+typedef struct
+{
+  acq_state_t *st;
+  const float *surf;      /* the surface being decided                 */
+  int          magnitude; /* fill mag_buf from out_buf first           */
+  int          reference; /* take the chunk's reference (not MEDIAN)   */
+} acq_scan_t;
+
+static inline void
+acq_chunk (const acq_state_t *st, size_t r, size_t *k0, size_t *k1)
+{
+  const size_t len = st->n_surf / st->window_bins;
+  *k0              = r * len;
+  *k1              = *k0 + len;
+}
+
+/* The first pass over a decided surface: the magnitude (when asked), the
+ * working mask from the band mask, the reference and the first maximum
+ * among the band's cells, all of this chunk. */
+static void
+acq_tile_decide (size_t r, void *ctx)
+{
+  const acq_scan_t *sc = (const acq_scan_t *)ctx;
+  acq_state_t      *st = sc->st;
+  size_t            k0, k1;
+  acq_chunk (st, r, &k0, &k1);
+  if (sc->magnitude)
+    for (size_t k = k0; k < k1; k++)
+      st->mag_buf[k] = cabsf (st->out_buf[k]);
+  memcpy (st->peak_mask + k0, st->band_mask + k0, k1 - k0);
+  acq_part_t *p = &st->parts[r];
+  p->ref = sc->reference ? det_noise_estimate (sc->surf, k0, k1 - 1, NULL,
+                                               st->noise_mode)
+                         : 0.0f;
+  const size_t b = det_peak_scan (sc->surf, st->band_mask, k0, k1);
+  p->best        = b == k1 ? st->n_surf : b;
+}
+
+/* A later scan of the list: the chunk's first maximum among the cells the
+ * working mask -- the band and every listed pick's zone -- leaves. */
+static void
+acq_tile_pick (size_t r, void *ctx)
+{
+  const acq_scan_t *sc = (const acq_scan_t *)ctx;
+  acq_state_t      *st = sc->st;
+  size_t            k0, k1;
+  acq_chunk (st, r, &k0, &k1);
+  const size_t b    = det_peak_scan (sc->surf, st->peak_mask, k0, k1);
+  st->parts[r].best = b == k1 ? st->n_surf : b;
+}
+
+/* The non-coherent path's accumulate: |dump|^2 onto this chunk. */
+static void
+acq_tile_nc_acc (size_t r, void *ctx)
+{
+  acq_state_t *st = ((const acq_scan_t *)ctx)->st;
+  size_t       k0, k1;
+  acq_chunk (st, r, &k0, &k1);
+  for (size_t k = k0; k < k1; k++)
+    {
+      float m = cabsf (st->out_buf[k]);
+      st->nc_surface[k] += m * m;
+    }
+}
+
+/* The merged pick: the first of the chunks' first maxima, strict `>` in
+ * chunk order -- det_peak_scan()'s own rule, so it is the cell one scan
+ * over the whole surface picks. `n_surf` when no chunk had a candidate. */
+static size_t
+acq_merge_best (const acq_state_t *st, const float *surf)
+{
+  const size_t n    = st->n_surf;
+  size_t       best = n;
+  for (size_t r = 0; r < st->window_bins; r++)
+    {
+      const size_t b = st->parts[r].best;
+      if (b < n && (best == n || surf[b] > surf[best]))
+        best = b;
+    }
+  return best;
+}
+
+/* The reference over a decided surface, and the decide pass that computes
+ * it: the chunks' references merged -- the mean of equal-sized chunks'
+ * means, the least of their minima, the largest of their maxima -- for
+ * every mode but MEDIAN, which has no per-chunk form and runs the classic
+ * serial estimate over the reference range instead. Returns the reference
+ * in the surface's units. */
+static float
+acq_scan_surface (acq_state_t *st, const float *surf, int magnitude)
+{
+  const int  fan_ref = st->noise_mode != DET_NOISE_MEDIAN && st->noise_lo == 0
+                       && st->noise_hi == st->n_surf - 1;
+  acq_scan_t sc      = { st, surf, magnitude, fan_ref };
+  dp_pool_run (st->pool, st->window_bins, acq_tile_decide, &sc);
+  if (!fan_ref)
+    return det_noise_estimate (surf, st->noise_lo, st->noise_hi,
+                               st->noise_scratch, st->noise_mode);
+  float ref = st->parts[0].ref;
+  for (size_t r = 1; r < st->window_bins; r++)
+    {
+      const float v = st->parts[r].ref;
+      if (st->noise_mode == DET_NOISE_MIN)
+        ref = v < ref ? v : ref;
+      else if (st->noise_mode == DET_NOISE_MAX)
+        ref = v > ref ? v : ref;
+      else
+        ref += v;
+    }
+  return st->noise_mode == DET_NOISE_MEAN ? ref / (float)st->window_bins : ref;
+}
+
+/* The list over a surface, after acq_scan_surface() has run the decide
+ * pass on it: the working mask holds the band mask, the slots the band's
+ * first maxima. The gate is `eta` in the surface's units, the zone one
+ * Doppler row (`interp` surface rows) by one chip (`spc` columns); every
+ * pick after the first is one fanned scan of the working mask. When
+ * nothing crosses the gate the strongest cell is still taken for the
+ * inspection fields, as the classic detector always reported its maximum
+ * -- and it is the decide pass's own pick, at no further scan. */
 static void
 acq_list_peaks (acq_state_t *st, const float *surf, float gate)
 {
-  const size_t rows = st->n_surf / st->code_bins;
-  memcpy (st->peak_mask, st->band_mask, st->n_surf);
-  st->n_peaks
-      = det_peak_list (surf, rows, st->code_bins, gate, st->interp, st->spc,
-                       st->peak_mask, st->peaks, st->max_peaks);
-  if (st->n_peaks == 0)
+  const size_t nx   = st->code_bins;
+  const size_t rows = st->n_surf / nx;
+  acq_scan_t   sc   = { st, surf, 0, 0 };
+  size_t       best = acq_merge_best (st, surf);
+  st->n_peaks       = 0;
+  while (best < st->n_surf && surf[best] > gate)
     {
-      memcpy (st->peak_mask, st->band_mask, st->n_surf);
-      (void)det_peak_list (surf, rows, st->code_bins, -1.0f, st->interp,
-                           st->spc, st->peak_mask, st->peaks, 1);
+      st->peaks[st->n_peaks++]
+          = (det_peak_t){ best / nx, best % nx, surf[best] };
+      if (st->n_peaks == st->max_peaks)
+        break;
+      det_peak_zone (st->peak_mask, rows, nx, best / nx, best % nx, st->interp,
+                     st->spc);
+      dp_pool_run (st->pool, st->window_bins, acq_tile_pick, &sc);
+      best = acq_merge_best (st, surf);
     }
+  if (st->n_peaks == 0 && best < st->n_surf)
+    st->peaks[0] = (det_peak_t){ best / nx, best % nx, surf[best] };
   st->peak_row = acq_native_row (st, surf, st->peaks[0].row, st->peaks[0].col);
   st->peak_col = st->peaks[0].col;
 }
@@ -250,11 +384,6 @@ acq_dwell_decided (acq_state_t *st, const float                      *surf,
 static void
 acq_compute_stat (acq_state_t *st)
 {
-  const size_t n = st->n_surf;
-
-  for (size_t k = 0; k < n; k++)
-    st->mag_buf[k] = cabsf (st->out_buf[k]);
-
   /* Two maxima, and the split is the whole point of interpolating.
    *
    * `peak` ranges over the INTERPOLATED surface and sets peak_mag /
@@ -268,8 +397,7 @@ acq_compute_stat (acq_state_t *st)
    * bin on noise. Measured: rounding cost ~5 points of Pd on the
    * characterization's true-cell criterion, because a peak landing on an odd
    * fine row reported the wrong neighbour. */
-  st->noise_est = det_noise_estimate (st->mag_buf, st->noise_lo, st->noise_hi,
-                                      st->noise_scratch, st->noise_mode);
+  st->noise_est = acq_scan_surface (st, st->mag_buf, 1);
   /* The gate in the surface's units: test_stat > threshold is
      mag > threshold * noise_est. A zero reference gates nothing through
      (test_stat reads 0), so the gate is then unreachable. */
@@ -281,7 +409,6 @@ acq_compute_stat (acq_state_t *st)
       = (st->noise_est > 0.0f) ? (st->peak_mag / st->noise_est) : 0.0f;
   st->peak_conc = acq_peak_concentration (st, st->mag_buf, 0);
   st->n_held    = 0;
-  (void)n;
 }
 
 /* Non-coherent CFAR: peak + normalized order-N_nc statistic from nc_surface
@@ -296,12 +423,8 @@ acq_compute_stat (acq_state_t *st)
 static void
 acq_compute_stat_nc (acq_state_t *st)
 {
-  const size_t n = st->n_surf;
-
-  float noise_pow
-      = det_noise_estimate (st->nc_surface, st->noise_lo, st->noise_hi,
-                            st->noise_scratch, st->noise_mode);
-  st->noise_est = sqrtf (noise_pow);
+  float noise_pow = acq_scan_surface (st, st->nc_surface, 0);
+  st->noise_est   = sqrtf (noise_pow);
   /* The gate in the surface's (power) units: R > eta_nc is
      cell > eta_nc^2 * noise_pow / (2 n_noncoh). */
   const float gate = noise_pow > 0.0f ? st->eta_nc * st->eta_nc * noise_pow
@@ -314,7 +437,6 @@ acq_compute_stat_nc (acq_state_t *st)
                                      : 0.0f;
   st->peak_conc = acq_peak_concentration (st, st->nc_surface, 1);
   st->n_held    = 0;
-  (void)n;
 }
 
 /* The listed peaks of the dwell just decided, as results: each pick's
@@ -897,15 +1019,18 @@ acq_tiles_free (acq_state_t *st)
         fft_destroy (st->tile_slow[t]);
       free (st->tile_prod ? st->tile_prod[t] : NULL);
       free (st->tile_col ? st->tile_col[t] : NULL);
+      free (st->tile_rows ? st->tile_rows[t] : NULL);
     }
   free (st->tile_inv);
   free (st->tile_prod);
   free (st->tile_slow);
   free (st->tile_col);
+  free (st->tile_rows);
   st->tile_inv  = NULL;
   st->tile_prod = NULL;
   st->tile_slow = NULL;
   st->tile_col  = NULL;
+  st->tile_rows = NULL;
 }
 
 static int
@@ -920,6 +1045,7 @@ acq_tiles_alloc (acq_state_t *st, size_t tiles, size_t cb, size_t dI)
           = (fft_state_t **)dp_xcalloc (tiles, sizeof (fft_state_t *));
       st->tile_col
           = (float _Complex **)dp_xcalloc (tiles, sizeof (float _Complex *));
+      st->tile_rows = (size_t **)dp_xcalloc (tiles, sizeof (size_t *));
     }
   for (size_t t = 0; t < tiles; t++)
     {
@@ -933,9 +1059,15 @@ acq_tiles_alloc (acq_state_t *st, size_t tiles, size_t cb, size_t dI)
           st->tile_slow[t] = fft_create (dI, -1, 1);
           if (!st->tile_slow[t])
             return -1;
-          /* in (zero tail: the pad is the interpolation), then out */
-          st->tile_col[t]
-              = (float _Complex *)dp_xcalloc (2 * dI, sizeof (float _Complex));
+          /* a chunk of columns in (zero tails: the pad is the
+             interpolation, and acq_tile_block never writes past D), then
+             the chunk out */
+          st->tile_col[t] = (float _Complex *)dp_xcalloc (
+              2 * ACQ_COL_CHUNK * dI, sizeof (float _Complex));
+          /* where the tile's slow-time rows land on the combined axis */
+          st->tile_rows[t] = (size_t *)dp_xmalloc (dI * sizeof (size_t));
+          for (size_t i = 0; i < dI; i++)
+            st->tile_rows[t][i] = acq_block_row (t, tiles, i, dI);
         }
     }
   return 0;
@@ -1116,7 +1248,10 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
       st->blk       = new_blk;
       st->blk_epoch = 0;
       /* The per-tile scratch follows the grid; a serial engine (one tile)
-         has none and runs the classic path. */
+         has none and runs the classic path. The partial slots are one per
+         tile in either case. */
+      free (st->parts);
+      st->parts = (acq_part_t *)dp_xmalloc (new_freq_bins * sizeof *st->parts);
       acq_tiles_free (st);
       if (new_freq_bins > 1
           && acq_tiles_alloc (st, new_freq_bins, cb, new_db * new_interp) != 0)
@@ -1350,6 +1485,7 @@ acq_destroy (acq_state_t *st)
   free (st->blk);
   dp_pool_destroy (st->pool);
   acq_tiles_free (st);
+  free (st->parts);
   free (st);
 }
 
@@ -1436,24 +1572,42 @@ acq_tile_epoch (size_t r, void *ctx)
 
 /* One tile at the block's end (a body of the fan): per code-phase column,
  * the zero-padded slow-time transform of the tile's D epochs, scattered
- * onto the one combined Doppler axis (acq_block_row). The tile's rows of
- * out_buf are its own. */
+ * onto the one combined Doppler axis -- the tile's row table, computed
+ * once with the grid (acq_block_row), says where each slow-time row lands.
+ * The columns go ACQ_COL_CHUNK at a time: a chunk is gathered row by row
+ * out of the block into one contiguous column each (so a cache line of the
+ * block serves eight columns instead of one), transformed column by
+ * column, and scattered row by row onto the surface the same way. Each
+ * column's input is the same D samples over the same zero tail as one
+ * column at a time gave, so the transform is bit-identical. The tile's
+ * rows of out_buf are its own. */
 static void
 acq_tile_block (size_t r, void *ctx)
 {
-  acq_state_t    *st = ((acq_fan_t *)ctx)->st;
-  const size_t    nx = st->code_bins, D = st->coherent_bins;
-  const size_t    dI     = D * st->interp;
-  float _Complex *colbuf = st->tile_col[r];
-  float _Complex *colout = colbuf + dI;
-  for (size_t j = 0; j < nx; j++)
+  acq_state_t          *st = ((acq_fan_t *)ctx)->st;
+  const size_t          nx = st->code_bins, D = st->coherent_bins;
+  const size_t          dI   = D * st->interp;
+  const size_t         *rows = st->tile_rows[r];
+  float _Complex       *in = st->tile_col[r]; /* ACQ_COL_CHUNK columns of dI */
+  float _Complex       *out = in + ACQ_COL_CHUNK * dI;
+  const float _Complex *blk = st->blk + r * D * nx;
+  for (size_t j0 = 0; j0 < nx; j0 += ACQ_COL_CHUNK)
     {
+      const size_t nc = nx - j0 < ACQ_COL_CHUNK ? nx - j0 : ACQ_COL_CHUNK;
       for (size_t i = 0; i < D; i++)
-        colbuf[i] = st->blk[(r * D + i) * nx + j];
-      fft_execute_cf32 (st->tile_slow[r], colbuf, dI, colout, dI);
+        {
+          const float _Complex *src = blk + i * nx + j0;
+          for (size_t c = 0; c < nc; c++)
+            in[c * dI + i] = src[c];
+        }
+      for (size_t c = 0; c < nc; c++)
+        fft_execute_cf32 (st->tile_slow[r], in + c * dI, dI, out + c * dI, dI);
       for (size_t i = 0; i < dI; i++)
-        st->out_buf[acq_block_row (r, st->window_bins, i, dI) * nx + j]
-            = colout[i];
+        {
+          float _Complex *dst = st->out_buf + rows[i] * nx + j0;
+          for (size_t c = 0; c < nc; c++)
+            dst[c] = out[c * dI + i];
+        }
     }
 }
 
@@ -1584,13 +1738,11 @@ acq_push (acq_state_t *st, const float _Complex *x, size_t n_in,
               continue;
             }
 
-          /* Non-coherent path: magnitude-square accumulate each coherent look;
-           * gate the order-N_nc statistic once n_noncoh looks are in. */
-          for (size_t k = 0; k < st->n_surf; k++)
-            {
-              float m = cabsf (st->out_buf[k]);
-              st->nc_surface[k] += m * m;
-            }
+          /* Non-coherent path: magnitude-square accumulate each coherent look
+           * (per chunk, on the pool); gate the order-N_nc statistic once
+           * n_noncoh looks are in. */
+          acq_scan_t acc = { st, NULL, 0, 0 };
+          dp_pool_run (st->pool, st->window_bins, acq_tile_nc_acc, &acc);
           if (++st->nc_count < st->n_noncoh)
             continue; /* still accumulating looks */
 

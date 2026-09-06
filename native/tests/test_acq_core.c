@@ -320,6 +320,84 @@ _acq_band_edge_check (void)
   return 0;
 }
 
+/* The band mask reaches every pick: on an engine whose Doppler prior is
+ * narrower than the native span, with two emitters inside the band and an
+ * equal one outside it, each at its own code phase, the list holds exactly
+ * the two -- the third is never a hit, nor the inspection pick (`peak_row`
+ * is what the classic detector's maximum became). The first scan reads the
+ * band mask itself; every later scan reads the working mask, which is the
+ * band mask copied per chunk on the pool plus the zones (#1243). The second
+ * in-band emitter is what pins the copy: the working mask is not
+ * zero-initialised, so a skipped copy either lists the outsider or loses
+ * the second insider, and det_peak_list's own unit test sees neither. */
+static int
+_acq_band_mask_check (void)
+{
+  const double PI  = acos (-1.0);
+  const size_t spc = 4, sf = 31, reps = 8;
+  const double crate = 1.0e6;
+  /* A real m-sequence (x^5 + x^3 + 1): three emitters at three code
+     phases need sidelobes of -1/31, and the hashed code the edge check
+     above gets away with is nearly periodic every five chips. */
+  static uint8_t code31[31];
+  for (size_t i = 0, lfsr = 1; i < sf; i++)
+    {
+      const size_t bit = ((lfsr >> 4) ^ (lfsr >> 2)) & 1u;
+      lfsr             = ((lfsr << 1) | bit) & 0x1fu;
+      code31[i]        = (uint8_t)bit;
+    }
+  /* A prior of one bin either side: the span is +/-D/2 bins, the bin
+     crate/(sf*D). */
+  const double bin_hz = crate / (double)sf / (double)reps;
+  acq_state_t *a = acq_create_burst (code31, sf, reps, spc, crate, 0.0, bin_hz,
+                                     1e-3, 0.9, 0);
+  DP_REQUIRE (a != NULL && acq_set_max_peaks (a, 4) == 0);
+  DP_CHECK (acq_configure_search_raw (a, reps, 1) == 0);
+  DP_REQUIRE (a->coherent_bins == reps && a->searched_bins == 3);
+  const size_t nx = sf * spc, n = reps * nx;
+  static float _Complex frame[8 * 31 * 4];
+  /* Bins +1 and -1, in the band, the second 0.9 of the first; bin -3, out
+     of it, as strong as the first; 20 and 9 chips apart in code phase
+     (f in cycles per sample: bins/(D*nx)). */
+  const double f_in  = 1.0 / (double)(reps * nx);
+  const double f_in2 = -1.0 / (double)(reps * nx);
+  const double f_out = -3.0 / (double)(reps * nx);
+  const size_t d_in2 = 20 * spc, d_out = 40 * spc;
+  for (size_t k = 0; k < n; k++)
+    {
+      uint8_t chip  = code31[((k % nx) / spc) % sf];
+      float   c     = chip ? -1.0f : 1.0f;
+      double  ph    = 2.0 * PI * f_in * (double)k;
+      frame[k]      = c * (float _Complex) (cos (ph) + I * sin (ph));
+      uint8_t chip2 = code31[(((k + nx - d_in2) % nx) / spc) % sf];
+      float   c2    = 0.9f * (chip2 ? -1.0f : 1.0f);
+      double  ph2   = 2.0 * PI * f_in2 * (double)k;
+      frame[k] += c2 * (float _Complex) (cos (ph2) + I * sin (ph2));
+      uint8_t chip3 = code31[(((k + nx - d_out) % nx) / spc) % sf];
+      float   c3    = chip3 ? -1.0f : 1.0f;
+      double  ph3   = 2.0 * PI * f_out * (double)k;
+      frame[k] += c3 * (float _Complex) (cos (ph3) + I * sin (ph3));
+    }
+  acq_result_t r[4];
+  size_t       nd = acq_push (a, frame, n, r, 4);
+  DP_CHECK_MSG (
+      nd == 2 && r[0].doppler_bin == 1 && r[1].doppler_bin == reps - 1,
+      "exactly the two in-band emitters are listed, strongest first");
+  for (size_t i = 0; i < nd; i++)
+    {
+      size_t fold = r[i].doppler_bin <= reps - r[i].doppler_bin
+                        ? r[i].doppler_bin
+                        : reps - r[i].doppler_bin;
+      DP_CHECK_MSG (fold <= 1, "a hit is never outside the band");
+    }
+  const size_t pr   = a->peak_row;
+  const size_t fold = pr <= reps - pr ? pr : reps - pr;
+  DP_CHECK_MSG (fold <= 1, "an out-of-band emitter is never the pick: the "
+                           "band mask reaches the working mask");
+  acq_destroy (a);
+  return 0;
+}
+
 /* gh-1002: a burst at exactly HALF a coherent Doppler bin must still be
  * detected.
  *
@@ -906,6 +984,7 @@ main (void)
   (void)_acq_configure_search_raw_check ();
   (void)_acq_half_bin_check ();
   (void)_acq_band_edge_check ();
+  (void)_acq_band_mask_check ();
   (void)_acq_wideband_check ();
   (void)_acq_wideband_coverage_check ();
   (void)_acq_continuous_check ();
@@ -1567,11 +1646,17 @@ main (void)
   }
 
   /* ── the roll per thread (design §2.3): bit-identical at any count ────
-   * The tiled block engine of the section above, the same emitter, the
-   * surface and the hits at 1, 2, 4 and 8 threads: byte for byte the same,
-   * since every tile owns its rows and its scratch. And the pool's
-   * lifecycle: a tiled continuous engine starts with one, a burst engine
-   * and a single-tile one never have one, set_threads re-sizes it. */
+   * The tiled block engine of the section above with TWO emitters -- the
+   * same one, and a weaker one on another tile at another code phase, a
+   * list of four to take both -- the surface and the hits at 1, 2, 4 and 8
+   * threads: byte for byte the same, since every tile owns its rows and
+   * its scratch, and every per-cell pass after the fan (the magnitude, the
+   * reference, each scan of the list) runs per tile into a slot of its own
+   * and merges in tile order (#1243). The second emitter is what makes
+   * the list's second scan -- a fanned pick over the working mask -- part
+   * of the comparison. And the pool's lifecycle: a tiled continuous engine
+   * starts with one, a burst engine and a single-tile one never have one,
+   * set_threads re-sizes it. */
   {
     const size_t spc = 2, sf = 7, nx = sf * spc, D = 4;
     const double crate = 1.0e6;
@@ -1579,6 +1664,7 @@ main (void)
                                             200.0e3, 1e-2, 0.9, 0, 7, 0.0);
     DP_REQUIRE (c != NULL);
     DP_CHECK (c->window_bins == 3 && c->coherent_bins == D);
+    DP_REQUIRE (acq_set_max_peaks (c, 4) == 0);
     DP_CHECK_MSG (c->threads >= 1, "a tiled engine starts with a pool");
     DP_CHECK (c->tile_inv != NULL && c->tile_slow != NULL);
     acq_state_t *one = acq_create_continuous (CODE7, sf, spc, crate, 0.0, 70.0,
@@ -1595,7 +1681,7 @@ main (void)
                   "a burst engine runs serially");
     acq_destroy (b);
 
-    const size_t    nblk = 3, n = nblk * D * nx, d = 5;
+    const size_t    nblk = 3, n = nblk * D * nx, d = 5, d2 = 10;
     float _Complex *x   = malloc (n * sizeof *x);
     float          *ref = malloc (c->n_surf * sizeof *ref);
     float          *got = malloc (c->n_surf * sizeof *got);
@@ -1608,20 +1694,35 @@ main (void)
         double  ph   = 2.0 * PI * 1.25 * (double)k / (double)nx;
         x[k]         = ((chip & 1u) ? -1.0f : 1.0f)
                        * (float _Complex) (cos (ph) + I * sin (ph));
+        /* the second emitter: tile -1 (the last chunk of the merge), a row
+           BELOW its centre so that it lands on its own slow-time bin --
+           every tile sees every emitter at its residual modulo one cycle
+           per epoch, and 1.25 and -1.25 differ in that -- inside the
+           band, code phase d2, 0.9 of the first (above the first's smear
+           on the other tiles, which this code's 14 cells cannot make
+           small) */
+        size_t  src2  = (q + nx - (d2 % nx)) % nx;
+        uint8_t chip2 = CODE7[(src2 / spc) % sf];
+        double  ph2   = 2.0 * PI * -1.25 * (double)k / (double)nx;
+        x[k] += 0.9f * ((chip2 & 1u) ? -1.0f : 1.0f)
+                * (float _Complex) (cos (ph2) + I * sin (ph2));
       }
     c->keep_surface = 1;
-    acq_result_t href[8], hgot[8];
+    acq_result_t href[16], hgot[16];
     DP_CHECK (acq_set_threads (c, 1) == DP_OK && c->threads == 1
               && c->pool == NULL);
-    size_t nref = acq_push (c, x, n, href, 8);
-    DP_CHECK (nref == nblk && acq_surface (c, ref, c->n_surf) == c->n_surf);
+    size_t nref = acq_push (c, x, n, href, 16);
+    DP_CHECK_MSG (nref >= 2 * nblk && href[0].code_phase == d
+                      && href[1].code_phase == d2,
+                  "both emitters are listed, strongest first");
+    DP_CHECK (acq_surface (c, ref, c->n_surf) == c->n_surf);
     const int counts[3] = { 2, 4, 8 };
     for (int i = 0; i < 3; i++)
       {
         DP_CHECK (acq_set_threads (c, counts[i]) == DP_OK);
         DP_CHECK (c->threads >= 1 && c->threads <= counts[i]);
         acq_reset (c);
-        size_t ngot = acq_push (c, x, n, hgot, 8);
+        size_t ngot = acq_push (c, x, n, hgot, 16);
         DP_CHECK (ngot == nref);
         DP_CHECK (acq_surface (c, got, c->n_surf) == c->n_surf);
         DP_CHECK_MSG (memcmp (ref, got, c->n_surf * sizeof *ref) == 0,

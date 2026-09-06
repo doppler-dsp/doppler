@@ -106,8 +106,13 @@
  * block-end column loop run across a persistent pool of workers
  * (dp_parallel.h's `dp_pool_*`), created once with the engine and parked
  * between pushes. Each tile owns its inverse plan and scratch, so the
- * result is bit-identical at any thread count; the noise estimate and the
- * peak list stay serial after the fan. acq_set_threads() sets the count.
+ * result is bit-identical at any thread count. The per-cell passes that
+ * decide a surface -- the magnitude, the CFAR reference, the working mask
+ * and every scan of the peak list -- run per tile too, each into a slot of
+ * its own, and are merged serially in tile order (a mean of the tiles'
+ * means over equal cells, the first of the tiles' first maxima), so the
+ * serial remainder is per tile, not per cell. acq_set_threads() sets the
+ * count.
  *
  * @code
  * // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
@@ -220,6 +225,22 @@ extern "C"
   typedef void (*acq_surface_sink_fn) (void *ctx, const float *surface,
                                        size_t rows, size_t cols,
                                        uint64_t samples_consumed);
+
+  /**
+   * @brief One tile's share of a decided surface (design §2.3): the
+   *        surface is cut into `window_bins` chunks of whole rows, and the
+   *        per-cell passes after the fan -- the magnitude, the CFAR
+   *        reference, the mask copy, each scan of the peak list -- run per
+   *        chunk into one of these, merged serially in tile order. The
+   *        merge is bit-identical at any thread count because the chunks
+   *        never move.
+   */
+  typedef struct
+  {
+    float  ref;  /**< det_noise_estimate() over the chunk (MEAN/MIN/MAX). */
+    size_t best; /**< The chunk's first maximum among the candidate cells;
+                      `n_surf` when it has none.                           */
+  } acq_part_t;
 
   /**
    * @brief Streaming acquisition-engine state.
@@ -340,8 +361,17 @@ extern "C"
     float _Complex **tile_prod; /**< window_bins product buffers          */
     fft_state_t    **tile_slow; /**< window_bins slow-time plans (D*interp),
                                      NULL at D == 1                      */
-    float _Complex **tile_col;  /**< window_bins column scratch, 2*D*interp
-                                     (in, then out), NULL at D == 1      */
+    float _Complex **tile_col;  /**< window_bins column scratch: a chunk of
+                                     ACQ_COL_CHUNK columns of D*interp
+                                     (zero tails) in, then out; NULL at
+                                     D == 1                              */
+    size_t **tile_rows;         /**< window_bins tables of D*interp: the
+                                     surface row of each slow-time row of
+                                     the tile (acq_block_row), once per
+                                     grid rather than per cell; NULL at
+                                     D == 1                              */
+    acq_part_t *parts;          /**< window_bins partial slots of the
+                                     decided surface's per-tile passes  */
 
     float  threshold; /**< CFAR gate on test_stat (theta); coherent path.   */
     float  eta;       /**< Raw per-cell Rayleigh amplitude threshold.       */
@@ -456,6 +486,12 @@ extern "C"
  *  result array is sized to this many in the binding, so one dwell can
  *  always be reported whole. */
 #define ACQ_MAX_PEAKS 64u
+
+/** Columns the block-end transform gathers per pass (design §2.3, #1243):
+ *  a cache line holds 8 cf32 cells, so a chunk of 32 columns reads four
+ *  lines per slow-time row of the block and writes four per surface row,
+ *  where a column at a time read and wrote one line per CELL. */
+#define ACQ_COL_CHUNK 32u
 
   /**
    * @brief Internal safety-valve ceiling on auto-selected non-coherent

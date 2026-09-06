@@ -115,6 +115,45 @@ typedef struct
 static size_t
 det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
                size_t excl_rows, size_t excl_cols, uint8_t *mask,
+               det_peak_t *out, size_t max_peaks);
+
+static size_t
+det_peak_scan (const float *surf, const uint8_t *mask, size_t k0, size_t k1)
+{
+  size_t best = k1;
+  if (!mask)
+    {
+      if (k0 >= k1)
+        return k1;
+      best = k0;
+      for (size_t k = k0 + 1; k < k1; k++)
+        if (surf[k] > surf[best])
+          best = k;
+      return best;
+    }
+  for (size_t k = k0; k < k1; k++)
+    if (!mask[k] && (best == k1 || surf[k] > surf[best]))
+      best = k;
+  return best;
+}
+
+static void
+det_peak_zone (uint8_t *mask, size_t ny, size_t nx, size_t r, size_t c,
+               size_t excl_rows, size_t excl_cols)
+{
+  const size_t rh = excl_rows < ny / 2 ? excl_rows : ny / 2;
+  const size_t ch = excl_cols < nx / 2 ? excl_cols : nx / 2;
+  for (size_t dr = 0; dr <= 2 * rh; dr++)
+    {
+      size_t rr = (r + ny + dr - rh) % ny;
+      for (size_t dc = 0; dc <= 2 * ch; dc++)
+        mask[rr * nx + (c + nx + dc - ch) % nx] = 1;
+    }
+}
+
+static size_t
+det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
+               size_t excl_rows, size_t excl_cols, uint8_t *mask,
                det_peak_t *out, size_t max_peaks)
 {
   const size_t n     = ny * nx;
@@ -122,16 +161,10 @@ det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
   if (!mask)
     {
       /* One peak, no zone to carry: the argmax, and the same pick the
-         masked loop below makes (strict `>`, so the first maximum wins).
-         The plain loop on purpose: a four-lane unrolled form runs 4x
-         faster in isolation but moves detector2d::push by nothing
-         measurable (doppler#1208), so the simple one stays. */
+         masked loop below makes (strict `>`, so the first maximum wins). */
       if (n == 0)
         return 0;
-      size_t best = 0;
-      for (size_t k = 1; k < n; k++)
-        if (surf[k] > surf[best])
-          best = k;
+      const size_t best = det_peak_scan (surf, NULL, 0, n);
       if (!(surf[best] > gate))
         return 0;
       out[0].row   = best / nx;
@@ -141,10 +174,7 @@ det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
     }
   while (count < max_peaks)
     {
-      size_t best = n;
-      for (size_t k = 0; k < n; k++)
-        if (!mask[k] && (best == n || surf[k] > surf[best]))
-          best = k;
+      const size_t best = det_peak_scan (surf, mask, 0, n);
       if (best == n || !(surf[best] > gate))
         break;
       const size_t r = best / nx, c = best % nx;
@@ -152,15 +182,7 @@ det_peak_list (const float *surf, size_t ny, size_t nx, float gate,
       out[count].col   = c;
       out[count].value = surf[best];
       count++;
-      /* The zone, circular on both axes. */
-      const size_t rh = excl_rows < ny / 2 ? excl_rows : ny / 2;
-      const size_t ch = excl_cols < nx / 2 ? excl_cols : nx / 2;
-      for (size_t dr = 0; dr <= 2 * rh; dr++)
-        {
-          size_t rr = (r + ny + dr - rh) % ny;
-          for (size_t dc = 0; dc <= 2 * ch; dc++)
-            mask[rr * nx + (c + nx + dc - ch) % nx] = 1;
-        }
+      det_peak_zone (mask, ny, nx, r, c, excl_rows, excl_cols);
     }
   return count;
 }

@@ -290,8 +290,12 @@ keeps the engine usable by a baseband-only caller with no carrier at all.
     its two callers use — so the fan costs a hand-off per push, not a
     thread creation per worker, and the granularity of a push is the
     coherence's choice (§2.3), not the threading's. Thread count is the
-    engine's parameter, default the core count; the noise estimate and
-    the list stay serial after the fan.
+    engine's parameter, default the core count. The per-cell passes that
+    decide a surface — the magnitude, the CFAR reference, the working
+    mask and every scan of the peak list — run per tile as well, each
+    into a slot of its own, and merge serially in tile order (a mean of
+    the tiles' means over equal cells, the first of their first maxima),
+    so what stays serial is per tile, not per cell (#1243).
 - **What it costs, before it is measured.** The slow-time transform
     runs once per block per tile, so per epoch it is of the order of the
     epoch transform it sits behind; the searcher's cost stays near §12.1's
@@ -2095,11 +2099,13 @@ ______________________________________________________________________
     persistent pool's hand-off per push beside the per-call creation it
     replaces.
     **Done (§12.8):** 624 ns per sample serially at the operating point
-    (3.6× the epoch-by-epoch searcher), 288 on four threads; the fan is
+    (3.6× the epoch-by-epoch searcher), 288 on four threads; the fan was
     Amdahl's, 88% fanned at `D = 1` and 72% at `D = 154`, because the
-    per-cell passes after the fan grow with the surface — #1243 is the
-    fix. Memory per channel at `D = 154`: the block (53 MB), the surface
-    (106 MB complex + 53 MB magnitude), and the kept surface when read.
+    per-cell passes after the fan grew with the surface. #1243 fanned
+    those passes per tile and chunked the block-end gather: 523 serially,
+    164 on four threads (92% fanned), 125 on eight. Memory per channel at
+    `D = 154`: the block (53 MB), the surface (106 MB complex + 53 MB
+    magnitude), and the kept surface when read.
 
 Steps 1–4 are Python over the shipped engine plus the peak-list primitive,
 and are the same harness the burst characterization already runs. Steps
@@ -2534,13 +2540,43 @@ Four things this settles:
     of 154, so the per-cell passes cost 2.5× more per sample: 9.2× real
     time on one thread, 3.6× on four. The fix above is what brings it in.
 
-What the budget says (§6.4: 100 ns per output sample per core, half as
-the margin): at the operating point the block searcher on four threads is
-288 ns of wall per sample, about 1150 core-ns — a quarter of a 48-core
-server's budget, before #1243, beside twelve receivers at 44 each (§12.1).
-It fits; it is not yet comfortable, and #1243 is the next thing to
-attack. Bit-identity across thread counts is pinned in
-`test_acq_core.c` and the C suite runs under TSan.
+What the budget said (§6.4: 100 ns per output sample per core, half as
+the margin): at the operating point the block searcher on four threads
+was 288 ns of wall per sample, about 1150 core-ns — a quarter of a
+48-core server's budget, beside twelve receivers at 44 each (§12.1). It
+fit; it was not comfortable, and #1243 was the next thing to attack.
+
+**#1243, measured the same day, same box, same rows.** The per-cell
+passes now run per tile on the pool and merge serially in tile order;
+the block-end scatter reads a per-tile row table instead of folding a
+row index per cell; the column gather goes 32 columns at a time so a
+cache line of the block serves eight columns instead of one. The surface
+and the hits are byte-identical at any thread count, as before, with a
+second emitter in the comparison so the list's second scan is part of it.
+
+| row (±50 kHz)                    | 1 thread        | 2          | 4              | 8              |
+| -------------------------------- | --------------- | ---------- | -------------- | -------------- |
+| 5 Mcps, 21 tiles, D = 1          | 174 (1.74×)     | 97 (0.97×) | 59 (0.59×)     | 55–62          |
+| 5 Mcps, 21 tiles, **D = 154**    | **523 (5.2×)**  | 283 (2.8×) | **164 (1.6×)** | 125–138 (1.3×) |
+| 5 Mcps, ±5 kHz, 3 tiles, D = 154 | 80 (0.80×)      |            | 35 (0.35×)     |                |
+| 2 Mcps, 53 tiles, **D = 61**     | **2010 (8.1×)** |            | 580 (2.3×)     |                |
+
+- **The fan is now 92% of the work at `D = 154`** (four threads buy
+    3.2×, eight 4.2×), up from 72%; the serial cost fell 16% (the row
+    table and the chunked gather), the four-thread cost 43%. `D = 1` is
+    unchanged to the nanosecond: its passes were 43 k cells per epoch,
+    never the cost.
+- **What is left is the transforms.** At the operating point the block
+    is 21 tiles × 2046 columns of a 308-point slow-time transform plus
+    154 × 21 inverse transforms of 2046 points; the passes around them
+    are now a fraction of that on any thread count. 308 = 4·7·11 is not
+    a smooth length; bounding `D` to a 5-smooth number below the window's
+    is the one lever left in the engine, unmeasured.
+- **The budget:** four threads at 164 ns of wall per sample is about
+    656 core-ns — 14% of a 48-core server's budget at the operating point,
+    beside twelve receivers at 44 each; over ±5 kHz, 0.35× real time on
+    four threads. Comfortable. Bit-identity across thread counts is
+    pinned in `test_acq_core.c` and the C suite runs under TSan.
 
 ______________________________________________________________________
 

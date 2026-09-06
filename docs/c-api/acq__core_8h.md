@@ -42,6 +42,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 | ---: | :--- |
 | struct | [**acq\_extra\_t**](structacq__extra__t.md) <br>_Per-object extra header for an engine's cross-call state._  |
 | struct | [**acq\_handoff\_t**](structacq__handoff__t.md) <br>_Wire-ready hand-off record built from one_ [_**acq\_result\_t**_](structacq__result__t.md) _hit._ |
+| struct | [**acq\_part\_t**](structacq__part__t.md) <br>_One tile's share of a decided surface (design §2.3): the surface is cut into_ `window_bins` _chunks of whole rows, and the per-cell passes after the fan_ _the magnitude, the CFAR reference, the mask copy, each scan of the peak list_ _run per chunk into one of these, merged serially in tile order. The merge is bit-identical at any thread count because the chunks never move._ |
 | struct | [**acq\_result\_t**](structacq__result__t.md) <br>_One acquisition detection event._  |
 | struct | [**acq\_state\_t**](structacq__state__t.md) <br>_Streaming acquisition-engine state._  |
 | struct | [**acq\_tlm\_t**](structacq__tlm__t.md) <br>_Telemetry attachment: a borrowed context + this engine's probe ids (design §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**acq\_set\_state()**_](acq__core_8h.md#function-acq_set_state) _like the borrowed code._ |
@@ -125,6 +126,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**ACQ\_COL\_CHUNK**](acq__core_8h.md#define-acq_col_chunk)  `32u`<br> |
 | define  | [**ACQ\_MAX\_PEAKS**](acq__core_8h.md#define-acq_max_peaks)  `64u`<br> |
 | define  | [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)  `256u`<br>_Internal safety-valve ceiling on auto-selected non-coherent looks_  _not a public knob (no caller-facing equivalent of the retired_`max_noncoh` _parameter)._ |
 | define  | [**ACQ\_STATE\_MAGIC**](acq__core_8h.md#define-acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'Q', 'R')`<br> |
@@ -161,7 +163,7 @@ Both convert C/N0 to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / 
 **Block-coherent depth inside the tiles** (docs/design/async-dsss-receiver.md §2.3): the engine allows a coherent depth, to accommodate waveforms with code-only windows. Given `code_only_epochs > 1`  the whole code-only epochs such a window holds at any chip phase  it runs a coherent depth `D` inside every tile: the per-tile epoch correlations are gathered for `D` epochs, then a zero-padded slow-time FFT per code-phase column turns each tile into `D` Doppler rows `chip_rate/(sf*D)` apart, detected per block. Blocks are non-overlapping and the engine does not know any emitter's window phase, so `D` is at most `(code_only_epochs+1)/2` (a whole block always lands inside the window) and, when `doppler_rate` is given, at most `f_epoch/sqrt(2*doppler_rate)` (the drift over a block stays inside half a row). The Doppler axis is then ONE uniform grid of `window_bins*coherent_bins` bins of `doppler_res_hz = chip_rate/(sf*D)` over the tiled span, in native FFT-bin order (0 = DC, ascending, then wrapping negative): `doppler_bin` indexes it, and [**acq\_build\_handoff()**](acq__core_8h.md#function-acq_build_handoff) folds it with dp\_fftfreq\_index() over that count. A block that straddles data spreads that emitter over its rows, `10*log10(D)` below an aligned block, at its own code phase  the `conc` probe (§2.4) reads it. `code_only_epochs = 1` (the default) is `D = 1` and the engine exactly as described above.
 
 
-**A roll per thread** (design §2.3): the tiles are independent after the one forward transform, so the per-epoch tile loop and, at `D > 1`, the block-end column loop run across a persistent pool of workers ([**dp\_parallel.h**](dp__parallel_8h.md)'s `dp_pool_*`), created once with the engine and parked between pushes. Each tile owns its inverse plan and scratch, so the result is bit-identical at any thread count; the noise estimate and the peak list stay serial after the fan. [**acq\_set\_threads()**](acq__core_8h.md#function-acq_set_threads) sets the count.
+**A roll per thread** (design §2.3): the tiles are independent after the one forward transform, so the per-epoch tile loop and, at `D > 1`, the block-end column loop run across a persistent pool of workers ([**dp\_parallel.h**](dp__parallel_8h.md)'s `dp_pool_*`), created once with the engine and parked between pushes. Each tile owns its inverse plan and scratch, so the result is bit-identical at any thread count. The per-cell passes that decide a surface  the magnitude, the CFAR reference, the working mask and every scan of the peak list  run per tile too, each into a slot of its own, and are merged serially in tile order (a mean of the tiles' means over equal cells, the first of the tiles' first maxima), so the serial remainder is per tile, not per cell. [**acq\_set\_threads()**](acq__core_8h.md#function-acq_set_threads) sets the count.
 
 
 
@@ -1049,6 +1051,23 @@ True
 ## Macro Definition Documentation
 
 
+
+
+
+### define ACQ\_COL\_CHUNK 
+
+```C++
+#define ACQ_COL_CHUNK `32u`
+```
+
+
+
+Columns the block-end transform gathers per pass (design §2.3, #1243): a cache line holds 8 cf32 cells, so a chunk of 32 columns reads four lines per slow-time row of the block and writes four per surface row, where a column at a time read and wrote one line per CELL. 
+
+
+        
+
+<hr>
 
 
 

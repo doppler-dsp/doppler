@@ -64,6 +64,8 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 |  int | [**det\_cmp\_f32\_asc**](#function-det_cmp_f32_asc) (const void \* a, const void \* b) <br> |
 |  float | [**det\_noise\_estimate**](#function-det_noise_estimate) (const float \* mag, size\_t lo, size\_t hi, float \* scratch, [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) mode) <br>_Aggregate \|corr\| over bins &#91;lo, hi&#93; using the selected mode._  |
 |  size\_t | [**det\_peak\_list**](#function-det_peak_list) (const float \* surf, size\_t ny, size\_t nx, float gate, size\_t excl\_rows, size\_t excl\_cols, uint8\_t \* mask, [**det\_peak\_t**](structdet__peak__t.md) \* out, size\_t max\_peaks) <br>_The maximum of a surface, iterated with exclusion zones: every peak above a gate, strongest first, at most_ `max_peaks` _of them._ |
+|  size\_t | [**det\_peak\_scan**](#function-det_peak_scan) (const float \* surf, const uint8\_t \* mask, size\_t k0, size\_t k1) <br>_One scan of det\_peak\_list(): the first maximum of_ `surf` _over the cells_`[k0, k1)` _that_`mask` _leaves as candidates._ |
+|  void | [**det\_peak\_zone**](#function-det_peak_zone) (uint8\_t \* mask, size\_t ny, size\_t nx, size\_t r, size\_t c, size\_t excl\_rows, size\_t excl\_cols) <br>_The exclusion zone of a pick at_ `(r, c)` _, marked into_`mask` _:_`excl_rows` _either side along the rows and_`excl_cols` _along the columns, CIRCULAR on both axes (an FFT bin axis by a circular correlation lag axis), each half-width clamped to half the axis._ |
 |  dp\_f32\_t \* | [**det\_ring\_create**](#function-det_ring_create) (size\_t cap\_min) <br> |
 |  size\_t | [**next\_pow2**](#function-next_pow2) (size\_t n) <br> |
 
@@ -223,6 +225,51 @@ Peaks listed (0 when nothing exceeds the gate).
 
 
         
+
+<hr>
+
+
+
+### function det\_peak\_scan 
+
+_One scan of det\_peak\_list(): the first maximum of_ `surf` _over the cells_`[k0, k1)` _that_`mask` _leaves as candidates._
+```C++
+static size_t det_peak_scan (
+    const float * surf,
+    const uint8_t * mask,
+    size_t k0,
+    size_t k1
+) 
+```
+
+
+
+Returns the cell, or `k1` when no cell in the range is a candidate. The pick is the FIRST maximum (strict `>`), so a caller that cuts the surface into chunks, scans each, and merges the chunks' picks in order with the same strict `>` makes exactly the pick one scan over the whole surface makes  which is what lets the acquisition engine run the scan per tile on its pool and merge serially, bit-identical at any thread count (doppler#1243). `mask` may be NULL: every cell is then a candidate, and the loop is the plain argmax on purpose  a four-lane unrolled form runs 4x faster in isolation but moves detector2d::push by nothing measurable (doppler#1208), so the simple one stays. 
+
+
+        
+
+<hr>
+
+
+
+### function det\_peak\_zone 
+
+_The exclusion zone of a pick at_ `(r, c)` _, marked into_`mask` _:_`excl_rows` _either side along the rows and_`excl_cols` _along the columns, CIRCULAR on both axes (an FFT bin axis by a circular correlation lag axis), each half-width clamped to half the axis._
+```C++
+static void det_peak_zone (
+    uint8_t * mask,
+    size_t ny,
+    size_t nx,
+    size_t r,
+    size_t c,
+    size_t excl_rows,
+    size_t excl_cols
+) 
+```
+
+
+
 
 <hr>
 

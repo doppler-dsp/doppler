@@ -75,6 +75,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  [**det\_noise\_mode\_t**](detector__core_8h.md#enum-det_noise_mode_t) | [**noise\_mode**](#variable-noise_mode)  <br> |
 |  float \* | [**noise\_scratch**](#variable-noise_scratch)  <br> |
 |  float \_Complex \* | [**out\_buf**](#variable-out_buf)  <br> |
+|  [**acq\_part\_t**](structacq__part__t.md) \* | [**parts**](#variable-parts)  <br> |
 |  double | [**pd**](#variable-pd)  <br> |
 |  double | [**pd\_predicted**](#variable-pd_predicted)  <br> |
 |  size\_t | [**peak\_col**](#variable-peak_col)  <br> |
@@ -108,6 +109,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  float \_Complex \*\* | [**tile\_col**](#variable-tile_col)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \*\* | [**tile\_inv**](#variable-tile_inv)  <br> |
 |  float \_Complex \*\* | [**tile\_prod**](#variable-tile_prod)  <br> |
+|  size\_t \*\* | [**tile\_rows**](#variable-tile_rows)  <br> |
 |  [**fft\_state\_t**](structfft__state__t.md) \*\* | [**tile\_slow**](#variable-tile_slow)  <br> |
 |  [**acq\_tlm\_t**](structacq__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  uint32\_t \* | [**twin\_col**](#variable-twin_col)  <br> |
@@ -866,6 +868,24 @@ corr2d dump output (n) — also the wideband mode's (window\_bins, code\_bins) g
 
 
 
+### variable parts 
+
+```C++
+acq_part_t* acq_state_t::parts;
+```
+
+
+
+window\_bins partial slots of the decided surface's per-tile passes 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable pd 
 
 ```C++
@@ -1384,7 +1404,7 @@ float _Complex** acq_state_t::tile_col;
 
 
 
-window\_bins column scratch, 2\*D\*interp (in, then out), NULL at D == 1 
+window\_bins column scratch: a chunk of ACQ\_COL\_CHUNK columns of D\*interp (zero tails) in, then out; NULL at D == 1 
  
 
 
@@ -1420,6 +1440,24 @@ float _Complex** acq_state_t::tile_prod;
 
 
 window\_bins product buffers 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tile\_rows 
+
+```C++
+size_t** acq_state_t::tile_rows;
+```
+
+
+
+window\_bins tables of D\*interp: the surface row of each slow-time row of the tile (acq\_block\_row), once per grid rather than per cell; NULL at D == 1 
  
 
 

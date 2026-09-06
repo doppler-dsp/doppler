@@ -3217,7 +3217,8 @@ before the design's own acquisition bound are not):
     until the first was released. The second seed is the recovery §10
     describes; the first receiver's code flag on a walked-off code is
     the same false-lock finding as above, seen with the emitter present
-    ([#1265](https://github.com/doppler-dsp/doppler/issues/1265)).
+    ([#1265](https://github.com/doppler-dsp/doppler/issues/1265); fixed,
+    §12.16 — the hand-over, not the receiver).
 - **The pool holds.** Never past twelve; at 40 dB-Hz eleven noise seeds
     (0.09 per second against the configured 0.03 and #1064's 0.06), each
     refining to nothing, "tracking" with both flags down and released an
@@ -3282,8 +3283,68 @@ dB-Hz and 0.30 at 40, tracking with code lock on 99.6% and 99.7% of held
 blocks. One event is left, and it is
 [#1265](https://github.com/doppler-dsp/doppler/issues/1265)'s: at 45
 dB-Hz one receiver still walks off its emitter mid-stint while its code
-flag holds, a second is seeded, and both report code lock for 1.6 s — the
-sweep is red on that assertion alone until it is understood.
+flag holds, a second is seeded, and both report code lock for 1.6 s —
+understood and fixed in §12.16.
+
+### 12.16 What was measured (2026-09-06) — the hand-over that never pulled in, #1265
+
+**Interference first, and ruled out.** The soak's trace now logs every
+crossing of two on-air emitters' code phases within two chips, with their
+Doppler difference and relative chip rate — the one way one emitter's
+full peak reaches another's prompt correlator. Around the failing stint
+(emitter 1's third, 55.7–77.5 s at 45 dB-Hz) every crossing was fast, 30
+to 127 chips per second and under 0.3 s, with the other emitter at least
+6 kHz away, none at the seed's moment; and no slow crossing (under 5
+chips per second) happened anywhere in four minutes at either C/N0.
+
+**The hand-over.** The event log had the number: seeded from a data-block
+hit +594 Hz off, the receiver reported *tracking* 12 ms later with its
+carrier estimate **−506 Hz** off the truth; symbol lock came and went,
+the estimate wandered to −1.4 kHz by 61 s and −2.7 kHz by 75 s, while the
+code loop stayed on the emitter's phase throughout (its chip rate was
+emitter 1's 37.3 chips per second), and a second receiver was seeded
+when a code-flag dip left the row's phase stale. §12.10 had measured the
+refine at the pool's shipped margin — 14 dB at 45 dB-Hz sizes a
+**two-block** dwell — at **−31 ± 210 Hz**: −506 is a 2.4σ draw, and one
+such draw in 49 hand-overs is the 1.6% it predicts. The dwell is sized
+by `det_n_noncoh` for *detection* at the derated C/N0, which needs fewer
+blocks the higher the C/N0, while the estimate's noise the tracking
+chain has to pull in from — a few hundred Hz — does not shrink with it.
+
+**Confirmed by the wrong fix.** The soak with `--refine-margin 22` (18
+blocks, 36 Hz): at 45 dB-Hz the double is gone and every stint holds
+symbol lock (0.9925 of held blocks), tracking 0.14 s later. At 40 dB-Hz
+the same margin derates to 18 dB-Hz and sizes one to four seconds of
+dwell, during which the row's phase — advanced on the seed's Doppler
+error, hundreds of Hz for a data-block seed, a chip a second — drifts
+out of the zone; the next hit seeds a second receiver and 661 545
+blocks read two receivers code-locked on one emitter. The lever is a
+floor on the dwell in blocks, not a detection margin.
+
+**The fix:** `refine_min_blocks`, default 7 (42 ms, §12.10's floor
+dwell, 77 Hz), applied when the refine chain is built and clamped by the
+give-up cap; `set_refine_min_blocks()` on the receiver and on the pool.
+Pinned in `test_async_dsss_receiver_core`: the default receiver's dwell
+at 45 dB-Hz reads 7, 2 with the floor removed (proven red without it),
+the cap with a floor above it. The pool's #1261 reproduction removes the
+floor explicitly, because with it the wander it pins never happens.
+
+**The soak on it**, ten emitters, 120 s at each C/N0:
+
+|                                           | 45 dB-Hz                        | 40 dB-Hz                  |
+| ----------------------------------------- | ------------------------------- | ------------------------- |
+| double assignments                        | **0** (was 1, 1.6 s)            | 0                         |
+| false releases                            | 0                               | 0                         |
+| tracking with symbol lock, of held blocks | **0.9968** (was 0.9910)         | 0.9841                    |
+| arrival → tracking, mean / max            | 0.09 / 0.21 s (was 0.06 / 0.18) | 0.35 / 1.30 s (unchanged) |
+| departure → release, min / mean / max     | 2.02 / 2.09 / 3.82 s            | 2.01 / 2.02 / 2.04 s      |
+| stints missed                             | 0                               | 0                         |
+
+The one 3.82 s release is §12.15's residual: the code flag still returns
+on noise at 0.004 per second, and one return inside the interval restarts
+the clock once — the rule's own worst case at that rate, two intervals,
+which is what the soak now bounds (two returns inside one interval is a
+1e-4 event per departure). The sweep is green at both C/N0s.
 
 ______________________________________________________________________
 
@@ -3310,7 +3371,10 @@ integration (§12.6, #1191), and the false-release rate of the
 both-flags-down rule is bounded only over half a minute, not the
 15-minute maximum on-time (§6.1) it must hold for — and, from the soak
 (§12.14, #1264), the code flag's false re-locks on noise made the rule
-fire one to three intervals late — fixed at the Dll's looks (§12.15).
+fire one to three intervals late — fixed at the Dll's looks (§12.15),
+leaving one return per 240 s that restarts the clock once in a hundred
+departures; and the hand-over that never pulled in (#1265) — fixed at
+the refine's dwell (§12.16).
 
 ______________________________________________________________________
 

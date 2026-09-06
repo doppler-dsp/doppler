@@ -46,9 +46,14 @@
  * searcher's seed, the chain settled in 2 of 3 trials at 45 dB-Hz and 0
  * of 3 at 40 -- the refine -> track hand-over re-seeded the live code
  * loop with a phase the clock dilation had moved on from (#1249, fixed:
- * 10 of 10 at 45 dB-Hz). What remains at the floor is carrier margin (5-7
- * of 10 under the ramp, #1252), so `--check` pins the static condition;
- * the ramp's rows are in the full table.
+ * 10 of 10 at 45 dB-Hz). What remains at the floor is the refine's
+ * estimate, not the window (#1252, §12.10): this harness used to give
+ * the refine the retired 100 dB look-back (one dump per epoch, which
+ * aliases the data lobe and keeps a third of the seed's error); on the
+ * shipped 0.5 dB look-back the estimate is unbiased, and at the floor
+ * the refine's detector gives up on some seeds at any dwell (#1254).
+ * So `--check` pins the static condition; the channel's rows are in the
+ * full table.
  *
  * The receiver is fed one epoch (2046 samples) at a time and the flags are
  * read after every block. A block is IN the window when its centre sample
@@ -175,9 +180,9 @@ static async_dsss_receiver_state_t *
 make_rx (const uint8_t *code, double cn0_dbhz, int cond)
 {
   return async_dsss_receiver_create_handoff (
-      code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 4, 8, 0,
-      100.0, 4, 14.0, 64, 8, false, 100000,
-      cond != COND_STATIC ? CARRIER_HZ : 0.0, LOST_CONFIRM_S);
+      code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 4, 8, 0, 0.5,
+      4, 14.0, 64, 8, false, 100000, cond != COND_STATIC ? CARRIER_HZ : 0.0,
+      LOST_CONFIRM_S);
 }
 
 /* Is global sample `n` inside the code-only window, by the synth's clock? */

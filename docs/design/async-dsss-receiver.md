@@ -2744,15 +2744,101 @@ What it settles:
     at 45 dB-Hz but 9 of 10 at 40, in 0.3–3.6 s, several past the 2 s
     release clock — the code loop locked from the first block, the carrier
     slow to follow. The refine lands the Doppler 200–460 Hz low on every
-    seed with the floor's 18-block dwell (a bias, worse than the 4-block
-    dwell's ±20 Hz), and loop 1 — `bn` 0.04, 195 Hz at the code-period
+    seed with the floor's dwell (a bias, worse than the shortest dwell's
+    ±20 Hz), and loop 1 — `bn` 0.04, 195 Hz at the code-period
     cadence, a measured pull-in bound of 60 Hz — then acquires it slowly
     or not at all, at 17 dB of loop SNR (15.5 after the squaring loss)
     where the rule wants 20. Narrowing the loop toward the rule is measured
     to cost the floor entirely (under the combined stress: `bn` 0.02, 10 of
     10 at 45 dB-Hz and **0 of 10** at 40; 0.01, 6 and 0), so the two rules
     conflict as built and the way out is the estimate the loop starts
-    from.
+    from. (This paragraph called the floor's dwell "18 blocks"; it is 7 —
+    §12.10 measured the margin → dwell table. And §12.10 found the bias
+    was the harness's own configuration, not the estimator's.)
+
+______________________________________________________________________
+
+### 12.10 What was measured (2026-09-06) — the refine's Doppler on its own
+
+**Harness:** `native/validation/refine_bias.c` (`validate_refine_bias`;
+`--check` is a ctest entry). A static capture from the shipped C stimulus
+(`dp_dsss_capture`: Gold-1023 at 5 Mcps, 2700 sym/s async BPSK, a fixed
+carrier offset of ±1500 Hz, AWGN from the C/N0), the hand-off receiver
+seeded with the stimulus's chip phase and the truth plus a chosen error,
+fed one epoch at a time until `get_tracking()` first reads 1, and
+`get_doppler_hz()` read there. The error of that reading against the
+truth, over 10 noise seeds per point: the mean is the bias, the standard
+deviation the noise. Three axes — the seed's error (0, ±500, ±1100,
+±2000 Hz) at the floor's dwell, the dwell through the design margin at a
+fixed +1100 Hz, and the **despread stream** the refine estimates on:
+`refine_max_error_db` sets the collection Dll's dumps per epoch through
+`dll_lookback_segments()`, and the shipped default (0.5 dB, eleven dumps,
+53.8 kHz) was compared with 100 dB (one dump, the 4.9 kHz epoch rate),
+which `objects/async_dsss_receiver.toml` records as retired because a
+stream below the 2700-baud data lobe's own width aliases any residual.
+
+**The finding before the measurement:** every C harness and test of this
+receiver — `tracker_through_window.c`, the hand-over test, all fourteen
+`create()` calls in `test_async_dsss_receiver_core.c` — passed the retired
+100 dB, positionally, and had since the default moved. The measurement
+behind #1252 was taken on that stream. Both are now on 0.5 dB.
+
+**Bias vs the seed's error, at 45 dB-Hz, margin 19 dB (7 blocks, 42 ms),
+truth +1500 Hz** (mean ± sd over 10 seeds; the −1500 Hz rows are alike):
+
+| seed error | shipped (11 dumps) | retired (1 dump) |
+| ---------- | ------------------ | ---------------- |
+| 0          | −11 ± 77 Hz        | −17 ± 45 Hz      |
+| +500       | −16 ± 77           | **+140** ± 47    |
+| −500       | −10 ± 76           | **−150** ± 61    |
+| +1100      | −26 ± 77           | **+351** ± 115   |
+| −1100      | +14 ± 90           | **−367** ± 125   |
+| +2000      | −53 ± 79           | **+752** ± 91    |
+| −2000      | +26 ± 70           | **−787** ± 99    |
+
+**Bias vs dwell, at +1100 Hz** (the margin → dwell table is the same on
+both streams; `det_n_noncoh()` sizes it from the derated C/N0 alone):
+
+| margin | dwell    | shipped      | retired       |
+| ------ | -------- | ------------ | ------------- |
+| 14 dB  | 2 blocks | −31 ± 210 Hz | +341 ± 184 Hz |
+| 17     | 4        | −17 ± 117    | +357 ± 189    |
+| 19     | 7        | −26 ± 77     | +351 ± 115    |
+| 22     | 18       | −21 ± 36     | +329 ± 87     |
+| 25     | 55       | −20 ± 26     | +368 ± 95     |
+
+- **On the retired stream the bias is a third of the seed's error, in the
+    seed's direction, at every dwell.** ±0.35 × the error, the same with
+    the truth at −1500 Hz, the same at 2 blocks and at 55: the refine
+    removes two thirds of the residual and hands over the rest. That is
+    the aliasing the manifest describes, not the template's edge and not
+    the accumulation; and it is #1252's 200–460 Hz at the searcher's
+    ~1.1 kHz seed. A two-pass refine on this stream would converge
+    geometrically; the shipped stream does not need it.
+- **On the shipped stream the estimate is unbiased** — within ±60 Hz at
+    every seed error out to ±2000 Hz at the floor's dwell, inside loop
+    1's 60 Hz pull-in — and its noise falls with the dwell as an average
+    should (77 Hz at 7 blocks, 36 at 18, 26 at 55); at 40 dB-Hz the
+    7-block point is −74 ± 152 Hz and 18 blocks give −59 ± 71. A residual
+    −20 Hz survives long dwells; nothing downstream notices.
+- **The floor's dwell is 7 blocks, not 18.** Margin 19 dB at 45 dB-Hz
+    (the hand-over test's stand-in for 14 at 40) sizes 7; 18 needs 22 dB.
+    The test's comment, #1252 and §12.9 all said 18.
+- **What the shipped stream does at the floor is a different defect
+    ([#1254](https://github.com/doppler-dsp/doppler/issues/1254)).** With
+    the window harness on 0.5 dB, the offset case at 45 dB-Hz settles 10
+    of 10 in 76–81 ms, as before. At 40 dB-Hz it settles 2 of 10 at the
+    shipped margin, 4 at 17 dB, 6 at 19 and 6 at 22 (122 blocks, 0.7 s);
+    every failure is a give-up — the refine's detector does not fire
+    within the dwell, and the hand-over is the unrefined seed, 1.1 kHz
+    off, which loop 1 can never acquire. The same seeds fail at every
+    dwell, so it is not the averaging; the frame's window is not it
+    either (disabled: 1 of 10); a static capture at 40 dB-Hz fires 10 of
+    10 at 7 blocks, and the channel capture of the hand-over test fires 4
+    of 4 at 37 blocks. On the retired stream the detector always fired,
+    because the aliasing folds the whole data lobe into the band — which
+    is why #1252 saw slow locks and not give-ups. What to look at is in
+    the issue.
 
 ______________________________________________________________________
 

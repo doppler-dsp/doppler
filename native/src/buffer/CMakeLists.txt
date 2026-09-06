@@ -15,6 +15,17 @@ target_include_directories(test_buffer_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_buffer_core COMMAND test_buffer_core)
 
+# dp_parallel.h is header-only too (the bounded parallel-for and the
+# persistent pool), so its test lives beside buffer's for the same reason:
+# nothing to link, and this CMakeLists is hand-owned. Threads for real.
+add_executable(test_dp_parallel
+               ${CMAKE_SOURCE_DIR}/native/tests/test_dp_parallel.c)
+target_link_libraries(test_dp_parallel PRIVATE Threads::Threads)
+target_include_directories(test_dp_parallel
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+add_test(NAME test_dp_parallel COMMAND test_dp_parallel)
+
 # Benchmark — same story as the test above: header-only, so there is no
 # component core to link, and this CMakeLists is hand-owned (the module is
 # no_generate), so the target is written here rather than by `jm apply`.

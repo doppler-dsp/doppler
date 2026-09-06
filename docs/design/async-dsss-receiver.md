@@ -2494,6 +2494,88 @@ in 2 000 of 2 000 dwells with no twin listed.
 
 ______________________________________________________________________
 
+### 12.7 What was measured (2026-09-05) — step 11, the block-coherent searcher
+
+`native/validation/acq_block_coherent.c` (`make validate-c`; its `--check`
+is in the C suite): the continuous engine with the depth its window buys —
+813 whole code-only epochs at 5 Mcps and 324 at 2 (§2.1), the rate bound
+of 500 Hz/s deciding: **D = 154 and 61**, a **31.7 Hz row** — over ±50 kHz
+(21 and 53 tiles), one emitter from the shipped synth at tile 5 plus a
+quarter row, sized for one look, the surface read back through §2.4's
+tap in the gate's own units. Everything in dB below the emitter's peak,
+cells outside the exclusion zone, by Doppler-row distance; `other` is
+the worst cell at another code phase.
+
+**The floor and the straddles** (clean, 5 Mcps; 2 Mcps agrees to 1 dB):
+
+| block                       | peak/gate  | `conc` | row 1 | row 2    | row 3+ | **other** |
+| --------------------------- | ---------- | ------ | ----- | -------- | ------ | --------- |
+| aligned — pure code         | 1874 / 5.4 | 0.92   | −14.0 | −16.9    | −20.8  | **−21.0** |
+| one transition mid-block    | 1121 / 5.4 | 0.49   | −5.8  | **−0.0** | −11.4  | −20.9     |
+| PRBS data, the whole block  | 106 / 5.4  | 0.04   | −1.1  | −2.9     | −0.0   | −20.5     |
+| the window's edge mid-block | 420 / 5.4  | 0.43   | −10.1 | −8.2     | −8.2   | −20.9     |
+
+Five things this settles:
+
+- **The aligned block gives the transition-free floor, −21 dB at another
+    code phase** — the number §12 step 11 expected, and 8 dB below the −13
+    the single-look surface has under data (§12.2). Inside the emitter's own
+    column the slow-time transform's rectangular window puts its first
+    sidelobe at −14 dB one row out; a taper would trade that for a wider
+    main lobe, and nothing here needs it.
+- **A block that straddles a data transition splits the emitter into
+    twins.** One transition mid-block halves the peak and puts an equal
+    copy two rows away at the same code phase; the reported row is one off
+    the truth (32 Hz). That is §12.2's twin rule again at the row scale —
+    at the emitter's own code phase, so the two-epoch rule and the
+    concentration see it, and the floor at other code phases is untouched.
+- **A block inside the data section is a weak, smeared copy, still at its
+    code phase.** PRBS data through the whole block spreads the emitter over
+    every row of its column at −1 to −3 dB of the peak, which itself is
+    25 dB below the aligned block's (about `10·log10 D` and the data's
+    spectrum) — a copy a real C/N0 leaves under the floor, and the
+    assigned table excludes in any case (§2.3).
+- **The window's edge mid-block — the maintainer's case — is half of
+    each.** Half pure code, half data: the peak is 13 dB down, the column
+    spread at −8 to −10 dB, and the peak is exactly at the emitter's code
+    phase (47 for that block's chip offset). The edge falls at no chip
+    phase (§5.4), so one block per window sees this at each end.
+- **The concentration is the discriminator.** 0.92 aligned, 0.49 for the
+    twins, 0.43 at the edge, 0.04 under data: a second emitter is a second
+    column and leaves its neighbour's column alone, so a low `conc` at one
+    code phase is one emitter's splatter and never two emitters. The pool
+    reads it from the status of every peak it considers seeding (§8.2).
+
+**Pfa per block** (pure noise, D = 16, 21 tiles, 300 blocks): configured
+0.10, realized **64 of 300 = 0.21**; configured 0.20 over 100 blocks, 37.
+That is 1 − (1 − pfa)^2 to within a sigma both times: the slow-time axis is
+interpolated twofold and the maximum runs over the interpolated surface
+while the threshold's N counts native cells — **doppler#1064**, the open
+finding on the burst engine, which the continuous engine inherits with its
+slow-time axis. The CFAR counts every row of every tile (the cell count is
+pinned in `test_acq_core.c`); the factor is #1064's, and the `--check`
+pins the realized rate against `1 − (1 − pfa)^interp` so the finding cannot
+be mistaken for a regression, or a fix for one.
+
+**Sensitivity** (5 Mcps, one look, 20 trials, realized Pd and the mean
+peak-to-gate ratio):
+
+| D   | 30 dB-Hz   | 34 dB-Hz   | 38 dB-Hz   | 42 dB-Hz   |
+| --- | ---------- | ---------- | ---------- | ---------- |
+| 1   | 0.00 (0.8) | 0.00 (0.8) | 0.00 (0.8) | 0.00 (0.8) |
+| 16  | 0.00 (0.9) | 0.00 (0.9) | 0.35 (1.0) | 1.00 (1.5) |
+| 154 | 0.90 (1.2) | 1.00 (1.7) | 1.00 (2.7) | 1.00 (4.3) |
+
+A single epoch over ±50 kHz detects nothing to 42 dB-Hz with one look;
+D = 16 turns on between 38 and 42; **D = 154 is on at 30**. From 16 to
+154 the knee moves about 9 dB for 9.8 dB of depth — the depth buys what
+it says, less the straddle. What the operating point buys against the
+epoch-by-epoch searcher of §12.1 is therefore not one number but the
+whole gap between "never" and 30 dB-Hz at one look; and sized at the
+45 dB-Hz of §12.6, the engine's own sizer buys **15 non-coherent looks
+at D = 1 and one at D = 154** (measured on the same code and span). Its cost per epoch, and how the fan
+across threads takes it, is §12 step 13.
+
 ### 12.8 What was measured (2026-09-05) — step 13, the searcher's cost with D, and the fan
 
 `bench_acq_core` (`make bench`), on a 20-core Ryzen AI 9 465, minimum of

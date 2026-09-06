@@ -133,6 +133,8 @@ size_t async_dsss_pool_symbols(async_dsss_pool_state_t *state, size_t slot, floa
 
 int async_dsss_pool_set_event_log(async_dsss_pool_state_t *state, dp_event_log_t * log);
 
+int async_dsss_pool_set_refine_min_blocks(async_dsss_pool_state_t *state, size_t n_blocks);
+
   /* ── Serializable state (docs/design/state-serialization.md) ──────────
    * A composition: the pool's own counters and the table, then the
    * searcher's blob and every receiver's, each self-validating. Config

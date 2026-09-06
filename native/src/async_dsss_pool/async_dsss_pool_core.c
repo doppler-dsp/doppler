@@ -399,6 +399,15 @@ async_dsss_pool_symbols (async_dsss_pool_state_t *s, size_t slot,
 }
 
 int
+async_dsss_pool_set_refine_min_blocks (async_dsss_pool_state_t *s,
+                                       size_t                   n_blocks)
+{
+  for (size_t i = 0; i < s->n_slots; i++)
+    (void)async_dsss_receiver_set_refine_min_blocks (s->rx[i], n_blocks);
+  return DP_OK;
+}
+
+int
 async_dsss_pool_set_event_log (async_dsss_pool_state_t *s, dp_event_log_t *log)
 {
   s->log = log;

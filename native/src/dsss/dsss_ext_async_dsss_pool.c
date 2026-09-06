@@ -541,6 +541,19 @@ AsyncDsssPool_getprop_coherent_bins (AsyncDsssPoolObject *self,
       (unsigned long long)((self->handle->acq->coherent_bins)));
 }
 
+static PyObject *
+AsyncDsssPool_getprop_refine_min_blocks (AsyncDsssPoolObject *self,
+                                         void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)((self->handle->rx[0]->refine_min_blocks)));
+}
+
 static PyGetSetDef AsyncDsssPool_getset[] = {
   { "n_slots", (getter)AsyncDsssPool_getprop_n_slots, NULL,
     "Receivers the pool holds; it never exceeds this.\n", NULL },
@@ -562,6 +575,10 @@ static PyGetSetDef AsyncDsssPool_getset[] = {
   { "coherent_bins", (getter)AsyncDsssPool_getprop_coherent_bins, NULL,
     "The searcher's block-coherent depth D, from code_only_epochs and "
     "doppler_rate (section 2.3).\n",
+    NULL },
+  { "refine_min_blocks", (getter)AsyncDsssPool_getprop_refine_min_blocks, NULL,
+    "The receivers' floor on the refine dwell, blocks (default 7); set with "
+    "set_refine_min_blocks().\n",
     NULL },
   { NULL }
 };
@@ -594,6 +611,30 @@ AsyncDsssPoolObj_exit (AsyncDsssPoolObject *self, PyObject *args)
     {
       async_dsss_pool_destroy (self->handle);
       self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AsyncDsssPoolObj_set_refine_min_blocks (AsyncDsssPoolObject *self,
+                                        PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]    = { "n_blocks", NULL };
+  unsigned long long n_blocks_raw = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_blocks_raw))
+    return NULL;
+  size_t n_blocks = (size_t)n_blocks_raw;
+  int    _rc = async_dsss_pool_set_refine_min_blocks (self->handle, n_blocks);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "set_refine_min_blocks failed", (long long)_rc);
+      return NULL;
     }
   Py_RETURN_NONE;
 }
@@ -876,6 +917,46 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "set_refine_min_blocks",
+    (PyCFunction)(void *)AsyncDsssPoolObj_set_refine_min_blocks,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_refine_min_blocks(n_blocks) -> None\n"
+    "\n"
+    "Floor every receiver's refine dwell at n_blocks\n"
+    "(AsyncDsssReceiver.set_refine_min_blocks(); design section 12.16,\n"
+    "#1265): forwarded to all n_slots receivers, each applying it to the\n"
+    "next refine chain it builds. The receivers' default is 7 blocks; 0\n"
+    "removes the floor. Config, not running state.\n"
+    "\n"
+    "Forwarded to all `n_slots` receivers; each applies it to the next\n"
+    "refine chain it builds, so a slot already refining keeps its dwell. The\n"
+    "receivers' default is 7 blocks. Config, not running state.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n_blocks : int\n"
+    "    The floor, blocks; 0 removes it.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_refine_min_blocks failed``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssPool\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,\n"
+    "...                      spc=2, cn0_dbhz=45.0, n_slots=2)\n"
+    ">>> pool.refine_min_blocks\n"
+    "7\n"
+    ">>> pool.set_refine_min_blocks(12)\n"
+    ">>> pool.refine_min_blocks\n"
+    "12\n" },
   { NULL }
 };
 

@@ -246,7 +246,23 @@ params = [
   { name = "log", type = "dp_event_log_t *", capsule = "doppler.telemetry.dp_event_log", header = "dp_event_log/dp_event_log_core.h" },
 ]
 
+[[async_dsss_pool.methods]]
+name = "set_refine_min_blocks"
+doc = "Floor every receiver's refine dwell at n_blocks (AsyncDsssReceiver.set_refine_min_blocks(); design section 12.16, #1265): forwarded to all n_slots receivers, each applying it to the next refine chain it builds. The receivers' default is 7 blocks; 0 removes the floor. Config, not running state."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "n_blocks", type = "size_t" },
+]
+
 # ── Read-back ────────────────────────────────────────────────────────────
+[[async_dsss_pool.properties]]
+name = "refine_min_blocks"
+type = "size_t"
+expr = "(self->handle->rx[0]->refine_min_blocks)"
+doc = "The receivers' floor on the refine dwell, blocks (default 7); set with set_refine_min_blocks()."
+
 [[async_dsss_pool.properties]]
 name = "n_slots"
 type = "size_t"

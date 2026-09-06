@@ -42,6 +42,7 @@
 * **ASYNC\_DSSS\_RX\_LOCK\_N\_UP** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_LOCK\_UP** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_LOST** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
+* **ASYNC\_DSSS\_RX\_REFINE\_MIN\_BLOCKS** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_REFINING** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_SEARCHING** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_TRACKING** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))

@@ -108,6 +108,15 @@ adr_build_refine_chain (
       target_rate, s->symbol_rate, resolution_hz, s->refine_zero_pad,
       0 /* window=hann */, 0.0f, NULL, 0, s->pfa, s->pd, design_snr,
       s->refine_sequential, s->refine_max_n_blocks));
+  /* The dwell's floor (#1265, design section 12.16): det_n_noncoh sized it
+     for detection at the derated C/N0, which is two blocks at 45 dB-Hz
+     with the shipped margin, while the estimate's noise the tracking
+     chain must pull in from is 210 Hz there and 77 at seven. The floor is
+     bounded by the give-up cap, which stays the longest dwell allowed. */
+  if (ca->dwell_target < s->refine_min_blocks)
+    ca->dwell_target = s->refine_min_blocks;
+  if (ca->dwell_target > ca->max_n_blocks)
+    ca->dwell_target = ca->max_n_blocks;
 
   float _Complex *dll_out_buf
       = dp_xmalloc (s->refine_segments * sizeof (*dll_out_buf));
@@ -613,6 +622,7 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
   obj->refine_zero_pad           = refine_zero_pad;
   obj->refine_sequential         = refine_sequential;
   obj->refine_max_n_blocks       = refine_max_n_blocks;
+  obj->refine_min_blocks         = ASYNC_DSSS_RX_REFINE_MIN_BLOCKS;
   obj->carrier_freq_hz           = carrier_freq_hz;
 
   /* tsamps (one code period, samples) is fixed for this object's entire
@@ -939,6 +949,14 @@ async_dsss_receiver_configure_search_raw (async_dsss_receiver_state_t *state,
   if (!state->acq)
     return -1; /* hand-off mode: no search to pin */
   return acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
+}
+
+int
+async_dsss_receiver_set_refine_min_blocks (async_dsss_receiver_state_t *state,
+                                           size_t n_blocks)
+{
+  state->refine_min_blocks = n_blocks;
+  return DP_OK;
 }
 
 void

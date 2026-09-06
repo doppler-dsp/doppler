@@ -1124,6 +1124,45 @@ _test_one_flag_down_is_a_degrade (void)
 /* The blob is keyed by flavor: a hand-off receiver's state resumes
  * bit-for-bit into another hand-off receiver, and neither flavor accepts
  * the other's blob (the search engine is in one and not the other). */
+/* #1265: the refine's dwell is floored at refine_min_blocks whatever the
+   detection sizing asks. At 45 dB-Hz with the shipped margin det_n_noncoh
+   sizes two blocks -- 210 Hz of estimate noise, one hand-over in sixty
+   outside the chain's pull-in -- and the floor makes it seven (77 Hz).
+   Sabotage: drop the floor in adr_build_refine_chain() -> the default
+   receiver's dwell reads 2 -> red. */
+static int
+_test_refine_dwell_floor (void)
+{
+  uint8_t  code[1023];
+  uint32_t cst = 13;
+  for (size_t i = 0; i < 1023; i++)
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
+  async_dsss_receiver_state_t *rx = async_dsss_receiver_create_handoff (
+      code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 4, 8, 0, 0.5, 4, 14.0,
+      64, 8, false, 100000, 2.5e9, 2.0);
+  DP_REQUIRE (rx != NULL);
+  DP_CHECK (rx->refine_min_blocks == ASYNC_DSSS_RX_REFINE_MIN_BLOCKS);
+  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, 45.0) == DP_OK);
+  printf ("  refine dwell at 45 dB-Hz, margin 14: %zu blocks (floor %zu)\n",
+          rx->ca->dwell_target, rx->refine_min_blocks);
+  DP_CHECK_MSG (rx->ca->dwell_target >= ASYNC_DSSS_RX_REFINE_MIN_BLOCKS,
+                "the dwell is floored at refine_min_blocks");
+  /* Without the floor the detection sizing alone: two blocks here. */
+  async_dsss_receiver_reset (rx);
+  DP_CHECK (async_dsss_receiver_set_refine_min_blocks (rx, 0) == DP_OK);
+  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, 45.0) == DP_OK);
+  DP_CHECK_MSG (rx->ca->dwell_target < ASYNC_DSSS_RX_REFINE_MIN_BLOCKS,
+                "with the floor removed the detection sizing is shorter -- "
+                "the floor was binding");
+  /* A floor above the give-up cap is clamped to it. */
+  async_dsss_receiver_reset (rx);
+  DP_CHECK (async_dsss_receiver_set_refine_min_blocks (rx, 1000000) == DP_OK);
+  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, 45.0) == DP_OK);
+  DP_CHECK (rx->ca->dwell_target == rx->ca->max_n_blocks);
+  async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
 static int
 _test_handoff_state_roundtrip (void)
 {
@@ -1169,7 +1208,10 @@ _test_handoff_state_roundtrip (void)
   /* Tracking: split the stream, resume the second receiver from the blob,
    * and require the two to emit identical symbols from there on. */
   DP_CHECK (async_dsss_receiver_seed (ra, 0.0, 0.0, cn0) == DP_OK);
-  const size_t    split = pre_silence + te * 300;
+  /* 900 epochs before the split: the refine's dwell is floored at seven
+     blocks (#1265), 3 ms at this rate, and the split must find the
+     receiver tracking with symbols already out. */
+  const size_t    split = pre_silence + te * 900;
   float _Complex *syms;
   size_t n_a = _stream (ra, x + pre_silence, split - pre_silence, te, &syms);
   free (syms);
@@ -1416,6 +1458,7 @@ main (void)
   (void)_test_seed_on_searching_flavor ();
   (void)_test_lost_after_switch_off ();
   (void)_test_one_flag_down_is_a_degrade ();
+  (void)_test_refine_dwell_floor ();
   (void)_test_handoff_state_roundtrip ();
   (void)_test_status_record ();
 

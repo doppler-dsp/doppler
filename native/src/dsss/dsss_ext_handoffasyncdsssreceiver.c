@@ -678,6 +678,19 @@ HandoffAsyncDsssReceiver_getprop_code_locked (
       (long)async_dsss_receiver_get_code_locked (self->handle));
 }
 
+static PyObject *
+HandoffAsyncDsssReceiver_getprop_refine_min_blocks (
+    HandoffAsyncDsssReceiverObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)self->handle->refine_min_blocks);
+}
+
 static PyGetSetDef HandoffAsyncDsssReceiver_getset[] = {
   { "tracking", (getter)HandoffAsyncDsssReceiver_getprop_tracking, NULL,
     "1 once the live tracking chain is built and demodulating; 0 while "
@@ -770,6 +783,11 @@ static PyGetSetDef HandoffAsyncDsssReceiver_getset[] = {
     "Binary code-lock flag from the live tracking Dll's own verify-counted "
     "(pfa-tuned) lock detector -- the fundamental DSSS \"am I despreading\" "
     "lock, de-chattered by up/down hysteresis.\n",
+    NULL },
+  { "refine_min_blocks",
+    (getter)HandoffAsyncDsssReceiver_getprop_refine_min_blocks, NULL,
+    "Floor on the refine's dwell, blocks (default 7); set with "
+    "set_refine_min_blocks().\n",
     NULL },
   { NULL }
 };
@@ -877,6 +895,30 @@ HandoffAsyncDsssReceiverObj_status (HandoffAsyncDsssReceiverObject *self,
       _o, 12,
       PyLong_FromUnsignedLongLong ((unsigned long long)_r.both_down_samples));
   return _o;
+}
+
+static PyObject *
+HandoffAsyncDsssReceiverObj_set_refine_min_blocks (
+    HandoffAsyncDsssReceiverObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[]    = { "n_blocks", NULL };
+  unsigned long long n_blocks_raw = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_blocks_raw))
+    return NULL;
+  size_t n_blocks = (size_t)n_blocks_raw;
+  int _rc = async_dsss_receiver_set_refine_min_blocks (self->handle, n_blocks);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "set_refine_min_blocks failed", (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
 }
 
 static PyMethodDef HandoffAsyncDsssReceiverObj_methods[] = {
@@ -1287,6 +1329,57 @@ static PyMethodDef HandoffAsyncDsssReceiverObj_methods[] = {
     ">>> _ = rx.steps(np.zeros(2046, np.complex64))\n"
     ">>> rx.status().state_samples                             # since seed\n"
     "2046\n" },
+  { "set_refine_min_blocks",
+    (PyCFunction)(void *)HandoffAsyncDsssReceiverObj_set_refine_min_blocks,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_refine_min_blocks(n_blocks) -> None\n"
+    "\n"
+    "Floor the refine's dwell at n_blocks whatever the detection sizing\n"
+    "asks (design section 12.16, #1265): CarrierAcquisition's dwell is sized\n"
+    "for detection at the derated C/N0 and shortens as the C/N0 rises -- two\n"
+    "blocks at 45 dB-Hz with the shipped margin -- while the noise of the\n"
+    "estimate it hands the tracking chain does not shorten with it (210 Hz\n"
+    "at two blocks against a chain that pulls in from a few hundred). The\n"
+    "default of 7 blocks (42 ms) holds it to 77 Hz. Applied to the next\n"
+    "refine chain built; 0 removes the floor; clamped by\n"
+    "refine_max_n_blocks. Config, not running state.\n"
+    "\n"
+    "CarrierAcquisition's dwell is sized for DETECTION at the derated C/N0\n"
+    "(`cn0_dbhz - refine_design_margin_db`), so it shortens as the C/N0\n"
+    "rises -- two blocks at 45 dB-Hz with the shipped margin -- while the\n"
+    "noise of the estimate it hands the tracking chain does not shorten with\n"
+    "it: 210 Hz at two blocks against a chain that pulls in from a few\n"
+    "hundred, so one hand-over in sixty landed outside and tracked the code\n"
+    "with the carrier never locked. Seven blocks (42 ms, the default and\n"
+    "section 12.10's floor dwell) hold the estimate to 77 Hz. Applied to the\n"
+    "next refine chain built -- a receiver already refining keeps its dwell.\n"
+    "Config, not running state: not in the blob. `n_blocks` of 0 removes the\n"
+    "floor; the value is clamped by `refine_max_n_blocks` where that cap is\n"
+    "lower.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n_blocks : int\n"
+    "    The floor, blocks.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_refine_min_blocks failed``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.dsss import AsyncDsssReceiver\n"
+    ">>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,\n"
+    "...                        symbol_rate=1e6 / 28.0, spc=4, "
+    "cn0_dbhz=60.0)\n"
+    ">>> rx.refine_min_blocks                     # the default floor\n"
+    "7\n"
+    ">>> rx.set_refine_min_blocks(12)\n"
+    ">>> rx.refine_min_blocks\n"
+    "12\n" },
   { NULL }
 };
 

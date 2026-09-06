@@ -291,6 +291,16 @@ params = [
 ]
 
 [[async_dsss_receiver.methods]]
+name = "set_refine_min_blocks"
+doc = "Floor the refine's dwell at n_blocks whatever the detection sizing asks (design section 12.16, #1265): CarrierAcquisition's dwell is sized for detection at the derated C/N0 and shortens as the C/N0 rises -- two blocks at 45 dB-Hz with the shipped margin -- while the noise of the estimate it hands the tracking chain does not shorten with it (210 Hz at two blocks against a chain that pulls in from a few hundred). The default of 7 blocks (42 ms) holds it to 77 Hz. Applied to the next refine chain built; 0 removes the floor; clamped by refine_max_n_blocks. Config, not running state."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+    { name = "n_blocks", type = "size_t" },
+]
+
+[[async_dsss_receiver.methods]]
 name = "configure_lock_raw"
 doc = "Re-tune the live-tracking Dll's code-lock detector directly. Only meaningful once tracking has begun; a no-op while searching or refining."
 arg_type = "void"
@@ -321,6 +331,12 @@ name = "reset"
 doc = "Return to the searching state: resets the embedded Acquisition and frees every refine-stage/track-stage child (rebuilt from scratch on the next hit)."
 arg_type = "void"
 return_type = "void"
+
+[[async_dsss_receiver.properties]]
+name = "refine_min_blocks"
+type = "size_t"
+field = true
+doc = "Floor on the refine's dwell, blocks (default 7); set with set_refine_min_blocks()."
 
 [[async_dsss_receiver.properties]]
 name = "tracking"

@@ -192,6 +192,10 @@ extern "C"
    * (>= 30). A hysteretic lockdet (lockdet_core.h) then declares `locked`
    * after LOCK_N_UP consecutive symbols with the metric >= LOCK_UP and drops
    * it after LOCK_N_DOWN below LOCK_DOWN. */
+/** Default floor on the refine's dwell, blocks -- section 12.10's floor
+ *  dwell (77 Hz of estimate noise at 45 dB-Hz); see
+ *  async_dsss_receiver_set_refine_min_blocks(). */
+#define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
 #define ASYNC_DSSS_RX_LOCK_DWELL 30u
 #define ASYNC_DSSS_RX_LOCK_UP 0.5
 #define ASYNC_DSSS_RX_LOCK_DOWN 0.3
@@ -311,6 +315,12 @@ extern "C"
     size_t refine_zero_pad;
     bool   refine_sequential;
     size_t refine_max_n_blocks;
+    size_t refine_min_blocks; /**< floor on the refine's dwell, blocks: the
+                                   detection sizing above needs fewer blocks
+                                   the higher the C/N0, but the estimate the
+                                   carrier chain must pull in from does not
+                                   sharpen with it (design section 12.16,
+                                   #1265). Config; set_refine_min_blocks(). */
     double carrier_freq_hz; /**< nominal RF carrier, Hz; > 0 enables the
                                  carrier->code rate aiding, 0 = off (config,
                                  not running state -- restored by create). */
@@ -918,6 +928,41 @@ extern "C"
   int async_dsss_receiver_configure_search_raw (
       async_dsss_receiver_state_t *state, size_t doppler_bins,
       size_t n_noncoh);
+
+  /**
+   * @brief Floor the refine's dwell at @p n_blocks, whatever the detection
+   *        sizing asks (design section 12.16, #1265).
+   *
+   * CarrierAcquisition's dwell is sized for DETECTION at the derated C/N0
+   * (`cn0_dbhz - refine_design_margin_db`), so it shortens as the C/N0
+   * rises -- two blocks at 45 dB-Hz with the shipped margin -- while the
+   * noise of the estimate it hands the tracking chain does not shorten
+   * with it: 210 Hz at two blocks against a chain that pulls in from a few
+   * hundred, so one hand-over in sixty landed outside and tracked the code
+   * with the carrier never locked. Seven blocks (42 ms, the default and
+   * section 12.10's floor dwell) hold the estimate to 77 Hz. Applied to
+   * the next refine chain built -- a receiver already refining keeps its
+   * dwell. Config, not running state: not in the blob. `n_blocks` of 0
+   * removes the floor; the value is clamped by `refine_max_n_blocks`
+   * where that cap is lower.
+   *
+   * @param state     Must be non-NULL.
+   * @param n_blocks  The floor, blocks.
+   * @return `DP_OK`.
+   * @code
+   * >>> from doppler.dsss import AsyncDsssReceiver
+   * >>> rx = AsyncDsssReceiver(code=[1, 0, 1, 1, 0, 0, 1], chip_rate=1e6,
+   * ...                        symbol_rate=1e6 / 28.0, spc=4, cn0_dbhz=60.0)
+   * >>> rx.refine_min_blocks                     # the default floor
+   * 7
+   * >>> rx.set_refine_min_blocks(12)
+   * >>> rx.refine_min_blocks
+   * 12
+   *
+   * @endcode
+   */
+  int async_dsss_receiver_set_refine_min_blocks (
+      async_dsss_receiver_state_t *state, size_t n_blocks);
 
   /**
    * @brief Re-tune the live-tracking Dll's code-lock detector directly.

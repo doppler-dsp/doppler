@@ -725,6 +725,7 @@
 * **refine\_dll\_out\_cap** ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **refine\_max\_error\_db** ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **refine\_max\_n\_blocks** ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
+* **refine\_min\_blocks** ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **refine\_n\_fft** ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **refine\_rc** ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **refine\_rc\_out\_buf** ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))

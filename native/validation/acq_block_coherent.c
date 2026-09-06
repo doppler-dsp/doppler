@@ -111,7 +111,8 @@ typedef struct
 } block_t;
 
 /* One engine at chip_rate with the depth its window buys (or a chosen
-   code_only_epochs when `epochs` > 0), sized for one look. */
+   code_only_epochs when `epochs` > 0), the surface kept. The caller
+   requires ONE_LOOK of it: this harness reads one block per decision. */
 static acq_state_t *
 engine_open (const uint8_t *code, double chip_rate, size_t epochs, double pfa)
 {
@@ -119,20 +120,13 @@ engine_open (const uint8_t *code, double chip_rate, size_t epochs, double pfa)
   acq_state_t *a = acq_create_continuous (code, SF, SPC, chip_rate,
                                           SYMBOL_RATE, SIZING_CN0, DU, pfa, PD,
                                           0, W, epochs ? 0.0 : RATE);
-  if (!a)
-    return NULL;
-  if (a->n_noncoh != 1)
-    {
-      fprintf (stderr,
-               "engine sized n_noncoh=%zu; this harness reads one "
-               "block per decision and needs 1\n",
-               a->n_noncoh);
-      acq_destroy (a);
-      return NULL;
-    }
-  a->keep_surface = 1;
+  if (a)
+    a->keep_surface = 1;
   return a;
 }
+#define ONE_LOOK(a)                                                           \
+  DP_REQUIRE_MSG ((a) && (a)->n_noncoh == 1,                                  \
+                  "the engine is sized to one look (n_noncoh == 1)")
 
 /* One block of the emitter (or of noise), at tile TILE plus `frac` of a
    row, code phase TAU0, at cn0_dbhz (0 = clean), rendered by the shipped
@@ -188,19 +182,9 @@ measure (const uint8_t *code, acq_state_t *a, block_kind_t kind, double frac,
       }
       break;
     }
-  if (!syn || rc != 0)
-    {
-      fprintf (stderr, "wfm_synth setup failed\n");
-      wfm_synth_destroy (syn);
-      return 1;
-    }
+  DP_REQUIRE_MSG (syn && rc == 0, "the synth takes the block's waveform");
   const size_t   blk = D * nx;
-  float complex *raw = malloc ((discard + blk) * sizeof *raw);
-  if (!raw)
-    {
-      wfm_synth_destroy (syn);
-      return 1;
-    }
+  float complex *raw = dp_xmalloc ((discard + blk) * sizeof *raw);
   if (kind == BLK_NOISE)
     wfm_synth_noise_steps (syn, raw, discard + blk);
   else
@@ -208,15 +192,9 @@ measure (const uint8_t *code, acq_state_t *a, block_kind_t kind, double frac,
   acq_result_t hit[4];
   acq_reset (a);
   size_t nh = acq_push (a, raw + discard, blk, hit, 4);
-  float *s  = malloc (a->n_surf * sizeof *s);
-  if (!s || acq_surface (a, s, a->n_surf) != a->n_surf)
-    {
-      fprintf (stderr, "the surface tap returned nothing\n");
-      free (s);
-      free (raw);
-      wfm_synth_destroy (syn);
-      return 1;
-    }
+  float *s  = dp_xmalloc (a->n_surf * sizeof *s);
+  DP_REQUIRE_MSG (acq_surface (a, s, a->n_surf) == a->n_surf,
+                  "the surface tap reads the decided block");
   out->D         = D;
   out->tiles     = tiles;
   out->rows      = rows;
@@ -267,19 +245,14 @@ measure (const uint8_t *code, acq_state_t *a, block_kind_t kind, double frac,
 static const char *
 kind_name (block_kind_t k)
 {
-  switch (k)
-    {
-    case BLK_ALIGNED:
-      return "aligned (pure code)";
-    case BLK_FLIP_MID:
-      return "one transition mid-block";
-    case BLK_PRBS:
-      return "PRBS data, whole block";
-    case BLK_WINDOW_EDGE:
-      return "window edge mid-block";
-    default:
-      return "noise";
-    }
+  static const char *const names[] = {
+    [BLK_ALIGNED]     = "aligned (pure code)",
+    [BLK_FLIP_MID]    = "one transition mid-block",
+    [BLK_PRBS]        = "PRBS data, whole block",
+    [BLK_WINDOW_EDGE] = "window edge mid-block",
+    [BLK_NOISE]       = "noise",
+  };
+  return names[k];
 }
 
 int
@@ -288,7 +261,6 @@ main (int argc, char **argv)
   int     check = (argc > 1 && strcmp (argv[1], "--check") == 0);
   uint8_t code[SF];
   gold_1023 (code);
-  int rc = 0;
 
   /* ── the floor, and the straddles: one clean emitter per block ────── */
   const double rates[2] = { 5.0e6, 2.0e6 };
@@ -296,8 +268,7 @@ main (int argc, char **argv)
   for (int i = 0; i < (check ? 1 : 2); i++)
     {
       acq_state_t *a = engine_open (code, rates[i], 0, 1e-3);
-      if (!a)
-        return 1;
+      ONE_LOOK (a);
       printf ("\n%.0f Mcps: %zu tiles x D = %zu rows (%zu whole code-only "
               "epochs, rate %.0f Hz/s), %.1f Hz per row, %zu surface rows\n",
               rates[i] / 1e6, a->window_bins, a->coherent_bins,
@@ -309,8 +280,8 @@ main (int argc, char **argv)
       for (int kd = BLK_ALIGNED; kd <= BLK_WINDOW_EDGE; kd++)
         {
           block_t b;
-          if (measure (code, a, (block_kind_t)kd, 0.25, 0.0, 11u, &b))
-            return 1;
+          DP_REQUIRE (measure (code, a, (block_kind_t)kd, 0.25, 0.0, 11u, &b)
+                      == 0);
           if (kd == BLK_ALIGNED)
             aligned[i] = b;
           printf ("  %-26s %5.1f/%-4.1f %-8.2f %-6.1f %-6.1f %-6.1f %-6.1f "
@@ -349,14 +320,14 @@ main (int argc, char **argv)
     const double pfa    = check ? 0.2 : 0.1;
     const int    blocks = check ? 100 : 300;
     acq_state_t *a      = engine_open (code, 5.0e6, 31, pfa);
-    if (!a)
-      return 1;
+    ONE_LOOK (a);
     int fired = 0;
     for (int t = 0; t < blocks; t++)
       {
         block_t b;
-        if (measure (code, a, BLK_NOISE, 0.0, 45.0, 1000u + (uint32_t)t, &b))
-          return 1;
+        DP_REQUIRE (
+            measure (code, a, BLK_NOISE, 0.0, 45.0, 1000u + (uint32_t)t, &b)
+            == 0);
         fired += b.hit;
       }
     /* The slow-time axis is interpolated `interp`-fold and the maximum runs
@@ -397,8 +368,7 @@ main (int argc, char **argv)
     for (int e = 0; e < 3; e++)
       {
         acq_state_t *a = engine_open (code, 5.0e6, epochs[e], 1e-3);
-        if (!a)
-          return 1;
+        ONE_LOOK (a);
         printf ("  %-6zu", a->coherent_bins);
         for (int c = 0; c < (check ? 2 : 4); c++)
           {
@@ -410,9 +380,9 @@ main (int argc, char **argv)
             for (int t = 0; t < trials; t++)
               {
                 block_t b;
-                if (measure (code, a, BLK_ALIGNED, 0.25, cn0,
-                             5000u + (uint32_t)(100 * c + t), &b))
-                  return 1;
+                DP_REQUIRE (measure (code, a, BLK_ALIGNED, 0.25, cn0,
+                                     5000u + (uint32_t)(100 * c + t), &b)
+                            == 0);
                 hits += b.hit;
                 marg += b.peak_stat / b.gate;
               }
@@ -435,5 +405,5 @@ main (int argc, char **argv)
   }
   if (check)
     DP_TEST_END ("validate_acq_block_coherent");
-  return rc;
+  return 0;
 }

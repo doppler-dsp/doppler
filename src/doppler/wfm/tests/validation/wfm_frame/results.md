@@ -84,7 +84,7 @@ The claim's mechanism is that a caller allocates a kind from `WFM_STAGE_USER` (0
 | step | result |
 |---|---|
 | `add_stage(0x1001, ...)` | accepted, index 0 |
-| `build()` | refused: `build failed (rc=-1)` |
+| `build()` | refused: `cannot build: the description is empty, unbuildable, names a stage no kernel here covers, or was already built (rc=-1)` |
 
 The refusal is the designed behaviour -- no kernel, no frame, never a silent skip -- and it is the same answer a declared-but-unsupplied built-in gets. What is missing is the other half: nothing on the Python face can supply one. So the five built-in kinds are the whole reachable menu from Python, which is the "fixed menu" the header argues against. Filed as gh-1125; the representation itself is unaffected (§2.1, §2.2).
 

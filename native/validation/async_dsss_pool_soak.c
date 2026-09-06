@@ -83,6 +83,12 @@
  *                                            and re-acquired, the other
  *                                            leaving, released, returning
  *                                            and re-acquired
+ *   ... --duration S                         the sweep's length per C/N0
+ *                                            (SWEEP_S unless given): the
+ *                                            duration requirement of §5.1
+ *                                            run as long as the machine
+ *                                            allows -- the heap after the
+ *                                            warm-up is asserted flat
  *   ... --refine-margin DB                   the receivers' refine design
  *                                            margin (the pool's 14 dB
  *                                            unless given): the dwell it
@@ -106,7 +112,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <unistd.h>
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
 
 #define SF 1023u
 #define SPC 2u
@@ -366,6 +376,18 @@ typedef struct
   double   seed_hz_max, seed_chip_max;
   size_t   log_seeded, log_tracking, log_degrade, log_lost, log_rel_lost,
       log_rel_on_time, log_dropped, log_lines;
+  double heap_base, heap_max, heap_end; /* bytes: the baseline is taken
+                                           after the warm-up and again at
+                                           every slot's first tracking --
+                                           a receiver builds its chains
+                                           on its first seed and hand-over
+                                           -- so a step there is a first
+                                           use, and what remains is growth
+                                           with time                     */
+  double heap_step_max;                 /* the largest such first-use step */
+  double rss_base_kib, rss_end_kib;     /* resident high-water mark      */
+  double warm_s;
+  size_t slots_used; /* slots that have tracked once   */
 } totals_t;
 
 static void
@@ -414,6 +436,34 @@ count_log (const char *path, totals_t *t)
 }
 
 static const char *g_events_dir = NULL;
+/* --duration S: the sweep's length per C/N0 -- the duration requirement
+   of section 5.1 run as long as the machine allows; nothing in the pool
+   may grow with time. */
+static double g_duration_s = 0.0;
+
+/* The heap the process holds, bytes: glibc's own count of in-use arena
+   and mmap bytes where it exists, else the resident high-water mark
+   (which can only rise, so growth reads the same way). */
+static double
+heap_bytes (void)
+{
+#ifdef __GLIBC__
+  struct mallinfo2 mi = mallinfo2 ();
+  return (double)mi.uordblks + (double)mi.hblkhd;
+#else
+  struct rusage ru;
+  getrusage (RUSAGE_SELF, &ru);
+  return (double)ru.ru_maxrss * 1024.0;
+#endif
+}
+
+static double
+rss_kib (void)
+{
+  struct rusage ru;
+  getrusage (RUSAGE_SELF, &ru);
+  return (double)ru.ru_maxrss;
+}
 /* --refine-margin: the receivers' refine_design_margin_db, the pool's
    default of 14 dB unless given -- the dwell it sizes is #1265's axis. */
 static double g_refine_margin_db = 14.0;
@@ -423,6 +473,7 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
           totals_t *t)
 {
   memset (t, 0, sizeof *t);
+  t->warm_s    = cfg->duration_s * 0.2 < 6.0 ? 6.0 : cfg->duration_s * 0.2;
   emitter_t *e = dp_xcalloc (cfg->n_emit, sizeof *e);
   for (size_t k = 0; k < cfg->n_emit; k++)
     DP_REQUIRE (make_emitter (&e[k], k, cfg, code) == 0);
@@ -485,6 +536,8 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
      ran and then read lower had a flag come back for a block. */
   uint64_t prev_down[N_SLOTS];
   memset (prev_down, 0, sizeof prev_down);
+  int slot_tracked[N_SLOTS]; /* has tracked at least once (chains built) */
+  memset (slot_tracked, 0, sizeof slot_tracked);
   /* Code-phase crossings (trace): two on-air emitters within two chips of
      each other put one's full peak through the other's prompt correlator
      for as long as the crossing lasts -- seconds when their Dopplers are
@@ -511,6 +564,38 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
       const uint64_t drops_before = p->dropped;
       size_t         assigned     = async_dsss_pool_push (p, x, TE);
       const int      new_drops    = p->dropped > drops_before;
+      /* The duration requirement (section 5.1): after a warm-up long
+         enough for every buffer to reach its high-water mark -- the
+         symbol buffer at the first push, the log's first event of every
+         label, the searcher's and receivers' scratch -- the heap must not
+         grow. Sampled once a second. */
+      if (b % (samples (1.0) / TE) == 0)
+        {
+          const double t_now = (double)now / FS;
+          const double h     = heap_bytes ();
+          if (t_now >= t->warm_s)
+            {
+              size_t used = 0;
+              for (size_t i = 0; i < N_SLOTS; i++)
+                used += slot_tracked[i];
+              if (t->heap_base == 0.0 || used > t->slots_used)
+                {
+                  /* A new baseline: the warm-up's end, or a slot that has
+                     just tracked for the first time (its chains are built
+                     now). The step from the last high-water mark is the
+                     first use's, kept apart from growth. */
+                  if (t->heap_base > 0.0 && h - t->heap_max > t->heap_step_max)
+                    t->heap_step_max = h - t->heap_max;
+                  t->heap_base    = h;
+                  t->heap_max     = h;
+                  t->rss_base_kib = rss_kib ();
+                  t->slots_used   = used;
+                }
+              if (h > t->heap_max)
+                t->heap_max = h;
+              t->heap_end = h;
+            }
+        }
       if (assigned > t->max_assigned)
         t->max_assigned = assigned;
       const uint64_t end = now + TE;
@@ -533,6 +618,7 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
                         ? ""
                         : " (its emitter is off the air)");
           prev_down[i] = r[i].assigned ? r[i].both_down_samples : 0;
+          slot_tracked[i] |= r[i].state == ASYNC_DSSS_RX_TRACKING;
           if (!r[i].assigned)
             {
               owner[i]      = cfg->n_emit;
@@ -881,6 +967,15 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
       t->held_blocks ? (double)t->trk_blocks / (double)t->held_blocks : 0.0,
       t->held_blocks,
       t->held_blocks ? (double)t->sym_blocks / (double)t->held_blocks : 0.0);
+  t->rss_end_kib = rss_kib ();
+  printf ("  heap %.1f MiB after the %.0f s warm-up; %zu slots tracked at "
+          "least once, the largest first-use step %.1f KiB; since the last "
+          "first use: at most %+.1f KiB, at the end %+.1f KiB; resident "
+          "high-water mark %.1f MiB -> %.1f MiB\n",
+          t->heap_base / 1048576.0, t->warm_s, t->slots_used,
+          t->heap_step_max / 1024.0, (t->heap_max - t->heap_base) / 1024.0,
+          (t->heap_end - t->heap_base) / 1024.0, t->rss_base_kib / 1024.0,
+          t->rss_end_kib / 1024.0);
   printf ("  event log: %zu lines for %llu transitions -- seeded %zu, "
           "tracking %zu, degrade %zu, lost %zu, released %zu (lost) + %zu "
           "(on_time), dropped %zu\n\n",
@@ -890,6 +985,14 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
 
   /* The lifecycle's expectations (§12 step 7), asserted on every run. */
   DP_CHECK_MSG (t->scored > 0 && t->n_assign > 0, "stints were scored");
+  /* Nothing grows with time (section 5.1): the heap after the warm-up is
+     the heap for the rest of the run, to within a page of allocator
+     slack; the resident mark likewise. */
+  DP_CHECK_MSG (t->heap_base > 0.0 && t->heap_max - t->heap_base <= 4096.0,
+                "the heap does not grow once every slot in use has built "
+                "its chains");
+  DP_CHECK_MSG (t->rss_end_kib - t->rss_base_kib <= 1024.0,
+                "the resident high-water mark does not move from there");
   DP_CHECK_MSG (t->missed == 0, "no emitter above the floor is missed");
   DP_CHECK_MSG (t->false_rel == 0,
                 "no emitter is released while on the air by the rule");
@@ -948,6 +1051,8 @@ main (int argc, char **argv)
         g_events_dir = argv[++a];
       else if (strcmp (argv[a], "--refine-margin") == 0 && a + 1 < argc)
         g_refine_margin_db = atof (argv[++a]);
+      else if (strcmp (argv[a], "--duration") == 0 && a + 1 < argc)
+        g_duration_s = atof (argv[++a]);
     }
   uint8_t code[SF];
   gold_1023 (code);
@@ -979,8 +1084,11 @@ main (int argc, char **argv)
   const double cn0s[] = { 45.0, 40.0 };
   for (size_t ci = 0; ci < 2; ci++)
     {
-      const cfg_t cfg
-          = { cn0s[ci], SWEEP_EMIT, SWEEP_S, 15.0, 30.0, 4.0, 8.0, 35.0, 1u };
+      const cfg_t cfg = {
+        cn0s[ci], SWEEP_EMIT, g_duration_s > 0.0 ? g_duration_s : SWEEP_S,
+        15.0,     30.0,       4.0,
+        8.0,      35.0,       1u
+      };
       totals_t t;
       printf ("=== C/N0 %.0f dB-Hz (Es/N0 %.1f dB) ===\n", cfg.cn0_dbhz,
               cfg.cn0_dbhz - 10.0 * log10 (SYM_RATE));

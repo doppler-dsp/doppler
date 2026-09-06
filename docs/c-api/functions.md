@@ -464,6 +464,7 @@
 
 * **dp\_fftfreq** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_fftfreq\_index** ([**clib\_common.h**](clib__common_8h.md))
+* **dp\_fmod\_pos** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_xcalloc** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_xmalloc** ([**clib\_common.h**](clib__common_8h.md))
 * **dp\_xnn** ([**clib\_common.h**](clib__common_8h.md))

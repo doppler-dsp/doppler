@@ -7,6 +7,7 @@
 #include <complex.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -163,6 +164,33 @@ static inline double
 dp_fftfreq (size_t bin, size_t n, double fs)
 {
   return (n == 0) ? 0.0 : (double)dp_fftfreq_index (bin, n) * fs / (double)n;
+}
+
+/**
+ * @brief @p x folded into `[0, m)` for either sign of @p x.
+ *
+ * C's `fmod()` keeps the dividend's sign, so a negative @p x comes back in
+ * `(-m, 0]` and every caller that wants a phase, a frequency or an index on
+ * a periodic axis has to add @p m back. That fix-up had been written by hand
+ * five times in this library -- a code phase in chips, a harmonic into the
+ * analysed band, a table index, the DLL's replica tap and a hand-over phase
+ * -- before this became its one home (doppler#1249); the gate
+ * `scripts/check_fmod_fold_sites.py` fails on the sixth.
+ *
+ * External inline (JM_FORCEINLINE), not `static inline` like its
+ * neighbours: the DLL's replica tap is an external inline in a header, and
+ * C99 6.7.4 forbids such a function from referencing one with internal
+ * linkage -- the compiler said so.
+ *
+ * @param x  Any real value.
+ * @param m  The period (> 0).
+ * @return @p x modulo @p m, in `[0, m)`.
+ */
+JM_FORCEINLINE double
+dp_fmod_pos (double x, double m)
+{
+  double r = fmod (x, m);
+  return r < 0.0 ? r + m : r;
 }
 
 #endif /* DOPPLER_CLIB_COMMON_H */

@@ -149,9 +149,7 @@ build_complex (tonemeas_state_t *s, const float _Complex *x, size_t n_in)
 static double
 fold_harmonic (double f, double fs, int is_real)
 {
-  double g = fmod (f, fs);
-  if (g < 0.0)
-    g += fs;
+  double g = dp_fmod_pos (f, fs);
   if (is_real)
     return (g <= fs / 2.0) ? g : (fs - g);
   return (g >= fs / 2.0) ? (g - fs) : g; /* wrap into [-fs/2, fs/2) */

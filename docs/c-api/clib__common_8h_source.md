@@ -15,6 +15,7 @@
 #include <complex.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -107,6 +108,13 @@ static inline double
 dp_fftfreq (size_t bin, size_t n, double fs)
 {
   return (n == 0) ? 0.0 : (double)dp_fftfreq_index (bin, n) * fs / (double)n;
+}
+
+JM_FORCEINLINE double
+dp_fmod_pos (double x, double m)
+{
+  double r = fmod (x, m);
+  return r < 0.0 ? r + m : r;
 }
 
 #endif /* DOPPLER_CLIB_COMMON_H */

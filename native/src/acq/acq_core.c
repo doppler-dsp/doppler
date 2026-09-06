@@ -52,11 +52,8 @@ acq_cn0_dbhz_from_amp_snr (float amp_snr, double fs)
 static inline double
 acq_chip_phase_of_col (size_t col, size_t code_len, size_t spc)
 {
-  const double cl    = (double)code_len;
-  double       phase = fmod (cl - (double)col / (double)spc, cl);
-  if (phase < 0.0)
-    phase += cl;
-  return phase;
+  const double cl = (double)code_len;
+  return dp_fmod_pos (cl - (double)col / (double)spc, cl);
 }
 /* Doppler-band mask: with a doppler_uncertainty prior the engine scans only
  * searched_bins rows centred on DC, so the peak search must match (else the

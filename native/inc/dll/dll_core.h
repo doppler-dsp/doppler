@@ -244,9 +244,7 @@ JM_FORCEINLINE float
 dll_replica(const dll_state_t *s, double c)
 {
     double sfd2 = 2.0 * (double)s->sf;
-    double p = fmod(c * 2.0 - 0.5, sfd2);
-    if (p < 0.0)
-        p += sfd2;
+    double p = dp_fmod_pos(c * 2.0 - 0.5, sfd2);
     size_t i = (size_t)p;
     double mu = p - (double)i;
     size_t j = (i + 1 >= (size_t)sfd2) ? 0 : i + 1;

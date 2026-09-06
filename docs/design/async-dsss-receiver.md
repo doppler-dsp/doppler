@@ -1645,6 +1645,35 @@ bookkeeping error cannot become a double assignment. The transitions —
 `seeded`, `tracking`, `degrade`, `lost`, `released`, `dropped` — are the
 event log's annotations, at the sample the receiver's record reports.
 
+One slot, as the pool drives it — the receiver's own states, the pool's
+transitions between them, and the label each one writes to the log:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> idle : create(), reset()
+    idle --> refining : a peak at no live row's code phase, a free slot — seed(), «seeded»
+    state assigned {
+        refining --> tracking : the refine hands over — «tracking»
+        tracking --> tracking : one flag down — «degrade»
+        tracking --> lost : both flags down longer than lost_confirm_s — «lost»
+    }
+    lost --> idle : the row cleared, reset() — «released» (lost)
+    assigned --> idle : held past max_emitter_on_time_secs — «released» (on_time)
+    note right of idle
+        A peak within a chip of a live row's code phase is that
+        emitter's own: nothing happens and nothing is logged.
+        A peak with no free slot is counted and logged «dropped»
+        and moves no slot.
+    end note
+```
+
+The receiver decides `lost` (§10) and the pool acts on it; the pool alone
+decides the on-time release, and nothing else takes a slot from a live
+receiver. `idle` is the hand-off flavor's resting state — waiting for a
+seed, never searching — and a released emitter still on the air re-enters
+at its next window as a new detection.
+
 What comes out, per slot and by index, the `burst_capture` shape: the
 status record by value, and the symbols the receiver decided on this
 push, borrowed by pointer from a buffer sized at create by

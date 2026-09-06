@@ -907,11 +907,9 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
           double dilation = refined_doppler_hz_est / state->carrier_freq_hz;
           double chips_elapsed
               = (double)samples_consumed_refine / (double)state->spc;
-          /* Folded into [0, code_len) for either sign of the dilation (an
-             opening range retreats the phase). */
-          const double L      = (double)state->code_len;
-          handover_chip_phase = fmod (
-              fmod (handover_chip_phase + dilation * chips_elapsed, L) + L, L);
+          handover_chip_phase
+              = dp_fmod_pos (handover_chip_phase + dilation * chips_elapsed,
+                             (double)state->code_len);
         }
       adr_rebuild_track_chain (state, handover_chip_phase,
                                refined_doppler_hz_est, state->segments,

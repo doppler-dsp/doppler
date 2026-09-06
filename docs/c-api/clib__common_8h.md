@@ -13,6 +13,7 @@
 * `#include <complex.h>`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
+* `#include <math.h>`
 * `#include <stdlib.h>`
 * `#include <string.h>`
 * `#include "jm_perf.h"`
@@ -53,6 +54,11 @@
 
 
 
+## Public Functions
+
+| Type | Name |
+| ---: | :--- |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**dp\_fmod\_pos**](#function-dp_fmod_pos) (double x, double m) <br>`x` _folded into_`[0, m)` _for either sign of_`x` _._ |
 
 
 ## Public Static Functions
@@ -107,6 +113,50 @@
 | define  | [**DP\_ERR\_TOO\_LARGE**](clib__common_8h.md#define-dp_err_too_large)  `(-7)`<br> |
 | define  | [**DP\_OK**](clib__common_8h.md#define-dp_ok)  `0`<br> |
 
+## Public Functions Documentation
+
+
+
+
+### function dp\_fmod\_pos 
+
+`x` _folded into_`[0, m)` _for either sign of_`x` _._
+```C++
+JM_FORCEINLINE double dp_fmod_pos (
+    double x,
+    double m
+) 
+```
+
+
+
+C's `fmod()` keeps the dividend's sign, so a negative `x` comes back in `(-m, 0]` and every caller that wants a phase, a frequency or an index on a periodic axis has to add `m` back. That fix-up had been written by hand five times in this library  a code phase in chips, a harmonic into the analysed band, a table index, the DLL's replica tap and a hand-over phase  before this became its one home (doppler#1249); the gate `scripts/check_fmod_fold_sites.py` fails on the sixth.
+
+
+External inline (JM\_FORCEINLINE), not `static inline` like its neighbours: the DLL's replica tap is an external inline in a header, and C99 6.7.4 forbids such a function from referencing one with internal linkage  the compiler said so.
+
+
+
+
+**Parameters:**
+
+
+* `x` Any real value. 
+* `m` The period (&gt; 0). 
+
+
+
+**Returns:**
+
+`x` modulo `m`, in `[0, m)`. 
+
+
+
+
+
+        
+
+<hr>
 ## Public Static Functions Documentation
 
 

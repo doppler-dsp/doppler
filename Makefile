@@ -130,7 +130,7 @@ SYNC_CMD   = $(UV) sync
 LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
                retired-names ci-pipefail rust-abi header-example-arity \
-               wfm-enum-tables
+               wfm-enum-tables fmod-fold
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -235,6 +235,13 @@ LINT_tracked-paths = ./scripts/check-tracked-paths.sh
 # already drifted once (one truncated while a sibling rounded). A rule with
 # no gate behind it is how that happened; this is the gate.
 LINT_phase-conversion = $(UV) run python scripts/check_phase_conversion_sites.py
+
+# Folding a value into [0, m) has one home, dp_fmod_pos() in clib_common.h:
+# the fmod-then-add-if-negative fix-up had been written by hand five times
+# (a code phase, a harmonic, a table index, the DLL's replica tap, a
+# hand-over phase) before #1249 gave it one. No allowlist -- every copy was
+# converted when the gate landed.
+LINT_fmod-fold = $(UV) run python scripts/check_fmod_fold_sites.py
 
 # A trusted internal allocation goes through clib_common.h's abort-on-OOM
 # helpers, because the alternative is an unwind path no test can reach --

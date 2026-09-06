@@ -46,15 +46,12 @@ interp_table_execute_max_out (interp_table_state_t *state)
   return 0; /* one value per input point, so outputs == inputs */
 }
 
-/* Wraps a floor'd index into [0, n): fmod() alone can return a negative
- * result for a negative dividend, so fold it back into range. */
+/* Wraps a floor'd index into [0, n) (dp_fmod_pos: fmod() alone keeps a
+ * negative dividend's sign). */
 static JM_FORCEINLINE size_t
 wrap_index (double floor_pt, size_t n)
 {
-  double w = fmod (floor_pt, (double)n);
-  if (w < 0.0)
-    w += (double)n;
-  return (size_t)w;
+  return (size_t)dp_fmod_pos (floor_pt, (double)n);
 }
 
 size_t

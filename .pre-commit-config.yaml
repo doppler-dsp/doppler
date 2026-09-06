@@ -110,6 +110,15 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # fmod() keeps the dividend's sign; folding into [0, m) is
+      # dp_fmod_pos() and nowhere else (five hand copies, #1249).
+      - id: fmod-fold
+        name: fmod folds have one home
+        entry: make -s lint-fmod-fold
+        language: system
+        pass_filenames: false
+        types_or: [c]
+
       # A header's @code example is compiled by NOTHING -- doxygen renders it,
       # jm transplants a constructor's into the .pyi, and neither type-checks
       # it. Fires on any C change, since the example and the declaration it

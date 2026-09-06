@@ -64,9 +64,8 @@
  * assignment; one receiver that has lost code lock while a second seeds
  * is the recovery), and -- after departure -- the release latency. The
  * run's counts: stints missed, false releases, releases later than the
- * design's interval plus half a second and double assignments (both
- * asserted by the sweep and only reported by the check, since #1264 makes
- * them differ from host to host until the detector is fixed),
+ * design's interval plus half a second, double assignments (both were
+ * #1264's until the Dll's looks were fixed, §12.15),
  * seeds matching no emitter, stints that waited for a slot with the pool
  * full of emitters, the most slots ever assigned, and the log's events by
  * label, which must number what the pool counted.
@@ -407,7 +406,7 @@ static const char *g_events_dir = NULL;
 
 static int
 run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
-          int assert_release, totals_t *t)
+          totals_t *t)
 {
   memset (t, 0, sizeof *t);
   emitter_t *e = dp_xcalloc (cfg->n_emit, sizeof *e);
@@ -471,6 +470,15 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
      ran and then read lower had a flag come back for a block. */
   uint64_t prev_down[N_SLOTS];
   memset (prev_down, 0, sizeof prev_down);
+  /* Code-phase crossings (trace): two on-air emitters within two chips of
+     each other put one's full peak through the other's prompt correlator
+     for as long as the crossing lasts -- seconds when their Dopplers are
+     close, since the relative chip rate is the Doppler difference over
+     the carrier times the chip rate. Logged on entry and exit with the
+     Doppler difference, to be read against the receivers' losses
+     (#1265). */
+  int near[64][64];
+  memset (near, 0, sizeof near);
   DP_REQUIRE (cfg->n_emit <= 64);
 
   for (uint64_t b = 0; b < n_blocks; b++)
@@ -640,6 +648,25 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
             }
         }
 
+      if (trace_every)
+        for (size_t a = 0; a < cfg->n_emit; a++)
+          for (size_t c = a + 1; c < cfg->n_emit; c++)
+            {
+              const int    both     = e[a].on && e[c].on;
+              const double dc       = both ? chip_err (truth_chip (&e[a], end),
+                                                       truth_chip (&e[c], end))
+                                           : 1e9;
+              const int    now_near = both && fabs (dc) <= 2.0;
+              if (now_near != near[a][c])
+                printf ("    crossing %s at %.3f s: emitters %zu and %zu, "
+                        "%+.1f Hz apart (%.2f chip/s), %+.2f chip\n",
+                        now_near ? "begins" : "ends", (double)end / FS, a, c,
+                        e[c].doppler_hz - e[a].doppler_hz,
+                        (e[c].doppler_hz - e[a].doppler_hz) / CARRIER_HZ
+                            * CHIP_RATE,
+                        now_near ? dc : 0.0);
+              near[a][c] = now_near;
+            }
       if (trace_every && b % trace_every == 0)
         {
           size_t on = 0;
@@ -839,19 +866,10 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
   DP_CHECK_MSG (t->missed == 0, "no emitter above the floor is missed");
   DP_CHECK_MSG (t->false_rel == 0,
                 "no emitter is released while on the air by the rule");
-  /* The release's latency and the double it leads to are #1264's -- the
-     code flag's false re-locks on noise restart the receiver's clock,
-     at a rate that differs from host to host (this machine released a
-     departed emitter at 4.7 s; CI's runners had not by 9.5 s, and its
-     returning emitter was re-locked by its old receiver beside the new
-     seed). The sweep asserts them and stays red; the check reports them
-     until the detector is fixed. */
-  if (assert_release)
-    DP_CHECK_MSG (t->late_rel == 0, "every departed emitter is released "
-                                    "within the latency asked of this run");
-  if (assert_release)
-    DP_CHECK_MSG (t->dbl_locked == 0, "no emitter is tracked by two "
-                                      "receivers at once");
+  DP_CHECK_MSG (t->late_rel == 0, "every departed emitter is released "
+                                  "within the interval plus half a second");
+  DP_CHECK_MSG (t->dbl_locked == 0, "no emitter is tracked by two "
+                                    "receivers at once");
   /* A hit is dropped only while the pool is full of emitters -- on the
      air, or departed and inside their release interval: at this soak's
      churn (a departure every few seconds against the design's one a
@@ -919,9 +937,7 @@ main (int argc, char **argv)
           = { 45.0, CHECK_EMIT, CHECK_S, 3.0, 3.5, 6.0, 6.5, 12.0, 1u };
       totals_t t;
       printf ("=== check: C/N0 %.0f dB-Hz ===\n", cfg.cn0_dbhz);
-      /* The release's latency is reported, not asserted (#1264 -- see
-         run_soak): the check pins the lifecycle the pool owns. */
-      DP_REQUIRE (run_soak (&cfg, code, 1, LOST_CONFIRM_S + 0.5, 0, &t) == 0);
+      DP_REQUIRE (run_soak (&cfg, code, 1, LOST_CONFIRM_S + 0.5, &t) == 0);
       DP_TEST_END ("validate_async_dsss_pool_soak");
     }
 
@@ -933,7 +949,7 @@ main (int argc, char **argv)
       totals_t t;
       printf ("=== C/N0 %.0f dB-Hz (Es/N0 %.1f dB) ===\n", cfg.cn0_dbhz,
               cfg.cn0_dbhz - 10.0 * log10 (SYM_RATE));
-      DP_REQUIRE (run_soak (&cfg, code, 1, LOST_CONFIRM_S + 0.5, 1, &t) == 0);
+      DP_REQUIRE (run_soak (&cfg, code, 1, LOST_CONFIRM_S + 0.5, &t) == 0);
     }
   DP_TEST_END ("validate_async_dsss_pool_soak");
 }

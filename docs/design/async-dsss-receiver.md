@@ -3205,9 +3205,9 @@ before the design's own acquisition bound are not):
     sized for one cell at pfa 1e-3 with two verifies, so the false-lock
     rate on noise is the max's, not the cell's. The fix is the detector's,
     proven first in `async_dsss_receiver_release.c` with a longer watch
-    on noise ([#1264](https://github.com/doppler-dsp/doppler/issues/1264));
-    the pool's `--check` pins three intervals until then, and the sweep
-    asks the design's number and stays red.
+    on noise ([#1264](https://github.com/doppler-dsp/doppler/issues/1264)).
+    **Fixed, §12.15:** the looks overlapped — a decision read the same
+    noise `n` times; the threshold was right.
 - **Two receiver failures in 76 stints.** At each C/N0 one receiver lost
     a healthy emitter and was released `lost` — a false release; at 45
     dB-Hz that receiver's carrier loop wandered 1.3 then 2.7 kHz off
@@ -3227,6 +3227,63 @@ before the design's own acquisition bound are not):
     seconds against the design's one a minute, and the headroom is the
     design's. The two hundred and fifty-five `degrade` events at 40 dB-Hz
     are the flags' chatter at the floor, none of it a release.
+
+### 12.15 What was measured (2026-09-06) — the code flag on noise, #1264
+
+**The mechanism was not the one §12.14 read.** The Dll's symbol-aided
+detector (§3.7) keeps `Q = ⌈P⌉` timing hypotheses, eight here, each an
+EMA of its own windows' power, and takes its looks from the best one. The
+guess was that a threshold sized for one cell could not carry the max of
+eight. Measured on pure noise with the Dll alone, configured exactly as
+the receiver configures it (pfa 1e-3, `n_looks` from `det_n_noncoh` at
+the design C/N0), the max costs almost nothing — the mean statistic is 8%
+above √(2n) — and the tail is what breaks: **1.7e-2 exceedances per
+decision at 45 dB-Hz and 4.2e-2 at 40 for a configured 1e-3, 0.65 and 0.5
+false locks per second**, against 1.9e-3 and none for the unaided
+detector on the same noise. The cause is the looks, not the threshold. On
+a signal the best hypothesis holds and its windows are a symbol apart;
+on noise it flips between neighbours whose windows share five of six
+partials, and a decision's three looks then read the same noise three
+times — a χ² of two degrees of freedom scaled by three against a gate
+sized for six, whose tail at the gate is 2.4e-2. The receiver's rule
+restarts its release clock on either flag (§10), so every such lock cost
+an interval.
+
+**The fix is one comparison in `aid_look()`:** a window that overlaps the
+last look's is not a look (`aid_last_end`, running state, blob v10).
+Nothing changes with a signal present. On noise: **2.1e-3 per decision
+at 45 dB-Hz, 2.5e-3 at 40, 2.9e-4 at pfa 1e-4, and no lock in twenty
+seconds** at any of them — the unaided detector's own realized rate,
+which is #1064's factor of two over the configured one. Pinned twice:
+`test_dll_core` 6b′ feeds the aided detector forty thousand epochs of
+noise and asks the exceedance rate within four times pfa and no lock
+(without the guard: 1.6e-2 and six locks);
+`validate_async_dsss_receiver_release --check` now watches eight seconds
+of noise after the switch-off — four release intervals — and asks that
+neither flag return (without the guard: 6 and 11 returns in the two
+trials). §12.3's table gains the row, 30 trials per C/N0:
+
+| C/N0     | over 240 s of noise after the switch-off | code lock returned | symbol lock returned |
+| -------- | ---------------------------------------- | ------------------ | -------------------- |
+| 45 dB-Hz | 8 s × 30                                 | once (0.004 per s) | never                |
+| 40 dB-Hz | 8 s × 30                                 | never              | never                |
+
+The healthy-signal rows are unchanged: code lock off in no block of the
+on-time at either C/N0, drop time 3.5 and 10.8 ms after a switch-off.
+
+**The soak, re-run on it (§12.14's stimulus and scoring, ten emitters,
+120 s at each C/N0):** departure → release **2.02 / 2.03 / 2.04 s** at
+45 dB-Hz and 2.01 / 2.02 / 2.04 at 40 (was 2.0–6.8 s), no release late,
+no false release, no emitter re-locked by a receiver that should have let
+it go, one restart of a release clock in four minutes of noise (was 166),
+and the check pins the interval plus half a second on every host again.
+Nothing else moved: nothing missed, arrival → held 0.05 s mean at 45
+dB-Hz and 0.30 at 40, tracking with code lock on 99.6% and 99.7% of held
+blocks. One event is left, and it is
+[#1265](https://github.com/doppler-dsp/doppler/issues/1265)'s: at 45
+dB-Hz one receiver still walks off its emitter mid-stint while its code
+flag holds, a second is seeded, and both report code lock for 1.6 s — the
+sweep is red on that assertion alone until it is understood.
 
 ______________________________________________________________________
 
@@ -3252,8 +3309,8 @@ passes a strong emitter's persistent sidelobes under long non-coherent
 integration (§12.6, #1191), and the false-release rate of the
 both-flags-down rule is bounded only over half a minute, not the
 15-minute maximum on-time (§6.1) it must hold for — and, from the soak
-(§12.14, #1264), the code flag's false re-locks on noise make the rule
-fire one to three intervals late as built.
+(§12.14, #1264), the code flag's false re-locks on noise made the rule
+fire one to three intervals late — fixed at the Dll's looks (§12.15).
 
 ______________________________________________________________________
 

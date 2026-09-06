@@ -26,6 +26,9 @@
  *   5. The flags really are sugar: wfm_source_describe_frame() turns a
  *      flag-spelled source into a description, and a second source carrying
  *      that description composes BYTE-IDENTICALLY to the first.
+ *   6. A stage kind that is YOURS: a kind from WFM_STAGE_USER up, its kernel
+ *      supplied through wfm_frame_ops_t, refused when absent and reversed
+ *      through the same open lookup when present.
  *
  * Ownership, which is the one thing easy to get wrong here: a description is
  * BORROWED by the source, and the sequences inside it are borrowed in turn.
@@ -165,6 +168,88 @@ bits_source (const uint8_t *payload_bits)
   src.snr_mode     = 1;                   /* fs */
   src.seed         = 1u;
   return src;
+}
+
+/* ── A stage kind doppler has never heard of ────────────────────────────────
+ *
+ * `wfm_stage_kind_t` stops at WFM_STAGE_USER = 0x1000, and the header says
+ * why: above it the kinds are the CALLER's, so "a mission that is not CCSDS"
+ * is a configuration rather than a pull request against wfm_frame.h. Section
+ * 6 is that sentence, executed.
+ *
+ * The transform is a whitener — XOR the span against a fixed pattern — for
+ * two reasons. It is what a real randomiser stage does, and it is its own
+ * inverse, so `undo` is the same function and the RECEIVE half of the claim
+ * costs no extra kernel to show.
+ */
+#define MY_WHITEN (WFM_STAGE_USER + 1u)
+
+/** @brief The pattern, one bit per byte, repeating over the span. */
+static uint8_t
+whiten_bit (size_t i)
+{
+  /* An 8-bit period the eye can check against the printed bits below; a real
+     randomiser uses an LFSR, and `WFM_STAGE_RANDOMISE` is that one. */
+  static const uint8_t pattern[8] = { 1, 1, 0, 1, 0, 0, 1, 0 };
+  return pattern[i % 8u];
+}
+
+/**
+ * @brief XOR the stage's span in place. Its own inverse, hence used for both.
+ *
+ * @param st    the stage as declared; unused here, but a real kernel reads
+ *              `depth` / `unit_bits` from it rather than from a global.
+ * @param bits  the whole span, one bit per byte.
+ * @param n     bits in the span.
+ * @param user  the ops table's `user` pointer; NULL here.
+ */
+static int
+whiten_in_unit (const wfm_stage_t *st, uint8_t *bits, size_t n, void *user)
+{
+  (void)st;
+  (void)user;
+  for (size_t i = 0; i < n; i++)
+    bits[i] ^= whiten_bit (i);
+  return 0;
+}
+
+/** @brief Undo has the wider signature; the transform is the same one. */
+static int
+whiten_undo (const wfm_stage_t *st, uint8_t *bits, size_t n,
+             wfm_frame_stage_rx_t *rx, void *user)
+{
+  whiten_in_unit (st, bits, n, user);
+  /* A whitener repairs nothing, so it reverses exactly one unit and
+     corrects none. Saying so is what keeps `checked` honest: a stage that
+     reported nothing would be indistinguishable from one with no undo. */
+  if (rx)
+    {
+      rx->units     = 1u;
+      rx->ok        = 1u;
+      rx->corrected = 0u;
+      rx->symbols   = 0u;
+      rx->checked   = 1;
+    }
+  return 0;
+}
+
+/* ONE entry, not three. The table EXTENDS the built-ins rather than
+   replacing them, so supplying a new kind does not mean restating the CRC —
+   which is what makes an open kind cheap enough to actually use. */
+static const wfm_stage_op_t my_ops_table[] = {
+  { MY_WHITEN, whiten_in_unit, NULL, whiten_undo },
+};
+
+/** @brief The caller's kernels, as `wfm_frame_assemble` and `_check` take
+ * them. */
+static wfm_frame_ops_t
+my_ops (void)
+{
+  wfm_frame_ops_t o = { 0 };
+  o.op              = my_ops_table;
+  o.n_op            = (unsigned)(sizeof my_ops_table / sizeof *my_ops_table);
+  o.user            = NULL;
+  return o;
 }
 
 int
@@ -320,6 +405,66 @@ main (void)
   check (memcmp (&from_flags, &d, sizeof d) != 0,
          "yet it is not the same description — the flags cannot spell this "
          "one");
+  printf ("\n");
+
+  /* ── 6. A stage kind that is YOURS ──────────────────────────────────── */
+  printf ("--- 6. A transform doppler has never heard of ---\n");
+
+  /* The same three fields and the same CRC cover, plus one stage of a kind
+     no version of doppler will ever allocate. The description does not know
+     what MY_WHITEN does and does not need to: it names a kind and a span. */
+  wfm_frame_desc_t mine;
+  memset (&mine, 0, sizeof mine);
+  int built
+      = wfm_frame_add_field (&mine, "hdr", &hdr, 0u) == 0
+        && wfm_frame_add_field (&mine, "payload", &pay, 0u) == 1
+        && wfm_frame_add_derived (&mine, "crc", WFM_FRAME_CRC_BITS) == 2
+        && wfm_frame_add_stage (&mine, WFM_STAGE_CRC16, "payload", "crc") == 0
+        /* Applied AFTER the CRC and over the WHOLE frame, which is
+           where a randomiser belongs: the check symbols are whitened
+           too, and the receiver unwhitens before it checks. */
+        && wfm_frame_add_stage (&mine, MY_WHITEN, "hdr", "crc") == 1;
+  check (built, "a description accepts a kind from the caller's own range");
+  check (MY_WHITEN > WFM_STAGE_INTERLEAVE,
+         "the kind is above every kind doppler names");
+
+  /* Refused, not skipped. This is the half that matters: a stage that
+     quietly did not run produces a frame that still assembles, still
+     decodes against itself, and syncs to nothing at the far end. */
+  uint8_t no_kernel[FRAME_BITS];
+  check (wfm_frame_assemble (&mine, NULL, no_kernel, FRAME_BITS) == 0,
+         "with no kernel for that kind, assembly REFUSES — never a silent "
+         "skip");
+
+  /* Supplied, and it assembles. The table has one entry; the CRC stage
+     still runs, because a caller's table extends the built-ins. */
+  wfm_frame_ops_t ops = my_ops ();
+  uint8_t         theirs[FRAME_BITS];
+  size_t n_mine = wfm_frame_assemble (&mine, &ops, theirs, FRAME_BITS);
+  check (n_mine == FRAME_BITS,
+         "with the kernel supplied, the same description assembles");
+  check (memcmp (theirs, want, FRAME_BITS) != 0,
+         "and the bits differ from the unwhitened frame — the stage RAN");
+
+  printf ("  plain:    ");
+  for (unsigned i = 0; i < FRAME_BITS; i++)
+    printf ("%u", want[i]);
+  printf ("\n  whitened: ");
+  for (unsigned i = 0; i < FRAME_BITS; i++)
+    printf ("%u", theirs[i]);
+  printf ("\n");
+
+  /* And it REVERSES through the same open lookup, which is the receive half
+     of the claim: one description, both directions, a kind neither end of
+     doppler has heard of. */
+  wfm_frame_rx_t rx;
+  memset (&rx, 0, sizeof rx);
+  int good = wfm_frame_check (&mine, &ops, theirs, &rx);
+  check (good == 1, "wfm_frame_check reverses it and the CRC passes");
+  check (rx.checked == 2u, "both stages were reversed here, not one");
+  check (memcmp (theirs, want, FRAME_BITS) == 0,
+         "unwhitened in place, the frame is the plain one again, bit for "
+         "bit");
   printf ("\n");
 
   free (framed);

@@ -122,7 +122,16 @@ offset arithmetic exercise.
 
 **A kind that is open.** `wfm_stage_kind_t` stops at `WFM_STAGE_USER = 0x1000`; above that the kinds are yours, and the kernel comes in through
 `wfm_frame_ops_t`. A transform doppler has never heard of is a stage, not a
-pull request against a header.
+pull request against a header — and the table **extends** the built-ins, so
+supplying one kind does not mean restating the CRC.
+
+That is the claim this page rested most weight on and demonstrated least, so
+§6 of the example below now runs it: a whitener at `WFM_STAGE_USER + 1`, its
+kernel supplied through a one-entry table. Without the kernel the assembly is
+**refused** — never a silent skip, because a stage that quietly did not run
+produces a frame that still assembles, still decodes against itself, and syncs
+to nothing. With it, the frame assembles *and reverses* through the same open
+lookup, and `wfm_frame_check` reports both stages reversed.
 
 ## The flags are sugar for exactly this
 
@@ -132,12 +141,13 @@ for its description, hand that description to a second source, and the two
 compose **byte-identically** — which is what makes "the flat fields are
 sugar" a measurement rather than a claim.
 
-The worked version of that check, and four others, is
+The worked version of that check, and of every claim above, is
 [`native/examples/wfmgen_frame_demo.c`](https://github.com/doppler-dsp/doppler/blob/main/native/examples/wfmgen_frame_demo.c):
 it composes framed against unframed, demodulates the frame back to the
 description's own bits, shows one description cycling to fill a three-frame
-record, and proves the sugar equivalence above. It self-validates and exits
-non-zero if any of it stops holding.
+record, proves the sugar equivalence above, and ends on the caller's own stage
+kind. It self-validates and exits non-zero if any of it stops holding — which
+is why the sections are numbered here rather than counted.
 
 ```sh
 make build

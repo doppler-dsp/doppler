@@ -281,3 +281,40 @@ def test_block_coherent_depth_inside_the_tiles():
     ).astype(np.complex64)
     hits = a.push(x)
     assert (hits[0][0], hits[0][1]) == (3 * 4 - 4 - 1, 5)
+
+
+def test_the_roll_per_thread_is_bit_identical():
+    """Design §2.3: a tiled engine fans its tiles across a pool created
+    with it; the surface and the hits are byte-identical at any thread
+    count, and ``set_threads`` re-sizes the pool (0 = the machine's cores,
+    1 = serial)."""
+    du = 3 * CHIP_RATE / (2 * SF)
+    a = _acq(doppler_uncertainty=du, code_only_epochs=7)
+    assert a.threads >= 1
+    a.keep_surface = 1
+    nx = a.code_bins
+    k = np.arange(3 * a.n_noncoh * 4 * nx)
+    src = (k % nx + nx - 5) % nx
+    chips = CODE[(src // SPC) % SF]
+    x = (
+        np.where(chips, -1.0, 1.0) * np.exp(2j * np.pi * 1.25 * k / nx)
+    ).astype(np.complex64)
+    a.set_threads(1)
+    assert a.threads == 1
+    ref_hits = a.push(x)
+    ref = np.empty(a.surface_rows * a.code_bins, np.float32)
+    assert a.surface(ref) == ref.size
+    for n in (2, 4, 8, 0):
+        a.set_threads(n)
+        assert a.threads >= 1
+        a.reset()
+        hits = a.push(x)
+        got = np.empty_like(ref)
+        assert a.surface(got) == got.size
+        assert np.array_equal(ref, got), n
+        assert hits == ref_hits, n
+    # a single-tile engine has nothing to fan
+    s = _acq(doppler_uncertainty=0.0)
+    assert s.threads == 1
+    s.set_threads(4)
+    assert s.threads == 1

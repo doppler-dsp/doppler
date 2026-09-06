@@ -880,6 +880,67 @@ acq_auto_config_continuous (const acq_state_t *st, size_t D, double pfa,
  * coherent_bins (see the comment below), so it alone fully captures the
  * code -- unaffected by new_freq_bins growing new_n, since the fill loop
  * below only ever touches indices [0, cb). */
+/* The per-tile scratch of the fan (design §2.3): an inverse plan and a
+ * product buffer per tile, plus a slow-time plan and column scratch per
+ * tile at D > 1. Per TILE, not per thread: a pocketfft plan carries its own
+ * work buffers and a tile lands on whichever worker takes it, and the same
+ * buffers serve the serial path, so the surface is bit-identical either
+ * way. Fixed sizes from validated arguments: abort-on-OOM. */
+static void
+acq_tiles_free (acq_state_t *st)
+{
+  for (size_t t = 0; st->tile_inv && t < st->window_bins; t++)
+    {
+      if (st->tile_inv[t])
+        fft_destroy (st->tile_inv[t]);
+      if (st->tile_slow && st->tile_slow[t])
+        fft_destroy (st->tile_slow[t]);
+      free (st->tile_prod ? st->tile_prod[t] : NULL);
+      free (st->tile_col ? st->tile_col[t] : NULL);
+    }
+  free (st->tile_inv);
+  free (st->tile_prod);
+  free (st->tile_slow);
+  free (st->tile_col);
+  st->tile_inv  = NULL;
+  st->tile_prod = NULL;
+  st->tile_slow = NULL;
+  st->tile_col  = NULL;
+}
+
+static int
+acq_tiles_alloc (acq_state_t *st, size_t tiles, size_t cb, size_t dI)
+{
+  st->tile_inv = (fft_state_t **)dp_xcalloc (tiles, sizeof (fft_state_t *));
+  st->tile_prod
+      = (float _Complex **)dp_xcalloc (tiles, sizeof (float _Complex *));
+  if (dI > 1)
+    {
+      st->tile_slow
+          = (fft_state_t **)dp_xcalloc (tiles, sizeof (fft_state_t *));
+      st->tile_col
+          = (float _Complex **)dp_xcalloc (tiles, sizeof (float _Complex *));
+    }
+  for (size_t t = 0; t < tiles; t++)
+    {
+      st->tile_inv[t] = fft_create (cb, +1, 1);
+      if (!st->tile_inv[t])
+        return -1;
+      st->tile_prod[t]
+          = (float _Complex *)dp_xmalloc (cb * sizeof (float _Complex));
+      if (dI > 1)
+        {
+          st->tile_slow[t] = fft_create (dI, -1, 1);
+          if (!st->tile_slow[t])
+            return -1;
+          /* in (zero tail: the pad is the interpolation), then out */
+          st->tile_col[t]
+              = (float _Complex *)dp_xcalloc (2 * dI, sizeof (float _Complex));
+        }
+    }
+  return 0;
+}
+
 static int
 acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
             size_t new_freq_bins, const uint8_t *code, size_t code_len)
@@ -1054,6 +1115,17 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
       free (st->blk);
       st->blk       = new_blk;
       st->blk_epoch = 0;
+      /* The per-tile scratch follows the grid; a serial engine (one tile)
+         has none and runs the classic path. */
+      acq_tiles_free (st);
+      if (new_freq_bins > 1
+          && acq_tiles_alloc (st, new_freq_bins, cb, new_db * new_interp) != 0)
+        {
+          acq_tiles_free (st);
+          st->coherent_bins = new_db;
+          st->window_bins   = new_freq_bins;
+          return -1;
+        }
     }
   if (new_ring)
     {
@@ -1185,7 +1257,12 @@ acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
   acq_commit_thresholds (st, pfa, pd, snr, doppler_uncertainty);
   if (acq_set_max_peaks (st, 1) != 0)
     goto fail;
-
+  /* The roll per thread (§2.3): a tiled continuous engine fans its tiles
+     across the machine's online cores by default; a burst engine and a
+     single-tile one run serially. acq_set_threads() changes it. */
+  st->threads = 1;
+  if (continuous && st->window_bins > 1)
+    (void)acq_set_threads (st, 0);
   return st;
 
 fail:
@@ -1271,7 +1348,22 @@ acq_destroy (acq_state_t *st)
   free (st->wide_prod);
   free (st->stat_surface);
   free (st->blk);
+  dp_pool_destroy (st->pool);
+  acq_tiles_free (st);
   free (st);
+}
+
+int
+acq_set_threads (acq_state_t *st, int n)
+{
+  dp_pool_destroy (st->pool);
+  st->pool    = NULL;
+  st->threads = 1;
+  if (n == 1 || st->window_bins <= 1)
+    return DP_OK; /* serial: nothing to fan, or asked not to */
+  st->pool    = dp_pool_create (n);
+  st->threads = dp_pool_threads (st->pool);
+  return DP_OK;
 }
 
 int
@@ -1315,6 +1407,55 @@ acq_reset (acq_state_t *st)
 }
 
 /* ── Stream push ────────────────────────────────────────────────────────── */
+
+/* One tile of one epoch (a body of the fan): roll the shared spectrum to
+ * the tile's hypothesis against the fixed replica spectrum, one inverse
+ * transform into the tile's own row -- of the surface at D == 1, of the
+ * block otherwise. Reads shared state, writes only this tile's row and its
+ * own scratch: no cross-tile race, bit-identical to the serial loop. */
+typedef struct
+{
+  acq_state_t *st;
+} acq_fan_t;
+
+static void
+acq_tile_epoch (size_t r, void *ctx)
+{
+  acq_state_t    *st = ((acq_fan_t *)ctx)->st;
+  const size_t    nx = st->code_bins, D = st->coherent_bins;
+  long            signed_r = dp_fftfreq_index (r, st->window_bins);
+  long            wrapped  = ((signed_r % (long)nx) + (long)nx) % (long)nx;
+  size_t          roll     = (size_t)wrapped;
+  float _Complex *prod     = st->tile_prod[r];
+  for (size_t j = 0; j < nx; j++)
+    prod[j] = st->wide_spec[(j + roll) % nx] * st->wide_ref_spec[j];
+  float _Complex *row = (D > 1) ? st->blk + (r * D + st->blk_epoch) * nx
+                                : st->out_buf + r * nx;
+  fft_execute_cf32 (st->tile_inv[r], prod, nx, row, nx);
+}
+
+/* One tile at the block's end (a body of the fan): per code-phase column,
+ * the zero-padded slow-time transform of the tile's D epochs, scattered
+ * onto the one combined Doppler axis (acq_block_row). The tile's rows of
+ * out_buf are its own. */
+static void
+acq_tile_block (size_t r, void *ctx)
+{
+  acq_state_t    *st = ((acq_fan_t *)ctx)->st;
+  const size_t    nx = st->code_bins, D = st->coherent_bins;
+  const size_t    dI     = D * st->interp;
+  float _Complex *colbuf = st->tile_col[r];
+  float _Complex *colout = colbuf + dI;
+  for (size_t j = 0; j < nx; j++)
+    {
+      for (size_t i = 0; i < D; i++)
+        colbuf[i] = st->blk[(r * D + i) * nx + j];
+      fft_execute_cf32 (st->tile_slow[r], colbuf, dI, colout, dI);
+      for (size_t i = 0; i < dI; i++)
+        st->out_buf[acq_block_row (r, st->window_bins, i, dI) * nx + j]
+            = colout[i];
+    }
+}
 
 size_t
 acq_push (acq_state_t *st, const float _Complex *x, size_t n_in,
@@ -1376,50 +1517,26 @@ acq_push (acq_state_t *st, const float _Complex *x, size_t n_in,
                * requested uncertainty, nx = sf*spc is the full code
                * length). */
               fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec, nx);
-              const size_t D  = st->coherent_bins;
-              const size_t dI = D * st->interp;
-              for (size_t r = 0; r < st->window_bins; r++)
-                {
-                  long signed_r = dp_fftfreq_index (r, st->window_bins);
-                  long wrapped = ((signed_r % (long)nx) + (long)nx) % (long)nx;
-                  size_t roll  = (size_t)wrapped;
-                  for (size_t j = 0; j < nx; j++)
-                    st->wide_prod[j] = st->wide_spec[(j + roll) % nx]
-                                       * st->wide_ref_spec[j];
-                  /* D == 1: the tile IS its row. D > 1: this epoch's row of
-                     the tile goes into the block, transformed at its end. */
-                  float _Complex *row
-                      = (D > 1) ? st->blk + (r * D + st->blk_epoch) * nx
-                                : st->out_buf + r * nx;
-                  fft_execute_cf32 (st->wide_inv, st->wide_prod, nx, row, nx);
-                }
+              const size_t D   = st->coherent_bins;
+              acq_fan_t    fan = { st };
+              /* The roll per thread: every tile of this epoch across the
+                 pool (serially when there is none) -- each into its own
+                 row of the surface at D == 1, of the block otherwise. */
+              dp_pool_run (st->pool, st->window_bins, acq_tile_epoch, &fan);
               if (D > 1)
                 {
                   if (++st->blk_epoch < D)
                     n_out = 0; /* mid-block: no surface yet */
                   else
                     {
-                      /* The block is whole: per tile, per code-phase
-                         column, the zero-padded slow-time transform of its
-                         D epochs, scattered onto the one combined Doppler
-                         axis (acq_block_row). The roll kept each epoch's
-                         phase continuous at the tile's centre, so the
-                         residual inside the tile is what the transform
-                         resolves. */
+                      /* The block is whole: per tile, the slow-time
+                         transforms of its D epochs onto the one combined
+                         Doppler axis. The roll kept each epoch's phase
+                         continuous at the tile's centre, so the residual
+                         inside the tile is what the transform resolves. */
                       st->blk_epoch = 0;
-                      for (size_t r = 0; r < st->window_bins; r++)
-                        for (size_t j = 0; j < nx; j++)
-                          {
-                            for (size_t i = 0; i < D; i++)
-                              st->colbuf[i] = st->blk[(r * D + i) * nx + j];
-                            fft_execute_cf32 (st->slow_fft, st->colbuf, dI,
-                                              st->colout, dI);
-                            for (size_t i = 0; i < dI; i++)
-                              st->out_buf[acq_block_row (r, st->window_bins, i,
-                                                         dI)
-                                              * nx
-                                          + j] = st->colout[i];
-                          }
+                      dp_pool_run (st->pool, st->window_bins, acq_tile_block,
+                                   &fan);
                       n_out = n;
                     }
                 }

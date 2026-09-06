@@ -62,11 +62,13 @@ static const double PD_POINTS[] = { 0.9, 0.99, 0.999 };
  * number alone never showed. */
 typedef struct
 {
-  double      chip_rate;     /* Hz                                       */
-  double      du;            /* doppler_uncertainty, Hz                  */
-  const char *label;         /* bench name prefix                        */
-  size_t      expect_bins;   /* window_bins the sizer must pick          */
-  size_t      inject_window; /* hypothesis to inject into (0 when 1 bin) */
+  double      chip_rate;        /* Hz                                       */
+  double      du;               /* doppler_uncertainty, Hz                  */
+  const char *label;            /* bench name prefix                        */
+  size_t      expect_bins;      /* window_bins the sizer must pick          */
+  size_t      inject_window;    /* hypothesis to inject into (0 when 1 bin) */
+  size_t      code_only_epochs; /* the depth's window; 1 = D of 1        */
+  int         threads;          /* the fan; 1 = serial, 0 = the machine     */
 } acq_bench_cfg_t;
 
 /* The first two rows are the SPEC waveform above. The four after them are
@@ -78,18 +80,35 @@ typedef struct
  * the searcher's cost scales with -- so the low chip rate, which has the
  * narrowest tiles, is the searcher's worst case per output sample. */
 static const acq_bench_cfg_t CFGS[] = {
-  { CHIP_RATE, 0.0, "native", 1, 0 },
-  { CHIP_RATE, DOPPLER_UNCERTAINTY, "wideband", 35, INJECT_WINDOW },
-  { 5.0e6, 50000.0, "op5M_U50k", 21, INJECT_WINDOW },
-  { 2.0e6, 50000.0, "op2M_U50k", 53, INJECT_WINDOW },
-  { 5.0e6, 5000.0, "op5M_U5k", 3, 1 },
-  { 2.0e6, 5000.0, "op2M_U5k", 7, 1 },
+  { CHIP_RATE, 0.0, "native", 1, 0, 1, 1 },
+  { CHIP_RATE, DOPPLER_UNCERTAINTY, "wideband", 35, INJECT_WINDOW, 1, 1 },
+  { 5.0e6, 50000.0, "op5M_U50k", 21, INJECT_WINDOW, 1, 1 },
+  { 2.0e6, 50000.0, "op2M_U50k", 53, INJECT_WINDOW, 1, 1 },
+  { 5.0e6, 5000.0, "op5M_U5k", 3, 1, 1, 1 },
+  { 2.0e6, 5000.0, "op2M_U5k", 7, 1, 1, 1 },
   /* One third of +/-50 kHz: what one of three engines pays when the
      uncertainty is sliced across processes instead of tiled in one
      engine (docs/design/async-dsss-receiver.md §12.1). Three of these
      against one U50k row is the price of the slice. */
-  { 5.0e6, 50000.0 / 3.0, "op5M_U17k", 7, 1 },
-  { 2.0e6, 50000.0 / 3.0, "op2M_U17k", 19, 1 },
+  { 5.0e6, 50000.0 / 3.0, "op5M_U17k", 7, 1, 1, 1 },
+  { 2.0e6, 50000.0 / 3.0, "op2M_U17k", 19, 1, 1, 1 },
+  /* Design section 12 step 13: the per-tile cost with the block-coherent
+     depth in it (D = 154 at 5 Mcps, 61 at 2: the window's 813 and 324
+     whole epochs under a 500 Hz/s rate bound), and the same push fanned
+     across 1, 2, 4 and 8 threads by the roll per thread (section 2.3) --
+     the fraction of the tiles' cost that scales. A D = 1 row per count
+     beside them is the fan on the epoch-by-epoch searcher alone. */
+  { 5.0e6, 50000.0, "op5M_U50k_t2", 21, INJECT_WINDOW, 1, 2 },
+  { 5.0e6, 50000.0, "op5M_U50k_t4", 21, INJECT_WINDOW, 1, 4 },
+  { 5.0e6, 50000.0, "op5M_U50k_t8", 21, INJECT_WINDOW, 1, 8 },
+  { 5.0e6, 50000.0, "op5M_U50k_D154_t1", 21, INJECT_WINDOW, 813, 1 },
+  { 5.0e6, 50000.0, "op5M_U50k_D154_t2", 21, INJECT_WINDOW, 813, 2 },
+  { 5.0e6, 50000.0, "op5M_U50k_D154_t4", 21, INJECT_WINDOW, 813, 4 },
+  { 5.0e6, 50000.0, "op5M_U50k_D154_t8", 21, INJECT_WINDOW, 813, 8 },
+  { 2.0e6, 50000.0, "op2M_U50k_D61_t1", 53, INJECT_WINDOW, 324, 1 },
+  { 2.0e6, 50000.0, "op2M_U50k_D61_t4", 53, INJECT_WINDOW, 324, 4 },
+  { 5.0e6, 5000.0, "op5M_U5k_D154_t1", 3, 1, 813, 1 },
+  { 5.0e6, 5000.0, "op5M_U5k_D154_t4", 3, 1, 813, 4 },
 };
 
 static double
@@ -163,7 +182,8 @@ main (void)
            * above. */
           acq_state_t *a = acq_create_continuous (
               code, SF, SPC, cfg->chip_rate, SYMBOL_RATE, CN0_DBHZ, cfg->du,
-              PFA, pd_target, 0, 1, 0.0);
+              PFA, pd_target, 0, cfg->code_only_epochs,
+              cfg->code_only_epochs > 1 ? 500.0 : 0.0);
           if (!a)
             {
               fprintf (stderr, "acq_create_continuous failed at pd=%.3f\n",
@@ -175,7 +195,10 @@ main (void)
            * (doppler_res_hz = 2*span), and forced odd so coverage is symmetric
            * and no ambiguous n/2 index exists -- see acq_cover_window_bins() /
            * dp_fftfreq_index(). */
-          if (a->coherent_bins != 1 || a->window_bins != cfg->expect_bins)
+          (void)acq_set_threads (a, cfg->threads);
+          const size_t D = a->coherent_bins;
+          if ((cfg->code_only_epochs == 1 && D != 1)
+              || a->window_bins != cfg->expect_bins)
             {
               fprintf (stderr,
                        "unexpected grid at pd=%.3f: coherent_bins=%zu "
@@ -184,9 +207,8 @@ main (void)
               acq_destroy (a);
               continue;
             }
-          const size_t nc = a->n_noncoh;
-
-          const size_t n_in = a->n_noncoh * nx;
+          const size_t nc   = a->n_noncoh;
+          const size_t n_in = a->n_noncoh * D * nx; /* a block per look */
           /* Same shared helper the engine itself uses, so the injected tone
              and the reported bin can never disagree about a row's sign. */
           const long signed_r
@@ -209,11 +231,12 @@ main (void)
 
           acq_result_t hits[4];
           size_t       nh = acq_push (a, buf, n_in, hits, 4); /* warm-up */
-          int ok = (nh == 1 && hits[0].doppler_bin == cfg->inject_window
+          int ok = (nh == 1 && hits[0].doppler_bin == cfg->inject_window * D
                     && hits[0].code_phase == INJECT_PHASE);
-          printf ("n_noncoh=%3zu  pd_predicted=%.4f  detect=%s  "
-                  "doppler_bin=%zu code_phase=%zu cn0_dbhz_est=%.2f\n",
-                  nc, a->pd_predicted, ok ? "yes" : "NO",
+          printf ("n_noncoh=%3zu D=%zu threads=%d pd_predicted=%.4f  "
+                  "detect=%s  doppler_bin=%zu code_phase=%zu "
+                  "cn0_dbhz_est=%.2f\n",
+                  nc, D, a->threads, a->pd_predicted, ok ? "yes" : "NO",
                   nh ? hits[0].doppler_bin : 0, nh ? hits[0].code_phase : 0,
                   nh ? hits[0].cn0_dbhz_est : 0.0f);
 
@@ -242,9 +265,9 @@ main (void)
           printf ("  latency: mean=%.2f ms  min=%.2f ms  max=%.2f ms  "
                   "(%zu epochs/dwell, %.3f ms/epoch, %.1f ns/sample min, "
                   "%.2fx real time on one core)\n\n",
-                  mean * 1e3, mn * 1e3, mx * 1e3, a->n_noncoh,
-                  mean * 1e3 / (double)a->n_noncoh, mn / (double)n_in * 1e9,
-                  mn / (double)n_in * fs);
+                  mean * 1e3, mn * 1e3, mx * 1e3, a->n_noncoh * D,
+                  mean * 1e3 / (double)(a->n_noncoh * D),
+                  mn / (double)n_in * 1e9, mn / (double)n_in * fs);
 
           char name[JM_BENCH_NAME_LEN];
           snprintf (name, sizeof (name), "%s_nc%zu", cfg->label, nc);

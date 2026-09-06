@@ -85,6 +85,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  [**det\_peak\_t**](structdet__peak__t.md) \* | [**peaks**](#variable-peaks)  <br> |
 |  double | [**pfa**](#variable-pfa)  <br> |
 |  double | [**pfa\_cell**](#variable-pfa_cell)  <br> |
+|  [**dp\_pool\_t**](structdp__pool__t.md) \* | [**pool**](#variable-pool)  <br> |
 |  float \_Complex \* | [**ref**](#variable-ref)  <br> |
 |  size\_t | [**reps**](#variable-reps)  <br> |
 |  dp\_f32\_t \* | [**ring**](#variable-ring)  <br> |
@@ -102,7 +103,12 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  uint64\_t | [**surface\_at**](#variable-surface_at)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  float | [**test\_stat**](#variable-test_stat)  <br> |
+|  int | [**threads**](#variable-threads)  <br> |
 |  float | [**threshold**](#variable-threshold)  <br> |
+|  float \_Complex \*\* | [**tile\_col**](#variable-tile_col)  <br> |
+|  [**fft\_state\_t**](structfft__state__t.md) \*\* | [**tile\_inv**](#variable-tile_inv)  <br> |
+|  float \_Complex \*\* | [**tile\_prod**](#variable-tile_prod)  <br> |
+|  [**fft\_state\_t**](structfft__state__t.md) \*\* | [**tile\_slow**](#variable-tile_slow)  <br> |
 |  [**acq\_tlm\_t**](structacq__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
 |  uint32\_t \* | [**twin\_col**](#variable-twin_col)  <br> |
 |  uint32\_t \* | [**twin\_row**](#variable-twin_row)  <br> |
@@ -1024,6 +1030,24 @@ Bonferroni per-cell false-alarm probability.
 
 
 
+### variable pool 
+
+```C++
+dp_pool_t* acq_state_t::pool;
+```
+
+
+
+NULL or one thread = serial 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable ref 
 
 ```C++
@@ -1316,6 +1340,24 @@ float acq_state_t::test_stat;
 
 
 
+### variable threads 
+
+```C++
+int acq_state_t::threads;
+```
+
+
+
+workers the pool runs on, the caller included; 1 without a pool 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable threshold 
 
 ```C++
@@ -1325,6 +1367,77 @@ float acq_state_t::threshold;
 
 
 CFAR gate on test\_stat (theta); coherent path. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tile\_col 
+
+```C++
+float _Complex** acq_state_t::tile_col;
+```
+
+
+
+window\_bins column scratch, 2\*D\*interp (in, then out), NULL at D == 1 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tile\_inv 
+
+```C++
+fft_state_t** acq_state_t::tile_inv;
+```
+
+
+
+window\_bins inverse plans (code\_bins) 
+
+
+        
+
+<hr>
+
+
+
+### variable tile\_prod 
+
+```C++
+float _Complex** acq_state_t::tile_prod;
+```
+
+
+
+window\_bins product buffers 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable tile\_slow 
+
+```C++
+fft_state_t** acq_state_t::tile_slow;
+```
+
+
+
+window\_bins slow-time plans (D\*interp), NULL at D == 1 
  
 
 

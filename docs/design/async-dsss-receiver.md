@@ -1052,6 +1052,18 @@ record — is already there.
     emitter lies inside its window, which locates the window to within
     `D` epochs; the exact boundary is the tracking chain's to find, and
     the receiver is not told it (§8.2).
+    **As built (2026-09-05), the roll per thread:** `dp_pool_*` in
+    `dp_parallel.h` is the persistent form of the parallel-for — the same
+    contract over helpers created once and parked between runs — and a
+    tiled continuous engine creates one with itself, the online cores by
+    default (`set_threads`, 0 = cores, 1 = serial). The per-epoch tile
+    loop and the block-end column loop run through it; the scratch is per
+    **tile** rather than per thread (a pocketfft plan carries its own work
+    buffers, and a tile lands on whichever worker takes it), so the serial
+    and fanned paths run the same code and the surface is byte-identical at
+    any count — pinned at 1, 2, 4 and 8 in `test_acq_core.c`, under TSan in
+    the C suite. Burst and single-tile engines never fan. §12.8 has the
+    cost.
     **As built (2026-09-05):** the engine now allows a coherent depth to
     accommodate waveforms with code-only windows:
     `Acquisition(code_only_epochs, doppler_rate)` sizes `D` exactly so; the per-tile epoch rows are gathered for `D`
@@ -2082,6 +2094,12 @@ ______________________________________________________________________
     thread — the fraction of the tiles' cost that scales, and the
     persistent pool's hand-off per push beside the per-call creation it
     replaces.
+    **Done (§12.8):** 624 ns per sample serially at the operating point
+    (3.6× the epoch-by-epoch searcher), 288 on four threads; the fan is
+    Amdahl's, 88% fanned at `D = 1` and 72% at `D = 154`, because the
+    per-cell passes after the fan grow with the surface — #1243 is the
+    fix. Memory per channel at `D = 154`: the block (53 MB), the surface
+    (106 MB complex + 53 MB magnitude), and the kept surface when read.
 
 Steps 1–4 are Python over the shipped engine plus the peak-list primitive,
 and are the same harness the burst characterization already runs. Steps
@@ -2473,6 +2491,56 @@ in 2 000 of 2 000 dwells with no twin listed.
     cancellation branch's anyway (§6.3) — and it is open
     ([#1190](https://github.com/doppler-dsp/doppler/issues/1191)). At the
     operating point's 15 looks no twin was listed in 2 000 dwells.
+
+______________________________________________________________________
+
+### 12.8 What was measured (2026-09-05) — step 13, the searcher's cost with D, and the fan
+
+`bench_acq_core` (`make bench`), on a 20-core Ryzen AI 9 465, minimum of
+15 pushes; the searcher's cost in ns per output sample and as a multiple
+of real time, the roll per thread (§2.3) at 1, 2, 4 and 8 threads:
+
+| row (±50 kHz)                    | 1 thread        | 2          | 4              | 8          |
+| -------------------------------- | --------------- | ---------- | -------------- | ---------- |
+| 5 Mcps, 21 tiles, D = 1          | 174 (1.75×)     | 98 (0.98×) | 58 (0.58×)     | 50–60      |
+| 5 Mcps, 21 tiles, **D = 154**    | **624 (6.2×)**  | 398 (4.0×) | **288 (2.9×)** | 258 (2.6×) |
+| 5 Mcps, ±5 kHz, 3 tiles, D = 154 | 95 (0.95×)      |            | 53 (0.53×)     |            |
+| 2 Mcps, 53 tiles, **D = 61**     | **2293 (9.2×)** |            | 892 (3.6×)     |            |
+
+Four things this settles:
+
+- **The fan works, and it is Amdahl's.** At `D = 1` four threads buy
+    3.0× — about 88% of the work is in the tiles — and eight buy little
+    more; the searcher over ±50 kHz that was 1.75× real time on one core
+    is 0.58 on four. The pool's hand-off per push is not visible at this
+    granularity (an epoch is 0.2 ms; the D = 1 rows are 254-epoch pushes).
+- **The depth costs 3.6× per sample serially, and the transforms are not
+    why.** The design estimated the slow-time transform "of the order of
+    the epoch transform it sits behind" — it is, but the per-cell passes
+    around it are not: the magnitude of every cell, the CFAR reference over
+    the whole surface, the mask copy and the list's scans grow with the
+    surface, 13.2 M cells per block at the operating point against 43 k per
+    epoch at `D = 1`, and they run **after** the fan, serially. That is
+    why four threads buy only 2.2× at `D = 154` (72% fanned) — and inside
+    the fanned block-end loop the scatter folds a row index per **cell**
+    and the column gather strides by `code_bins`. Both are named in
+    [#1243](https://github.com/doppler-dsp/doppler/issues/1243) with the
+    fix: the magnitude, the reference and the list per tile with a serial
+    merge; a per-tile row table; a chunked gather.
+- **Pre-compensation is worth what §12.1 said.** Over ±5 kHz the
+    `D = 154` searcher is 0.95× real time on one thread and 0.53 on four.
+- **The low chip rate is the worst case, by more than before.** 53 tiles
+    of `D = 61` rows is the same 13 M cells per block for 61 epochs instead
+    of 154, so the per-cell passes cost 2.5× more per sample: 9.2× real
+    time on one thread, 3.6× on four. The fix above is what brings it in.
+
+What the budget says (§6.4: 100 ns per output sample per core, half as
+the margin): at the operating point the block searcher on four threads is
+288 ns of wall per sample, about 1150 core-ns — a quarter of a 48-core
+server's budget, before #1243, beside twelve receivers at 44 each (§12.1).
+It fits; it is not yet comfortable, and #1243 is the next thing to
+attack. Bit-identity across thread counts is pinned in
+`test_acq_core.c` and the C suite runs under TSan.
 
 ______________________________________________________________________
 

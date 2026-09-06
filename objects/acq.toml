@@ -30,6 +30,8 @@ depends_on = [
     # in the dwell path is the header inline.
     { name = "dp_tlm", link = true },
 ]
+# dp_parallel.h's persistent pool is pthreads (the roll per thread, §2.3).
+extra_link_libs = ["Threads::Threads"]
 
 # ── Construction: physics in, grid out ───────────────────────────────────────
 # The user states the waveform, front end, and operating point in real units;
@@ -302,6 +304,19 @@ doc = "(chip_rate/sf)/symbol_rate -- code epochs per data symbol; 0 when symbol_
 # ── Observability (design §2.4): telemetry probes and the surface tap ────────
 # Attach-on-demand, like Dll/SymSync: detached, every probe site is one
 # predicted-not-taken branch per dwell and the surface costs nothing.
+
+[[acq.methods]]
+name = "set_threads"
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [{ name = "n", type = "int" }]
+
+[[acq.properties]]
+name = "threads"
+type = "int"
+field = true
+doc = "Workers the searcher fans its tiles across, the calling thread included (design §2.3); 1 = serial. Set with set_threads(); a continuous engine with more than one tile starts at the machine's online core count."
 
 [[acq.methods]]
 name = "set_telemetry"

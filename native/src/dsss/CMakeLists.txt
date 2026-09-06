@@ -23,6 +23,7 @@ target_link_libraries(dsss PRIVATE
     dp_tlm_core
     dll_core
     detection_core
+    Threads::Threads
     corr2d_core
     fft2d_core
     fft_core
@@ -90,6 +91,7 @@ target_link_libraries(test_dsss_core PRIVATE
     dp_tlm_core
     dll_core
     detection_core
+    Threads::Threads
     corr2d_core
     fft2d_core
     fft_core
@@ -149,6 +151,7 @@ target_link_libraries(bench_dsss_core PRIVATE
     dp_tlm_core
     dll_core
     detection_core
+    Threads::Threads
     corr2d_core
     fft2d_core
     fft_core

@@ -1566,5 +1566,78 @@ main (void)
     acq_destroy (c);
   }
 
+  /* ── the roll per thread (design §2.3): bit-identical at any count ────
+   * The tiled block engine of the section above, the same emitter, the
+   * surface and the hits at 1, 2, 4 and 8 threads: byte for byte the same,
+   * since every tile owns its rows and its scratch. And the pool's
+   * lifecycle: a tiled continuous engine starts with one, a burst engine
+   * and a single-tile one never have one, set_threads re-sizes it. */
+  {
+    const size_t spc = 2, sf = 7, nx = sf * spc, D = 4;
+    const double crate = 1.0e6;
+    acq_state_t *c = acq_create_continuous (CODE7, sf, spc, crate, 0.0, 70.0,
+                                            200.0e3, 1e-2, 0.9, 0, 7, 0.0);
+    DP_REQUIRE (c != NULL);
+    DP_CHECK (c->window_bins == 3 && c->coherent_bins == D);
+    DP_CHECK_MSG (c->threads >= 1, "a tiled engine starts with a pool");
+    DP_CHECK (c->tile_inv != NULL && c->tile_slow != NULL);
+    acq_state_t *one = acq_create_continuous (CODE7, sf, spc, crate, 0.0, 70.0,
+                                              0.0, 1e-2, 0.9, 0, 1, 0.0);
+    DP_REQUIRE (one != NULL);
+    DP_CHECK_MSG (one->threads == 1 && one->pool == NULL,
+                  "a single-tile engine runs serially");
+    DP_CHECK (acq_set_threads (one, 4) == DP_OK && one->threads == 1);
+    acq_destroy (one);
+    acq_state_t *b
+        = acq_create_burst (CODE7, sf, 8, spc, crate, 20.0, 0.0, 1e-2, 0.9, 0);
+    DP_REQUIRE (b != NULL);
+    DP_CHECK_MSG (b->threads == 1 && b->pool == NULL,
+                  "a burst engine runs serially");
+    acq_destroy (b);
+
+    const size_t    nblk = 3, n = nblk * D * nx, d = 5;
+    float _Complex *x   = malloc (n * sizeof *x);
+    float          *ref = malloc (c->n_surf * sizeof *ref);
+    float          *got = malloc (c->n_surf * sizeof *got);
+    DP_REQUIRE (x && ref && got);
+    for (size_t k = 0; k < n; k++)
+      {
+        size_t  q    = k % nx;
+        size_t  src  = (q + nx - (d % nx)) % nx;
+        uint8_t chip = CODE7[(src / spc) % sf];
+        double  ph   = 2.0 * PI * 1.25 * (double)k / (double)nx;
+        x[k]         = ((chip & 1u) ? -1.0f : 1.0f)
+                       * (float _Complex) (cos (ph) + I * sin (ph));
+      }
+    c->keep_surface = 1;
+    acq_result_t href[8], hgot[8];
+    DP_CHECK (acq_set_threads (c, 1) == DP_OK && c->threads == 1
+              && c->pool == NULL);
+    size_t nref = acq_push (c, x, n, href, 8);
+    DP_CHECK (nref == nblk && acq_surface (c, ref, c->n_surf) == c->n_surf);
+    const int counts[3] = { 2, 4, 8 };
+    for (int i = 0; i < 3; i++)
+      {
+        DP_CHECK (acq_set_threads (c, counts[i]) == DP_OK);
+        DP_CHECK (c->threads >= 1 && c->threads <= counts[i]);
+        acq_reset (c);
+        size_t ngot = acq_push (c, x, n, hgot, 8);
+        DP_CHECK (ngot == nref);
+        DP_CHECK (acq_surface (c, got, c->n_surf) == c->n_surf);
+        DP_CHECK_MSG (memcmp (ref, got, c->n_surf * sizeof *ref) == 0,
+                      "the surface is byte-identical at any thread count");
+        for (size_t h = 0; h < ngot && h < nref; h++)
+          DP_CHECK (hgot[h].doppler_bin == href[h].doppler_bin
+                    && hgot[h].code_phase == href[h].code_phase
+                    && hgot[h].peak_mag == href[h].peak_mag
+                    && hgot[h].test_stat == href[h].test_stat);
+      }
+    DP_CHECK (acq_set_threads (c, 0) == DP_OK && c->threads >= 1);
+    free (got);
+    free (ref);
+    free (x);
+    acq_destroy (c);
+  }
+
   DP_TEST_END ("test_acq_core");
 }

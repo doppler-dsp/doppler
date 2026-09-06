@@ -422,9 +422,9 @@ _test_spec_ramp_decode (void)
  * hand-over now advances the seed's phase by the refined Doppler's
  * dilation over the refine's whole periods. The stimulus is the shipped
  * channel at SPEC's 20 ppm of a 2.5 GHz carrier with no ramp (the ramp's
- * own margin at the floor is a separate matter, #1252); three seeds,
- * every one must lock the code. Sabotage: seed the live chain with the
- * original phase -> every seed red. */
+ * own margin at the floor is a separate matter, #1252); three seeds closing
+ * and one opening, every one must lock the code. Sabotage: seed the live chain
+ * with the original phase -> every seed red. */
 static int
 _test_handover_under_clock_offset (void)
 {
@@ -453,14 +453,19 @@ _test_handover_under_clock_offset (void)
   for (size_t i = 0; i < sf; i++)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
 
+  /* Three seeds closing (the code clock fast, the phase advancing), one
+     opening (negative ppm: the clock slow, the phase retreating through
+     the wrap below zero). */
   int decoded = 0;
-  for (uint32_t seed = 100; seed < 103; seed++)
+  for (uint32_t seed = 100; seed < 104; seed++)
     {
+      const double    sign = seed == 103 ? -1.0 : 1.0;
       float _Complex *x;
       size_t          n;
       double         *data;
-      dp_dsss_dilated_capture (code, sf, spc, fs, tsym, carrier, ppm, 0.0, cn0,
-                               n_sym, pre_silence, seed, &x, &n, &data);
+      dp_dsss_dilated_capture (code, sf, spc, fs, tsym, carrier, sign * ppm,
+                               0.0, cn0, n_sym, pre_silence, seed, &x, &n,
+                               &data);
       async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
           code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9,
           1.2 * ppm * 1e-6 * carrier, 4, 8, 0, 100.0, 4, margin_db, 64, 8,
@@ -469,13 +474,14 @@ _test_handover_under_clock_offset (void)
       float _Complex *syms;
       size_t          n_syms = _stream (rx, x, n, te, &syms);
       double          ber    = _best_ber (syms, n_syms, data, n_sym + 4);
-      printf ("  hand-over at %.0f ppm, seed %u: tracking %d, code %d, "
+      printf ("  hand-over at %+.0f ppm, seed %u: tracking %d, code %d, "
               "symbol %d, %zu symbols, BER %.3f, Doppler est %.0f Hz "
               "(truth %.0f), chip %.2f\n",
-              ppm, seed, async_dsss_receiver_get_tracking (rx),
+              sign * ppm, seed, async_dsss_receiver_get_tracking (rx),
               async_dsss_receiver_get_code_locked (rx),
               async_dsss_receiver_get_locked (rx), n_syms, ber,
-              async_dsss_receiver_get_doppler_hz (rx), ppm * 1e-6 * carrier,
+              async_dsss_receiver_get_doppler_hz (rx),
+              sign * ppm * 1e-6 * carrier,
               async_dsss_receiver_get_chip_phase (rx));
       /* The hand-over's own claim, per seed: the live chain locks the
          dilated code. The carrier and the decode ride on the refine's
@@ -493,7 +499,7 @@ _test_handover_under_clock_offset (void)
       free (data);
       async_dsss_receiver_destroy (rx);
     }
-  DP_CHECK_MSG (decoded >= 2, "and the carrier locks and decodes on the "
+  DP_CHECK_MSG (decoded >= 3, "and the carrier locks and decodes on the "
                               "majority of seeds");
   free (code);
   return 0;

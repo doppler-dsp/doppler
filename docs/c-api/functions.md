@@ -636,6 +636,8 @@
 * **det\_cmp\_f32\_asc** ([**det\_private.h**](det__private_8h.md))
 * **det\_noise\_estimate** ([**det\_private.h**](det__private_8h.md))
 * **det\_peak\_list** ([**det\_private.h**](det__private_8h.md))
+* **det\_peak\_scan** ([**det\_private.h**](det__private_8h.md))
+* **det\_peak\_zone** ([**det\_private.h**](det__private_8h.md))
 * **det\_ring\_create** ([**det\_private.h**](det__private_8h.md))
 * **detector\_create** ([**detector\_core.h**](detector__core_8h.md))
 * **detector\_destroy** ([**detector\_core.h**](detector__core_8h.md))

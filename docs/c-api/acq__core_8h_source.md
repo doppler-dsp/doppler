@@ -62,6 +62,12 @@ extern "C"
 
   typedef struct
   {
+    float  ref;  
+    size_t best; 
+  } acq_part_t;
+
+  typedef struct
+  {
     corr2d_state_t *corr; 
     fft_state_t *slow_fft; 
     dp_f32_t    *ring;  
@@ -130,6 +136,8 @@ extern "C"
     float _Complex **tile_prod; 
     fft_state_t    **tile_slow; 
     float _Complex **tile_col;  
+    size_t **tile_rows;         
+    acq_part_t *parts;          
     float  threshold; 
     float  eta;       
     float  eta_nc;    
@@ -197,6 +205,8 @@ extern "C"
 #define ACQ_STATE_VERSION 3u /* v3: the block-coherent accumulator rides along */
 
 #define ACQ_MAX_PEAKS 64u
+
+#define ACQ_COL_CHUNK 32u
 
 #define ACQ_N_NONCOH_SAFETY_CEILING 256u
 

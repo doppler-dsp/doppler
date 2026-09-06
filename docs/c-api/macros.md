@@ -15,6 +15,7 @@
 * **ACC\_Q8\_STATE\_VERSION** ([**acc\_q8\_core.h**](acc__q8__core_8h.md))
 * **ACC\_TRACE\_STATE\_MAGIC** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
 * **ACC\_TRACE\_STATE\_VERSION** ([**acc\_trace\_core.h**](acc__trace__core_8h.md))
+* **ACQ\_COL\_CHUNK** ([**acq\_core.h**](acq__core_8h.md))
 * **ACQ\_MAX\_PEAKS** ([**acq\_core.h**](acq__core_8h.md))
 * **ACQ\_N\_NONCOH\_SAFETY\_CEILING** ([**acq\_core.h**](acq__core_8h.md))
 * **ACQ\_STATE\_MAGIC** ([**acq\_core.h**](acq__core_8h.md))

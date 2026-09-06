@@ -67,7 +67,12 @@ def _best_ber(syms, data):
     bits = np.where(syms.real > 0, 1.0, -1.0)
     lo, hi = len(bits) // 2, len(bits)
     best = 1.0
-    for lag in range(-20, 21):
+    # The refine consumes symbols before the first one is decided -- about
+    # 16 per block at this geometry, and the dwell is floored at seven
+    # blocks (#1265) -- so the alignment is searched over 300 lags. A
+    # wrong alignment on random data reads 0.5 +- 0.014 over 1200 bits and
+    # never reaches a decode threshold by chance.
+    for lag in range(-300, 301):
         ti = lag + np.arange(lo, hi)
         mask = (ti >= 0) & (ti < len(data))
         if mask.sum() < (hi - lo) // 2:

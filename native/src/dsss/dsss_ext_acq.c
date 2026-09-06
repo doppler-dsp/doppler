@@ -810,6 +810,18 @@ Acquisition_getprop_threads (AcquisitionObject *self,
   return PyLong_FromLong ((long)self->handle->threads);
 }
 
+static PyObject *
+Acquisition_getprop_carrier_freq_hz (AcquisitionObject *self,
+                                     void              *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->carrier_freq_hz);
+}
+
 static PyGetSetDef Acquisition_getset[] = {
   { "max_peaks", (getter)Acquisition_getprop_max_peaks, NULL,
     "The peak list's capacity per dwell (1 = the classic gated maximum); set "
@@ -926,6 +938,10 @@ static PyGetSetDef Acquisition_getset[] = {
     "(design §2.3); 1 = serial. Set with set_threads(); a continuous engine "
     "with more than one tile starts at the machine's online core count.\n",
     NULL },
+  { "carrier_freq_hz", (getter)Acquisition_getprop_carrier_freq_hz, NULL,
+    "RF carrier the Doppler is physically coupled to, Hz (0.0 = uncoupled); "
+    "set with set_carrier_freq_hz().\n",
+    NULL },
   { NULL }
 };
 
@@ -977,6 +993,30 @@ AcquisitionObj_set_threads (AcquisitionObject *self, PyObject *args,
     {
       PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_threads failed",
                     (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AcquisitionObj_set_carrier_freq_hz (AcquisitionObject *self, PyObject *args,
+                                    PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[]       = { "carrier_freq_hz", NULL };
+  double       carrier_freq_hz = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist,
+                                    &carrier_freq_hz))
+    return NULL;
+  int _rc = acq_set_carrier_freq_hz (self->handle, carrier_freq_hz);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "set_carrier_freq_hz failed", (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -1467,6 +1507,68 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> a.set_threads(1)\n"
     ">>> a.threads\n"
     "1\n" },
+  { "set_carrier_freq_hz",
+    (PyCFunction)(void *)AcquisitionObj_set_carrier_freq_hz,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_carrier_freq_hz(carrier_freq_hz) -> None\n"
+    "\n"
+    "Couple the code clock to the carrier: the chip rate dilates by\n"
+    "doppler_hz / carrier_freq_hz, and the engine accounts for it -- every\n"
+    "window tile's epochs are shifted along the code axis by the drift the\n"
+    "tile's own frequency implies before the slow-time transform (inside a\n"
+    "coherent block of D epochs), and the hand-off advances the hit's code\n"
+    "phase by the drift over half the dwell (design section 12.11, 12.12).\n"
+    "Config, not running state: not in the state blob, so a resumed engine\n"
+    "wants it set again. 0.0 (the default) = uncoupled, the engine as it ran\n"
+    "without it. Raises ValueError for a negative or non-finite value.\n"
+    "\n"
+    "A physically-coupled Doppler moves the code as well as the carrier --\n"
+    "100 chips/s at 20 ppm of 5 Mcps -- and the engine's two long\n"
+    "integrations both smear over it (doppler#1256, #1254):\n"
+    "\n"
+    "- **Inside a coherent block** of D epochs every tile's epoch\n"
+    "  correlations are shifted along the code axis by the drift the tile's\n"
+    "  own frequency implies, `f_tile / carrier` chips per chip, aligned to\n"
+    "  the block's middle, before the slow-time transform (a linear phase on\n"
+    "  each epoch's product, exact to a fraction of a sample). Measured at\n"
+    "  SPEC's 20 ppm with D = 154 (3.1 chips of drift across the block):\n"
+    "  without it the block's peak is 13 dB down and 3 chips wide and the\n"
+    "  depth detects nothing at 34 dB-Hz; with it the block reads as a still\n"
+    "  one.\n"
+    "- **The hand-off** (acq_build_handoff()) advances the hit's code phase\n"
+    "  by the drift over half the dwell -- the non-coherent sum's peak is\n"
+    "  the phase at the dwell's middle, the seed is wanted at its end: 0.9\n"
+    "  chip at the 40 dB-Hz floor, past a refine loop's pull-in.\n"
+    "\n"
+    "Config, not running state: it is not in the state blob, so a resumed\n"
+    "engine wants it set again by its holder, as at create. Default 0.0\n"
+    "(uncoupled) is the engine exactly as it ran without it.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "carrier_freq_hz : float\n"
+    "    RF carrier, Hz; 0.0 = uncoupled.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_carrier_freq_hz failed``, with the return code appended\n"
+    "    (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> a = Acquisition(code, spc=2, chip_rate=5e6, symbol_rate=2700.0,\n"
+    "...                 cn0_dbhz=45.0, doppler_uncertainty=50e3)\n"
+    ">>> a.carrier_freq_hz\n"
+    "0.0\n"
+    ">>> a.set_carrier_freq_hz(2.5e9)\n"
+    ">>> a.carrier_freq_hz\n"
+    "2500000000.0\n" },
   { NULL }
 };
 

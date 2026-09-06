@@ -415,8 +415,7 @@ dsss_receiver_steps (dsss_receiver_state_t *state, const float _Complex *x,
        * is the active mechanism, always -- acq_build_handoff()'s only
        * supported mode. */
       acq_handoff_t ho;
-      acq_build_handoff (state->acq, &hit, state->code_len, state->spc, 0.0,
-                         &ho);
+      acq_build_handoff (state->acq, &hit, state->code_len, state->spc, &ho);
 
       dsss_rx_rebuild_chain (state, ho.chip_phase, ho.doppler_hz_est,
                              state->segments, state->sps, state->n);

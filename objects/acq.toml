@@ -150,6 +150,22 @@ type = "size_t"
 field = true
 doc = "The peak list's capacity per dwell (1 = the classic gated maximum); set with set_max_peaks()."
 
+[[acq.methods]]
+name = "set_carrier_freq_hz"
+doc = "Couple the code clock to the carrier: the chip rate dilates by doppler_hz / carrier_freq_hz, and the engine accounts for it -- every window tile's epochs are shifted along the code axis by the drift the tile's own frequency implies before the slow-time transform (inside a coherent block of D epochs), and the hand-off advances the hit's code phase by the drift over half the dwell (design section 12.11, 12.12). Config, not running state: not in the state blob, so a resumed engine wants it set again. 0.0 (the default) = uncoupled, the engine as it ran without it. Raises ValueError for a negative or non-finite value."
+arg_type = "void"
+return_type = "int"
+status_return = true
+params = [
+  { name = "carrier_freq_hz", type = "double" },
+]
+
+[[acq.properties]]
+name = "carrier_freq_hz"
+type = "double"
+field = true
+doc = "RF carrier the Doppler is physically coupled to, Hz (0.0 = uncoupled); set with set_carrier_freq_hz()."
+
 # ── Read-back grid the engine derived ────────────────────────────────────────
 
 [[acq.properties]]

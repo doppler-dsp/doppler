@@ -34,6 +34,15 @@
  *   sensitivity  realized Pd against C/N0 for D of 1, 16 and the operating
  *                point's 154, one look each: the C/N0 at which the depth
  *                detects what a single epoch cannot.
+ *   dilated      the aligned block at SPEC's Doppler, 20 ppm of a 2.5 GHz
+ *                carrier (50 kHz), two ways: the synth's own carrier offset
+ *                with the code standing still, and through the shipped
+ *                doppler_channel with the chips dilated by the same 20 ppm
+ *                -- 100 chips/s, 3.1 chips across a D = 154 block (#1256).
+ *                Per depth: the peak against the gate, `conc`, the peak's
+ *                width along the code axis, the hand-off's Doppler, and
+ *                its chip phase raw and with the half-dwell advance
+ *                (#1254); then the depth's realized Pd both ways.
  *
  * Usage:
  *   validate_acq_block_coherent            full tables
@@ -43,9 +52,14 @@
  *                                          binomial band (#1064's interp
  *                                          factor included), D = 154
  *                                          detecting at a C/N0 where D = 1
- *                                          does not
+ *                                          does not, and the dilated
+ *                                          block's cost against the still
+ *                                          one
  */
 #include "acq/acq_core.h"
+#include "awgn/awgn_core.h"
+#include "clib_common.h"
+#include "doppler_channel/doppler_channel_core.h"
 #include "dp_test.h"
 #include "gold/gold_core.h"
 #include "wfm_synth/wfm_synth_core.h"
@@ -59,11 +73,13 @@
 #define SPC 2u
 #define NX (SF * SPC) /* code_bins = 2046 */
 #define SYMBOL_RATE 2700.0
-#define W_SYM 450u      /* the code-only window, symbols on the data clock */
-#define F_SYM 4950u     /* the frame, symbols                               */
-#define DU 50000.0      /* +/-50 kHz, the design's starting uncertainty      */
-#define RATE 500.0      /* Hz/s, the spec's Doppler rate                     */
-#define SIZING_CN0 60.0 /* high enough that the sizer picks n_noncoh = 1 */
+#define W_SYM 450u  /* the code-only window, symbols on the data clock */
+#define F_SYM 4950u /* the frame, symbols                               */
+#define DU 50000.0  /* +/-50 kHz, the design's starting uncertainty      */
+#define RATE 500.0  /* Hz/s, the spec's Doppler rate                     */
+#define CARRIER_HZ 2.5e9 /* SPEC's carrier: ppm -> Hz, and the chip clock  */
+#define SPEC_PPM 20.0    /* 50 kHz, 100 chips/s at 5 Mcps                  */
+#define SIZING_CN0 60.0  /* high enough that the sizer picks n_noncoh = 1 */
 #define PD 0.9
 #define TAU0 777u /* injected code phase, samples                         */
 #define TILE 5u   /* injected tile (window hypothesis)                    */
@@ -242,6 +258,118 @@ measure (const uint8_t *code, acq_state_t *a, block_kind_t kind, double frac,
   return 0;
 }
 
+typedef struct
+{
+  size_t D;
+  int    hit;
+  double peak_stat, gate, conc;
+  double width_chips;    /* columns within 3 dB of the peak, in chips   */
+  double doppler_hz_est; /* the hand-off's Doppler                      */
+  double chip_raw;       /* the hand-off's phase, no carrier            */
+  double chip_adv;       /* the same with the half-dwell advance        */
+} dil_t;
+
+/* One ALIGNED block of a clean emitter at SPEC's Doppler, two ways: the
+   synth's own carrier offset with the code standing still (`dilate` 0),
+   or the synth at baseband through the shipped channel at `ppm` of the
+   carrier, the chips dilated with it (`dilate` 1). Noise, when cn0_dbhz >
+   0, from the shipped awgn after the channel, as a receiver sees it. */
+static int
+measure_dilated (const uint8_t *code, acq_state_t *a, double ppm, int dilate,
+                 int comp, double cn0_dbhz, uint32_t seed, dil_t *out)
+{
+  /* `comp`: the engine told the carrier, so every tile carries its own
+     code-rate hypothesis and the hand-off its half-dwell advance. */
+  DP_REQUIRE (acq_set_carrier_freq_hz (a, comp ? CARRIER_HZ : 0.0) == DP_OK);
+  const size_t       D = a->coherent_bins, nx = a->code_bins;
+  const double       fs  = a->fs;
+  const double       f   = ppm * 1e-6 * CARRIER_HZ;
+  wfm_synth_state_t *syn = wfm_synth_create (
+      WFM_SYNTH_DSSS, fs, dilate ? 0.0 : f, WFM_SYNTH_SNR_CLEAN, 1, seed,
+      (int)SPC, 7, 0, 0, 0.0);
+  DP_REQUIRE_MSG (syn
+                      && wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
+                                                  WFM_DSSS_DATA_NONE, NULL, 0)
+                             == 0,
+                  "the synth takes the aligned block");
+  const size_t   discard = TAU0, blk = D * nx, need = discard + blk;
+  float complex *raw = dp_xmalloc ((need + 8192) * sizeof *raw);
+  if (dilate)
+    {
+      doppler_channel_state_t *ch
+          = doppler_channel_create (fs, CARRIER_HZ, ppm, 0.0);
+      DP_REQUIRE_MSG (ch != NULL, "the channel opens");
+      const size_t   chunk = 8192, cap = doppler_channel_execute_max_out (ch);
+      float complex *in   = dp_xmalloc (chunk * sizeof *in);
+      float complex *tmp  = dp_xmalloc (cap * sizeof *tmp);
+      size_t         have = 0;
+      while (have < need)
+        {
+          wfm_synth_steps (syn, in, chunk);
+          size_t n = doppler_channel_execute (ch, in, chunk, tmp, cap);
+          if (have + n > need + 8192)
+            n = need + 8192 - have;
+          memcpy (raw + have, tmp, n * sizeof *tmp);
+          have += n;
+        }
+      free (tmp);
+      free (in);
+      doppler_channel_destroy (ch);
+    }
+  else
+    wfm_synth_steps (syn, raw, need);
+  if (cn0_dbhz > 0.0)
+    {
+      awgn_state_t *g = awgn_create (
+          seed * 7919u + 1u, awgn_amplitude_for_snr (
+                                 (float)(cn0_dbhz - 10.0 * log10 (fs)), 1.0f));
+      float complex *nz = dp_xmalloc (blk * sizeof *nz);
+      awgn_generate (g, blk, nz, blk);
+      for (size_t i = 0; i < blk; i++)
+        raw[discard + i] += nz[i];
+      free (nz);
+      awgn_destroy (g);
+    }
+  acq_result_t hit[4];
+  acq_reset (a);
+  size_t nh = acq_push (a, raw + discard, blk, hit, 4);
+  float *s  = dp_xmalloc (a->n_surf * sizeof *s);
+  DP_REQUIRE_MSG (acq_surface (a, s, a->n_surf) == a->n_surf,
+                  "the surface tap reads the decided block");
+  out->D         = D;
+  out->hit       = nh > 0;
+  out->peak_stat = a->test_stat;
+  out->gate      = a->threshold;
+  out->conc      = a->peak_conc;
+  /* The peak's width along the code axis: columns of the peak's own
+     surface row within 3 dB of it, circular. */
+  const size_t prow = a->peak_row * a->interp;
+  size_t       wide = 0;
+  for (size_t c = 0; c < nx; c++)
+    if (s[prow * nx + c] >= 0.7071 * s[prow * nx + a->peak_col])
+      wide++;
+  out->width_chips = (double)wide / (double)SPC;
+  /* The hand-off, without and with the carrier (the half-dwell advance
+     of #1254 -- for one look of D epochs, D * SF / 2 of the drift). The
+     hit is the engine's own; when the gate did not fire, its peak. */
+  acq_result_t  h = nh > 0 ? hit[0]
+                           : (acq_result_t){ .doppler_bin = a->peak_row,
+                                             .code_phase  = a->peak_col };
+  acq_handoff_t ho;
+  DP_REQUIRE (acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
+  acq_build_handoff (a, &h, SF, SPC, &ho);
+  out->doppler_hz_est = ho.doppler_hz_est;
+  out->chip_raw       = ho.chip_phase;
+  DP_REQUIRE (acq_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
+  acq_build_handoff (a, &h, SF, SPC, &ho);
+  out->chip_adv = ho.chip_phase;
+  DP_REQUIRE (acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
+  free (s);
+  free (raw);
+  wfm_synth_destroy (syn);
+  return 0;
+}
+
 static const char *
 kind_name (block_kind_t k)
 {
@@ -401,6 +529,114 @@ main (int argc, char **argv)
         DP_CHECK_MSG (pd_d154_chk == 1.0,
                       "at 38 dB-Hz the window's depth detects every block");
         DP_CHECK_MSG (pd_d1_chk == 0.0, "and a single epoch detects none");
+      }
+  }
+  /* ── the dilated block: SPEC's 20 ppm through the channel (#1256) ── */
+  {
+    const size_t epochs[3] = { 1, 31, 0 }; /* D = 1, 16, the window's 154 */
+    printf ("\nSPEC's Doppler at 5 Mcps: %.0f ppm of %.1f GHz = %.0f Hz, "
+            "%.0f chips/s; one aligned block, clean, the code standing "
+            "still (the synth's offset) or dilated through the channel:\n",
+            SPEC_PPM, CARRIER_HZ / 1e9, SPEC_PPM * 1e-6 * CARRIER_HZ,
+            SPEC_PPM * 1e-6 * 5.0e6);
+    printf ("  %-5s %-9s %-11s %-6s %-11s %-10s %-9s %-9s %s\n", "D", "code",
+            "peak/gate", "conc", "width chip", "dopp Hz", "chip raw",
+            "chip adv", "drift/block");
+    dil_t                    still[3], dil[3], cmp[3];
+    static const char *const way[3]
+        = { "still", "dilated", "dilated+c" }; /* +c: the carrier told */
+    for (int e = 0; e < 3; e++)
+      {
+        acq_state_t *a = engine_open (code, 5.0e6, epochs[e], 1e-3);
+        ONE_LOOK (a);
+        DP_REQUIRE (
+            measure_dilated (code, a, SPEC_PPM, 0, 0, 0.0, 11u, &still[e])
+            == 0);
+        DP_REQUIRE (
+            measure_dilated (code, a, SPEC_PPM, 1, 0, 0.0, 11u, &dil[e]) == 0);
+        DP_REQUIRE (
+            measure_dilated (code, a, SPEC_PPM, 1, 1, 0.0, 11u, &cmp[e]) == 0);
+        for (int w = 0; w < 3; w++)
+          {
+            const dil_t *b = w == 0 ? &still[e] : w == 1 ? &dil[e] : &cmp[e];
+            printf ("  %-5zu %-9s %6.0f/%-4.1f %-6.2f %-11.1f %-10.0f "
+                    "%-9.2f %-9.2f %.2f\n",
+                    b->D, way[w], b->peak_stat, b->gate, b->conc,
+                    b->width_chips, b->doppler_hz_est, b->chip_raw,
+                    b->chip_adv,
+                    w ? SPEC_PPM * 1e-6 * (double)b->D * (double)SF : 0.0);
+          }
+        acq_destroy (a);
+      }
+    printf ("  (peak/gate in the gate's units; chip phases are the "
+            "hand-off's, at the block's end: the still block's is the "
+            "truth, the dilated block's truth is that plus the channel's "
+            "delay plus a whole block's drift)\n");
+
+    /* The depth's sensitivity both ways: realized Pd at D = 154. */
+    const double cn0s[3] = { 34.0, 38.0, 42.0 };
+    const int    trials  = check ? 5 : 20;
+    acq_state_t *a       = engine_open (code, 5.0e6, 0, 1e-3);
+    ONE_LOOK (a);
+    printf ("\nD = %zu, one look, realized Pd over %d trials (mean "
+            "peak/gate):\n  %-9s",
+            a->coherent_bins, trials, "code");
+    for (int c = 0; c < 3; c++)
+      printf ("   %5.0f dB-Hz", cn0s[c]);
+    printf ("\n");
+    double pd_chk[3] = { -1.0, -1.0, -1.0 };
+    for (int w = 0; w < 3; w++)
+      {
+        printf ("  %-9s", way[w]);
+        for (int c = 0; c < (check ? 2 : 3); c++)
+          {
+            int    hits = 0;
+            double marg = 0.0;
+            for (int t = 0; t < trials; t++)
+              {
+                dil_t b;
+                DP_REQUIRE (
+                    measure_dilated (code, a, SPEC_PPM, w > 0, w > 1, cn0s[c],
+                                     7000u + (uint32_t)(100 * c + t), &b)
+                    == 0);
+                hits += b.hit;
+                marg += b.peak_stat / b.gate;
+              }
+            printf ("   %4.2f (%4.1f)", (double)hits / trials, marg / trials);
+            if (c == 0)
+              pd_chk[w] = (double)hits / trials;
+          }
+        printf ("\n");
+      }
+    acq_destroy (a);
+    if (check)
+      {
+        /* Pinned where the measurement put them (design §12.12): the
+           uncompensated block's loss is the defect the section exists to
+           see, the compensated one's recovery is the claim. */
+        DP_CHECK_MSG (still[2].hit && cmp[2].hit,
+                      "the aligned block at 50 kHz is seen still and "
+                      "dilated with the carrier told");
+        DP_CHECK_MSG (db (dil[2].peak_stat / still[2].peak_stat) < -10.0,
+                      "told nothing, the D = 154 block smears 3 chips and "
+                      "loses over 10 dB");
+        DP_CHECK_MSG (db (cmp[2].peak_stat / still[2].peak_stat) > -4.0,
+                      "told the carrier, it is within 4 dB of the still "
+                      "block (1.4 of them the channel's own resampler)");
+        DP_CHECK_MSG (cmp[2].width_chips <= 1.0 && dil[2].width_chips >= 2.0,
+                      "and its peak is a chip wide, not three");
+        /* The hand-off: the block's end is the D = 1 block's phase (its
+           own start, to a hundredth of a chip) plus a whole block's drift;
+           the searcher's cell is half a chip. */
+        double truth_end = dil[0].chip_raw
+                           + SPEC_PPM * 1e-6 * (double)cmp[2].D * (double)SF;
+        DP_CHECK_MSG (fabs (cmp[2].chip_adv - truth_end) <= 0.5,
+                      "the advanced seed is the phase at the block's end "
+                      "within the searcher's cell");
+        DP_CHECK_MSG (pd_chk[0] == 1.0 && pd_chk[1] == 0.0 && pd_chk[2] == 1.0,
+                      "at 34 dB-Hz the depth detects every still block, "
+                      "no dilated one told nothing, every one told the "
+                      "carrier");
       }
   }
   if (check)

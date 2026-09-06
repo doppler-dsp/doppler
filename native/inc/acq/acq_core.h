@@ -342,6 +342,10 @@ extern "C"
                                   (§2.1); 1 = no window, D = 1.          */
     double doppler_rate; /**< Doppler rate the depth is bounded against
                               (Hz/s); 0 = no bound from the rate.       */
+    double carrier_freq_hz; /**< RF carrier the Doppler is physically
+                                 coupled to, Hz (acq_set_carrier_freq_hz());
+                                 0 = uncoupled: no code-rate hypothesis per
+                                 tile, no dwell advance in the hand-off. */
     float _Complex *blk; /**< window_bins * coherent_bins * code_bins: the
                               block's per-tile epoch correlations; NULL
                               unless both exceed 1.                     */
@@ -752,6 +756,52 @@ extern "C"
   int acq_set_max_peaks (acq_state_t *state, size_t n);
 
   /**
+   * @brief Couple the code clock to the carrier: the chip rate dilates by
+   *        `doppler_hz / carrier_freq_hz`, and the engine accounts for it.
+   *
+   * A physically-coupled Doppler moves the code as well as the carrier
+   * -- 100 chips/s at 20 ppm of 5 Mcps -- and the engine's two long
+   * integrations both smear over it (doppler#1256, #1254):
+   * - **Inside a coherent block** of D epochs every tile's epoch
+   *   correlations are shifted along the code axis by the drift the
+   *   tile's own frequency implies, `f_tile / carrier` chips per chip,
+   *   aligned to the block's middle, before the slow-time transform
+   *   (a linear phase on each epoch's product, exact to a fraction of a
+   *   sample). Measured at SPEC's 20 ppm with D = 154 (3.1 chips of
+   *   drift across the block): without it the block's peak is 13 dB
+   *   down and 3 chips wide and the depth detects nothing at 34 dB-Hz;
+   *   with it the block reads as a still one.
+   * - **The hand-off** (acq_build_handoff()) advances the hit's code
+   *   phase by the drift over half the dwell -- the non-coherent sum's
+   *   peak is the phase at the dwell's middle, the seed is wanted at its
+   *   end: 0.9 chip at the 40 dB-Hz floor, past a refine loop's pull-in.
+   *
+   * Config, not running state: it is not in the state blob, so a resumed
+   * engine wants it set again by its holder, as at create. Default 0.0
+   * (uncoupled) is the engine exactly as it ran without it.
+   *
+   * @param state           Must be non-NULL.
+   * @param carrier_freq_hz RF carrier, Hz; 0.0 = uncoupled.
+   * @return `DP_OK`, or `DP_ERR_INVALID` for a negative or non-finite
+   *         value.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> a = Acquisition(code, spc=2, chip_rate=5e6, symbol_rate=2700.0,
+   * ...                 cn0_dbhz=45.0, doppler_uncertainty=50e3)
+   * >>> a.carrier_freq_hz
+   * 0.0
+   * >>> a.set_carrier_freq_hz(2.5e9)
+   * >>> a.carrier_freq_hz
+   * 2500000000.0
+   *
+   * @endcode
+   */
+  int acq_set_carrier_freq_hz (acq_state_t *state, double carrier_freq_hz);
+
+  /**
    * @brief Set how many threads the searcher fans its tiles across
    *        (design §2.3: a roll per thread on persistent workers).
    *
@@ -1056,26 +1106,25 @@ extern "C"
    *   its end, when the chip clock is dilated by the same Doppler the hit
    *   reports (a physically-coupled carrier, `doppler_hz / carrier_freq_hz`
    *   chips per chip). The seed a code loop wants is the phase at the next
-   *   sample, so given @p carrier_freq_hz the phase is advanced by the
-   *   drift over HALF the dwell, `doppler_hz_est / carrier_freq_hz *
-   *   n_noncoh * coherent_bins * code_len / 2` chips. At SPEC's 20 ppm the
+   *   sample, so with the carrier set (acq_set_carrier_freq_hz()) the phase
+   *   is advanced by the drift over HALF the dwell, `doppler_hz_est /
+   *   carrier_freq_hz * n_noncoh * coherent_bins * code_len / 2` chips
+   *   (a coherent block's epochs are aligned to its middle by the same
+   *   setting, so the block's peak is its middle too). At SPEC's 20 ppm the
    *   continuous engine's dwell at 45 dB-Hz is 15 epochs (0.15 chip, inside
    *   any code loop's pull-in) and at the 40 dB-Hz floor 88 epochs -- 0.9
    *   chip, measured directly, past the refine Dll's; without this the
-   *   floor's hand-offs never refined. `0.0` = no coupling, no advance.
+   *   floor's hand-offs never refined. Uncoupled (0.0): no advance.
    * @param state    The engine @p hit came from (non-NULL, built via
    *                 acq_create_continuous()).
    * @param hit      One hit from acq_push() (non-NULL).
    * @param code_len Spreading-code length (chips) — the same value passed
    *                 to whichever acq_create_*() built @p state.
    * @param spc      Samples/chip — likewise.
-   * @param carrier_freq_hz  RF carrier the Doppler is physically coupled
-   *                 to (Hz), for the dwell's dilation above; 0.0 = none.
    * @param out      Written on return (non-NULL).
    */
   void acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
-                          size_t code_len, size_t spc,
-                          double carrier_freq_hz, acq_handoff_t *out);
+                          size_t code_len, size_t spc, acq_handoff_t *out);
 
   /* ── Serializable state — the elastic / pure-transducer face
    * ─────────────────

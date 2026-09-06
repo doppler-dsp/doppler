@@ -39,6 +39,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  uint8\_t \* | [**band\_mask**](#variable-band_mask)  <br> |
 |  float \_Complex \* | [**blk**](#variable-blk)  <br> |
 |  size\_t | [**blk\_epoch**](#variable-blk_epoch)  <br> |
+|  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  size\_t | [**code\_bins**](#variable-code_bins)  <br> |
@@ -224,6 +225,23 @@ size_t acq_state_t::blk_epoch;
 
 Epochs gathered in the current block (0 … coherent\_bins-1). 
  
+
+
+        
+
+<hr>
+
+
+
+### variable carrier\_freq\_hz 
+
+```C++
+double acq_state_t::carrier_freq_hz;
+```
+
+
+
+RF carrier the Doppler is physically coupled to, Hz ([**acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-acq_set_carrier_freq_hz)); 0 = uncoupled: no code-rate hypothesis per tile, no dwell advance in the hand-off. 
 
 
         

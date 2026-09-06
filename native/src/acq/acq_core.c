@@ -1369,6 +1369,7 @@ acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
 
   st->code_only_epochs = code_only_epochs;
   st->doppler_rate     = doppler_rate;
+  st->carrier_freq_hz  = 0.0;
 
   const double snr    = acq_design_snr (cn0_dbhz, st->fs);
   size_t       best_d = 0, best_nc = 0, best_window_bins = 1;
@@ -1562,6 +1563,37 @@ acq_tile_epoch (size_t r, void *ctx)
   float _Complex *prod     = st->tile_prod[r];
   for (size_t j = 0; j < nx; j++)
     prod[j] = st->wide_spec[(j + roll) % nx] * st->wide_ref_spec[j];
+  if (D > 1 && st->carrier_freq_hz > 0.0 && signed_r != 0)
+    {
+      /* The code-rate hypothesis of this tile (doppler#1256): its
+         frequency, signed_r bins of fs/nx, dilates the chip clock by
+         f/carrier, so the received code advances `signed_r * fs /
+         carrier` samples per epoch, and in the lag convention of this
+         surface (the roll the replica needs to meet the capture) epoch
+         k's correlation peak sits that much EARLIER than epoch k-1's --
+         measured, not derived: the other sign doubles the smear. Shift
+         every epoch's row to the block's middle -- a linear phase over
+         the SIGNED frequency index before the inverse transform, exact
+         for a fractional shift -- so the slow-time transform sums a
+         standing peak. The hand-off's half-dwell advance
+         (acq_build_handoff) then reads the block's peak as its middle,
+         which it is. */
+      const double d    = (double)signed_r * st->fs / st->carrier_freq_hz;
+      const double s    = ((double)st->blk_epoch - 0.5 * (double)(D - 1)) * d;
+      const double w    = -2.0 * M_PI * s / (double)nx;
+      const size_t half = nx / 2;
+      /* Positive frequencies j' = j for j < half, then negative j' = j - nx:
+         each run a recurrence from an exact start, resynced every 256. */
+      double _Complex ph = 1.0, step = cexp (I * w);
+      for (size_t j = 0; j < nx; j++)
+        {
+          if (j == half || (j & 255) == 0)
+            ph = cexp (I * w
+                       * (double)(j < half ? (long)j : (long)j - (long)nx));
+          prod[j] *= (float _Complex)ph;
+          ph *= step;
+        }
+    }
   float _Complex *row = (D > 1) ? st->blk + (r * D + st->blk_epoch) * nx
                                 : st->out_buf + r * nx;
   fft_execute_cf32 (st->tile_inv[r], prod, nx, row, nx);
@@ -1761,12 +1793,21 @@ acq_push (acq_state_t *st, const float _Complex *x, size_t n_in,
   return ndet;
 }
 
+int
+acq_set_carrier_freq_hz (acq_state_t *state, double carrier_freq_hz)
+{
+  if (!(carrier_freq_hz >= 0.0) || !isfinite (carrier_freq_hz))
+    return DP_ERR_INVALID;
+  state->carrier_freq_hz = carrier_freq_hz;
+  return DP_OK;
+}
+
 void
 acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
-                   size_t code_len, size_t spc, double carrier_freq_hz,
-                   acq_handoff_t *out)
+                   size_t code_len, size_t spc, acq_handoff_t *out)
 {
-  double phase = acq_chip_phase_of_col (hit->code_phase, code_len, spc);
+  const double carrier_freq_hz = state->carrier_freq_hz;
+  double       phase = acq_chip_phase_of_col (hit->code_phase, code_len, spc);
 
   /* Shared with the wideband search's own row->roll mapping — see
      dp_fftfreq_index()'s doc comment for the sign inversion that a second,

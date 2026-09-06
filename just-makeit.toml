@@ -897,6 +897,7 @@ wfm_writer = ["Writer", "write_blue_header"]
 wfm_reader = ["Reader"]
 wfm_sink = ["StreamSink"]
 sample_clock = ["SampleClock"]
+stage_kinds = ["STAGE_CRC16", "STAGE_RS", "STAGE_RANDOMISE", "STAGE_CONV", "STAGE_INTERLEAVE", "STAGE_USER"]
 
 [[module.wfm.functions]]
 name = "bpsk_map"

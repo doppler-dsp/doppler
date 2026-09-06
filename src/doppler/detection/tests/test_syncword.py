@@ -25,7 +25,7 @@ import pytest
 
 from doppler.ccsds import asm_bits
 from doppler.detection import SyncFinder
-from doppler.wfm import FrameDesc
+from doppler.wfm import STAGE_RANDOMISE, STAGE_RS, FrameDesc
 
 EMPTY = np.empty(0, np.uint8)
 
@@ -182,7 +182,7 @@ def _cadu(depth: int = 2) -> tuple[FrameDesc, np.ndarray]:
     No inner code: frame synchronisation happens after the Viterbi, which is
     also where `check()` begins.
     """
-    K, E2, RS, RANDOMISE = 223, 32, 1, 2
+    K, E2 = 223, 32
     octets = np.array(
         [(i * 37 + 11) & 0xFF for i in range(K * depth)], np.uint8
     )
@@ -190,8 +190,8 @@ def _cadu(depth: int = 2) -> tuple[FrameDesc, np.ndarray]:
     d.add_field(asm_bits())
     d.add_field(np.unpackbits(octets).astype(np.uint8))
     d.add_field(EMPTY, derived_by=1, derived_bits=E2 * depth * 8)
-    d.add_stage(RS, first_field=1, n_fields=2, depth=depth)
-    d.add_stage(RANDOMISE, first_field=1, n_fields=2)
+    d.add_stage(STAGE_RS, first_field=1, n_fields=2, depth=depth)
+    d.add_stage(STAGE_RANDOMISE, first_field=1, n_fields=2)
     d.build()
     return d, np.asarray(d.bits(1))
 

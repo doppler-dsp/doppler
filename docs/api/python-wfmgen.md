@@ -537,11 +537,10 @@ end to end, with no `ccsds_tm` binding involved:
 import numpy as np
 
 from doppler.ccsds import asm_bits
-from doppler.wfm import FrameDesc
+from doppler.wfm import STAGE_RANDOMISE, STAGE_RS, STAGE_USER, FrameDesc
 
 empty = np.empty(0, np.uint8)
 K, E2 = 223, 32                      # RS(255,223): 223 data, 32 parity octets
-_CRC16, RS, RANDOMISE, _CONV = 0, 1, 2, 3
 
 asm = asm_bits()                     # 0x1ACFFC1D, never transcribed by hand
 octets = np.array([(i * 29 + 5) & 0xFF for i in range(K)], np.uint8)
@@ -554,8 +553,8 @@ assert d.add_field(empty, derived_by=1, derived_bits=E2 * 8) == 2  # parity
 
 # Both stages start at field 1, so both skip the marker -- declared, not
 # inherited.
-assert d.add_stage(RS, first_field=1, n_fields=2, depth=1) == 0
-assert d.add_stage(RANDOMISE, first_field=1, n_fields=2) == 1
+assert d.add_stage(STAGE_RS, first_field=1, n_fields=2, depth=1) == 0
+assert d.add_stage(STAGE_RANDOMISE, first_field=1, n_fields=2) == 1
 d.build()
 
 assert d.nbits == 32 + 255 * 8                   # marker + one RS codeblock
@@ -586,6 +585,42 @@ Read a built description with `n_fields()` / `n_stages()` and the indexed
 `field_off()`, `field_bits()`, `stage_first()`, `stage_bits()`. `layout()` is the
 **named** view and reports zeros for a description assembled this way; a `Frame`
 is one configuration of the same object, so the indexed accessors read it too.
+
+### Stage kinds
+
+`add_stage()` takes the kind as a **number**, and `doppler.wfm` exports the
+names for it:
+
+| constant           | what the stage does                                      |
+| ------------------ | -------------------------------------------------------- |
+| `STAGE_CRC16`      | CRC-16-CCITT over the covered bits, into a derived field |
+| `STAGE_RS`         | a Reed-Solomon code, interleaved to `depth`              |
+| `STAGE_RANDOMISE`  | XOR a pseudo-random sequence, in place                   |
+| `STAGE_CONV`       | a convolutional code, expanding by `emit_num / emit_den` |
+| `STAGE_INTERLEAVE` | a block interleaver: permute in place, length unchanged  |
+| `STAGE_USER`       | the first kind reserved for **callers**                  |
+
+These are generated from `wfm_stage_kind_t` by `scripts/gen_stage_kinds.py`,
+so they cannot drift from the C the way five hand-written copies of
+`CRC16, RS, RANDOMISE, CONV = 0, 1, 2, 3` had begun to
+([#1223](https://github.com/doppler-dsp/doppler/issues/1223)).
+
+**The kind stays a number on purpose.** It is an open `uint32_t`, not a menu:
+doppler promises never to allocate at or above `STAGE_USER`, so a kind you
+choose today cannot collide with a built-in added later. Take
+`STAGE_USER + n`, supply the kernel through the ops table, and the description
+carries it:
+
+```python
+# A fresh description under its own name: this page is one namespace, and
+# `d` above is the CADU the rest of it goes on to check.
+mine = FrameDesc(empty, empty, empty)
+mine.add_field(np.ones(8, np.uint8))
+assert mine.add_stage(STAGE_USER + 1, first_field=0, n_fields=1) == 0
+```
+
+A named choice list would read better and would refuse exactly that call,
+which is why the nicer spelling was measured and rejected.
 
 ::: doppler.wfm.FrameDesc
 

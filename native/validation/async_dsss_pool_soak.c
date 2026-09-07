@@ -83,6 +83,10 @@
  *                                            and re-acquired, the other
  *                                            leaving, released, returning
  *                                            and re-acquired
+ *   ... --emit                               CSV blocks on stdout for the
+ *                                            report's validator, beside
+ *                                            the tables: `# stints` and
+ *                                            `# totals` per run
  *   ... --budget                             the whole population as one
  *                                            run (§12 step 8): the shipped
  *                                            DDC from 13 MSa/s in front of
@@ -379,6 +383,7 @@ typedef struct
                       clock (0.004 per s, §12.15)                     */
   size_t   dbl, dbl_locked, reassign, off_air_assign, max_assigned;
   size_t   waited, false_alarms, relocked;
+  size_t   clock_restarts; /* release clocks that restarted */
   double   wait_max;
   uint64_t dropped, events;
   size_t   held_blocks, trk_blocks, sym_blocks, on_blocks;
@@ -463,6 +468,11 @@ static double g_duration_s = 0.0;
    real time at 13 MSa/s and, the same chain fed 2.3 times faster, at the
    30 MSa/s floor. */
 static int g_budget = 0;
+/* --emit: CSV blocks on stdout for the validator that renders the report
+   (src/doppler/dsss/tests/validation/async_dsss_pool/validate.py):
+   `# stints` one row per stint, `# totals` one row per run. The tables
+   above are for a reader; these are for the gate. */
+static int g_emit = 0;
 #define DDC_IN_RATE 13.0e6
 /* The front end's group delay, output samples at FS, measured once with
    an impulse through a throwaway copy of the chain: the score's truth is
@@ -707,6 +717,10 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
       for (size_t i = 0; i < N_SLOTS; i++)
         {
           r[i] = async_dsss_pool_status (p, i);
+          if (r[i].assigned && r[i].both_down_samples < prev_down[i]
+              && prev_down[i] >= samples (0.2)
+              && r[i].state == ASYNC_DSSS_RX_TRACKING)
+            t->clock_restarts++;
           if (trace_every && r[i].assigned
               && r[i].both_down_samples < prev_down[i]
               && prev_down[i] >= samples (0.2)
@@ -1069,6 +1083,62 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
       t->held_blocks,
       t->held_blocks ? (double)t->sym_blocks / (double)t->held_blocks : 0.0);
   t->rss_end_kib = rss_kib ();
+  if (g_emit)
+    {
+      printf ("# stints cn0=%.0f\n", cfg->cn0_dbhz);
+      printf ("emitter,stint,t_on_s,t_off_s,truncated,seeds,t_held_s,"
+              "t_track_s,seed_err_hz,seed_err_chip,held_of_on,trk_of_held,"
+              "sym_of_held,false_rel,on_time_rel,dbl_locked,t_rel_s,"
+              "rel_on_time\n");
+      for (size_t k = 0; k < cfg->n_emit; k++)
+        for (size_t j = 0; j < e[k].n_st; j++)
+          {
+            const stint_t *s = &e[k].st[j];
+            printf (
+                "%zu,%zu,%.4f,%.4f,%d,%d,%.4f,%.4f,%.2f,%.3f,%.5f,%.5f,"
+                "%.5f,%d,%d,%zu,%.4f,%d\n",
+                k, j + 1, (double)s->t_on / FS, (double)s->t_off / FS,
+                s->truncated, s->n_assign,
+                s->t_held ? (double)(s->t_held - s->t_on) / FS : -1.0,
+                s->t_track ? (double)(s->t_track - s->t_on) / FS : -1.0,
+                s->seed_err_hz, s->seed_err_chip,
+                s->on_blocks ? (double)s->held_blocks / (double)s->on_blocks
+                             : 0.0,
+                s->held_blocks ? (double)s->trk_blocks / (double)s->held_blocks
+                               : 0.0,
+                s->held_blocks ? (double)s->sym_blocks / (double)s->held_blocks
+                               : 0.0,
+                s->false_rel, s->on_time_rel, s->dbl_locked,
+                s->t_rel ? (double)(s->t_rel - s->t_off) / FS : -1.0,
+                s->rel_on_time);
+          }
+      printf ("\n# totals cn0=%.0f\n", cfg->cn0_dbhz);
+      printf ("cn0_dbhz,n_emit,duration_s,threads,stints,scored,missed,"
+              "false_rel,late_rel,over_rel,on_time_rel,reassign,dbl_locked,"
+              "false_alarms,relocked,dropped,waited,max_assigned,n_slots,"
+              "held_of_on,trk_of_held,sym_of_held,events,log_lines,"
+              "clock_restarts,heap_base_mib,heap_step_max_kib,"
+              "heap_growth_kib,rss_base_mib,rss_end_mib,ddc_s,push_s,"
+              "signal_s\n");
+      printf (
+          "%.0f,%zu,%.0f,%d,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,"
+          "%llu,%zu,%zu,%u,%.5f,%.5f,%.5f,%llu,%zu,%zu,%.2f,%.2f,%.2f,"
+          "%.2f,%.2f,%.3f,%.3f,%.3f\n\n",
+          cfg->cn0_dbhz, cfg->n_emit, cfg->duration_s, dp_pool_threads (fan),
+          t->n_stints, t->scored, t->missed, t->false_rel, t->late_rel,
+          t->over_rel, t->on_time_rel, t->reassign, t->dbl_locked,
+          t->false_alarms, t->relocked, (unsigned long long)t->dropped,
+          t->waited, t->max_assigned, N_SLOTS,
+          t->on_blocks ? (double)t->held_blocks / (double)t->on_blocks : 0.0,
+          t->held_blocks ? (double)t->trk_blocks / (double)t->held_blocks
+                         : 0.0,
+          t->held_blocks ? (double)t->sym_blocks / (double)t->held_blocks
+                         : 0.0,
+          (unsigned long long)t->events, t->log_lines, t->clock_restarts,
+          t->heap_base / 1048576.0, t->heap_step_max / 1024.0,
+          (t->heap_max - t->heap_base) / 1024.0, t->rss_base_kib / 1024.0,
+          t->rss_end_kib / 1024.0, t->ddc_s, t->push_s, t->signal_s);
+    }
   if (g_budget)
     printf ("  budget: %.1f s of signal; inside the DDC %.1f s, inside "
             "push() %.1f s on %d threads -- %.3f of real time at 13 MSa/s "
@@ -1173,6 +1243,8 @@ main (int argc, char **argv)
         g_duration_s = atof (argv[++a]);
       else if (strcmp (argv[a], "--budget") == 0)
         g_budget = 1;
+      else if (strcmp (argv[a], "--emit") == 0)
+        g_emit = 1;
     }
   if (g_budget)
     {

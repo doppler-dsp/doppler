@@ -291,6 +291,19 @@ static int
 make_emitter (emitter_t *e, size_t k, const cfg_t *cfg, const uint8_t *code)
 {
   memset (e, 0, sizeof *e);
+  /* The stint records are the harness's own bookkeeping and must not be
+     in the heap it watches: sized here for the run's worst case (a stint
+     every shortest on- plus off-time, and the always-on emitter's
+     on-time releases at the cap), so open_stint() never reallocates
+     during the run. Measured before this: the array doubled at the 9th
+     and 17th stints, 8 then 16 records of about 150 bytes, and ten emitters
+     cycling in step reached those together -- +11 KiB at 225-240 s and
+     +20 KiB at 440-500 s of a 600 s run, in steps at seeds and flat
+     between, which read exactly like the pool growing. */
+  const double cycle_s = cfg->on_min_s + cfg->off_min_s;
+  const double cap_s   = cfg->max_on_s < cycle_s ? cfg->max_on_s : cycle_s;
+  e->cap_st            = (size_t)(cfg->duration_s / cap_s) + 4;
+  e->st                = dp_xcalloc (e->cap_st, sizeof *e->st);
   /* Adjacent xorshift seeds share their first draws; the golden-ratio
      mix spreads the emitters' streams apart (dp_rng_test.h's note). */
   e->rng = (cfg->seed + (uint32_t)k + 1u) * 0x9e3779b9u;
@@ -415,6 +428,8 @@ typedef struct
   double rss_base_kib, rss_end_kib;     /* resident high-water mark      */
   double warm_s;
   size_t slots_used;              /* slots that have tracked once   */
+  size_t arenas_base, arenas;     /* glibc arenas at the base / now  */
+  size_t arena_steps;             /* re-bases a new arena forced     */
   double ddc_s, push_s, signal_s; /* --budget: seconds inside each  */
 } totals_t;
 
@@ -544,6 +559,36 @@ heap_bytes (void)
   struct rusage ru;
   getrusage (RUSAGE_SELF, &ru);
   return (double)ru.ru_maxrss * 1024.0;
+#endif
+}
+
+/* glibc's arenas: one is created for a thread on its first allocation,
+   and its header (about 2.5 KiB) is counted by mallinfo2 as in use, so a
+   worker whose first allocation came after the warm-up would read as
+   growth. Sampled beside the heap; a rise re-bases it, as a slot's first
+   use does. Measured here: all twenty exist by the warm-up's end and
+   none is created later (the count is in the summary), so it explains
+   nothing in this run -- it is kept because a slower machine or a
+   longer warm-up could order that differently. `malloc_info` prints one
+   `<heap nr=` per arena. */
+static size_t
+arena_count (void)
+{
+#ifdef __GLIBC__
+  char  *buf = NULL;
+  size_t len = 0;
+  FILE  *f   = open_memstream (&buf, &len);
+  if (!f)
+    return 0;
+  malloc_info (0, f);
+  fclose (f);
+  size_t n = 0;
+  for (const char *q = buf; (q = strstr (q, "<heap nr=")) != NULL; q++)
+    n++;
+  free (buf);
+  return n;
+#else
+  return 0;
 #endif
 }
 
@@ -698,7 +743,11 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
               size_t used = 0;
               for (size_t i = 0; i < N_SLOTS; i++)
                 used += slot_tracked[i];
-              if (t->heap_base == 0.0 || used > t->slots_used)
+              const size_t na = arena_count ();
+              if (t->heap_base > 0.0 && na > t->arenas)
+                t->arena_steps++;
+              if (t->heap_base == 0.0 || used > t->slots_used
+                  || na > t->arenas)
                 {
                   /* A new baseline: the warm-up's end, or a slot that has
                      just tracked for the first time (its chains are built
@@ -710,6 +759,9 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
                   t->heap_max     = h;
                   t->rss_base_kib = rss_kib ();
                   t->slots_used   = used;
+                  if (t->heap_base == 0.0 || t->arenas_base == 0)
+                    t->arenas_base = na;
+                  t->arenas = na;
                 }
               if (h > t->heap_max)
                 t->heap_max = h;
@@ -1132,11 +1184,11 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
               "held_of_on,trk_of_held,sym_of_held,events,log_lines,"
               "clock_restarts,heap_base_mib,heap_step_max_kib,"
               "heap_growth_kib,rss_base_mib,rss_end_mib,ddc_s,push_s,"
-              "signal_s\n");
+              "signal_s,arenas_base,arenas_end\n");
       printf (
           "%.0f,%zu,%.0f,%d,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,"
           "%llu,%zu,%zu,%u,%.5f,%.5f,%.5f,%llu,%zu,%zu,%.2f,%.2f,%.2f,"
-          "%.2f,%.2f,%.3f,%.3f,%.3f\n\n",
+          "%.2f,%.2f,%.3f,%.3f,%.3f,%zu,%zu\n\n",
           cfg->cn0_dbhz, cfg->n_emit, cfg->duration_s, dp_pool_threads (fan),
           t->n_stints, t->scored, t->missed, t->false_rel, t->late_rel,
           t->over_rel, t->on_time_rel, t->reassign, t->dbl_locked,
@@ -1150,7 +1202,8 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
           (unsigned long long)t->events, t->log_lines, t->clock_restarts,
           t->heap_base / 1048576.0, t->heap_step_max / 1024.0,
           (t->heap_max - t->heap_base) / 1024.0, t->rss_base_kib / 1024.0,
-          t->rss_end_kib / 1024.0, t->ddc_s, t->push_s, t->signal_s);
+          t->rss_end_kib / 1024.0, t->ddc_s, t->push_s, t->signal_s,
+          t->arenas_base, t->arenas);
     }
   if (g_budget)
     printf ("  budget: %.1f s of signal; inside the DDC %.1f s, inside "
@@ -1162,11 +1215,13 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
             t->push_s / t->signal_s,
             (t->ddc_s + t->push_s) / t->signal_s * 30.0e6 / DDC_IN_RATE);
   printf ("  heap %.1f MiB after the %.0f s warm-up; %zu slots tracked at "
-          "least once, the largest first-use step %.1f KiB; since the last "
-          "first use: at most %+.1f KiB, at the end %+.1f KiB; resident "
-          "high-water mark %.1f MiB -> %.1f MiB\n",
+          "least once, the largest first-use step %.1f KiB; allocator "
+          "arenas %zu -> %zu (%zu re-bases); since the last first use: at "
+          "most %+.1f KiB, at the end %+.1f KiB; resident high-water mark "
+          "%.1f MiB -> %.1f MiB\n",
           t->heap_base / 1048576.0, t->warm_s, t->slots_used,
-          t->heap_step_max / 1024.0, (t->heap_max - t->heap_base) / 1024.0,
+          t->heap_step_max / 1024.0, t->arenas_base, t->arenas, t->arena_steps,
+          (t->heap_max - t->heap_base) / 1024.0,
           (t->heap_end - t->heap_base) / 1024.0, t->rss_base_kib / 1024.0,
           t->rss_end_kib / 1024.0);
   printf ("  event log: %zu lines for %llu transitions -- seeded %zu, "
@@ -1181,7 +1236,9 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
   /* Nothing grows with time (section 5.1): the heap after the warm-up is
      the heap for the rest of the run, to within a page of allocator
      slack. The heap is glibc's in-use count over every arena with the
-     tcache off (main), so what it reads is the pool's. The resident
+     tcache off (main), re-based at a slot's first use and at an arena's,
+     and the harness's own records are sized before the base is taken
+     (make_emitter), so what it reads is the pool's. The resident
      high-water mark is reported beside it and NOT gated: it is the
      process's, and with twenty workers it moves with the schedule --
      measured, the same stimulus twice at 45 dB-Hz for 20 s read +1.7 MiB
@@ -1250,11 +1307,11 @@ main (int argc, char **argv)
 #ifdef __GLIBC__
   /* glibc's tcache keeps freed chunks per thread and mallinfo2 counts
      them as in use, so a heap that is flat by every other measure climbs
-     by the cache's fill for as long as the run meets new sizes -- the
-     event log and the receivers' seed/track/reset cycle each measured
-     0 B in isolation; the growth was the accounting. The tunable turns
-     the cache off, but only before malloc initialises, which only an
-     exec can do: the process re-runs itself once with it set. */
+     by the cache's fill for as long as the run meets new sizes: the
+     600 s run read +53 KiB with the cache and +32 without, the rest
+     being the harness's own stint records (make_emitter). The tunable
+     turns the cache off, but only before malloc initialises, which only
+     an exec can do: the process re-runs itself once with it set. */
   {
     static const char tun[] = "glibc.malloc.tcache_count=0";
     const char       *have  = getenv ("GLIBC_TUNABLES");

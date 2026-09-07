@@ -1,0 +1,2 @@
+cn0_dbhz,n_emit,duration_s,threads,stints,scored,missed,false_rel,late_rel,over_rel,on_time_rel,reassign,dbl_locked,false_alarms,relocked,dropped,waited,max_assigned,n_slots,held_of_on,trk_of_held,sym_of_held,events,log_lines,clock_restarts,heap_base_mib,heap_step_max_kib,heap_growth_kib,rss_base_mib,rss_end_mib,ddc_s,push_s,signal_s
+45.0,2.0,16.0,20.0,3.0,3.0,0.0,0.0,0.0,0.0,1.0,1.0,0.0,1.0,0.0,0.0,0.0,3.0,12.0,1.00536,0.99216,0.98475,17.0,17.0,0.0,500.07,0.33,0.0,256.14,256.14,0.0,61.236,16.0

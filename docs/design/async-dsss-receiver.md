@@ -296,6 +296,29 @@ keeps the engine usable by a baseband-only caller with no carrier at all.
     into a slot of its own, and merge serially in tile order (a mean of
     the tiles' means over equal cells, the first of their first maxima),
     so what stays serial is per tile, not per cell (#1243).
+- **The pick is asked at the row's frequency (decided 2026-09-07).** A
+    tile de-rotates by its own centre, so an emitter near the edge
+    between two tiles leaves half a span of residual inside the epoch in
+    both, and the slow-time transform folds modulo the epoch rate: the
+    two neighbours read the emitter at the same row index, within
+    0.03 dB (§12.18), and the pick was the noise's — one tile low or
+    high half the time on the edge, one time in six 68 Hz inside it.
+    The block can tell when it is asked at the row's frequency rather
+    than the tile's: the engine keeps the block's raw epochs and, for
+    every listed peak, correlates them with the replica at the pick's
+    code phase mixed by the row's own frequency and by that frequency one
+    span down and up — under half a row of residual for the truth, exactly
+    one cycle per epoch for the aliases, a correlation of zero — summed
+    non-coherently over the epochs so a data transition costs every
+    hypothesis the same, each epoch's column walked by the hypothesis's
+    own code rate. The winner is the row reported
+    (`acq_resolve_tile_alias`). Three hypotheses per listed peak,
+    `D * code_bins` multiply-adds each; the raw block is one more
+    `D * code_bins` of memory, and it rides in the state blob so a
+    mid-block resume decides as the unbroken run would. Pinned by
+    `validate_acq_block_coherent --check` (an emitter on the edge, none
+    handed off a tile away in twenty blocks; red by sabotage at nine of
+    nineteen).
 - **What it costs, before it is measured.** The slow-time transform
     runs once per block per tile, so per epoch it is of the order of the
     epoch transform it sits behind; the searcher's cost stays near §12.1's
@@ -3393,11 +3416,19 @@ event log at its moment:
     is 9.8 chips per second of phase error, so the row leaves its own
     one-chip zone inside the refine's dwell and the next hit seeds a
     second receiver — 145.443 and 145.537 s, 94 ms apart, both at
-    +7 394.9 Hz. The three 40 dB-Hz doubles (5.6, 7.6, 7.4 s, all with a
-    receiver at +7 394.9) are this; §12.16's floor did not remove them
-    because the seed is not noisy, it is wrong by a tile. The pick should
-    report a peak in the tile that owns it, and the score should accept a
-    tile's edge; filed as #1270.
+    +7 394.9 Hz. One of the three 40 dB-Hz doubles (7.6 s, emitter 2 at
+    the same +7 394.9) is this; §12.16's floor did not remove it because
+    the seed is not noisy, it is wrong by a tile. The pick should report a
+    peak in the tile that owns it, and the score should accept a tile's
+    edge; filed as #1270 and fixed at the pick (§12.18). **The other two
+    doubles (5.6 and 7.4 s) are not the alias**: emitters 1 and 7 were
+    seeded from a data block 658 and 806 Hz off, and each receiver
+    reported tracking 53 ms later at the seed's own frequency — the
+    refine had not moved it — and held code lock without symbol lock
+    (0.45 and 0.00 of its held blocks) until the emitter's next aligned
+    hit seeded a second receiver, which did pull in. §12.16's hand-over
+    that never pulled in, at 40 dB-Hz and a data-block seed, twice in
+    187 stints (#1273).
 - **One receiver's code flag on noise, 250 times the rate.** Emitter 1
     left at 432.41 s; its receiver (slot 9) reported both flags down at
     once, and then its code flag returned **six times in seven seconds**
@@ -3470,6 +3501,48 @@ is one box's — the fraction scales with the threads the searcher's roll
 is given (§12.8's fan), so what the server does with 48 is a measurement
 on the server. Step 8's next thing to attack is the searcher's depth.
 
+\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_### 12.18 What was measured (2026-09-07) — the tile-edge alias, #1270
+
+**The ambiguity, measured on the pool's grid** (one emitter through the
+channel, code-only, the carrier told, one look per block, at 45 dB-Hz;
+`validate_acq_block_coherent`'s edge run and a probe on its stimulus):
+
+| emitter Doppler       | position       | hand-offs a tile off, of 57 | true row over the aliased row |
+| --------------------- | -------------- | --------------------------- | ----------------------------- |
+| 12 220 Hz             | on the edge    | **27**                      | +0.00 dB                      |
+| 12 288 Hz (emitter 3) | 68 Hz inside   | **10**                      | +0.03 dB                      |
+| 12 400 Hz             | 180 Hz inside  | 0                           |                               |
+| 12 100 Hz             | 120 Hz outside | 0                           |                               |
+
+The surface holds the two hypotheses at the same row index of adjacent
+tiles and cannot tell them apart: each tile is the shared epoch spectrum
+rolled by whole bins of one span (4 888 Hz), so an edge emitter carries
+half a span of residual inside the epoch in both neighbours, the same
+sinc loss to 0.03 dB, and the slow-time transform folds the rest modulo
+the epoch rate. The band is about ±100 Hz around each of the twenty
+edges. Emitter 3's seeds in §12.17 were three draws of this one in six.
+
+**The fix, and its proof.** The pick is now asked at the row's frequency
+(§2.3, `acq_resolve_tile_alias`): three hypotheses per listed peak on the
+block's raw epochs. With it, none of 59 decided blocks is a tile off at
+either C/N0, on the edge or 68 Hz inside, the worst error 5 Hz. The
+code-rate walk's sign was checked by flipping it: at ±46 436 Hz (the
+edge nearest ±50 kHz) and 36 dB-Hz the flipped walk hands off 13 of 29
+a tile away, the shipped one none; at 40 dB-Hz 2 of 29 against none.
+Data-only blocks (PRBS through the whole block) hand off one or two picks
+in forty, 20 kHz — four tiles — from the emitter: §12.7's smeared copies,
+not this mechanism, and a ±1 tile test does not move them. The blob
+grows by the raw block (5% at `D = 154`), version 4, so a mid-block
+resume decides as the unbroken run would; `test_acq_core`'s split found
+that before the blob carried it.
+
+**The ten-minute soak on it** (the same stimulus as §12.17): no stint
+scored missed at either C/N0 (was 1 and 2); the 45 dB-Hz half otherwise
+identical to the block, #1271's receiver included; at 40 dB-Hz the
+doubles fall from 20.6 s of shared code lock to 13.0 s — the alias's
+7.6 s gone, the two data-block seeds that never pulled in (#1273)
+untouched, as they should be.
+
 ______________________________________________________________________
 
 ## 13. What this page does not settle
@@ -3498,10 +3571,11 @@ stints), not yet the 15-minute maximum on-time (§6.1) it must hold for
 noise made the rule fire one to three intervals late — fixed at the
 Dll's looks (§12.15), leaving one return per 240 s that restarts the
 clock once in a hundred departures, and one receiver in 181 whose flag
-ran at one return a second for seven seconds (§12.17); the hand-over
-that never pulled in (#1265) — fixed at the refine's dwell (§12.16); and
-the searcher's tile-edge alias, a seed one tile off that the refine
-absorbs and the zone does not (§12.17).
+ran at one return a second for seven seconds (§12.17, #1271); the
+hand-over that never pulled in (#1265) — fixed at the refine's dwell
+(§12.16); and the searcher's tile-edge alias, a seed one tile off that
+the refine absorbs and the zone does not (§12.17) — fixed at the pick,
+asked at the row's frequency (§12.18).
 
 ______________________________________________________________________
 

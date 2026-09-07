@@ -99,7 +99,13 @@
  * data spreads that emitter over its rows, `10*log10(D)` below an aligned
  * block, at its own code phase -- the `conc` probe (§2.4) reads it.
  * `code_only_epochs = 1` (the default) is `D = 1` and the engine exactly as
- * described above.
+ * described above. A tile de-rotates by its own centre, so an emitter on
+ * the edge between two tiles reads the same in both (within 0.03 dB) and
+ * the slow-time transform folds it to the same row index of each: every
+ * listed peak is therefore asked at its ROW's frequency before it is
+ * reported -- the block's raw epochs correlated with the replica at the
+ * pick's code phase, mixed by the row's frequency and by that one span
+ * down and up, the winner reported (design §2.3, §12.18, doppler#1270).
  *
  * **A roll per thread** (design §2.3): the tiles are independent after the
  * one forward transform, so the per-epoch tile loop and, at `D > 1`, the
@@ -349,6 +355,10 @@ extern "C"
     float _Complex *blk; /**< window_bins * coherent_bins * code_bins: the
                               block's per-tile epoch correlations; NULL
                               unless both exceed 1.                     */
+    float _Complex *blk_raw; /**< coherent_bins * code_bins: the block's raw
+                                  epochs as pushed, for the tile-edge test
+                                  of acq_resolve_tile_alias(); NULL unless
+                                  blk is.                                */
     size_t blk_epoch;    /**< Epochs gathered in the current block
                               (0 … coherent_bins-1).                    */
     /* The roll per thread (design §2.3): the tiles are independent after
@@ -484,7 +494,7 @@ extern "C"
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
-#define ACQ_STATE_VERSION 3u /* v3: the block-coherent accumulator rides along */
+#define ACQ_STATE_VERSION 4u /* v4: the block's raw epochs ride beside it */
 
 /** The largest `max_peaks` acq_set_max_peaks() accepts: one push's
  *  result array is sized to this many in the binding, so one dwell can

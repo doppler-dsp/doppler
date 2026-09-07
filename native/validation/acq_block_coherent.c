@@ -43,6 +43,15 @@
  *                width along the code axis, the hand-off's Doppler, and
  *                its chip phase raw and with the half-dwell advance
  *                (#1254); then the depth's realized Pd both ways.
+ *   edge         one emitter ON the edge between two tiles, and 68 Hz
+ *                inside it, through the channel at 45 and 40 dB-Hz, a
+ *                run of decided blocks: how many hand-offs land a whole
+ *                tile from the truth (#1270). A tile de-rotates by its
+ *                own centre, so both neighbours read an edge emitter at
+ *                the same row within 0.03 dB and the pick was the noise's,
+ *                half the time; the engine now asks the block at the
+ *                row's own frequency (acq_resolve_tile_alias). Expected
+ *                none, every one within a row.
  *
  * Usage:
  *   validate_acq_block_coherent            full tables
@@ -370,6 +379,72 @@ measure_dilated (const uint8_t *code, acq_state_t *a, double ppm, int dilate,
   return 0;
 }
 
+/* A run of `blocks` decided blocks of one emitter at `hz` through the
+   channel (its chips dilated by hz/carrier), the carrier told, awgn at
+   cn0_dbhz: how many of the engine's hand-offs are more than half a tile
+   from the truth, and the worst |error| of the rest, Hz. One look per
+   block (ONE_LOOK), so a decision per block. */
+static int
+measure_edge (const uint8_t *code, acq_state_t *a, double hz, double cn0_dbhz,
+              uint32_t seed, int blocks, int *n_hits, int *n_off,
+              double *worst_hz)
+{
+  DP_REQUIRE (acq_set_carrier_freq_hz (a, CARRIER_HZ) == DP_OK);
+  const size_t       D = a->coherent_bins, nx = a->code_bins;
+  const double       fs = a->fs, span = fs / (double)nx;
+  const double       ppm = hz / CARRIER_HZ * 1e6;
+  wfm_synth_state_t *syn
+      = wfm_synth_create (WFM_SYNTH_DSSS, fs, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
+                          seed, (int)SPC, 7, 0, 0, 0.0);
+  DP_REQUIRE_MSG (syn
+                      && wfm_synth_set_dsss_cont (syn, code, SF, (double)SF,
+                                                  WFM_DSSS_DATA_NONE, NULL, 0)
+                             == 0,
+                  "the synth takes the edge emitter");
+  doppler_channel_state_t *ch
+      = doppler_channel_create (fs, CARRIER_HZ, ppm, 0.0);
+  DP_REQUIRE_MSG (ch != NULL, "the channel opens");
+  awgn_state_t *g = awgn_create (
+      seed * 7919u + 1u,
+      awgn_amplitude_for_snr ((float)(cn0_dbhz - 10.0 * log10 (fs)), 1.0f));
+  const size_t   cap = doppler_channel_execute_max_out (ch);
+  float complex *in  = dp_xmalloc (nx * sizeof *in);
+  float complex *tmp = dp_xmalloc (cap * sizeof *tmp);
+  float complex *nz  = dp_xmalloc (cap * sizeof *nz);
+  acq_result_t   hit[4];
+  acq_reset (a);
+  *n_hits = *n_off = 0;
+  *worst_hz        = 0.0;
+  for (size_t e = 0; e < (size_t)blocks * D; e++)
+    {
+      wfm_synth_steps (syn, in, nx);
+      size_t n = doppler_channel_execute (ch, in, nx, tmp, cap);
+      awgn_generate (g, n, nz, cap);
+      for (size_t i = 0; i < n; i++)
+        tmp[i] += nz[i];
+      size_t nh = acq_push (a, tmp, n, hit, 4);
+      for (size_t h = 0; h < nh; h++)
+        {
+          acq_handoff_t ho;
+          acq_build_handoff (a, &hit[h], SF, SPC, &ho);
+          const double err = fabs (ho.doppler_hz_est - hz);
+          (*n_hits)++;
+          if (err > 0.5 * span)
+            (*n_off)++;
+          else if (err > *worst_hz)
+            *worst_hz = err;
+        }
+    }
+  free (nz);
+  free (tmp);
+  free (in);
+  awgn_destroy (g);
+  doppler_channel_destroy (ch);
+  wfm_synth_destroy (syn);
+  DP_REQUIRE (acq_set_carrier_freq_hz (a, 0.0) == DP_OK);
+  return 0;
+}
+
 static const char *
 kind_name (block_kind_t k)
 {
@@ -638,6 +713,45 @@ main (int argc, char **argv)
                       "no dilated one told nothing, every one told the "
                       "carrier");
       }
+  }
+  /* ── the tile edge (#1270): the pick asked at the row's frequency ── */
+  {
+    acq_state_t *a = engine_open (code, 5.0e6, 0, 1e-3);
+    ONE_LOOK (a);
+    const double span    = a->fs / (double)a->code_bins;
+    const double hzs[2]  = { 2.5 * span, 2.5 * span + 68.0 };
+    const double cn0s[2] = { 45.0, 40.0 };
+    const int    blocks  = check ? 20 : 60;
+    printf ("\nThe tile edge at D = %zu, tiles %.0f Hz apart, %d decided "
+            "blocks each, the carrier told: hand-offs a whole tile from the "
+            "truth, and the worst error of the rest\n  %-14s",
+            a->coherent_bins, span, blocks, "emitter");
+    for (int c = 0; c < 2; c++)
+      printf ("   %5.0f dB-Hz", cn0s[c]);
+    printf ("\n");
+    int off_total = 0, hits_total = 0;
+    for (int f = 0; f < 2; f++)
+      {
+        printf ("  %-14s", f ? "68 Hz inside" : "on the edge");
+        for (int c = 0; c < (check ? 1 : 2); c++)
+          {
+            int    nh, off;
+            double worst;
+            DP_REQUIRE (measure_edge (code, a, hzs[f], cn0s[c],
+                                      9000u + (uint32_t)(10 * f + c), blocks,
+                                      &nh, &off, &worst)
+                        == 0);
+            printf ("   %2d/%2d, %3.0f Hz", off, nh, worst);
+            off_total += off;
+            hits_total += nh;
+          }
+        printf ("\n");
+      }
+    acq_destroy (a);
+    if (check)
+      DP_CHECK_MSG (hits_total >= 2 * blocks - 2 && off_total == 0,
+                    "an emitter on a tile's edge is handed off in its own "
+                    "tile on every decided block");
   }
   if (check)
     DP_TEST_END ("validate_acq_block_coherent");

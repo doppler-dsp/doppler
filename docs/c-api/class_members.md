@@ -61,6 +61,7 @@
 * **best** ([**acq\_part\_t**](structacq__part__t.md))
 * **band\_mask** ([**acq\_state\_t**](structacq__state__t.md))
 * **blk** ([**acq\_state\_t**](structacq__state__t.md))
+* **blk\_raw** ([**acq\_state\_t**](structacq__state__t.md))
 * **bits** ([**adc\_state\_t**](structadc__state__t.md), [**ber\_meter\_state\_t**](structber__meter__state__t.md), [**psd\_state\_t**](structpsd__state__t.md), [**wfm\_field\_t**](structwfm__field__t.md), [**wfm\_seq\_t**](structwfm__seq__t.md), [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
 * **both\_down\_samples** ([**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md), [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md), [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md))
 * **bit\_errors** ([**ber\_meter\_state\_t**](structber__meter__state__t.md))

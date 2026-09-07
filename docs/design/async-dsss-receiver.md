@@ -1815,6 +1815,28 @@ both down for its duration and brings both back — which is why the
 release is **both down, for longer than the fade**, and why the confirm
 interval is set by the fade the link must ride, not by the detectors.
 
+**While the clock runs, the loops hold (decided 2026-09-07).** Both flags
+down, once the receiver has locked, hold both loops at what they settled
+on with both flags up, the lock detectors still looking at the held
+replica; one flag down is a degrade and the loops run. Left running on noise
+a departed receiver's code loop free-runs at whatever its filter holds —
+measured in the ten-minute soak, up to 90 chips per second — sweeps its
+phase through every live emitter's and can capture one crossing slowly
+enough, after which its code flag flickers on the neighbour and restarts
+the release clock for as long as it follows it (§12.17, #1271: sixteen
+returns in fourteen seconds, a release that never came). Held, the
+receiver stands where its emitter left it: a genuine return within the
+interval lands on the replica, lights a flag, and the loops run again on
+it; a neighbour passing through the held phase lights the code flag for
+the crossing, steers for the blip, and is dropped on re-entry to the hold
+(§12.19). Holding on one flag down was measured and rejected: two live
+emitters crossing each other's code phase degrade both symbol flags, and a
+code loop held through that cannot re-centre on its own emitter — run, it
+rides the crossing out (§12.19). What the hold cannot tell apart is
+a neighbour within a kilohertz crossing at a chip or two a second — to a
+receiver on its own that is a return — and that is the pool's, which
+knows the emitter has a slot (#1275).
+
 **The transition.** Hand-off mode adds a fourth state, **lost**, beside
 searching / refining / tracking, and the receiver enters it on the rule
 above. In it the loops stop updating, the replica (§8 (iii)) is no longer
@@ -3542,6 +3564,83 @@ identical to the block, #1271's receiver included; at 40 dB-Hz the
 doubles fall from 20.6 s of shared code lock to 13.0 s — the alias's
 7.6 s gone, the two data-block seeds that never pulled in (#1273)
 untouched, as they should be.
+
+\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_### 12.19 What was measured (2026-09-07) — the receiver that followed a neighbour, #1271
+
+**The mechanism, read from the trace.** After emitter 1 left at 432.41 s
+of the 45 dB-Hz soak, its receiver's code phase advanced at 44.8 chips
+per second where it had tracked at 37.3, its both-down clock reset every
+20–130 ms, and every one of its sixteen code-flag returns sat within
+0.5 chip of slot 0's live phase — emitter 0, always on, 3.8 kHz above
+its carrier, whose chips run at exactly 44.8 per second. The
+free-running code loop had captured the neighbour's code and followed
+it, the code flag flickering on a carrier 3.8 kHz wrong. Departed
+receivers in general free-ran at up to ±90 chips per second (median
++40) — every one of them sweeping through every live emitter's phase —
+and this one happened to meet one crossing slowly enough (7.5 chips per
+second relative) to pull in.
+
+**The fix: the loops hold (§10).** Once locked, both flags down hold
+both loops at the state marked with both flags up, the detectors still
+looking; one flag down is a degrade and the loops run. Three things the
+first cuts got wrong and the harnesses caught: a hold taken at the
+flag's drop keeps the 23 ms of noise-driven updates before it (+2.4
+chips per second); a hold of the last steer's full output keeps its
+proportional term — a phase correction for one interval — as a rate (+14
+chips per second), so the hold is the filter's integrator alone, marked
+while both flags are up; and a code loop held on the symbol flag alone
+cannot ride out two live emitters crossing each other's code phase —
+the ten-minute soak on that cut had emitter 8's receiver both-down 0.8 s
+before its emitter left and emitter 4's doubled, where the run before
+it had neither. The harness's `cross-on` event (475 Hz off, 0.95 chips
+per second, the emitter staying on) measures it: held on the symbol
+flag, both flags stay down for the remaining 7.7 s of the watch in every
+settled trial at both C/N0s; held on both flags, over thirty trials code
+lock holds in 25 of 30 at 45 dB-Hz (five dips of 155 ms) and 29 of 29 at
+40, the flags are never down together for more than 5.5 ms, and every
+receiver has both flags at the end — a few on the neighbour rather than
+their own (mean rate +0.25 and +0.13 chips per second against the
+neighbour's 0.95): two equal signals within half a chip and 475 Hz are
+one peak to the loops, #1275's regime, not the hold's.
+
+**Proven on the release harness's new `cross` event**: a second emitter
+through the channel at CROSS_PPM of the carrier, on the air throughout,
+its burn-in chosen so its code phase meets the departed receiver's
+0.6 s after the switch-off; measured, the code flag's returns over the
+8 s watch and the receiver's chip rate over the watch's last two
+seconds (a receiver that follows runs at the neighbour's rate):
+
+| neighbour                | coast: returns (3 seeds) | coast: rate      | free-running: returns | free-running: rate         |
+| ------------------------ | ------------------------ | ---------------- | --------------------- | -------------------------- |
+| 3.8 kHz off, 7.6 chips/s | 0, 0, 0                  | 0.00             | 1, 0, 1               | drifting, 2–6 chips/s      |
+| 2 kHz off, 4 chips/s     | 8, 8, 10 (the crossing)  | **0.00**         | **232, 241, 252**     | **4.00 — the neighbour's** |
+| 1 kHz off, 2 chips/s     | 6, 0, 14                 | 0.00, 2.00, 0.00 | 1, 0, 3               | 2.00 — the neighbour's     |
+| 500 Hz off, 1 chip/s     | followed, symbol lock    | 1.01             | followed, symbol lock | 1.01                       |
+
+The `--check` pins the 2 kHz row (a receiver that does not follow, at
+most twenty blips; red at 232 and 4.00 without the coast). The last two
+rows are #1275: within a kilohertz and a chip or two a second the
+carrier loop pulls the neighbour in and to the receiver it is a return;
+of the order of 1e-3 per departure with ten emitters over ±50 kHz, and
+the pool's to tell apart. Over the harness's thirty trials per event the
+hold costs nothing §12.15 measured: at 45 dB-Hz the switch-off's code
+flag returns **0 times in 240 s** of noise (was 0.004 per second), the
+fades come back 30/30 and 29/30, the phase step holds code lock 30/30;
+at 40 dB-Hz one return in 240 s, the fades 30/30. The crossing at 2 kHz
+and 4 chips per second blips the code flag about seven times per pass
+and is followed on one trial in 28 at 45 dB-Hz and one in 29 at 40 — the
+tail of the same band #1275 names.
+
+**The ten-minute soak on it** (the stimulus of §12.17): at 45 dB-Hz no
+stint missed, no false or absent release, **no double** (was one of
+0.14 s), the release 2.02 / 2.04 / 4.46 s over 183 departures with one
+restart of the clock in the whole run (was sixteen on one receiver), and
+the #1271 receiver released 2.0 s after its emitter left; at 40 dB-Hz the
+two #1273 doubles and nothing else, the release 2.01 / 2.03 / 4.45 s. The
+cut that held on the symbol flag alone had, on this same stimulus,
+emitter 8's receiver both-down 0.8 s before its emitter left and a new
+0.15 s double on emitter 4 at the live crossing of §12.19's third lesson;
+the rule as shipped has neither.
 
 ______________________________________________________________________
 

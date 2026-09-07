@@ -57,10 +57,13 @@ _DLL state._ [More...](#detailed-description)
 |  float \_Complex \* | [**chunk\_e**](#variable-chunk_e)  <br> |
 |  float \_Complex \* | [**chunk\_l**](#variable-chunk_l)  <br> |
 |  float \_Complex \* | [**chunk\_p**](#variable-chunk_p)  <br> |
+|  int | [**coast**](#variable-coast)  <br> |
 |  const uint8\_t \* | [**code**](#variable-code)  <br> |
 |  [**nco\_state\_t**](structnco__state__t.md) | [**code\_nco**](#variable-code_nco)  <br> |
 |  double | [**code\_rate**](#variable-code_rate)  <br> |
 |  int | [**have\_prev\_epoch**](#variable-have_prev_epoch)  <br> |
+|  uint32\_t | [**held\_inc**](#variable-held_inc)  <br> |
+|  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**held\_lf**](#variable-held_lf)  <br> |
 |  double | [**inv\_sps**](#variable-inv_sps)  <br> |
 |  double | [**inv\_tsamps**](#variable-inv_tsamps)  <br> |
 |  double | [**inv\_tsamps2**](#variable-inv_tsamps2)  <br> |
@@ -528,6 +531,24 @@ this epoch's per-chunk prompt sums; Python's `partial_sums`.
 
 
 
+### variable coast 
+
+```C++
+int dll_state_t::coast;
+```
+
+
+
+1: the loop holds  the discriminator is not filtered and phase\_inc is not steered, the NCO advances at the rate of the last [**dll\_hold\_here()**](dll__core_8h.md#function-dll_hold_here) (its filter restored on entry), the lock detector still looks. See [**dll\_set\_coast()**](dll__core_8h.md#function-dll_set_coast). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable code 
 
 ```C++
@@ -591,6 +612,40 @@ int dll_state_t::have_prev_epoch;
 
 0 until one full epoch has completed. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable held\_inc 
+
+```C++
+uint32_t dll_state_t::held_inc;
+```
+
+
+
+phase\_inc as of the last [**dll\_hold\_here()**](dll__core_8h.md#function-dll_hold_here). 
+
+
+        
+
+<hr>
+
+
+
+### variable held\_lf 
+
+```C++
+loop_filter_state_t dll_state_t::held_lf;
+```
+
+
+
+the filter as of the last [**dll\_hold\_here()**](dll__core_8h.md#function-dll_hold_here). 
 
 
         

@@ -172,6 +172,8 @@ lock_look (dll_state_t *s, float _Complex prompt, float _Complex offset)
 static inline void
 steer (dll_state_t *s, double ep, double lp, double pp)
 {
+  if (s->coast)
+    return; /* held: no update, phase_inc as it stands (dll_set_coast) */
   double e = 0.5 * (ep - lp) / (pp + DLL_EPS);
   if (e > DLL_DISC_CLAMP)
     e = DLL_DISC_CLAMP;
@@ -348,6 +350,8 @@ dll_init (dll_state_t *s, const uint8_t *code, size_t code_len, size_t sps,
      degenerate and (uint32_t)-casts to 0, freezing the code NCO -- the loop
      stops wrapping and never converges (validate_dll_jitter #82). */
   s->rate_aid  = 0.0;
+  s->coast     = 0;
+  s->held_inc  = 0;
   s->code      = code; /* borrowed */
   s->owns_code = 0;
   /* dll_init always runs with segments == 1 (configure_geometry's
@@ -954,6 +958,34 @@ void
 dll_set_bn (dll_state_t *state, double val)
 {
   dll_configure (state, val, state->zeta);
+}
+
+void
+dll_hold_here (dll_state_t *state)
+{
+  state->held_inc = state->code_nco.phase_inc;
+  state->held_lf  = state->lf;
+}
+
+void
+dll_set_coast (dll_state_t *state, int coast)
+{
+  coast = coast ? 1 : 0;
+  if (coast && !state->coast && state->held_inc)
+    {
+      /* Entering the hold: back to the last locked steer's filter, not
+         the few noise-driven updates since, and the rate it sustains --
+         the integrator's, the loop's frequency memory. A steer's full
+         output also carries the proportional term, a phase correction
+         meant for one interval; held as a rate it walks the phase off
+         at chips per second (measured: +14 chips/s from one such steer). */
+      state->lf = state->held_lf;
+      const double ctrl
+          = state->held_lf.integ * state->inv_upd * state->inv_tsamps2;
+      state->code_nco.phase_inc = nco_norm_freq_to_inc (
+          state->inv_tsamps * (1.0 + state->rate_aid) + ctrl);
+    }
+  state->coast = coast;
 }
 
 void

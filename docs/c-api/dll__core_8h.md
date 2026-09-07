@@ -86,6 +86,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  size\_t | [**dll\_get\_segments**](#function-dll_get_segments) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
 |  void | [**dll\_get\_state**](#function-dll_get_state) (const [**dll\_state\_t**](structdll__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**dll\_get\_symbol\_window**](#function-dll_get_symbol_window) (const [**dll\_state\_t**](structdll__state__t.md) \* state) <br>_The lock detector's coherent window, in partials (0 when the symbol-period aid is off). Size_ `n_looks` _from it._ |
+|  void | [**dll\_hold\_here**](#function-dll_hold_here) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Mark the point a coast returns to: this rate and this filter._  |
 |  void | [**dll\_init**](#function-dll_init) ([**dll\_state\_t**](structdll__state__t.md) \* s, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_chip, double bn, double zeta, double spacing) <br>_Initialise a DLL in place (no allocation); BORROWS_ `code` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_lock\_accumulate**](#function-dll_lock_accumulate) ([**dll\_state\_t**](structdll__state__t.md) \* s, float \_Complex d) <br>_Per-sample offset (noise) tap for the always-on lock detector._  |
 |  void | [**dll\_lock\_epoch**](#function-dll_lock_epoch) ([**dll\_state\_t**](structdll__state__t.md) \* s) <br>_Per-epoch lock-detector housekeeping: re-draw the noise offset._  |
@@ -94,6 +95,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float | [**dll\_replica**](#function-dll_replica) (const [**dll\_state\_t**](structdll__state__t.md) \* s, double c) <br>_Sub-chip code replica at fractional code phase_ `c` _(one tap)._ |
 |  void | [**dll\_reset**](#function-dll_reset) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Re-seed the loop to its create-time code phase; keep config._  |
 |  void | [**dll\_set\_bn**](#function-dll_set_bn) ([**dll\_state\_t**](structdll__state__t.md) \* state, double val) <br> |
+|  void | [**dll\_set\_coast**](#function-dll_set_coast) ([**dll\_state\_t**](structdll__state__t.md) \* state, int coast) <br>_Hold the loop (1) or run it (0, the default)._  |
 |  int | [**dll\_set\_lock\_verify**](#function-dll_set_lock_verify) ([**dll\_state\_t**](structdll__state__t.md) \* state, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's verify counts, keeping its thresholds._  |
 |  void | [**dll\_set\_rate\_aid**](#function-dll_set_rate_aid) ([**dll\_state\_t**](structdll__state__t.md) \* state, double rate\_aid) <br>_Set the carrier-aiding code-rate deviation (ratio; 0 = off)._  |
 |  int | [**dll\_set\_state**](#function-dll_set_state) ([**dll\_state\_t**](structdll__state__t.md) \* state, const void \* blob) <br> |
@@ -711,6 +713,36 @@ size_t dll_get_symbol_window (
 
 
 
+### function dll\_hold\_here 
+
+_Mark the point a coast returns to: this rate and this filter._ 
+```C++
+void dll_hold_here (
+    dll_state_t * state
+) 
+```
+
+
+
+Call while the loop is known to be on its signal; dll\_set\_coast(1) restores the filter and the integrator's rate from here.
+
+
+
+
+**Parameters:**
+
+
+* `state` The loop. 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function dll\_init 
 
 _Initialise a DLL in place (no allocation); BORROWS_ `code` _._
@@ -985,6 +1017,38 @@ void dll_set_bn (
 
 
 
+
+<hr>
+
+
+
+### function dll\_set\_coast 
+
+_Hold the loop (1) or run it (0, the default)._ 
+```C++
+void dll_set_coast (
+    dll_state_t * state,
+    int coast
+) 
+```
+
+
+
+Coasting, the loop filter takes no update and the NCO is not steered: on entry the filter is restored to the last [**dll\_hold\_here()**](dll__core_8h.md#function-dll_hold_here) and the rate to that filter's integrator  the loop's frequency memory, without the proportional term of a steer, which is a phase correction for one interval and held as a rate walks the phase off at chips per second  and the code phase then advances at that rate, the carrier aid as the caller leaves it, while the lock detector keeps looking at the prompt so a signal that returns at that phase is seen. The caller marks the hold point while it knows the loop is genuinely on its signal (the receiver: both of its flags up), so a flag that blips on a passing neighbour does not move it. The reason it exists: a loop left running on noise after its emitter leaves free-runs at whatever the filter holds, sweeps its phase through every other emitter's, and can capture one whose code phase crosses its own slowly enough  measured in the pool's ten-minute soak, a departed receiver followed a neighbour's chips at 44.8 chips per second and its code flag returned sixteen times in fourteen seconds (doppler#1271). The caller decides when: async\_dsss\_receiver coasts while both of its lock flags are down after a lock it once had.
+
+
+
+
+**Parameters:**
+
+
+* `state` The loop. 
+* `coast` 1 to hold, 0 to run. 
+
+
+
+
+        
 
 <hr>
 

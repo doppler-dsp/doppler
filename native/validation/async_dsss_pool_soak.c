@@ -797,9 +797,11 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
               && prev_down[i] >= samples (0.2)
               && r[i].state == ASYNC_DSSS_RX_TRACKING)
             printf ("    release clock restarted at %.3f s on slot %zu after "
-                    "%.2f s: code %d sym %d metric %.2f%s\n",
+                    "%.2f s: code %d sym %d metric %.2f  %+.1f Hz chip "
+                    "%.2f C/N0 %.1f%s\n",
                     (double)end / FS, i, (double)prev_down[i] / FS,
                     r[i].code_locked, r[i].locked, r[i].lock_metric,
+                    r[i].doppler_hz, r[i].chip_phase, r[i].cn0_dbhz_est,
                     owner[i] < cfg->n_emit && e[owner[i]].on
                         ? ""
                         : " (its emitter is off the air)");

@@ -125,6 +125,14 @@ typedef struct {
                                   code NCO rides the code-rate dilation the
                                   code discriminator alone can't pull in at
                                   low SNR. See dll_set_rate_aid().           */
+    int coast;               /**< 1: the loop holds -- the discriminator is
+                                  not filtered and phase_inc is not steered,
+                                  the NCO advances at the rate of the last
+                                  dll_hold_here() (its filter restored on
+                                  entry), the lock detector still looks. See
+                                  dll_set_coast().                           */
+    uint32_t held_inc;       /**< phase_inc as of the last dll_hold_here(). */
+    loop_filter_state_t held_lf; /**< the filter as of the last dll_hold_here(). */
     double seed_chip;        /**< create-time code phase, for reset.       */
     double bn;               /**< loop noise bandwidth (retained).         */
     double zeta;             /**< damping factor (retained).               */
@@ -699,6 +707,44 @@ void dll_set_bn(dll_state_t *state, double val);
 void dll_set_rate_aid(dll_state_t *state, double rate_aid);
 
 /**
+ * @brief Hold the loop (1) or run it (0, the default).
+ *
+ * Coasting, the loop filter takes no update and the NCO is not steered: on
+ * entry the filter is restored to the last dll_hold_here() and the rate to
+ * that filter's integrator -- the loop's frequency memory, without the
+ * proportional term of a steer, which is a phase correction for one
+ * interval and held as a rate walks the phase off at chips per second --
+ * and the code phase then advances at that rate, the carrier aid as the
+ * caller leaves it, while the lock detector keeps looking at the prompt so
+ * a signal that returns at that phase is seen. The caller marks the hold
+ * point while it knows the loop is genuinely on its signal (the receiver:
+ * both of its flags up), so a flag that blips on a passing neighbour does
+ * not move it. The reason it exists: a loop
+ * left running on noise after its emitter leaves free-runs at whatever
+ * the filter holds, sweeps its phase through every other emitter's, and
+ * can capture one whose code phase crosses its own slowly enough --
+ * measured in the pool's ten-minute soak, a departed receiver followed a
+ * neighbour's chips at 44.8 chips per second and its code flag returned
+ * sixteen times in fourteen seconds (doppler#1271). The caller decides
+ * when: async_dsss_receiver coasts while both of its lock flags are down
+ * after a lock it once had.
+ *
+ * @param state The loop.
+ * @param coast 1 to hold, 0 to run.
+ */
+void dll_set_coast(dll_state_t *state, int coast);
+
+/**
+ * @brief Mark the point a coast returns to: this rate and this filter.
+ *
+ * Call while the loop is known to be on its signal; dll_set_coast(1)
+ * restores the filter and the integrator's rate from here.
+ *
+ * @param state The loop.
+ */
+void dll_hold_here(dll_state_t *state);
+
+/**
  * @brief Give the loop the data-symbol period, so the lock detector's
  *        looks and the code discriminator's windows are coherent over a
  *        symbol instead of a quarter-epoch partial.
@@ -993,7 +1039,7 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 10u /* v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 11u /* v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

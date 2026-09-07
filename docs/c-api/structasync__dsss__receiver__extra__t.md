@@ -39,8 +39,10 @@
 |  uint8\_t | [**\_pad**](#variable-_pad)  <br> |
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  uint64\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
+|  uint8\_t | [**car\_coasting**](#variable-car_coasting)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
+|  uint8\_t | [**had\_lock**](#variable-had_lock)  <br> |
 |  uint8\_t | [**handoff**](#variable-handoff)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
@@ -107,7 +109,7 @@
 ### variable \_pad 
 
 ```C++
-uint8_t async_dsss_receiver_extra_t::_pad[6];
+uint8_t async_dsss_receiver_extra_t::_pad[4];
 ```
 
 
@@ -143,6 +145,24 @@ uint64_t async_dsss_receiver_extra_t::car_carry_len;
 
 
 
+### variable car\_coasting 
+
+```C++
+uint8_t async_dsss_receiver_extra_t::car_coasting;
+```
+
+
+
+v4: the carrier loop is held. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable cn0\_dbhz\_est 
 
 ```C++
@@ -164,6 +184,23 @@ double async_dsss_receiver_extra_t::doppler_hz_est;
 
 
 
+
+<hr>
+
+
+
+### variable had\_lock 
+
+```C++
+uint8_t async_dsss_receiver_extra_t::had_lock;
+```
+
+
+
+v4: a flag has been up; the loops coast. 
+
+
+        
 
 <hr>
 

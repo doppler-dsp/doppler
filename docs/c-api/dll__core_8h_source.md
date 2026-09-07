@@ -66,6 +66,9 @@ typedef struct {
     double chip_pos;         
     double code_rate;        
     double rate_aid;         
+    int coast;               
+    uint32_t held_inc;       
+    loop_filter_state_t held_lf; 
     double seed_chip;        
     double bn;               
     double zeta;             
@@ -259,6 +262,10 @@ void dll_set_bn(dll_state_t *state, double val);
 
 void dll_set_rate_aid(dll_state_t *state, double rate_aid);
 
+void dll_set_coast(dll_state_t *state, int coast);
+
+void dll_hold_here(dll_state_t *state);
+
 int dll_set_symbol_period(dll_state_t *state, double partials_per_symbol);
 
 size_t dll_get_symbol_window(const dll_state_t *state);
@@ -292,7 +299,7 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 10u /* v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 11u /* v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

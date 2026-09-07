@@ -889,9 +889,12 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
           size_t on = 0;
           for (size_t k = 0; k < cfg->n_emit; k++)
             on += e[k].on;
-          printf ("    t=%6.1f s  on-air %2zu  assigned %2zu  dropped %llu |",
+          printf ("    t=%6.1f s  on-air %2zu  assigned %2zu  dropped %llu  "
+                  "heap %+.1f KiB |",
                   (double)now / FS, on, assigned,
-                  (unsigned long long)p->dropped);
+                  (unsigned long long)p->dropped,
+                  t->heap_base > 0.0 ? (heap_bytes () - t->heap_base) / 1024.0
+                                     : 0.0);
           for (size_t k = 0; k < cfg->n_emit; k++)
             {
               if (!e[k].on)

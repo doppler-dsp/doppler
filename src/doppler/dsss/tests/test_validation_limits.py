@@ -27,6 +27,9 @@ import pytest
 from doppler.dsss.tests.validation.acq import (
     validate as acq_validate,
 )
+from doppler.dsss.tests.validation.async_dsss_pool import (
+    validate as async_dsss_pool_validate,
+)
 from doppler.dsss.tests.validation.burst_acq import (
     validate as burst_acq_validate,
 )
@@ -49,6 +52,7 @@ from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
     "acq": acq_validate,
+    "async_dsss_pool": async_dsss_pool_validate,
     "burst_acq": burst_acq_validate,
     "burst_capture": burst_capture_validate,
     "burst_demod": burst_demod_validate,

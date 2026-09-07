@@ -555,11 +555,15 @@ now_s (void)
 static double
 heap_bytes (void)
 {
-#if defined(__GLIBC__) && __GLIBC_PREREQ(2, 33)
+#ifdef __GLIBC__
+/* Nested, not `defined (__GLIBC__) && __GLIBC_PREREQ (...)`: a
+   function-like macro that is not defined is an error inside `#if` on
+   clang, short-circuit or not, and macOS has neither. */
+#if __GLIBC_PREREQ(2, 33)
   struct mallinfo2 mi = mallinfo2 ();
-  return (double)mi.uordblks + (double)mi.hblkhd;
-#elif defined(__GLIBC__)
+#else
   struct mallinfo mi = mallinfo ();
+#endif
   return (double)mi.uordblks + (double)mi.hblkhd;
 #else
   struct rusage ru;

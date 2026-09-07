@@ -390,6 +390,61 @@ _test_event_log (void)
   return 0;
 }
 
+/* The on-air cap: a slot held past max_emitter_on_time_secs is released
+   with reason on_time and the emitter, still there, is a new detection
+   into a free slot; reset() logs nothing; set_refine_min_blocks() reaches
+   every slot. Sabotage: skip the cap in push() -> no on_time line -> red. */
+static int
+_test_on_time_release_reset_and_the_floor (void)
+{
+  char path[64];
+  (void)snprintf (path, sizeof path, "/tmp/dp_pool_test_ot_%d.events",
+                  (int)getpid ());
+  dp_event_log_t *log = dp_event_log_open (path, 0.0);
+  DP_REQUIRE (log != NULL);
+  cap_t                    e = emitter (1500.0, 40, 105u);
+  async_dsss_pool_state_t *p = async_dsss_pool_create (
+      g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU, 1, 0.0, 4,
+      3, 1, 0.0, LOST_S, 0.4 /* the cap: 0.4 s of a 1 s capture */, 4, 8, 0,
+      0.5, 4, 14.0, 64, 8, false, 100000);
+  DP_REQUIRE (p != NULL);
+  DP_CHECK (async_dsss_pool_set_refine_min_blocks (p, 9) == DP_OK);
+  for (size_t i = 0; i < 3; i++)
+    DP_CHECK_MSG (p->rx[i]->refine_min_blocks == 9,
+                  "the refine floor is forwarded to every slot");
+  DP_CHECK (async_dsss_pool_set_event_log (p, log) == DP_OK);
+  (void)feed (p, e.x, e.n);
+  size_t count = 0;
+  (void)slot_of (p, 1500.0, 40, &count);
+  DP_CHECK_MSG (count == 1, "the emitter holds one slot at the end");
+  DP_CHECK (dp_event_log_close (log) == DP_OK);
+  FILE *f = fopen (path, "r");
+  DP_REQUIRE (f != NULL);
+  char   line[DP_EVENT_LOG_LINE_MAX];
+  size_t on_time = 0, seeded = 0;
+  while (fgets (line, sizeof line, f))
+    {
+      on_time += strstr (line, "\"released\"") && strstr (line, "on_time");
+      seeded += strstr (line, "\"seeded\"") != NULL;
+    }
+  fclose (f);
+  DP_CHECK_MSG (on_time >= 1, "a slot held past the cap is released with "
+                              "reason on_time");
+  DP_CHECK_MSG (seeded >= 2, "and the emitter, still on the air, is seeded "
+                             "again into a free slot");
+  const uint64_t before = p->events;
+  async_dsss_pool_reset (p);
+  DP_CHECK_MSG (p->events == 0 && dp_event_log_count (log) == before,
+                "reset clears the count and logs nothing");
+  DP_CHECK (async_dsss_pool_set_event_log (p, NULL) == DP_OK);
+  dp_event_log_destroy (log);
+  remove (path);
+  async_dsss_pool_destroy (p);
+  free (e.x);
+  free (e.data);
+  return 0;
+}
+
 /* A mid-stream split resumes bit for bit in a fresh pool; the envelope
    and a foreign slot count are rejected. */
 static int
@@ -540,6 +595,7 @@ main (void)
   (void)_test_one_emitter_lifecycle ();
   (void)_test_two_emitters_and_a_full_pool ();
   (void)_test_event_log ();
+  (void)_test_on_time_release_reset_and_the_floor ();
   (void)_test_state_roundtrip ();
   DP_TEST_END ("test_async_dsss_pool_core");
 }

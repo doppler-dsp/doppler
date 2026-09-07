@@ -176,6 +176,7 @@ nav:
           - DsssReceiver (Composed Object): gallery/dsss-receiver.md
           - DsssBurstReceiver (Composed Burst Chain): gallery/dsss-burst-receiver.md
           - "AsyncDsssReceiver: the SPEC Waveform": gallery/async-dsss-receiver-spec.md
+          - "AsyncDsssPool: the population's lifecycle": gallery/async-dsss-pool.md
           - "CarrierAcquisition: RRC Pulse Shaping": gallery/carrier-acq-rrc.md
       - Synchronization Loops:
           - Carrier Loop Stress: gallery/costas.md

@@ -8,11 +8,20 @@ Run:  python -m doppler.dsss.tests.validation.async_dsss_pool.validate
 population of emitters through the channel, arriving and leaving, is not
 something a validator should rebuild in numpy beside the shipped C stimulus
 that already exists for it: every number here is
-`native/validation/async_dsss_pool_soak.c`'s (design sections 12.14–12.16), the
-lifecycle soak that certified the pool, run with `--emit` at a length a
-report can afford. This file parses its CSV blocks, characterises, reviews
-and asserts the limits through the same `Report` every other certified
-object uses — the `conv` shape.
+`native/validation/async_dsss_pool_soak.c`'s (design sections 12.14–12.17), the
+lifecycle soak that certified the pool. This file parses its CSV blocks,
+characterises, reviews and asserts the limits through the same `Report`
+every other certified object uses — the `conv` shape.
+
+**The run is the soak's own regression subset, `--check --emit`** — the
+same downselect `ctest` runs — and not the population soak. A validator
+runs on every push, twice (`test_validation_limits` and `make
+validate-check`), and the evidence and the gate must be one run so they
+cannot disagree; the ten-emitter soak at 20 s costs 3.3 min on twenty
+cores (24 CPU-minutes) against CI's Python jobs of 4–7 min each, and the
+report's 60 s cost 11. The population runs — ten emitters for 120 s
+(section 12.14), on the floored dwell (12.16) and for 600 s (12.17) — are
+`make validate-c`'s, evidence for the design page, refreshed on purpose.
 
 What the soak scores, per emitter and per on-air stint: the time from
 arrival to a slot holding it and to tracking, the seed's error against the
@@ -39,12 +48,10 @@ from doppler.tests._validation_common import Report, cli
 HERE = Path(__file__).resolve().parent
 DATA = HERE / "data"
 ROOT = repo_root(__file__)
-HARNESS = build_dir(__file__) / "native/validation/validate_async_dsss_pool_soak"
+HARNESS = (
+    build_dir(__file__) / "native/validation/validate_async_dsss_pool_soak"
+)
 
-# The report's run: ten emitters for DURATION_S at each C/N0. The design's
-# soak (section 12.14) is 120 s; a report re-rendered by `make validate` takes the
-# same population for half that, the same expectations asserted.
-DURATION_S = 60.0
 LOST_CONFIRM_S = 2.0
 N_SLOTS = 12
 
@@ -58,7 +65,7 @@ class Data:
 
 
 def _harness() -> Data:
-    """Run the soak with `--emit` and parse its CSV blocks.
+    """Run the soak's regression subset with `--emit` and parse its CSV.
 
     A missing binary is a hard failure rather than a skip: this report has
     no measurement of its own, and a skipped one is indistinguishable from
@@ -71,7 +78,7 @@ def _harness() -> Data:
             f"C soak's."
         )
     out = subprocess.run(
-        [str(HARNESS), "--emit", "--duration", f"{DURATION_S:.0f}"],
+        [str(HARNESS), "--check", "--emit"],
         capture_output=True,
         text=True,
         check=False,
@@ -129,7 +136,15 @@ def section_object() -> None:
     R.md("## 1. The object — one holder for the population")
     R.md()
     R.md(
-        "`AsyncDsssPool` (design section 8.2) composes one continuous `Acquisition` "
+        "The design is [`docs/design/async-dsss-receiver.md`]"
+        "(../../../../../../docs/design/async-dsss-receiver.md): section "
+        "8.2 for the pool's shape, sections 12.13 to 12.17 for what was "
+        "built and measured."
+    )
+    R.md()
+    R.md(
+        "`AsyncDsssPool` (design section 8.2) composes one continuous "
+        "`Acquisition` "
         "with the block coherence its code-only window buys, `n_slots` "
         "hand-off `AsyncDsssReceiver`s created idle, the assigned table and "
         "the event log by attachment, behind one `push()` per block: feed "
@@ -152,7 +167,8 @@ def section_object() -> None:
         ["claim (header)", "C test", "verdict"],
         [
             [
-                "one emitter takes exactly one slot however many dwells hit it",
+                "one emitter takes exactly one slot however many dwells hit "
+                "it",
                 "`_test_one_emitter_lifecycle`",
                 "pinned",
             ],
@@ -218,16 +234,23 @@ def section_object() -> None:
 def characterise(d: Data) -> None:
     R.md("## 2. Characterisation")
     R.md()
+    t0 = d.totals[_cn0s(d)[0]]
     R.md(
-        f"Every number below is the soak's: ten emitters from the shipped "
-        f"continuous-DSSS synth with the frame's window, each through the "
-        f"shipped `doppler_channel` at its own Doppler within ±20 ppm of "
-        f"2.5 GHz, arriving and leaving at the sum (on-times 15–30 s, "
-        f"off-times 4–8 s, one always on), the shipped awgn; one pool at the "
-        f"operating point of section 6.1 (D = 154, ±50 kHz, sixteen peaks, twelve "
-        f"slots, the carrier told, a {LOST_CONFIRM_S:.0f} s release "
-        f"interval), fed one epoch at a time with the event log attached, "
-        f"for {DURATION_S:.0f} s at each C/N0."
+        f"Every number below is the soak's regression subset: "
+        f"{t0['n_emit']:.0f} emitters from the shipped continuous-DSSS synth "
+        f"with the frame's window, each through the shipped "
+        f"`doppler_channel` at its own Doppler within ±20 ppm of 2.5 GHz, "
+        f"summed with the shipped awgn, for {t0['duration_s']:.0f} s at "
+        f"{_cn0s(d)[0]:.0f} dB-Hz — the always-on one released for its "
+        f"on-time and re-acquired, the other leaving, released, returning "
+        f"and re-acquired; one pool at the operating point of section 6.1 "
+        f"(D = 154, ±50 kHz, sixteen peaks, twelve slots, the carrier told, "
+        f"a {LOST_CONFIRM_S:.0f} s release interval, {t0['threads']:.0f} "
+        f"threads), fed one epoch at a time with the event log attached. "
+        f"The population — ten emitters arriving and leaving for 120 s at "
+        f"45 and 40 dB-Hz, and for 600 s — is the design's soak "
+        f"(sections 12.14, 12.16 and 12.17), which this run is the "
+        f"per-push subset of."
     )
     R.md()
     R.md("### 2.1 The lifecycle, per run")
@@ -276,7 +299,8 @@ def characterise(d: Data) -> None:
         rows.append(
             [
                 f"{c:.0f}",
-                f"{min(held):.2f} / {sum(held) / len(held):.2f} / {max(held):.2f}",
+                f"{min(held):.2f} / {sum(held) / len(held):.2f} / "
+                f"{max(held):.2f}",
                 f"{min(trk):.2f} / {sum(trk) / len(trk):.2f} / {max(trk):.2f}",
                 f"{max(hz):.0f}",
                 f"{max(ch):.2f}",
@@ -294,12 +318,13 @@ def characterise(d: Data) -> None:
     )
     R.md(
         "At 45 dB-Hz the emitter's own data blocks seed it in the first block "
-        "or two — section 12.7's smeared copy is over the gate there, hundreds of "
+        "or two — section 12.7's smeared copy is over the gate there, "
+        "hundreds of "
         "Hz off, and the receiver pulls in through its refine; at 40 dB-Hz "
-        "the copy is under the gate more often than not and the window is "
-        "waited for, within the frame the design allows. The seed's Doppler "
-        "is therefore scored within one native tile, its chip phase within "
-        "a chip."
+        "(the design's soak, section 12.14) the copy is under the gate more "
+        "often than not and the window is waited for, within the frame the "
+        "design allows. The seed's Doppler is therefore scored within one "
+        "native tile, its chip phase within a chip."
     )
     R.md()
     R.md("### 2.3 Tracking, and the release")
@@ -307,14 +332,19 @@ def characterise(d: Data) -> None:
     rows = []
     for c in _cn0s(d):
         t = d.totals[c]
-        rel = [s["t_rel_s"] for s in d.stints[c] if s["t_rel_s"] >= 0.0 and not s["rel_on_time"]]
+        rel = [
+            s["t_rel_s"]
+            for s in d.stints[c]
+            if s["t_rel_s"] >= 0.0 and not s["rel_on_time"]
+        ]
         rows.append(
             [
                 f"{c:.0f}",
                 f"{t['held_of_on']:.4f}",
                 f"{t['trk_of_held']:.4f}",
                 f"{t['sym_of_held']:.4f}",
-                f"{min(rel):.2f} / {sum(rel) / len(rel):.2f} / {max(rel):.2f} ({len(rel)})"
+                f"{min(rel):.2f} / {sum(rel) / len(rel):.2f} / {max(rel):.2f} "
+                f"({len(rel)})"
                 if rel
                 else "—",
                 f"{t['clock_restarts']:.0f}",
@@ -359,7 +389,8 @@ def characterise(d: Data) -> None:
         "The heap is sampled once a second after a warm-up and re-based at "
         "every slot's first tracking — a receiver builds its chains on its "
         "first seed and hand-over, a first-use step kept apart from growth "
-        "with time (section 5.1). The searcher's block and surface at D = 154 are "
+        "with time (section 5.1). The searcher's block and surface at D = 154 "
+        "are "
         "the half gigabyte."
     )
     R.md()
@@ -372,11 +403,13 @@ def review(d: Data) -> None:
     R.find(
         "F1",
         "FIXED",
-        "The pool's exclusion zone was section 7.1's one Doppler row by one chip, "
+        "The pool's exclusion zone was section 7.1's one Doppler row by one "
+        "chip, "
         "the width of one emitter's main lobe, and at the pool's depth a "
         "tracked emitter's data blocks put smeared copies of it at its own "
         "phase hundreds of Hz away — every one seeded a fresh receiver onto "
-        "the same emitter until the pool was full (section 12.14). The zone is the "
+        "the same emitter until the pool was full (section 12.14). The zone "
+        "is the "
         "code axis alone; a second emitter within a chip of a live one is "
         "not seen until the first leaves, a pair the surface could not tell "
         "apart in any case.",
@@ -388,10 +421,11 @@ def review(d: Data) -> None:
         "symbol-aided lock detector re-locked on noise about once a second: "
         "on noise its best timing hypothesis flipped between neighbours "
         "whose windows overlap, so a decision read the same noise n times "
-        "(section 12.15, #1264). A window overlapping the last look's is no longer "
+        "(section 12.15, #1264). A window overlapping the last look's is no "
+        "longer "
         f"a look; the release clocks restarted "
         f"{t45.get('clock_restarts', 0):.0f} time(s) in this run's "
-        f"{DURATION_S:.0f} s at 45 dB-Hz.",
+        f"{t45.get('duration_s', 0):.0f} s at 45 dB-Hz.",
     )
     R.find(
         "F3",
@@ -399,7 +433,8 @@ def review(d: Data) -> None:
         "One hand-over in sixty tracked the code with its carrier never "
         "locked: the refine's dwell was sized for detection alone and shrank "
         "to two blocks at 45 dB-Hz, where the estimate's 210 Hz noise put a "
-        "2.4σ draw outside the tracking chain's pull-in (section 12.16, #1265). "
+        "2.4σ draw outside the tracking chain's pull-in (section 12.16, "
+        "#1265). "
         "`refine_min_blocks`, seven by default, floors it.",
     )
     R.find(
@@ -408,7 +443,8 @@ def review(d: Data) -> None:
         "The searcher's false alarms are part of the lifecycle: at pfa 1e-3 "
         "a noise peak seeds a free slot, refines to nothing, reports "
         "tracking with both flags down and is released one interval later — "
-        "the release headroom of twelve slots for ten emitters (section 8.2). The "
+        "the release headroom of twelve slots for ten emitters (section 8.2). "
+        "The "
         "realized rate is about twice the configured one (#1064, the "
         "interpolated cells the gate's maximum runs over). Every "
         "expectation is therefore about the emitter's slot by both "
@@ -419,7 +455,8 @@ def review(d: Data) -> None:
         "CONFIRMED",
         "Each receiver builds its refine and track chains on its first seed "
         "and hand-over and frees them on reset — a per-transition allocation "
-        "section 8.2 says the pool does not make. Not a leak: the heap is flat once "
+        "section 8.2 says the pool does not make. Not a leak: the heap is "
+        "flat once "
         "every slot has been used once. Filed as #1269; the soak reports "
         "the first-use step and asserts only the growth after it.",
     )
@@ -469,7 +506,11 @@ def limits(d: Data) -> None:
             f"[{tag}] the heap does not grow once every slot in use has "
             f"built its chains",
         )
-        held = [s["t_held_s"] for s in d.stints[c] if s["t_held_s"] >= 0.0 and not s["truncated"]]
+        held = [
+            s["t_held_s"]
+            for s in d.stints[c]
+            if s["t_held_s"] >= 0.0 and not s["truncated"]
+        ]
         R.limit(
             max(held) <= 4950.0 / 2700.0 + 0.25,
             f"[{tag}] every arrival with a slot free is held within a frame "
@@ -479,6 +520,44 @@ def limits(d: Data) -> None:
             t["trk_of_held"] >= 0.98,
             f"[{tag}] a held emitter tracks with code lock on at least 98% "
             f"of blocks",
+        )
+        R.limit(
+            t["sym_of_held"] >= 0.95,
+            f"[{tag}] a held emitter tracks with symbol lock on at least "
+            f"95% of blocks",
+        )
+        both = [
+            s["t_track_s"] - s["t_held_s"]
+            for s in d.stints[c]
+            if s["t_held_s"] >= 0.0 and s["t_track_s"] >= 0.0
+        ]
+        R.limit(
+            bool(both) and max(both) <= 0.5,
+            f"[{tag}] tracking follows the seed within half a second, the "
+            f"refine's dwell and the hand-over",
+        )
+        rel = [
+            s["t_rel_s"]
+            for s in d.stints[c]
+            if s["t_rel_s"] >= 0.0 and not s["rel_on_time"]
+        ]
+        R.limit(
+            bool(rel) and min(rel) >= LOST_CONFIRM_S,
+            f"[{tag}] no departed emitter is released before the interval",
+        )
+        R.limit(
+            t["on_time_rel"] >= 1 and t["reassign"] >= t["on_time_rel"],
+            f"[{tag}] a slot held past the cap is released on time and its "
+            f"emitter re-acquired into a free slot",
+        )
+        R.limit(
+            t["relocked"] == 0,
+            f"[{tag}] a returning emitter is a new detection, never its "
+            f"released receiver's re-lock",
+        )
+        R.limit(
+            t["dropped"] == 0 and t["waited"] == 0,
+            f"[{tag}] no hit is dropped and no stint waits for a slot",
         )
 
 
@@ -517,8 +596,9 @@ def build(write: bool = True) -> Report:
         ],
     )
     R.summary(
-        "\n- Raw sweeps: `data/stints_45.csv`, `data/stints_40.csv`, "
-        "`data/totals.csv` — the soak's `--emit` blocks"
+        "\n- Raw run: "
+        + ", ".join(f"`data/stints_{c:.0f}.csv`" for c in _cn0s(d))
+        + ", `data/totals.csv` — the soak's `--emit` blocks"
     )
     R.emit(HERE / "results.md")
     return R

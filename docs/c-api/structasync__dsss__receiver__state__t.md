@@ -42,7 +42,9 @@ _Composed receiver state._ [More...](#detailed-description)
 |  [**costas\_state\_t**](structcostas__state__t.md) | [**car**](#variable-car)  <br> |
 |  float \_Complex \* | [**car\_carry\_buf**](#variable-car_carry_buf)  <br> |
 |  size\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
+|  int | [**car\_coasting**](#variable-car_coasting)  <br> |
 |  [**costas\_state\_t**](structcostas__state__t.md) | [**car\_frozen**](#variable-car_frozen)  <br> |
+|  [**costas\_state\_t**](structcostas__state__t.md) | [**car\_held**](#variable-car_held)  <br> |
 |  float \_Complex \* | [**car\_wiped\_buf**](#variable-car_wiped_buf)  <br> |
 |  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
@@ -53,6 +55,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  int | [**differential**](#variable-differential)  <br> |
 |  [**dll\_state\_t**](structdll__state__t.md) \* | [**dll**](#variable-dll)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
+|  int | [**had\_lock**](#variable-had_lock)  <br> |
 |  double | [**lock\_alpha**](#variable-lock_alpha)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
@@ -239,6 +242,23 @@ size_t async_dsss_receiver_state_t::car_carry_len;
 
 
 
+### variable car\_coasting 
+
+```C++
+int async_dsss_receiver_state_t::car_coasting;
+```
+
+
+
+Running: the carrier loop is held. 
+
+
+        
+
+<hr>
+
+
+
 ### variable car\_frozen 
 
 ```C++
@@ -247,6 +267,24 @@ costas_state_t async_dsss_receiver_state_t::car_frozen;
 
 
 
+
+<hr>
+
+
+
+### variable car\_held 
+
+```C++
+costas_state_t async_dsss_receiver_state_t::car_held;
+```
+
+
+
+The carrier as of the last symbol-locked period, restored on entering the hold. 
+ 
+
+
+        
 
 <hr>
 
@@ -391,6 +429,24 @@ double async_dsss_receiver_state_t::doppler_hz_est;
 
 
 Current best estimate: == seed\_ doppler\_hz\_est while refining, the CarrierAcquisition-refined value once tracking. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable had\_lock 
+
+```C++
+int async_dsss_receiver_state_t::had_lock;
+```
+
+
+
+Running: both lock flags have been up since the hand-over. After that both down holds both loops (dll\_set\_coast, the carrier's own hold) so a departed emitter's receiver cannot free-run onto a neighbour's code (#1271). 
  
 
 

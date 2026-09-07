@@ -331,7 +331,10 @@ adr_rebuild_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
   adr_build_track_chain (s, chip_phase, doppler_hz_est, segments, sps, n, &car,
                          &dll, &rc, &rx);
   adr_free_track_chain (s);
+  s->had_lock      = 0; /* a fresh chain pulls in before it may coast */
+  s->car_coasting  = 0;
   s->car           = car;
+  s->car_held      = car;
   s->dll           = dll;
   s->rc            = rc;
   s->rx            = rx;
@@ -440,11 +443,48 @@ static size_t
 adr_track_period (async_dsss_receiver_state_t *s, const float _Complex *period,
                   float _Complex *dll_out, size_t max_out)
 {
+  /* The coast (#1271). Once locked in this stint, BOTH flags down means
+     the emitter is gone or faded, and both loops hold what they settled
+     on with both flags up, their lock detectors still looking; one flag
+     down is a degrade and the loops run. Left running on noise, a
+     departed receiver's Dll free-runs at whatever its filter holds
+     (measured: up to 90 chips per second), sweeps through every live
+     emitter's code phase and can capture one that crosses slowly enough,
+     its code flag then flickering on a neighbour and restarting the
+     release clock for as long as it follows it. A genuine return lands
+     on the held replica, lights a flag, and both loops run again on it;
+     a neighbour that lights the code flag as it passes steers the loops
+     for the blip and no more -- the hold point is marked with both flags
+     up (dll_hold_here, car_held), so what a blip steers is dropped on
+     re-entry (measured: a neighbour 2 kHz off crossing at 4 chips per
+     second, 8-10 blips, no follow). Holding on ONE flag down was tried
+     and measured wrong: two live emitters 475 Hz apart crossing at a chip
+     per second degrade both receivers' symbol flags, and a code loop held
+     through that cannot re-centre on its own emitter afterwards -- both
+     flags then stay down for the rest of the watch, a false loss. Run,
+     it rides the crossing out (code lock held in 5 of 6 trials). A
+     neighbour within about a kilohertz crossing at a chip or two a second
+     can lock the carrier, and to a receiver on its own that IS a return --
+     the pool, which knows that emitter has a slot, is where it is told
+     apart (#1275). Before the first lock the loops must run: that is the
+     pull-in. */
+  const int code_up = dll_get_locked (s->dll), sym_up = s->sym_lockdet.locked;
+  if (code_up && sym_up)
+    {
+      s->had_lock = 1;
+      s->car_held = s->car;
+      dll_hold_here (s->dll);
+    }
+  const int car_coast = s->had_lock && !code_up && !sym_up;
+  if (car_coast && !s->car_coasting)
+    s->car = s->car_held;
+  s->car_coasting = car_coast;
+  dll_set_coast (s->dll, s->had_lock && !code_up && !sym_up);
   for (size_t i = 0; i < s->tsamps; i++)
     s->car_wiped_buf[i] = costas_wipeoff (&s->car, period[i]);
   size_t n_out
       = dll_steps (s->dll, s->car_wiped_buf, s->tsamps, dll_out, max_out);
-  if (n_out > 0)
+  if (n_out > 0 && !car_coast)
     {
       /* NON-DATA-AIDED carrier discriminator on the despread coherent-I&D
        * windows. Each emitted partial is dll_out[i] = A * d * exp(j*phi),
@@ -1156,7 +1196,8 @@ async_dsss_receiver_state_bytes (const async_dsss_receiver_state_t *s)
          + dll_state_bytes (s->refine_dll)
          + RateConverter_state_bytes (s->refine_rc)
          + carrier_acq_state_bytes (s->ca) + costas_state_bytes (&s->car)
-         + dll_state_bytes (s->dll) + RateConverter_state_bytes (s->rc)
+         + costas_state_bytes (&s->car_held) + dll_state_bytes (s->dll)
+         + RateConverter_state_bytes (s->rc)
          + mpsk_receiver_state_bytes (s->rx)
          + s->tsamps * sizeof (float _Complex);
 }
@@ -1183,6 +1224,8 @@ async_dsss_receiver_get_state (const async_dsss_receiver_state_t *s,
     .car_carry_len       = (uint64_t)s->car_carry_len,
     .state_samples       = s->state_samples,
     .both_down_samples   = s->both_down_samples,
+    .had_lock            = (uint8_t)(s->had_lock != 0),
+    .car_coasting        = (uint8_t)(s->car_coasting != 0),
     .lock_num            = s->lock_num,
     .lock_den            = s->lock_den,
     .lock_metric         = s->lock_metric,
@@ -1196,6 +1239,7 @@ async_dsss_receiver_get_state (const async_dsss_receiver_state_t *s,
   DP_W_CHILD (&_w, RateConverter, s->refine_rc);
   DP_W_CHILD (&_w, carrier_acq, s->ca);
   DP_W_CHILD (&_w, costas, &s->car);
+  DP_W_CHILD (&_w, costas, &s->car_held);
   DP_W_CHILD (&_w, dll, s->dll);
   DP_W_CHILD (&_w, RateConverter, s->rc);
   DP_W_CHILD (&_w, mpsk_receiver, s->rx);
@@ -1225,6 +1269,7 @@ async_dsss_receiver_set_state (async_dsss_receiver_state_t *s,
   DP_R_CHILD (&_r, RateConverter, s->refine_rc);
   DP_R_CHILD (&_r, carrier_acq, s->ca);
   DP_R_CHILD (&_r, costas, &s->car);
+  DP_R_CHILD (&_r, costas, &s->car_held);
   DP_R_CHILD (&_r, dll, s->dll);
   DP_R_CHILD (&_r, RateConverter, s->rc);
   DP_R_CHILD (&_r, mpsk_receiver, s->rx);
@@ -1238,6 +1283,8 @@ async_dsss_receiver_set_state (async_dsss_receiver_state_t *s,
   s->car_carry_len       = (size_t)extra.car_carry_len;
   s->state_samples       = extra.state_samples;
   s->both_down_samples   = extra.both_down_samples;
+  s->had_lock            = extra.had_lock;
+  s->car_coasting        = extra.car_coasting;
   s->lock_num            = extra.lock_num;
   s->lock_den            = extra.lock_den;
   s->lock_metric         = extra.lock_metric;

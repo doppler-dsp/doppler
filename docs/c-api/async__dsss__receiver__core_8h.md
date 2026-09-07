@@ -152,7 +152,7 @@ to tracking the same signal," only back to searching — matching every other ob
 | Type | Name |
 | ---: | :--- |
 | define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_MAGIC**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'R', 'X')`<br> |
-| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `3u`<br> |
+| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `4u /\* v4: had\_lock \*/`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier)  `0.04`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_BN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_bn)  `0.002`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_IDLE**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_idle)  `3`<br> |
@@ -179,7 +179,7 @@ The production C port of the validated Python prototype's own search -&gt; refin
     place" lesson)  seeded from the ORIGINAL handoff chip phase (not wherever the refine-stage `Dll` drifted to) and the refined (or, on a give-up, unrefined) Doppler estimate  and the object transitions to tracking.
 * **tracking** (`get_tracking() == 1`): the refined carrier estimate is UNFROZEN into a live pre-despread carrier loop (`costas_wipeoff`/`costas_update`) -&gt; `Dll` -&gt; `RateConverter` -&gt; `MpskReceiver`  the "track" leg of coarse -&gt; freeze -&gt; refine -&gt; unfreeze/track. `costas_update()` runs once per code period, driven by a NON-DATA-AIDED (squaring) discriminator over that period's coherent- I&D partials (`adr_track_period()`): a code period spans ~0.9 data symbols at SPEC's async ratio, so a transition lands inside nearly every period, and squaring is what makes the carrier error transition-robust (a decision-directed sign-aligned combine, tried first, thrashed +/-57deg and averaged to zero, so loop 1 never tracked and the post-despread MpskReceiver loop silently inherited the whole carrier + its Type-II ramp phase error). With that clean error and a bandwidth wide enough to pull the refined seed in and ride the ramp (`ASYNC_DSSS_RX_BN_CARRIER`), the pre-despread loop removes the FULL coupled Doppler (offset AND 500 Hz/s ramp), so despreading is coherent and MpskReceiver is left only a small residual. (Pure PLL  no FLL anywhere, see the `ASYNC_DSSS_RX_BN_CARRIER` comment.)
 * **idle** (`get_idle() == 1`, hand-off mode only): waiting for a seed. Samples are consumed and discarded, so a feeding loop needs no special case.
-* **lost** (`get_lost() == 1`): the emitter is gone. Entered from tracking when BOTH lock flags have been down, without a break, for longer than `lost_confirm_s` (docs/design/async-dsss-receiver.md section 11.2); the loops stop updating and samples are discarded until `reset()`. One flag down is a degrade, reported by the flags and not acted on. `lost_confirm_s = 0` (the searching flavor's default) never enters it.
+* **lost** (`get_lost() == 1`): the emitter is gone. Entered from tracking when BOTH lock flags have been down, without a break, for longer than `lost_confirm_s` (docs/design/async-dsss-receiver.md section 11.2); the loops stop updating and samples are discarded until `reset()`. One flag down is a degrade, reported by the flags and not acted on. `lost_confirm_s = 0` (the searching flavor's default) never enters it. While the confirm interval runs  both flags down after a lock  the loops HOLD what they settled on with both flags up rather than run on noise ([**dll\_set\_coast()**](dll__core_8h.md#function-dll_set_coast); design section 10, section 12.19, doppler#1271): a departed emitter's receiver stands where the emitter left it, and neither sweeps onto a neighbour's code nor restarts its release clock on one it followed. One flag down is a degrade and the loops run, which is what rides out two live emitters crossing each other's code phase.
 
 
 
@@ -1371,7 +1371,7 @@ size_t async_dsss_receiver_steps_max_out (
 ### define ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION 
 
 ```C++
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION `3u`
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION `4u /* v4: had_lock */`
 ```
 
 

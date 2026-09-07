@@ -63,7 +63,14 @@
  *     section 11.2); the loops stop updating and samples are discarded
  *     until `reset()`. One flag down is a degrade, reported by the flags
  *     and not acted on. `lost_confirm_s = 0` (the searching flavor's
- *     default) never enters it.
+ *     default) never enters it. While the confirm interval runs -- both
+ *     flags down after a lock -- the loops HOLD what they settled on with
+ *     both flags up rather than run on noise (dll_set_coast(); design
+ *     section 10, section 12.19, doppler#1271): a departed emitter's
+ *     receiver stands where the emitter left it, and neither sweeps onto
+ *     a neighbour's code nor restarts its release clock on one it
+ *     followed. One flag down is a degrade and the loops run, which is
+ *     what rides out two live emitters crossing each other's code phase.
  *
  * **Hand-off mode** (`async_dsss_receiver_create_handoff()`) is the same
  * object with NO embedded `Acquisition`: the search is somebody else's --
@@ -335,6 +342,17 @@ extern "C"
                                         while tracking with BOTH lock
                                         flags down -- the release clock;
                                         lost keeps it counting.          */
+    int      had_lock;             /**< Running: both lock flags have been
+                                        up since the hand-over. After that
+                                        both down holds both loops
+                                        (dll_set_coast, the carrier's own
+                                        hold) so a departed emitter's
+                                        receiver cannot free-run onto a
+                                        neighbour's code (#1271).        */
+    int      car_coasting;         /**< Running: the carrier loop is held. */
+    costas_state_t car_held;       /**< The carrier as of the last
+                                        symbol-locked period, restored on
+                                        entering the hold.                */
     double   seed_chip_phase;     /**< Original handoff chip phase --
                                         reused verbatim to seed the FRESH
                                         live-tracking Dll, not wherever the
@@ -1106,7 +1124,9 @@ extern "C"
     uint8_t  state;
     uint8_t  handoff; /**< 1 = no acq child in the blob (hand-off mode); a
                            blob does not travel between the flavors.    */
-    uint8_t  _pad[6];
+    uint8_t  had_lock;     /**< v4: a flag has been up; the loops coast. */
+    uint8_t  car_coasting; /**< v4: the carrier loop is held.            */
+    uint8_t  _pad[4];
     double   seed_chip_phase;
     double   seed_doppler_hz_est;
     double   doppler_hz_est;
@@ -1126,7 +1146,7 @@ extern "C"
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 3u
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 4u /* v4: had_lock */
 
   size_t async_dsss_receiver_state_bytes (
       const async_dsss_receiver_state_t *state);

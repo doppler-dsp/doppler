@@ -37,6 +37,26 @@
  *   fade10   the signal is 10 dB down for FADE_S seconds, then back
  *   fade20   20 dB down for FADE_S seconds, then back
  *   phase    the carrier phase steps by pi/2 and stays there
+ *   cross    the emitter stops at T_OFF_S, and a second emitter -- same
+ *            code, CROSS_PPM of the carrier through the shipped
+ *            doppler_channel, CROSS_PPM * 5 = 7.6 chips per second
+ *            relative -- has been on the air all along with its burn-in
+ *            chosen so its code phase crosses the departed receiver's
+ *            CROSS_AFTER_S later. Measured: the flags' returns over the
+ *            watch and the receiver's chip rate over the watch's last
+ *            two seconds -- a receiver that captured the neighbour runs
+ *            at its chips per second (#1271: a departed receiver in the
+ *            pool followed a neighbour at 44.8 for fourteen seconds, its
+ *            code flag flickering sixteen times); one that coasts stands
+ *            still, its code flag blipping a few times as the neighbour
+ *            passes through the held phase and then no more
+ *   cross-on the same neighbour at CROSS_ON_PPM (475 Hz, under a chip per
+ *            second) crosses the receiver's phase while its emitter STAYS
+ *            on -- the ten-minute soak's one slow crossing of two live
+ *            emitters, which degraded both receivers -- watched for
+ *            OFF_WATCH_S: whether the flags drop, the longest both-off
+ *            run, whether they are back by the end, and the chip rate at
+ *            the end (its own emitter's, zero here, or the neighbour's)
  *   on       nothing happens; the flags are watched for ON_S seconds
  *
  * Measured per trial: samples from the event to the first block with each
@@ -58,6 +78,8 @@
  */
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
 #include "awgn/awgn_core.h"
+#include "clib_common.h"
+#include "doppler_channel/doppler_channel_core.h"
 #include "dp_test.h"
 #include "gold/gold_core.h"
 #include "wfm_synth/wfm_synth_core.h"
@@ -78,9 +100,18 @@
 #define MAX_LOCK_S 6.0    /* give up on a trial that never settles      */
 #define POST_S 1.5        /* watch this long after a fade or a step     */
 #define OFF_WATCH_S                                                           \
-  8.0                   /* after a switch-off: the flags' returns on          \
-                           noise over several release intervals        */
-#define FADE_S 1.0      /* the fade's duration                        */
+  8.0                    /* after a switch-off: the flags' returns on         \
+                            noise over several release intervals        */
+#define FADE_S 1.0       /* the fade's duration                        */
+#define CARRIER_HZ 2.5e9 /* the crossing emitter's ppm -> Hz and chips */
+#define CROSS_PPM                                                             \
+  0.8                     /* 2 kHz off, 4 chips/s: captured without the       \
+                             coast on every seed, 231 flickers on one    */
+#define T_OFF_S 2.0       /* cross: the switch-off, if settled by then  */
+#define CROSS_AFTER_S 0.6 /* cross: the neighbour's phase meets ours    */
+#define CROSS_ON_PPM                                                          \
+  0.19                  /* cross-on: 475 Hz, 0.95 chips/s -- the soak's       \
+                           slow crossing of two live emitters           */
 #define ON_S 3.0        /* the on-time watched for false drops        */
 #define CHECK_MAX_S 0.5 /* --check: code lock must drop within this   */
 
@@ -90,11 +121,13 @@ enum
   EV_FADE10,
   EV_FADE20,
   EV_PHASE,
+  EV_CROSS,
+  EV_CROSS_ON,
   EV_ON,
   N_EV
 };
 static const char *ev_name[N_EV]
-    = { "off", "fade10", "fade20", "phase", "on" };
+    = { "off", "fade10", "fade20", "phase", "cross", "cross-on", "on" };
 
 typedef struct
 {
@@ -111,6 +144,7 @@ typedef struct
   size_t code_drops;   /* `on` only: separate code-lock drop episodes  */
   size_t sym_drops;    /* `on` only: separate symbol-lock drop episodes */
   size_t code_returns; /* `off`: code lock back on after its drop, times */
+  double rate_after;   /* `cross`: chip rate over the watch's last 2 s  */
   size_t sym_returns;  /* `off`: symbol lock back on after its drop     */
   double watch_s;      /* the watch, s                                  */
 } trial_t;
@@ -149,9 +183,10 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
   memset (out, 0, sizeof *out);
   out->t_code_s = out->t_sym_s = out->t_both_s = -1.0;
 
-  const double watch_s      = ev == EV_ON    ? ON_S
-                              : ev == EV_OFF ? OFF_WATCH_S
-                                             : POST_S;
+  const double watch_s = ev == EV_ON ? ON_S
+                         : ev == EV_OFF || ev == EV_CROSS || ev == EV_CROSS_ON
+                             ? OFF_WATCH_S
+                             : POST_S;
   const size_t watch_blocks = (size_t)(watch_s * FS / (double)TE);
   out->watch_s              = watch_s;
   const size_t lock_blocks  = (size_t)(MAX_LOCK_S * FS / (double)TE);
@@ -172,6 +207,49 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
   if (!syn || !g || !rx || !sig || !blk || !syms)
     return 1;
 
+  /* The crossing neighbour (EV_CROSS): its own synth through the channel
+     at CROSS_PPM, burnt in so that its code phase meets the first
+     emitter's at k_c = (T_OFF_S + CROSS_AFTER_S) * FS. The first emitter
+     is the synth straight out (chip k/SPC at sample k); the channel's
+     output k carries its input at k(1+d) - delay (its documented
+     mapping), so the burn is delay - k_c * d, modulo a code period. The
+     channel's output length varies by the resampler, so it is carried in
+     a small FIFO and taken one block at a time. */
+  wfm_synth_state_t       *synb  = NULL;
+  doppler_channel_state_t *chb   = NULL;
+  float complex           *bfifo = NULL, *bin = NULL, *btmp = NULL;
+  size_t                   bfill = 0, bcap = 0;
+  const double             xppm = ev == EV_CROSS_ON ? CROSS_ON_PPM : CROSS_PPM;
+  if (ev == EV_CROSS || ev == EV_CROSS_ON)
+    {
+      synb = make_emitter (code, seed + 1000u);
+      chb  = doppler_channel_create (FS, CARRIER_HZ, xppm, 0.0);
+      if (!synb || !chb)
+        return 1;
+      bcap               = doppler_channel_execute_max_out (chb);
+      bin                = dp_xmalloc (TE * sizeof *bin);
+      btmp               = dp_xmalloc (bcap * sizeof *btmp);
+      bfifo              = dp_xmalloc ((bcap + 2 * TE) * sizeof *bfifo);
+      const double k_c   = (T_OFF_S + CROSS_AFTER_S) * FS;
+      const double delay = doppler_channel_get_delay_samples (chb);
+      double       burn  = fmod (delay - k_c * xppm * 1e-6, (double)TE);
+      if (burn < 0.0)
+        burn += (double)TE;
+      size_t to_burn = (size_t)(burn + 0.5);
+      while (to_burn > 0)
+        {
+          wfm_synth_steps (synb, bin, TE);
+          size_t n = doppler_channel_execute (chb, bin, TE, btmp, bcap);
+          size_t d = n < to_burn ? n : to_burn;
+          memcpy (bfifo + bfill, btmp + d, (n - d) * sizeof *btmp);
+          bfill += n - d;
+          to_burn -= d;
+        }
+    }
+  const size_t off_blocks = (size_t)(T_OFF_S * FS / (double)TE);
+  double       chip_a     = 0.0;
+  size_t       n_rate     = 0;
+
   size_t        held = 0, event_block = 0, b = 0;
   int           in_event  = 0;
   int           prev_code = 1, prev_sym = 1;
@@ -186,7 +264,7 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
       if (in_event)
         {
           size_t since = b - event_block;
-          if (ev == EV_OFF)
+          if (ev == EV_OFF || ev == EV_CROSS)
             amp = 0.0;
           else if (ev == EV_FADE10 || ev == EV_FADE20)
             amp = (since < fade_blocks)
@@ -203,6 +281,21 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
       const float complex gain = (float)amp * rot;
       for (size_t i = 0; i < TE; i++)
         blk[i] += gain * sig[i];
+      if (ev == EV_CROSS || ev == EV_CROSS_ON)
+        {
+          /* The neighbour, on the air throughout, at the same level. */
+          while (bfill < TE)
+            {
+              wfm_synth_steps (synb, bin, TE);
+              size_t n = doppler_channel_execute (chb, bin, TE, btmp, bcap);
+              memcpy (bfifo + bfill, btmp, n * sizeof *btmp);
+              bfill += n;
+            }
+          for (size_t i = 0; i < TE; i++)
+            blk[i] += bfifo[i];
+          memmove (bfifo, bfifo + TE, (bfill - TE) * sizeof *bfifo);
+          bfill -= TE;
+        }
 
       (void)async_dsss_receiver_steps (rx, blk, TE, syms, cap ? cap : TE);
       int code_on = async_dsss_receiver_get_code_locked (rx) == 1;
@@ -212,7 +305,9 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
       if (!in_event)
         {
           held = (trk && sym_on) ? held + 1 : 0;
-          if (held >= SETTLE_BLOCKS)
+          if (held >= SETTLE_BLOCKS
+              && ((ev != EV_CROSS && ev != EV_CROSS_ON)
+                  || b + 1 >= off_blocks))
             {
               in_event     = 1;
               event_block  = b + 1;
@@ -258,6 +353,20 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
         both_run = 0;
       prev_code = code_on;
       prev_sym  = sym_on;
+      if ((ev == EV_CROSS || ev == EV_CROSS_ON)
+          && watched + (size_t)(2.0 * FS / (double)TE) >= watch_blocks)
+        {
+          /* The watch's last two seconds: the receiver's chip rate. */
+          const double c = async_dsss_receiver_get_chip_phase (rx);
+          if (n_rate == 0)
+            chip_a = c;
+          else
+            {
+              double dc = fmod (c - chip_a + 1.5 * SF, (double)SF) - 0.5 * SF;
+              out->rate_after = dc / ((double)n_rate * (double)TE / FS);
+            }
+          n_rate++;
+        }
       if (watched >= watch_blocks)
         {
           out->code_back = code_on;
@@ -270,6 +379,13 @@ run_trial (const uint8_t *code, int ev, double cn0_dbhz, uint32_t seed,
   out->p_both_off = watched ? (double)off_both / (double)watched : 0.0;
   out->both_max_s = (double)both_run_max * (double)TE / FS;
 
+  free (bfifo);
+  free (btmp);
+  free (bin);
+  if (chb)
+    doppler_channel_destroy (chb);
+  if (synb)
+    wfm_synth_destroy (synb);
   free (syms);
   free (blk);
   free (sig);
@@ -333,6 +449,58 @@ main (int argc, char **argv)
          ceiling on the rate -- one seed here does draw two. */
       DP_CHECK_MSG (returns <= 2, "the flags all but never return on noise "
                                   "within the watches");
+      /* The neighbour crossing a departed receiver's phase (#1271): the
+         loops coast, so the receiver neither follows it (its chip rate
+         over the watch's last two seconds stays at the departed
+         emitter's, zero here) nor flickers its code flag on it. Without
+         the coast the receiver captures the neighbour and runs at its
+         7.6 chips per second. */
+      {
+        trial_t t;
+        DP_REQUIRE (run_trial (code, EV_CROSS, 45.0, 3u, &t) == 0);
+        DP_CHECK (t.settled);
+        printf ("  cross: code lock off at %.1f ms; over %.0f s with the "
+                "neighbour crossing at +%.1f s: code lock returned %zu "
+                "time(s), symbol lock %zu; chip rate over the last 2 s "
+                "%+.2f chips/s (the neighbour's is %+.2f)\n",
+                t.t_code_s * 1e3, t.watch_s, CROSS_AFTER_S, t.code_returns,
+                t.sym_returns, t.rate_after, CROSS_PPM * 1e-6 * CHIP_RATE);
+        /* Measured (design section 12.19): coasting, the rate is 0.00 on
+           every seed and the code flag blips 8-10 times as the neighbour
+           passes through the held phase; without the coast the receiver
+           follows at the neighbour's 4.00 chips per second and the flag
+           flickers 230-250 times. */
+        DP_CHECK_MSG (fabs (t.rate_after) < 1.0,
+                      "a departed receiver does not follow a neighbour "
+                      "crossing its code phase");
+        DP_CHECK_MSG (t.code_returns + t.sym_returns <= 20,
+                      "its code flag blips as the neighbour passes and no "
+                      "more -- not the flicker of a receiver that follows");
+      }
+      /* The live crossing (design section 12.19): the emitter stays on
+         and a neighbour 475 Hz off crosses its phase at 0.95 chips per
+         second. The loops run on one flag down, so the receiver rides it
+         out; held on the symbol flag alone (the rejected rule) both flags
+         stayed down for the rest of the watch. */
+      {
+        trial_t t;
+        DP_REQUIRE (run_trial (code, EV_CROSS_ON, 45.0, 3u, &t) == 0);
+        DP_CHECK (t.settled);
+        printf ("  cross-on: code lock off at %.1f ms, symbol lock off at "
+                "%.1f ms, both off at %.1f ms (longest run %.0f ms); back "
+                "at the end: code %d, symbol %d; chip rate over the last "
+                "2 s %+.2f chips/s\n",
+                t.t_code_s * 1e3, t.t_sym_s * 1e3, t.t_both_s * 1e3,
+                t.both_max_s * 1e3, t.code_back, t.sym_back, t.rate_after);
+        /* Which of the two it ends on is not the hold's to decide: two
+           equal signals within half a chip and 475 Hz are one peak to the
+           loops, and a trial can end on the neighbour with both flags up
+           throughout (#1275). What the hold owns is that the flags do not
+           drop together and stay down. */
+        DP_CHECK_MSG (t.code_back && t.sym_back && t.both_max_s < 1.0,
+                      "a receiver whose emitter is crossed by a live "
+                      "neighbour keeps its flags through the crossing");
+      }
       DP_TEST_END ("validate_async_dsss_receiver_release");
     }
 
@@ -356,7 +524,7 @@ main (int argc, char **argv)
           int    back_c = 0, back_s = 0;
           double both_run_max = 0.0;
           size_t ret_c = 0, ret_s = 0;
-          double watched = 0.0;
+          double watched = 0.0, rate_sum = 0.0;
           for (int k = 0; k < n_trial; k++)
             {
               trial_t t;
@@ -366,6 +534,7 @@ main (int argc, char **argv)
                 continue;
               settled++;
               ret_c += t.code_returns;
+              rate_sum += t.rate_after;
               ret_s += t.sym_returns;
               watched += t.watch_s;
               if (t.t_code_s < 0.0)
@@ -417,6 +586,15 @@ main (int argc, char **argv)
                   ev_name[ev], settled, n_trial, mc, xc, held_c, settled, ms,
                   xs, held_s, settled, mb, xb, back_c, settled, back_s,
                   settled);
+          if (ev == EV_CROSS || ev == EV_CROSS_ON)
+            printf ("           the neighbour crossing at +%.1f s, %.2f "
+                    "chips/s relative: code lock returned %zu time(s) over "
+                    "%.0f s of watch, symbol lock %zu; chip rate over the "
+                    "last 2 s, mean of the trials %+.2f chips/s\n",
+                    CROSS_AFTER_S,
+                    (ev == EV_CROSS_ON ? CROSS_ON_PPM : CROSS_PPM) * 1e-6
+                        * CHIP_RATE,
+                    ret_c, watched, ret_s, rate_sum / (settled ? settled : 1));
           if (ev == EV_OFF && watched > 0.0)
             printf (
                 "           over %.0f s of noise after the switch-off: code "

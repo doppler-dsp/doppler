@@ -207,6 +207,9 @@ extern "C"
     uint64_t lost_confirm_samples; 
     uint64_t state_samples;        
     uint64_t both_down_samples;    
+    int      had_lock;             
+    int      car_coasting;         
+    costas_state_t car_held;       
     double   seed_chip_phase;     
     double   seed_doppler_hz_est; 
     double   doppler_hz_est;      
@@ -346,7 +349,9 @@ extern "C"
   {
     uint8_t  state;
     uint8_t  handoff; 
-    uint8_t  _pad[6];
+    uint8_t  had_lock;     
+    uint8_t  car_coasting; 
+    uint8_t  _pad[4];
     double   seed_chip_phase;
     double   seed_doppler_hz_est;
     double   doppler_hz_est;
@@ -366,7 +371,7 @@ extern "C"
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 3u
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 4u /* v4: had_lock */
 
   size_t async_dsss_receiver_state_bytes (
       const async_dsss_receiver_state_t *state);

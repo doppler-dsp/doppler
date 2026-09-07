@@ -33,13 +33,13 @@ import os
 import sys
 import tempfile
 
+# --8<-- [start:geometry]
 import numpy as np
 
 from doppler.dsss import AsyncDsssPool
 from doppler.telemetry import EventLog
 from doppler.wfm import Gold, Synth, wfm_awgn_amplitude
 
-# --8<-- [start:geometry]
 SF = 1023
 CHIP_RATE = 5.0e6
 SPC = 2

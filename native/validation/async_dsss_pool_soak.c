@@ -138,6 +138,8 @@
 #include <unistd.h>
 #ifdef __GLIBC__
 #include <malloc.h>
+#elif defined(__APPLE__)
+#include <malloc/malloc.h>
 #endif
 
 #define SF 1023u
@@ -546,10 +548,16 @@ now_s (void)
   return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
 }
 
-/* The heap the process holds, bytes: glibc's own count of in-use arena
-   and mmap bytes where it exists, else the resident high-water mark
-   (which can only rise, so growth reads the same way). mallinfo2 is
-   glibc 2.33; the floor this library ships to (2.28, the glibc gate)
+/* The heap the process holds, bytes: the allocator's own count of what
+   is in use -- glibc's arena plus mmap bytes, or Darwin's zones summed --
+   and, where neither exists, the resident high-water mark. The last is a
+   weaker meter: it steps when an already-allocated page is first
+   touched, which an allocator that places a freed block on a fresh page
+   does without anything leaking (measured on macOS under the
+   resident-mark fallback: +112, +240 and +48 KiB steps after the
+   warm-up on a run whose glibc in-use count was flat to the byte), so a
+   platform on that branch is measured, not asserted against. mallinfo2
+   is glibc 2.33; the floor this library ships to (2.28, the glibc gate)
    has only mallinfo, the same two counts as int -- exact below 2 GiB,
    which a soak that asserts the heap flat never approaches. */
 static double
@@ -565,10 +573,14 @@ heap_bytes (void)
   struct mallinfo mi = mallinfo ();
 #endif
   return (double)mi.uordblks + (double)mi.hblkhd;
+#elif defined(__APPLE__)
+  malloc_statistics_t st;
+  malloc_zone_statistics (NULL, &st); /* NULL: every zone, summed */
+  return (double)st.size_in_use;
 #else
   struct rusage ru;
   getrusage (RUSAGE_SELF, &ru);
-  return (double)ru.ru_maxrss * 1024.0;
+  return (double)ru.ru_maxrss * 1024.0; /* KiB off Darwin (rss_kib) */
 #endif
 }
 
@@ -602,12 +614,17 @@ arena_count (void)
 #endif
 }
 
+/* ru_maxrss is KiB on Linux and the BSDs and BYTES on Darwin. */
 static double
 rss_kib (void)
 {
   struct rusage ru;
   getrusage (RUSAGE_SELF, &ru);
+#ifdef __APPLE__
+  return (double)ru.ru_maxrss / 1024.0;
+#else
   return (double)ru.ru_maxrss;
+#endif
 }
 /* --refine-margin: the receivers' refine_design_margin_db, the pool's
    default of 14 dB unless given -- the dwell it sizes is #1265's axis. */

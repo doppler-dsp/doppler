@@ -39,6 +39,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  uint8\_t \* | [**band\_mask**](#variable-band_mask)  <br> |
 |  float \_Complex \* | [**blk**](#variable-blk)  <br> |
 |  size\_t | [**blk\_epoch**](#variable-blk_epoch)  <br> |
+|  float \_Complex \* | [**blk\_raw**](#variable-blk_raw)  <br> |
 |  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
@@ -224,6 +225,24 @@ size_t acq_state_t::blk_epoch;
 
 
 Epochs gathered in the current block (0 … coherent\_bins-1). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable blk\_raw 
+
+```C++
+float _Complex* acq_state_t::blk_raw;
+```
+
+
+
+coherent\_bins \* code\_bins: the block's raw epochs as pushed, for the tile-edge test of acq\_resolve\_tile\_alias(); NULL unless blk is. 
  
 
 

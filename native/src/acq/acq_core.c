@@ -436,6 +436,75 @@ acq_compute_stat_nc (acq_state_t *st)
   st->n_held    = 0;
 }
 
+/* The tile-edge alias (doppler#1270). A tile de-rotates by its own
+ * centre, so an emitter near the edge between two tiles leaves half a
+ * span of residual inside the epoch in both, and the slow-time transform
+ * folds modulo the epoch rate: the two neighbours read the emitter at the
+ * same row index and, measured on the pool's grid at 45 dB-Hz, within
+ * 0.03 dB of each other -- the pick is the noise's, one tile low or high,
+ * half the time on the edge and one time in six 68 Hz inside it. The
+ * block can tell when it is asked at the ROW's frequency: the raw epochs
+ * mixed by the row's own frequency correlate with the replica at the
+ * pick's code phase with under half a row of residual, and mixed by that
+ * frequency one span off the residual is exactly one cycle per epoch, a
+ * correlation of zero. Three hypotheses -- the row, one span down, one
+ * span up -- summed over the block's epochs non-coherently (a data
+ * transition inside an epoch costs every hypothesis the same), each
+ * epoch's column walked by the hypothesis's own code rate as
+ * acq_tile_epoch walks the tile's. Returns the native row that wins;
+ * the pick's own row when the engine is not block-coherent and tiled. */
+static size_t
+acq_resolve_tile_alias (const acq_state_t *st, size_t row, size_t col)
+{
+  const size_t D = st->coherent_bins, nx = st->code_bins;
+  const size_t W = st->window_bins, rows = W * D;
+  if (!st->blk_raw || W <= 1 || D <= 1)
+    return row;
+  const double f0 = (double)dp_fftfreq_index (row, rows) * st->doppler_res_hz;
+  const double span = st->fs / (double)nx;
+  double       best = -1.0;
+  long         win  = 0;
+  for (long h = -1; h <= 1; h++)
+    {
+      const double f = f0 + (double)h * span;
+      /* The code-rate walk of this hypothesis, samples per epoch: a
+         positive Doppler runs the chip clock fast and the peak sits
+         EARLIER each epoch (acq_tile_epoch's convention). */
+      const double d             = st->carrier_freq_hz > 0.0
+                                       ? f / st->carrier_freq_hz * (double)nx
+                                       : 0.0;
+      const double _Complex step = cexp (-2.0 * M_PI * I * f / st->fs);
+      double pw                  = 0.0;
+      for (size_t e = 0; e < D; e++)
+        {
+          const float _Complex *x = st->blk_raw + e * nx;
+          const long sh = lround (((double)e - 0.5 * (double)(D - 1)) * d);
+          const long c0 = (((long)col - sh) % (long)nx + (long)nx) % (long)nx;
+          double _Complex ph  = 1.0;
+          double _Complex acc = 0.0;
+          for (size_t m = 0; m < nx; m++)
+            {
+              /* The mixer: a recurrence from an exact start, resynced
+                 every 256 samples (acq_tile_epoch's pattern). */
+              if ((m & 255) == 0)
+                ph = cexp (-2.0 * M_PI * I * f * (double)(e * nx + m)
+                           / st->fs);
+              else
+                ph *= step;
+              const size_t k = (m + nx - (size_t)c0) % nx;
+              acc += (double _Complex) (x[m] * conjf (st->ref[k])) * ph;
+            }
+          pw += creal (acc) * creal (acc) + cimag (acc) * cimag (acc);
+        }
+      if (pw > best)
+        {
+          best = pw;
+          win  = h;
+        }
+    }
+  return (size_t)(((long)row + win * (long)D + (long)rows) % (long)rows);
+}
+
 /* The listed peaks of the dwell just decided, as results: each pick's
  * native row and column, its own statistic against the dwell's reference,
  * and the two-epoch rule of docs/design/async-dsss-receiver.md §7.1 -- a
@@ -464,9 +533,10 @@ acq_report_peaks (acq_state_t *st, const float *surf,
   uint32_t     seen_row[ACQ_MAX_PEAKS], seen_col[ACQ_MAX_PEAKS];
   for (size_t i = 0; i < st->n_peaks && ndet < room; i++)
     {
-      const size_t r
-          = acq_native_row (st, surf, st->peaks[i].row, st->peaks[i].col);
-      const size_t c   = st->peaks[i].col;
+      const size_t c = st->peaks[i].col;
+      const size_t r = acq_resolve_tile_alias (
+          st, acq_native_row (st, surf, st->peaks[i].row, st->peaks[i].col),
+          c);
       seen_row[n_seen] = (uint32_t)r;
       seen_col[n_seen] = (uint32_t)c;
       n_seen++;
@@ -1105,6 +1175,7 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
   float _Complex *new_wide_spec     = NULL;
   float _Complex *new_wide_prod     = NULL;
   float _Complex *new_blk           = NULL;
+  float _Complex *new_blk_raw       = NULL;
   if (grid_changed)
     {
       /* Single-row oversampled BPSK reference: row 0 (indices [0, cb))
@@ -1180,8 +1251,12 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
              before the slow-time transform (file doc). A fixed size from
              validated arguments: abort-on-OOM, no unwind path. */
           if (new_db > 1)
-            new_blk = (float _Complex *)dp_xmalloc (new_freq_bins * new_db * cb
-                                                    * sizeof (float _Complex));
+            {
+              new_blk = (float _Complex *)dp_xmalloc (
+                  new_freq_bins * new_db * cb * sizeof (float _Complex));
+              new_blk_raw = (float _Complex *)dp_xmalloc (
+                  new_db * cb * sizeof (float _Complex));
+            }
         }
     }
 
@@ -1242,7 +1317,9 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
       st->wide_spec     = new_wide_spec;
       st->wide_prod     = new_wide_prod;
       free (st->blk);
+      free (st->blk_raw);
       st->blk       = new_blk;
+      st->blk_raw   = new_blk_raw;
       st->blk_epoch = 0;
       /* The per-tile scratch follows the grid; a serial engine (one tile)
          has none and runs the classic path. The partial slots are one per
@@ -1308,6 +1385,7 @@ fail:
   free (new_wide_spec);
   free (new_wide_prod);
   free (new_blk);
+  free (new_blk_raw);
   if (new_ring)
     dp_f32_destroy (new_ring);
   return -1;
@@ -1464,6 +1542,7 @@ acq_destroy (acq_state_t *st)
   if (st->ring)
     dp_f32_destroy (st->ring);
   free (st->ref);
+  free (st->blk_raw);
   free (st->yframe);
   free (st->out_buf);
   free (st->colbuf);
@@ -1702,6 +1781,9 @@ acq_push (acq_state_t *st, const float _Complex *x, size_t n_in,
               fft_execute_cf32 (st->wide_fwd, frame, nx, st->wide_spec, nx);
               const size_t D   = st->coherent_bins;
               acq_fan_t    fan = { st };
+              if (st->blk_raw)
+                memcpy (st->blk_raw + st->blk_epoch * nx, frame,
+                        nx * sizeof *frame);
               /* The roll per thread: every tile of this epoch across the
                  pool (serially when there is none) -- each into its own
                  row of the surface at D == 1, of the block otherwise. */
@@ -1963,6 +2045,21 @@ acq_state_blk (void *blob, const acq_state_t *st)
                             + 2 * st->max_peaks * sizeof (uint32_t));
 }
 
+/* The block's raw epochs (acq_resolve_tile_alias), after the block: a
+   mid-block split must resume with the epochs the pick will be asked
+   about, or the resumed engine decides a tile edge differently. */
+static size_t
+acq_blk_raw_cells (const acq_state_t *st)
+{
+  return st->blk_raw ? st->coherent_bins * st->code_bins : 0;
+}
+
+static float _Complex *
+acq_state_blk_raw (void *blob, const acq_state_t *st)
+{
+  return acq_state_blk (blob, st) + acq_blk_cells (st);
+}
+
 size_t
 acq_state_bytes (const acq_state_t *st)
 {
@@ -1971,6 +2068,7 @@ acq_state_bytes (const acq_state_t *st)
     b += st->n_surf * sizeof (float);
   b += 2 * st->max_peaks * sizeof (uint32_t);
   b += acq_blk_cells (st) * sizeof (float _Complex);
+  b += acq_blk_raw_cells (st) * sizeof (float _Complex);
   return b;
 }
 
@@ -2020,6 +2118,9 @@ acq_get_state (const acq_state_t *st, void *blob)
   if (st->blk)
     memcpy (acq_state_blk (blob, st), st->blk,
             acq_blk_cells (st) * sizeof (float _Complex));
+  if (st->blk_raw)
+    memcpy (acq_state_blk_raw (blob, st), st->blk_raw,
+            acq_blk_raw_cells (st) * sizeof (float _Complex));
 }
 
 int
@@ -2067,6 +2168,9 @@ acq_set_state (acq_state_t *st, const void *blob)
   if (st->blk)
     memcpy (st->blk, acq_state_blk ((void *)blob, st),
             acq_blk_cells (st) * sizeof (float _Complex));
+  if (st->blk_raw)
+    memcpy (st->blk_raw, acq_state_blk_raw ((void *)blob, st),
+            acq_blk_raw_cells (st) * sizeof (float _Complex));
   st->n_peaks    = 0;
   st->n_held     = 0;
   st->peak_conc  = 0.0f;

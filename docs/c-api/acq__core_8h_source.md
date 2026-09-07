@@ -123,6 +123,7 @@ extern "C"
     double doppler_rate; 
     double carrier_freq_hz; 
     float _Complex *blk; 
+    float _Complex *blk_raw; 
     size_t blk_epoch;    
     /* The roll per thread (design §2.3): the tiles are independent after
        the one forward transform, so the per-epoch tile loop and the
@@ -203,7 +204,7 @@ extern "C"
   } acq_extra_t;
 
 #define ACQ_STATE_MAGIC DP_FOURCC ('A', 'C', 'Q', 'R')
-#define ACQ_STATE_VERSION 3u /* v3: the block-coherent accumulator rides along */
+#define ACQ_STATE_VERSION 4u /* v4: the block's raw epochs ride beside it */
 
 #define ACQ_MAX_PEAKS 64u
 

@@ -474,6 +474,15 @@ target_compile_options(validate_async_dsss_pool_soak
                        PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_async_dsss_pool_soak
          COMMAND validate_async_dsss_pool_soak --check)
+# The same subset behind the shipped front end, with the CSV blocks the
+# report's validator parses: `--budget` puts the 13 MSa/s up-conversion and
+# the DDC in front of the pool and times both (§12 step 8, §6.4), and
+# `--emit` is the validator's own run. Without this twin, both paths ran on
+# no push -- the sweep is `make validate-c`'s -- and the patch gate read the
+# harness at 70%. The budget's real-time ratio is printed, not asserted, so
+# a loaded runner cannot fail it; the twin costs 5 s over the check alone.
+add_test(NAME validate_async_dsss_pool_soak_budget
+         COMMAND validate_async_dsss_pool_soak --check --budget --emit)
 
 # So `sweep` is what a sanitizer suite excludes (`ctest -LE sweep`). The spot
 # check still runs on every PR in the ordinary C suite, which is where it is

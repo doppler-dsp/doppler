@@ -403,72 +403,97 @@ def review(d: Data) -> None:
     R.find(
         "F1",
         "FIXED",
-        "The pool's exclusion zone was section 7.1's one Doppler row by one "
-        "chip, "
-        "the width of one emitter's main lobe, and at the pool's depth a "
-        "tracked emitter's data blocks put smeared copies of it at its own "
-        "phase hundreds of Hz away — every one seeded a fresh receiver onto "
-        "the same emitter until the pool was full (section 12.14). The zone "
-        "is the "
-        "code axis alone; a second emitter within a chip of a live one is "
-        "not seen until the first leaves, a pair the surface could not tell "
-        "apart in any case.",
+        "The exclusion zone is the code axis alone: a hit within one chip "
+        "of a live row's code phase is that emitter's own at any Doppler. "
+        "A tracked emitter's data blocks put smeared copies of it at its "
+        "own phase hundreds of Hz away, and the one-row zone seeded twelve "
+        "receivers onto one emitter in 0.4 s (design section 12.14). The "
+        "cost: a second emitter within a chip of a live one is not seen "
+        "until the first leaves.",
     )
     R.find(
         "F2",
         "FIXED",
-        "The release fired one to three intervals late because the Dll's "
-        "symbol-aided lock detector re-locked on noise about once a second: "
-        "on noise its best timing hypothesis flipped between neighbours "
-        "whose windows overlap, so a decision read the same noise n times "
-        "(section 12.15, #1264). A window overlapping the last look's is no "
-        "longer "
-        f"a look; the release clocks restarted "
-        f"{t45.get('clock_restarts', 0):.0f} time(s) in this run's "
-        f"{t45.get('duration_s', 0):.0f} s at 45 dB-Hz.",
+        "The Dll's symbol-aided looks no longer overlap, so a decision "
+        "reads each stretch of noise once: the code flag's returns on "
+        "noise after a departure fell from about one a second to 0.004 "
+        "(section 12.15, #1264). This run's clock restarted "
+        f"{t45.get('clock_restarts', 0):.0f} time(s) in "
+        f"{t45.get('duration_s', 0):.0f} s.",
     )
     R.find(
         "F3",
         "FIXED",
-        "One hand-over in sixty tracked the code with its carrier never "
-        "locked: the refine's dwell was sized for detection alone and shrank "
-        "to two blocks at 45 dB-Hz, where the estimate's 210 Hz noise put a "
-        "2.4σ draw outside the tracking chain's pull-in (section 12.16, "
-        "#1265). "
-        "`refine_min_blocks`, seven by default, floors it.",
+        "The refine's dwell is floored at `refine_min_blocks` (seven): sized "
+        "for detection alone it shrank to two blocks at 45 dB-Hz, where "
+        "one hand-over in sixty fell outside the tracking chain's pull-in "
+        "(section 12.16, #1265).",
     )
     R.find(
         "F4",
         "BY DESIGN",
         "The searcher's false alarms are part of the lifecycle: at pfa 1e-3 "
         "a noise peak seeds a free slot, refines to nothing, reports "
-        "tracking with both flags down and is released one interval later — "
-        "the release headroom of twelve slots for ten emitters (section 8.2). "
-        "The "
-        "realized rate is about twice the configured one (#1064, the "
-        "interpolated cells the gate's maximum runs over). Every "
+        "tracking with both flags down and is released one interval later. "
+        "The realized rate is about twice the configured one (#1064). Every "
         "expectation is therefore about the emitter's slot by both "
-        "coordinates, never a count of slots.",
+        "coordinates, never a count of slots, and `n_slots` carries that "
+        "headroom.",
     )
     R.find(
         "F5",
         "CONFIRMED",
         "Each receiver builds its refine and track chains on its first seed "
-        "and hand-over and frees them on reset — a per-transition allocation "
-        "section 8.2 says the pool does not make. Not a leak: the heap is "
-        "flat once "
-        "every slot has been used once. Filed as #1269; the soak reports "
-        "the first-use step and asserts only the growth after it.",
+        "and hand-over and frees them on reset (#1269) — a per-transition "
+        "allocation, not a leak: the heap is flat once every slot has been "
+        "used once, and the soak reports the first-use step apart from "
+        "growth.",
     )
     R.find(
         "F6",
         "BY DESIGN",
-        "The code flag still returns on noise at about 0.004 per second "
-        "(pfa 1e-3 per decision with two verifies), and one return inside "
-        "the interval restarts the release clock once: the release then "
-        "comes at two intervals, the rule's own worst case at that rate, "
-        "which is what the soak bounds. Two returns inside one interval is a "
-        "1e-4 event per departure.",
+        "The code flag still returns on noise at about 0.004 per second, "
+        "and one return inside the interval restarts the release clock "
+        "once, so the release is bounded on two intervals — one departure "
+        "in a hundred; two returns inside one interval is a 1e-4 event.",
+    )
+    R.find(
+        "F7",
+        "FIXED",
+        "An emitter on the edge between two searcher tiles read the same in "
+        "both to 0.03 dB and was seeded a whole tile off half the time on "
+        "the edge; every listed peak is now asked at its row's own "
+        "frequency against the block's raw epochs (section 12.18, #1270). "
+        "The ten-minute soak scores no stint missed at either C/N0.",
+    )
+    R.find(
+        "F8",
+        "FIXED",
+        "A departed emitter's receiver ran its loops on noise, swept its "
+        "code phase through every live emitter's and followed one 3.8 kHz "
+        "off for fourteen seconds, its code flag flickering sixteen times. "
+        "Once locked, both flags down now hold both loops at the state "
+        "marked with both flags up (section 12.19, #1271): the ten-minute "
+        "soak's release is 2.04 s mean with one restart in 183 departures.",
+    )
+    R.find(
+        "F9",
+        "CONFIRMED",
+        "At 40 dB-Hz a data-block seed 650–800 Hz off reports tracking at "
+        "the seed's own frequency and never pulls the carrier in, holding "
+        "code lock without the symbol flag until the next aligned hit "
+        "seeds a second receiver — two of 187 stints, each a 5–7 s double "
+        "(#1273).",
+    )
+    R.find(
+        "F10",
+        "GAP",
+        "A neighbour within about a kilohertz crossing a departed "
+        "receiver's code phase at a chip or two a second is, to that "
+        "receiver, its emitter's return; the pool, which knows the "
+        "neighbour has a slot, is where it can be told apart — of the "
+        "order of 1e-3 per departure with ten emitters, none seen in 181 "
+        "(#1275).",
     )
     R.md()
 
@@ -586,7 +611,9 @@ def build(write: bool = True) -> Report:
             "refine's dwell is floored at seven blocks for that (F3).",
             "**The release comes at the interval, with one rare exception.** "
             "A code-flag return on noise at 0.004 per second restarts the "
-            "clock once, so bound on two intervals, not one (F6).",
+            "clock once, so bound on two intervals, not one (F6). While the "
+            "clock runs the receiver's loops hold, so a departed emitter's "
+            "receiver does not wander onto a neighbour (F8).",
             "**Nothing grows with time, once every slot has been used.** "
             "The receivers' first use allocates their chains (F5, #1269); "
             "after that the heap is flat to a page over the run.",

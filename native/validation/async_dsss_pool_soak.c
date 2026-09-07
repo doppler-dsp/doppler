@@ -548,12 +548,18 @@ now_s (void)
 
 /* The heap the process holds, bytes: glibc's own count of in-use arena
    and mmap bytes where it exists, else the resident high-water mark
-   (which can only rise, so growth reads the same way). */
+   (which can only rise, so growth reads the same way). mallinfo2 is
+   glibc 2.33; the floor this library ships to (2.28, the glibc gate)
+   has only mallinfo, the same two counts as int -- exact below 2 GiB,
+   which a soak that asserts the heap flat never approaches. */
 static double
 heap_bytes (void)
 {
-#ifdef __GLIBC__
+#if defined(__GLIBC__) && __GLIBC_PREREQ(2, 33)
   struct mallinfo2 mi = mallinfo2 ();
+  return (double)mi.uordblks + (double)mi.hblkhd;
+#elif defined(__GLIBC__)
+  struct mallinfo mi = mallinfo ();
   return (double)mi.uordblks + (double)mi.hblkhd;
 #else
   struct rusage ru;

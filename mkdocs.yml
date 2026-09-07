@@ -253,6 +253,7 @@ nav:
   - Guides:
       - Guides: guide/index.md
       - DSSS Burst Acquisition: guide/dsss-acquisition.md
+      - Tracking a Population of DSSS Emitters: guide/async-dsss-pool.md
       - Lock Detection Across doppler.track: guide/lock-detection.md
       - Power Spectra & Measurements: guide/spectral-psd.md
       - Real-Time Pacing & Timestamping: guide/timing.md
@@ -276,6 +277,7 @@ nav:
       - DSSS Acquisition: design/dsss-acquisition.md
       - Polynomial-Phase Estimator: design/ppe.md
       - AsyncDsssReceiver: design/async-dsss-receiver.md
+      - "AsyncDsssReceiver: the measurement record": design/async-dsss-receiver-measurements.md
       - DsssBurstReceiver: design/dsss-burst-receiver.md
       - BurstCapture: design/burst-capture.md
       - BurstBank: design/burst-bank.md

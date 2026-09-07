@@ -2104,7 +2104,9 @@ ______________________________________________________________________
     two minutes at each C/N0, nothing missed, every arrival held within
     0.2 s at 45 dB-Hz and 1.3 s at 40; the pool's zone was the wrong
     shape for its own depth (fixed), and the release fires one to three
-    intervals late because the code flag comes back on noise (open).
+    intervals late because the code flag comes back on noise (fixed,
+    §12.15). **The duration form (§12.17):** ten minutes at each C/N0,
+    the heap flat with the allocator's cache off, the rare events read.
 1. **The budget, per stage.** Its own bench target, on one core,
     minimum of runs, at the operating point's numbers (§6.1): the
     front-end DDC in ns per input sample at 13 MSa/s — confirmed to be on
@@ -2124,9 +2126,11 @@ ______________________________________________________________________
     owns the excess is the next thing to attack — §6.4's channel number
     says today's chain is already priced near it.
     **Done, per stage (§12.1):** DDC 0.18 of a core, searcher 2.1 at ±50
-    kHz, one receiver 0.44, slicing +6–11%, receivers add linearly. Not
-    done: the whole population as one run with its detection count
-    beside the rate, which needs the orchestrator.
+    kHz, one receiver 0.44, slicing +6–11%, receivers add linearly.
+    **Done, the population (§12.17):** the chain behind the shipped DDC runs at 4.1× real time at the
+    operating point and 9.5× at the 30 MSa/s floor on twenty threads,
+    all ten emitters tracked, against the 0.5 the requirement asks; the
+    block searcher's depth owns it (§12.8).
 1. **Decide by the spread.** The application's operating spread
     (§5.4 question 7) against step 3's knee: inside,
     branch one ships and (iii) is not built; beyond, (iii) is built and
@@ -3346,6 +3350,126 @@ the clock once — the rule's own worst case at that rate, two intervals,
 which is what the soak now bounds (two returns inside one interval is a
 1e-4 event per departure). The sweep is green at both C/N0s.
 
+### 12.17 What was measured (2026-09-06) — step 7's duration and step 8's population: ten minutes, the heap, and the budget
+
+**The run.** The soak of §12.14 with `--duration 600 --events`: ten
+emitters for ten minutes at each C/N0, 192 stints each (187 scored; the
+five cut by the run's end are not), on the machine's twenty threads.
+
+|                                                                     | 45 dB-Hz                         | 40 dB-Hz                          |
+| ------------------------------------------------------------------- | -------------------------------- | --------------------------------- |
+| stints scored as missed                                             | **1** (the alias, below)         | **2** (the alias, twice)          |
+| false releases (`lost` while on the air)                            | 0                                | 0                                 |
+| arrival → held, min / mean / max                                    | 0.00 / 0.05 / 0.73 s             | 0.01 / 0.30 / 1.59 s              |
+| arrival → tracking, mean / max                                      | 0.10 / 0.78 s                    | 0.35 / 1.64 s                     |
+| held, of on-air blocks after first tracking                         | 1.0014                           | 1.0006                            |
+| tracking with code lock, of held blocks; with symbol lock           | 0.9981; 0.9963                   | 0.9953; 0.9710                    |
+| departure → release, min / mean / max (n)                           | 2.02 / 2.06 / 4.44 s (181)       | 2.01 / 2.03 / 4.45 s (181)        |
+| releases past the interval + 0.5 s; absent                          | 3; **1** (the flag, below)       | 1; 0                              |
+| double assignments (two receivers code-locked on one emitter)       | **1**, 0.14 s                    | **3**, 5.6 + 7.6 + 7.4 s          |
+| seeds matching no emitter                                           | 2                                | 47                                |
+| on-time releases; most slots assigned                               | 17; 11                           | 16; 12                            |
+| log: seeded / tracking / degrade / lost / released (lost + on-time) | 213 / 213 / 188 / 187 / 187 + 17 | 255 / 255 / 1328 / 231 / 231 + 16 |
+
+The population holds for ten minutes as it did for two: nothing false,
+nothing dropped, the release at the interval in 360 of 362 departures.
+Three things ten minutes found that two could not, each read from the
+event log at its moment:
+
+- **The tile-edge alias — a seed one tile off, and what it costs.**
+    Emitter 3 sits at +12 288 Hz, 68 Hz inside the edge of a 4 888 Hz
+    tile. Its eleventh stint (297.7–326.1 s) was seeded at **297.723 s at
+    both C/N0s** from the row at **+7 394.9 Hz — exactly one tile low** —
+    and at 40 dB-Hz its sixth (145.4 s) likewise, the same 7 394.9 each
+    time: the neighbouring tile sees the emitter's energy folded to its
+    own edge and the pick reported that tile's row. The refine pulled
+    4.9 kHz in and the receiver tracked the emitter with both flags up
+    (+12 285 Hz, C/N0 read 38 dB-Hz) until it left; the score, which
+    accepts a seed within one tile of the truth (§12.14), called the stint
+    **missed** and the seed one that matched no emitter — all three
+    misses of the run, and the pool missed none of them. What the alias
+    does cost is at 40 dB-Hz: the pool advances a live row's code phase
+    on the seed's Doppler until the loop locks, and a Doppler a tile wrong
+    is 9.8 chips per second of phase error, so the row leaves its own
+    one-chip zone inside the refine's dwell and the next hit seeds a
+    second receiver — 145.443 and 145.537 s, 94 ms apart, both at
+    +7 394.9 Hz. The three 40 dB-Hz doubles (5.6, 7.6, 7.4 s, all with a
+    receiver at +7 394.9) are this; §12.16's floor did not remove them
+    because the seed is not noisy, it is wrong by a tile. The pick should
+    report a peak in the tile that owns it, and the score should accept a
+    tile's edge; filed as #1270.
+- **One receiver's code flag on noise, 250 times the rate.** Emitter 1
+    left at 432.41 s; its receiver (slot 9) reported both flags down at
+    once, and then its code flag returned **six times in seven seconds**
+    — 433.8, 434.1, 434.7, 435.4, 437.2 and 439.1 s, every one `code 1   sym 0` with the emitter off the air — each restarting the release
+    clock, so the release never came: the emitter returned at 439.52 s
+    into its own receiver (the seventh flicker, at 439.6 s, is the real
+    lock), and the fresh seed the searcher made for it held a second slot
+    for 0.14 s. §12.15's 0.004 per second is the population's mean over
+    the run; this receiver ran at one per second for seven seconds, once
+    in 181 departures. Filed as #1271.
+- **The heap read +53 and +38 KiB over ten minutes, and nothing leaked
+    — two accountings, neither the pool's.** The watch of §5.1 (a sample
+    a second, re-based at each slot's first tracking) grew by 16 KiB in
+    thirty seconds and 53 in six hundred, and every candidate measured
+    0 B in isolation — the event log over a thousand events, a receiver
+    through seed, track and reset. The first part is glibc's **tcache**:
+    freed chunks kept per thread and counted by `mallinfo2` as in use,
+    filling for as long as the run meets a size it has not seen; with
+    `glibc.malloc.tcache_count=0` the same run reads +32 KiB, and the
+    soak now re-execs itself once with that tunable. The second part
+    was found by shape: the +32 came in two clusters, +11 KiB over
+    225–240 s and +20 over 440–500 s, in steps of 1.2 then 2.4 KiB at
+    seeds, flat for the 180 s between through forty seeds, identical to
+    0.1 KiB between a 300 s and a 600 s run — and not the allocator's
+    arenas either (counted through `malloc_info`: twenty from the
+    warm-up on, none created later). It was **the harness's own stint
+    records**, an array per emitter that doubled at the ninth and
+    seventeenth stint, 8 then 16 records of about 150 bytes; ten
+    emitters cycling every 19–38 s reach their ninth stint together near
+    225 s and their seventeenth near 450 s. The records are now sized
+    for the run before the base is taken, and the ten-minute run then
+    reads **+1.6 KiB at most at 45 dB-Hz and +0.0 at 40** — §5.1's
+    requirement, held at ten minutes (the run's remaining failures are
+    #1270's and #1271's). The resident
+    high-water mark is reported and no longer gated: the same stimulus
+    read +1.7 MiB on one run and +0.0 on the next, and the 30 s and
+    600 s runs settled at +2.5 to +5.9 MiB, no larger for twenty times
+    the length — a process-wide number that moves with twenty workers'
+    schedule, not with time.
+
+**The budget, the population as one run (step 8).** `--budget --duration 60`: the summed stimulus carried to 13 MSa/s, the shipped `DDC` bringing
+it back to two samples per chip on the arbitrary-ratio path §6.4 forces,
+the pool taking the block, the time inside each measured — on this box's
+twenty threads, nothing else running, ten emitters at each C/N0 and all
+ten tracked (19 stints scored, none missed, the release at 2.02–2.04 s).
+
+|                                                     | 45 dB-Hz  | 40 dB-Hz  |
+| --------------------------------------------------- | --------- | --------- |
+| inside the DDC, of real time at 13 MSa/s            | 0.32      | 0.32      |
+| inside `push()`, of real time                       | 3.80      | 2.16      |
+| the chain, of real time at 13 MSa/s                 | **4.12**  | **2.48**  |
+| the same chain fed 2.31× faster, the 30 MSa/s floor | **9.51**  | **5.71**  |
+| emitters tracked, of ten; stints scored; missed     | 10; 19; 0 | 10; 19; 0 |
+
+**The requirement is missed by its own words** — under 0.5 at both was
+the target, and the chain runs at 4.1× real time at the operating point
+and 9.5× at the floor, on twenty threads of one box (§6.1's server has
+48 cores; this is not that machine, and one process is not the
+"processes as needed" of §1.1). The stage that owns the excess is
+named by §12.8: the block searcher at `D = 154` is 2.6–2.9× real time on
+four to eight threads, most of the pool's 3.8, and its per-cell passes —
+the mask copy, the list's scans, the column gather striding by
+`code_bins` — are where §12.8 says the depth's cost is; the receivers
+are the rest, and the front end is the 0.32 the DDC's serial path costs
+here (§12.1's bench priced it 0.18 of a core at the minimum of rounds;
+this is a run's mean). Two things this run does not settle: the pool
+costs 1.8× more of real time at 45 dB-Hz than at 40 for the same
+population and the same count tracked, unattributed here; and the number
+is one box's — the fraction scales with the threads the searcher's roll
+is given (§12.8's fan), so what the server does with 48 is a measurement
+on the server. Step 8's next thing to attack is the searcher's depth.
+
 ______________________________________________________________________
 
 ## 13. What this page does not settle
@@ -3368,13 +3492,16 @@ before anything is priced on them. Two things the measurements raised
 and this page only names: the peak list's same-code-phase rule (§7.1)
 passes a strong emitter's persistent sidelobes under long non-coherent
 integration (§12.6, #1191), and the false-release rate of the
-both-flags-down rule is bounded only over half a minute, not the
-15-minute maximum on-time (§6.1) it must hold for — and, from the soak
-(§12.14, #1264), the code flag's false re-locks on noise made the rule
-fire one to three intervals late — fixed at the Dll's looks (§12.15),
-leaving one return per 240 s that restarts the clock once in a hundred
-departures; and the hand-over that never pulled in (#1265) — fixed at
-the refine's dwell (§12.16).
+both-flags-down rule is bounded over ten minutes (§12.17: none in 374
+stints), not yet the 15-minute maximum on-time (§6.1) it must hold for
+— and, from the soak (§12.14, #1264), the code flag's false re-locks on
+noise made the rule fire one to three intervals late — fixed at the
+Dll's looks (§12.15), leaving one return per 240 s that restarts the
+clock once in a hundred departures, and one receiver in 181 whose flag
+ran at one return a second for seven seconds (§12.17); the hand-over
+that never pulled in (#1265) — fixed at the refine's dwell (§12.16); and
+the searcher's tile-edge alias, a seed one tile off that the refine
+absorbs and the zone does not (§12.17).
 
 ______________________________________________________________________
 

@@ -83,6 +83,13 @@
  *                                            and re-acquired, the other
  *                                            leaving, released, returning
  *                                            and re-acquired
+ *   ... --budget                             the whole population as one
+ *                                            run (§12 step 8): the shipped
+ *                                            DDC from 13 MSa/s in front of
+ *                                            the pool, the time inside
+ *                                            both as a fraction of real
+ *                                            time at 13 and 30 MSa/s,
+ *                                            beside the count tracked
  *   ... --duration S                         the sweep's length per C/N0
  *                                            (SWEEP_S unless given): the
  *                                            duration requirement of §5.1
@@ -101,6 +108,7 @@
 #include "async_dsss_pool/async_dsss_pool_core.h"
 #include "awgn/awgn_core.h"
 #include "clib_common.h"
+#include "ddc/ddc_core.h"
 #include "doppler_channel/doppler_channel_core.h"
 #include "dp_event_log/dp_event_log_core.h"
 #include "dp_rng_test.h"
@@ -113,6 +121,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <time.h>
 #include <unistd.h>
 #ifdef __GLIBC__
 #include <malloc.h>
@@ -145,6 +154,10 @@
 #define SWEEP_EMIT 10u
 #define CHECK_S 16.0
 #define CHECK_EMIT 2u
+
+/* --budget: the front end's group delay, output samples at FS, measured
+   once with an impulse (measure_chain_delay); 0 without the front end. */
+static double g_chain_delay = 0.0;
 
 typedef struct
 {
@@ -235,8 +248,8 @@ samples (double s)
 static double
 truth_chip (const emitter_t *e, uint64_t k)
 {
-  const double n_in
-      = (double)k * (1.0 + e->ppm * 1e-6) - e->delay + (double)e->burn;
+  const double n_in = ((double)k - g_chain_delay) * (1.0 + e->ppm * 1e-6)
+                      - e->delay + (double)e->burn;
   return dp_fmod_pos (n_in / (double)SPC, (double)SF);
 }
 
@@ -387,7 +400,8 @@ typedef struct
   double heap_step_max;                 /* the largest such first-use step */
   double rss_base_kib, rss_end_kib;     /* resident high-water mark      */
   double warm_s;
-  size_t slots_used; /* slots that have tracked once   */
+  size_t slots_used;              /* slots that have tracked once   */
+  double ddc_s, push_s, signal_s; /* --budget: seconds inside each  */
 } totals_t;
 
 static void
@@ -440,6 +454,63 @@ static const char *g_events_dir = NULL;
    of section 5.1 run as long as the machine allows; nothing in the pool
    may grow with time. */
 static double g_duration_s = 0.0;
+/* --budget: the whole population as one run (section 12 step 8, section
+   6.4): the summed stimulus is carried up to the front end's 13 MSa/s
+   (untimed -- it is the stimulus), then the shipped DDC brings it back
+   to two samples per chip on the polyphase arbitrary path, the one the
+   ratio forces, and the pool takes the block; the time inside the DDC
+   and inside push() is the population's cost, reported as a fraction of
+   real time at 13 MSa/s and, the same chain fed 2.3 times faster, at the
+   30 MSa/s floor. */
+static int g_budget = 0;
+#define DDC_IN_RATE 13.0e6
+/* The front end's group delay, output samples at FS, measured once with
+   an impulse through a throwaway copy of the chain: the score's truth is
+   the synth's clock, and in budget mode the pool's stream is that clock
+   delayed by the two resamplers. */
+
+static double
+measure_chain_delay (void)
+{
+  RateConverter_state_t *up  = RateConverter_create (DDC_IN_RATE / FS, 0);
+  ddc_state_t           *ddc = ddc_create (0.0, FS / DDC_IN_RATE);
+  DP_REQUIRE_MSG (up && ddc, "the front end opens for its delay");
+  const size_t   n = 8 * TE, k0 = 4 * TE;
+  float complex *x    = dp_xcalloc (n, sizeof *x);
+  size_t         ucap = RateConverter_execute_max_out (up);
+  float complex *u    = dp_xmalloc (ucap * sizeof *u);
+  size_t         dcap = ddc_execute_max_out (ddc, ucap);
+  float complex *y    = dp_xmalloc (dcap * sizeof *y);
+  x[k0]               = 1.0f;
+  size_t total = 0, best = 0;
+  float  bmag = 0.0f;
+  for (size_t pos = 0; pos < n; pos += TE)
+    {
+      size_t nu = RateConverter_execute (up, x + pos, TE, u, ucap);
+      size_t nd = ddc_execute (ddc, u, nu, y, dcap);
+      for (size_t i = 0; i < nd; i++)
+        if (cabsf (y[i]) > bmag)
+          {
+            bmag = cabsf (y[i]);
+            best = total + i;
+          }
+      total += nd;
+    }
+  free (y);
+  free (u);
+  free (x);
+  ddc_destroy (ddc);
+  RateConverter_destroy (up);
+  return (double)best - (double)k0;
+}
+
+static double
+now_s (void)
+{
+  struct timespec ts;
+  clock_gettime (CLOCK_MONOTONIC, &ts);
+  return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+}
 
 /* The heap the process holds, bytes: glibc's own count of in-use arena
    and mmap bytes where it exists, else the resident high-water mark
@@ -512,8 +583,22 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
             e[k].ppm, e[k].doppler_hz, (double)e[k].burn / FS,
             k == 0 ? ", always on" : "");
 
-  float complex *x           = dp_xmalloc (TE * sizeof *x);
-  float complex *nz          = dp_xmalloc (TE * sizeof *nz);
+  float complex         *x      = dp_xmalloc (TE * sizeof *x);
+  float complex         *nz     = dp_xmalloc (TE * sizeof *nz);
+  RateConverter_state_t *up     = NULL;
+  ddc_state_t           *ddc    = NULL;
+  float complex         *up_buf = NULL, *ddc_buf = NULL;
+  size_t                 up_cap = 0, ddc_cap = 0;
+  if (g_budget)
+    {
+      up  = RateConverter_create (DDC_IN_RATE / FS, 0);
+      ddc = ddc_create (0.0, FS / DDC_IN_RATE);
+      DP_REQUIRE_MSG (up && ddc, "the front end opens");
+      up_cap  = RateConverter_execute_max_out (up);
+      up_buf  = dp_xmalloc (up_cap * sizeof *up_buf);
+      ddc_cap = ddc_execute_max_out (ddc, up_cap);
+      ddc_buf = dp_xmalloc (ddc_cap * sizeof *ddc_buf);
+    }
   const uint64_t n_blocks    = samples (cfg->duration_s) / TE;
   const uint64_t trace_every = trace ? samples (1.0) / TE : 0;
   /* A seed is an emitter's at its code phase within a chip and its
@@ -561,9 +646,25 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
         if (e[k].on)
           for (size_t i = 0; i < TE; i++)
             x[i] += e[k].blk[i];
-      const uint64_t drops_before = p->dropped;
-      size_t         assigned     = async_dsss_pool_push (p, x, TE);
-      const int      new_drops    = p->dropped > drops_before;
+      const uint64_t       drops_before = p->dropped;
+      const float complex *blk_in       = x;
+      size_t               blk_n        = TE;
+      if (g_budget)
+        {
+          /* Up to the front end's rate (the stimulus's cost, untimed),
+             then the DDC back down (timed): the block the pool takes is
+             the DDC's, a sample or so either side of an epoch. */
+          size_t n_up     = RateConverter_execute (up, x, TE, up_buf, up_cap);
+          const double t0 = now_s ();
+          blk_n           = ddc_execute (ddc, up_buf, n_up, ddc_buf, ddc_cap);
+          t->ddc_s += now_s () - t0;
+          blk_in = ddc_buf;
+        }
+      const double t_push   = now_s ();
+      size_t       assigned = async_dsss_pool_push (p, blk_in, blk_n);
+      t->push_s += now_s () - t_push;
+      t->signal_s += (double)TE / FS;
+      const int new_drops = p->dropped > drops_before;
       /* The duration requirement (section 5.1): after a warm-up long
          enough for every buffer to reach its high-water mark -- the
          symbol buffer at the first push, the log's first event of every
@@ -598,7 +699,7 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
         }
       if (assigned > t->max_assigned)
         t->max_assigned = assigned;
-      const uint64_t end = now + TE;
+      const uint64_t end = p->samples_consumed;
 
       /* Whose is each slot: decided once per seed. */
       memset (held, 0, cfg->n_emit * sizeof *held);
@@ -968,6 +1069,15 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
       t->held_blocks,
       t->held_blocks ? (double)t->sym_blocks / (double)t->held_blocks : 0.0);
   t->rss_end_kib = rss_kib ();
+  if (g_budget)
+    printf ("  budget: %.1f s of signal; inside the DDC %.1f s, inside "
+            "push() %.1f s on %d threads -- %.3f of real time at 13 MSa/s "
+            "(DDC %.3f + pool %.3f), %.3f at the 30 MSa/s floor; the "
+            "target is under 0.5 at both (section 6.4)\n",
+            t->signal_s, t->ddc_s, t->push_s, dp_pool_threads (fan),
+            (t->ddc_s + t->push_s) / t->signal_s, t->ddc_s / t->signal_s,
+            t->push_s / t->signal_s,
+            (t->ddc_s + t->push_s) / t->signal_s * 30.0e6 / DDC_IN_RATE);
   printf ("  heap %.1f MiB after the %.0f s warm-up; %zu slots tracked at "
           "least once, the largest first-use step %.1f KiB; since the last "
           "first use: at most %+.1f KiB, at the end %+.1f KiB; resident "
@@ -988,11 +1098,15 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
   /* Nothing grows with time (section 5.1): the heap after the warm-up is
      the heap for the rest of the run, to within a page of allocator
      slack; the resident mark likewise. */
-  DP_CHECK_MSG (t->heap_base > 0.0 && t->heap_max - t->heap_base <= 4096.0,
-                "the heap does not grow once every slot in use has built "
-                "its chains");
-  DP_CHECK_MSG (t->rss_end_kib - t->rss_base_kib <= 1024.0,
-                "the resident high-water mark does not move from there");
+  if (!g_budget) /* the front end's own grow-on-demand buffers are not
+                    the pool's; the heap is the duration mode's gate */
+    {
+      DP_CHECK_MSG (t->heap_base > 0.0 && t->heap_max - t->heap_base <= 4096.0,
+                    "the heap does not grow once every slot in use has "
+                    "built its chains");
+      DP_CHECK_MSG (t->rss_end_kib - t->rss_base_kib <= 1024.0,
+                    "the resident high-water mark does not move from there");
+    }
   DP_CHECK_MSG (t->missed == 0, "no emitter above the floor is missed");
   DP_CHECK_MSG (t->false_rel == 0,
                 "no emitter is released while on the air by the rule");
@@ -1028,6 +1142,10 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
                            == t->log_lines,
                 "the log's labels are the design's and number the count");
 
+  free (ddc_buf);
+  free (up_buf);
+  ddc_destroy (ddc);
+  RateConverter_destroy (up);
   free (nz);
   free (x);
   dp_pool_destroy (fan);
@@ -1053,6 +1171,14 @@ main (int argc, char **argv)
         g_refine_margin_db = atof (argv[++a]);
       else if (strcmp (argv[a], "--duration") == 0 && a + 1 < argc)
         g_duration_s = atof (argv[++a]);
+      else if (strcmp (argv[a], "--budget") == 0)
+        g_budget = 1;
+    }
+  if (g_budget)
+    {
+      g_chain_delay = measure_chain_delay ();
+      printf ("budget: the front end's delay is %.1f samples at %.0f MSa/s\n",
+              g_chain_delay, FS / 1e6);
     }
   uint8_t code[SF];
   gold_1023 (code);

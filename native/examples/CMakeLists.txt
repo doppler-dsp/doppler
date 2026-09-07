@@ -22,6 +22,17 @@ endforeach()
 
 if(NOT WIN32)
     find_package(Threads REQUIRED)
+    # The pool runs its receivers and the searcher's tiles across threads
+    # (dp_parallel.h); glibc < 2.34 needs -lpthread on the final link.
+    foreach(_ex async_dsss_pool_demo)
+        add_executable(${_ex} ${_ex}.c)
+        target_include_directories(${_ex} PRIVATE
+            ${CMAKE_SOURCE_DIR}/native/inc
+            ${CMAKE_BINARY_DIR}/native/inc)
+        target_link_libraries(${_ex} PRIVATE doppler_lib_static Threads::Threads m)
+        set_target_properties(${_ex} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    endforeach()
     foreach(_ex transmitter receiver pipeline_demo spectrum_analyzer
                 graceful_shutdown_demo spool_follow_demo)
         add_executable(${_ex} ${_ex}.c)

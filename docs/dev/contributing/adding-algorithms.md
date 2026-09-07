@@ -52,6 +52,15 @@ which is precisely why it goes first: it is the cheapest place to be wrong.
 The design page is also what section 1 of the eventual validation report links
 to, rather than restating.
 
+**The design page states what *is*.** The dated record — what each step
+measured, in the order it was measured, the wrong guesses and what corrected
+them — accrues on a companion, `docs/design/<algo>-measurements.md`, with
+section numbers shared between the two so a `§12.17` cited in an issue or a
+code comment is the same entry on both.
+[`async-dsss-receiver-measurements.md`](../../design/async-dsss-receiver-measurements.md)
+is the shape. A design page that carries its own history stops stating
+anything: a reader has to replay it to find out what is true today.
+
 It is not, however, the *only* ungated phase — phase 4's sabotage is the
 other, and that one is a gap rather than a design.
 
@@ -59,18 +68,18 @@ ______________________________________________________________________
 
 ## The lifecycle at a glance
 
-| #   | phase          | produces                                                 | the how lives in                                                                 | proven by                                               |
-| --- | -------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| 1   | **Why**        | `docs/design/<algo>.md`                                  | this page                                                                        | review only                                             |
-| 2   | **Declare**    | `objects/<obj>.toml`, a `just-makeit.toml` entry         | [Adding a Module](adding-a-module.md)                                            | `make drift-check`                                      |
-| 3   | **Implement**  | `native/inc/<obj>/<obj>_core.h` + `_core.c`              | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)   | `ctest`                                                 |
-| 4   | **Pin**        | `native/tests/test_<obj>_core.c`                         | [Object Validation](validation.md) step 2                                        | `ctest`, `make tests-ssot`                              |
-| 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment               | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md) | `make drift-check`, `make test-stubs`                   |
-| 6   | **Instrument** | the state triplet, telemetry probes                      | [state serialization](../../design/state-serialization.md)                       | `check_serializable.py`, the state matrix               |
-| 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/` | [Object Validation](validation.md)                                               | `make validate-c`, `make characterize`                  |
-| 8   | **Certify**    | `tests/validation/<obj>/results.md`                      | [Object Validation](validation.md)                                               | `make validate-check`, `test_validation_limits.py`      |
-| 9   | **Document**   | header `@code`, a guide if needed, benchmarks, examples  | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)   | `make test-stubs`, `make test-examples-c`, `make bench` |
-| 10  | **Land**       | CHANGELOG entry, issues for what is left                 | [Release](../release.md)                                                         | `make changelog-check`                                  |
+| #   | phase          | produces                                                   | the how lives in                                                                 | proven by                                               |
+| --- | -------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| 1   | **Why**        | `docs/design/<algo>.md`                                    | this page                                                                        | review only                                             |
+| 2   | **Declare**    | `objects/<obj>.toml`, a `just-makeit.toml` entry           | [Adding a Module](adding-a-module.md)                                            | `make drift-check`                                      |
+| 3   | **Implement**  | `native/inc/<obj>/<obj>_core.h` + `_core.c`                | [Adding a Module](adding-a-module.md), [Error Convention](error-convention.md)   | `ctest`                                                 |
+| 4   | **Pin**        | `native/tests/test_<obj>_core.c`                           | [Object Validation](validation.md) step 2                                        | `ctest`, `make tests-ssot`                              |
+| 5   | **Bind**       | `.pyi`, `__init__.py`, the `_ext` fragment                 | [Module Layout](module-layout.md), [Docstring Authoring](docstring-authoring.md) | `make drift-check`, `make test-stubs`                   |
+| 6   | **Instrument** | the state triplet, telemetry probes                        | [state serialization](../../design/state-serialization.md)                       | `check_serializable.py`, the state matrix               |
+| 7   | **Explore**    | `native/validation/<obj>_*.c`, `tests/characterization/`   | [Object Validation](validation.md)                                               | `make validate-c`, `make characterize`                  |
+| 8   | **Certify**    | `tests/validation/<obj>/results.md`                        | [Object Validation](validation.md)                                               | `make validate-check`, `test_validation_limits.py`      |
+| 9   | **Document**   | header `@code`, a guide if needed, benchmarks, examples    | [Docstring Authoring](docstring-authoring.md), [Doc Examples](doc-examples.md)   | `make test-stubs`, `make test-examples-c`, `make bench` |
+| 10  | **Land**       | `changelog.d/<section>/<slug>.md`, issues for what is left | [Release](../release.md)                                                         | `make changelog-check`, `make issue-link-check`         |
 
 `make gates` runs the merge-guarding set; the per-phase targets above are how
 you find out sooner.
@@ -147,6 +156,14 @@ one are not the same thing: an object can publish two views of its own state
 that are secretly the same view. Check what a composing receiver would
 actually need to debug you.
 
+**A new running field is a blob version bump**, and the field you forgot to
+pack is found by the mid-stream split test, not by the round trip: a split
+that resumes from `get_state` / `set_state` and must match the unsplit run
+bit-for-bit fails the moment a field that shapes the output is missing from
+the blob. `acq`'s raw block was found that way (`test_acq_core.c`); the
+round trip alone would have restored everything it packed and said nothing
+about what it did not.
+
 ### 7 — Explore, before you certify
 
 This is the phase the word "characterization" names, and it is where a
@@ -185,6 +202,14 @@ under `native/validation/` measures and emits, and a validator under
 unchanged. [Object Validation](validation.md#certifying-a-component-with-no-binding)
 has the table.
 
+**The report's harness call is the C harness's regression subset** — the
+`--check --emit` run that `ctest` also makes — and that one run is what the
+limits gate, the staleness gate and `results.md` all see, so the evidence and
+the gate cannot disagree. The population sweep is `make validate-c`'s and
+the record page's, refreshed on purpose. This is a cost decision, measured:
+20 s of ten emitters was 3.3 min on twenty cores, against CI Python jobs of
+4–7 min each; a validator runs twice on every push.
+
 ### 9 — Document it, and carry it back
 
 A finding that reaches only the report reaches nobody, and an object nobody
@@ -203,10 +228,15 @@ Three things about that table are worth knowing before you trip over them.
 
 **The two `when`s are the only judgement calls.** A guide earns its place when
 the object needs prose a docstring cannot hold — a derivation, a comparison,
-a decision a caller has to make. A gallery page earns its place when there is
-a figure that shows something a number cannot. Everything else on the list is
-owed unconditionally, and "it is obvious from the code" has never once been
-true for the person reading it six months later.
+a decision a caller has to make. A **composition** of objects earns a user's
+guide under `docs/guide/` on findability rather than on prose: a caller who
+wants to track a population of emitters does not know to look for a pool
+whose docstring is split across the objects it composes
+([`async-dsss-pool.md`](../../guide/async-dsss-pool.md) is the shape). A
+gallery page earns its place when there is a figure that shows something a
+number cannot. Everything else on the list is owed unconditionally, and "it
+is obvious from the code" has never once been true for the person reading it
+six months later.
 
 **A benchmark is a claim, and an unmeasured claim is a guess.** `jm apply`
 scaffolds both files for you, so the deliverable is filling them in, not
@@ -240,10 +270,16 @@ that keep it true and put it in front of someone.
 
 ### 10 — Land it
 
-The CHANGELOG entry lands with the change, not at release time. Anything
-found and deliberately not fixed gets **filed as an issue before the PR
-merges**, never explained in a docstring — a carve-out written into a comment
-is invisible to everyone who did not already know to look for it.
+The CHANGELOG entry lands with the change, not at release time, and it is a
+**fragment**, `changelog.d/<section>/<slug>.md` — one file per entry, so two
+PRs never touch the same line ([Release](../release.md) owns the format and
+the assembly). A commit must also say what it closes, `Closes #N`, or say
+that it closes nothing, `No-issue:`; `make issue-link-check` refuses the
+silence between the two, because silence is how fixed work stays open in the
+backlog. Anything found and deliberately not fixed gets **filed as an issue
+before the PR merges**, never explained in a docstring — a carve-out written
+into a comment is invisible to everyone who did not already know to look for
+it.
 
 ______________________________________________________________________
 
@@ -275,30 +311,31 @@ and the copy is not
 is the family's own page and the authority on the C side). The table is
 by phase: reach for the row before writing a line of the thing it names.
 
-| phase                 | you need                                                                                                                   | it already exists as                                                                                                                                                                        |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3–4, C tests          | assertions, counters, the pass/fail epilogue                                                                               | `dp_test.h` — `DP_CHECK`, `DP_CHECK_NEAR`, `DP_REQUIRE`, `DP_TEST_END` (fails a test that asserted nothing)                                                                                 |
-|                       | random bits and Gaussian noise                                                                                             | `dp_rng_test.h` — the one generator, the one Box-Muller; never a private `cgauss`                                                                                                           |
-|                       | a shaped symbol stream (RRC/RC/NRZ, real-valued sps, carrier, timing offset)                                               | `dp_tx_test.h` — `dp_tx_cfg_t`, `dp_tx_make`                                                                                                                                                |
-|                       | a code-spread BPSK capture, fixed Doppler or a ramp                                                                        | `dp_dsss_test.h` — `dp_dsss_capture`, `dp_dsss_ramp_capture`                                                                                                                                |
-|                       | a framed stimulus                                                                                                          | `dp_frame_test.h` — the named frame set, one `wfm_frame_t`                                                                                                                                  |
-|                       | an RRC-BPSK-on-carrier fixture and its EVM                                                                                 | `dp_mf_test.h`                                                                                                                                                                              |
-|                       | "is this a real lock" without truth data                                                                                   | `dp_sym_test.h` — `dp_test_evm_db_hard`, `dp_test_m2m4_snr_db`                                                                                                                              |
-|                       | an error rate with alignment, settling and a confidence interval                                                           | `dp_ber_test.h` — the instrument; a hand `min` over lags is a genie                                                                                                                         |
-|                       | a whole receiver measured at an operating point                                                                            | `dp_rx_test.h` + an adapter — [Measuring a Receiver](measuring-a-receiver.md), not a new harness                                                                                            |
-|                       | the state round trip and the clobbered-blob reject                                                                         | `dp_state_test.h` — `DP_STATE_ROUNDTRIP_TEST`                                                                                                                                               |
-| 3–4, 7, any C         | **a waveform**: tone, PN, BPSK/QPSK, chirp, a bit pattern, a DSSS burst or a continuous asynchronous DSSS stream with data | `wfm_synth` (`wfm_synth_create` + `set_dsss_cont` / `set_dsss` / `set_bits` / `set_symbols`), the generator wfmgen itself renders with; `wfm_synth_noise_steps` for the noise a gap carries |
-|                       | a scene: sources summed, segments in time, ranged fields, repeats, Doppler per source                                      | `wfm_compose` (`wfm_compose_create` / `_from_json`) — but it rebuilds a source at a segment boundary, so a fade of a *continuing* emitter is a scalar on one synth's stream, not a segment  |
-|                       | noise at a stated SNR or C/N0                                                                                              | `awgn` with `awgn_amplitude_for_snr` (the one answer to "per rail or total"), `wfm_snr_over_fs` for the mode conversion                                                                     |
-|                       | Doppler as physics: time-base dilation plus carrier, one parameter                                                         | `doppler_channel` — not a frequency offset                                                                                                                                                  |
-|                       | a spreading code                                                                                                           | `gold` (CCSDS #365 is the header's example), `pn`                                                                                                                                           |
-| 5, benches            | timing, min over rounds, the settle once per process, the JSON                                                             | `jm_bench.h` + `dp_bench.h`; interleave configurations — [Benchmarking](benchmarking.md)                                                                                                    |
-| 7, validation harness | everything in the C-test rows, plus a `--check` spot check registered in CTest                                             | the exemplar is `native/validation/lockdet_verify.c`: a probability measured with the shipped `awgn`, because a private sigma moves a rate without failing anything                         |
-| 8, Python report      | the report, its five sections, the limits and the staleness gate                                                           | `src/doppler/tests/_validation_common.py` — `Report`; [Object Validation](validation.md)                                                                                                    |
-|                       | an error rate through the binding                                                                                          | `doppler.ber.BerMeter` / `FrameMeter` — they can refuse (`align_ok`, slips); a hand SER cannot                                                                                              |
-|                       | a waveform through the binding                                                                                             | `doppler.wfm` — `Synth`, `compose`, `Gold`, `PN`, `SampleClock`, `wfm_awgn_amplitude`                                                                                                       |
-|                       | detection sizing: thresholds, dwell, Pd, verify counts                                                                     | `doppler.detection` — `det_threshold*`, `det_pd*`, `det_n_noncoh`, `det_verify_count`                                                                                                       |
-| 7, characterization   | a long Monte-Carlo with a fast twin                                                                                        | `src/doppler/dsss/tests/characterization/` — copy a subject's shape; `make characterization-check` fails one without a `__main__` or a twin                                                 |
+| phase                 | you need                                                                                                                   | it already exists as                                                                                                                                                                                                                                                                                                                                                                                                  |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3–4, C tests          | assertions, counters, the pass/fail epilogue                                                                               | `dp_test.h` — `DP_CHECK`, `DP_CHECK_NEAR`, `DP_REQUIRE`, `DP_TEST_END` (fails a test that asserted nothing)                                                                                                                                                                                                                                                                                                           |
+|                       | random bits and Gaussian noise                                                                                             | `dp_rng_test.h` — the one generator, the one Box-Muller; never a private `cgauss`                                                                                                                                                                                                                                                                                                                                     |
+|                       | a shaped symbol stream (RRC/RC/NRZ, real-valued sps, carrier, timing offset)                                               | `dp_tx_test.h` — `dp_tx_cfg_t`, `dp_tx_make`                                                                                                                                                                                                                                                                                                                                                                          |
+|                       | a code-spread BPSK capture, fixed Doppler or a ramp                                                                        | `dp_dsss_test.h` — `dp_dsss_capture`, `dp_dsss_ramp_capture`                                                                                                                                                                                                                                                                                                                                                          |
+|                       | a framed stimulus                                                                                                          | `dp_frame_test.h` — the named frame set, one `wfm_frame_t`                                                                                                                                                                                                                                                                                                                                                            |
+|                       | an RRC-BPSK-on-carrier fixture and its EVM                                                                                 | `dp_mf_test.h`                                                                                                                                                                                                                                                                                                                                                                                                        |
+|                       | "is this a real lock" without truth data                                                                                   | `dp_sym_test.h` — `dp_test_evm_db_hard`, `dp_test_m2m4_snr_db`                                                                                                                                                                                                                                                                                                                                                        |
+|                       | an error rate with alignment, settling and a confidence interval                                                           | `dp_ber_test.h` — the instrument; a hand `min` over lags is a genie                                                                                                                                                                                                                                                                                                                                                   |
+|                       | a whole receiver measured at an operating point                                                                            | `dp_rx_test.h` + an adapter — [Measuring a Receiver](measuring-a-receiver.md), not a new harness                                                                                                                                                                                                                                                                                                                      |
+|                       | the state round trip and the clobbered-blob reject                                                                         | `dp_state_test.h` — `DP_STATE_ROUNDTRIP_TEST`                                                                                                                                                                                                                                                                                                                                                                         |
+| 3–4, 7, any C         | **a waveform**: tone, PN, BPSK/QPSK, chirp, a bit pattern, a DSSS burst or a continuous asynchronous DSSS stream with data | `wfm_synth` (`wfm_synth_create` + `set_dsss_cont` / `set_dsss` / `set_bits` / `set_symbols`), the generator wfmgen itself renders with; `wfm_synth_noise_steps` for the noise a gap carries                                                                                                                                                                                                                           |
+|                       | a scene: sources summed, segments in time, ranged fields, repeats, Doppler per source                                      | `wfm_compose` (`wfm_compose_create` / `_from_json`) — but it rebuilds a source at a segment boundary, so a fade of a *continuing* emitter is a scalar on one synth's stream, not a segment                                                                                                                                                                                                                            |
+|                       | noise at a stated SNR or C/N0                                                                                              | `awgn` with `awgn_amplitude_for_snr` (the one answer to "per rail or total"), `wfm_snr_over_fs` for the mode conversion                                                                                                                                                                                                                                                                                               |
+|                       | Doppler as physics: time-base dilation plus carrier, one parameter                                                         | `doppler_channel` — not a frequency offset                                                                                                                                                                                                                                                                                                                                                                            |
+|                       | a spreading code                                                                                                           | `gold` (CCSDS #365 is the header's example), `pn`                                                                                                                                                                                                                                                                                                                                                                     |
+| 5, benches            | timing, min over rounds, the settle once per process, the JSON                                                             | `jm_bench.h` + `dp_bench.h`; interleave configurations — [Benchmarking](benchmarking.md)                                                                                                                                                                                                                                                                                                                              |
+| 7, validation harness | everything in the C-test rows, plus a `--check` spot check registered in CTest                                             | the exemplar is `native/validation/lockdet_verify.c`: a probability measured with the shipped `awgn`, because a private sigma moves a rate without failing anything                                                                                                                                                                                                                                                   |
+|                       | a lifecycle soak: a population arriving and leaving over minutes, the heap watched, the cost budgeted                      | `native/validation/async_dsss_pool_soak.c` — `--check` (the regression subset), `--emit` (CSV for the report), `--duration`, `--budget`. Two heap lessons it paid for: presize the harness's own records before the baseline is taken, or their doublings read as the object growing; and glibc's tcache counts as in use, so the process re-execs with `glibc.malloc.tcache_count=0` before the count means anything |
+| 8, Python report      | the report, its five sections, the limits and the staleness gate                                                           | `src/doppler/tests/_validation_common.py` — `Report`; [Object Validation](validation.md)                                                                                                                                                                                                                                                                                                                              |
+|                       | an error rate through the binding                                                                                          | `doppler.ber.BerMeter` / `FrameMeter` — they can refuse (`align_ok`, slips); a hand SER cannot                                                                                                                                                                                                                                                                                                                        |
+|                       | a waveform through the binding                                                                                             | `doppler.wfm` — `Synth`, `compose`, `Gold`, `PN`, `SampleClock`, `wfm_awgn_amplitude`                                                                                                                                                                                                                                                                                                                                 |
+|                       | detection sizing: thresholds, dwell, Pd, verify counts                                                                     | `doppler.detection` — `det_threshold*`, `det_pd*`, `det_n_noncoh`, `det_verify_count`                                                                                                                                                                                                                                                                                                                                 |
+| 7, characterization   | a long Monte-Carlo with a fast twin                                                                                        | `src/doppler/dsss/tests/characterization/` — copy a subject's shape; `make characterization-check` fails one without a `__main__` or a twin                                                                                                                                                                                                                                                                           |
 
 Two rules the table implies, stated so they are not inferred:
 

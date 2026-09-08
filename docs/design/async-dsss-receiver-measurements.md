@@ -1299,7 +1299,9 @@ is one box's — the fraction scales with the threads the searcher's roll
 is given (§12.8's fan), so what the server does with 48 is a measurement
 on the server. Step 8's next thing to attack is the searcher's depth.
 
-\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_### 12.18 What was measured (2026-09-07) — the tile-edge alias, #1270
+______________________________________________________________________
+
+### 12.18 What was measured (2026-09-07) — the tile-edge alias, #1270
 
 **The ambiguity, measured on the pool's grid** (one emitter through the
 channel, code-only, the carrier told, one look per block, at 45 dB-Hz;
@@ -1341,7 +1343,9 @@ doubles fall from 20.6 s of shared code lock to 13.0 s — the alias's
 7.6 s gone, the two data-block seeds that never pulled in (#1273)
 untouched, as they should be.
 
-\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_### 12.19 What was measured (2026-09-07) — the receiver that followed a neighbour, #1271
+______________________________________________________________________
+
+### 12.19 What was measured (2026-09-07) — the receiver that followed a neighbour, #1271
 
 **The mechanism, read from the trace.** After emitter 1 left at 432.41 s
 of the 45 dB-Hz soak, its receiver's code phase advanced at 44.8 chips
@@ -1417,5 +1421,102 @@ cut that held on the symbol flag alone had, on this same stimulus,
 emitter 8's receiver both-down 0.8 s before its emitter left and a new
 0.15 s double on emitter 4 at the live crossing of §12.19's third lesson;
 the rule as shipped has neither.
+
+______________________________________________________________________
+
+### 12.20 What was measured (2026-09-08) — the searcher's surface as a code tracker
+
+**Harness:** `native/validation/acq_surface_jitter.c` (`make validate-c`;
+its `--check` is in the C suite), beside `dll_aid_jitter.c` and in its
+shape. The question it answers came out of the cancellation discussion:
+the searcher computes every emitter's code phase and Doppler at full
+price every dwell, and each hand-off receiver then re-derives the same
+position with its own DLL. The surface's cells sit on the DLL's own
+half-chip grid, so the normalised `(L − E) / (L + E)` at an emitter's
+cell *is* the DLL's discriminator, integrated over a 31.5 ms dwell instead
+of an epoch. If it reads the code phase as well as the loop does, the
+searcher can own the position and a receiver keeps only what lives at
+symbol rate.
+
+**Method.** The pool's own engine — ±50 kHz, 21 tiles, D = 154 with the
+carrier told, `interp` 2, so 6468 rows of 15.9 Hz — fed one emitter from
+the shipped synth at the operating point (PRBS data, the 450-of-4950
+code-only window) through the shipped `doppler_channel` at 0 and 18 ppm
+of 2.5 GHz, noise from the shipped `awgn` after the channel. Its surface
+is read through the sink every decided dwell **at the cell nearest the
+truth**, the cell a locked tracker would be holding, so the number is
+the discriminator's noise and not a detector's; the truth is the synth's
+clock through the channel's mapping at the dwell's middle (§12.11). The
+discriminator's characteristic across the cell (its S-curve, ten bins)
+and the truth's constant are calibrated once on a clean, code-only,
+dilated sweep and inverted per dwell. Dwells whose block lies inside the
+window are scored apart from dwells under data; under data the tile's
+rows are summed as power (Parseval: the per-epoch non-coherent sum,
+which the surface still holds when the coherent peak is spread across
+the rows). 800 dwells per cell, 59 of them in the window.
+
+**Calibration, clean at 18 ppm, 200 dwells:** the surface's chip axis
+is the truth's mapping to −0.003 chip with no drift (0.00016 chip per
+dwell over the sweep); the S-curve is monotone across the cell, its
+slope through the origin −0.314 chip per unit on the truth's row and
+−0.208 on the tile summed (the sign is the column convention; a
+triangular chip would give 0.5, and the channel's resampler widens the
+pulse to a chip, §12.12); inverted on its own sweep it reads the truth
+to **0.0011 chip RMS**. So the discriminator's shape is not the limit.
+
+**Per-dwell error at the truth's cell** (chips; 59 window and 741 data
+dwells per row; the DLL column is §12.5's closed-loop per-epoch jitter):
+
+| C/N0, ppm | window: E/L bias, σ | window: Doppler σ | data: tile-sum bias, σ | data: argmax within a chip | DLL, §12.5 |
+| --------- | ------------------- | ----------------- | ---------------------- | -------------------------- | ---------- |
+| 45, 0     | −0.002, **0.015**   | 0.2 Hz            | −0.170, 0.008          | 100%                       | 0.013      |
+| 45, 18    | −0.006, **0.015**   | 0.4 Hz            | −0.003, **0.085**      | 100%                       | 0.013      |
+| 40, 0     | −0.006, **0.026**   | 0.3 Hz            | −0.213, 0.009          | 57%                        | 0.021      |
+| 40, 18    | −0.007, **0.026**   | 0.8 Hz            | −0.002, **0.116**      | 57%                        | 0.021      |
+
+The three-point parabola on the same cells, the calibration-free
+alternative, reads 0.26 chip in the window and half a chip at 0 ppm: the
+pulse is not a parabola, and an interpolated peak without its S-curve is
+not a code phase. The Doppler rows carry a +3.7 Hz bias at 0 ppm that is
+absent at 18 ppm, a quarter of a row, not explained here.
+
+What it settles, and what it leaves:
+
+- **In the window the surface reads the code phase as well as the DLL,
+    and the Doppler with it.** 0.015 against 0.013 at 45 dB-Hz and 0.026
+    against 0.021 at 40, and these are single-dwell reads with no loop
+    behind them, where the DLL's numbers are closed-loop at `bn 0.002`
+    (about 50 ms of averaging); a filter over two dwells sits under the
+    loop. The Doppler comes with it at under a hertz, which the DLL does
+    not give and the receiver's carrier loop exists to find. The idea has
+    legs where the searcher is coherent.
+- **Under data the truth's row is empty and the tile's sum is the
+    read.** A data-modulated block spreads the emitter across its tile's
+    rows (§2.3), so the coherent discriminator reads 0.1 chip of noise;
+    the rows summed as power read the phase at 0.085 chip per dwell at
+    45 dB-Hz and 0.116 at 40, unbiased over a sweep. Between windows the
+    code drifts at a known rate — the row's Doppler to a hertz is 0.002
+    chip per second of rate error — so a tracker dead-reckons on the
+    Doppler and corrects on these reads; over the 1.66 s between windows
+    that is 53 of them.
+- **The tile-summed S-curve is not one curve.** At 0 ppm, with the truth
+    held at one sub-cell offset, the tile's sum reads 0.17 and 0.21 chip
+    biased with the S-curve calibrated at 18 ppm, at 0.008 of scatter: the
+    summed pulse's shape moves with the residual drift the tile's own
+    code-rate hypothesis leaves, which is zero at 0 ppm and up to a
+    quarter chip per block at a tile's edge. A tracker on this read needs
+    the S-curve at its working drift, or a read the drift does not shape —
+    the engine holds the block's raw epochs, and a prompt re-summed at
+    the tracked rate is one. Open.
+- **A detector would lose the emitter between windows at the floor.**
+    The surface's own maximum is the emitter in every window dwell, and
+    under data in 100% of dwells at 45 dB-Hz but **57%** at 40: a tracker
+    that re-found the peak each dwell would leave the emitter 43% of the
+    time at the floor. The cell has to be held, which is what a
+    discriminator is for.
+- **Not measured here:** a closed loop (no loop is built; these are the
+    measurement's noise and bias, which bound what a loop can do), the
+    symbol-rate detector a receiver would keep, pull-in, and two emitters
+    in one tile.
 
 ______________________________________________________________________

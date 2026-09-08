@@ -799,9 +799,10 @@ main (int argc, char **argv)
               DP_CHECK_MSG (w.hits == w.n,
                             "in the window the surface's maximum is the "
                             "emitter, every dwell");
-              /* Measured 0.008 chips at 45 dB-Hz on 12 window dwells
-                 (§12.19); the DLL's per-epoch loop reads 0.013. Twice
-                 the DLL's is the defect gate. */
+              /* Measured 0.015 chips at 45 dB-Hz on 59 window dwells
+                 (§12.20); the DLL's per-epoch loop reads 0.013. Twice
+                 the DLL's is the defect gate, with room for the dozen
+                 dwells this check sees. */
               DP_CHECK_MSG (w.coh_sig < 2.0 * DLL_45
                                 && fabs (w.coh_bias) < 0.05,
                             "the E/L on the truth's row, inverted through "

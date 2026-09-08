@@ -1682,3 +1682,75 @@ What it settles:
     on the prompt.
 
 ______________________________________________________________________
+
+### 12.23 What was measured (2026-09-08) — the correction closed on the searcher's own cell
+
+**What was built.** §12.22's read, with the truth taken out of the loop.
+`acq_surface_jitter.c` gains a held mode: the tracker acquires at the
+first window dwell from the surface alone — the argmax cell, the
+calibrated E/L on its row for the phase within the cell, the parabola
+over the rows for the Doppler, which is also the code rate since the
+chips dilate with the carrier — and from there dead-reckons the held
+phase across each block on that rate, puts the coasting DLL at it plus
+the seed offset, feeds the block wiped at the held Doppler, and corrects
+the held phase by the whole of what the loop read, once the symbol aid
+has settled (six blocks). The DLL and the wipe open at acquisition; the
+truth is consulted only to score, as the phase the tracker held at each
+block's middle. The calibration constants (`c0`, the DLL's convention,
+the S-curves) are the clean sweep's, as a tracker would carry them.
+800 dwells per row, 25 s; the same seeds' truth-cell runs sit beside
+them.
+
+**The measurement** (chips; the truth-cell column is §12.22's read on a
+fresh seed, the DLL column §12.5's closed loop):
+
+| C/N0, ppm | acquired: chips, Hz from the truth | data: held phase bias, σ | window: held σ | worst error | left the cell | truth-cell read σ    | DLL   |
+| --------- | ---------------------------------- | ------------------------ | -------------- | ----------- | ------------- | -------------------- | ----- |
+| 45, 18    | +0.006, +0.5                       | −0.004, **0.014**        | 0.013          | 0.046       | never         | 0.014                | 0.013 |
+| 40, 18    | +0.011, +0.7                       | +0.012, **0.027**        | 0.025          | 0.099       | never         | 0.026                | 0.021 |
+| 45, 0     | +0.017, +3.6                       | −0.040, 0.014            | 0.020          | 0.074       | never         | 0.013 (biased +0.05) | 0.013 |
+| 40, 0     | +0.027, +3.5                       | −0.026, 0.026            | 0.028          | 0.089       | never         | 0.025 (biased +0.03) | 0.021 |
+
+Under data at 40 dB-Hz the surface's own maximum was the emitter in 58%
+of dwells (§12.20's 57%); the held tracker was within a tenth of a chip
+in every one of them.
+
+What it settles:
+
+- **Closed on its own cell, the tracker holds the emitter at the loop's
+    jitter and never loses it.** 0.014 chip per block at 45 dB-Hz and
+    0.027 at 40 against the closed loop's 0.013 and 0.021, over 799
+    blocks per row, the worst excursion under a tenth of a chip — where
+    a detector re-finding the peak would have left the emitter 42% of
+    the time at the floor. The searcher-timed tracker of §12.22 is now
+    measured whole: acquisition, dead reckoning, the correction, and
+    nothing of the truth in it.
+- **The held phase carries the read's noise, because the correction is
+    the whole read.** The held σ equals the truth-cell read's σ in every
+    row: put at the read, the phase inherits it. A tracker that wants to
+    sit under the loop filters the correction — a gain `g` on it leaves
+    `g / (2 − g)` of the read's variance and lets the dead reckoning
+    carry the rest, which the Doppler's under-a-hertz read allows
+    (0.001 chip per second of rate error at 0.5 Hz). Not measured; the
+    gain is the tracker's one design parameter.
+- **The held phase sits at minus the read's bias.** The correction drives
+    the read to its calibrated zero, so the held phase settles at the
+    negative of §12.22's bias: −0.004 against +0.003 at 45 dB-Hz and
+    18 ppm, +0.012 against −0.010 at 40, and at 0 ppm the S-curve's
+    0.03–0.05 chip with its sign reversed. The 0 ppm bias is the
+    calibration's (§12.22), and calibrating at the working drift removes
+    it from the held phase the same way.
+- **The Doppler seed's row bias is harmless.** At 0 ppm the parabola
+    over the rows reads +3.6 Hz, §12.20's unexplained quarter-row; as a
+    rate that is 0.007 chip per second, 0.0002 per block, which the
+    correction absorbs without trace.
+- **The gate.** `--check` at 45 dB-Hz and 18 ppm: the tracker acquires
+    within a tenth of a chip and 20 Hz, never leaves the cell, and holds
+    the phase within twice the loop's jitter without bias. Sabotaged by
+    reversing the correction's sign (the held phase walks a chip off in
+    both classes) and by dropping the dead reckoning (at 18 ppm the
+    phase falls 2.8 chips behind per block); both go red.
+- **Not measured here:** the filtered correction, two emitters in one
+    tile, and the symbol detector on the prompt.
+
+______________________________________________________________________

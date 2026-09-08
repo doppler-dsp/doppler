@@ -46,7 +46,18 @@
  *           the block, through its own S-curve, is the read -- the DLL's
  *           own window on the searcher's timing;
  *   argmax  whether the surface's own maximum was within a chip of the
- *           truth -- the detector's view, for scale.
+ *           truth -- the detector's view, for scale;
+ *   held    the same coasting DLL closed on the SEARCHER'S OWN CELL
+ *           (§12.23), the truth consulted only to score: the tracker
+ *           acquires at the first window dwell from the surface alone
+ *           (the argmax cell, the calibrated E/L on its row for the
+ *           phase within the cell, the parabola over the rows for the
+ *           Doppler, which is also the code rate), dead-reckons the held
+ *           phase across each block on that rate, puts the loop there,
+ *           and corrects the phase by the whole of what the loop read,
+ *           once the symbol aid has settled. Scored per block as the
+ *           phase it held at the block's middle against the truth, and
+ *           whether it ever left the cell.
  *
  * Each in two classes: dwells whose block lies inside the emitter's
  * code-only window (the coherent case the searcher detects in) and
@@ -81,7 +92,11 @@
  *                                          reads, and the coasting DLL's
  *                                          read under data, are within the
  *                                          measured bounds; and the same
- *                                          DLL running locks on the cell
+ *                                          DLL running locks on the cell;
+ *                                          and closed on its own cell the
+ *                                          tracker acquires, never leaves
+ *                                          it, and holds the phase within
+ *                                          the same bound
  */
 #include "acq/acq_core.h"
 #include "awgn/awgn_core.h"
@@ -176,7 +191,14 @@ typedef struct
   double e_sd;   /* the discriminator's scatter within the block       */
   double dll_u;  /* the loop's actual offset from the truth at the
                     block's end, chips: the seed plus what it drifted  */
+  /* The tracker closed on the searcher's OWN cell (§12.23): the phase it
+     held through this block, dead-reckoned from its last correction,
+     against the truth at the block's middle. */
+  int    h_have; /* acquired before this block                         */
+  double h_err;  /* held phase at the middle minus the truth, chips    */
 } dwell_t;
+
+struct scurve;
 
 typedef struct
 {
@@ -206,7 +228,28 @@ typedef struct
   double last_rate;      /* tracking: code_rate at the block\'s end     */
   float _Complex *raw;   /* D * code_bins, the block as pushed              */
   float _Complex *prt;   /* the DLL\'s output scratch                       */
+  /* The tracker on the searcher's own cell: 1 = the correction closes on
+     the cell the surface listed, the truth never consulted after the
+     calibration constants. Acquired at the first window dwell from the
+     surface alone; the DLL and the wipe open there. */
+  int                  held;
+  int                  acquired;
+  const uint8_t       *code;    /* to open the DLL at acquisition        */
+  const struct scurve *coh_cal; /* the surface's E/L S-curve, for the seed */
+  const struct scurve *dll_cal; /* the coasting DLL's, for the correction  */
+  double               h;       /* held phase at the next block's start,
+                                   surface frame (truth + c0), unwrapped  */
+  double f_h;                   /* held Doppler, Hz, from the surface     */
+  double h_rate;                /* chips per sample at the held Doppler   */
+  size_t blk_acq;               /* blocks since acquisition               */
+  size_t at_acq;                /* the dwell index it acquired on         */
+  double h_acq_err, f_acq_err;  /* the seed's error, chips, Hz */
 } sink_ctx_t;
+
+static double disc (double e, double l);
+static double parabola (double a, double b, double c);
+static double sinv (const struct scurve *sc, double y);
+static int    dll_open (sink_ctx_t *c, double seed_chip, double f_hz);
 
 static void
 gold_1023 (uint8_t *code)
@@ -521,6 +564,33 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
           d->ph_rms = sqrt (r2 / nD) / (sq ? 2.0 : 1.0);
         }
     }
+  /* The tracker on the searcher's own cell acquires at the first window
+     dwell, from the surface alone: the argmax cell, the calibrated E/L on
+     its row for the phase within the cell, the parabola over the rows
+     for the Doppler. The code dilates with the carrier, so the held
+     Doppler is also the held code rate; the DLL and the wipe open here.
+     Nothing of the truth is consulted from this point. */
+  if (c->held && !c->acquired && d->in_win && D > 1 && !isnan (c->c0))
+    {
+      const double row_sp = c->rows > 1 ? fabs (c->hz[1] - c->hz[0]) : 0.0;
+      const double up = prow + 1 < rows ? s[(prow + 1) * cols + pcol] : 0.0;
+      const double dn = prow > 0 ? s[(prow - 1) * cols + pcol] : 0.0;
+      const size_t am = (pcol + cols - 1) % cols, ap = (pcol + 1) % cols;
+      const double e0 = s[prow * cols + am], l0 = s[prow * cols + ap];
+      c->f_h             = c->hz[prow] + parabola (dn, s[pk], up) * row_sp;
+      c->h_rate          = (1.0 + c->f_h / CARRIER_HZ) / (double)SPC;
+      const double h_mid = c->chip[pcol] - sinv (c->coh_cal, disc (e0, l0));
+      c->h               = h_mid - c->h_rate * 0.5 * (double)c->dwell_len;
+      c->h_acq_err       = wrap_chips (h_mid - (t_mid + c->c0));
+      c->f_acq_err       = c->f_h - c->f_hz;
+      c->at_acq          = c->n;
+      c->blk_acq         = 0;
+      if (dll_open (c, dp_fmod_pos (c->h + c->c_dll + c->u0, (double)SF),
+                    c->f_h))
+        return;
+      c->acquired = 1;
+    }
+
   /* The re-correlation: the block as pushed through the coasting DLL,
      epoch by epoch, and the mean of the discriminator outputs it emitted
      -- the symbol-aided window on the searcher's timing. */
@@ -529,10 +599,18 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
       && acq_block_raw (c->a, c->raw, D * c->cols) == D * c->cols)
     {
       /* The correction a tracker applies once per block: the loop put at
-         the cell's phase -- the truth's here, as every other read -- plus
-         the seed offset, at the block's start, before it is fed. What the
-         loop reads over the block is then u0 plus the drift within it. */
-      if (!c->track)
+         the cell's phase -- the truth's, as every other read, or the
+         held tracker's own -- plus the seed offset, at the block's start,
+         before it is fed. What the loop reads over the block is then u0
+         plus the drift within it, plus the held phase's error. */
+      if (c->held)
+        {
+          d->h_have = 1;
+          d->h_err  = wrap_chips (c->h + c->h_rate * 0.5 * (double)c->dwell_len
+                                  - (t_mid + c->c0));
+          dll_set_code_phase (c->dll, c->h + c->c_dll + c->u0);
+        }
+      else if (!c->track)
         dll_set_code_phase (c->dll,
                             truth_chips (c->st, (double)samples_consumed
                                                     - (double)c->dwell_len)
@@ -570,6 +648,17 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
       d->locked = nl ? (double)nlk / (double)nl : NAN;
       if (ne && c->n >= DLL_SETTLE)
         d->dll_e = se / (double)ne;
+      /* The held tracker: dead-reckon the phase across the block on the
+         held rate, then correct it by what the loop read -- the whole
+         read, put back once a block -- once the symbol aid has settled.
+         Before that the dead reckoning stands on its own. */
+      if (c->held)
+        {
+          c->h += c->h_rate * (double)c->dwell_len;
+          if (ne && c->blk_acq >= DLL_SETTLE)
+            c->h -= sinv (c->dll_cal, se / (double)ne) - c->u0;
+          c->blk_acq++;
+        }
       /* Tracking (the convention's calibration): the loop's phase at the
          block's end against the truth there, in the searcher's terms. */
       c->last_phase_err = wrap_chips (
@@ -597,6 +686,45 @@ parabola (double a, double b, double c)
   return den < 0.0 ? 0.5 * (a - c) / den : 0.0;
 }
 
+/* The coasting DLL and its wipe, at a seed phase and a held Doppler: the
+   loop held from the start (dll_hold_here at zero, then coast), the
+   dilation as a rate aid from the Doppler, the symbol window on, its
+   discriminator on telemetry. Opened at the truth's cell before a run,
+   or at the searcher's own cell when the held tracker acquires. 0 on
+   success (DP_REQUIRE's non-zero otherwise). */
+static int
+dll_open (sink_ctx_t *c, double seed_chip, double f_hz)
+{
+  const acq_state_t *a = c->a;
+  c->dll = dll_create (c->code, SF, SPC, seed_chip, BN, 0.707, 0.5, SEGMENTS);
+  DP_REQUIRE_MSG (c->dll != NULL, "the DLL opens");
+  DP_REQUIRE (dll_set_symbol_period (c->dll, P_SYM) == DP_OK);
+  dll_set_rate_aid (c->dll, f_hz / CARRIER_HZ);
+  if (!c->track)
+    {
+      dll_hold_here (c->dll);
+      dll_set_coast (c->dll, 1);
+    }
+  c->tlm = dp_tlm_create (1u << 14);
+  DP_REQUIRE (c->tlm != NULL);
+  DP_REQUIRE (dll_set_telemetry (c->dll, c->tlm, "dll", 1) == DP_OK);
+  c->id_e      = dp_tlm_probe_id (c->tlm, "dll.e");
+  c->id_locked = dp_tlm_probe_id (c->tlm, "dll.locked");
+  DP_REQUIRE (c->id_e >= 0);
+  c->raw = dp_xmalloc (a->coherent_bins * a->code_bins * sizeof *c->raw);
+  /* The carrier wipe a receiver's Costas does before its DLL, at the
+     Doppler a tracker holds (the rows read it under a hertz, §12.20):
+     the DLL's partials, 256 chips, integrate 2.3 cycles of a 45 kHz
+     carrier un-wiped, a 17 dB loss a clean stream survives and a
+     noisy one does not. The shipped LO, phase-continuous across
+     blocks. */
+  c->lo = lo_create (-f_hz / FS);
+  DP_REQUIRE_MSG (c->lo != NULL, "the wipe's LO opens");
+  c->lo_buf = dp_xmalloc (a->coherent_bins * a->code_bins * sizeof *c->lo_buf);
+  c->prt    = dp_xmalloc (dll_steps_max_out (c->dll) * sizeof *c->prt);
+  return 0;
+}
+
 /* Run one stimulus through one engine for `n` decided dwells. */
 static int
 run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
@@ -622,40 +750,16 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
      would seed it, the loop held from the start (dll_hold_here at zero,
      then coast), the dilation as a rate aid from the held Doppler, the
      symbol window on, its discriminator on telemetry. */
-  c->dll = NULL;
-  c->u0  = u0;
-  if (!isnan (u0) && a->coherent_bins > 1)
-    {
-      const double seed_chip = dp_fmod_pos (
-          truth_chips (&st, 0.0) + c0 + c->c_dll + u0, (double)SF);
-      c->dll = dll_create (code, SF, SPC, seed_chip, BN, 0.707, 0.5, SEGMENTS);
-      DP_REQUIRE_MSG (c->dll != NULL, "the DLL opens");
-      DP_REQUIRE (dll_set_symbol_period (c->dll, P_SYM) == DP_OK);
-      dll_set_rate_aid (c->dll, c->f_hz / CARRIER_HZ);
-      if (!c->track)
-        {
-          dll_hold_here (c->dll);
-          dll_set_coast (c->dll, 1);
-        }
-      c->tlm = dp_tlm_create (1u << 14);
-      DP_REQUIRE (c->tlm != NULL);
-      DP_REQUIRE (dll_set_telemetry (c->dll, c->tlm, "dll", 1) == DP_OK);
-      c->id_e      = dp_tlm_probe_id (c->tlm, "dll.e");
-      c->id_locked = dp_tlm_probe_id (c->tlm, "dll.locked");
-      DP_REQUIRE (c->id_e >= 0);
-      c->raw = dp_xmalloc (a->coherent_bins * a->code_bins * sizeof *c->raw);
-      /* The carrier wipe a receiver's Costas does before its DLL, at the
-         Doppler a tracker holds (the rows read it under a hertz, §12.20):
-         the DLL's partials, 256 chips, integrate 2.3 cycles of a 45 kHz
-         carrier un-wiped, a 17 dB loss a clean stream survives and a
-         noisy one does not. The shipped LO, phase-continuous across
-         blocks. */
-      c->lo = lo_create (-c->f_hz / FS);
-      DP_REQUIRE_MSG (c->lo != NULL, "the wipe's LO opens");
-      c->lo_buf
-          = dp_xmalloc (a->coherent_bins * a->code_bins * sizeof *c->lo_buf);
-      c->prt = dp_xmalloc (dll_steps_max_out (c->dll) * sizeof *c->prt);
-    }
+  c->dll      = NULL;
+  c->u0       = u0;
+  c->code     = code;
+  c->acquired = 0;
+  if (!isnan (u0) && a->coherent_bins > 1 && !c->held
+      && dll_open (c,
+                   dp_fmod_pos (truth_chips (&st, 0.0) + c0 + c->c_dll + u0,
+                                (double)SF),
+                   c->f_hz))
+    return 1;
   acq_reset (a);
   acq_set_surface_sink (a, on_surface, c, 1u);
   acq_result_t hits[16];
@@ -686,7 +790,7 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
    inverse: a normalised early-late is not linear once the chip pulse is
    the channel's resampler's rather than a triangle, and the tile-summed
    power's is less linear still. */
-typedef struct
+typedef struct scurve
 {
   double s[NB]; /* mean discriminator per bin                     */
   double u[NB]; /* the bin's mean offset                           */
@@ -962,21 +1066,24 @@ calibrate_dll (acq_state_t *a, const uint8_t *code, sink_ctx_t *c, cal_t *cal,
 typedef struct
 {
   size_t n, hits;
-  double coh_bias, coh_sig; /* calibrated E/L on the truth row     */
-  double par_bias, par_sig; /* Parseval over the tile's rows       */
-  double pb_bias, pb_sig;   /* parabola on the truth row           */
-  double f_bias, f_sig;     /* parabola over the rows, Hz          */
-  double dot_bias, dot_sig; /* coherent E/L on the complex surface */
-  double ed_bias, ed_sig;   /* per-epoch coherent E/L over the block */
-  double ff_bias, ff_sig;   /* the prompt column's phase-fit Doppler */
-  double ph_rms;            /* the fit's residual, rad per epoch     */
-  size_t n_blk;             /* dwells with the block taps read       */
-  double dll_bias, dll_sig; /* the coasting DLL, its read minus u0   */
-  size_t n_dll;             /* dwells with a DLL read                */
-  double e_raw, e_raw2;     /* the raw discriminator's sums          */
-  double n_e_sum, lock_sum; /* outputs per block; lock flag mean     */
-  double e_sd_sum;          /* within-block scatter of e, summed     */
-  double snr;               /* mean prompt over the gate's units   */
+  double coh_bias, coh_sig;    /* calibrated E/L on the truth row     */
+  double par_bias, par_sig;    /* Parseval over the tile's rows       */
+  double pb_bias, pb_sig;      /* parabola on the truth row           */
+  double f_bias, f_sig;        /* parabola over the rows, Hz          */
+  double dot_bias, dot_sig;    /* coherent E/L on the complex surface */
+  double ed_bias, ed_sig;      /* per-epoch coherent E/L over the block */
+  double ff_bias, ff_sig;      /* the prompt column's phase-fit Doppler */
+  double ph_rms;               /* the fit's residual, rad per epoch     */
+  size_t n_blk;                /* dwells with the block taps read       */
+  double dll_bias, dll_sig;    /* the coasting DLL, its read minus u0   */
+  size_t n_dll;                /* dwells with a DLL read                */
+  double e_raw, e_raw2;        /* the raw discriminator's sums          */
+  double n_e_sum, lock_sum;    /* outputs per block; lock flag mean     */
+  double e_sd_sum;             /* within-block scatter of e, summed     */
+  double snr;                  /* mean prompt over the gate's units   */
+  size_t n_h, n_held;          /* held-tracker dwells; those within half a
+                                  chip of the truth                     */
+  double h_bias, h_sig, h_max; /* the held phase against the truth  */
 } stat_t;
 
 static void
@@ -985,7 +1092,7 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
   memset (o, 0, sizeof *o);
   double sc = 0, sc2 = 0, sp = 0, sp2 = 0, sb = 0, sb2 = 0, sf = 0, sf2 = 0,
          ss = 0, sd = 0, sd2 = 0, se = 0, se2 = 0, sq = 0, sq2 = 0, sr2 = 0;
-  double sl = 0, sl2 = 0;
+  double sl = 0, sl2 = 0, sh = 0, sh2 = 0;
   const double row_sp = c->rows > 1 ? fabs (c->hz[1] - c->hz[0]) : 0.0;
   for (size_t k = 0; k < c->n; k++)
     {
@@ -1036,6 +1143,15 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
           o->lock_sum += isnan (d->locked) ? 0.0 : d->locked;
           o->n_dll++;
         }
+      if (d->h_have)
+        {
+          sh += d->h_err;
+          sh2 += d->h_err * d->h_err;
+          if (fabs (d->h_err) > o->h_max)
+            o->h_max = fabs (d->h_err);
+          o->n_held += fabs (d->h_err) <= 0.5;
+          o->n_h++;
+        }
       o->hits += (size_t)d->hit;
       o->n++;
     }
@@ -1066,6 +1182,12 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
       const double m = (double)o->n_dll;
       o->dll_bias    = sl / m;
       o->dll_sig     = sqrt (fmax (sl2 / m - o->dll_bias * o->dll_bias, 0.0));
+    }
+  if (o->n_h)
+    {
+      const double m = (double)o->n_h;
+      o->h_bias      = sh / m;
+      o->h_sig       = sqrt (fmax (sh2 / m - o->h_bias * o->h_bias, 0.0));
     }
   o->snr = ss / n;
 }
@@ -1145,6 +1267,22 @@ print_row (const char *label, const stat_t *s)
                     0.0)),
         DLL_U0, s->n_e_sum / (double)s->n_dll, s->e_sd_sum / (double)s->n_dll,
         s->lock_sum / (double)s->n_dll);
+}
+
+/* The held tracker's row: the phase it held through each block against
+   the truth, and whether it ever lost the cell. */
+static void
+print_held (const char *label, const stat_t *s)
+{
+  if (!s->n_h)
+    {
+      printf ("    %-7s  (no dwells after acquisition)\n", label);
+      return;
+    }
+  printf ("    %-7s %4zu  argmax %5.1f%%   held phase bias %+.4f sigma %.4f "
+          "max |err| %.3f   within half a chip %zu of %zu\n",
+          label, s->n_h, 100.0 * (double)s->hits / (double)s->n, s->h_bias,
+          s->h_sig, s->h_max, s->n_held, s->n_h);
 }
 
 int
@@ -1266,6 +1404,48 @@ main (int argc, char **argv)
           stats (&c, &cal, 0, &dt);
           print_row ("window", &w);
           print_row ("data", &dt);
+          /* The same, closed on the searcher's own cell: acquired from the
+             surface at the first window dwell, corrected once a block by
+             the coasting DLL's read, the truth used only to score. */
+          c.held    = 1;
+          c.coh_cal = &cal.coh;
+          c.dll_cal = &cal.dll;
+          DP_REQUIRE (run (a, code, ppms[pi], cn0s[ci], 21u + (uint32_t)pi,
+                           cal.c0, W_SYM, DLL_U0, &c, n_dw)
+                      == 0);
+          c.held = 0;
+          stat_t hw, hd;
+          stats (&c, &cal, 1, &hw);
+          stats (&c, &cal, 0, &hd);
+          if (c.acquired)
+            printf ("    tracker on the searcher's own cell: acquired at "
+                    "dwell %zu, %+.3f chips and %+.1f Hz from the truth; "
+                    "corrected once a block from the coasting DLL's read "
+                    "after %d blocks of settling; %.1f s\n",
+                    c.at_acq, c.h_acq_err, c.f_acq_err, DLL_SETTLE,
+                    (double)(c.n - c.at_acq) * (double)c.dwell_len / FS);
+          else
+            printf ("    tracker on the searcher's own cell: never "
+                    "acquired (no window dwell in %zu)\n",
+                    c.n);
+          print_held ("window", &hw);
+          print_held ("data", &hd);
+          if (check && ppms[pi] == 18.0)
+            {
+              DP_CHECK_MSG (c.acquired && fabs (c.h_acq_err) < 0.1
+                                && fabs (c.f_acq_err) < 20.0,
+                            "the tracker acquires from the surface within "
+                            "a tenth of a chip and a row of the truth");
+              DP_CHECK_MSG (hd.n_h >= 100 && hd.n_held == hd.n_h
+                                && hw.n_held == hw.n_h,
+                            "the held tracker never leaves the cell");
+              /* Measured in section 12.23; twice the closed loop's jitter
+                 is the defect gate, as for the truth-cell read. */
+              DP_CHECK_MSG (hd.h_sig < 2.0 * DLL_45 && fabs (hd.h_bias) < 0.05,
+                            "the phase held on the searcher's own cell is "
+                            "within twice the loop's closed-loop jitter of "
+                            "the truth, without bias");
+            }
           if (check && ppms[pi] == 18.0)
             {
               /* The claim under test: at 45 dB-Hz under dilation the

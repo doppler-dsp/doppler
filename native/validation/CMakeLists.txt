@@ -440,6 +440,25 @@ target_compile_options(validate_dll_aid_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_dll_aid_jitter
          COMMAND validate_dll_aid_jitter --check)
 
+# The searcher's surface as a code tracker: the early/prompt/late
+# discriminator read off the correlation surface at the truth's cell, its
+# jitter and bias against the generator's clock beside the DLL's (§12.5),
+# in the emitter's code-only window and under data, at 0 and 18 ppm. The
+# emitter is the shipped continuous-DSSS synth through the shipped
+# doppler_channel, the noise the shipped awgn, the engine the pool's own;
+# native/tests is reached for dp_test.h's assertions only. Threads::Threads
+# as for the soak: the engine fans its tiles across dp_parallel.h.
+add_executable(validate_acq_surface_jitter
+               ${CMAKE_CURRENT_SOURCE_DIR}/acq_surface_jitter.c)
+target_include_directories(validate_acq_surface_jitter
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_acq_surface_jitter
+                      PRIVATE doppler_lib_static Threads::Threads m)
+target_compile_options(validate_acq_surface_jitter PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_acq_surface_jitter
+         COMMAND validate_acq_surface_jitter --check)
+
 # The peak list on the searcher's surface: two emitters resolved, the
 # power-spread knee against the weak emitter alone, and the false-alarm rate
 # under the list (docs/design/async-dsss-receiver.md §7.1, §12 steps 2-4).

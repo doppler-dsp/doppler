@@ -225,6 +225,10 @@ dll_update(dll_state_t *s)
     else if (e < -DLL_DISC_CLAMP)
         e = -DLL_DISC_CLAMP;
     s->last_error = e;
+    if (s->coast)
+        return; /* held: the discriminator read, not filtered, phase_inc as
+                   it stands -- the same hold steer() applies on the
+                   segments>1 path (dll_set_coast) */
     loop_filter_step(&s->lf, e);
     /* Pure control deviation: the integrator alone, PLUS the
        proportional term spread smoothly over the whole next period
@@ -272,6 +276,8 @@ size_t dll_get_symbol_window(const dll_state_t *state);
 
 int dll_set_lock_verify(dll_state_t *state, uint32_t n_up, uint32_t n_down);
 double dll_get_code_phase(const dll_state_t *state);
+
+void dll_set_code_phase(dll_state_t *state, double chips);
 double dll_get_code_rate(const dll_state_t *state);
 double dll_get_last_error(const dll_state_t *state);
 size_t dll_get_segments(const dll_state_t *state);

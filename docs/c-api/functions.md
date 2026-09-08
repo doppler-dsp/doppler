@@ -704,6 +704,7 @@
 * **dll\_reset** ([**dll\_core.h**](dll__core_8h.md))
 * **dll\_set\_bn** ([**dll\_core.h**](dll__core_8h.md))
 * **dll\_set\_coast** ([**dll\_core.h**](dll__core_8h.md))
+* **dll\_set\_code\_phase** ([**dll\_core.h**](dll__core_8h.md))
 * **dll\_set\_lock\_verify** ([**dll\_core.h**](dll__core_8h.md))
 * **dll\_set\_rate\_aid** ([**dll\_core.h**](dll__core_8h.md))
 * **dll\_set\_state** ([**dll\_core.h**](dll__core_8h.md))

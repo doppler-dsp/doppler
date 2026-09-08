@@ -96,6 +96,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  void | [**dll\_reset**](#function-dll_reset) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Re-seed the loop to its create-time code phase; keep config._  |
 |  void | [**dll\_set\_bn**](#function-dll_set_bn) ([**dll\_state\_t**](structdll__state__t.md) \* state, double val) <br> |
 |  void | [**dll\_set\_coast**](#function-dll_set_coast) ([**dll\_state\_t**](structdll__state__t.md) \* state, int coast) <br>_Hold the loop (1) or run it (0, the default)._  |
+|  void | [**dll\_set\_code\_phase**](#function-dll_set_code_phase) ([**dll\_state\_t**](structdll__state__t.md) \* state, double chips) <br>_Set the prompt code phase, in chips: the correction a holder applies to a coasting loop._  |
 |  int | [**dll\_set\_lock\_verify**](#function-dll_set_lock_verify) ([**dll\_state\_t**](structdll__state__t.md) \* state, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's verify counts, keeping its thresholds._  |
 |  void | [**dll\_set\_rate\_aid**](#function-dll_set_rate_aid) ([**dll\_state\_t**](structdll__state__t.md) \* state, double rate\_aid) <br>_Set the carrier-aiding code-rate deviation (ratio; 0 = off)._  |
 |  int | [**dll\_set\_state**](#function-dll_set_state) ([**dll\_state\_t**](structdll__state__t.md) \* state, const void \* blob) <br> |
@@ -1044,6 +1045,52 @@ Coasting, the loop filter takes no update and the NCO is not steered: on entry t
 
 * `state` The loop. 
 * `coast` 1 to hold, 0 to run. 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dll\_set\_code\_phase 
+
+_Set the prompt code phase, in chips: the correction a holder applies to a coasting loop._ 
+```C++
+void dll_set_code_phase (
+    dll_state_t * state,
+    double chips
+) 
+```
+
+
+
+Moves the code NCO to `chips` (modulo the code length) and nothing else: the loop filter, the rate aid, the lock detector and the symbol-period aid keep their state, and the accumulators of the period in progress are left to finish on the new phase. This is the other half of [**dll\_set\_coast()**](dll__core_8h.md#function-dll_set_coast): a coasting loop advances at its held rate, which its 32-bit NCO quantises to a few parts in 10^7  about 0.06 chip per 31 ms block at 5 Mcps (design §12.22)  so whoever holds it on another clock (a searcher's cell, a carrier aid) puts it back where that clock says, once per block, and reads the discriminator between. Nominally at a period boundary; called mid-period it costs that one period's read.
+
+
+
+
+**Parameters:**
+
+
+* `state` DLL state. Must be non-NULL. 
+* `chips` The prompt's code phase, chips; folded into [0, code\_len). 
+```C++
+>>> import numpy as np
+>>> from doppler.track import Dll
+>>> rng = np.random.default_rng(3)
+>>> code = rng.integers(0, 2, 63).astype(np.uint8)
+>>> d = Dll(code, sps=4, init_chip=0.0, bn=0.01)
+>>> d.set_code_phase(5.25)
+>>> round(d.code_phase, 2)
+5.25
+>>> d.set_code_phase(63.0 + 1.5)      # folded into the period
+>>> round(d.code_phase, 2)
+1.5
+```
+ 
 
 
 

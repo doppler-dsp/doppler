@@ -87,6 +87,14 @@ arg_type = "void"
 return_type = "void"
 params = [{ name = "rate_aid", type = "double" }]
 
+# The phase correction a holder applies to a coasting loop: the code NCO
+# set to `chips`, nothing else touched (design §12.22).
+[[dll.methods]]
+name = "set_code_phase"
+arg_type = "void"
+return_type = "void"
+params = [{ name = "chips", type = "double" }]
+
 [[dll.methods]]
 name = "set_symbol_period"
 doc = "Give the code-lock detector the data-symbol period in partials (segments * chip_rate / (sf * symbol_rate); 0 = off), so its looks are coherent over a symbol instead of a quarter-epoch partial. The per-epoch max-power look-back lifted to the symbol scale: ceil(period) boundary-phase hypotheses each own a transition-free window of L = min(floor(period) - 1, 4 * segments) partials per symbol, the hypothesis whose windows carry the most power (an EMA over ~32 symbols) is the symbol timing, and its windows become the detector's looks -- 7.8 dB more per look at 1.8 epochs per symbol and four partials per epoch, and never across a transition. Size n_looks with detection.det_n_noncoh over L * (sf * sps / segments) samples. Only the detector's looks change: the discriminator keeps its per-epoch window and the emitted partial stream is untouched. Raises ValueError when segments <= 1 or the period is in (0, 2)."

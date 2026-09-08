@@ -620,6 +620,22 @@ DllObj_set_lock_verify (DllObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DllObj_set_code_phase (DllObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "chips", NULL };
+  double       chips     = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &chips))
+    return NULL;
+  dll_set_code_phase (self->handle, chips);
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef DllObj_methods[] = {
 
   { "steps", (PyCFunction)(void *)DllObj_steps, METH_VARARGS | METH_KEYWORDS,
@@ -1206,6 +1222,42 @@ static PyMethodDef DllObj_methods[] = {
     ">>> d.set_lock_verify(2, det_verify_count(0.01, 1e-6))\n"
     ">>> d.locked\n"
     "False\n" },
+  { "set_code_phase", (PyCFunction)(void *)DllObj_set_code_phase,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_code_phase(chips) -> None\n"
+    "\n"
+    "Set the prompt code phase, in chips: the correction a holder applies\n"
+    "to a coasting loop.\n"
+    "\n"
+    "Moves the code NCO to chips (modulo the code length) and nothing else:\n"
+    "the loop filter, the rate aid, the lock detector and the symbol-period\n"
+    "aid keep their state, and the accumulators of the period in progress\n"
+    "are left to finish on the new phase. This is the other half of\n"
+    "dll_set_coast(): a coasting loop advances at its held rate, which its\n"
+    "32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per 31\n"
+    "ms block at 5 Mcps (design §12.22) -- so whoever holds it on another\n"
+    "clock (a searcher's cell, a carrier aid) puts it back where that clock\n"
+    "says, once per block, and reads the discriminator between. Nominally at\n"
+    "a period boundary; called mid-period it costs that one period's read.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "chips : float\n"
+    "    The prompt's code phase, chips; folded into [0, code_len).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import Dll\n"
+    ">>> rng = np.random.default_rng(3)\n"
+    ">>> code = rng.integers(0, 2, 63).astype(np.uint8)\n"
+    ">>> d = Dll(code, sps=4, init_chip=0.0, bn=0.01)\n"
+    ">>> d.set_code_phase(5.25)\n"
+    ">>> round(d.code_phase, 2)\n"
+    "5.25\n"
+    ">>> d.set_code_phase(63.0 + 1.5)      # folded into the period\n"
+    ">>> round(d.code_phase, 2)\n"
+    "1.5\n" },
   { NULL }
 };
 

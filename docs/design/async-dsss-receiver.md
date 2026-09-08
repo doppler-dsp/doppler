@@ -1734,7 +1734,11 @@ the crossing, steers for the blip, and is dropped on re-entry to the hold
 (§12.19). Holding on one flag down was measured and rejected: two live
 emitters crossing each other's code phase degrade both symbol flags, and a
 code loop held through that cannot re-centre on its own emitter — run, it
-rides the crossing out (§12.19). What the hold cannot tell apart is
+rides the crossing out (§12.19). A held loop reads its discriminator
+throughout, on both of its paths, and takes a phase correction —
+`set_code_phase`, the NCO moved and nothing else — from whoever holds it
+on another clock: a searcher's cell, once a block, corrects the 0.06 chip
+its NCO drifts on the quantised aid (§12.22). What the hold cannot tell apart is
 a neighbour within a kilohertz crossing at a chip or two a second — to a
 receiver on its own that is a return — and that is the pool's, which
 knows the emitter has a slot (#1275).

@@ -18,14 +18,23 @@
  * cell a locked tracker would be holding, so the number is the
  * discriminator's noise and not a detector's):
  *
- *   code    the calibrated `0.5 (L - E) / (L + E)` on the truth's row,
- *           the coherent view, and the same on the tile's rows summed as
- *           power (Parseval: the per-epoch non-coherent sum, which is
- *           what the surface still holds while the emitter carries data
- *           and its coherent peak is spread across the rows); a
- *           three-point parabola on the same cells as the
- *           calibration-free alternative;
- *   doppler the parabola over the rows above and below, in Hz;
+ *   code    the calibrated `(L - E) / (L + E)` of magnitudes on the
+ *           truth's row; the same on the tile's rows summed as power
+ *           (Parseval: the per-epoch non-coherent sum, which is what the
+ *           surface still holds while the emitter carries data and its
+ *           coherent peak is spread across the rows); a three-point
+ *           parabola on the same cells as the calibration-free
+ *           alternative; and, from the complex intermediates the engine
+ *           exposes (§12.21), the COHERENT discriminator
+ *           `Re(conj(P) (L - E)) / |P|^2` on the truth's row of the
+ *           complex surface, and the same formed per epoch from the
+ *           block's prompt column at the three cells and summed over the
+ *           block -- data-invariant, since an epoch's E, P and L carry
+ *           the same symbol -- which is the read under data;
+ *   doppler the parabola over the rows above and below, in Hz; and the
+ *           slope of a linear phase fit along the block's prompt column,
+ *           unsquared in the window and on P^2 under data, with the fit's
+ *           residual as the carrier phase noise per epoch;
  *   argmax  whether the surface's own maximum was within a chip of the
  *           truth -- the detector's view, for scale.
  *
@@ -130,6 +139,13 @@ typedef struct
   double u, pc, b;   /* the rows above, at and below, at the truth col */
   double row_hz;     /* the truth row's frequency                      */
   double cell_chip;  /* the cell's chip phase                          */
+  /* From the complex intermediates: */
+  double dot;      /* Re(conj P (L - E)) / |P|^2 on the truth row's cells */
+  double edot;     /* the same per epoch over the block's prompt column,
+                      summed: sum Re(conj P_k (L_k - E_k)) / sum |P_k|^2  */
+  double f_fit;    /* the prompt column's linear-phase Doppler, Hz       */
+  double ph_rms;   /* the fit's residual, rad per epoch                  */
+  int    have_blk; /* the block taps read (D > 1 and a whole block)     */
 } dwell_t;
 
 typedef struct
@@ -374,6 +390,92 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
   d->pc = d->p;
   d->u  = row + 1 < rows ? s[(row + 1) * cols + col] : 0.0;
   d->b  = row > 0 ? s[(row - 1) * cols + col] : 0.0;
+
+  /* The complex cells underneath, read in place: acq_surface_complex()
+     copies the whole surface for a caller who wants it; five cells of it
+     are wanted here, and the engine's buffer is the one the sink is being
+     handed the magnitude of (the same dwell, decided on it). */
+  {
+    const float _Complex *z = c->a->out_buf;
+    const float _Complex E = z[row * cols + cm], P = z[row * cols + col],
+                         L = z[row * cols + cp];
+    const double pp        = creal (P) * creal (P) + cimag (P) * cimag (P);
+    d->dot                 = pp > 0.0 ? creal (conj (P) * (L - E)) / pp : 0.0;
+  }
+  /* The block's prompt column at the three cells: the per-epoch coherent
+     discriminator summed over the block, and the carrier along P_k. */
+  const size_t D = c->a->coherent_bins;
+  if (D > 1 && D <= 1024)
+    {
+      float _Complex pe[1024], pl[1024], pk[1024];
+      if (acq_block_prompt (c->a, tile, cm, pe, D) == D
+          && acq_block_prompt (c->a, tile, col, pk, D) == D
+          && acq_block_prompt (c->a, tile, cp, pl, D) == D)
+        {
+          d->have_blk = 1;
+          double num = 0.0, den = 0.0;
+          for (size_t k = 0; k < D; k++)
+            {
+              num += creal (conj (pk[k]) * (pl[k] - pe[k]));
+              den += creal (pk[k]) * creal (pk[k])
+                     + cimag (pk[k]) * cimag (pk[k]);
+            }
+          d->edot = den > 0.0 ? num / den : 0.0;
+          /* Linear phase along the column, de-rotated first by the
+             Doppler a tracker holds (here the truth's offset from the
+             tile's centre, as the cell is the truth's): what is left is
+             the residual, small and unambiguous. Unsquared in the window
+             (the prompt is code only), on P^2 under data (BPSK removed,
+             the slope halved); squaring an un-rotated column at 1 kHz
+             off the centre aliases past the epoch rate's half. Unwrapped
+             epoch to epoch; least squares. */
+          const int    sq    = !d->in_win;
+          const double f_ep0 = FS / (double)TE;
+          const double w_off
+              = 2.0 * M_PI * (c->f_hz - c->hz[tile * c->tile_rows]) / f_ep0;
+          double th[1024], prev = 0.0, acc = 0.0;
+          for (size_t k = 0; k < D; k++)
+            {
+              const double ang = -w_off * (double)k;
+              float _Complex v
+                  = pk[k] * (float _Complex) (cos (ang) + I * sin (ang));
+              if (sq)
+                v *= v;
+              double a = atan2 (cimag (v), creal (v));
+              if (k)
+                {
+                  double dlt = a - prev;
+                  while (dlt > M_PI)
+                    dlt -= 2.0 * M_PI;
+                  while (dlt < -M_PI)
+                    dlt += 2.0 * M_PI;
+                  acc += dlt;
+                }
+              prev  = a;
+              th[k] = acc;
+            }
+          double sx = 0, sxx = 0, sy = 0, sxy = 0;
+          for (size_t k = 0; k < D; k++)
+            {
+              sx += (double)k;
+              sxx += (double)k * (double)k;
+              sy += th[k];
+              sxy += (double)k * th[k];
+            }
+          const double nD    = (double)D;
+          const double slope = (sxy - sx * sy / nD) / (sxx - sx * sx / nD);
+          const double icpt  = (sy - slope * sx) / nD;
+          double       r2    = 0.0;
+          for (size_t k = 0; k < D; k++)
+            {
+              double e = th[k] - (icpt + slope * (double)k);
+              r2 += e * e;
+            }
+          const double f_res = slope / (2.0 * M_PI) * f_ep0 / (sq ? 2.0 : 1.0);
+          d->f_fit  = c->f_hz + f_res; /* the held Doppler plus the residual */
+          d->ph_rms = sqrt (r2 / nD) / (sq ? 2.0 : 1.0);
+        }
+    }
   c->n++;
 }
 
@@ -441,11 +543,12 @@ typedef struct
 
 typedef struct
 {
-  scurve_t coh, par; /* the truth row's cells; the tile's rows summed */
-  double   c0;       /* the truth's constant, chips                    */
-  double   resid;    /* RMS of the coherent inverse on the sweep, chips*/
-  double   drift;    /* x_cell's slope per dwell, chips: a sign or
-                        convention mismatch shows here                 */
+  scurve_t coh, par;  /* the truth row's cells; the tile's rows summed */
+  scurve_t dot, edot; /* the coherent reads: surface row; per epoch   */
+  double   c0;        /* the truth's constant, chips                    */
+  double   resid;     /* RMS of the coherent inverse on the sweep, chips*/
+  double   drift;     /* x_cell's slope per dwell, chips: a sign or
+                         convention mismatch shows here                 */
   size_t n_win;
 } cal_t;
 
@@ -567,6 +670,15 @@ calibrate (acq_state_t *a, const uint8_t *code, sink_ctx_t *c, cal_t *out,
         out->par.s[b] += yp;
         out->par.u[b] += u;
         out->par.n[b]++;
+        out->dot.s[b] += d->dot;
+        out->dot.u[b] += u;
+        out->dot.n[b]++;
+        if (d->have_blk)
+          {
+            out->edot.s[b] += d->edot;
+            out->edot.u[b] += u;
+            out->edot.n[b]++;
+          }
         nc += -u * yc;
         dc += yc * yc;
         np += -u * yp;
@@ -583,6 +695,16 @@ calibrate (acq_state_t *a, const uint8_t *code, sink_ctx_t *c, cal_t *out,
         {
           out->par.s[b] /= (double)out->par.n[b];
           out->par.u[b] /= (double)out->par.n[b];
+        }
+      if (out->dot.n[b])
+        {
+          out->dot.s[b] /= (double)out->dot.n[b];
+          out->dot.u[b] /= (double)out->dot.n[b];
+        }
+      if (out->edot.n[b])
+        {
+          out->edot.s[b] /= (double)out->edot.n[b];
+          out->edot.u[b] /= (double)out->edot.n[b];
         }
     }
   out->coh.gain = dc > 0.0 ? nc / dc : 0.0;
@@ -607,6 +729,11 @@ typedef struct
   double par_bias, par_sig; /* Parseval over the tile's rows       */
   double pb_bias, pb_sig;   /* parabola on the truth row           */
   double f_bias, f_sig;     /* parabola over the rows, Hz          */
+  double dot_bias, dot_sig; /* coherent E/L on the complex surface */
+  double ed_bias, ed_sig;   /* per-epoch coherent E/L over the block */
+  double ff_bias, ff_sig;   /* the prompt column's phase-fit Doppler */
+  double ph_rms;            /* the fit's residual, rad per epoch     */
+  size_t n_blk;             /* dwells with the block taps read       */
   double snr;               /* mean prompt over the gate's units   */
 } stat_t;
 
@@ -615,7 +742,7 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
 {
   memset (o, 0, sizeof *o);
   double sc = 0, sc2 = 0, sp = 0, sp2 = 0, sb = 0, sb2 = 0, sf = 0, sf2 = 0,
-         ss           = 0;
+         ss = 0, sd = 0, sd2 = 0, se = 0, se2 = 0, sq = 0, sq2 = 0, sr2 = 0;
   const double row_sp = c->rows > 1 ? fabs (c->hz[1] - c->hz[0]) : 0.0;
   for (size_t k = 0; k < c->n; k++)
     {
@@ -639,6 +766,20 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
       sf += ef;
       sf2 += ef * ef;
       ss += d->p;
+      const double ed = base - sinv (&cal->dot, d->dot);
+      sd += ed;
+      sd2 += ed * ed;
+      if (d->have_blk)
+        {
+          const double ee = base - sinv (&cal->edot, d->edot);
+          const double eq = d->f_fit - c->f_hz;
+          se += ee;
+          se2 += ee * ee;
+          sq += eq;
+          sq2 += eq * eq;
+          sr2 += d->ph_rms * d->ph_rms;
+          o->n_blk++;
+        }
       o->hits += (size_t)d->hit;
       o->n++;
     }
@@ -653,7 +794,18 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
   o->pb_sig      = sqrt (fmax (sb2 / n - o->pb_bias * o->pb_bias, 0.0));
   o->f_bias      = sf / n;
   o->f_sig       = sqrt (fmax (sf2 / n - o->f_bias * o->f_bias, 0.0));
-  o->snr         = ss / n;
+  o->dot_bias    = sd / n;
+  o->dot_sig     = sqrt (fmax (sd2 / n - o->dot_bias * o->dot_bias, 0.0));
+  if (o->n_blk)
+    {
+      const double m = (double)o->n_blk;
+      o->ed_bias     = se / m;
+      o->ed_sig      = sqrt (fmax (se2 / m - o->ed_bias * o->ed_bias, 0.0));
+      o->ff_bias     = sq / m;
+      o->ff_sig      = sqrt (fmax (sq2 / m - o->ff_bias * o->ff_bias, 0.0));
+      o->ph_rms      = sqrt (sr2 / m);
+    }
+  o->snr = ss / n;
 }
 
 static acq_state_t *
@@ -713,6 +865,11 @@ print_row (const char *label, const stat_t *s)
           label, s->n, 100.0 * (double)s->hits / (double)s->n, s->coh_bias,
           s->coh_sig, s->par_bias, s->par_sig, s->pb_bias, s->pb_sig,
           s->f_bias, s->f_sig, s->snr);
+  printf ("    %-7s coherent: dot %+.4f %.4f   epoch-dot %+.4f %.4f   "
+          "Doppler fit %+7.1f %6.1f   phase %.3f rad/epoch   (%zu with the "
+          "block)\n",
+          "", s->dot_bias, s->dot_sig, s->ed_bias, s->ed_sig, s->ff_bias,
+          s->ff_sig, s->ph_rms, s->n_blk);
 }
 
 int
@@ -757,11 +914,12 @@ main (int argc, char **argv)
               "S-curve inverted on the sweep: %.4f chips RMS\n",
               cal.n_win, cal.c0, cal.drift, cal.coh.gain, cal.par.gain,
               cal.resid);
-      printf ("    S-curve, u = cell - truth (chips) -> coherent, Parseval:");
+      printf ("    S-curve, u = cell - truth (chips) -> magnitude, Parseval, "
+              "dot, epoch-dot:");
       for (int b = 0; b < NB; b++)
         if (cal.coh.n[b])
-          printf (" %+.3f:%+.3f/%+.3f", cal.coh.u[b], cal.coh.s[b],
-                  cal.par.s[b]);
+          printf (" %+.3f:%+.3f/%+.3f/%+.3f/%+.3f", cal.coh.u[b], cal.coh.s[b],
+                  cal.par.s[b], cal.dot.s[b], cal.edot.s[b]);
       printf ("\n");
       if (check)
         {
@@ -808,6 +966,13 @@ main (int argc, char **argv)
                             "the E/L on the truth's row, inverted through "
                             "its S-curve, reads the code phase within twice "
                             "the DLL's jitter and without bias");
+              DP_CHECK_MSG (w.n_blk == w.n,
+                            "the block taps read on every window dwell");
+              DP_CHECK_MSG (w.dot_sig < 2.0 * DLL_45
+                                && fabs (w.dot_bias) < 0.05,
+                            "the coherent discriminator on the complex "
+                            "surface reads the code phase within twice the "
+                            "DLL's jitter and without bias");
             }
         }
       acq_destroy (a);

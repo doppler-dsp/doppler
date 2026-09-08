@@ -354,6 +354,19 @@ predicted-not-taken branches; nothing rides in a state blob.
     thread — a run of hours records the surface decimated in time without
     a copy per dwell it does not keep. The surface is normalised only
     while a reader is armed.
+- **The complex intermediates underneath**, three copies of what the
+    engine holds per cell before a magnitude is taken (§12.21):
+    `surface_complex(out)`, the coherent dump the last dwell was decided
+    on — amplitude and carrier phase per cell, so a cell and its
+    neighbours along the code axis are complex prompt, early and late
+    arms (0 on the non-coherent path, whose dwell is a power sum);
+    `block_prompt(tile, col, out)`, one cell's column of the last whole
+    block — the D per-epoch complex correlations at that code phase,
+    rolled to the tile's centre and shifted to the block's middle by its
+    code-rate hypothesis, the despread stream at epoch rate;
+    `block_raw(out)`, the block's D epochs as pushed, for a re-correlation
+    at any phase, rate or symbol boundary the grid does not have. Valid
+    once a block is whole, until the next epoch; 0 at `D = 1`.
 - **The concentration is the splatter discriminator.** One emitter does
     not make one peak: a data transition inside the epoch splits it into
     equal twins on other tiles (§12.2), and at `D > 1` a block that

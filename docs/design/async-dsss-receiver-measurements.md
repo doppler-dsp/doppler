@@ -1607,3 +1607,78 @@ What it settles, and what it leaves:
     on the raw block, the detector's decisions, two emitters in one tile.
 
 ______________________________________________________________________
+
+### 12.22 What was measured (2026-09-08) — the symbol-aligned re-correlation on the raw block
+
+**What was built.** The read §12.21 said was owed: the DLL's own
+symbol-aided window, on the searcher's timing, run over the block's raw
+samples. No new correlator — the shipped `Dll`, its loop held
+(`set_coast`), the dilation as a rate aid from the held Doppler, the
+symbol window on, fed the block wiped of the held Doppler by the shipped
+`LO`, as a receiver's Costas wipes it before its DLL, and **put at the
+cell's phase at every block's start**. That last needed one primitive the
+loop did not have, `dll_set_code_phase(chips)`: the NCO moved, nothing
+else touched, the other half of the coast for a holder on another clock.
+It also found two defects on the coast itself, fixed here: `steer()`
+returned before computing the discriminator, so a coasting loop's `.e`
+probe read 0 for as long as it coasted; and the header's `dll_update()`,
+the `segments == 1` path and a second copy of the same discriminator and
+steer, had no hold at all and kept steering with `coast` set. Both hold
+after `last_error` now, pinned in `test_dll_core`; the duplication is
+[#1280](https://github.com/doppler-dsp/doppler/issues/1280).
+
+**Two things the build measured on the way.** A coasting loop drifts on
+its 32-bit NCO's quantisation of the rate aid: **−1.88 chips per second**
+at 18 ppm, 0.06 chip per block, so the correction is per block and not
+per second. And the DLL's 256-chip partials integrate 2.3 cycles of the
+emitter's 45 kHz carrier when the block is not wiped, a 17 dB loss a
+clean stream survives and a noisy one does not: un-wiped, the running
+loop read locked 0% at 45 dB-Hz with its discriminator scattering to
+the clamp, and its converged phase sat 2.7 chips from the cell; wiped,
+it locks 100% of the time and converges 0.002 chip from the cell at both
+C/N0s, which is the receiver's own case and the harness's check that its
+loop is the receiver's before the coasting read is scored.
+
+**The measurement.** The S-curve of the held loop's discriminator over
+its seed offset, ten clean runs across the cell on the data stream:
+monotone, zero at +0.03 chip, 1.6 per chip, 0.04 of scatter within a
+block. Then, at every dwell of §12.20's runs, the loop put at the truth's
+cell plus 0.1 chip at the block's start, fed the wiped block, and the
+mean of its discriminator over the block inverted through the curve:
+
+| C/N0, ppm | data: coasting DLL bias, σ | data: per-epoch coherent σ (§12.21) | data: magnitude σ (§12.20) | window: coasting DLL σ | DLL closed loop (§12.5) |
+| --------- | -------------------------- | ----------------------------------- | -------------------------- | ---------------------- | ----------------------- |
+| 45, 18    | +0.003, **0.014**          | 0.031                               | 0.085                      | 0.015                  | 0.013                   |
+| 40, 18    | −0.010, **0.026**          | 0.065                               | 0.116                      | 0.025                  | 0.021                   |
+| 45, 0     | +0.046, 0.013              | 0.012 (biased −0.05)                | 0.008 (biased −0.17)       | 0.012                  | 0.013                   |
+| 40, 0     | +0.026, 0.025              | 0.018 (biased −0.11)                | 0.009 (biased −0.21)       | 0.023                  | 0.021                   |
+
+What it settles:
+
+- **The searcher-timed tracker reads the code phase under data as well
+    as the loop does.** 0.014 chip per 31.5 ms block at 45 dB-Hz and
+    0.026 at 40, against the closed loop's 0.013 and 0.021 — the same
+    window, the same discriminator, on the searcher's timing instead of
+    the loop's, with no loop closed and the phase put back once a block.
+    The 0.031 the per-epoch coherent read left on the table (§12.21) was
+    the epoch straddling a symbol, as said; the symbol window recovers it.
+- **What the tracker is, then.** A searcher that lists and holds cells,
+    and per held cell: a coasting DLL corrected once a block from the cell
+    and reading between, fed the block wiped at the row's Doppler, whose
+    prompt at symbol rate is the detector's input. No refine, no hand-off,
+    no lock detector deciding presence, no loop pulling in from a seed.
+    Every part of it is a shipped object; what §12.20 to §12.22 measured
+    is that the parts read as well as the loop they replace.
+- **The 0 ppm bias is the S-curve's, not the read's.** Calibrated at 18
+    ppm, where the held loop drifts 0.06 chip across a block, the curve's
+    zero carries half that; at 0 ppm the aid is zero, the NCO is exact
+    and nothing drifts, and the read sits 0.03 to 0.05 chip off. A
+    tracker calibrates at its working drift, or corrects the aid's
+    quantisation once it is measured.
+- **Not measured here:** the correction closed on the searcher's cell
+    rather than the truth's (§12.20's argmax holds the emitter in every
+    window dwell and under data at 45 dB-Hz; at 40 the cell must be held,
+    and this read is what holds it), two emitters, and the symbol detector
+    on the prompt.
+
+______________________________________________________________________

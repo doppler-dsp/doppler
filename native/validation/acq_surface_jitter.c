@@ -35,6 +35,16 @@
  *           slope of a linear phase fit along the block's prompt column,
  *           unsquared in the window and on P^2 under data, with the fit's
  *           residual as the carrier phase noise per epoch;
+ *   raw     the symbol-aligned re-correlation on `block_raw` (§12.22):
+ *           the shipped DLL, its loop held (dll_set_coast), its rate
+ *           aided by the held Doppler, its symbol window on, PUT AT THE
+ *           CELL'S PHASE at every block's start (dll_set_code_phase --
+ *           a coasting loop drifts on its NCO's quantisation of the aid,
+ *           measured here in chips per second) and fed the block wiped of
+ *           the held Doppler by the shipped LO, as a receiver's Costas
+ *           wipes it before its DLL; the mean of its discriminator over
+ *           the block, through its own S-curve, is the read -- the DLL's
+ *           own window on the searcher's timing;
  *   argmax  whether the surface's own maximum was within a chip of the
  *           truth -- the detector's view, for scale.
  *
@@ -65,16 +75,23 @@
  *   validate_acq_surface_jitter --check    the spot check CTest runs: the
  *                                          discriminator is linear across
  *                                          the cell on a clean sweep, and
- *                                          at 45 dB-Hz under dilation its
- *                                          window-dwell jitter and bias
- *                                          are within the measured bounds
+ *                                          at 45 dB-Hz under dilation the
+ *                                          window-dwell jitter and bias of
+ *                                          the magnitude and the coherent
+ *                                          reads, and the coasting DLL's
+ *                                          read under data, are within the
+ *                                          measured bounds; and the same
+ *                                          DLL running locks on the cell
  */
 #include "acq/acq_core.h"
 #include "awgn/awgn_core.h"
 #include "clib_common.h"
+#include "dll/dll_core.h"
 #include "doppler_channel/doppler_channel_core.h"
 #include "dp_test.h"
+#include "dp_tlm/dp_tlm_core.h"
 #include "gold/gold_core.h"
+#include "lo/lo_core.h"
 #include "wfm_synth/wfm_synth_core.h"
 #include <complex.h>
 #include <math.h>
@@ -109,6 +126,11 @@
 #define CAL_DWELLS 200   /* code only: every dwell is coherent         */
 #define DLL_45 0.0132    /* §12.5: the receiver's DLL, per-epoch, chips     */
 #define DLL_40 0.0208
+#define SEGMENTS 4u /* the receiver\'s partials per epoch (dll_aid_jitter) */
+#define BN 0.002    /* the receiver\'s DLL bandwidth; held, so unused   */
+#define P_SYM ((double)SEGMENTS * CHIP_RATE / ((double)SF * SYM_RATE))
+#define DLL_SETTLE 6 /* blocks the symbol aid settles over, not scored   */
+#define DLL_U0 0.1   /* the coasting loop\'s seed offset from the cell    */
 
 /* The stimulus: one emitter through the channel, noise after it. */
 typedef struct
@@ -146,6 +168,14 @@ typedef struct
   double f_fit;    /* the prompt column's linear-phase Doppler, Hz       */
   double ph_rms;   /* the fit's residual, rad per epoch                  */
   int    have_blk; /* the block taps read (D > 1 and a whole block)     */
+  /* From the shipped DLL coasting on the searcher\'s timing, fed the raw
+     block: its symbol-aided discriminator\'s mean over the block. */
+  double dll_e;  /* mean of "dll.e" over the block; NAN = not read    */
+  size_t n_e;    /* discriminator outputs in the block (symbols)      */
+  double locked; /* the lock flag's mean over the block               */
+  double e_sd;   /* the discriminator's scatter within the block       */
+  double dll_u;  /* the loop's actual offset from the truth at the
+                    block's end, chips: the seed plus what it drifted  */
 } dwell_t;
 
 typedef struct
@@ -161,6 +191,21 @@ typedef struct
   size_t        win_sym;   /* the stimulus's code-only symbols per frame     */
   dwell_t      *d;
   size_t        n, cap;
+  /* The re-correlator: a persistent DLL, coasting, rate-aided by the
+     held Doppler, seeded once at the cell plus DLL_U0; NULL = off. */
+  dll_state_t    *dll;
+  dp_tlm_t       *tlm;
+  int             id_e;
+  int             id_locked;
+  lo_state_t     *lo;     /* the carrier wipe at the held Doppler          */
+  float _Complex *lo_buf; /* D * code_bins phasors                          */
+  double          u0;     /* the seed\'s offset from the truth, chips        */
+  double c_dll; /* the DLL\'s phase convention against the cell, chips */
+  int    track; /* 1: the loop runs (the convention\'s calibration)   */
+  double last_phase_err; /* tracking: phase at the block\'s end - truth */
+  double last_rate;      /* tracking: code_rate at the block\'s end     */
+  float _Complex *raw;   /* D * code_bins, the block as pushed              */
+  float _Complex *prt;   /* the DLL\'s output scratch                       */
 } sink_ctx_t;
 
 static void
@@ -476,6 +521,63 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
           d->ph_rms = sqrt (r2 / nD) / (sq ? 2.0 : 1.0);
         }
     }
+  /* The re-correlation: the block as pushed through the coasting DLL,
+     epoch by epoch, and the mean of the discriminator outputs it emitted
+     -- the symbol-aided window on the searcher's timing. */
+  d->dll_e = NAN;
+  if (c->dll && D > 1
+      && acq_block_raw (c->a, c->raw, D * c->cols) == D * c->cols)
+    {
+      /* The correction a tracker applies once per block: the loop put at
+         the cell's phase -- the truth's here, as every other read -- plus
+         the seed offset, at the block's start, before it is fed. What the
+         loop reads over the block is then u0 plus the drift within it. */
+      if (!c->track)
+        dll_set_code_phase (c->dll,
+                            truth_chips (c->st, (double)samples_consumed
+                                                    - (double)c->dwell_len)
+                                + c->c0 + c->c_dll + c->u0);
+      const size_t cap = dll_steps_max_out (c->dll), nb = D * c->cols;
+      (void)lo_steps (c->lo, nb, c->lo_buf, nb);
+      for (size_t i = 0; i < nb; i++)
+        c->raw[i] *= c->lo_buf[i];
+      for (size_t k = 0; k < D; k++)
+        (void)dll_steps (c->dll, c->raw + k * c->cols, c->cols, c->prt, cap);
+      dp_tlm_rec_t rec[256];
+      double       se = 0.0, se2 = 0.0;
+      size_t       ne = 0, got;
+      size_t       nl = 0, nlk = 0;
+      while ((got = dp_tlm_read (c->tlm, 256, rec, 256)) > 0)
+        for (size_t i = 0; i < got; i++)
+          {
+            if (rec[i].probe == (uint16_t)c->id_e)
+              {
+                se += rec[i].value;
+                se2 += (double)rec[i].value * rec[i].value;
+                ne++;
+              }
+            else if (rec[i].probe == (uint16_t)c->id_locked)
+              {
+                nl++;
+                nlk += rec[i].value > 0.5f;
+              }
+          }
+      d->n_e    = ne;
+      d->e_sd   = ne ? sqrt (fmax (se2 / (double)ne
+                                       - (se / (double)ne) * (se / (double)ne),
+                                   0.0))
+                     : 0.0;
+      d->locked = nl ? (double)nlk / (double)nl : NAN;
+      if (ne && c->n >= DLL_SETTLE)
+        d->dll_e = se / (double)ne;
+      /* Tracking (the convention's calibration): the loop's phase at the
+         block's end against the truth there, in the searcher's terms. */
+      c->last_phase_err = wrap_chips (
+          dll_get_code_phase (c->dll)
+          - (truth_chips (c->st, (double)samples_consumed) + c->c0 + c->u0));
+      c->last_rate = dll_get_code_rate (c->dll);
+      d->dll_u     = wrap_chips (c->last_phase_err + c->u0 - c->c_dll);
+    }
   c->n++;
 }
 
@@ -498,7 +600,8 @@ parabola (double a, double b, double c)
 /* Run one stimulus through one engine for `n` decided dwells. */
 static int
 run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
-     uint32_t seed, double c0, size_t win_sym, sink_ctx_t *c, size_t n)
+     uint32_t seed, double c0, size_t win_sym, double u0, sink_ctx_t *c,
+     size_t n)
 {
   stim_t st;
   if (stim_open (&st, code, ppm, cn0, seed, win_sym))
@@ -515,6 +618,44 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
   c->n         = 0;
   c->cap       = n;
   c->dwell_len = a->n_noncoh * a->coherent_bins * TE;
+  /* The coasting DLL: created at the truth plus u0 as the searcher's cell
+     would seed it, the loop held from the start (dll_hold_here at zero,
+     then coast), the dilation as a rate aid from the held Doppler, the
+     symbol window on, its discriminator on telemetry. */
+  c->dll = NULL;
+  c->u0  = u0;
+  if (!isnan (u0) && a->coherent_bins > 1)
+    {
+      const double seed_chip = dp_fmod_pos (
+          truth_chips (&st, 0.0) + c0 + c->c_dll + u0, (double)SF);
+      c->dll = dll_create (code, SF, SPC, seed_chip, BN, 0.707, 0.5, SEGMENTS);
+      DP_REQUIRE_MSG (c->dll != NULL, "the DLL opens");
+      DP_REQUIRE (dll_set_symbol_period (c->dll, P_SYM) == DP_OK);
+      dll_set_rate_aid (c->dll, c->f_hz / CARRIER_HZ);
+      if (!c->track)
+        {
+          dll_hold_here (c->dll);
+          dll_set_coast (c->dll, 1);
+        }
+      c->tlm = dp_tlm_create (1u << 14);
+      DP_REQUIRE (c->tlm != NULL);
+      DP_REQUIRE (dll_set_telemetry (c->dll, c->tlm, "dll", 1) == DP_OK);
+      c->id_e      = dp_tlm_probe_id (c->tlm, "dll.e");
+      c->id_locked = dp_tlm_probe_id (c->tlm, "dll.locked");
+      DP_REQUIRE (c->id_e >= 0);
+      c->raw = dp_xmalloc (a->coherent_bins * a->code_bins * sizeof *c->raw);
+      /* The carrier wipe a receiver's Costas does before its DLL, at the
+         Doppler a tracker holds (the rows read it under a hertz, §12.20):
+         the DLL's partials, 256 chips, integrate 2.3 cycles of a 45 kHz
+         carrier un-wiped, a 17 dB loss a clean stream survives and a
+         noisy one does not. The shipped LO, phase-continuous across
+         blocks. */
+      c->lo = lo_create (-c->f_hz / FS);
+      DP_REQUIRE_MSG (c->lo != NULL, "the wipe's LO opens");
+      c->lo_buf
+          = dp_xmalloc (a->coherent_bins * a->code_bins * sizeof *c->lo_buf);
+      c->prt = dp_xmalloc (dll_steps_max_out (c->dll) * sizeof *c->prt);
+    }
   acq_reset (a);
   acq_set_surface_sink (a, on_surface, c, 1u);
   acq_result_t hits[16];
@@ -522,6 +663,18 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
     (void)acq_push (a, stim_block (&st), TE, hits, 16);
   acq_set_surface_sink (a, NULL, NULL, 1u);
   stim_close (&st);
+  if (c->dll)
+    {
+      free (c->prt);
+      free (c->raw);
+      free (c->lo_buf);
+      lo_destroy (c->lo);
+      c->lo = NULL;
+      dll_destroy (c->dll);
+      dp_tlm_destroy (c->tlm);
+      c->dll = NULL;
+      c->tlm = NULL;
+    }
   c->st = NULL;
   return 0;
 }
@@ -545,6 +698,9 @@ typedef struct
 {
   scurve_t coh, par;  /* the truth row's cells; the tile's rows summed */
   scurve_t dot, edot; /* the coherent reads: surface row; per epoch   */
+  scurve_t dll;       /* the coasting DLL, across seed offsets        */
+  double   dll_drift; /* the coasting loop's drift, chips per second    */
+  double   c_dll;     /* the DLL\'s phase convention, chips              */
   double   c0;        /* the truth's constant, chips                    */
   double   resid;     /* RMS of the coherent inverse on the sweep, chips*/
   double   drift;     /* x_cell's slope per dwell, chips: a sign or
@@ -630,7 +786,7 @@ static int
 calibrate (acq_state_t *a, const uint8_t *code, sink_ctx_t *c, cal_t *out,
            size_t n)
 {
-  if (run (a, code, 18.0, WFM_SYNTH_SNR_CLEAN, 5u, NAN, F_SYM, c, n))
+  if (run (a, code, 18.0, WFM_SYNTH_SNR_CLEAN, 5u, NAN, F_SYM, NAN, c, n))
     return 1;
   memset (out, 0, sizeof *out);
   double sx = 0.0, sxx = 0.0, sxy = 0.0, sy = 0.0;
@@ -722,6 +878,87 @@ calibrate (acq_state_t *a, const uint8_t *code, sink_ctx_t *c, cal_t *out,
   return 0;
 }
 
+/* The DLL's phase convention against the searcher's cell: one clean,
+   code-only, dilated run with the loop RUNNING from the cell's phase at
+   the receiver's bn, its converged phase at the last block's end against
+   the truth. A coasting loop cannot pull this constant in; the hand-off's
+   refine does, from up to half a chip (§12.11). */
+static int
+calibrate_dll_phase (acq_state_t *a, const uint8_t *code, sink_ctx_t *c,
+                     cal_t *cal, size_t n, double *rate)
+{
+  c->c_dll = 0.0;
+  c->track = 1;
+  int rc = run (a, code, 18.0, WFM_SYNTH_SNR_CLEAN, 3u, cal->c0, F_SYM, 0.0, c,
+                n);
+  c->track = 0;
+  if (rc)
+    return 1;
+  cal->c_dll = c->last_phase_err;
+  c->c_dll   = cal->c_dll;
+  *rate      = c->last_rate;
+  return 0;
+}
+
+/* The DLL's S-curve over its ACTUAL offset: seeded on a grid across the
+   cell, one clean, code-only, dilated run per seed, and binned over the
+   offset the loop's own phase reads against the truth at each block's
+   end -- a coasting loop drifts on its NCO's quantisation of the rate aid
+   (measured below, chips per second), so the seed is where it started
+   and not where each block read. Blocks inside the cell only. */
+static int
+calibrate_dll (acq_state_t *a, const uint8_t *code, sink_ctx_t *c, cal_t *cal,
+               size_t n_per)
+{
+  memset (&cal->dll, 0, sizeof cal->dll);
+  cal->dll_drift = 0.0;
+  for (int b = 0; b < NB; b++)
+    {
+      const double u0 = -0.25 + (0.5 / NB) * ((double)b + 0.5);
+      /* On the operating stream, data and window, not code only: the
+         symbol-aided window's zero sits where the data puts it. */
+      if (run (a, code, 18.0, WFM_SYNTH_SNR_CLEAN, 7u + (uint32_t)b, cal->c0,
+               W_SYM, u0, c, n_per))
+        return 1;
+      size_t ne      = 0;
+      double u_first = NAN, u_last = NAN;
+      for (size_t k = 0; k < c->n; k++)
+        if (!isnan (c->d[k].dll_e))
+          {
+            if (isnan (u_first))
+              u_first = c->d[k].dll_u;
+            u_last = c->d[k].dll_u;
+            {
+              /* Corrected at every block's start, the loop's offset over
+                 the block is u0 plus the drift within it; binned at u0. */
+              cal->dll.s[b] += c->d[k].dll_e;
+              cal->dll.u[b] += u0;
+              cal->dll.n[b]++;
+              ne++;
+            }
+          }
+      if (!ne)
+        {
+          fprintf (stderr,
+                   "the DLL read nothing inside the cell from u0 %+.3f\n", u0);
+          return 1;
+        }
+      /* The drift within one block on the held rate, chips/s: the offset
+         the loop reads at the block's end against the u0 it was put at. */
+      if (b == 0)
+        cal->dll_drift
+            = (u_last - u0) / ((double)TE * (double)a->coherent_bins / FS);
+      (void)u_first;
+    }
+  for (int b = 0; b < NB; b++)
+    if (cal->dll.n[b])
+      {
+        cal->dll.s[b] /= (double)cal->dll.n[b];
+        cal->dll.u[b] /= (double)cal->dll.n[b];
+      }
+  return 0;
+}
+
 typedef struct
 {
   size_t n, hits;
@@ -734,6 +971,11 @@ typedef struct
   double ff_bias, ff_sig;   /* the prompt column's phase-fit Doppler */
   double ph_rms;            /* the fit's residual, rad per epoch     */
   size_t n_blk;             /* dwells with the block taps read       */
+  double dll_bias, dll_sig; /* the coasting DLL, its read minus u0   */
+  size_t n_dll;             /* dwells with a DLL read                */
+  double e_raw, e_raw2;     /* the raw discriminator's sums          */
+  double n_e_sum, lock_sum; /* outputs per block; lock flag mean     */
+  double e_sd_sum;          /* within-block scatter of e, summed     */
   double snr;               /* mean prompt over the gate's units   */
 } stat_t;
 
@@ -743,6 +985,7 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
   memset (o, 0, sizeof *o);
   double sc = 0, sc2 = 0, sp = 0, sp2 = 0, sb = 0, sb2 = 0, sf = 0, sf2 = 0,
          ss = 0, sd = 0, sd2 = 0, se = 0, se2 = 0, sq = 0, sq2 = 0, sr2 = 0;
+  double sl = 0, sl2 = 0;
   const double row_sp = c->rows > 1 ? fabs (c->hz[1] - c->hz[0]) : 0.0;
   for (size_t k = 0; k < c->n; k++)
     {
@@ -780,6 +1023,19 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
           sr2 += d->ph_rms * d->ph_rms;
           o->n_blk++;
         }
+      if (!isnan (d->dll_e))
+        {
+          /* Put at u0 every block, the loop's read is u_est. */
+          const double el = sinv (&cal->dll, d->dll_e) - c->u0;
+          sl += el;
+          sl2 += el * el;
+          o->e_raw += d->dll_e;
+          o->e_raw2 += d->dll_e * d->dll_e;
+          o->n_e_sum += (double)d->n_e;
+          o->e_sd_sum += d->e_sd;
+          o->lock_sum += isnan (d->locked) ? 0.0 : d->locked;
+          o->n_dll++;
+        }
       o->hits += (size_t)d->hit;
       o->n++;
     }
@@ -804,6 +1060,12 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
       o->ff_bias     = sq / m;
       o->ff_sig      = sqrt (fmax (sq2 / m - o->ff_bias * o->ff_bias, 0.0));
       o->ph_rms      = sqrt (sr2 / m);
+    }
+  if (o->n_dll)
+    {
+      const double m = (double)o->n_dll;
+      o->dll_bias    = sl / m;
+      o->dll_sig     = sqrt (fmax (sl2 / m - o->dll_bias * o->dll_bias, 0.0));
     }
   o->snr = ss / n;
 }
@@ -870,6 +1132,19 @@ print_row (const char *label, const stat_t *s)
           "block)\n",
           "", s->dot_bias, s->dot_sig, s->ed_bias, s->ed_sig, s->ff_bias,
           s->ff_sig, s->ph_rms, s->n_blk);
+  if (s->n_dll)
+    printf (
+        "    %-7s coasting DLL on the raw block, put at the cell every block: "
+        "bias %+.4f sigma %.4f   (%zu dwells; raw e mean %+.4f sigma %.4f "
+        "at u0 %+.2f; %.1f reads per block, within-block sd %.3f, "
+        "locked %.2f)\n",
+        "", s->dll_bias, s->dll_sig, s->n_dll, s->e_raw / (double)s->n_dll,
+        sqrt (fmax (s->e_raw2 / (double)s->n_dll
+                        - (s->e_raw / (double)s->n_dll)
+                              * (s->e_raw / (double)s->n_dll),
+                    0.0)),
+        DLL_U0, s->n_e_sum / (double)s->n_dll, s->e_sd_sum / (double)s->n_dll,
+        s->lock_sum / (double)s->n_dll);
 }
 
 int
@@ -921,6 +1196,51 @@ main (int argc, char **argv)
           printf (" %+.3f:%+.3f/%+.3f/%+.3f/%+.3f", cal.coh.u[b], cal.coh.s[b],
                   cal.par.s[b], cal.dot.s[b], cal.edot.s[b]);
       printf ("\n");
+      double dll_rate = 0.0;
+      DP_REQUIRE_MSG (calibrate_dll_phase (a, code, &c, &cal, 40, &dll_rate)
+                          == 0,
+                      "the DLL's phase convention calibrates");
+      printf ("    the DLL running from the cell, clean at 18 ppm, 40 blocks: "
+              "converged %+.3f chips from the cell (its convention; every "
+              "seed carries it), code_rate %.6f with the rate aid on\n",
+              cal.c_dll, dll_rate);
+      DP_REQUIRE_MSG (calibrate_dll (a, code, &c, &cal, check ? 24 : 40) == 0,
+                      "the DLL's S-curve calibrates across seeds");
+      /* The same loop RUNNING under this C/N0's noise, on the wiped
+         block: the receiver's case, so the harness's DLL is known to be
+         the receiver's before its coasting read is scored. */
+      {
+        c.track = 1;
+        DP_REQUIRE (
+            run (a, code, 18.0, cn0s[ci], 99u, cal.c0, W_SYM, 0.0, &c, 40)
+            == 0);
+        c.track   = 0;
+        double lk = 0.0;
+        size_t m  = 0;
+        for (size_t k = DLL_SETTLE; k < c.n; k++)
+          if (!isnan (c.d[k].dll_e))
+            {
+              lk += isnan (c.d[k].locked) ? 0.0 : c.d[k].locked;
+              m++;
+            }
+        const double locked = m ? lk / (double)m : 0.0;
+        printf ("    the DLL running at %.0f dB-Hz on the wiped block: locked "
+                "%.2f of the time, %+.3f chips from the cell at the end, "
+                "code_rate %.6f\n",
+                cn0s[ci], locked, c.last_phase_err, c.last_rate);
+        if (check)
+          DP_CHECK_MSG (locked > 0.9 && fabs (c.last_phase_err) < 0.05,
+                        "the harness's DLL is the receiver's: running, it "
+                        "locks and holds the cell");
+      }
+      printf ("    coasting DLL: drifts %+.3f chips/s on the held rate (the "
+              "NCO's quantisation of the aid; put back every block); "
+              "S-curve, u0 -> discriminator:",
+              cal.dll_drift);
+      for (int b = 0; b < NB; b++)
+        printf (" %+.3f:%+.4f", cal.dll.u[b], cal.dll.s[b]);
+      printf ("\n");
+      printf ("\n");
       if (check)
         {
           DP_CHECK_MSG (fabs (cal.drift) < 0.01,
@@ -939,7 +1259,7 @@ main (int argc, char **argv)
         {
           printf ("  %.0f dB-Hz at %.0f ppm:\n", cn0s[ci], ppms[pi]);
           DP_REQUIRE (run (a, code, ppms[pi], cn0s[ci], 11u + (uint32_t)pi,
-                           cal.c0, W_SYM, &c, n_dw)
+                           cal.c0, W_SYM, DLL_U0, &c, n_dw)
                       == 0);
           stat_t w, dt;
           stats (&c, &cal, 1, &w);
@@ -973,6 +1293,17 @@ main (int argc, char **argv)
                             "the coherent discriminator on the complex "
                             "surface reads the code phase within twice the "
                             "DLL's jitter and without bias");
+              DP_CHECK_MSG (dt.n_dll >= 100,
+                            "the coasting DLL read the raw block on the "
+                            "data dwells");
+              /* Measured 0.0134 chips at 45 dB-Hz under data (section
+                 12.22), the loop's own closed-loop 0.013; twice it is the
+                 defect gate. */
+              DP_CHECK_MSG (dt.dll_sig < 2.0 * DLL_45
+                                && fabs (dt.dll_bias) < 0.05,
+                            "the coasting DLL's symbol-aided read of the raw "
+                            "block under data is within twice the loop's "
+                            "closed-loop jitter and without bias");
             }
         }
       acq_destroy (a);

@@ -1383,6 +1383,109 @@ main (void)
                   "the surface's maximum is the dwell's test statistic");
     DP_CHECK (am / nx == c->peak_row && am % nx == c->peak_col);
     DP_CHECK_MSG (c->peak_conc > 0.5f, "one clean emitter: concentrated");
+    /* The complex intermediates (design §12.21). This engine decides on
+       seven looks, so its dwell is a power sum and the complex surface
+       rightly reads 0; a coherent engine's is the same cells before the
+       magnitude -- its modulus the gate's own `mag_buf` to a rounding, its
+       maximum the reported cell -- and at D = 1 no block is gathered. */
+    {
+      float _Complex *sc = malloc (c->n_surf * sizeof *sc);
+      acq_result_t    own[16]; /* not `hits`: a later check reads it */
+      DP_REQUIRE (sc != NULL);
+      DP_CHECK (c->n_noncoh > 1);
+      DP_CHECK (acq_surface_complex (c, sc, c->n_surf) == 0);
+      acq_state_t *cc = acq_create_continuous (
+          CODE7, sf, spc, crate, 0.0, 70.0, 200.0e3, 1e-2, 0.9, 0, 1, 0.0);
+      DP_REQUIRE (cc != NULL);
+      DP_REQUIRE_MSG (cc->n_noncoh == 1 && cc->n_surf == c->n_surf,
+                      "70 dB-Hz sizes one look on the same grid");
+      DP_CHECK (acq_surface_complex (cc, sc, c->n_surf) == 0); /* no dwell */
+      (void)acq_push (cc, x, nx, own, 16);
+      DP_CHECK (cc->dwells == 1);
+      DP_CHECK (acq_surface_complex (cc, sc, c->n_surf - 1) == 0);
+      DP_CHECK (acq_surface_complex (cc, sc, c->n_surf) == c->n_surf);
+      size_t cam     = 0;
+      int    modulus = 1;
+      for (size_t k = 0; k < c->n_surf; k++)
+        {
+          if (cabsf (sc[k]) > cabsf (sc[cam]))
+            cam = k;
+          if (fabsf (cabsf (sc[k]) - cc->mag_buf[k])
+              > 4.0f * FLT_EPSILON * cc->mag_buf[k] + 1e-6f)
+            modulus = 0;
+        }
+      DP_CHECK_MSG (modulus, "|surface_complex| is the magnitude surface");
+      DP_CHECK (cam / nx == cc->peak_row && cam % nx == cc->peak_col);
+      float _Complex one[2];
+      DP_CHECK (acq_block_prompt (cc, 0, cc->peak_col, one, 2) == 0);
+      DP_CHECK (acq_block_raw (cc, one, 2) == 0);
+      acq_destroy (cc);
+      free (sc);
+    }
+    /* The block taps on a block-coherent engine: a baseband emitter (tile
+       0's centre) at code phase d for D whole epochs. The raw block is the
+       samples as pushed; the prompt column at (0, d) is D equal values,
+       phase-continuous; a partial block reads 0 and a whole one again does
+       not; indices out of range read 0. */
+    {
+      acq_state_t *bc = acq_create_continuous (
+          CODE7, sf, spc, crate, 0.0, 70.0, 200.0e3, 1e-2, 0.9, 0, 7, 0.0);
+      acq_result_t own[16];
+      DP_REQUIRE (bc != NULL);
+      const size_t D = bc->coherent_bins;
+      DP_REQUIRE_MSG (D > 1 && bc->blk != NULL, "code_only_epochs 7: a depth");
+      float _Complex *xb = malloc (D * nx * sizeof *xb);
+      float _Complex *rb = malloc (D * nx * sizeof *rb);
+      float _Complex *pb = malloc (D * sizeof *pb);
+      DP_REQUIRE (xb && rb && pb);
+      for (size_t k = 0; k < D * nx; k++)
+        {
+          size_t  q    = k % nx;
+          size_t  src  = (q + nx - (d % nx)) % nx;
+          uint8_t chip = CODE7[(src / spc) % sf];
+          xb[k]        = (chip & 1u) ? -1.0f : 1.0f;
+        }
+      DP_CHECK (acq_block_raw (bc, rb, D * nx) == 0); /* nothing yet */
+      (void)acq_push (bc, xb, D * nx, own, 16);
+      DP_CHECK (acq_block_raw (bc, rb, D * nx - 1) == 0); /* too small */
+      DP_CHECK (acq_block_raw (bc, rb, D * nx) == D * nx);
+      int same = 1;
+      for (size_t k = 0; k < D * nx; k++)
+        if (rb[k] != xb[k])
+          same = 0;
+      DP_CHECK_MSG (same, "the raw block is the samples as pushed");
+      DP_CHECK (acq_block_prompt (bc, 0, d, pb, D - 1) == 0);
+      DP_CHECK (acq_block_prompt (bc, bc->window_bins, d, pb, D) == 0);
+      DP_CHECK (acq_block_prompt (bc, 0, nx, pb, D) == 0);
+      DP_CHECK (acq_block_prompt (bc, 0, d, pb, D) == D);
+      int flat = 1;
+      for (size_t k = 1; k < D; k++)
+        if (cabsf (pb[k] - pb[0]) > 1e-3f * cabsf (pb[0]))
+          flat = 0;
+      DP_CHECK_MSG (flat && cabsf (pb[0]) > 0.0f,
+                    "the prompt column is D equal, phase-continuous values");
+      /* The emitter's column is the largest over every column of the
+         tile: a read off by even one cell is half a chip down. */
+      float _Complex off[16];
+      int largest = 1;
+      for (size_t j = 0; j < nx; j++)
+        {
+          DP_CHECK (acq_block_prompt (bc, 0, j, off, 16) == D);
+          if (j != d && cabsf (off[0]) >= 0.9f * cabsf (pb[0]))
+            largest = 0;
+        }
+      DP_CHECK_MSG (largest, "column d is the prompt: every other column "
+                             "reads under 0.9 of it");
+      (void)acq_push (bc, xb, nx, own, 16); /* one epoch: partial */
+      DP_CHECK (acq_block_prompt (bc, 0, d, pb, D) == 0);
+      DP_CHECK (acq_block_raw (bc, rb, D * nx) == 0);
+      (void)acq_push (bc, xb + nx, (D - 1) * nx, own, 16); /* whole */
+      DP_CHECK (acq_block_prompt (bc, 0, d, pb, D) == D);
+      free (pb);
+      free (rb);
+      free (xb);
+      acq_destroy (bc);
+    }
     /* Its axes are the hand-off's numbers for the same cell. */
     acq_handoff_t ho;
     acq_build_handoff (c, &hits[0], sf, spc, &ho);

@@ -248,6 +248,15 @@ extern "C"
   size_t acq_surface_chip_phase (acq_state_t *state, double *out,
                                  size_t n_out);
 
+  size_t acq_surface_complex (acq_state_t *state, float _Complex *out,
+                              size_t n_out);
+
+  size_t acq_block_prompt (acq_state_t *state, size_t tile, size_t col,
+                           float _Complex *out, size_t n_out);
+
+  size_t acq_block_raw (acq_state_t *state, float _Complex *out,
+                        size_t n_out);
+
   void acq_set_surface_sink (acq_state_t *state, acq_surface_sink_fn fn,
                              void *ctx, uint32_t decim);
 

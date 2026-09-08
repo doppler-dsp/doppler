@@ -77,6 +77,8 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 
 | Type | Name |
 | ---: | :--- |
+|  size\_t | [**acq\_block\_prompt**](#function-acq_block_prompt) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t tile, size\_t col, float \_Complex \* out, size\_t n\_out) <br>_One cell's column of the last whole block: the per-epoch complex correlations at a code phase, the despread stream at epoch rate._  |
+|  size\_t | [**acq\_block\_raw**](#function-acq_block_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last whole block's raw samples, as pushed._  |
 |  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._ |
 |  int | [**acq\_configure\_search\_raw**](#function-acq_configure_search_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst**](#function-acq_create_burst) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine: coherent multi-epoch combining, up to_ `reps` _deep (today's classic behavior)._ |
@@ -95,6 +97,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  size\_t | [**acq\_state\_bytes**](#function-acq_state_bytes) (const [**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Byte size of_ `state's` _blob (header + unconsumed + nc)._ |
 |  size\_t | [**acq\_surface**](#function-acq_surface) ([**acq\_state\_t**](structacq__state__t.md) \* state, float \* out, size\_t n\_out) <br>_The last decided dwell's surface, in the gate's own units._  |
 |  size\_t | [**acq\_surface\_chip\_phase**](#function-acq_surface_chip_phase) ([**acq\_state\_t**](structacq__state__t.md) \* state, double \* out, size\_t n\_out) <br>_The surface's code-phase axis: the chip phase of each column._  |
+|  size\_t | [**acq\_surface\_complex**](#function-acq_surface_complex) ([**acq\_state\_t**](structacq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last decided dwell's surface, complex: amplitude and carrier phase per cell, before the magnitude the gate reads._  |
 |  size\_t | [**acq\_surface\_doppler\_hz**](#function-acq_surface_doppler_hz) ([**acq\_state\_t**](structacq__state__t.md) \* state, double \* out, size\_t n\_out) <br>_The surface's Doppler axis: the frequency of each row, in Hz._  |
 
 
@@ -203,6 +206,134 @@ typedef void(* acq_surface_sink_fn) (void *ctx, const float *surface, size_t row
 <hr>
 ## Public Functions Documentation
 
+
+
+
+### function acq\_block\_prompt 
+
+_One cell's column of the last whole block: the per-epoch complex correlations at a code phase, the despread stream at epoch rate._ 
+```C++
+size_t acq_block_prompt (
+    acq_state_t * state,
+    size_t tile,
+    size_t col,
+    float _Complex * out,
+    size_t n_out
+) 
+```
+
+
+
+The block-coherent engine gathers every tile's correlation row for `coherent_bins` epochs before its slow-time transform (file doc, design §2.3). This copies the `coherent_bins` values at column `col` of tile `tile` into `out`, in epoch order: each epoch's complex prompt at that code phase, rolled to the tile's centre frequency and shifted to the block's middle by the tile's code-rate hypothesis, so the phase is continuous along the column for an emitter at the tile's centre and rotates at its offset from it. At an emitter's cell this is what a despreader produces, one value per epoch, phase included (design §12.21). Valid once a block is whole, until the next epoch is pushed.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `tile` Tile index, `0 … window_bins-1` (native FFT order, the order the surface's rows are cut in). 
+* `col` Code-phase column, `0 … code_bins-1`. 
+* `out` At least `coherent_bins` complex floats. 
+* `n_out` Capacity of `out`. 
+
+
+
+**Returns:**
+
+Values written (`coherent_bins`), or 0 at `coherent_bins == 1` (no block is gathered), while a block is partial, for an index out of range, or when `out` is too small. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,
+...                 doppler_uncertainty=40e3, code_only_epochs=7)
+>>> b.coherent_bins                    # (7 + 1) // 2
+4
+>>> blk = np.tile(np.roll(s0, 17), b.coherent_bins).astype(np.complex64)
+>>> _ = b.push(blk)
+>>> p = np.empty(b.coherent_bins, dtype=np.complex64)
+>>> b.block_prompt(0, 17, p) == b.coherent_bins
+True
+>>> bool(np.abs(p).min() > 0.99 * np.abs(p).max())  # every epoch's prompt
+True
+>>> b.block_prompt(0, 17, np.empty(1, dtype=np.complex64))  # too small
+0
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_block\_raw 
+
+_The last whole block's raw samples, as pushed._ 
+```C++
+size_t acq_block_raw (
+    acq_state_t * state,
+    float _Complex * out,
+    size_t n_out
+) 
+```
+
+
+
+Copies the `coherent_bins * code_bins` samples the block-coherent engine gathered for its last whole block into `out`, epoch by epoch in stream order — the samples [**acq\_push()**](acq__core_8h.md#function-acq_push) consumed, untouched. Kept for the tile-edge re-ask (acq\_resolve\_tile\_alias()); exposed so a tracker can re-correlate them at any code phase, rate or symbol boundary the engine's own grid does not have — a symbol-rate despreader at the tracked timing runs on exactly this (design §12.21). Valid once a block is whole, until the next epoch is pushed.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` At least `coherent_bins * code_bins` complex floats. 
+* `n_out` Capacity of `out`. 
+
+
+
+**Returns:**
+
+Samples written (`coherent_bins * code_bins`), or 0 at `coherent_bins == 1`, while a block is partial, or when `out` is too small. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,
+...                 doppler_uncertainty=40e3, code_only_epochs=7)
+>>> blk = np.tile(np.roll(s0, 17), b.coherent_bins).astype(np.complex64)
+>>> _ = b.push(blk)
+>>> raw = np.empty(b.coherent_bins * b.code_bins, dtype=np.complex64)
+>>> b.block_raw(raw) == raw.size
+True
+>>> bool(np.array_equal(raw, blk))      # the samples as pushed
+True
+```
+ 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -1041,6 +1172,66 @@ Values written (`code_bins`), or 0 if `out` is too small.
 True
 >>> bool(c[0] == 0.0 and c[1] == 510.5)
 True
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_surface\_complex 
+
+_The last decided dwell's surface, complex: amplitude and carrier phase per cell, before the magnitude the gate reads._ 
+```C++
+size_t acq_surface_complex (
+    acq_state_t * state,
+    float _Complex * out,
+    size_t n_out
+) 
+```
+
+
+
+Copies the coherent sum the last dwell was decided on into `out`, row-major `surface_rows` x `code_bins` like [**acq\_surface()**](acq__core_8h.md#function-acq_surface), in the correlation's own units rather than the gate's. A cell's phase is the carrier at the block's middle, relative to its tile's centre; its neighbours along the code axis are complex early and late arms, so a tracker can form the coherent discriminator `Re(conj(P) (L - E)) / |P|^2`, which the magnitude surface cannot (design §12.21). Coherent path only: a non-coherent dwell (`n_noncoh > 1`) is a power sum with no phase, and reads 0.
+
+
+
+
+**Parameters:**
+
+
+* `state` Must be non-NULL. 
+* `out` At least `surface_rows * code_bins` complex floats. 
+* `n_out` Capacity of `out`. 
+
+
+
+**Returns:**
+
+Cells written (`surface_rows * code_bins`), or 0 when no dwell has been decided, the path is non-coherent, or `out` is too small. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import Acquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=70.0)
+>>> a.n_noncoh                 # one look: the dwell is the coherent dump
+1
+>>> _ = a.push(np.roll(s0, 17).astype(np.complex64))
+>>> sc = np.empty(a.surface_rows * a.code_bins, dtype=np.complex64)
+>>> a.surface_complex(sc) == sc.size
+True
+>>> int(np.argmax(np.abs(sc)) % a.code_bins)   # the peak's code phase
+17
 ```
  
 

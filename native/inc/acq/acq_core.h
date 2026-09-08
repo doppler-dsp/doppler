@@ -1001,6 +1001,143 @@ extern "C"
                                  size_t n_out);
 
   /**
+   * @brief The last decided dwell's surface, complex: amplitude and
+   *        carrier phase per cell, before the magnitude the gate reads.
+   *
+   * Copies the coherent sum the last dwell was decided on into @p out,
+   * row-major `surface_rows` x `code_bins` like acq_surface(), in the
+   * correlation's own units rather than the gate's. A cell's phase is
+   * the carrier at the block's middle, relative to its tile's centre; its
+   * neighbours along the code axis are complex early and late arms, so a
+   * tracker can form the coherent discriminator
+   * `Re(conj(P) (L - E)) / |P|^2`, which the magnitude surface cannot
+   * (design §12.21). Coherent path only: a non-coherent dwell
+   * (`n_noncoh > 1`) is a power sum with no phase, and reads 0.
+   *
+   * @param state Must be non-NULL.
+   * @param out   At least `surface_rows * code_bins` complex floats.
+   * @param n_out Capacity of @p out.
+   * @return Cells written (`surface_rows * code_bins`), or 0 when no dwell
+   *         has been decided, the path is non-coherent, or @p out is too
+   *         small.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+   * ...                      length=5).generate(31)).astype(np.uint8)
+   * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+   * ...     np.complex64)
+   * >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=70.0)
+   * >>> a.n_noncoh                 # one look: the dwell is the coherent dump
+   * 1
+   * >>> _ = a.push(np.roll(s0, 17).astype(np.complex64))
+   * >>> sc = np.empty(a.surface_rows * a.code_bins, dtype=np.complex64)
+   * >>> a.surface_complex(sc) == sc.size
+   * True
+   * >>> int(np.argmax(np.abs(sc)) % a.code_bins)   # the peak's code phase
+   * 17
+   *
+   * @endcode
+   */
+  size_t acq_surface_complex (acq_state_t *state, float _Complex *out,
+                              size_t n_out);
+
+  /**
+   * @brief One cell's column of the last whole block: the per-epoch
+   *        complex correlations at a code phase, the despread stream at
+   *        epoch rate.
+   *
+   * The block-coherent engine gathers every tile's correlation row for
+   * `coherent_bins` epochs before its slow-time transform (file doc,
+   * design §2.3). This copies the `coherent_bins` values at column
+   * @p col of tile @p tile into @p out, in epoch order: each epoch's
+   * complex prompt at that code phase, rolled to the tile's centre
+   * frequency and shifted to the block's middle by the tile's code-rate
+   * hypothesis, so the phase is continuous along the column for an
+   * emitter at the tile's centre and rotates at its offset from it. At
+   * an emitter's cell this is what a despreader produces, one value per
+   * epoch, phase included (design §12.21). Valid once a block is whole,
+   * until the next epoch is pushed.
+   *
+   * @param state Must be non-NULL.
+   * @param tile  Tile index, `0 … window_bins-1` (native FFT order, the
+   *              order the surface's rows are cut in).
+   * @param col   Code-phase column, `0 … code_bins-1`.
+   * @param out   At least `coherent_bins` complex floats.
+   * @param n_out Capacity of @p out.
+   * @return Values written (`coherent_bins`), or 0 at `coherent_bins == 1`
+   *         (no block is gathered), while a block is partial, for an index
+   *         out of range, or when @p out is too small.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+   * ...                      length=5).generate(31)).astype(np.uint8)
+   * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+   * ...     np.complex64)
+   * >>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,
+   * ...                 doppler_uncertainty=40e3, code_only_epochs=7)
+   * >>> b.coherent_bins                    # (7 + 1) // 2
+   * 4
+   * >>> blk = np.tile(np.roll(s0, 17), b.coherent_bins).astype(np.complex64)
+   * >>> _ = b.push(blk)
+   * >>> p = np.empty(b.coherent_bins, dtype=np.complex64)
+   * >>> b.block_prompt(0, 17, p) == b.coherent_bins
+   * True
+   * >>> bool(np.abs(p).min() > 0.99 * np.abs(p).max())  # every epoch's prompt
+   * True
+   * >>> b.block_prompt(0, 17, np.empty(1, dtype=np.complex64))  # too small
+   * 0
+   *
+   * @endcode
+   */
+  size_t acq_block_prompt (acq_state_t *state, size_t tile, size_t col,
+                           float _Complex *out, size_t n_out);
+
+  /**
+   * @brief The last whole block's raw samples, as pushed.
+   *
+   * Copies the `coherent_bins * code_bins` samples the block-coherent
+   * engine gathered for its last whole block into @p out, epoch by epoch
+   * in stream order — the samples acq_push() consumed, untouched. Kept
+   * for the tile-edge re-ask (acq_resolve_tile_alias()); exposed so a
+   * tracker can re-correlate them at any code phase, rate or symbol
+   * boundary the engine's own grid does not have — a symbol-rate
+   * despreader at the tracked timing runs on exactly this (design
+   * §12.21). Valid once a block is whole, until the next epoch is pushed.
+   *
+   * @param state Must be non-NULL.
+   * @param out   At least `coherent_bins * code_bins` complex floats.
+   * @param n_out Capacity of @p out.
+   * @return Samples written (`coherent_bins * code_bins`), or 0 at
+   *         `coherent_bins == 1`, while a block is partial, or when @p out
+   *         is too small.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.wfm import PN, mls_poly
+   * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+   * ...                      length=5).generate(31)).astype(np.uint8)
+   * >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+   * ...     np.complex64)
+   * >>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,
+   * ...                 doppler_uncertainty=40e3, code_only_epochs=7)
+   * >>> blk = np.tile(np.roll(s0, 17), b.coherent_bins).astype(np.complex64)
+   * >>> _ = b.push(blk)
+   * >>> raw = np.empty(b.coherent_bins * b.code_bins, dtype=np.complex64)
+   * >>> b.block_raw(raw) == raw.size
+   * True
+   * >>> bool(np.array_equal(raw, blk))      # the samples as pushed
+   * True
+   *
+   * @endcode
+   */
+  size_t acq_block_raw (acq_state_t *state, float _Complex *out,
+                        size_t n_out);
+
+  /**
    * @brief Attach (or detach) a C surface sink: every @p decim-th decided
    *        dwell's surface, in test-statistic units, handed to @p fn on the
    *        pushing thread (design §2.4).

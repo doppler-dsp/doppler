@@ -1614,6 +1614,159 @@ class Acquisition:
 
         """
 
+    def surface_complex(self, out: NDArray[np.complex64]) -> int:
+        """The last decided dwell's surface, complex: amplitude and carrier
+        phase per cell, before the magnitude the gate reads.
+
+        Copies the coherent sum the last dwell was decided on into out,
+        row-major `surface_rows` x `code_bins` like acq_surface(), in the
+        correlation's own units rather than the gate's. A cell's phase is the
+        carrier at the block's middle, relative to its tile's centre; its
+        neighbours along the code axis are complex early and late arms, so a
+        tracker can form the coherent discriminator `Re(conj(P) (L - E)) /
+        |P|^2`, which the magnitude surface cannot (design §12.21). Coherent
+        path only: a non-coherent dwell (`n_noncoh > 1`) is a power sum with no
+        phase, and reads 0.
+
+        Parameters
+        ----------
+        out : NDArray[np.complex64]
+            At least `surface_rows * code_bins` complex floats.
+
+        Returns
+        -------
+        int
+            Cells written (`surface_rows * code_bins`), or 0 when no dwell has
+            been decided, the path is non-coherent, or out is too small.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+        ...                      length=5).generate(31)).astype(np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
+        >>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=70.0)
+        >>> a.n_noncoh                 # one look: the dwell is the coherent dump
+        1
+        >>> _ = a.push(np.roll(s0, 17).astype(np.complex64))
+        >>> sc = np.empty(a.surface_rows * a.code_bins, dtype=np.complex64)
+        >>> a.surface_complex(sc) == sc.size
+        True
+        >>> int(np.argmax(np.abs(sc)) % a.code_bins)   # the peak's code phase
+        17
+
+        """
+
+    def block_prompt(
+        self,
+        tile: int,
+        col: int,
+        out: NDArray[np.complex64],
+    ) -> int:
+        """One cell's column of the last whole block: the per-epoch complex
+        correlations at a code phase, the despread stream at epoch rate.
+
+        The block-coherent engine gathers every tile's correlation row for
+        `coherent_bins` epochs before its slow-time transform (file doc, design
+        §2.3). This copies the `coherent_bins` values at column col of tile
+        tile into out, in epoch order: each epoch's complex prompt at that code
+        phase, rolled to the tile's centre frequency and shifted to the block's
+        middle by the tile's code-rate hypothesis, so the phase is continuous
+        along the column for an emitter at the tile's centre and rotates at its
+        offset from it. At an emitter's cell this is what a despreader
+        produces, one value per epoch, phase included (design §12.21). Valid
+        once a block is whole, until the next epoch is pushed.
+
+        Parameters
+        ----------
+        tile : int
+            Tile index, `0 … window_bins-1` (native FFT order, the order the
+            surface's rows are cut in).
+        col : int
+            Code-phase column, `0 … code_bins-1`.
+        out : NDArray[np.complex64]
+            At least `coherent_bins` complex floats.
+
+        Returns
+        -------
+        int
+            Values written (`coherent_bins`), or 0 at `coherent_bins == 1` (no
+            block is gathered), while a block is partial, for an index out of
+            range, or when out is too small.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+        ...                      length=5).generate(31)).astype(np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
+        >>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,
+        ...                 doppler_uncertainty=40e3, code_only_epochs=7)
+        >>> b.coherent_bins                    # (7 + 1) // 2
+        4
+        >>> blk = np.tile(np.roll(s0, 17), b.coherent_bins).astype(np.complex64)
+        >>> _ = b.push(blk)
+        >>> p = np.empty(b.coherent_bins, dtype=np.complex64)
+        >>> b.block_prompt(0, 17, p) == b.coherent_bins
+        True
+        >>> bool(np.abs(p).min() > 0.99 * np.abs(p).max())  # every epoch's prompt
+        True
+        >>> b.block_prompt(0, 17, np.empty(1, dtype=np.complex64))  # too small
+        0
+
+        """
+
+    def block_raw(self, out: NDArray[np.complex64]) -> int:
+        """The last whole block's raw samples, as pushed.
+
+        Copies the `coherent_bins * code_bins` samples the block-coherent
+        engine gathered for its last whole block into out, epoch by epoch in
+        stream order — the samples acq_push() consumed, untouched. Kept for the
+        tile-edge re-ask (acq_resolve_tile_alias()); exposed so a tracker can
+        re-correlate them at any code phase, rate or symbol boundary the
+        engine's own grid does not have — a symbol-rate despreader at the
+        tracked timing runs on exactly this (design §12.21). Valid once a block
+        is whole, until the next epoch is pushed.
+
+        Parameters
+        ----------
+        out : NDArray[np.complex64]
+            At least `coherent_bins * code_bins` complex floats.
+
+        Returns
+        -------
+        int
+            Samples written (`coherent_bins * code_bins`), or 0 at
+            `coherent_bins == 1`, while a block is partial, or when out is too
+            small.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.dsss import Acquisition
+        >>> from doppler.wfm import PN, mls_poly
+        >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+        ...                      length=5).generate(31)).astype(np.uint8)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
+        >>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,
+        ...                 doppler_uncertainty=40e3, code_only_epochs=7)
+        >>> blk = np.tile(np.roll(s0, 17), b.coherent_bins).astype(np.complex64)
+        >>> _ = b.push(blk)
+        >>> raw = np.empty(b.coherent_bins * b.code_bins, dtype=np.complex64)
+        >>> b.block_raw(raw) == raw.size
+        True
+        >>> bool(np.array_equal(raw, blk))      # the samples as pushed
+        True
+
+        """
+
     def state_bytes(self) -> int:
         """Size in bytes of this object's serialized state.
 

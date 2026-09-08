@@ -372,6 +372,46 @@ arg_type = "void"
 return_type = "size_t"
 params = [{ name = "out", type = "double[]", out = true }]
 
+# The complex intermediates behind the surface (design §12.21): what the
+# engine already holds per cell before a magnitude is taken, exposed so a
+# tracker can read them. Copies, like `surface`; the sizes are the
+# engine's own, so no `count` parameter (just-makeit#1042).
+#
+# The last decided dwell's COMPLEX surface, row-major `surface_rows` x
+# `code_bins` in the correlation's own units: the coherent sum's amplitude
+# and carrier phase per cell. Coherent path only (`n_noncoh == 1`: a
+# non-coherent dwell is a power sum and has no phase); 0 until a dwell has
+# been decided.
+[[acq.methods]]
+name = "surface_complex"
+arg_type = "void"
+return_type = "size_t"
+params = [{ name = "out", type = "float _Complex[]", out = true }]
+
+# One cell's column of the last whole block: the `coherent_bins` per-epoch
+# complex correlations at code-phase column `col` of tile `tile`, rolled to
+# the tile's centre and shifted by its code-rate hypothesis, as gathered
+# before the slow-time transform -- the despread stream at epoch rate.
+# 0 at `coherent_bins == 1`, until a block is whole, or for a bad index.
+[[acq.methods]]
+name = "block_prompt"
+arg_type = "void"
+return_type = "size_t"
+params = [
+  { name = "tile", type = "size_t" },
+  { name = "col", type = "size_t" },
+  { name = "out", type = "float _Complex[]", out = true },
+]
+
+# The last whole block's raw samples as pushed, `coherent_bins` x
+# `code_bins`: anything can be re-correlated on them at any phase, rate or
+# symbol boundary. 0 at `coherent_bins == 1` or until a block is whole.
+[[acq.methods]]
+name = "block_raw"
+arg_type = "void"
+return_type = "size_t"
+params = [{ name = "out", type = "float _Complex[]", out = true }]
+
 [[acq.properties]]
 name = "keep_surface"
 type = "int"

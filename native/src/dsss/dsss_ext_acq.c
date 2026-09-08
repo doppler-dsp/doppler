@@ -1022,6 +1022,122 @@ AcquisitionObj_set_carrier_freq_hz (AcquisitionObject *self, PyObject *args,
   Py_RETURN_NONE;
 }
 
+static PyObject *
+AcquisitionObj_surface_complex (AcquisitionObject *self, PyObject *args,
+                                PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "out", NULL };
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &out_obj))
+    return NULL;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (out_obj)
+      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      out_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!out_arr)
+    {
+      return NULL;
+    }
+  float _Complex *out     = (float _Complex *)PyArray_DATA (out_arr);
+  size_t          out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t          y       = acq_surface_complex (self->handle, out, out_len);
+  Py_DECREF (out_arr);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+}
+
+static PyObject *
+AcquisitionObj_block_prompt (AcquisitionObject *self, PyObject *args,
+                             PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "tile", "col", "out", NULL };
+  unsigned long long tile_raw  = 0ULL;
+  unsigned long long col_raw   = 0ULL;
+  PyObject          *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "KKO", _kwlist, &tile_raw,
+                                    &col_raw, &out_obj))
+    return NULL;
+  size_t tile = (size_t)tile_raw;
+  size_t col  = (size_t)col_raw;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (out_obj)
+      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      out_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!out_arr)
+    {
+      return NULL;
+    }
+  float _Complex *out     = (float _Complex *)PyArray_DATA (out_arr);
+  size_t          out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t          y = acq_block_prompt (self->handle, tile, col, out, out_len);
+  Py_DECREF (out_arr);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+}
+
+static PyObject *
+AcquisitionObj_block_raw (AcquisitionObject *self, PyObject *args,
+                          PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "out", NULL };
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &out_obj))
+    return NULL;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (out_obj)
+      || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "out must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      out_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!out_arr)
+    {
+      return NULL;
+    }
+  float _Complex *out     = (float _Complex *)PyArray_DATA (out_arr);
+  size_t          out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t          y       = acq_block_raw (self->handle, out, out_len);
+  Py_DECREF (out_arr);
+  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
+}
+
 static PyMethodDef AcquisitionObj_methods[] = {
   { "reset", (PyCFunction)AcquisitionObj_reset, METH_NOARGS,
     "Drain the input ring and reset the coherent accumulator.\n"
@@ -1569,6 +1685,158 @@ static PyMethodDef AcquisitionObj_methods[] = {
     ">>> a.set_carrier_freq_hz(2.5e9)\n"
     ">>> a.carrier_freq_hz\n"
     "2500000000.0\n" },
+  { "surface_complex", (PyCFunction)(void *)AcquisitionObj_surface_complex,
+    METH_VARARGS | METH_KEYWORDS,
+    "surface_complex(out) -> int\n"
+    "\n"
+    "The last decided dwell's surface, complex: amplitude and carrier\n"
+    "phase per cell, before the magnitude the gate reads.\n"
+    "\n"
+    "Copies the coherent sum the last dwell was decided on into out,\n"
+    "row-major `surface_rows` x `code_bins` like acq_surface(), in the\n"
+    "correlation's own units rather than the gate's. A cell's phase is the\n"
+    "carrier at the block's middle, relative to its tile's centre; its\n"
+    "neighbours along the code axis are complex early and late arms, so a\n"
+    "tracker can form the coherent discriminator `Re(conj(P) (L - E)) /\n"
+    "|P|^2`, which the magnitude surface cannot (design §12.21). Coherent\n"
+    "path only: a non-coherent dwell (`n_noncoh > 1`) is a power sum with no\n"
+    "phase, and reads 0.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "out : NDArray[np.complex64]\n"
+    "    At least `surface_rows * code_bins` complex floats.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Cells written (`surface_rows * code_bins`), or 0 when no dwell has\n"
+    "    been decided, the path is non-coherent, or out is too small.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1,\n"
+    "...                      length=5).generate(31)).astype(np.uint8)\n"
+    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
+    "...     np.complex64)\n"
+    ">>> a = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=70.0)\n"
+    ">>> a.n_noncoh                 # one look: the dwell is the coherent "
+    "dump\n"
+    "1\n"
+    ">>> _ = a.push(np.roll(s0, 17).astype(np.complex64))\n"
+    ">>> sc = np.empty(a.surface_rows * a.code_bins, dtype=np.complex64)\n"
+    ">>> a.surface_complex(sc) == sc.size\n"
+    "True\n"
+    ">>> int(np.argmax(np.abs(sc)) % a.code_bins)   # the peak's code phase\n"
+    "17\n" },
+  { "block_prompt", (PyCFunction)(void *)AcquisitionObj_block_prompt,
+    METH_VARARGS | METH_KEYWORDS,
+    "block_prompt(tile, col, out) -> int\n"
+    "\n"
+    "One cell's column of the last whole block: the per-epoch complex\n"
+    "correlations at a code phase, the despread stream at epoch rate.\n"
+    "\n"
+    "The block-coherent engine gathers every tile's correlation row for\n"
+    "`coherent_bins` epochs before its slow-time transform (file doc, design\n"
+    "§2.3). This copies the `coherent_bins` values at column col of tile\n"
+    "tile into out, in epoch order: each epoch's complex prompt at that code\n"
+    "phase, rolled to the tile's centre frequency and shifted to the block's\n"
+    "middle by the tile's code-rate hypothesis, so the phase is continuous\n"
+    "along the column for an emitter at the tile's centre and rotates at its\n"
+    "offset from it. At an emitter's cell this is what a despreader\n"
+    "produces, one value per epoch, phase included (design §12.21). Valid\n"
+    "once a block is whole, until the next epoch is pushed.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "tile : int\n"
+    "    Tile index, `0 … window_bins-1` (native FFT order, the order the\n"
+    "    surface's rows are cut in).\n"
+    "col : int\n"
+    "    Code-phase column, `0 … code_bins-1`.\n"
+    "out : NDArray[np.complex64]\n"
+    "    At least `coherent_bins` complex floats.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Values written (`coherent_bins`), or 0 at `coherent_bins == 1` (no\n"
+    "    block is gathered), while a block is partial, for an index out of\n"
+    "    range, or when out is too small.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1,\n"
+    "...                      length=5).generate(31)).astype(np.uint8)\n"
+    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
+    "...     np.complex64)\n"
+    ">>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,\n"
+    "...                 doppler_uncertainty=40e3, code_only_epochs=7)\n"
+    ">>> b.coherent_bins                    # (7 + 1) // 2\n"
+    "4\n"
+    ">>> blk = np.tile(np.roll(s0, 17), "
+    "b.coherent_bins).astype(np.complex64)\n"
+    ">>> _ = b.push(blk)\n"
+    ">>> p = np.empty(b.coherent_bins, dtype=np.complex64)\n"
+    ">>> b.block_prompt(0, 17, p) == b.coherent_bins\n"
+    "True\n"
+    ">>> bool(np.abs(p).min() > 0.99 * np.abs(p).max())  # every epoch's "
+    "prompt\n"
+    "True\n"
+    ">>> b.block_prompt(0, 17, np.empty(1, dtype=np.complex64))  # too small\n"
+    "0\n" },
+  { "block_raw", (PyCFunction)(void *)AcquisitionObj_block_raw,
+    METH_VARARGS | METH_KEYWORDS,
+    "block_raw(out) -> int\n"
+    "\n"
+    "The last whole block's raw samples, as pushed.\n"
+    "\n"
+    "Copies the `coherent_bins * code_bins` samples the block-coherent\n"
+    "engine gathered for its last whole block into out, epoch by epoch in\n"
+    "stream order — the samples acq_push() consumed, untouched. Kept for the\n"
+    "tile-edge re-ask (acq_resolve_tile_alias()); exposed so a tracker can\n"
+    "re-correlate them at any code phase, rate or symbol boundary the\n"
+    "engine's own grid does not have — a symbol-rate despreader at the\n"
+    "tracked timing runs on exactly this (design §12.21). Valid once a block\n"
+    "is whole, until the next epoch is pushed.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "out : NDArray[np.complex64]\n"
+    "    At least `coherent_bins * code_bins` complex floats.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Samples written (`coherent_bins * code_bins`), or 0 at\n"
+    "    `coherent_bins == 1`, while a block is partial, or when out is too\n"
+    "    small.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import Acquisition\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1,\n"
+    "...                      length=5).generate(31)).astype(np.uint8)\n"
+    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
+    "...     np.complex64)\n"
+    ">>> b = Acquisition(code, spc=4, chip_rate=1e6, cn0_dbhz=60.0,\n"
+    "...                 doppler_uncertainty=40e3, code_only_epochs=7)\n"
+    ">>> blk = np.tile(np.roll(s0, 17), "
+    "b.coherent_bins).astype(np.complex64)\n"
+    ">>> _ = b.push(blk)\n"
+    ">>> raw = np.empty(b.coherent_bins * b.code_bins, dtype=np.complex64)\n"
+    ">>> b.block_raw(raw) == raw.size\n"
+    "True\n"
+    ">>> bool(np.array_equal(raw, blk))      # the samples as pushed\n"
+    "True\n" },
   { NULL }
 };
 

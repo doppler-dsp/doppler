@@ -1986,6 +1986,48 @@ acq_surface_chip_phase (acq_state_t *state, double *out, size_t n_out)
     out[c] = acq_chip_phase_of_col (c, state->sf, state->spc);
   return cols;
 }
+size_t
+acq_surface_complex (acq_state_t *state, float _Complex *out, size_t n_out)
+{
+  /* out_buf is the coherent dump the last dwell was decided on; a
+     non-coherent dwell accumulates power elsewhere and out_buf is only
+     its last look, so it is not the dwell's. */
+  if (state->dwells == 0 || state->n_noncoh > 1 || n_out < state->n_surf)
+    return 0;
+  memcpy (out, state->out_buf, state->n_surf * sizeof *out);
+  return state->n_surf;
+}
+/* A whole block sits in blk exactly when the engine gathers blocks, at
+   least one epoch has been consumed since create/reset, and the epoch
+   counter has wrapped to 0 -- the next push overwrites row 0. */
+static int
+acq_block_whole (const acq_state_t *state)
+{
+  return state->blk != NULL && state->samples_consumed > 0
+         && state->blk_epoch == 0;
+}
+size_t
+acq_block_prompt (acq_state_t *state, size_t tile, size_t col,
+                  float _Complex *out, size_t n_out)
+{
+  const size_t D = state->coherent_bins, nx = state->code_bins;
+  if (!acq_block_whole (state) || tile >= state->window_bins || col >= nx
+      || n_out < D)
+    return 0;
+  const float _Complex *blk = state->blk + tile * D * nx;
+  for (size_t k = 0; k < D; k++)
+    out[k] = blk[k * nx + col];
+  return D;
+}
+size_t
+acq_block_raw (acq_state_t *state, float _Complex *out, size_t n_out)
+{
+  const size_t n = state->coherent_bins * state->code_bins;
+  if (!acq_block_whole (state) || n_out < n)
+    return 0;
+  memcpy (out, state->blk_raw, n * sizeof *out);
+  return n;
+}
 void
 acq_set_surface_sink (acq_state_t *state, acq_surface_sink_fn fn, void *ctx,
                       uint32_t decim)

@@ -880,5 +880,68 @@ main (void)
       }
   }
 
+  /* ---------------------------------------------------------------- *
+   * Coast: the loop holds, the discriminator still reads             *
+   * ---------------------------------------------------------------- */
+  /* The header: coasting, "the discriminator is not filtered and
+     phase_inc is not steered" -- so a holder coasting on another clock
+     (a searcher's cell, a carrier aid) reads where the signal sits
+     against the held phase, on `last_error` and the `.e` probe, and
+     corrects on it. Seeded 0.15 chip off a clean signal and held from
+     the start, the loop's rate and phase stay put and its discriminator
+     reads the offset; the same loop run pulls in and its discriminator
+     decays. Before this pin the coast returned before the discriminator
+     was computed, and a coasting loop's probe read 0 for as long as it
+     coasted (design section 12.22). */
+  {
+    /* 600 periods: 5/bn at 0.005 is 1000 epochs of settling for the
+       running loop; the held one has nothing to settle. */
+    const size_t sf = 63, sps = 4, nper = 600;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 23u);
+    float _Complex *rx  = malloc (sf * sps * nper * sizeof (*rx));
+    size_t          n   = make_signal (rx, code, sf, sps, 0.0, nper, 9u, 1);
+    float _Complex *sym = malloc (nper * sizeof (*sym));
+    const double    off = 0.15;
+    dll_state_t *held = dll_create (code, sf, sps, off, 0.005, 0.707, 0.5, 1);
+    dll_state_t *run  = dll_create (code, sf, sps, off, 0.005, 0.707, 0.5, 1);
+    DP_REQUIRE (held && run);
+    dll_hold_here (held);
+    dll_set_coast (held, 1);
+    (void)dll_steps (held, rx, n, sym, nper);
+    (void)dll_steps (run, rx, n, sym, nper);
+    /* Held: the rate is the nominal it was held at, the phase advanced at
+       it -- fed over samples per chip, plus the seed -- to a hundredth of
+       a chip; the discriminator reads the offset, not zero. */
+    DP_CHECK (dll_get_code_rate (held) == 1.0);
+    double want = fmod ((double)n / (double)sps + off, (double)sf);
+    double got  = fmod (dll_get_code_phase (held), (double)sf);
+    double dph  = fabs (got - want);
+    if (dph > sf / 2.0)
+      dph = sf - dph;
+    DP_CHECK_MSG (dph < 0.01, "coasting, the phase advances at the held rate");
+    DP_CHECK_MSG (fabs (dll_get_last_error (held)) > 0.05,
+                  "coasting, the discriminator still reads the offset");
+    /* Run: the loop pulled the offset in, so its read decayed. */
+    DP_CHECK_MSG (fabs (dll_get_last_error (run)) < 0.02,
+                  "running, the same loop pulled in");
+    /* The correction: the held loop put back on the signal reads a
+       decayed discriminator over the next periods, and its phase is what
+       it was told, folded into the period. */
+    dll_set_code_phase (held, (double)n / (double)sps + 2.0 * sf);
+    DP_CHECK (fabs (fmod (dll_get_code_phase (held), (double)sf)
+                    - fmod ((double)n / (double)sps, (double)sf))
+              < 1e-9);
+    (void)dll_steps (held, rx, 20 * sf * sps, sym, nper);
+    DP_CHECK_MSG (fabs (dll_get_last_error (held)) < 0.05,
+                  "put back on the signal, the held loop's read decays");
+    DP_CHECK (dll_get_code_rate (held) == 1.0);
+    dll_destroy (run);
+    dll_destroy (held);
+    free (sym);
+    free (rx);
+    free (code);
+  }
+
   DP_TEST_END ("test_dll_core");
 }

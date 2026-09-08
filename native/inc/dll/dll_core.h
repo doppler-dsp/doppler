@@ -465,6 +465,10 @@ dll_update(dll_state_t *s)
     else if (e < -DLL_DISC_CLAMP)
         e = -DLL_DISC_CLAMP;
     s->last_error = e;
+    if (s->coast)
+        return; /* held: the discriminator read, not filtered, phase_inc as
+                   it stands -- the same hold steer() applies on the
+                   segments>1 path (dll_set_coast) */
     loop_filter_step(&s->lf, e);
     /* Pure control deviation: the integrator alone, PLUS the
        proportional term spread smoothly over the whole next period
@@ -845,6 +849,40 @@ size_t dll_get_symbol_window(const dll_state_t *state);
  */
 int dll_set_lock_verify(dll_state_t *state, uint32_t n_up, uint32_t n_down);
 double dll_get_code_phase(const dll_state_t *state);
+
+/**
+ * @brief Set the prompt code phase, in chips: the correction a holder
+ *        applies to a coasting loop.
+ *
+ * Moves the code NCO to @p chips (modulo the code length) and nothing
+ * else: the loop filter, the rate aid, the lock detector and the
+ * symbol-period aid keep their state, and the accumulators of the period
+ * in progress are left to finish on the new phase. This is the other half
+ * of dll_set_coast(): a coasting loop advances at its held rate, which its
+ * 32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per 31 ms
+ * block at 5 Mcps (design §12.22) -- so whoever holds it on another clock
+ * (a searcher's cell, a carrier aid) puts it back where that clock says,
+ * once per block, and reads the discriminator between. Nominally at a
+ * period boundary; called mid-period it costs that one period's read.
+ *
+ * @param state  DLL state. Must be non-NULL.
+ * @param chips  The prompt's code phase, chips; folded into [0, code_len).
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> rng = np.random.default_rng(3)
+ * >>> code = rng.integers(0, 2, 63).astype(np.uint8)
+ * >>> d = Dll(code, sps=4, init_chip=0.0, bn=0.01)
+ * >>> d.set_code_phase(5.25)
+ * >>> round(d.code_phase, 2)
+ * 5.25
+ * >>> d.set_code_phase(63.0 + 1.5)      # folded into the period
+ * >>> round(d.code_phase, 2)
+ * 1.5
+ *
+ * @endcode
+ */
+void dll_set_code_phase(dll_state_t *state, double chips);
 double dll_get_code_rate(const dll_state_t *state);
 double dll_get_last_error(const dll_state_t *state);
 size_t dll_get_segments(const dll_state_t *state);

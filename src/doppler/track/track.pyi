@@ -958,6 +958,42 @@ class Dll:
 
         """
 
+    def set_code_phase(self, chips: float) -> None:
+        """Set the prompt code phase, in chips: the correction a holder applies
+        to a coasting loop.
+
+        Moves the code NCO to chips (modulo the code length) and nothing else:
+        the loop filter, the rate aid, the lock detector and the symbol-period
+        aid keep their state, and the accumulators of the period in progress
+        are left to finish on the new phase. This is the other half of
+        dll_set_coast(): a coasting loop advances at its held rate, which its
+        32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per 31
+        ms block at 5 Mcps (design §12.22) -- so whoever holds it on another
+        clock (a searcher's cell, a carrier aid) puts it back where that clock
+        says, once per block, and reads the discriminator between. Nominally at
+        a period boundary; called mid-period it costs that one period's read.
+
+        Parameters
+        ----------
+        chips : float
+            The prompt's code phase, chips; folded into [0, code_len).
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> rng = np.random.default_rng(3)
+        >>> code = rng.integers(0, 2, 63).astype(np.uint8)
+        >>> d = Dll(code, sps=4, init_chip=0.0, bn=0.01)
+        >>> d.set_code_phase(5.25)
+        >>> round(d.code_phase, 2)
+        5.25
+        >>> d.set_code_phase(63.0 + 1.5)      # folded into the period
+        >>> round(d.code_phase, 2)
+        1.5
+
+        """
+
     def set_symbol_period(self, partials_per_symbol: float) -> None:
         """Give the code-lock detector the data-symbol period in partials
         (segments * chip_rate / (sf * symbol_rate); 0 = off), so its looks are

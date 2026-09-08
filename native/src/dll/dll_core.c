@@ -1,4 +1,5 @@
 #include "dll/dll_core.h"
+#include "clib_common.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -172,14 +173,17 @@ lock_look (dll_state_t *s, float _Complex prompt, float _Complex offset)
 static inline void
 steer (dll_state_t *s, double ep, double lp, double pp)
 {
-  if (s->coast)
-    return; /* held: no update, phase_inc as it stands (dll_set_coast) */
   double e = 0.5 * (ep - lp) / (pp + DLL_EPS);
   if (e > DLL_DISC_CLAMP)
     e = DLL_DISC_CLAMP;
   else if (e < -DLL_DISC_CLAMP)
     e = -DLL_DISC_CLAMP;
   s->last_error = e;
+  if (s->coast)
+    return; /* held: the discriminator read (last_error, the probe) but
+               not filtered, phase_inc as it stands (dll_set_coast) -- a
+               holder coasting on another clock reads where the signal
+               sits against the held phase, which is what it corrects on */
   double lf_out = loop_filter_step (&s->lf, e) * s->inv_upd;
   double ctrl   = lf_out * s->inv_tsamps2;
   s->code_rate  = 1.0 + lf_out * s->inv_tsamps;
@@ -999,6 +1003,14 @@ dll_set_rate_aid (dll_state_t *state, double rate_aid)
      update applies the aid. code_rate (the loop's own ratio observable) is
      left untouched. */
   state->rate_aid = rate_aid;
+}
+
+void
+dll_set_code_phase (dll_state_t *state, double chips)
+{
+  const double folded   = dp_fmod_pos (chips, (double)state->sf);
+  state->code_nco.phase = nco_norm_phase_to_word (folded / (double)state->sf);
+  state->chip_pos       = folded;
 }
 
 /* Re-time the loop filter to `t` epochs per update without a transient:

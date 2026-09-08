@@ -1520,3 +1520,90 @@ What it settles, and what it leaves:
     in one tile.
 
 ______________________________________________________________________
+
+### 12.21 What was measured (2026-09-08) — the coherent discriminator on the engine's complex intermediates
+
+**What was built.** Three reads of what the block-coherent engine
+already holds per cell before a magnitude is taken, declared on the
+manifest so the Python face follows, each a copy in the engine's own
+size and 0 where the engine has none: `acq_surface_complex()`, the
+coherent dump the last dwell was decided on (a non-coherent dwell is a
+power sum and reads 0); `acq_block_prompt(tile, col)`, one cell's column
+of the last whole block — the D per-epoch complex correlations at that
+code phase, rolled to the tile's centre and shifted to the block's
+middle by the tile's code-rate hypothesis, the despread stream at epoch
+rate; `acq_block_raw()`, the block's D epochs as pushed, for a
+re-correlation at any phase, rate or symbol boundary the engine's grid
+does not have. `test_acq_core` pins the modulus against `mag_buf`, the
+maximum against the reported cell, the raw block against the pushed
+samples, the prompt's column as the largest over every column of the
+tile, and 0 on a partial block and out-of-range indices; the column and
+raw sabotages were watched go red.
+
+**What was measured.** §12.20's harness, `acq_surface_jitter.c`, with
+three reads added at the same cell, the truth's: the coherent
+discriminator `Re(conj(P) (L − E)) / |P|²` on the complex surface's
+truth row, calibrated and inverted through its own S-curve like the
+magnitude one; the same formed per epoch from the block's prompt column
+at the three cells and summed over the block, `Σ Re(conj(P_k)(L_k − E_k)) / Σ |P_k|²` — data-invariant, since an epoch's three cells carry
+the same symbol — which is the read under data; and a linear phase fit
+along the prompt column, de-rotated first by the Doppler a tracker
+holds, unsquared in the window and on P² under data. 800 dwells per
+cell, 59 in the window; the clean calibration reads the coherent
+S-curves to the same 0.001 chip as the magnitude one.
+
+**Per-dwell error at the truth's cell** (chips; the DLL column is §12.5's
+closed-loop per-epoch jitter; the magnitude reads are §12.20's):
+
+| C/N0, ppm | window: magnitude E/L σ | window: **coherent** σ | data: magnitude tile-sum σ | data: **per-epoch coherent** bias, σ | DLL   |
+| --------- | ----------------------- | ---------------------- | -------------------------- | ------------------------------------ | ----- |
+| 45, 18    | 0.015                   | **0.012**              | 0.085                      | −0.004, **0.031**                    | 0.013 |
+| 40, 18    | 0.026                   | **0.021**              | 0.116                      | −0.003, **0.065**                    | 0.021 |
+| 45, 0     | 0.015                   | 0.012                  | 0.008 (biased −0.17)       | −0.040, 0.010                        | 0.013 |
+| 40, 0     | 0.026                   | 0.021                  | 0.009 (biased −0.21)       | −0.095, 0.015                        | 0.021 |
+
+The Doppler from the de-rotated phase fit reads the rows' own number in
+the window at 45 dB-Hz (0.5 Hz against 0.4) and 30 Hz under data; at 40
+dB-Hz the fit's unwrapping fails at 3 dB of per-epoch SNR (33 Hz in the
+window against the rows' 0.8), so the rows are the Doppler estimator
+and the fit is not. The fit's residual is 0.33 rad per epoch in the
+window at 45 dB-Hz: the carrier phase noise a symbol detector would see
+per epoch, before any symbol-length integration.
+
+What it settles, and what it leaves:
+
+- **The coherent read is the better one everywhere, and under data it
+    is the read.** In the window it takes 16 to 18% off the magnitude
+    jitter, to 0.012 at 45 dB-Hz against the DLL's 0.013, per single
+    dwell with no loop. Under data the per-epoch coherent discriminator
+    reads 0.031 chip per dwell where the magnitude tile-sum read 0.085,
+    unbiased over a sweep — the quadrature noise the magnitude kept is
+    gone, and the epochs sum with their signs intact.
+- **What separates it from the loop under data is the epoch, not the
+    read.** 0.031 per 31.5 ms dwell is 0.025 at the DLL's averaging, twice
+    the loop's 0.013. The DLL's discriminator runs on the symbol-aided
+    window, six of a symbol's 7.24 partials with the transition partial
+    left out (§12.5); the epoch-dot runs on whole epochs, and at 1.83
+    epochs per symbol 55% of them straddle a transition and partly cancel
+    (§12.2). The block's raw samples are now exposed for exactly this: a
+    symbol-aligned re-correlation on `block_raw` at the tracked phase is
+    the DLL's own window, on the searcher's timing, and it is the next
+    number to take.
+- **The normalisation is SNR-dependent, as a normalised discriminator's
+    is.** At 0 ppm, with the truth held at one sub-cell offset near the
+    cell's edge, the epoch-dot reads 0.04 chip biased at 45 dB-Hz and 0.10
+    at 40, with 0.01 of scatter: `Σ |P_k|²` carries the noise power, so the
+    gain calibrated clean shrinks with C/N0 and the read falls short of
+    the offset. Over a sweep the bias averages out and hides in the σ. A
+    tracker wants the gain at its C/N0 — the engine's own `noise_est` is
+    the correction — or an unnormalised loop whose gain is set by the
+    prompt's tracked amplitude.
+- **The window's Doppler belongs to the rows; the phase belongs to the
+    column.** The rows read the frequency to under a hertz at both C/N0s
+    (§12.20); the column's phase fit matches them only where the
+    per-epoch SNR lets it unwrap. What the column uniquely gives is the
+    phase itself, 0.33 rad per epoch at 45 dB-Hz.
+- **Not measured here:** a closed loop, the symbol-aligned re-correlation
+    on the raw block, the detector's decisions, two emitters in one tile.
+
+______________________________________________________________________

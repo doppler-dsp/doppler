@@ -1866,3 +1866,142 @@ loops' gains are named as different and tracked, not unified by accident.
 Not measured here: the reconciliation of #1284.
 
 ______________________________________________________________________
+
+### 12.26 What was measured (2026-09-09) — the cell mode, the shipped object on the harness
+
+**What was built.** §12.22–12.24's tracker as a mode of
+`async_dsss_receiver`, `CellAsyncDsssReceiver` (`create_cell`), by
+turning stages off rather than by a second object (the plan of
+[#1283](https://github.com/doppler-dsp/doppler/issues/1283), the
+decision of §11.1): no refine, the `Dll` held from the first sample and
+never closing its own loop, a held code phase kept in double,
+dead-reckoned on the carrier loop's Doppler and corrected once every
+`correct_periods` code periods by a gain in chips times the coasting
+`Dll`'s interval-mean discriminator (`dll_take_error()`, §12.25's read).
+Gain 1 through `pullin_intervals` (the seed's residual), the design gain
+1/8 after; with the code flag down the phase only dead-reckons. Past the
+`Dll` — the symbol path, the symbol lock, the release rule, the status
+record — the hand-off flavour's verbatim. Four things the plan had wrong,
+each found by a measurement that went red and corrected in the build:
+
+- **The carrier loop runs; it is not frozen.** The plan wiped the stream
+    on a frozen LO at the seed's Doppler and left the residual to
+    `MpskReceiver`, folding it back above a threshold. Measured on SPEC's
+    500 Hz/s ramp: `MpskReceiver`'s 27 Hz loop alone lost the symbol lock
+    on 40 intervals of 48, BER 0.45. The pre-despread loop 1 of the
+    hand-off flavour runs unchanged, held on both flags down as there,
+    and refreshes the `Dll`'s rate aid every period; there is no fold
+    and no `fold_hz`. Running, the ramp is followed to 3 Hz at its end
+    with the symbol flag never down.
+- **Never a phase kick at a period boundary.** The plan put the `Dll` at
+    the corrected phase with `dll_set_code_phase()` once an interval. A
+    receiver fed whole periods is always at a boundary, a kick there
+    lands on the code's wrap, and moved across it the `Dll`'s partial
+    bookkeeping emits or skips a period's partials: a symbol slip every
+    few intervals on SPEC's geometry, where the hand-off flavour on the
+    same capture decoded clean
+    ([#1287](https://github.com/doppler-dsp/doppler/issues/1287)).
+- **The make-up is a rate bias every period, not over the interval.** The
+    first replacement spread what the `Dll` had to make up across the
+    next interval as a rate aid. That bias is a few parts in 10⁷ —
+    0.075 chip over 154 periods — under the code NCO's 32-bit rate step,
+    and the `Dll`'s phase sawtoothed 0.06 chip about the held one on this
+    harness. Steered every period (the held phase dead-reckoned to the
+    period's end against the `Dll`'s own, as a bias on the next period's
+    aid — the way its own loop steers), the same step is half a
+    thousandth of a chip.
+- **The gain is in chips.** The read is in the discriminator's units, `2   − spacing` per chip of offset; the correction divides by that slope
+    so a gain of 1 puts the phase at the read.
+
+Pinned by six C tests, each sabotaged red eight ways (the correction's
+sign; the dead reckoning dropped; the correction applied on noise with
+the flag down; the carrier frozen; the make-up dropped; the gain
+ignored; the held phase left out of the blob; the `Dll`'s own loop
+closed). On the receiver's own tests (the release harness's synth →
+`doppler_channel` → `awgn`, 45 dB-Hz, 18 ppm, truth from the synth's
+clock), 450 intervals:
+
+| gain | held phase bias, σ, worst (chips) | flags   | symbols |
+| ---- | --------------------------------- | ------- | ------- |
+| 1    | +0.0087, 0.0137, 0.048            | 1, 1, 1 | 11998   |
+| 1/8  | +0.0087, **0.0033**, 0.018        | 1, 1, 1 | 11998   |
+
+The bias is the channel's mapping, the same at both gains. Switched
+off, the receiver is lost after 31 intervals of the release clock's 57
+and its held phase is 0.003 chip from the hold point 160 intervals on
+(0.015 at switch-off). SPEC's 500 Hz/s ramp: the truth 1232 Hz at the
+end, the status 1229, the symbol flag never down after the pull-in,
+6650 symbols at BER 0. Speed: `bench_async_dsss_receiver_core`'s cell
+row is 28.70 ns per input sample in tracking at the operating point
+against the hand-off flavour's warm row at 28.71 — the same, since
+loop 1 runs in both and the refine is in neither's steady state.
+
+**What was measured.** The shipped object on §12.20's harness: the
+held mode's private DLL, LO and bookkeeping replaced by one
+`CellAsyncDsssReceiver` fed the epochs the engine is pushed, seeded from
+the surface at the first window dwell as the held mode is (the pool's
+seed: the phase at the dwell's end in the `Dll`'s convention, the row's
+Doppler), its phase read off `status()` at each dwell against the truth,
+its symbols scored against the synth's payload by `dp_ber_measure` on
+one alignment. Beside it the hand-off flavour on the same seed and
+stream — the parity reference — and the harness's own held mode
+(§12.24). 18 ppm, 800 dwells (25 s), both C/N0s; the phase under data
+(740 dwells):
+
+| flavour                  | 45 dB-Hz: bias, σ, worst   | flags      | 40 dB-Hz: bias, σ, worst   | flags      | left the cell |
+| ------------------------ | -------------------------- | ---------- | -------------------------- | ---------- | ------------- |
+| harness held mode, g=1/8 | −0.0035, 0.0047, 0.015     | —          | +0.0125, 0.0068, 0.037     | —          | never         |
+| **cell, g=1/8**          | −0.0036, **0.0056**, 0.019 | 1.00, 1.00 | −0.0036, **0.0082**, 0.033 | 1.00, 0.99 | never         |
+| cell, g=1                | −0.0036, 0.0143, 0.053     | 1.00, 1.00 | −0.0034, 0.0268, 0.085     | 1.00, 0.99 | never         |
+| hand-off (closed `Dll`)  | −0.0037, 0.0105, 0.039     | 1.00, 1.00 | −0.0041, 0.0219, 0.074     | 1.00, 0.99 | never         |
+
+The decode, on the same records (the window opens past the receiver's
+settling; theory is BPSK at the payload's Es/N0):
+
+| flavour     | 45 dB-Hz (Es/N0 10.7 dB, theory 6.5e-7) | 40 dB-Hz (Es/N0 5.7 dB, theory 3.3e-3) |
+| ----------- | --------------------------------------- | -------------------------------------- |
+| cell, g=1/8 | 1 error in 66767 bits, 0 slips          | 0.31 — 4 cycle slips; ~1% between them |
+| cell, g=1   | 1 error in 66767 bits, 0 slips          | 0.42 — 3 cycle slips                   |
+| hand-off    | 0 errors in 66671 bits, 0 slips         | 0.22 — 2 cycle slips; ~1% between them |
+
+What it settles:
+
+- **The shipped cell mode holds the phase the harness's held mode
+    held.** 0.0056 chip at 45 dB-Hz and 0.0082 at 40 against §12.24's
+    0.0052 and 0.0082 — the same read through the product's carrier loop
+    and per-period rate steer instead of the harness's calibrated
+    S-curve and per-block kick — and 1.9× and 2.7× under the hand-off
+    flavour's closed `Dll` on the same seed (0.0105 and 0.0219), never
+    leaving the cell, both flags up. The constant gain against §12.24's
+    calibrated S-curve is not the floor's source: the excess in
+    quadrature over first order is the same (0.0037 there, 0.0040 here).
+- **At 45 dB-Hz both flavours decode at theory** with no cycle slip in
+    25 s; the check's 137 dwells give 0 errors in 11469 bits for the cell
+    and 0 in 11373 for the hand-off.
+- **At 40 dB-Hz the receiver's carrier slips cycles, in both flavours.**
+    A BER of 0.3 with the EVM at the SNR (−5.6 dB at Es/N0 5.7) is not a
+    decoder: rescored in 500-symbol chunks on the one alignment, the
+    record is at 1% between whole stretches that are inverted — 180°
+    slips of the carrier, 4 in 25 s for the cell mode (3 at gain 1) and
+    2 for the hand-off flavour on the same stream, at the ~5 dB Es/N0 floor
+    the loop's bandwidth comment already names. The same receiver decoded
+    its own C test at 40 dB-Hz over 2549 symbols, a record too short to
+    meet one. The 1% between slips against theory's 0.3% is the second
+    part of the same finding. Neither is the cell mode's: it is the
+    carrier path both flavours share, and it is a live emitter's decode
+    at the pool's lower operating point —
+    [#1289](https://github.com/doppler-dsp/doppler/issues/1289).
+    The harness now counts slips beside every BER, so a 0.3 cannot read
+    as a decoder again; the cell gate at 45 dB-Hz requires 0.
+- **The gate.** `--check` (137 dwells, 45 dB-Hz, 18 ppm) runs the cell
+    mode at the design gain and the hand-off reference: the cell never
+    leaves the cell, holds the phase within twice the closed loop's
+    jitter without bias (0.0043), both flags up, decodes the payload
+    with no cycle slip. Sabotaged red: the receiver's symbols negated from
+    the record's midpoint on — the counter reads 1 slip, the BER 0.55, and
+    both the decode and the slip gate fail.
+- **Not measured here:** the slip rate as a curve in C/N0 (one stream at
+    one point below the floor is a count, not a rate), two emitters in
+    one tile, and the pool on cell receivers (§12.27).
+
+______________________________________________________________________

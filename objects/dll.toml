@@ -90,6 +90,11 @@ params = [{ name = "rate_aid", type = "double" }]
 # The phase correction a holder applies to a coasting loop: the code NCO
 # set to `chips`, nothing else touched (design §12.22).
 [[dll.methods]]
+name = "take_error_mean"
+arg_type = "void"
+return_type = "double"
+
+[[dll.methods]]
 name = "set_code_phase"
 arg_type = "void"
 return_type = "void"

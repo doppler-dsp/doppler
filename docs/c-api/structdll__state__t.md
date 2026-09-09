@@ -61,6 +61,10 @@ _DLL state._ [More...](#detailed-description)
 |  const uint8\_t \* | [**code**](#variable-code)  <br> |
 |  [**nco\_state\_t**](structnco__state__t.md) | [**code\_nco**](#variable-code_nco)  <br> |
 |  double | [**code\_rate**](#variable-code_rate)  <br> |
+|  double | [**ctrl\_i**](#variable-ctrl_i)  <br> |
+|  double | [**ctrl\_p**](#variable-ctrl_p)  <br> |
+|  uint64\_t | [**err\_n**](#variable-err_n)  <br> |
+|  double | [**err\_sum**](#variable-err_sum)  <br> |
 |  int | [**have\_prev\_epoch**](#variable-have_prev_epoch)  <br> |
 |  uint32\_t | [**held\_inc**](#variable-held_inc)  <br> |
 |  [**loop\_filter\_state\_t**](structloop__filter__state__t.md) | [**held\_lf**](#variable-held_lf)  <br> |
@@ -86,6 +90,8 @@ _DLL state._ [More...](#detailed-description)
 |  double | [**off\_chips**](#variable-off_chips)  <br> |
 |  int | [**owns\_code**](#variable-owns_code)  <br> |
 |  double | [**rate\_aid**](#variable-rate_aid)  <br> |
+|  double | [**rate\_i**](#variable-rate_i)  <br> |
+|  double | [**rate\_p**](#variable-rate_p)  <br> |
 |  uint32\_t | [**rng**](#variable-rng)  <br> |
 |  double | [**seed\_chip**](#variable-seed_chip)  <br> |
 |  double | [**seg\_chips**](#variable-seg_chips)  <br> |
@@ -602,6 +608,78 @@ chips advanced per nominal chip (~1.0).
 
 
 
+### variable ctrl\_i 
+
+```C++
+double dll_state_t::ctrl_i;
+```
+
+
+
+integrator -&gt; phase\_inc, per inv\_upd. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable ctrl\_p 
+
+```C++
+double dll_state_t::ctrl_p;
+```
+
+
+
+kp\*e -&gt; phase\_inc, per inv\_upd. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable err\_n 
+
+```C++
+uint64_t dll_state_t::err_n;
+```
+
+
+
+steers in err\_sum. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable err\_sum 
+
+```C++
+double dll_state_t::err_sum;
+```
+
+
+
+the discriminator summed since the last [**dll\_take\_error()**](dll__core_8h.md#function-dll_take_error): every steer, coasting or not  the block-mean read a holder corrects a coasting loop on (§12.22). 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable have\_prev\_epoch 
 
 ```C++
@@ -1035,6 +1113,40 @@ double dll_state_t::rate_aid;
 
 carrier-aiding code-rate deviation (ratio, 0 = off): a fixed fractional bias summed into the sample-and-hold phase\_inc every epoch, on top of the loop's own ctrl. For physically-coupled Doppler, the caller sets this to carrier\_offset/carrier\_freq so the code NCO rides the code-rate dilation the code discriminator alone can't pull in at low SNR. See [**dll\_set\_rate\_aid()**](dll__core_8h.md#function-dll_set_rate_aid). 
  
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_i 
+
+```C++
+double dll_state_t::rate_i;
+```
+
+
+
+integrator -&gt; code\_rate - 1, per inv\_upd. 
+
+
+        
+
+<hr>
+
+
+
+### variable rate\_p 
+
+```C++
+double dll_state_t::rate_p;
+```
+
+
+
+kp\*e -&gt; code\_rate - 1, per inv\_upd. 
 
 
         

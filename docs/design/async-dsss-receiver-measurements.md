@@ -1816,3 +1816,53 @@ What it settles:
     prompt.
 
 ______________________________________________________________________
+
+### 12.25 What was measured (2026-09-09) — the DLL's one steer, and the read a holder corrects on
+
+**What was built.** The searcher-timed receiver's build (§12.23–12.24's
+tracker as a mode of `async_dsss_receiver`, [#1283](https://github.com/doppler-dsp/doppler/issues/1283))
+starts from three `Dll` primitives. First, [#1280](https://github.com/doppler-dsp/doppler/issues/1280):
+the discriminator, its clamp, the probe and the coast hold existed twice —
+the full-epoch path's inline `dll_update()` and the partial-correlation
+core's private `steer()` — and §12.22's coast fix had reached them one at
+a time. Both now call one `dll_steer()`. Their control laws were found to
+differ as well: with the same loop filter, the full-epoch loop applies the
+integrator as a code-rate ratio and the proportional term as chips per
+epoch, the partial loop applies the filter's whole output as chips over
+`sps` — gains `sf·sps` apart on the integrator and `sps` on the
+proportional term. Each is pinned by its own tests and the `Dll` report,
+so the two gain tables stay as data the one steer reads, and reconciling
+them is [#1284](https://github.com/doppler-dsp/doppler/issues/1284), a
+certified-behaviour change on its own. Second, `dll_take_error()`: every
+steer adds its clamped discriminator to a running sum, coasting or not;
+take returns the count and the sum and zeroes them. Third, a held loop
+takes a new rate aid at once — `dll_set_rate_aid()` only stored the aid
+for the next steer to fold in, and a coasting loop has no next steer, so
+it kept the aid it was held with (the harness never met this: it set the
+aid once, before coasting; a receiver refreshing the Doppler it holds
+would). Pinned in `test_dll_core` parts 9 and 10, each sabotaged red
+(no accumulation; no zero on take; no recompute when held; the
+accumulator dropped from the blob).
+
+**What was measured.** §12.22's harness read the coasting DLL's
+discriminator through its telemetry probe, which is each epoch's LAST
+steer; the product reads the per-steer sum. The two, side by side on the
+same blocks at 45 dB-Hz (`--check`, 136 data dwells):
+
+| ppm | probe mean, σ per block | per-steer mean, σ per block | steers per block |
+| --- | ----------------------- | --------------------------- | ---------------- |
+| 0   | −0.1877, 0.0241         | −0.1880, 0.0232             | 85.1             |
+| 18  | −0.1081, 0.0220         | −0.1091, 0.0211             | 85.0             |
+
+The per-steer mean is the probe's to 0.001 in mean and 4% lower in
+scatter (the probe samples 154 last-steers per block, the sum averages
+the 85 steers themselves). §12.22–12.24's calibration and gains transfer
+to the product's read as they stand. The `Dll` benchmark: 31.7 MSa/s
+before the one steer, 31.6 after — noise.
+
+What it settles: the correction a holder applies is one primitive with
+one home, read the way the loop itself would have filtered it; the two
+loops' gains are named as different and tracked, not unified by accident.
+Not measured here: the reconciliation of #1284.
+
+______________________________________________________________________

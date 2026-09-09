@@ -662,17 +662,6 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
              + c->c_dll));
       d->rx_code = st.code_locked;
       d->rx_sym  = st.locked;
-      if (getenv ("RX_DEBUG") && c->n < c->rx_at + 40)
-        printf (
-            "      dwell %zu: dll err %+.4f held err %+.4f rate bias %+.2e "
-            "code_rate-1 %+.2e doppler %.1f (truth %.1f) win %d\n",
-            c->n, d->rx_err,
-            wrap_chips (
-                c->rx->held_phase
-                - (truth_chips (c->st, (double)samples_consumed - (double)TE)
-                   + c->c0 + c->c_dll)),
-            c->rx->cell_rate_bias, dll_get_code_rate (c->rx->dll) - 1.0,
-            st.doppler_hz, c->f_hz, d->in_win);
     }
 
   /* The re-correlation: the block as pushed through the coasting DLL,
@@ -1501,8 +1490,6 @@ score_ber (const sink_ctx_t *c, double cn0, const char *label)
           "%.1f dB; EVM %.1f dB; window [%zu,%zu) of %zu symbols)\n",
           label, r.ber.p_hat, acc.bit_errors, acc.bits, r.theory_ber, esn0,
           r.evm_db, r.window_lo, r.window_hi, c->rx_nsyms);
-  if (getenv ("RX_DEBUG"))
-    dp_ber_print (label, &r);
   const double ber = r.ber.p_hat;
   dp_ber_free (&acc);
   free (truth);

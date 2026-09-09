@@ -96,7 +96,7 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  void | [**dll\_reset**](#function-dll_reset) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Re-seed the loop to its create-time code phase; keep config._  |
 |  void | [**dll\_set\_bn**](#function-dll_set_bn) ([**dll\_state\_t**](structdll__state__t.md) \* state, double val) <br> |
 |  void | [**dll\_set\_coast**](#function-dll_set_coast) ([**dll\_state\_t**](structdll__state__t.md) \* state, int coast) <br>_Hold the loop (1) or run it (0, the default)._  |
-|  void | [**dll\_set\_code\_phase**](#function-dll_set_code_phase) ([**dll\_state\_t**](structdll__state__t.md) \* state, double chips) <br>[_**dll\_take\_error()**_](dll__core_8h.md#function-dll_take_error) _as one number: the mean of the steers taken, or NaN when none were_ _the Python face of the primitive._ |
+|  void | [**dll\_set\_code\_phase**](#function-dll_set_code_phase) ([**dll\_state\_t**](structdll__state__t.md) \* state, double chips) <br>_Set the prompt code phase, in chips: the correction a holder applies to a coasting loop._  |
 |  int | [**dll\_set\_lock\_verify**](#function-dll_set_lock_verify) ([**dll\_state\_t**](structdll__state__t.md) \* state, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's verify counts, keeping its thresholds._  |
 |  void | [**dll\_set\_rate\_aid**](#function-dll_set_rate_aid) ([**dll\_state\_t**](structdll__state__t.md) \* state, double rate\_aid) <br>_Set the carrier-aiding code-rate deviation (ratio; 0 = off)._  |
 |  int | [**dll\_set\_state**](#function-dll_set_state) ([**dll\_state\_t**](structdll__state__t.md) \* state, const void \* blob) <br> |
@@ -106,8 +106,8 @@ _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More.
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_steer**](#function-dll_steer) ([**dll\_state\_t**](structdll__state__t.md) \* s, double ep, double lp, double pp) <br>_The code discriminator, its filter and the NCO steer_  _the ONE steer both correlation paths call (doppler#1280)._ |
 |  size\_t | [**dll\_steps**](#function-dll_steps) ([**dll\_state\_t**](structdll__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Correlate a carrier-wiped block against the local code and steer the code NCO once per code period._  |
 |  size\_t | [**dll\_steps\_max\_out**](#function-dll_steps_max_out) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br> |
-|  size\_t | [**dll\_take\_error**](#function-dll_take_error) ([**dll\_state\_t**](structdll__state__t.md) \* state, double \* sum) <br>_Set the prompt code phase, in chips: the correction a holder applies to a coasting loop._  |
-|  double | [**dll\_take\_error\_mean**](#function-dll_take_error_mean) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br>_Take the discriminator's running sum: the steers since the last take, their sum, both zeroed._  |
+|  size\_t | [**dll\_take\_error**](#function-dll_take_error) ([**dll\_state\_t**](structdll__state__t.md) \* state, double \* sum) <br>_Take the discriminator's running sum: the steers since the last take, their sum, both zeroed._  |
+|  double | [**dll\_take\_error\_mean**](#function-dll_take_error_mean) ([**dll\_state\_t**](structdll__state__t.md) \* state) <br>[_**dll\_take\_error()**_](dll__core_8h.md#function-dll_take_error) _as one number: the mean of the steers taken, or NaN when none were_ _the Python face of the primitive._ |
 |  void | [**dll\_tlm\_flush**](#function-dll_tlm_flush) (const [**dll\_state\_t**](structdll__state__t.md) \* s) <br>_Emit the code loop's telemetry records for the epoch just closed._  |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) [**JM\_HOT**](jm__perf_8h.md#define-jm_hot) void | [**dll\_update**](#function-dll_update) ([**dll\_state\_t**](structdll__state__t.md) \* s) <br>_Per-period code discriminator + loop update + NCO steer on the dumped accumulators (the coherent full-epoch path)._  |
 
@@ -1060,7 +1060,7 @@ Coasting, the loop filter takes no update and the NCO is not steered: on entry t
 
 ### function dll\_set\_code\_phase 
 
-[_**dll\_take\_error()**_](dll__core_8h.md#function-dll_take_error) _as one number: the mean of the steers taken, or NaN when none were_ _the Python face of the primitive._
+_Set the prompt code phase, in chips: the correction a holder applies to a coasting loop._ 
 ```C++
 void dll_set_code_phase (
     dll_state_t * state,
@@ -1070,7 +1070,7 @@ void dll_set_code_phase (
 
 
 
-The block-mean discriminator a holder corrects a coasting loop on ([**dll\_set\_code\_phase()**](dll__core_8h.md#function-dll_set_code_phase)), read once per interval; each read starts the next interval's sum from zero.
+Moves the code NCO to `chips` (modulo the code length) and nothing else: the loop filter, the rate aid, the lock detector and the symbol-period aid keep their state, and the accumulators of the period in progress are left to finish on the new phase. This is the other half of [**dll\_set\_coast()**](dll__core_8h.md#function-dll_set_coast): a coasting loop advances at its held rate, which its 32-bit NCO quantises to a few parts in 10^7  about 0.06 chip per 31 ms block at 5 Mcps (design §12.22)  so whoever holds it on another clock (a searcher's cell, a carrier aid) puts it back where that clock says, once per block, and reads the discriminator between. Nominally at a period boundary; called mid-period it costs that one period's read.
 
 
 
@@ -1079,12 +1079,7 @@ The block-mean discriminator a holder corrects a coasting loop on ([**dll\_set\_
 
 
 * `state` DLL state. Must be non-NULL. 
-
-
-
-**Returns:**
-
-The mean of the steers since the last take; NaN when there were none. 
+* `chips` The prompt's code phase, chips; folded into [0, code\_len). 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import Dll
@@ -1099,7 +1094,6 @@ The mean of the steers since the last take; NaN when there were none.
 1.5
 ```
  
-
 
 
 
@@ -1477,42 +1471,11 @@ size_t dll_steps_max_out (
 
 ### function dll\_take\_error 
 
-_Set the prompt code phase, in chips: the correction a holder applies to a coasting loop._ 
+_Take the discriminator's running sum: the steers since the last take, their sum, both zeroed._ 
 ```C++
 size_t dll_take_error (
     dll_state_t * state,
     double * sum
-) 
-```
-
-
-
-Moves the code NCO to `chips` (modulo the code length) and nothing else: the loop filter, the rate aid, the lock detector and the symbol-period aid keep their state, and the accumulators of the period in progress are left to finish on the new phase. This is the other half of [**dll\_set\_coast()**](dll__core_8h.md#function-dll_set_coast): a coasting loop advances at its held rate, which its 32-bit NCO quantises to a few parts in 10^7  about 0.06 chip per 31 ms block at 5 Mcps (design §12.22)  so whoever holds it on another clock (a searcher's cell, a carrier aid) puts it back where that clock says, once per block, and reads the discriminator between. Nominally at a period boundary; called mid-period it costs that one period's read.
-
-
-
-
-**Parameters:**
-
-
-* `state` DLL state. Must be non-NULL. 
-* `chips` The prompt's code phase, chips; folded into [0, code\_len). 
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dll\_take\_error\_mean 
-
-_Take the discriminator's running sum: the steers since the last take, their sum, both zeroed._ 
-```C++
-double dll_take_error_mean (
-    dll_state_t * state
 ) 
 ```
 
@@ -1534,6 +1497,60 @@ Every steer adds its clamped discriminator to a running sum, coasting or not. A 
 **Returns:**
 
 The number of steers taken. 
+```C++
+>>> import numpy as np
+>>> from doppler.track import Dll
+>>> rng = np.random.default_rng(3)
+>>> code = rng.integers(0, 2, 63).astype(np.uint8)
+>>> idx = (np.arange(63 * 4 * 200) // 4) % 63
+>>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
+>>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off
+>>> _ = d.steps(x)                        # 200 epochs: the loop pulls in
+>>> m = d.take_error_mean()               # the 200 steers' mean
+>>> 0.0 < abs(m) < 0.5                    # the pull-in's transient
+True
+>>> import math
+>>> math.isnan(d.take_error_mean())       # taken: nothing left
+True
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dll\_take\_error\_mean 
+
+[_**dll\_take\_error()**_](dll__core_8h.md#function-dll_take_error) _as one number: the mean of the steers taken, or NaN when none were_ _the Python face of the primitive._
+```C++
+double dll_take_error_mean (
+    dll_state_t * state
+) 
+```
+
+
+
+The block-mean discriminator a holder corrects a coasting loop on ([**dll\_set\_code\_phase()**](dll__core_8h.md#function-dll_set_code_phase)), read once per interval; each read starts the next interval's sum from zero.
+
+
+
+
+**Parameters:**
+
+
+* `state` DLL state. Must be non-NULL. 
+
+
+
+**Returns:**
+
+The mean of the steers since the last take; NaN when there were none. 
 ```C++
 >>> import numpy as np
 >>> from doppler.track import Dll

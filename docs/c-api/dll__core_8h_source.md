@@ -292,10 +292,10 @@ size_t dll_get_symbol_window(const dll_state_t *state);
 int dll_set_lock_verify(dll_state_t *state, uint32_t n_up, uint32_t n_down);
 double dll_get_code_phase(const dll_state_t *state);
 
-size_t dll_take_error(dll_state_t *state, double *sum);
-
 void dll_set_code_phase(dll_state_t *state, double chips);
 double dll_get_code_rate(const dll_state_t *state);
+
+size_t dll_take_error(dll_state_t *state, double *sum);
 
 double dll_take_error_mean(dll_state_t *state);
 double dll_get_last_error(const dll_state_t *state);

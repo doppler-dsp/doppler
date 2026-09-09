@@ -910,20 +910,6 @@ double dll_get_code_phase(const dll_state_t *state);
  *
  * @param state  DLL state. Must be non-NULL.
  * @param chips  The prompt's code phase, chips; folded into [0, code_len).
- */
-size_t dll_take_error(dll_state_t *state, double *sum);
-
-/**
- * @brief dll_take_error() as one number: the mean of the steers taken, or
- *        NaN when none were -- the Python face of the primitive.
- *
- * The block-mean discriminator a holder corrects a coasting loop on
- * (dll_set_code_phase()), read once per interval; each read starts the
- * next interval's sum from zero.
- *
- * @param state  DLL state. Must be non-NULL.
- * @return The mean of the steers since the last take; NaN when there were
- *         none.
  * @code
  * >>> import numpy as np
  * >>> from doppler.track import Dll
@@ -959,6 +945,37 @@ double dll_get_code_rate(const dll_state_t *state);
  * @param state  DLL state. Must be non-NULL.
  * @param sum    Written with the sum of the steers taken (non-NULL).
  * @return The number of steers taken.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.track import Dll
+ * >>> rng = np.random.default_rng(3)
+ * >>> code = rng.integers(0, 2, 63).astype(np.uint8)
+ * >>> idx = (np.arange(63 * 4 * 200) // 4) % 63
+ * >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
+ * >>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off
+ * >>> _ = d.steps(x)                        # 200 epochs: the loop pulls in
+ * >>> m = d.take_error_mean()               # the 200 steers' mean
+ * >>> 0.0 < abs(m) < 0.5                    # the pull-in's transient
+ * True
+ * >>> import math
+ * >>> math.isnan(d.take_error_mean())       # taken: nothing left
+ * True
+ *
+ * @endcode
+ */
+size_t dll_take_error(dll_state_t *state, double *sum);
+
+/**
+ * @brief dll_take_error() as one number: the mean of the steers taken, or
+ *        NaN when none were -- the Python face of the primitive.
+ *
+ * The block-mean discriminator a holder corrects a coasting loop on
+ * (dll_set_code_phase()), read once per interval; each read starts the
+ * next interval's sum from zero.
+ *
+ * @param state  DLL state. Must be non-NULL.
+ * @return The mean of the steers since the last take; NaN when there were
+ *         none.
  * @code
  * >>> import numpy as np
  * >>> from doppler.track import Dll

@@ -964,23 +964,18 @@ class Dll:
         """
 
     def take_error_mean(self) -> float:
-        """Take the discriminator's running sum: the steers since the last
-        take, their sum, both zeroed.
+        """dll_take_error() as one number: the mean of the steers taken, or NaN
+        when none were -- the Python face of the primitive.
 
-        Every steer adds its clamped discriminator to a running sum, coasting
-        or not. A holder correcting a coasting loop on another clock (a
-        searcher-timed receiver, design §12.22-12.24) reads the sum once per
-        interval, divides by the count for the block mean, moves the loop by a
-        gain times it (dll_set_code_phase()), and the next interval starts from
-        zero. The count is the number of steers -- one per epoch on the
-        coherent full-epoch path, one per symbol window on the symbol-aided
-        partial path -- so the mean is over the same updates the loop itself
-        would have filtered. Zero steers leaves `*sum` at 0 and returns 0.
+        The block-mean discriminator a holder corrects a coasting loop on
+        (dll_set_code_phase()), read once per interval; each read starts the
+        next interval's sum from zero.
 
         Returns
         -------
         float
-            The number of steers taken.
+            The mean of the steers since the last take; NaN when there were
+            none.
 
         Examples
         --------
@@ -1002,17 +997,24 @@ class Dll:
         """
 
     def set_code_phase(self, chips: float) -> None:
-        """dll_take_error() as one number: the mean of the steers taken, or NaN
-        when none were -- the Python face of the primitive.
+        """Set the prompt code phase, in chips: the correction a holder applies
+        to a coasting loop.
 
-        The block-mean discriminator a holder corrects a coasting loop on
-        (dll_set_code_phase()), read once per interval; each read starts the
-        next interval's sum from zero.
+        Moves the code NCO to chips (modulo the code length) and nothing else:
+        the loop filter, the rate aid, the lock detector and the symbol-period
+        aid keep their state, and the accumulators of the period in progress
+        are left to finish on the new phase. This is the other half of
+        dll_set_coast(): a coasting loop advances at its held rate, which its
+        32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per 31
+        ms block at 5 Mcps (design §12.22) -- so whoever holds it on another
+        clock (a searcher's cell, a carrier aid) puts it back where that clock
+        says, once per block, and reads the discriminator between. Nominally at
+        a period boundary; called mid-period it costs that one period's read.
 
         Parameters
         ----------
         chips : float
-            DLL state. Must be non-NULL.
+            The prompt's code phase, chips; folded into [0, code_len).
 
         Examples
         --------

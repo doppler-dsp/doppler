@@ -1757,13 +1757,15 @@ main (int argc, char **argv)
              hand-off flavour on the same seed as the parity reference
              (its phase is undefined until its refine ends, so its
              window row is not a read). The check runs the design gain
-             and the reference. */
+             only: it carries the cell's claims, and the reference is the
+             record's (the instrumented coverage build runs this check
+             at 20x, where one more stream is a quarter of an hour). */
           if (ppms[pi] == 18.0)
             for (size_t fi = 0; fi < 3; fi++)
               {
                 const int    handoff = fi == 2;
                 const double g       = fi == 1 ? 1.0 : ASYNC_DSSS_RX_CELL_GAIN;
-                if (check && fi == 1)
+                if (check && fi)
                   continue;
                 c.rx_gain    = g;
                 c.rx_handoff = handoff;

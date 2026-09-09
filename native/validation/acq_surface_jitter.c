@@ -1675,8 +1675,10 @@ main (int argc, char **argv)
           /* The same, closed on the searcher's own cell: acquired from the
              surface at the first window dwell, corrected once a block by
              the coasting DLL's read, the truth used only to score. Gain 1
-             at both drifts; the filtered gains under dilation (the check
-             takes 1 and 0.25). */
+             at both drifts; the filtered gains under dilation. The check
+             takes gain 1 only (section 12.23's acquisition and hold);
+             section 12.24's filtered gate is carried by the shipped cell
+             receiver below, which is that tracker as a product. */
           c.held      = 1;
           c.coh_cal   = &cal.coh;
           c.dll_cal   = &cal.dll;
@@ -1685,8 +1687,8 @@ main (int argc, char **argv)
             {
               if (gi && ppms[pi] != 18.0)
                 break;
-              if (check && gi && HELD_GAINS[gi] != 0.25)
-                continue;
+              if (check && gi)
+                break;
               c.h_gain = HELD_GAINS[gi];
               DP_REQUIRE (run (a, code, ppms[pi], cn0s[ci], 21u + (uint32_t)pi,
                                cal.c0, W_SYM, DLL_U0, &c, n_dw)
@@ -1731,21 +1733,6 @@ main (int argc, char **argv)
                                 "the phase held on the searcher's own cell "
                                 "is within twice the loop's closed-loop "
                                 "jitter of the truth, without bias");
-                }
-              else if (check && ppms[pi] == 18.0)
-                {
-                  /* Section 12.24: at gain 0.25 first order keeps 0.143 of
-                     the read's variance, 0.38 of its sigma. Under 0.75 of
-                     gain 1's, still never leaving the cell, is the gate:
-                     the filter reduces the noise it is there to reduce. */
-                  DP_CHECK_MSG (hd.n_held == hd.n_h && hw.n_held == hw.n_h,
-                                "the filtered tracker never leaves the "
-                                "cell");
-                  DP_CHECK_MSG (hd.h_sig < 0.75 * sig1
-                                    && fabs (hd.h_bias) < 0.05,
-                                "the filtered correction holds the phase "
-                                "under three quarters of the unfiltered "
-                                "jitter, without bias");
                 }
             }
           c.held = 0;
@@ -1816,6 +1803,14 @@ main (int argc, char **argv)
                         "the shipped cell receiver holds the phase "
                         "within twice the loop's closed-loop jitter, "
                         "without bias");
+                    /* Section 12.24's gate, on the product: at gain 1/8
+                       first order keeps 0.067 of the unfiltered read's
+                       variance; under three quarters of the held mode's
+                       gain-1 sigma on this stream is the defect gate. */
+                    DP_CHECK_MSG (sig1 > 0.0 && rd.rx_sig < 0.75 * sig1,
+                                  "the shipped cell receiver's filtered "
+                                  "correction holds the phase under three "
+                                  "quarters of the unfiltered jitter");
                     DP_CHECK_MSG (rd.rx_code > 0.95 && rd.rx_sym > 0.95,
                                   "the shipped cell receiver holds both lock "
                                   "flags");

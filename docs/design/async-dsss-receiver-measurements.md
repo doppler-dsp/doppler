@@ -1995,13 +1995,20 @@ What it settles:
     as a decoder again; the cell gate at 45 dB-Hz requires 0.
 - **The gate.** `--check` (137 dwells, 45 dB-Hz, 18 ppm) runs the cell
     mode at the design gain: it never leaves the cell, holds the phase
-    within twice the closed loop's jitter without bias (0.0043), both
-    flags up, decodes the payload with no cycle slip. The hand-off
-    reference runs in the full sweep only: the instrumented coverage
-    build runs this check at twenty times its Release cost, where one
-    more stream is a quarter of an hour. Sabotaged red: the receiver's symbols negated from
-    the record's midpoint on — the counter reads 1 slip, the BER 0.55, and
-    both the decode and the slip gate fail.
+    within twice the closed loop's jitter without bias (0.0043), under
+    three quarters of the harness held mode's gain-1 jitter on the same
+    stream (§12.24's filtered gate, now carried by the product; the held
+    mode's own gain-1/4 stream no longer runs in the check), both flags
+    up, decodes the payload with no cycle slip. The hand-off reference
+    runs in the full sweep only. Both cuts are the coverage job's: the
+    instrumented build runs this check at twenty times its Release cost
+    against a job already at 80% of its cap on `main`
+    ([#1292](https://github.com/doppler-dsp/doppler/issues/1292)), where
+    one more stream is a quarter of an hour. Sabotaged red twice: the
+    receiver's symbols negated from the record's midpoint on — the
+    counter reads 1 slip, the BER 0.55, and both the decode and the slip
+    gate fail; and the product run at gain 1 — 0.0140 against the held
+    mode's 0.0129, the filtered gate alone fails.
 - **Not measured here:** the slip rate as a curve in C/N0 (one stream at
     one point below the floor is a count, not a rate), two emitters in
     one tile, and the pool on cell receivers (§12.27).

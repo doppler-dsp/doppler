@@ -473,3 +473,35 @@ init_params = [
     { name = "carrier_freq_hz", type = "double", default = "0.0" },
     { name = "lost_confirm_s", type = "double", default = "2.0" },
 ]
+
+# ── The cell mode: the receiver a searcher's cell drives ────────────────────
+#
+# Design section 12.22-12.24 as a mode of this receiver (#1283): no refine,
+# the Dll held from the first sample and put back once an interval at a held
+# phase corrected by a gain (chips) times its interval-mean discriminator;
+# the carrier loop the hand-off's own. A difference in CONSTRUCTOR is a view:
+# seed(), the symbol path, the release rule and the status record are the
+# parent's.
+[[async_dsss_receiver.views]]
+class_name = "CellAsyncDsssReceiver"
+create_fn = "async_dsss_receiver_create_cell"
+exclude_methods = ["configure_search_raw", "set_refine_min_blocks"]
+exclude_properties = ["refine_min_blocks"]
+init_params = [
+    { name = "code", type = "uint8_t[]" },
+    { name = "chip_rate", type = "double", default = "1000000.0" },
+    { name = "symbol_rate", type = "double", default = "1000.0" },
+    { name = "spc", type = "size_t", default = "2" },
+    { name = "m", type = "int", default = "2" },
+    { name = "cn0_dbhz", type = "double", default = "55.0" },
+    { name = "pfa", type = "double", default = "1e-3" },
+    { name = "pd", type = "double", default = "0.9" },
+    { name = "segments", type = "size_t", default = "4" },
+    { name = "sps", type = "size_t", default = "8" },
+    { name = "differential", type = "int", default = "0" },
+    { name = "carrier_freq_hz", type = "double", default = "0.0" },
+    { name = "lost_confirm_s", type = "double", default = "2.0" },
+    { name = "correct_periods", type = "size_t", default = "154" },
+    { name = "gain", type = "double", default = "0.125" },
+    { name = "pullin_intervals", type = "size_t", default = "4" },
+]

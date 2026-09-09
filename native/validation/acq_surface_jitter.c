@@ -105,10 +105,13 @@
  *                                          gain 1's jitter
  */
 #include "acq/acq_core.h"
+#include "async_dsss_receiver/async_dsss_receiver_core.h"
 #include "awgn/awgn_core.h"
 #include "clib_common.h"
 #include "dll/dll_core.h"
 #include "doppler_channel/doppler_channel_core.h"
+#include "dp_ber_test.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include "dp_tlm/dp_tlm_core.h"
 #include "gold/gold_core.h"
@@ -151,7 +154,9 @@
 #define BN 0.002    /* the receiver\'s DLL bandwidth; held, so unused   */
 #define P_SYM ((double)SEGMENTS * CHIP_RATE / ((double)SF * SYM_RATE))
 #define DLL_SETTLE 6 /* blocks the symbol aid settles over, not scored   */
-#define DLL_U0 0.1   /* the coasting loop\'s seed offset from the cell    */
+#define N_BITS (1u << 16) /* the synth's payload, a harness PRBS, cycled  */
+#define RX_SPS 8u         /* the receiver's MpskReceiver samples per symbol */
+#define DLL_U0 0.1 /* the coasting loop\'s seed offset from the cell    */
 /* The held tracker's correction gains: 1 puts the phase at the read; a
    first-order loop below it keeps g / (2 - g) of the read's variance
    and lets the dead reckoning carry the rest (section 12.24). */
@@ -209,6 +214,11 @@ typedef struct
      against the truth at the block's middle. */
   int    h_have; /* acquired before this block                         */
   double h_err;  /* held phase at the middle minus the truth, chips    */
+  /* The shipped receiver in its cell mode (section 12.26): its status at
+     this dwell's start (it is fed the epoch after the engine is). */
+  int    rx_have;
+  double rx_err; /* its chip phase minus the truth there, chips        */
+  int    rx_code, rx_sym;
 } dwell_t;
 
 struct scurve;
@@ -258,6 +268,21 @@ typedef struct
   size_t at_acq;                /* the dwell index it acquired on         */
   double h_acq_err, f_acq_err;  /* the seed's error, chips, Hz */
   double h_gain;                /* the correction's gain on the read */
+  /* The shipped CellAsyncDsssReceiver (section 12.26), fed the same
+     epochs the engine is pushed from the epoch after its seed, seeded
+     from the surface at the first window dwell as the held mode is,
+     scored on its status(); its symbols kept for the BER. */
+  async_dsss_receiver_state_t *rx;
+  double          rx_gain; /* NAN = no receiver                    */
+  int             rx_seeded;
+  uint64_t        rx_seed_at;  /* samples_consumed at the seed         */
+  uint64_t        rx_seed_sym; /* the synth's symbol index there       */
+  double          rx_seed_err; /* the seed's phase error, chips        */
+  size_t          rx_at;       /* the dwell it was seeded on           */
+  float _Complex *rx_out;      /* one epoch's symbols, scratch         */
+  float _Complex *rx_syms;     /* every symbol it emitted              */
+  size_t          rx_nsyms, rx_syms_cap;
+  uint8_t        *bits; /* the synth's payload (WFM_DSSS_DATA_BITS)    */
 } sink_ctx_t;
 
 static double disc (double e, double l);
@@ -297,15 +322,15 @@ truth_chips (const stim_t *s, double k)
 
 static int
 stim_open (stim_t *s, const uint8_t *code, double ppm, double cn0_dbhz,
-           uint32_t seed, size_t win_sym)
+           uint32_t seed, size_t win_sym, const uint8_t *bits)
 {
   memset (s, 0, sizeof *s);
   s->ppm = ppm;
   s->syn = wfm_synth_create (WFM_SYNTH_DSSS, FS, 0.0, WFM_SYNTH_SNR_CLEAN, 1,
                              seed, (int)SPC, 15, 0, 0, 0.0);
   if (!s->syn
-      || wfm_synth_set_dsss_cont (s->syn, code, SF, CPS, WFM_DSSS_DATA_PRBS,
-                                  NULL, 0)
+      || wfm_synth_set_dsss_cont (s->syn, code, SF, CPS, WFM_DSSS_DATA_BITS,
+                                  bits, N_BITS)
              != 0
       || wfm_synth_set_dsss_window (s->syn, win_sym, F_SYM) != 0)
     return 1;
@@ -584,7 +609,8 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
      for the Doppler. The code dilates with the carrier, so the held
      Doppler is also the held code rate; the DLL and the wipe open here.
      Nothing of the truth is consulted from this point. */
-  if (c->held && !c->acquired && d->in_win && D > 1 && !isnan (c->c0))
+  if ((c->held || c->rx) && !c->acquired && d->in_win && D > 1
+      && !isnan (c->c0))
     {
       const double row_sp = c->rows > 1 ? fabs (c->hz[1] - c->hz[0]) : 0.0;
       const double up = prow + 1 < rows ? s[(prow + 1) * cols + pcol] : 0.0;
@@ -599,10 +625,54 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
       c->f_acq_err       = c->f_h - c->f_hz;
       c->at_acq          = c->n;
       c->blk_acq         = 0;
-      if (dll_open (c, dp_fmod_pos (c->h + c->c_dll + c->u0, (double)SF),
-                    c->f_h))
+      if (c->rx)
+        {
+          /* The seed the pool would hand it: the phase at the next sample
+             (this dwell's end) in the Dll's convention, the row's
+             Doppler. Fed from the next epoch on. */
+          const double ph_end
+              = h_mid + c->h_rate * 0.5 * (double)c->dwell_len + c->c_dll;
+          DP_CHECK_MSG (async_dsss_receiver_seed (
+                            c->rx, dp_fmod_pos (ph_end, (double)SF), c->f_h,
+                            c->a->cn0_dbhz)
+                            == DP_OK,
+                        "the cell receiver takes the surface's seed");
+          const double chips = truth_chips (c->st, (double)samples_consumed);
+          c->rx_seeded       = 1;
+          c->rx_seed_at      = samples_consumed;
+          c->rx_seed_sym     = (uint64_t)(chips / CPS);
+          c->rx_at           = c->n;
+          c->rx_seed_err = wrap_chips (ph_end - c->c_dll - (chips + c->c0));
+        }
+      if (c->held
+          && dll_open (c, dp_fmod_pos (c->h + c->c_dll + c->u0, (double)SF),
+                       c->f_h))
         return;
       c->acquired = 1;
+    }
+  /* The shipped receiver's read: fed through the previous epoch, its phase
+     is at this dwell's end less one epoch. */
+  if (c->rx && c->rx_seeded && samples_consumed > c->rx_seed_at)
+    {
+      async_dsss_receiver_status_t st = async_dsss_receiver_status (c->rx);
+      d->rx_have                      = 1;
+      d->rx_err                       = wrap_chips (
+          st.chip_phase
+          - (truth_chips (c->st, (double)samples_consumed - (double)TE) + c->c0
+             + c->c_dll));
+      d->rx_code = st.code_locked;
+      d->rx_sym  = st.locked;
+      if (getenv ("RX_DEBUG") && c->n < c->rx_at + 40)
+        printf (
+            "      dwell %zu: dll err %+.4f held err %+.4f rate bias %+.2e "
+            "code_rate-1 %+.2e doppler %.1f (truth %.1f) win %d\n",
+            c->n, d->rx_err,
+            wrap_chips (
+                c->rx->held_phase
+                - (truth_chips (c->st, (double)samples_consumed - (double)TE)
+                   + c->c0 + c->c_dll)),
+            c->rx->cell_rate_bias, dll_get_code_rate (c->rx->dll) - 1.0,
+            st.doppler_hz, c->f_hz, d->in_win);
     }
 
   /* The re-correlation: the block as pushed through the coasting DLL,
@@ -753,7 +823,7 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
      size_t n)
 {
   stim_t st;
-  if (stim_open (&st, code, ppm, cn0, seed, win_sym))
+  if (stim_open (&st, code, ppm, cn0, seed, win_sym, c->bits))
     {
       fprintf (stderr, "the stimulus does not open at %.0f ppm, %.0f dB-Hz\n",
                ppm, cn0);
@@ -781,13 +851,50 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
                                 (double)SF),
                    c->f_hz))
     return 1;
+  /* The shipped receiver: the cell mode at this run's C/N0 and the
+     engine's block depth as its interval, never released for time. */
+  c->rx        = NULL;
+  c->rx_seeded = 0;
+  c->rx_nsyms  = 0;
+  if (!isnan (c->rx_gain) && a->coherent_bins > 1)
+    {
+      c->rx = async_dsss_receiver_create_cell (
+          code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0, PFA, PD, SEGMENTS,
+          RX_SPS, 0, CARRIER_HZ, 0.0, a->coherent_bins, c->rx_gain,
+          ASYNC_DSSS_RX_CELL_PULLIN);
+      DP_REQUIRE_MSG (c->rx != NULL, "the cell receiver opens");
+      c->rx_out = dp_xmalloc (TE * sizeof *c->rx_out);
+      c->rx_syms_cap
+          = (size_t)((double)n * (double)c->dwell_len * SYM_RATE / FS) + 4096;
+      c->rx_syms = dp_xmalloc (c->rx_syms_cap * sizeof *c->rx_syms);
+    }
   acq_reset (a);
   acq_set_surface_sink (a, on_surface, c, 1u);
   acq_result_t hits[16];
   while (c->n < n)
-    (void)acq_push (a, stim_block (&st), TE, hits, 16);
+    {
+      const float complex *blk = stim_block (&st);
+      /* Seeded at a dwell's end inside this push: fed from the next. */
+      const int fed = c->rx && c->rx_seeded;
+      (void)acq_push (a, blk, TE, hits, 16);
+      if (fed)
+        {
+          size_t k = async_dsss_receiver_steps (c->rx, blk, TE, c->rx_out, TE);
+          if (c->rx_nsyms + k <= c->rx_syms_cap)
+            memcpy (c->rx_syms + c->rx_nsyms, c->rx_out,
+                    k * sizeof *c->rx_out);
+          c->rx_nsyms += k;
+        }
+    }
   acq_set_surface_sink (a, NULL, NULL, 1u);
   stim_close (&st);
+  if (c->rx)
+    {
+      async_dsss_receiver_destroy (c->rx);
+      c->rx = NULL;
+      free (c->rx_out);
+      c->rx_out = NULL;
+    }
   if (c->dll)
     {
       free (c->prt);
@@ -1107,6 +1214,8 @@ typedef struct
   size_t n_h, n_held;          /* held-tracker dwells; those within half a
                                   chip of the truth                     */
   double h_bias, h_sig, h_max; /* the held phase against the truth  */
+  size_t n_rx, n_rx_held;      /* the shipped receiver's dwells       */
+  double rx_bias, rx_sig, rx_max, rx_code, rx_sym;
 } stat_t;
 
 static void
@@ -1115,7 +1224,7 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
   memset (o, 0, sizeof *o);
   double sc = 0, sc2 = 0, sp = 0, sp2 = 0, sb = 0, sb2 = 0, sf = 0, sf2 = 0,
          ss = 0, sd = 0, sd2 = 0, se = 0, se2 = 0, sq = 0, sq2 = 0, sr2 = 0;
-  double sl = 0, sl2 = 0, sh = 0, sh2 = 0;
+  double sl = 0, sl2 = 0, sh = 0, sh2 = 0, srx = 0, srx2 = 0;
   const double row_sp = c->rows > 1 ? fabs (c->hz[1] - c->hz[0]) : 0.0;
   for (size_t k = 0; k < c->n; k++)
     {
@@ -1181,6 +1290,17 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
           o->n_held += fabs (d->h_err) <= 0.5;
           o->n_h++;
         }
+      if (d->rx_have)
+        {
+          srx += d->rx_err;
+          srx2 += d->rx_err * d->rx_err;
+          if (fabs (d->rx_err) > o->rx_max)
+            o->rx_max = fabs (d->rx_err);
+          o->n_rx_held += fabs (d->rx_err) <= 0.5;
+          o->rx_code += d->rx_code;
+          o->rx_sym += d->rx_sym;
+          o->n_rx++;
+        }
       o->hits += (size_t)d->hit;
       o->n++;
     }
@@ -1217,6 +1337,14 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
       const double m = (double)o->n_h;
       o->h_bias      = sh / m;
       o->h_sig       = sqrt (fmax (sh2 / m - o->h_bias * o->h_bias, 0.0));
+    }
+  if (o->n_rx)
+    {
+      const double m = (double)o->n_rx;
+      o->rx_bias     = srx / m;
+      o->rx_sig      = sqrt (fmax (srx2 / m - o->rx_bias * o->rx_bias, 0.0));
+      o->rx_code /= m;
+      o->rx_sym /= m;
     }
   o->snr = ss / n;
 }
@@ -1323,6 +1451,64 @@ print_held (const char *label, const stat_t *s)
           s->h_sig, s->h_max, s->n_held, s->n_h);
 }
 
+static void
+print_rx (const char *label, const stat_t *s)
+{
+  if (!s->n_rx)
+    {
+      printf ("    %-7s  (no dwells after the seed)\n", label);
+      return;
+    }
+  printf ("    %-7s %4zu  phase bias %+.4f sigma %.4f max |err| %.3f   "
+          "within half a chip %zu of %zu   code flag %.2f sym %.2f\n",
+          label, s->n_rx, s->rx_bias, s->rx_sig, s->rx_max, s->n_rx_held,
+          s->n_rx, s->rx_code, s->rx_sym);
+}
+
+/* The synth's data symbol at absolute symbol index `sym`: 0 (+1) in the
+   code-only window, the payload bit otherwise, by the synth's own rule
+   (wfm_synth_cont_dsss_chip). */
+static uint8_t
+truth_bit (const uint8_t *bits, uint64_t sym)
+{
+  const uint64_t F = F_SYM, W = W_SYM;
+  if (sym % F < W)
+    return 0u;
+  return bits[((sym / F) * (F - W) + (sym % F - W)) % N_BITS] & 1u;
+}
+
+/* The BER of the shipped receiver's symbols against the synth's payload:
+   the truth from a margin before the seed's symbol on, aligned by
+   dp_ber_sync past the receiver's settling, scored past it. */
+static double
+score_ber (const sink_ctx_t *c, double cn0, const char *label)
+{
+  if (!c->rx_seeded || c->rx_nsyms < 1000)
+    return NAN;
+  const size_t margin = 16; /* the receiver's first symbol is a few past
+                               the seed's; the sync's lag span is short */
+  const size_t n_truth = c->rx_nsyms + 2 * margin;
+  uint8_t     *truth   = dp_xmalloc (n_truth);
+  for (size_t j = 0; j < n_truth; j++)
+    truth[j] = truth_bit (c->bits, c->rx_seed_sym + j - margin);
+  dp_ber_t acc;
+  dp_ber_init (&acc, 2, 0);
+  const double    esn0   = cn0 - 10.0 * log10 (SYM_RATE);
+  const size_t    settle = 8 * (size_t)((double)c->dwell_len * SYM_RATE / FS);
+  dp_ber_report_t r = dp_ber_measure (&acc, c->rx_syms, c->rx_nsyms, truth,
+                                      n_truth, esn0, settle, 1, NULL);
+  printf ("    %-7s BER %.2e (%lu errors in %lu bits; theory %.2e at Es/N0 "
+          "%.1f dB; EVM %.1f dB; window [%zu,%zu) of %zu symbols)\n",
+          label, r.ber.p_hat, acc.bit_errors, acc.bits, r.theory_ber, esn0,
+          r.evm_db, r.window_lo, r.window_hi, c->rx_nsyms);
+  if (getenv ("RX_DEBUG"))
+    dp_ber_print (label, &r);
+  const double ber = r.ber.p_hat;
+  dp_ber_free (&acc);
+  free (truth);
+  return ber;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -1347,7 +1533,15 @@ main (int argc, char **argv)
   const size_t n_cal  = check ? CHECK_DWELLS : CAL_DWELLS;
   sink_ctx_t   c;
   memset (&c, 0, sizeof c);
-  c.d = dp_xmalloc ((n_dw > n_cal ? n_dw : n_cal) * sizeof *c.d);
+  c.d       = dp_xmalloc ((n_dw > n_cal ? n_dw : n_cal) * sizeof *c.d);
+  c.rx_gain = NAN;
+  /* The synth's payload: a harness PRBS the BER is scored against. */
+  c.bits = dp_xmalloc (N_BITS);
+  {
+    uint32_t st = 0xB1750u;
+    for (size_t i = 0; i < N_BITS; i++)
+      c.bits[i] = (uint8_t)(dp_xs32 (&st) & 1u);
+  }
 
   for (size_t ci = 0; ci < n_cn0; ci++)
     {
@@ -1519,6 +1713,63 @@ main (int argc, char **argv)
                 }
             }
           c.held = 0;
+          /* The shipped receiver in its cell mode on the same stream
+             (section 12.26): seeded from the surface at the first window
+             dwell, fed the epochs from there, its held phase read off its
+             status and its symbols scored against the synth's payload.
+             The design gain, and gain 1 under dilation. */
+          if (ppms[pi] == 18.0)
+            for (size_t gi = 0; gi < 2; gi++)
+              {
+                const double g = gi ? 1.0 : ASYNC_DSSS_RX_CELL_GAIN;
+                if (check && gi)
+                  break;
+                c.rx_gain = g;
+                DP_REQUIRE (run (a, code, ppms[pi], cn0s[ci],
+                                 31u + (uint32_t)pi, cal.c0, W_SYM, NAN, &c,
+                                 n_dw)
+                            == 0);
+                c.rx_gain = NAN;
+                stat_t rw, rd;
+                stats (&c, &cal, 1, &rw);
+                stats (&c, &cal, 0, &rd);
+                if (!c.rx_seeded)
+                  {
+                    printf ("    CellAsyncDsssReceiver: never seeded (no "
+                            "window dwell in %zu)\n",
+                            c.n);
+                    continue;
+                  }
+                printf ("    CellAsyncDsssReceiver, gain %.3f: seeded at "
+                        "dwell %zu, %+.3f chips from the truth; %zu symbols "
+                        "over %.1f s\n",
+                        g, c.rx_at, c.rx_seed_err, c.rx_nsyms,
+                        (double)(c.n - c.rx_at) * (double)c.dwell_len / FS);
+                print_rx ("window", &rw);
+                print_rx ("data", &rd);
+                const double ber = score_ber (&c, cn0s[ci], "data");
+                if (check)
+                  {
+                    DP_CHECK_MSG (rd.n_rx >= 100 && rd.n_rx_held == rd.n_rx
+                                      && rw.n_rx_held == rw.n_rx,
+                                  "the shipped cell receiver never leaves "
+                                  "the cell");
+                    /* The receiver's steer is the harness's read through
+                       its own carrier loop and a rate over the interval;
+                       within twice the loop's jitter is the defect gate. */
+                    DP_CHECK_MSG (
+                        rd.rx_sig < 2.0 * DLL_45 && fabs (rd.rx_bias) < 0.05,
+                        "the shipped cell receiver holds the phase "
+                        "within twice the loop's closed-loop jitter, "
+                        "without bias");
+                    DP_CHECK_MSG (rd.rx_code > 0.95 && rd.rx_sym > 0.95,
+                                  "the shipped cell receiver holds both lock "
+                                  "flags");
+                    DP_CHECK_MSG (!isnan (ber) && ber < 1e-2,
+                                  "the shipped cell receiver decodes the "
+                                  "payload at 45 dB-Hz");
+                  }
+              }
           if (check && ppms[pi] == 18.0)
             {
               /* The claim under test: at 45 dB-Hz under dilation the
@@ -1565,6 +1816,7 @@ main (int argc, char **argv)
       c.hz = c.chip = NULL;
     }
   free (c.d);
+  free (c.bits);
   if (check)
     DP_TEST_END ("validate_acq_surface_jitter");
   return 0;

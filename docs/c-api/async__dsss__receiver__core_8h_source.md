@@ -96,6 +96,14 @@ extern "C"
    * carrier-driven slips are gone and the narrower 0.002 keeps its noise
    * immunity at the low-Es/N0 floor.) */
 #define ASYNC_DSSS_RX_DLL_BN 0.002
+  /* The Dll's early-late spacing, chips, and so its discriminator's design
+   * slope: for a rectangular chip the normalised power discriminator reads
+   * (2 - spacing) units per chip of offset, 1.5 here -- the cell mode's
+   * correction divides by it so its gain is in chips, gain 1 putting the
+   * phase at the read (design section 12.24's semantics; measured 1.6 on
+   * the channel's resampled pulse, 12.22). */
+#define ASYNC_DSSS_RX_DLL_SPACING 0.5
+#define ASYNC_DSSS_RX_DLL_DISC_SLOPE (2.0 - ASYNC_DSSS_RX_DLL_SPACING)
 
   /* Symbol-lock detector on the emitted symbols. The lock signal is the
    * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per
@@ -107,6 +115,12 @@ extern "C"
    * after LOCK_N_UP consecutive symbols with the metric >= LOCK_UP and drops
    * it after LOCK_N_DOWN below LOCK_DOWN. */
 #define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
+/* The cell mode's defaults (async_dsss_receiver_create_cell(), design
+ * section 12.23-12.24 as a mode of this receiver): the correction's gain, in
+ * chips, on the coasting Dll's interval-mean discriminator, and the
+ * intervals at gain 1 that pull the seed's residual in. */
+#define ASYNC_DSSS_RX_CELL_GAIN 0.125
+#define ASYNC_DSSS_RX_CELL_PULLIN 4u
 #define ASYNC_DSSS_RX_LOCK_DWELL 30u
 #define ASYNC_DSSS_RX_LOCK_UP 0.5
 #define ASYNC_DSSS_RX_LOCK_DOWN 0.3
@@ -210,6 +224,19 @@ extern "C"
     int      had_lock;             
     int      car_coasting;         
     costas_state_t car_held;       
+    /* The cell mode (async_dsss_receiver_create_cell()): the receiver a
+     * searcher's cell drives -- no refine, the Dll held from the first
+     * sample and put back once an interval at a held phase corrected by a
+     * gain times what its discriminator read (design section 12.22-12.24);
+     * the carrier loop the hand-off's own. */
+    int      cell;             
+    size_t   correct_periods;  
+    double   cell_gain;        
+    size_t   pullin_intervals; 
+    double   held_phase;       
+    double   cell_rate_bias;   
+    size_t   period_count;     
+    uint64_t intervals;        
     double   seed_chip_phase;     
     double   seed_doppler_hz_est; 
     double   doppler_hz_est;      
@@ -246,6 +273,13 @@ extern "C"
       size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s);
+
+  async_dsss_receiver_state_t *async_dsss_receiver_create_cell (
+      const uint8_t *code, size_t code_len, double chip_rate,
+      double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
+      double pd, size_t segments, size_t sps, int differential,
+      double carrier_freq_hz, double lost_confirm_s, size_t correct_periods,
+      double gain, size_t pullin_intervals);
 
   void async_dsss_receiver_destroy (async_dsss_receiver_state_t *state);
 
@@ -351,7 +385,8 @@ extern "C"
     uint8_t  handoff; 
     uint8_t  had_lock;     
     uint8_t  car_coasting; 
-    uint8_t  _pad[4];
+    uint8_t  cell;         
+    uint8_t  _pad[3];
     double   seed_chip_phase;
     double   seed_doppler_hz_est;
     double   doppler_hz_est;
@@ -368,10 +403,14 @@ extern "C"
     double   lock_den;  
     double   lock_metric;         
     lockdet_state_t sym_lockdet;  
+    double   held_phase;          
+    double   cell_rate_bias;
+    uint64_t period_count;
+    uint64_t intervals;
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 4u /* v4: had_lock */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 5u /* v5: the cell mode; v4: had_lock */
 
   size_t async_dsss_receiver_state_bytes (
       const async_dsss_receiver_state_t *state);

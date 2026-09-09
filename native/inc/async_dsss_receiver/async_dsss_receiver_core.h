@@ -189,6 +189,14 @@ extern "C"
    * carrier-driven slips are gone and the narrower 0.002 keeps its noise
    * immunity at the low-Es/N0 floor.) */
 #define ASYNC_DSSS_RX_DLL_BN 0.002
+  /* The Dll's early-late spacing, chips, and so its discriminator's design
+   * slope: for a rectangular chip the normalised power discriminator reads
+   * (2 - spacing) units per chip of offset, 1.5 here -- the cell mode's
+   * correction divides by it so its gain is in chips, gain 1 putting the
+   * phase at the read (design section 12.24's semantics; measured 1.6 on
+   * the channel's resampled pulse, 12.22). */
+#define ASYNC_DSSS_RX_DLL_SPACING 0.5
+#define ASYNC_DSSS_RX_DLL_DISC_SLOPE (2.0 - ASYNC_DSSS_RX_DLL_SPACING)
 
   /* Symbol-lock detector on the emitted symbols. The lock signal is the
    * BPSK phase-lock statistic (I^2 - Q^2)/(I^2 + Q^2) = cos(2*phi) per
@@ -203,6 +211,12 @@ extern "C"
  *  dwell (77 Hz of estimate noise at 45 dB-Hz); see
  *  async_dsss_receiver_set_refine_min_blocks(). */
 #define ASYNC_DSSS_RX_REFINE_MIN_BLOCKS 7u
+/* The cell mode's defaults (async_dsss_receiver_create_cell(), design
+ * section 12.23-12.24 as a mode of this receiver): the correction's gain, in
+ * chips, on the coasting Dll's interval-mean discriminator, and the
+ * intervals at gain 1 that pull the seed's residual in. */
+#define ASYNC_DSSS_RX_CELL_GAIN 0.125
+#define ASYNC_DSSS_RX_CELL_PULLIN 4u
 #define ASYNC_DSSS_RX_LOCK_DWELL 30u
 #define ASYNC_DSSS_RX_LOCK_UP 0.5
 #define ASYNC_DSSS_RX_LOCK_DOWN 0.3
@@ -353,6 +367,28 @@ extern "C"
     costas_state_t car_held;       /**< The carrier as of the last
                                         symbol-locked period, restored on
                                         entering the hold.                */
+
+    /* The cell mode (async_dsss_receiver_create_cell()): the receiver a
+     * searcher's cell drives -- no refine, the Dll held from the first
+     * sample and put back once an interval at a held phase corrected by a
+     * gain times what its discriminator read (design section 12.22-12.24);
+     * the carrier loop the hand-off's own. */
+    int      cell;             /**< Config: 1 = the cell mode.            */
+    size_t   correct_periods;  /**< Config: code periods per correction --
+                                    the searcher's block depth in a pool. */
+    double   cell_gain;        /**< Config: the correction's gain, chips,
+                                    (0, 1].                               */
+    size_t   pullin_intervals; /**< Config: intervals at gain 1 first.    */
+    double   held_phase;       /**< Running: the held code phase at the
+                                    next interval's start, chips in the
+                                    Dll's convention, unwrapped.          */
+    double   cell_rate_bias;   /**< Running: the rate bias steering the Dll
+                                    onto the held phase over the next
+                                    period (chips per chip), summed into
+                                    its aid.                              */
+    size_t   period_count;     /**< Running: periods into the interval.   */
+    uint64_t intervals;        /**< Running: corrections since the seed --
+                                    the pull-in schedule's clock.         */
     double   seed_chip_phase;     /**< Original handoff chip phase --
                                         reused verbatim to seed the FRESH
                                         live-tracking Dll, not wherever the
@@ -666,6 +702,88 @@ extern "C"
       size_t refine_zero_pad, bool refine_sequential,
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s);
+
+  /**
+   * @brief Create the receiver a searcher's cell drives: the cell mode,
+   *        idle until seed(), with no refine and no code loop of its own.
+   *
+   * The searcher-timed tracker of docs/design/async-dsss-receiver.md
+   * section 12.22-12.24 as a mode of this receiver, by turning stages off.
+   * From the seed the live chain runs at once -- no refine stage, no
+   * CarrierAcquisition -- with the Dll held from the first sample (it
+   * coasts; its own loop never closes). Once every `correct_periods` code
+   * periods the held code phase, kept in double and dead-reckoned across
+   * the interval on the carrier loop's Doppler, is moved by `gain` chips
+   * per chip of what the coasting Dll's discriminator read over the
+   * interval (its per-steer mean, Dll.take_error_mean, through the
+   * discriminator's design slope) and the Dll steered to it by rate over
+   * the next interval (never a phase kick: at a period boundary that lands
+   * on the code's wrap and costs a period's partials, #1287) -- gain 1
+   * through the first `pullin_intervals` (the seed's residual, up to half a
+   * chip), the design gain after; refining is the pull-in, tracking
+   * follows. The correction is applied before the first lock or while the
+   * code flag is up; with the flag down the phase only dead-reckons, so a
+   * departed emitter's receiver cannot walk onto a neighbour. The carrier
+   * is the hand-off flavor's own pre-despread loop, running -- it is what
+   * follows SPEC's 500 Hz/s (MpskReceiver's 27 Hz loop alone cannot), held
+   * on both flags down as there, and it refreshes the Dll's rate aid every
+   * period. Everything else -- the symbol path, the symbol lock, the
+   * release rule, the status record, reset() to idle -- is the hand-off
+   * flavor's verbatim. Measured on the receiver's own tests: the held phase
+   * sits on the channel's mapping at 0.003 chip sigma at gain 1/8 against
+   * 0.014 at gain 1 (12.26).
+   *
+   * @param code            Spreading code, 0/1 chips.
+   * @param code_len        Chips per period.
+   * @param chip_rate       Chips per second.
+   * @param symbol_rate     Data symbols per second.
+   * @param spc             Samples per chip.
+   * @param m               PSK order (2, 4 or 8).
+   * @param cn0_dbhz        Design C/N0, dB-Hz -- sizes the Dll's lock
+   *                        detector as the hand-off flavor's.
+   * @param pfa             Acquisition false-alarm probability (kept for
+   *                        the flavor's shared config; no search runs).
+   * @param pd              Likewise.
+   * @param segments        Partial correlations per code period.
+   * @param sps             MpskReceiver's samples per symbol.
+   * @param differential    1 for differentially-encoded data.
+   * @param carrier_freq_hz RF carrier, Hz; > 0 couples the code rate to the
+   *                        carrier loop's Doppler (the dead reckoning and
+   *                        the Dll's aid), 0 = no dilation.
+   * @param lost_confirm_s  The release rule's confirm time, seconds.
+   * @param correct_periods Code periods per correction (>= 1): in a pool,
+   *                        the searcher's block depth.
+   * @param gain            The correction's gain, chips per chip of the
+   *                        interval-mean read, (0, 1]; 1 puts the phase at
+   *                        the read.
+   * @param pullin_intervals Intervals at gain 1 before `gain` applies.
+   * @return A new receiver, idle; NULL on an invalid argument.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.dsss import CellAsyncDsssReceiver
+   * >>> from doppler.wfm import Gold
+   * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+   * >>> rx = CellAsyncDsssReceiver(code, chip_rate=5e6, symbol_rate=2700.0,
+   * ...                            spc=2, carrier_freq_hz=2.5e9,
+   * ...                            correct_periods=154)
+   * >>> (rx.idle, rx.refining, rx.tracking)
+   * (1, 0, 0)
+   * >>> rx.seed(chip_phase=512.25, doppler_hz_est=-1500.0,
+   * ...         cn0_dbhz_est=45.0)
+   * >>> (rx.idle, rx.refining, rx.doppler_hz)     # refining is the pull-in
+   * (0, 1, -1500.0)
+   * >>> rx.reset()
+   * >>> rx.idle
+   * 1
+   *
+   * @endcode
+   */
+  async_dsss_receiver_state_t *async_dsss_receiver_create_cell (
+      const uint8_t *code, size_t code_len, double chip_rate,
+      double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
+      double pd, size_t segments, size_t sps, int differential,
+      double carrier_freq_hz, double lost_confirm_s, size_t correct_periods,
+      double gain, size_t pullin_intervals);
 
   /** @brief Destroy a receiver and release every child.
    *  @param state May be NULL. */
@@ -1126,7 +1244,10 @@ extern "C"
                            blob does not travel between the flavors.    */
     uint8_t  had_lock;     /**< v4: a flag has been up; the loops coast. */
     uint8_t  car_coasting; /**< v4: the carrier loop is held.            */
-    uint8_t  _pad[4];
+    uint8_t  cell;         /**< v5: the cell mode -- no refine children in
+                                the blob; a blob does not travel between
+                                the modes.                             */
+    uint8_t  _pad[3];
     double   seed_chip_phase;
     double   seed_doppler_hz_est;
     double   doppler_hz_est;
@@ -1143,10 +1264,14 @@ extern "C"
     double   lock_den;  /**< running state that survives a checkpoint    */
     double   lock_metric;         /**< (config -- alpha, thresholds -- is */
     lockdet_state_t sym_lockdet;  /**< restored by create()).             */
+    double   held_phase;          /**< v5: the cell mode's running state. */
+    double   cell_rate_bias;
+    uint64_t period_count;
+    uint64_t intervals;
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 4u /* v4: had_lock */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 5u /* v5: the cell mode; v4: had_lock */
 
   size_t async_dsss_receiver_state_bytes (
       const async_dsss_receiver_state_t *state);

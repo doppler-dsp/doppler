@@ -132,6 +132,7 @@
 * **async\_dsss\_receiver\_configure\_lock\_raw** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **async\_dsss\_receiver\_configure\_search\_raw** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **async\_dsss\_receiver\_create** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
+* **async\_dsss\_receiver\_create\_cell** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **async\_dsss\_receiver\_create\_handoff** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **async\_dsss\_receiver\_destroy** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **async\_dsss\_receiver\_get\_car\_last\_error** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))

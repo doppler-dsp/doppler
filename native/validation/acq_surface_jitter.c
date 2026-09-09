@@ -273,7 +273,9 @@ typedef struct
      from the surface at the first window dwell as the held mode is,
      scored on its status(); its symbols kept for the BER. */
   async_dsss_receiver_state_t *rx;
-  double          rx_gain; /* NAN = no receiver                    */
+  double rx_gain;    /* NAN = no receiver                    */
+  int    rx_handoff; /* the hand-off flavour on the same seed,
+                        for parity (no cell gain)            */
   int             rx_seeded;
   uint64_t        rx_seed_at;  /* samples_consumed at the seed         */
   uint64_t        rx_seed_sym; /* the synth's symbol index there       */
@@ -847,11 +849,19 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
   c->rx_nsyms  = 0;
   if (!isnan (c->rx_gain) && a->coherent_bins > 1)
     {
-      c->rx = async_dsss_receiver_create_cell (
-          code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0, PFA, PD, SEGMENTS,
-          RX_SPS, 0, CARRIER_HZ, 0.0, a->coherent_bins, c->rx_gain,
-          ASYNC_DSSS_RX_CELL_PULLIN);
-      DP_REQUIRE_MSG (c->rx != NULL, "the cell receiver opens");
+      /* The hand-off flavour's refine is the release harness's
+         (tracker_through_window.c): the parity reference on the same
+         seed and stream. */
+      c->rx = c->rx_handoff
+                  ? async_dsss_receiver_create_handoff (
+                        code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0, PFA, PD,
+                        SEGMENTS, RX_SPS, 0, 0.5, 4, 14.0, 64, 8, false,
+                        100000, CARRIER_HZ, 0.0)
+                  : async_dsss_receiver_create_cell (
+                        code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0, PFA, PD,
+                        SEGMENTS, RX_SPS, 0, CARRIER_HZ, 0.0, a->coherent_bins,
+                        c->rx_gain, ASYNC_DSSS_RX_CELL_PULLIN);
+      DP_REQUIRE_MSG (c->rx != NULL, "the receiver opens");
       c->rx_out = dp_xmalloc (TE * sizeof *c->rx_out);
       c->rx_syms_cap
           = (size_t)((double)n * (double)c->dwell_len * SYM_RATE / FS) + 4096;
@@ -1468,10 +1478,20 @@ truth_bit (const uint8_t *bits, uint64_t sym)
 
 /* The BER of the shipped receiver's symbols against the synth's payload:
    the truth from a margin before the seed's symbol on, aligned by
-   dp_ber_sync past the receiver's settling, scored past it. */
+   dp_ber_sync past the receiver's settling, scored past it. One
+   alignment for the whole record, so a carrier cycle slip (BPSK: 180
+   degrees) inverts every bit after it until the next -- the BER then
+   says 0.3 where the decoder between the slips is at theory. `*slips`
+   counts them: the scored window in SLIP_CHUNK-symbol chunks, a chunk
+   inverted when more than half its bits disagree, a slip at each change
+   of state (dp_ber_sync's own `slips` needs a repeating marker; this
+   record has one occurrence). A measurement that cannot show the bad
+   case would have called 0.3 a decoder. */
+#define SLIP_CHUNK 500u
 static double
-score_ber (const sink_ctx_t *c, double cn0, const char *label)
+score_ber (const sink_ctx_t *c, double cn0, const char *label, size_t *slips)
 {
+  *slips = 0;
   if (!c->rx_seeded || c->rx_nsyms < 1000)
     return NAN;
   const size_t margin = 16; /* the receiver's first symbol is a few past
@@ -1484,13 +1504,42 @@ score_ber (const sink_ctx_t *c, double cn0, const char *label)
   dp_ber_init (&acc, 2, 0);
   const double    esn0   = cn0 - 10.0 * log10 (SYM_RATE);
   const size_t    settle = 8 * (size_t)((double)c->dwell_len * SYM_RATE / FS);
-  dp_ber_report_t r = dp_ber_measure (&acc, c->rx_syms, c->rx_nsyms, truth,
-                                      n_truth, esn0, settle, 1, NULL);
+  dp_ber_report_t r   = dp_ber_measure (&acc, c->rx_syms, c->rx_nsyms, truth,
+                                        n_truth, esn0, settle, 1, NULL);
+  const double    ber = r.ber.p_hat;
+  /* The same alignment dp_ber_measure used (its blind marker sits a lag
+     span past the settling), rescored chunk by chunk. */
+  dp_ber_marker_t mk;
+  mk.sym    = NULL;
+  mk.n      = DP_BER_SYNC_SYMS;
+  mk.t0     = settle + (size_t)DP_BER_LAG_SPAN;
+  mk.period = 0;
+  mk.reps   = 0;
+  const dp_ber_sync_t sy
+      = dp_ber_sync (c->rx_syms, c->rx_nsyms, truth, n_truth, &mk, 2,
+                     DP_BER_LAG_SPAN, DP_BER_SYNC_PFA);
+  int    inverted = 0;
+  size_t chunks   = 0;
+  for (size_t lo = r.window_lo; sy.ok && lo < r.window_hi; lo += SLIP_CHUNK)
+    {
+      const size_t hi
+          = lo + SLIP_CHUNK < r.window_hi ? lo + SLIP_CHUNK : r.window_hi;
+      dp_ber_t ch;
+      dp_ber_init (&ch, 2, 0);
+      dp_ber_score (&ch, c->rx_syms, lo, hi, truth, n_truth, &mk, &sy);
+      const int inv = ch.bits && 2 * ch.bit_errors > ch.bits;
+      dp_ber_free (&ch);
+      if (inv != inverted)
+        (*slips)++;
+      inverted = inv;
+      chunks++;
+    }
   printf ("    %-7s BER %.2e (%lu errors in %lu bits; theory %.2e at Es/N0 "
-          "%.1f dB; EVM %.1f dB; window [%zu,%zu) of %zu symbols)\n",
+          "%.1f dB; EVM %.1f dB; window [%zu,%zu) of %zu symbols; %zu "
+          "cycle slips in %zu chunks of %u)\n",
           label, r.ber.p_hat, acc.bit_errors, acc.bits, r.theory_ber, esn0,
-          r.evm_db, r.window_lo, r.window_hi, c->rx_nsyms);
-  const double ber = r.ber.p_hat;
+          r.evm_db, r.window_lo, r.window_hi, c->rx_nsyms, *slips, chunks,
+          SLIP_CHUNK);
   dp_ber_free (&acc);
   free (truth);
   return ber;
@@ -1700,42 +1749,58 @@ main (int argc, char **argv)
                 }
             }
           c.held = 0;
-          /* The shipped receiver in its cell mode on the same stream
-             (section 12.26): seeded from the surface at the first window
-             dwell, fed the epochs from there, its held phase read off its
-             status and its symbols scored against the synth's payload.
-             The design gain, and gain 1 under dilation. */
+          /* The shipped receiver on the same stream (section 12.26):
+             seeded from the surface at the first window dwell, fed the
+             epochs from there, its held phase read off its status and
+             its symbols scored against the synth's payload. The cell
+             mode at the design gain, at gain 1 under dilation, and the
+             hand-off flavour on the same seed as the parity reference
+             (its phase is undefined until its refine ends, so its
+             window row is not a read). The check runs the design gain
+             and the reference. */
           if (ppms[pi] == 18.0)
-            for (size_t gi = 0; gi < 2; gi++)
+            for (size_t fi = 0; fi < 3; fi++)
               {
-                const double g = gi ? 1.0 : ASYNC_DSSS_RX_CELL_GAIN;
-                if (check && gi)
-                  break;
-                c.rx_gain = g;
+                const int    handoff = fi == 2;
+                const double g       = fi == 1 ? 1.0 : ASYNC_DSSS_RX_CELL_GAIN;
+                if (check && fi == 1)
+                  continue;
+                c.rx_gain    = g;
+                c.rx_handoff = handoff;
                 DP_REQUIRE (run (a, code, ppms[pi], cn0s[ci],
                                  31u + (uint32_t)pi, cal.c0, W_SYM, NAN, &c,
                                  n_dw)
                             == 0);
-                c.rx_gain = NAN;
-                stat_t rw, rd;
+                c.rx_gain        = NAN;
+                c.rx_handoff     = 0;
+                const char *name = handoff ? "HandoffAsyncDsssReceiver"
+                                           : "CellAsyncDsssReceiver";
+                stat_t      rw, rd;
                 stats (&c, &cal, 1, &rw);
                 stats (&c, &cal, 0, &rd);
                 if (!c.rx_seeded)
                   {
-                    printf ("    CellAsyncDsssReceiver: never seeded (no "
-                            "window dwell in %zu)\n",
-                            c.n);
+                    printf ("    %s: never seeded (no window dwell in "
+                            "%zu)\n",
+                            name, c.n);
                     continue;
                   }
-                printf ("    CellAsyncDsssReceiver, gain %.3f: seeded at "
-                        "dwell %zu, %+.3f chips from the truth; %zu symbols "
-                        "over %.1f s\n",
-                        g, c.rx_at, c.rx_seed_err, c.rx_nsyms,
-                        (double)(c.n - c.rx_at) * (double)c.dwell_len / FS);
-                print_rx ("window", &rw);
+                if (handoff)
+                  printf ("    %s: seeded at dwell %zu, %+.3f chips from "
+                          "the truth; %zu symbols over %.1f s\n",
+                          name, c.rx_at, c.rx_seed_err, c.rx_nsyms,
+                          (double)(c.n - c.rx_at) * (double)c.dwell_len / FS);
+                else
+                  printf ("    %s, gain %.3f: seeded at dwell %zu, %+.3f "
+                          "chips from the truth; %zu symbols over %.1f s\n",
+                          name, g, c.rx_at, c.rx_seed_err, c.rx_nsyms,
+                          (double)(c.n - c.rx_at) * (double)c.dwell_len / FS);
+                if (!handoff)
+                  print_rx ("window", &rw);
                 print_rx ("data", &rd);
-                const double ber = score_ber (&c, cn0s[ci], "data");
-                if (check)
+                size_t       slips;
+                const double ber = score_ber (&c, cn0s[ci], "data", &slips);
+                if (check && !handoff)
                   {
                     DP_CHECK_MSG (rd.n_rx >= 100 && rd.n_rx_held == rd.n_rx
                                       && rw.n_rx_held == rw.n_rx,
@@ -1755,6 +1820,9 @@ main (int argc, char **argv)
                     DP_CHECK_MSG (!isnan (ber) && ber < 1e-2,
                                   "the shipped cell receiver decodes the "
                                   "payload at 45 dB-Hz");
+                    DP_CHECK_MSG (slips == 0,
+                                  "the shipped cell receiver's carrier "
+                                  "never slips a cycle at 45 dB-Hz");
                   }
               }
           if (check && ppms[pi] == 18.0)

@@ -1754,3 +1754,65 @@ What it settles:
     tile, and the symbol detector on the prompt.
 
 ______________________________________________________________________
+
+### 12.24 What was measured (2026-09-08) — the filtered correction
+
+**What was built.** §12.23's tracker with a gain on its correction:
+the held phase moves by `g` times what the coasting DLL read, once a
+block, and the dead reckoning on the held Doppler carries the rest. A
+first-order loop on a white read keeps `g / (2 − g)` of the read's
+variance; the harness prints that prediction from the gain-1 row beside
+each measured one. Gains 1, 1/2, 1/4 and 1/8 at 18 ppm, both C/N0s, the
+same seeds as §12.23, 800 dwells each.
+
+**The held phase under data, per block** (chips; the prediction is
+`sqrt(g / (2 − g))` of the gain-1 σ; the excess is what is left in
+quadrature):
+
+| gain | 45 dB-Hz: σ, predicted, excess | worst | 40 dB-Hz: σ, predicted, excess | worst | left the cell |
+| ---- | ------------------------------ | ----- | ------------------------------ | ----- | ------------- |
+| 1    | 0.0144, 0.0144, —              | 0.046 | 0.0272, 0.0272, —              | 0.099 | never         |
+| 1/2  | 0.0087, 0.0083, 0.0026         | 0.031 | 0.0167, 0.0157, 0.0057         | 0.062 | never         |
+| 1/4  | 0.0064, 0.0054, 0.0034         | 0.022 | 0.0114, 0.0103, 0.0049         | 0.045 | never         |
+| 1/8  | **0.0052**, 0.0037, 0.0037     | 0.018 | **0.0082**, 0.0070, 0.0043     | 0.034 | never         |
+
+The bias is the gain's to leave alone: −0.004 at 45 dB-Hz and +0.012
+at 40 at every gain, §12.23's S-curve zero. The window class reads the
+same curve (0.0128 → 0.0046 at 45 dB-Hz, 0.0249 → 0.0071 at 40).
+
+What it settles:
+
+- **The filtered tracker sits under the loop it replaces.** At gain 1/8
+    the phase held on the searcher's own cell is 0.0052 chip at 45 dB-Hz
+    and 0.0082 at 40, against the closed DLL's 0.013 and 0.021 — 2.5
+    times under it at both — with the worst excursion in 25 s under
+    0.035 chip and the cell never left. The correction's time constant
+    is eight blocks, a quarter of a second, which the dead reckoning
+    carries without trace: at the Doppler the surface read (0.7 Hz off
+    at 40 dB-Hz), the rate error is 0.0003 chip per block and its lag
+    at gain 1/8 is 0.002 chip.
+- **The read is white to gain 1/2, and below that a floor shows.** The
+    measured σ follows the first-order line at gains 1 and 1/2 and then
+    leaves it: the excess in quadrature is 0.0035 chip at 45 dB-Hz and
+    0.0045 at 40 at gains 1/4 and 1/8, nearly the same at the two C/N0s
+    where the read's noise differs by two. So it is not the noise; it is
+    a component of the read that wanders slower than the filter's time
+    constant and is tracked rather than averaged. Its source is not
+    measured here. Two candidates, unranked: the calibrated S-curve's
+    residual shape (ten bins across the cell, interpolated, the loop's
+    zero read to 0.04 within a block), and the symbol window's boundary
+    walking through the block — 154 epochs are 84.1 symbols, so the
+    window's phase against the block's edges advances a tenth of a
+    symbol per block and comes round every ten. A tracker that wants
+    the last factor of two finds out which.
+- **The gate.** `--check` runs gains 1 and 1/4 at 45 dB-Hz and 18 ppm:
+    the filtered tracker never leaves the cell and holds the phase under
+    three quarters of the unfiltered jitter (0.0050 against 0.0132 on
+    the check's 137 blocks), without bias. Sabotaged by ignoring the
+    gain; red.
+- **Not measured here:** the floor's source, a gain under 1/8 (the floor
+    says it buys nothing further), the Doppler refreshed from the window
+    dwells, two emitters in one tile, and the symbol detector on the
+    prompt.
+
+______________________________________________________________________

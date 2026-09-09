@@ -54,10 +54,14 @@
  *           phase within the cell, the parabola over the rows for the
  *           Doppler, which is also the code rate), dead-reckons the held
  *           phase across each block on that rate, puts the loop there,
- *           and corrects the phase by the whole of what the loop read,
- *           once the symbol aid has settled. Scored per block as the
- *           phase it held at the block's middle against the truth, and
- *           whether it ever left the cell.
+ *           and corrects the phase by a GAIN times what the loop read,
+ *           once the symbol aid has settled: gain 1 puts the phase at
+ *           the read (§12.23); below it a first-order loop keeps
+ *           g / (2 - g) of the read's variance and the dead reckoning
+ *           carries the rest (§12.24, gains 1, 1/2, 1/4, 1/8 under
+ *           dilation). Scored per block as the phase it held at the
+ *           block's middle against the truth, and whether it ever left
+ *           the cell.
  *
  * Each in two classes: dwells whose block lies inside the emitter's
  * code-only window (the coherent case the searcher detects in) and
@@ -96,7 +100,9 @@
  *                                          and closed on its own cell the
  *                                          tracker acquires, never leaves
  *                                          it, and holds the phase within
- *                                          the same bound
+ *                                          the same bound; at gain 1/4 it
+ *                                          holds under three quarters of
+ *                                          gain 1's jitter
  */
 #include "acq/acq_core.h"
 #include "awgn/awgn_core.h"
@@ -146,6 +152,11 @@
 #define P_SYM ((double)SEGMENTS * CHIP_RATE / ((double)SF * SYM_RATE))
 #define DLL_SETTLE 6 /* blocks the symbol aid settles over, not scored   */
 #define DLL_U0 0.1   /* the coasting loop\'s seed offset from the cell    */
+/* The held tracker's correction gains: 1 puts the phase at the read; a
+   first-order loop below it keeps g / (2 - g) of the read's variance
+   and lets the dead reckoning carry the rest (section 12.24). */
+static const double HELD_GAINS[] = { 1.0, 0.5, 0.25, 0.125 };
+#define N_GAINS (sizeof HELD_GAINS / sizeof HELD_GAINS[0])
 
 /* The stimulus: one emitter through the channel, noise after it. */
 typedef struct
@@ -244,6 +255,7 @@ typedef struct
   size_t blk_acq;               /* blocks since acquisition               */
   size_t at_acq;                /* the dwell index it acquired on         */
   double h_acq_err, f_acq_err;  /* the seed's error, chips, Hz */
+  double h_gain;                /* the correction's gain on the read */
 } sink_ctx_t;
 
 static double disc (double e, double l);
@@ -656,7 +668,7 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
         {
           c->h += c->h_rate * (double)c->dwell_len;
           if (ne && c->blk_acq >= DLL_SETTLE)
-            c->h -= sinv (c->dll_cal, se / (double)ne) - c->u0;
+            c->h -= c->h_gain * (sinv (c->dll_cal, se / (double)ne) - c->u0);
           c->blk_acq++;
         }
       /* Tracking (the convention's calibration): the loop's phase at the
@@ -1406,46 +1418,81 @@ main (int argc, char **argv)
           print_row ("data", &dt);
           /* The same, closed on the searcher's own cell: acquired from the
              surface at the first window dwell, corrected once a block by
-             the coasting DLL's read, the truth used only to score. */
-          c.held    = 1;
-          c.coh_cal = &cal.coh;
-          c.dll_cal = &cal.dll;
-          DP_REQUIRE (run (a, code, ppms[pi], cn0s[ci], 21u + (uint32_t)pi,
-                           cal.c0, W_SYM, DLL_U0, &c, n_dw)
-                      == 0);
-          c.held = 0;
-          stat_t hw, hd;
-          stats (&c, &cal, 1, &hw);
-          stats (&c, &cal, 0, &hd);
-          if (c.acquired)
-            printf ("    tracker on the searcher's own cell: acquired at "
-                    "dwell %zu, %+.3f chips and %+.1f Hz from the truth; "
-                    "corrected once a block from the coasting DLL's read "
-                    "after %d blocks of settling; %.1f s\n",
-                    c.at_acq, c.h_acq_err, c.f_acq_err, DLL_SETTLE,
-                    (double)(c.n - c.at_acq) * (double)c.dwell_len / FS);
-          else
-            printf ("    tracker on the searcher's own cell: never "
-                    "acquired (no window dwell in %zu)\n",
-                    c.n);
-          print_held ("window", &hw);
-          print_held ("data", &hd);
-          if (check && ppms[pi] == 18.0)
+             the coasting DLL's read, the truth used only to score. Gain 1
+             at both drifts; the filtered gains under dilation (the check
+             takes 1 and 0.25). */
+          c.held      = 1;
+          c.coh_cal   = &cal.coh;
+          c.dll_cal   = &cal.dll;
+          double sig1 = 0.0;
+          for (size_t gi = 0; gi < N_GAINS; gi++)
             {
-              DP_CHECK_MSG (c.acquired && fabs (c.h_acq_err) < 0.1
-                                && fabs (c.f_acq_err) < 20.0,
-                            "the tracker acquires from the surface within "
-                            "a tenth of a chip and a row of the truth");
-              DP_CHECK_MSG (hd.n_h >= 100 && hd.n_held == hd.n_h
-                                && hw.n_held == hw.n_h,
-                            "the held tracker never leaves the cell");
-              /* Measured in section 12.23; twice the closed loop's jitter
-                 is the defect gate, as for the truth-cell read. */
-              DP_CHECK_MSG (hd.h_sig < 2.0 * DLL_45 && fabs (hd.h_bias) < 0.05,
-                            "the phase held on the searcher's own cell is "
-                            "within twice the loop's closed-loop jitter of "
-                            "the truth, without bias");
+              if (gi && ppms[pi] != 18.0)
+                break;
+              if (check && gi && HELD_GAINS[gi] != 0.25)
+                continue;
+              c.h_gain = HELD_GAINS[gi];
+              DP_REQUIRE (run (a, code, ppms[pi], cn0s[ci], 21u + (uint32_t)pi,
+                               cal.c0, W_SYM, DLL_U0, &c, n_dw)
+                          == 0);
+              stat_t hw, hd;
+              stats (&c, &cal, 1, &hw);
+              stats (&c, &cal, 0, &hd);
+              if (!c.acquired)
+                {
+                  printf ("    tracker on the searcher's own cell: never "
+                          "acquired (no window dwell in %zu)\n",
+                          c.n);
+                  break;
+                }
+              if (!gi)
+                sig1 = hd.h_sig;
+              printf ("    tracker on the searcher's own cell, gain %.3f: "
+                      "acquired at dwell %zu, %+.3f chips and %+.1f Hz from "
+                      "the truth; corrected once a block by that fraction of "
+                      "the coasting DLL's read after %d blocks of settling; "
+                      "%.1f s; first order predicts sigma %.4f under data\n",
+                      c.h_gain, c.at_acq, c.h_acq_err, c.f_acq_err, DLL_SETTLE,
+                      (double)(c.n - c.at_acq) * (double)c.dwell_len / FS,
+                      sig1 * sqrt (c.h_gain / (2.0 - c.h_gain)));
+              print_held ("window", &hw);
+              print_held ("data", &hd);
+              if (check && ppms[pi] == 18.0 && !gi)
+                {
+                  DP_CHECK_MSG (c.acquired && fabs (c.h_acq_err) < 0.1
+                                    && fabs (c.f_acq_err) < 20.0,
+                                "the tracker acquires from the surface "
+                                "within a tenth of a chip and a row of the "
+                                "truth");
+                  DP_CHECK_MSG (hd.n_h >= 100 && hd.n_held == hd.n_h
+                                    && hw.n_held == hw.n_h,
+                                "the held tracker never leaves the cell");
+                  /* Measured in section 12.23; twice the closed loop's
+                     jitter is the defect gate, as for the truth-cell
+                     read. */
+                  DP_CHECK_MSG (hd.h_sig < 2.0 * DLL_45
+                                    && fabs (hd.h_bias) < 0.05,
+                                "the phase held on the searcher's own cell "
+                                "is within twice the loop's closed-loop "
+                                "jitter of the truth, without bias");
+                }
+              else if (check && ppms[pi] == 18.0)
+                {
+                  /* Section 12.24: at gain 0.25 first order keeps 0.143 of
+                     the read's variance, 0.38 of its sigma. Under 0.75 of
+                     gain 1's, still never leaving the cell, is the gate:
+                     the filter reduces the noise it is there to reduce. */
+                  DP_CHECK_MSG (hd.n_held == hd.n_h && hw.n_held == hw.n_h,
+                                "the filtered tracker never leaves the "
+                                "cell");
+                  DP_CHECK_MSG (hd.h_sig < 0.75 * sig1
+                                    && fabs (hd.h_bias) < 0.05,
+                                "the filtered correction holds the phase "
+                                "under three quarters of the unfiltered "
+                                "jitter, without bias");
+                }
             }
+          c.held = 0;
           if (check && ppms[pi] == 18.0)
             {
               /* The claim under test: at 45 dB-Hz under dilation the

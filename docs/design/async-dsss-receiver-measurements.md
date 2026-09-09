@@ -1976,8 +1976,8 @@ What it settles:
     calibrated S-curve is not the floor's source: the excess in
     quadrature over first order is the same (0.0037 there, 0.0040 here).
 - **At 45 dB-Hz both flavours decode at theory** with no cycle slip in
-    25 s; the check's 137 dwells give 0 errors in 11469 bits for the cell
-    and 0 in 11373 for the hand-off.
+    25 s; the check's 137 dwells give 0 errors in 11469 bits for the
+    cell.
 - **At 40 dB-Hz the receiver's carrier slips cycles, in both flavours.**
     A BER of 0.3 with the EVM at the SNR (−5.6 dB at Es/N0 5.7) is not a
     decoder: rescored in 500-symbol chunks on the one alignment, the
@@ -1994,10 +1994,12 @@ What it settles:
     The harness now counts slips beside every BER, so a 0.3 cannot read
     as a decoder again; the cell gate at 45 dB-Hz requires 0.
 - **The gate.** `--check` (137 dwells, 45 dB-Hz, 18 ppm) runs the cell
-    mode at the design gain and the hand-off reference: the cell never
-    leaves the cell, holds the phase within twice the closed loop's
-    jitter without bias (0.0043), both flags up, decodes the payload
-    with no cycle slip. Sabotaged red: the receiver's symbols negated from
+    mode at the design gain: it never leaves the cell, holds the phase
+    within twice the closed loop's jitter without bias (0.0043), both
+    flags up, decodes the payload with no cycle slip. The hand-off
+    reference runs in the full sweep only: the instrumented coverage
+    build runs this check at twenty times its Release cost, where one
+    more stream is a quarter of an hour. Sabotaged red: the receiver's symbols negated from
     the record's midpoint on — the counter reads 1 slip, the BER 0.55, and
     both the decode and the slip gate fail.
 - **Not measured here:** the slip rate as a curve in C/N0 (one stream at

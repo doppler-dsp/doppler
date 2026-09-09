@@ -344,7 +344,27 @@ own search); only the constructor differs.
 
 ::: doppler.dsss.HandoffAsyncDsssReceiver
 
-Both flavors report one consistent picture by value through `status()`. It
+## `CellAsyncDsssReceiver` — the receiver a searcher's cell drives
+
+The searcher-timed tracker of the
+[continuous multi-emitter design](../design/async-dsss-receiver.md)
+(§12.22–12.24) as a third constructor over the same core, by turning stages
+off. Seeded like the hand-off flavor, it builds no refine stage; the `Dll` is
+held from the first sample and never closes its own loop. Once every
+`correct_periods` code periods the held code phase — kept in double,
+dead-reckoned across the interval on the carrier loop's Doppler — is moved by
+`gain` (in chips) times the coasting `Dll`'s interval-mean discriminator, and
+the `Dll` is steered to it by rate over the next interval, never by a phase
+kick. Gain 1 through `pullin_intervals` pulls the seed's residual in
+(`refining` is the pull-in), the design gain 1/8 holds after; with the code
+flag down the phase only dead-reckons. The pre-despread carrier loop runs as
+the hand-off flavor's — it is what follows a 500 Hz/s ramp — and so do the
+symbol path, the symbol lock, the release rule, `status()` and `reset()` to
+idle.
+
+::: doppler.dsss.CellAsyncDsssReceiver
+
+All three flavors report one consistent picture by value through `status()`. It
 carries no timestamp: the holder owns the sample clock and stamps it (design
 §8.1).
 

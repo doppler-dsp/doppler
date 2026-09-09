@@ -242,6 +242,65 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
     async_dsss_receiver_destroy (rx);
   }
 
+  /* The cell mode (design section 12.22-12.24 as a mode of this receiver,
+     #1283): seeded at the capture's own chip 0, no refine, the Dll
+     coasting and steered once an interval -- the receiver a pool's
+     searcher drives. Its warm row is what one held cell costs per sample,
+     beside the hand-off flavor's. */
+  static double t_cell[ITERATIONS];
+  {
+    const size_t                 periods = w->sf == 7 ? 100 : 154;
+    async_dsss_receiver_state_t *rx      = async_dsss_receiver_create_cell (
+        w->code, w->sf, w->chip_rate, w->sym_rate, w->spc, 2, 70.0, 1e-2, 0.9,
+        4, 8, 0, 0.0, 0.0, periods, ASYNC_DSSS_RX_CELL_GAIN,
+        ASYNC_DSSS_RX_CELL_PULLIN);
+    if (!rx || async_dsss_receiver_seed (rx, 0.0, 0.0, 70.0) != DP_OK)
+      {
+        (void)fprintf (stderr,
+                       "bench_async_dsss_receiver%s: the cell mode "
+                       "did not open or seed\n",
+                       w->tag);
+        return 1;
+      }
+    sink += async_dsss_receiver_steps (rx, x + pre, n - pre, out, cap);
+    if (async_dsss_receiver_get_tracking (rx) != 1)
+      {
+        (void)fprintf (stderr,
+                       "bench_async_dsss_receiver%s: the cell receiver is "
+                       "not tracking -- the row below would not be steady "
+                       "state\n",
+                       w->tag);
+        return 1;
+      }
+    const size_t    half = n / 2;
+    struct timespec w0, w1;
+    clock_gettime (CLOCK_MONOTONIC, &w0);
+    do
+      {
+        sink += async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
+        clock_gettime (CLOCK_MONOTONIC, &w1);
+      }
+    while (elapsed_sec (&w0, &w1) < WARMUP_S);
+    for (int r = 0; r < ITERATIONS; r++)
+      {
+        clock_gettime (CLOCK_MONOTONIC, &t0);
+        sink += async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
+        clock_gettime (CLOCK_MONOTONIC, &t1);
+        t_cell[r] = elapsed_sec (&t0, &t1);
+      }
+    (void)snprintf (name, sizeof name, "steps[cell%s]", w->tag);
+    jm_bench_add (bench, name, t_cell, ITERATIONS, (int)(n - half));
+    double sec = min_sec (t_cell, ITERATIONS);
+    printf ("  %-20s %8.3f ms/block    %7.2f ns/sample  %6.2fx real time "
+            "on one core\n",
+            name, sec * 1e3, sec / (double)(n - half) * 1e9,
+            sec / (double)(n - half) * w->chip_rate * (double)w->spc);
+    async_dsss_receiver_destroy (rx);
+  }
+  printf ("\n  cell/warm per sample = %.2fx: the cell mode's steady state\n"
+          "  against the hand-off's, the same chain past the Dll with the\n"
+          "  Dll coasting and steered once an interval.\n",
+          (min_sec (t_cell, ITERATIONS)) / (min_sec (t_warm, ITERATIONS)));
   printf ("\n  cold/warm per sample = %.2fx. The difference is acquisition\n"
           "  and refinement, paid once per burst; the warm row is what a\n"
           "  continuous receiver pays for as long as it holds lock. Sizing\n"

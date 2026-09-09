@@ -1871,6 +1871,32 @@ shared verbatim. Two consequences follow:
     idle are consumed and discarded, so the feeding loop has no special case,
     and the pool reuses the object without reallocating.
 
+**The cell mode.** A third constructor over the same core,
+`CellAsyncDsssReceiver` (`create_cell`), is the searcher-timed tracker of
+§12.22–12.24 built by turning stages off rather than by a second object:
+seeded like the hand-off flavor, it builds no refine stage, holds the `Dll`
+from the first sample, and once every `correct_periods` code periods moves a
+held code phase — kept in double and dead-reckoned across the interval on
+the carrier loop's Doppler — by a gain in chips times the coasting `Dll`'s
+interval-mean discriminator (`Dll.take_error_mean`), steering the `Dll` to
+it by rate over the next interval rather than by a phase kick (at a period
+boundary a kick lands on the code's wrap and costs a period's partials,
+[#1287](https://github.com/doppler-dsp/doppler/issues/1287)). Gain 1
+through the pull-in intervals, the design gain 1/8 after; with the code
+flag down the phase only dead-reckons, the searcher-timed form of §10's
+hold. The pre-despread carrier loop runs as the hand-off flavor's: measured
+with it frozen at the seed's Doppler, `MpskReceiver`'s 27 Hz loop alone lost
+the symbol lock 40 intervals of 48 on SPEC's 500 Hz/s (BER 0.45); running,
+the ramp is followed to 3 Hz with the lock never down. Everything past the
+`Dll` — the symbol path, the symbol lock, the release rule, the status
+record — is the hand-off flavor's verbatim, and `seed()` and `reset()`
+behave as above. Measured on the receiver's own tests: the held phase sits
+on the channel's mapping at 0.004 chip σ at gain 1/8 against 0.016 at gain
+1, the switched-off receiver stays where its emitter left it, and SPEC's
+ramp decodes at BER 0 with one constant alignment (§12.26). The pool's
+flavour on it, and the hand-off path's retirement, are
+[#1283](https://github.com/doppler-dsp/doppler/issues/1283).
+
 ### 11.2 The lost state, and the release
 
 "Until they are gone" is the receiver's decision, and §4's two lock flags are

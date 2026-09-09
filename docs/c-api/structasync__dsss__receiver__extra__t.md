@@ -40,14 +40,19 @@
 |  uint64\_t | [**both\_down\_samples**](#variable-both_down_samples)  <br> |
 |  uint64\_t | [**car\_carry\_len**](#variable-car_carry_len)  <br> |
 |  uint8\_t | [**car\_coasting**](#variable-car_coasting)  <br> |
+|  uint8\_t | [**cell**](#variable-cell)  <br> |
+|  double | [**cell\_rate\_bias**](#variable-cell_rate_bias)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  uint8\_t | [**had\_lock**](#variable-had_lock)  <br> |
 |  uint8\_t | [**handoff**](#variable-handoff)  <br> |
+|  double | [**held\_phase**](#variable-held_phase)  <br> |
+|  uint64\_t | [**intervals**](#variable-intervals)  <br> |
 |  double | [**lock\_den**](#variable-lock_den)  <br> |
 |  double | [**lock\_metric**](#variable-lock_metric)  <br> |
 |  double | [**lock\_num**](#variable-lock_num)  <br> |
 |  uint64\_t | [**n**](#variable-n)  <br> |
+|  uint64\_t | [**period\_count**](#variable-period_count)  <br> |
 |  uint64\_t | [**refine\_samples\_fed**](#variable-refine_samples_fed)  <br> |
 |  uint64\_t | [**refine\_segments**](#variable-refine_segments)  <br> |
 |  double | [**seed\_chip\_phase**](#variable-seed_chip_phase)  <br> |
@@ -109,7 +114,7 @@
 ### variable \_pad 
 
 ```C++
-uint8_t async_dsss_receiver_extra_t::_pad[4];
+uint8_t async_dsss_receiver_extra_t::_pad[3];
 ```
 
 
@@ -158,6 +163,37 @@ v4: the carrier loop is held.
 
 
         
+
+<hr>
+
+
+
+### variable cell 
+
+```C++
+uint8_t async_dsss_receiver_extra_t::cell;
+```
+
+
+
+v5: the cell mode  no refine children in the blob; a blob does not travel between the modes. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable cell\_rate\_bias 
+
+```C++
+double async_dsss_receiver_extra_t::cell_rate_bias;
+```
+
+
+
 
 <hr>
 
@@ -224,6 +260,36 @@ uint8_t async_dsss_receiver_extra_t::handoff;
 
 
 
+### variable held\_phase 
+
+```C++
+double async_dsss_receiver_extra_t::held_phase;
+```
+
+
+
+v5: the cell mode's running state. 
+
+
+        
+
+<hr>
+
+
+
+### variable intervals 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::intervals;
+```
+
+
+
+
+<hr>
+
+
+
 ### variable lock\_den 
 
 ```C++
@@ -280,6 +346,19 @@ symbol-lock EMAs + hysteretic detector: the
 
 ```C++
 uint64_t async_dsss_receiver_extra_t::n;
+```
+
+
+
+
+<hr>
+
+
+
+### variable period\_count 
+
+```C++
+uint64_t async_dsss_receiver_extra_t::period_count;
 ```
 
 

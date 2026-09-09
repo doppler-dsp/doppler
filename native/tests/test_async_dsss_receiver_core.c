@@ -32,8 +32,10 @@
  * lost, not before, never at 0) and the flavor-keyed state round trip.
  */
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler_channel/doppler_channel_core.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
+#include "dp_state_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
 #include "gold/gold_core.h" /* SPEC Gold-1023 for the Es/N0-floor sweep   */
@@ -43,6 +45,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* A length-7 maximal-length sequence -- same fixture test_dsss_receiver_
  * core.c/test_acq_core.c use for fast, real (not mocked) unit tests. */
@@ -1443,6 +1446,529 @@ _test_accessor_coverage (void)
   return 0;
 }
 
+/* ------------------------------------------------------------------ *
+ * The cell mode (docs/design/async-dsss-receiver.md section 12.22-12.24  *
+ * as a mode of this receiver, #1283): the receiver a searcher's cell     *
+ * drives -- no refine, the carrier frozen, the Dll held from the first   *
+ * sample and put back once an interval at a held phase corrected by a  *
+ * gain times its interval-mean discriminator.                           *
+ * ------------------------------------------------------------------ */
+static async_dsss_receiver_state_t *
+_cell_rx (double cn0, double lost_confirm_s, double carrier_hz,
+          size_t correct_periods, double gain, size_t pullin)
+{
+  return async_dsss_receiver_create_cell (
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, cn0, 1e-2, 0.9, 4, 8, 0, carrier_hz,
+      lost_confirm_s, correct_periods, gain, pullin);
+}
+
+/* The dilated capture's code phase at output sample k, chips, folded on
+ * the code: the channel's mapping (output k carries input k(1+d) - delay,
+ * chip 0 on the clean render's first sample). */
+static double
+_dilated_truth (double k, double ppm, double delay, size_t spc, size_t sf)
+{
+  double n_in = k * (1.0 + ppm * 1e-6) - delay;
+  double c    = fmod (n_in / (double)spc, (double)sf);
+  return c < 0.0 ? c + (double)sf : c;
+}
+
+static double
+_wrap_chips (double e, size_t sf)
+{
+  e = fmod (e, (double)sf);
+  if (e > 0.5 * (double)sf)
+    e -= (double)sf;
+  else if (e <= -0.5 * (double)sf)
+    e += (double)sf;
+  return e;
+}
+
+static int
+_test_cell_lifecycle_and_args (void)
+{
+  const double cn0 = 70.0;
+  DP_CHECK (_cell_rx (cn0, 0.0, 0.0, 0, 0.125, 4) == NULL); /* period */
+  DP_CHECK (_cell_rx (cn0, 0.0, 0.0, 100, 0.0, 4) == NULL); /* gain 0 */
+  DP_CHECK (_cell_rx (cn0, 0.0, 0.0, 100, 1.5, 4) == NULL); /* gain>1 */
+  async_dsss_receiver_state_t *rx = _cell_rx (cn0, 0.0, 0.0, 100, 0.125, 4);
+  DP_CHECK (rx != NULL);
+  if (!rx)
+    return 1;
+  DP_CHECK (async_dsss_receiver_get_idle (rx) == 1);
+  DP_CHECK (rx->acq == NULL && rx->ca == NULL && rx->refine_dll == NULL);
+  DP_CHECK (rx->cell == 1);
+  DP_CHECK (async_dsss_receiver_set_refine_min_blocks (rx, 3)
+            == DP_ERR_INVALID);
+  DP_CHECK (async_dsss_receiver_configure_search_raw (rx, 1, 1) == -1);
+  DP_CHECK (async_dsss_receiver_seed (rx, 1.0, 0.0, cn0) == DP_OK);
+  DP_CHECK (async_dsss_receiver_get_refining (rx) == 1); /* the pull-in */
+  DP_CHECK (rx->held_phase == 1.0);
+  DP_CHECK (rx->dll->coast == 1); /* held from the first sample */
+  DP_CHECK (async_dsss_receiver_seed (rx, 2.0, 0.0, cn0) == DP_ERR_INVALID);
+  /* Idle consumes and discards; refining decodes: fed a little noise,
+     the pull-in receiver emits (garbage) symbols where idle emits none. */
+  async_dsss_receiver_reset (rx);
+  DP_CHECK (async_dsss_receiver_get_idle (rx) == 1);
+  DP_CHECK (rx->held_phase == 0.0 && rx->intervals == 0);
+  DP_CHECK (async_dsss_receiver_seed (rx, 6.5, -100.0, cn0) == DP_OK);
+  DP_CHECK (async_dsss_receiver_get_doppler_hz (rx) == -100.0);
+  async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
+/* Holds: seeded 0.4 chip and 5 Hz off the truth on a dilated stream (200
+ * ppm of a coupled carrier -- 0.14 chip of dead reckoning per interval),
+ * the held phase pulls in at gain 1 and then sits within 0.05 chip of the
+ * truth at every interval, decoding; and at the design gain 1/8 the held
+ * phase's scatter is under three quarters of gain 1's (12.24), the read
+ * being white to that gain. Sabotaged red: the correction's sign; the dead
+ * reckoning dropped (the phase falls 0.14 chip behind per interval, the
+ * correction at 1/8 cannot carry it); the gain ignored. */
+static int
+_test_cell_holds_and_decodes (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs       = 1.0e6 * (double)spc;
+  const double sym_rate = 35714.29;
+  const double tsym     = fs / sym_rate;
+  const size_t te       = sf * spc;
+  /* SPEC's 20 ppm of a coupled carrier: 5 kHz of Doppler at this scale,
+     0.014 chip of dead reckoning per interval. */
+  const double carrier_hz = 2.5e8, ppm = 20.0;
+  const double doppler_hz = carrier_hz * ppm * 1e-6; /* 5 kHz */
+  const double cn0        = 58.0;                    /* Es/N0 12.5 dB */
+  const size_t n_sym      = 12000;
+  const size_t periods    = 100; /* 2800 samples, 25 symbols an interval */
+  const size_t interval   = periods * te;
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_dilated_capture (CODE7, sf, spc, fs, tsym, carrier_hz, ppm, 0.0, cn0,
+                           n_sym, 0, 11, &x, &n, &data);
+  doppler_channel_state_t *ch
+      = doppler_channel_create (fs, carrier_hz, ppm, 0.0);
+  const double delay = doppler_channel_get_delay_samples (ch);
+  doppler_channel_destroy (ch);
+  /* The truth is the channel's own mapping; the Dll's convention is the
+     code phase at the next sample, so no constant is calibrated -- the
+     coasting loop reads the mapping to a hundredth of a chip (the running
+     hand-off loop, for the record, converges 0.24 chip off it here). */
+  const double c = 0.0;
+
+  const double gains[2] = { 0.125, 1.0 };
+  double       sig[2]   = { 0.0, 0.0 };
+  for (int g = 0; g < 2; g++)
+    {
+      async_dsss_receiver_state_t *rx
+          = _cell_rx (cn0, 0.0, carrier_hz, periods, gains[g], 4);
+      DP_CHECK (rx != NULL);
+      double seed = _dilated_truth (0.0, ppm, delay, spc, sf) + c + 0.4;
+      seed        = fmod (seed + 7.0 * 4.0, (double)sf);
+      DP_CHECK (async_dsss_receiver_seed (rx, seed, doppler_hz + 5.0, cn0)
+                == DP_OK);
+      float _Complex *syms = malloc (n * sizeof *syms);
+      size_t          ns = 0, k = 0, worst_i = 0;
+      double          se = 0.0, se2 = 0.0, worst = 0.0;
+      for (size_t pos = 0; pos + interval <= n; pos += interval)
+        {
+          ns += async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
+                                           n - ns);
+          /* Settled: past the pull-in and a few intervals of the design
+             gain; the phase the receiver holds against the truth here. */
+          size_t i = pos / interval;
+          if (i < 30)
+            continue;
+          double e
+              = _wrap_chips (async_dsss_receiver_get_chip_phase (rx)
+                                 - _dilated_truth ((double)(pos + interval),
+                                                   ppm, delay, spc, sf)
+                                 - c,
+                             sf);
+          se += e;
+          se2 += e * e;
+          k++;
+          if (fabs (e) > worst)
+            {
+              worst   = fabs (e);
+              worst_i = i;
+            }
+        }
+      DP_CHECK (k > 100);
+      const double bias = se / (double)k;
+      sig[g]            = sqrt (fmax (se2 / (double)k - bias * bias, 0.0));
+      printf ("  cell: gain %.3f -- held phase bias %+.4f sigma %.4f worst "
+              "%.3f (interval %zu) over %zu intervals; tracking %d code %d "
+              "sym %d; %zu symbols\n",
+              gains[g], bias, sig[g], worst, worst_i, k,
+              async_dsss_receiver_get_tracking (rx),
+              async_dsss_receiver_get_code_locked (rx),
+              async_dsss_receiver_get_locked (rx), ns);
+      DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+      DP_CHECK (async_dsss_receiver_get_code_locked (rx) == 1);
+      DP_CHECK (async_dsss_receiver_get_locked (rx) == 1);
+      DP_CHECK (rx->intervals > 100);
+      /* The Dll's own loop never closed: it coasted through the run, the
+         interval correction its only steer (the design's claim, 12.22). */
+      DP_CHECK_MSG (rx->dll->coast == 1,
+                    "cell mode: the Dll coasts throughout; the correction is "
+                    "its steer");
+      if (g == 0)
+        DP_CHECK_MSG (worst < 0.05 && fabs (bias) < 0.03,
+                      "cell mode: the held phase sits on the truth at "
+                      "every interval after the pull-in");
+      DP_CHECK (_best_ber (syms, ns, data, n_sym + 4) < 0.05);
+      DP_CHECK (dp_test_evm_db_hard (syms + ns / 2, ns - ns / 2) < -8.0);
+      /* The seed is refused while tracking; a re-seed after reset works. */
+      DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0)
+                == DP_ERR_INVALID);
+      free (syms);
+      async_dsss_receiver_destroy (rx);
+    }
+  DP_CHECK_MSG (sig[0] < 0.75 * sig[1],
+                "cell mode: gain 1/8 holds under three quarters of gain 1's "
+                "scatter");
+  free (x);
+  free (data);
+  return 0;
+}
+
+/* Switched off after a lock, the held phase dead-reckons on the held rate
+ * and the correction stops with the code flag -- so the receiver, lost by
+ * the release rule, is still where its emitter left it; reset() to idle
+ * takes the next seed. Sabotaged red: correct on noise regardless of the
+ * flag (the phase random-walks off the hold point). */
+static int
+_test_cell_holds_through_switch_off (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs         = 1.0e6 * (double)spc;
+  const double sym_rate   = 35714.29;
+  const double tsym       = fs / sym_rate;
+  const size_t te         = sf * spc;
+  const double carrier_hz = 2.5e8, ppm = 20.0;
+  const double doppler_hz = carrier_hz * ppm * 1e-6;
+  const double cn0        = 62.0;
+  const size_t n_sym      = 4000;
+  const size_t periods    = 100;
+  const size_t interval   = periods * te;
+  const double lost_s     = 0.02; /* 80000 samples, 28 intervals */
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_dilated_capture (CODE7, sf, spc, fs, tsym, carrier_hz, ppm, 0.0, cn0,
+                           n_sym, 0, 13, &x, &n, &data);
+  doppler_channel_state_t *ch
+      = doppler_channel_create (fs, carrier_hz, ppm, 0.0);
+  const double delay = doppler_channel_get_delay_samples (ch);
+  doppler_channel_destroy (ch);
+  const double c = 0.0;
+  /* The tail: the emitter gone, the same noise at the receiver. */
+  const size_t    n_tail = (size_t)(lost_s * fs) * 2;
+  float _Complex *tail   = malloc (n_tail * sizeof *tail);
+  double          sigma  = 1.0 / sqrt (pow (10.0, cn0 / 10.0) / fs);
+  uint32_t        st     = 0xC0FFEEu;
+  for (size_t i = 0; i < n_tail; i++)
+    tail[i] = (float _Complex) (sigma / sqrt (2.0)) * dp_cgauss (&st);
+
+  /* Gain 1: a correction taken on noise would move the phase by the whole
+     read, so the gate on the code flag is what this test sees. */
+  async_dsss_receiver_state_t *rx
+      = _cell_rx (cn0, lost_s, carrier_hz, periods, 1.0, 4);
+  DP_CHECK (rx != NULL);
+  double seed = fmod (_dilated_truth (0.0, ppm, delay, spc, sf) + c + 28.0,
+                      (double)sf);
+  DP_CHECK (async_dsss_receiver_seed (rx, seed, doppler_hz, cn0) == DP_OK);
+  float _Complex *syms = malloc ((n + n_tail) * sizeof *syms);
+  size_t          ns = 0, pos = 0;
+  for (; pos + interval <= n; pos += interval)
+    ns += async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
+                                     n + n_tail - ns);
+  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK (async_dsss_receiver_get_code_locked (rx) == 1
+            && async_dsss_receiver_get_locked (rx) == 1);
+  const double e_on = _wrap_chips (
+      async_dsss_receiver_get_chip_phase (rx)
+          - _dilated_truth ((double)pos, ppm, delay, spc, sf) - c,
+      sf);
+  DP_CHECK (fabs (e_on) < 0.05);
+  /* Off: the flags drop, the clock runs out, the phase is where the
+     emitter's would be -- dead-reckoned at the held rate, uncorrected. */
+  const uint64_t intervals_on = rx->intervals;
+  size_t         tp           = 0;
+  int            lost_at      = -1;
+  double         e_off        = 0.0;
+  for (; tp + interval <= n_tail; tp += interval)
+    {
+      ns += async_dsss_receiver_steps (rx, tail + tp, interval, syms + ns,
+                                       n + n_tail - ns);
+      if (lost_at < 0 && async_dsss_receiver_get_lost (rx))
+        {
+          /* Lost: the receiver stops updating and its phase is where the
+             emitter left it (section 10) -- read it at the interval the
+             rule fired on, dead-reckoned to there. */
+          lost_at = (int)(tp / interval);
+          e_off   = _wrap_chips (
+              async_dsss_receiver_get_chip_phase (rx)
+                  - _dilated_truth ((double)(pos + tp + interval), ppm, delay,
+                                    spc, sf)
+                  - c,
+              sf);
+        }
+    }
+  DP_CHECK (async_dsss_receiver_get_lost (rx) == 1);
+  DP_CHECK (lost_at > 0);
+  printf ("  cell: switched off -- lost after %d intervals of %zu; held "
+          "phase %+.3f chips from the hold point (%+.3f at switch-off), "
+          "%llu intervals on\n",
+          lost_at, tp / interval, e_off, e_on,
+          (unsigned long long)intervals_on);
+  DP_CHECK_MSG (fabs (e_off - e_on) < 0.03,
+                "cell mode: switched off, the held phase dead-reckons and "
+                "does not walk");
+  async_dsss_receiver_reset (rx);
+  DP_CHECK (async_dsss_receiver_get_idle (rx) == 1);
+  DP_CHECK (async_dsss_receiver_seed (rx, seed, doppler_hz, cn0) == DP_OK);
+  free (syms);
+  free (tail);
+  free (x);
+  free (data);
+  async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
+/* The ramp: the carrier loop of the hand-off flavor runs in the cell mode
+ * too, so a ramping carrier is followed pre-despread and the symbol lock
+ * never breaks. Sabotaged red: the carrier loop frozen in the cell mode
+ * (the status Doppler stays at the seed and the lock drops). */
+static int
+_test_cell_ramp (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs         = 1.0e6 * (double)spc;
+  const double sym_rate   = 35714.29;
+  const double tsym       = fs / sym_rate;
+  const size_t te         = sf * spc;
+  const double carrier_hz = 2.5e7;
+  const double ppm_s      = 16.0; /* 400 Hz/s at this carrier */
+  const double cn0        = 62.0;
+  const size_t n_sym      = 60000; /* 1.68 s: the residual crosses 200 Hz
+                                      three times */
+  const size_t periods  = 100;
+  const size_t interval = periods * te;
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_dilated_capture (CODE7, sf, spc, fs, tsym, carrier_hz, 0.0, ppm_s,
+                           cn0, n_sym, 0, 17, &x, &n, &data);
+  async_dsss_receiver_state_t *rx
+      = _cell_rx (cn0, 0.0, carrier_hz, periods, 0.125, 4);
+  DP_CHECK (rx != NULL);
+  /* The truth's phase at sample 0 is the channel's delay; no ramp yet. */
+  doppler_channel_state_t *ch
+      = doppler_channel_create (fs, carrier_hz, 0.0, ppm_s);
+  const double delay = doppler_channel_get_delay_samples (ch);
+  doppler_channel_destroy (ch);
+  const double seed
+      = fmod (_dilated_truth (0.0, 0.0, delay, spc, sf) + 28.0, (double)sf);
+  DP_CHECK (async_dsss_receiver_seed (rx, seed, 0.0, cn0) == DP_OK);
+  float _Complex *syms = malloc (n * sizeof *syms);
+  size_t          ns = 0, unlocked_after = 0, pos = 0;
+  for (; pos + interval <= n; pos += interval)
+    {
+      ns += async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
+                                       n - ns);
+      if (pos > n / 4 && !async_dsss_receiver_get_locked (rx))
+        unlocked_after++;
+    }
+  const double                 t_end  = (double)pos / fs;
+  const double                 f_true = carrier_hz * ppm_s * 1e-6 * t_end;
+  async_dsss_receiver_status_t st     = async_dsss_receiver_status (rx);
+  printf ("  cell: ramp -- truth %.0f Hz at the end, status %.0f; intervals "
+          "with the symbol flag down after the first quarter: %zu of %zu\n",
+          f_true, st.doppler_hz, unlocked_after, pos / interval);
+  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK_MSG (fabs (st.doppler_hz - f_true) < 60.0,
+                "cell mode: the carrier loop follows the ramp");
+  DP_CHECK_MSG (unlocked_after == 0,
+                "cell mode: the symbol lock holds through the ramp");
+  DP_CHECK (_best_ber (syms, ns, data, n_sym + 4) < 0.05);
+  free (syms);
+  free (x);
+  free (data);
+  async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
+/* The ramp at the design geometry (Gold-length code, 2700 symbols per
+ * second, SPEC's 500 Hz/s): MpskReceiver's carrier loop is 27 Hz wide
+ * here and cannot follow the ramp alone -- measured: with the carrier
+ * frozen the symbol flag was down 40 intervals of 48 and the BER 0.45 --
+ * so the cell mode keeps the pre-despread loop running. Sabotaged red: the
+ * carrier loop frozen in the cell mode. */
+static int
+_test_cell_ramp_at_spec (void)
+{
+  const size_t sf        = 1023;
+  const size_t spc       = 2;
+  const double chip_rate = 3.069e6;
+  const double fs        = chip_rate * (double)spc;
+  const double sym_rate  = 2700.0;
+  const double tsym      = fs / sym_rate;
+  const size_t te        = sf * spc;
+  const double rate_hz_s = 500.0;
+  const size_t n_sym     = 6750; /* 2.5 s: the residual crosses 500 Hz at
+                                     1 s and 2 s */
+  const size_t pre      = te * 5 + 3;
+  const double cn0      = 30.0 + 10.0 * log10 (sym_rate); /* Es/N0 30 dB */
+  const size_t periods  = 154;
+  const size_t interval = periods * te;
+
+  uint8_t *code = malloc (sf);
+  uint32_t cst  = 13;
+  for (size_t i = 0; i < sf; i++)
+    code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_ramp_capture (code, sf, spc, fs, tsym, rate_hz_s, cn0, n_sym, pre,
+                        23, &x, &n, &data);
+  async_dsss_receiver_state_t *rx = async_dsss_receiver_create_cell (
+      code, sf, chip_rate, sym_rate, spc, 2, cn0, 1e-2, 0.9, 4, 8, 0, 0.0, 0.0,
+      periods, ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
+  DP_CHECK (rx != NULL);
+  /* Chip 0 on the first signal sample, the ramp from 0 Hz: the seed is the
+     truth, as the hand-off tests seed. */
+  DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
+  float _Complex *syms = malloc (n * sizeof *syms);
+  size_t          ns = 0, down = 0, pos = pre, k = 0;
+  for (; pos + interval <= n; pos += interval, k++)
+    {
+      ns += async_dsss_receiver_steps (rx, x + pos, interval, syms + ns,
+                                       n - ns);
+      if (k >= 8 && !async_dsss_receiver_get_locked (rx))
+        down++;
+    }
+  const double                 t_end  = (double)(pos - pre) / fs;
+  const double                 f_true = rate_hz_s * t_end;
+  async_dsss_receiver_status_t st     = async_dsss_receiver_status (rx);
+  printf ("  cell: ramp at SPEC -- truth %.0f Hz at the end, status %.0f; "
+          "intervals with the symbol flag down after the pull-in: %zu of "
+          "%zu; %zu symbols\n",
+          f_true, st.doppler_hz, down, k, ns);
+  DP_CHECK (async_dsss_receiver_get_tracking (rx) == 1);
+  DP_CHECK_MSG (fabs (st.doppler_hz - f_true) < 60.0,
+                "cell mode at SPEC: the carrier loop follows the ramp");
+  DP_CHECK_MSG (down == 0,
+                "cell mode at SPEC: the symbol lock holds through the ramp");
+  printf ("    BER %.4f, EVM %.1f dB\n", _best_ber (syms, ns, data, n_sym + 4),
+          dp_test_evm_db_hard (syms + ns / 2, ns - ns / 2));
+  DP_CHECK (_best_ber (syms, ns, data, n_sym + 4) < 0.05);
+  free (syms);
+  free (x);
+  free (data);
+  free (code);
+  async_dsss_receiver_destroy (rx);
+  return 0;
+}
+
+/* The blob: keyed on the mode (a hand-off blob is refused), no refine
+ * children, the held phase and Doppler and the interval clocks in it -- a
+ * receiver resumed mid-stream emits the hand-off's symbols and holds its
+ * phase. Sabotaged red: held_phase left out of the extra record (the
+ * resumed receiver's next correction puts its Dll at 0). */
+static int
+_test_cell_state_roundtrip (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs         = 1.0e6 * (double)spc;
+  const double sym_rate   = 35714.29;
+  const double tsym       = fs / sym_rate;
+  const size_t te         = sf * spc;
+  const double carrier_hz = 2.5e8, ppm = 20.0;
+  const double doppler_hz = carrier_hz * ppm * 1e-6;
+  const double cn0        = 62.0;
+  const size_t n_sym      = 4000;
+  const size_t periods    = 100;
+  const size_t interval   = periods * te;
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_dilated_capture (CODE7, sf, spc, fs, tsym, carrier_hz, ppm, 0.0, cn0,
+                           n_sym, 0, 19, &x, &n, &data);
+  doppler_channel_state_t *ch
+      = doppler_channel_create (fs, carrier_hz, ppm, 0.0);
+  const double delay = doppler_channel_get_delay_samples (ch);
+  doppler_channel_destroy (ch);
+
+  async_dsss_receiver_state_t *ra
+      = _cell_rx (cn0, 2.0, carrier_hz, periods, 0.125, 4);
+  async_dsss_receiver_state_t *rb
+      = _cell_rx (cn0, 2.0, carrier_hz, periods, 0.125, 4);
+  DP_CHECK (ra && rb);
+  /* Idle: the mode in the blob; a hand-off blob is refused. */
+  {
+    size_t cb   = async_dsss_receiver_state_bytes (ra);
+    void  *blob = malloc (cb);
+    async_dsss_receiver_get_state (ra, blob);
+    const async_dsss_receiver_extra_t *ex
+        = (const async_dsss_receiver_extra_t *)((const char *)blob
+                                                + sizeof (dp_state_hdr_t));
+    DP_CHECK (ex->cell == 1 && ex->handoff == 1);
+    DP_CHECK (async_dsss_receiver_set_state (rb, blob) == DP_OK);
+    free (blob);
+    async_dsss_receiver_state_t *rh   = _handoff_rx (cn0, 2.0);
+    size_t                       ch_b = async_dsss_receiver_state_bytes (rh);
+    void                        *hb   = malloc (ch_b);
+    async_dsss_receiver_get_state (rh, hb);
+    DP_CHECK (async_dsss_receiver_set_state (rb, hb) == DP_ERR_INVALID);
+    free (hb);
+    async_dsss_receiver_destroy (rh);
+  }
+  const double seed
+      = fmod (_dilated_truth (0.0, ppm, delay, spc, sf) + 28.0, (double)sf);
+  DP_CHECK (async_dsss_receiver_seed (ra, seed, doppler_hz, cn0) == DP_OK);
+  float _Complex *sa = malloc (n * sizeof *sa), *sb = malloc (n * sizeof *sb);
+  size_t          na = 0, nb = 0, pos = 0;
+  /* Forty intervals in, tracking, mid-interval: the split. */
+  const size_t split = 40 * interval + interval / 3;
+  for (; pos + interval <= split; pos += interval)
+    na += async_dsss_receiver_steps (ra, x + pos, interval, sa + na, n - na);
+  na += async_dsss_receiver_steps (ra, x + pos, split - pos, sa + na, n - na);
+  pos = split;
+  DP_CHECK (async_dsss_receiver_get_tracking (ra) == 1);
+  DP_STATE_ROUNDTRIP_TEST (async_dsss_receiver, ra, rb);
+  DP_CHECK (async_dsss_receiver_get_tracking (rb) == 1);
+  DP_CHECK (rb->held_phase == ra->held_phase
+            && rb->period_count == ra->period_count
+            && rb->intervals == ra->intervals);
+  size_t na0 = na;
+  nb         = 0;
+  for (; pos + interval <= n; pos += interval)
+    {
+      na += async_dsss_receiver_steps (ra, x + pos, interval, sa + na, n - na);
+      nb += async_dsss_receiver_steps (rb, x + pos, interval, sb + nb, n - nb);
+    }
+  DP_CHECK (na - na0 == nb && nb > 100);
+  DP_CHECK (memcmp (sa + na0, sb, nb * sizeof *sb) == 0);
+  async_dsss_receiver_status_t sta = async_dsss_receiver_status (ra),
+                               stb = async_dsss_receiver_status (rb);
+  DP_CHECK (sta.chip_phase == stb.chip_phase
+            && sta.doppler_hz == stb.doppler_hz
+            && sta.code_locked == stb.code_locked && sta.locked == stb.locked);
+  free (sa);
+  free (sb);
+  free (x);
+  free (data);
+  async_dsss_receiver_destroy (ra);
+  async_dsss_receiver_destroy (rb);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1461,6 +1987,12 @@ main (void)
   (void)_test_refine_dwell_floor ();
   (void)_test_handoff_state_roundtrip ();
   (void)_test_status_record ();
+  (void)_test_cell_lifecycle_and_args ();
+  (void)_test_cell_holds_and_decodes ();
+  (void)_test_cell_holds_through_switch_off ();
+  (void)_test_cell_ramp ();
+  (void)_test_cell_ramp_at_spec ();
+  (void)_test_cell_state_roundtrip ();
 
   DP_TEST_END ("test_async_dsss_receiver_core");
 }

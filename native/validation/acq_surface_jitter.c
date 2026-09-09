@@ -198,6 +198,8 @@ typedef struct
      block: its symbol-aided discriminator\'s mean over the block. */
   double dll_e;  /* mean of "dll.e" over the block; NAN = not read    */
   size_t n_e;    /* discriminator outputs in the block (symbols)      */
+  double dll_es; /* the per-steer mean, dll_take_error (section 12.25) */
+  size_t n_es;   /* steers it counted                                  */
   double locked; /* the lock flag's mean over the block               */
   double e_sd;   /* the discriminator's scatter within the block       */
   double dll_u;  /* the loop's actual offset from the truth at the
@@ -652,6 +654,13 @@ on_surface (void *ctx, const float *s, size_t rows, size_t cols,
                 nlk += rec[i].value > 0.5f;
               }
           }
+      /* The shipped accumulator beside the probe: every steer summed
+         (dll_take_error), where the probe is each epoch's last steer. */
+      {
+        double ssum;
+        d->n_es   = dll_take_error (c->dll, &ssum);
+        d->dll_es = d->n_es ? ssum / (double)d->n_es : NAN;
+      }
       d->n_e    = ne;
       d->e_sd   = ne ? sqrt (fmax (se2 / (double)ne
                                        - (se / (double)ne) * (se / (double)ne),
@@ -1090,6 +1099,8 @@ typedef struct
   double dll_bias, dll_sig;    /* the coasting DLL, its read minus u0   */
   size_t n_dll;                /* dwells with a DLL read                */
   double e_raw, e_raw2;        /* the raw discriminator's sums          */
+  double es_raw, es_raw2;      /* the per-steer mean\'s sums (12.25)     */
+  double n_es_sum;             /* steers per block                      */
   double n_e_sum, lock_sum;    /* outputs per block; lock flag mean     */
   double e_sd_sum;             /* within-block scatter of e, summed     */
   double snr;                  /* mean prompt over the gate's units   */
@@ -1150,6 +1161,12 @@ stats (const sink_ctx_t *c, const cal_t *cal, int want_window, stat_t *o)
           sl2 += el * el;
           o->e_raw += d->dll_e;
           o->e_raw2 += d->dll_e * d->dll_e;
+          if (!isnan (d->dll_es))
+            {
+              o->es_raw += d->dll_es;
+              o->es_raw2 += d->dll_es * d->dll_es;
+              o->n_es_sum += (double)d->n_es;
+            }
           o->n_e_sum += (double)d->n_e;
           o->e_sd_sum += d->e_sd;
           o->lock_sum += isnan (d->locked) ? 0.0 : d->locked;
@@ -1279,6 +1296,15 @@ print_row (const char *label, const stat_t *s)
                     0.0)),
         DLL_U0, s->n_e_sum / (double)s->n_dll, s->e_sd_sum / (double)s->n_dll,
         s->lock_sum / (double)s->n_dll);
+  if (s->n_dll)
+    printf ("    %-7s the per-steer sum (dll_take_error): mean %+.4f sigma "
+            "%.4f over %.1f steers per block, against the probe's %+.4f\n",
+            "", s->es_raw / (double)s->n_dll,
+            sqrt (fmax (s->es_raw2 / (double)s->n_dll
+                            - (s->es_raw / (double)s->n_dll)
+                                  * (s->es_raw / (double)s->n_dll),
+                        0.0)),
+            s->n_es_sum / (double)s->n_dll, s->e_raw / (double)s->n_dll);
 }
 
 /* The held tracker's row: the phase it held through each block against

@@ -69,6 +69,21 @@ typedef struct {
     int coast;               
     uint32_t held_inc;       
     loop_filter_state_t held_lf; 
+    /* The steer's gain table: how the loop filter's integrator and
+       proportional term reach phase_inc (cycles per sample) and code_rate
+       (a ratio), set once by segments in set_segments(). ONE steer,
+       dll_steer(), applies it on both paths; the two tables record the
+       measured, separately pinned gains each path shipped with (the
+       coherent full-epoch loop treats the integrator as a rate ratio,
+       the partial-correlation loop treats the filter's output as chips
+       over sps) -- reconciling them is a certified-behaviour change,
+       tracked, not folded in here. */
+    double ctrl_i;           
+    double ctrl_p;           
+    double rate_i;           
+    double rate_p;           
+    double   err_sum;        
+    uint64_t err_n;          
     double seed_chip;        
     double bn;               
     double zeta;             
@@ -215,37 +230,37 @@ void dll_lock_look(dll_state_t *s, double norm);
 void dll_lock_epoch(dll_state_t *s);
 
 JM_FORCEINLINE JM_HOT void
-dll_update(dll_state_t *s)
+dll_steer(dll_state_t *s, double ep, double lp, double pp)
 {
-    float me = cabsf(s->acc_e), ml = cabsf(s->acc_l), mp = cabsf(s->acc_p);
-    double ep = (double)me * me, lp = (double)ml * ml, pp = (double)mp * mp;
     double e = 0.5 * (ep - lp) / (pp + DLL_EPS);
     if (e > DLL_DISC_CLAMP)
         e = DLL_DISC_CLAMP;
     else if (e < -DLL_DISC_CLAMP)
         e = -DLL_DISC_CLAMP;
     s->last_error = e;
+    s->err_sum += e;
+    s->err_n++;
     if (s->coast)
-        return; /* held: the discriminator read, not filtered, phase_inc as
-                   it stands -- the same hold steer() applies on the
-                   segments>1 path (dll_set_coast) */
-    loop_filter_step(&s->lf, e);
-    /* Pure control deviation: the integrator alone, PLUS the
-       proportional term spread smoothly over the whole next period
-       rather than kicked directly into `phase` (see the comment
-       above) -- kp*e chips of total correction over sf*sps samples is
-       kp*e/(sf*sf*sps) extra cycles per sample, the same total
-       chip-domain correction the original double-accumulator design
-       applied as `chip_pos += kp*e`. Neither term involves "1.0", and
-       neither divides -- inv_tsamps/inv_tsamps_sf are precomputed once
-       at construction (configure_geometry()), never here. */
-    double ctrl = s->lf.integ * s->inv_tsamps + s->lf.kp * e * s->inv_tsamps_sf;
-    s->code_rate = 1.0 + s->lf.integ; /* public ratio observable only */
-    /* rate_aid (0 = off): a fixed carrier-aiding rate bias, scaled by the
-       nominal per-sample rate so it sums into the sample-and-hold phase_inc
-       as a continuous adjustment across the epoch, not a phase pulse. */
+        return; /* held: the discriminator read (last_error, the probe, the
+                   sum) but not filtered, phase_inc as it stands
+                   (dll_set_coast) -- a holder coasting on another clock
+                   reads where the signal sits against the held phase, which
+                   is what it corrects on */
+    (void)loop_filter_step(&s->lf, e);
+    double integ = s->lf.integ;
+    double pe    = s->lf.kp * e;
+    double u     = s->inv_upd;
+    double ctrl  = u * (s->ctrl_i * integ + s->ctrl_p * pe);
+    s->code_rate = 1.0 + u * (s->rate_i * integ + s->rate_p * pe);
     s->code_nco.phase_inc
         = nco_norm_freq_to_inc(s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
+}
+
+JM_FORCEINLINE JM_HOT void
+dll_update(dll_state_t *s)
+{
+    float me = cabsf(s->acc_e), ml = cabsf(s->acc_l), mp = cabsf(s->acc_p);
+    dll_steer(s, (double)me * me, (double)ml * ml, (double)mp * mp);
 }
 
 dll_state_t *dll_create(const uint8_t *code, size_t code_len, size_t sps, double init_chip, double bn, double zeta, double spacing, size_t segments);
@@ -277,8 +292,12 @@ size_t dll_get_symbol_window(const dll_state_t *state);
 int dll_set_lock_verify(dll_state_t *state, uint32_t n_up, uint32_t n_down);
 double dll_get_code_phase(const dll_state_t *state);
 
+size_t dll_take_error(dll_state_t *state, double *sum);
+
 void dll_set_code_phase(dll_state_t *state, double chips);
 double dll_get_code_rate(const dll_state_t *state);
+
+double dll_take_error_mean(dll_state_t *state);
 double dll_get_last_error(const dll_state_t *state);
 size_t dll_get_segments(const dll_state_t *state);
 
@@ -305,7 +324,7 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 11u /* v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 12u /* v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

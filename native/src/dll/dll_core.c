@@ -142,54 +142,11 @@ lock_look (dll_state_t *s, float _Complex prompt, float _Complex offset)
     }
 }
 
-/* One loop update from a dumped discriminator triple, as powers on one
- * common scale: the power-domain early-minus-late `0.5 (Ep - Lp) / Pp`
- * (the prompt power is the "signal + noise" reference -- the validated
- * design of docs/design/async-dsss-receiver.md §3.6), clamped, through the
- * PI filter, then the NCO's sample-and-hold rate. Shared by the per-epoch
- * path (the look-back window at every epoch boundary) and the symbol-aided
- * path (the best hypothesis's window, once per symbol, from aid_look()).
- *
- * The filter's output is a phase correction PER UPDATE -- loop_filter_init's
- * `t` is the update interval in epochs -- and the rate that delivers it
- * over the interval is that correction divided by the interval, `inv_upd`.
- * That is what lets `bn` keep its per-epoch meaning whichever cadence the
- * updates come at (see set_update_period()). The FULL proportional+integral
- * output is divided by tsamps^2 for a PURE per-sample phase_inc deviation --
- * the validated form (the Python prototype this was ported from,
- * despreader.py's module docstring point 2), not "integrator alone as the
- * sustained rate, plus the proportional term spread over an extra factor of
- * sf" (a scheme that diverges under long-run stress: last_error creeps and
- * saturates DLL_DISC_CLAMP). The NCO free-runs at its own nominal rate
- * (1/tsamps, set once in seed()); ctrl never involves that "1.0" nominal --
- * only the final phase_inc combination does, as a separate additive term,
- * so the carrier-aiding bias `rate_aid` (0 = off; scaled by the nominal
- * per-sample rate so it rides the sample-and-hold phase_inc continuously)
- * sums in without redefining what "nominal" means. code_rate stays a public
- * ratio observable (1.0 = nominal) -- never fed back in. Nothing here
- * divides: inv_tsamps/inv_tsamps2/inv_upd are precomputed at configuration.
- * Static inline, like the statics the block kernel already calls: an extern
- * call site inside its sample loop spills the register-cached state. */
-static inline void
-steer (dll_state_t *s, double ep, double lp, double pp)
-{
-  double e = 0.5 * (ep - lp) / (pp + DLL_EPS);
-  if (e > DLL_DISC_CLAMP)
-    e = DLL_DISC_CLAMP;
-  else if (e < -DLL_DISC_CLAMP)
-    e = -DLL_DISC_CLAMP;
-  s->last_error = e;
-  if (s->coast)
-    return; /* held: the discriminator read (last_error, the probe) but
-               not filtered, phase_inc as it stands (dll_set_coast) -- a
-               holder coasting on another clock reads where the signal
-               sits against the held phase, which is what it corrects on */
-  double lf_out = loop_filter_step (&s->lf, e) * s->inv_upd;
-  double ctrl   = lf_out * s->inv_tsamps2;
-  s->code_rate  = 1.0 + lf_out * s->inv_tsamps;
-  s->code_nco.phase_inc
-      = nco_norm_freq_to_inc (s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
-}
+/* The discriminator, its filter and the NCO steer are dll_steer() in the
+ * header, the one steer both correlation paths call (doppler#1280): the
+ * symbol-aided window below and the partial-correlation kernel hand it
+ * their powers, dll_update() hands it the full-epoch accumulators'. What
+ * used to be a private copy here is gone. */
 
 /* Does hypothesis h's window start at partial `start`? h places its n-th
  * boundary at floor(h + n*P + 0.5), so the n whose boundary could be
@@ -267,7 +224,7 @@ aid_look (dll_state_t *s, float _Complex part, float _Complex noise,
     }
   lock_look (s, sp, so);
   float me = cabsf (se), ml = cabsf (sl), mp = cabsf (sp);
-  steer (s, (double)me * me, (double)ml * ml, (double)mp * mp);
+  dll_steer (s, (double)me * me, (double)ml * ml, (double)mp * mp);
 }
 
 /* Composition faces of the lock detector (dll_core.h): thin extern
@@ -298,6 +255,25 @@ set_segments (dll_state_t *s, size_t segments)
   s->segments  = segments ? segments : 1;
   s->seg_chips = (double)s->sf / (double)s->segments;
   s->seg_norm  = (double)(s->sf * s->sps) / (double)s->segments;
+  /* The steer's gain table (dll_steer): the coherent full-epoch loop
+     applies the integrator as a code-rate ratio (inv_tsamps cycles per
+     sample per unit) and kp*e as chips per epoch (inv_tsamps/sf), and
+     reports code_rate = 1 + integ; the partial-correlation loop applies
+     the filter's whole output as chips over sps (inv_tsamps^2 per unit) and
+     reports 1 + output * inv_tsamps. These are the two loops' measured,
+     separately pinned gains, kept as data behind the one steer. */
+  if (s->segments > 1)
+    {
+      s->ctrl_i = s->ctrl_p = s->inv_tsamps2;
+      s->rate_i = s->rate_p = s->inv_tsamps;
+    }
+  else
+    {
+      s->ctrl_i = s->inv_tsamps;
+      s->ctrl_p = s->inv_tsamps_sf;
+      s->rate_i = 1.0;
+      s->rate_p = 0.0;
+    }
 }
 
 static void
@@ -887,8 +863,8 @@ dll_steps_impl (dll_state_t *state, const float _Complex *x, size_t x_len,
                      pinned the discriminator at DLL_DISC_CLAMP on
                      essentially every epoch). */
                   double best_mag = best_abs * tsamps;
-                  steer (state, (double)me * me, (double)ml * ml,
-                         best_mag * best_mag);
+                  dll_steer (state, (double)me * me, (double)ml * ml,
+                             best_mag * best_mag);
                 }
 
               /* Output: this epoch's own natural chunk sums, normalized by
@@ -971,6 +947,19 @@ dll_hold_here (dll_state_t *state)
   state->held_lf  = state->lf;
 }
 
+/* A held loop's control: the held filter's integrator alone, through the
+   steer's gain table -- a steer's full output also carries the
+   proportional term, a phase correction meant for one interval; held as a
+   rate it walks the phase off at chips per second (measured: +14 chips/s
+   from one such steer). The rate aid summed beside it, as dll_steer does. */
+static uint32_t
+held_phase_inc (const dll_state_t *s)
+{
+  const loop_filter_state_t *lf   = s->held_inc ? &s->held_lf : &s->lf;
+  const double               ctrl = s->inv_upd * s->ctrl_i * lf->integ;
+  return nco_norm_freq_to_inc (s->inv_tsamps * (1.0 + s->rate_aid) + ctrl);
+}
+
 void
 dll_set_coast (dll_state_t *state, int coast)
 {
@@ -983,11 +972,8 @@ dll_set_coast (dll_state_t *state, int coast)
          output also carries the proportional term, a phase correction
          meant for one interval; held as a rate it walks the phase off
          at chips per second (measured: +14 chips/s from one such steer). */
-      state->lf = state->held_lf;
-      const double ctrl
-          = state->held_lf.integ * state->inv_upd * state->inv_tsamps2;
-      state->code_nco.phase_inc = nco_norm_freq_to_inc (
-          state->inv_tsamps * (1.0 + state->rate_aid) + ctrl);
+      state->lf                 = state->held_lf;
+      state->code_nco.phase_inc = held_phase_inc (state);
     }
   state->coast = coast;
 }
@@ -1001,8 +987,30 @@ dll_set_rate_aid (dll_state_t *state, double rate_aid)
      continuous aiding without clobbering the loop's own steering -- a fresh
      DLL simply drifts for at most one (sub-chip) period before the first
      update applies the aid. code_rate (the loop's own ratio observable) is
-     left untouched. */
+     left untouched. A HELD loop has no next update: nothing steers its
+     phase_inc, so the aid is folded in here, on the held filter -- a
+     holder refreshing the Doppler it holds sees the code rate follow. */
   state->rate_aid = rate_aid;
+  if (state->coast)
+    state->code_nco.phase_inc = held_phase_inc (state);
+}
+
+size_t
+dll_take_error (dll_state_t *state, double *sum)
+{
+  const size_t n = (size_t)state->err_n;
+  *sum           = state->err_sum;
+  state->err_sum = 0.0;
+  state->err_n   = 0;
+  return n;
+}
+
+double
+dll_take_error_mean (dll_state_t *state)
+{
+  double       sum;
+  const size_t n = dll_take_error (state, &sum);
+  return n ? sum / (double)n : NAN;
 }
 
 void

@@ -943,5 +943,145 @@ main (void)
     free (code);
   }
 
+  /* ---------------------------------------------------------------- *
+   * 9. The coasting read: every steer sums into dll_take_error()     *
+   *    on BOTH correlation paths (the one steer, doppler#1280)        *
+   * ---------------------------------------------------------------- */
+  /* A holder correcting a coasting loop once a block (design section
+     12.22-12.24) reads the block MEAN of the discriminator, not the last
+     epoch's probe. Every steer adds to a running sum; take returns the
+     count and the sum and zeroes both. The full-epoch path steers once
+     per epoch; the symbol-aided partial path once per symbol window.
+     Sabotaged: accumulate on one path only (the other's count reads 0);
+     do not zero on take (the second take repeats the first). */
+  {
+    const size_t sf = 63, sps = 4, nper = 300;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 23u);
+    float _Complex *rx  = malloc (sf * sps * nper * sizeof (*rx));
+    size_t          n   = make_signal (rx, code, sf, sps, 0.0, nper, 9u, 1);
+    float _Complex *sym = malloc (nper * sizeof (*sym));
+    dll_state_t *held = dll_create (code, sf, sps, 0.15, 0.005, 0.707, 0.5, 1);
+    DP_REQUIRE (held);
+    dll_hold_here (held);
+    dll_set_coast (held, 1);
+    double sum = 1.0;
+    DP_CHECK_MSG (dll_take_error (held, &sum) == 0 && sum == 0.0,
+                  "a fresh loop has nothing to take");
+    (void)dll_steps (held, rx, n, sym, nper);
+    size_t cnt = dll_take_error (held, &sum);
+    DP_CHECK_MSG (cnt == nper,
+                  "full-epoch path: one steer per epoch, coasting or not");
+    DP_CHECK_MSG (fabs (sum / (double)cnt) > 0.05
+                      && fabs (sum / (double)cnt - dll_get_last_error (held))
+                             < 0.05,
+                  "the mean reads the held offset, as the last steer does");
+    DP_CHECK_MSG (dll_take_error (held, &sum) == 0 && sum == 0.0,
+                  "taken: the sum starts again from zero");
+    /* The running loop accumulates too: the same count. */
+    dll_state_t *run = dll_create (code, sf, sps, 0.15, 0.005, 0.707, 0.5, 1);
+    (void)dll_steps (run, rx, n, sym, nper);
+    DP_CHECK (dll_take_error (run, &sum) == nper);
+    /* The Python face: the mean, NaN once taken. */
+    (void)dll_steps (held, rx, sf * sps * 10, sym, nper);
+    DP_CHECK (fabs (dll_take_error_mean (held)) > 0.05);
+    DP_CHECK (isnan (dll_take_error_mean (held)));
+    dll_destroy (run);
+    dll_destroy (held);
+    free (sym);
+    free (rx);
+    free (code);
+  }
+  {
+    /* The symbol-aided partial path on 6b's asynchronous clean stream:
+       once per symbol window, so fewer steers than epochs and more than
+       one per two epochs (7.24 partials per symbol at four per epoch is
+       1.81 epochs per symbol; the first looks settle the hypothesis). */
+    const size_t sf = 63, sps = 4, K = 4, nsym = 400;
+    const size_t te   = sf * sps;
+    const double P    = 7.24;
+    const double tsym = P * (double)te / (double)K;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 11u);
+    size_t          N   = (size_t)(nsym * tsym) + 2 * te;
+    float _Complex *rx  = malloc (N * sizeof (*rx));
+    float _Complex *out = malloc (N * sizeof (*out));
+    make_async_signal (rx, N, code, sf, sps, 0.0, tsym, 0.37 * (double)te, 0.0,
+                       7u, 99u);
+    dll_state_t *d = dll_create (code, sf, sps, 0.1, 0.002, 0.707, 0.5, K);
+    DP_REQUIRE (d && dll_set_symbol_period (d, P) == DP_OK);
+    dll_hold_here (d);
+    dll_set_coast (d, 1);
+    size_t nep = N / te;
+    for (size_t e = 0; e < nep; e++)
+      dll_steps (d, rx + e * te, te, out, te);
+    double sum;
+    size_t cnt = dll_take_error (d, &sum);
+    DP_CHECK_MSG (cnt > nep / 2 && cnt < nep,
+                  "symbol-aided path: one steer per symbol window");
+    DP_CHECK_MSG (fabs (sum / (double)cnt) > 0.02,
+                  "coasting, the windows' mean reads the held offset");
+    /* A blob taken mid-interval carries the sum: the restored loop's
+       take is the original's. */
+    dll_state_t *b = dll_create (code, sf, sps, 0.0, 0.002, 0.707, 0.5, K);
+    DP_REQUIRE (b && dll_set_symbol_period (b, P) == DP_OK);
+    for (size_t e = 0; e < 40; e++)
+      dll_steps (d, rx + e * te, te, out, te);
+    DP_STATE_ROUNDTRIP_TEST (dll, d, b);
+    double sb, sd;
+    size_t nb = dll_take_error (b, &sb), nd = dll_take_error (d, &sd);
+    DP_CHECK_MSG (nb == nd && nb > 0 && sb == sd,
+                  "the accumulator rides in the blob");
+    dll_destroy (b);
+    dll_destroy (d);
+    free (out);
+    free (rx);
+    free (code);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 10. A held loop takes a new rate aid at once                      *
+   * ---------------------------------------------------------------- */
+  /* Nothing steers a coasting loop's phase_inc, and dll_set_rate_aid()
+     used to only store the aid for the next steer to fold in -- so a held
+     loop kept the aid it was held with, whatever it was told since. A
+     holder refreshing the Doppler it holds (the searcher-timed receiver's
+     fold) needs the code rate to follow. Held at aid 0 on a nominal-rate
+     signal, told 2e-4, the phase over the next 200 epochs advances the
+     aid's extra chips (200 * sf * 2e-4 = 2.52 at sf 63) beyond nominal.
+     Sabotaged: skip the recompute -- the extra reads 0. */
+  {
+    const size_t sf = 63, sps = 4, nper = 300;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 23u);
+    float _Complex *rx  = malloc (sf * sps * nper * sizeof (*rx));
+    size_t          n   = make_signal (rx, code, sf, sps, 0.0, nper, 9u, 1);
+    float _Complex *sym = malloc (nper * sizeof (*sym));
+    dll_state_t    *d = dll_create (code, sf, sps, 0.0, 0.005, 0.707, 0.5, 1);
+    DP_REQUIRE (d);
+    dll_hold_here (d);
+    dll_set_coast (d, 1);
+    (void)dll_steps (d, rx, 100 * sf * sps, sym, nper);
+    const double aid = 2e-4;
+    dll_set_rate_aid (d, aid);
+    const double p0 = dll_get_code_phase (d);
+    (void)dll_steps (d, rx + 100 * sf * sps, 200 * sf * sps, sym, nper);
+    double adv = dll_get_code_phase (d) - p0;
+    while (adv < 0.0)
+      adv += (double)sf;
+    /* The advance modulo the code: 200 epochs at nominal is 0 modulo sf,
+       so what is left is the aid's extra, 2.52 chips. */
+    adv               = fmod (adv, (double)sf);
+    const double want = 200.0 * (double)sf * aid;
+    DP_CHECK_MSG (fabs (adv - want) < 0.05,
+                  "held, a new rate aid moves the code rate at once");
+    DP_CHECK (dll_get_code_rate (d) == 1.0); /* the loop's own observable */
+    (void)n;
+    dll_destroy (d);
+    free (sym);
+    free (rx);
+    free (code);
+  }
+
   DP_TEST_END ("test_dll_core");
 }

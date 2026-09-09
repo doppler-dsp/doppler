@@ -636,6 +636,18 @@ DllObj_set_code_phase (DllObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+DllObj_take_error_mean (DllObject *self, PyObject *Py_UNUSED (ignored))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  double y = dll_take_error_mean (self->handle);
+  return PyFloat_FromDouble (y);
+}
+
 static PyMethodDef DllObj_methods[] = {
 
   { "steps", (PyCFunction)(void *)DllObj_steps, METH_VARARGS | METH_KEYWORDS,
@@ -777,25 +789,28 @@ static PyMethodDef DllObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "set_rate_aid(rate_aid) -> None\n"
     "\n"
-    "Set the carrier-aiding code-rate deviation (ratio; 0 = off): a fixed "
-    "fractional rate bias summed into the code NCO's phase_inc every epoch, "
-    "on top of the loop's own control. For physically-coupled Doppler, pass "
-    "carrier_offset_hz / carrier_freq_hz so the code NCO rides the code-rate "
-    "dilation the discriminator alone can't pull in at low SNR. Applied "
-    "continuously across the epoch (not a phase pulse), and nudges the "
-    "current phase_inc so the aid takes effect before the first period "
+    "Set the carrier-aiding code-rate deviation (ratio; 0 = off): a fixed\n"
+    "fractional rate bias summed into the code NCO's phase_inc every epoch,\n"
+    "on top of the loop's own control. For physically-coupled Doppler, pass\n"
+    "carrier_offset_hz / carrier_freq_hz so the code NCO rides the code-rate\n"
+    "dilation the discriminator alone can't pull in at low SNR. Applied\n"
+    "continuously across the epoch (not a phase pulse), and nudges the\n"
+    "current phase_inc so the aid takes effect before the first period\n"
     "update. code_rate stays the loop's own observable and is unaffected.\n"
     "\n"
-    "A fixed fractional rate bias summed into the sample-and-hold "
-    "`phase_inc`\n"
-    "on top of the loop's own control every epoch -- for physically-coupled\n"
-    "Doppler, `carrier_offset_hz / carrier_freq_hz`, so the code NCO rides\n"
-    "the code-rate dilation the discriminator alone can't pull in at low "
-    "SNR.\n"
-    "Applied continuously across the epoch (via `phase_inc`), not as a phase\n"
-    "pulse. Also nudges the current `phase_inc` so the aid takes effect\n"
-    "before the first period update. `code_rate` stays the loop's own\n"
-    "observable and is unaffected.\n"
+    "A fixed fractional rate bias summed into the sample-and-hold\n"
+    "`phase_inc` on top of the loop's own control every epoch -- for\n"
+    "physically-coupled Doppler, `carrier_offset_hz / carrier_freq_hz`, so\n"
+    "the code NCO rides the code-rate dilation the discriminator alone can't\n"
+    "pull in at low SNR. Applied continuously across the epoch (via\n"
+    "`phase_inc`), not as a phase pulse. Also nudges the current `phase_inc`\n"
+    "so the aid takes effect before the first period update. `code_rate`\n"
+    "stays the loop's own observable and is unaffected. A HELD loop\n"
+    "(dll_set_coast()) takes the new aid at once: nothing steers a coasting\n"
+    "loop's `phase_inc`, so it is recomputed here from the held filter and\n"
+    "the new aid -- a holder that refreshes the Doppler it holds (a\n"
+    "searcher-timed receiver's fold) sees the code rate follow. Before this,\n"
+    "a coasting loop kept the aid it was held with.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -1258,6 +1273,44 @@ static PyMethodDef DllObj_methods[] = {
     ">>> d.set_code_phase(63.0 + 1.5)      # folded into the period\n"
     ">>> round(d.code_phase, 2)\n"
     "1.5\n" },
+  { "take_error_mean", (PyCFunction)DllObj_take_error_mean, METH_NOARGS,
+    "take_error_mean() -> float\n"
+    "\n"
+    "Take the discriminator's running sum: the steers since the last\n"
+    "take, their sum, both zeroed.\n"
+    "\n"
+    "Every steer adds its clamped discriminator to a running sum, coasting\n"
+    "or not. A holder correcting a coasting loop on another clock (a\n"
+    "searcher-timed receiver, design §12.22-12.24) reads the sum once per\n"
+    "interval, divides by the count for the block mean, moves the loop by a\n"
+    "gain times it (dll_set_code_phase()), and the next interval starts from\n"
+    "zero. The count is the number of steers -- one per epoch on the\n"
+    "coherent full-epoch path, one per symbol window on the symbol-aided\n"
+    "partial path -- so the mean is over the same updates the loop itself\n"
+    "would have filtered. Zero steers leaves `*sum` at 0 and returns 0.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    The number of steers taken.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.track import Dll\n"
+    ">>> rng = np.random.default_rng(3)\n"
+    ">>> code = rng.integers(0, 2, 63).astype(np.uint8)\n"
+    ">>> idx = (np.arange(63 * 4 * 200) // 4) % 63\n"
+    ">>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)\n"
+    ">>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off\n"
+    ">>> _ = d.steps(x)                        # 200 epochs: the loop pulls "
+    "in\n"
+    ">>> m = d.take_error_mean()               # the 200 steers' mean\n"
+    ">>> 0.0 < abs(m) < 0.5                    # the pull-in's transient\n"
+    "True\n"
+    ">>> import math\n"
+    ">>> math.isnan(d.take_error_mean())       # taken: nothing left\n"
+    "True\n" },
   { NULL }
 };
 

@@ -929,7 +929,12 @@ class Dll:
         pull in at low SNR. Applied continuously across the epoch (via
         `phase_inc`), not as a phase pulse. Also nudges the current `phase_inc`
         so the aid takes effect before the first period update. `code_rate`
-        stays the loop's own observable and is unaffected.
+        stays the loop's own observable and is unaffected. A HELD loop
+        (dll_set_coast()) takes the new aid at once: nothing steers a coasting
+        loop's `phase_inc`, so it is recomputed here from the held filter and
+        the new aid -- a holder that refreshes the Doppler it holds (a
+        searcher-timed receiver's fold) sees the code rate follow. Before this,
+        a coasting loop kept the aid it was held with.
 
         Parameters
         ----------
@@ -958,25 +963,56 @@ class Dll:
 
         """
 
-    def set_code_phase(self, chips: float) -> None:
-        """Set the prompt code phase, in chips: the correction a holder applies
-        to a coasting loop.
+    def take_error_mean(self) -> float:
+        """Take the discriminator's running sum: the steers since the last
+        take, their sum, both zeroed.
 
-        Moves the code NCO to chips (modulo the code length) and nothing else:
-        the loop filter, the rate aid, the lock detector and the symbol-period
-        aid keep their state, and the accumulators of the period in progress
-        are left to finish on the new phase. This is the other half of
-        dll_set_coast(): a coasting loop advances at its held rate, which its
-        32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per 31
-        ms block at 5 Mcps (design §12.22) -- so whoever holds it on another
-        clock (a searcher's cell, a carrier aid) puts it back where that clock
-        says, once per block, and reads the discriminator between. Nominally at
-        a period boundary; called mid-period it costs that one period's read.
+        Every steer adds its clamped discriminator to a running sum, coasting
+        or not. A holder correcting a coasting loop on another clock (a
+        searcher-timed receiver, design §12.22-12.24) reads the sum once per
+        interval, divides by the count for the block mean, moves the loop by a
+        gain times it (dll_set_code_phase()), and the next interval starts from
+        zero. The count is the number of steers -- one per epoch on the
+        coherent full-epoch path, one per symbol window on the symbol-aided
+        partial path -- so the mean is over the same updates the loop itself
+        would have filtered. Zero steers leaves `*sum` at 0 and returns 0.
+
+        Returns
+        -------
+        float
+            The number of steers taken.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from doppler.track import Dll
+        >>> rng = np.random.default_rng(3)
+        >>> code = rng.integers(0, 2, 63).astype(np.uint8)
+        >>> idx = (np.arange(63 * 4 * 200) // 4) % 63
+        >>> x = np.where(code[idx] & 1, -1.0, 1.0).astype(np.complex64)
+        >>> d = Dll(code, sps=4, init_chip=0.15, bn=0.005)   # 0.15 chip off
+        >>> _ = d.steps(x)                        # 200 epochs: the loop pulls in
+        >>> m = d.take_error_mean()               # the 200 steers' mean
+        >>> 0.0 < abs(m) < 0.5                    # the pull-in's transient
+        True
+        >>> import math
+        >>> math.isnan(d.take_error_mean())       # taken: nothing left
+        True
+
+        """
+
+    def set_code_phase(self, chips: float) -> None:
+        """dll_take_error() as one number: the mean of the steers taken, or NaN
+        when none were -- the Python face of the primitive.
+
+        The block-mean discriminator a holder corrects a coasting loop on
+        (dll_set_code_phase()), read once per interval; each read starts the
+        next interval's sum from zero.
 
         Parameters
         ----------
         chips : float
-            The prompt's code phase, chips; folded into [0, code_len).
+            DLL state. Must be non-NULL.
 
         Examples
         --------

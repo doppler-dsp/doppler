@@ -2134,3 +2134,94 @@ What it settles:
     chip. The hand-off path's retirement is PR 4 (§12.28).
 
 ______________________________________________________________________
+
+### 12.28 What was measured (2026-09-10) — the pull-in as a curve, the 600 s soak, the retirement
+
+**What was asked.** §12.27 left one stint at 40 dB-Hz where the cell
+receiver's estimate did not pull a data-block seed in and the hand-off's
+refine did, and two measurements were owed before deleting the hand-off
+path: the pull-in as a curve rather than a count, and the 600 s soak at
+the floor on both flavours — the run #1273 was found on.
+
+**The curve** (`validate_receiver_pullin`): one emitter at the operating
+geometry through the channel at its own Doppler, noise after; for each seed
+offset in carrier a fresh receiver of each flavour seeded from the truth a
+tenth of a chip off in code, from a point inside the data (where the
+searcher's data-block copy seeds, §12.14), fed 1 s, scored by both flags
+up with the status Doppler within a row of the truth; ten draws per point,
+both signs. At 45 dB-Hz both flavours pull in every draw to 1500 Hz. At
+40 dB-Hz, with the cell's estimator at the refine's dwell (nine blocks):
+
+| offset Hz | hand-off (refine chain), pulled in / t_lock | cell (live-chain estimate), pulled in / t_lock | cell, dwell ×2 |
+| --------- | ------------------------------------------- | ---------------------------------------------- | -------------- |
+| 0         | 10 / 10, 0.140 s                            | 10 / 10, 0.041 s                               | 10 / 10        |
+| 100       | 10 / 10, 0.168 s                            | 9 / 10, 0.161 s                                | 10 / 10        |
+| 200       | 10 / 10, 0.151 s                            | 10 / 10, 0.301 s                               | 10 / 10        |
+| 400       | 10 / 10, 0.178 s                            | 7 / 10, 0.206 s                                | 10 / 10        |
+| 600       | 10 / 10, 0.213 s                            | 7 / 10, 0.296 s                                | 10 / 10        |
+| 800       | 10 / 10, 0.200 s                            | 7 / 10, 0.230 s                                | 10 / 10        |
+| 1000      | 10 / 10, 0.225 s                            | 8 / 10, 0.255 s                                | 10 / 10        |
+| 1500      | 9 / 10, 0.312 s                             | 10 / 10, 0.434 s                               | 9 / 10         |
+
+The shortfall from 100 Hz on — inside loop 1's own bound — says it was the
+estimate's noise pushing seeds out, not its range: the estimator was
+cleared in §12.27 on synthetic despread BPSK at both rates, so the
+difference is the feed, `sps` (8) samples per symbol on the live chain
+against the refine's 4 at the same resolution. Doubling the dwell closes
+the curve to the refine's at every point, 10 of 10 to 1000 Hz and 9 of 10
+at 1500 as the refine, with the same lock times (0.17–0.26 s against
+0.15–0.23), for 40 ms more per seed at 45 dB-Hz (0.11 s against 0.07 to
+both flags). That is the rule now: the cell's estimator dwell is the
+refine's scaled by the ratio of the two feeds' sample rates — derived from
+what can move, not a constant. The `--check` gates every draw to 800 Hz at
+45 dB-Hz.
+
+**The 600 s soak at 40 dB-Hz**, both flavours on the same stimulus (ten
+emitters, 187 stints scored, the run #1273 was found on):
+
+| flavour  | missed / false / late | double-held blocks (both code-locked) | arrival → tracking, mean / max | code lock of held | symbol lock of held | released past two intervals | heap     |
+| -------- | --------------------- | ------------------------------------- | ------------------------------ | ----------------- | ------------------- | --------------------------- | -------- |
+| hand-off | 0 / 0 / 0             | **84071 (63667)** — the gate fails    | 0.36 / 1.70 s                  | 0.9966            | 0.9755              | 1                           | +0.8 KiB |
+| **cell** | 0 / 0 / 0             | **0 (0)**                             | 0.41 / 1.76 s                  | 0.9954            | 0.9808              | 2                           | +0.3 KiB |
+
+What it settles:
+
+- **The hand-off flavour's own failure mode does not transfer.** Over
+    600 s at the floor the hand-off pool doubles two stints for 12.7 s
+    both code-locked — #1273 exactly, a data-block seed its refine leaves
+    at the seed's frequency — and fails its own gate; the cell pool doubles
+    nothing, every gate holds, and its symbol lock of held is the higher
+    (0.9808 against 0.9755). The 120 s stint of §12.27 was the estimate's
+    noise at the refine's dwell, and the rule above removes it. With the
+    curve and the soak at the floor, the case that §12.27 left at parity
+    is stronger: the cell mode is the better receiver at 40 dB-Hz on the
+    one count that was open, and equal on the rest.
+- **What the retirement removed.** The hand-off constructor and its view,
+    the blob's hand-off byte (receiver blob v7), the pool's hand-off
+    constructor and refine arguments, `set_refine_min_blocks` and its
+    read-back, the `CellAsyncDsssPool` view (the one constructor is the
+    cell one), the soak's second path and its two ctest twins, the
+    validator's second flavour, the hand-off reference in the jitter
+    harness and the bench; the refine validators seed the searching
+    flavour, whose refine chain is the same code. Net over the code and
+    its tests: 35 files changed, 958 insertions(+), 5535 deletions(-). The base receiver keeps its
+    refine for its own search.
+- **What it cost.** 40 ms per seed at 45 dB-Hz (the doubled dwell); a
+    windowed waveform with `D ≥ 13` as the pool's floor — the gallery
+    example moved to a 20-of-270-symbol window at `D = 16`, on the raw
+    synth engine because the compose `Synth` cannot yet set the window
+    ([#1294](https://github.com/doppler-dsp/doppler/issues/1294)); and
+    #1261's reproduction, the refine's hand-over past loop 1's pull-in,
+    which the cell receiver cannot produce (stated in the assertion
+    ratchet's ignore list).
+- **The gates.** `validate_receiver_pullin --check` (45 dB-Hz, 0/400/800
+    Hz, six draws each, every draw); the soak's check and budget twin on
+    the one path; the receiver's tests (a seed sixteen bounds off pulled
+    in, red with the fold skipped); the pool's tests on the windowed
+    fixture at `D = 16`; both faces of the gallery example self-validating
+    on the window.
+- **Not measured here:** the fold's outcome on the one 40 dB-Hz seed of
+    §12.27 (it no longer reproduces at the scaled dwell); the 600 s soak at
+    45 dB-Hz; the compose `Synth` window (#1294).
+
+______________________________________________________________________

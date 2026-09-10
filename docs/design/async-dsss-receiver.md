@@ -1162,11 +1162,14 @@ receiver to an emitter that already has one. The searcher's product is
 therefore not "the strongest signal present"; it is **every emitter present
 that is not yet assigned**, per dwell.
 
-The receiver is `AsyncDsssReceiver` (§4) in its hand-off flavor (§11.1):
-the searcher's detection arrives from outside as the hand-off and the
+The receiver is `AsyncDsssReceiver` (§4) in its cell flavor (§11.1):
+the searcher's detection arrives from outside as the seed and the
 receiver's own `Acquisition` never runs — a difference in constructor, not
-in method, the `ddc`/`MatchedDDC` shape. "Until they are gone" is the
-receiver's own decision, on its two lock flags (§10).
+in method, the `ddc`/`MatchedDDC` shape. Past the seed the `Dll` is held on
+the searcher's own block timing rather than closed on itself, so the pull-in
+is the seed's carrier residual folded once and there is no refine chain per
+seed (§11.1, §12.28). "Until they are gone" is the receiver's own decision,
+on its two lock flags (§10).
 
 ### 6.2 What one maximum per dwell loses
 

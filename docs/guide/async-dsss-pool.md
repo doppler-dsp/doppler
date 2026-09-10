@@ -57,7 +57,7 @@ hand-off receivers, with a refine chain per seed, was retired on
 ## One slot's lifecycle
 
 ```text
-idle ──seed()──▶ refining ──hand-over──▶ tracking ──both flags down
+idle ──seed()──▶ refining ──pulled in──▶ tracking ──both flags down
  ▲                                          │       for lost_confirm_s
  │                                          ▼
  └───────── released (reset to idle) ◀──── lost
@@ -66,6 +66,11 @@ idle ──seed()──▶ refining ──hand-over──▶ tracking ──both
 - **`seeded`** — a listed peak at no live row's code phase, into a free
     slot. The seed carries the searcher's Doppler (to one row), chip phase
     (to half a chip) and C/N0 estimate.
+- **`refining`** — the pull-in. The receiver's `Dll` is held on the
+    searcher's block timing from the first sample, and the seed's carrier
+    residual is estimated on the receiver's own despread stream and folded
+    once. No refine chain is built per seed. This one is the receiver's
+    own state, read off `status()`; the pool logs no transition for it.
 - **`tracking`** — the pull-in has folded its estimate and a lock flag
     is up; from
     here `status()` reports the loops' own Doppler and chip phase, and
@@ -95,22 +100,22 @@ Every number is a constructor parameter; the defaults are the design's
 operating point, and the searcher's and the receivers' own parameters pass
 through untouched.
 
-| parameter                              | meaning                                                                                                                                                                                                                                            | default         |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| `code`                                 | the spreading code, 0/1 chips; every emitter is on it                                                                                                                                                                                              | required        |
-| `chip_rate`, `symbol_rate`, `spc`, `m` | the waveform: chips per second, data symbols per second, samples per chip, the constellation order                                                                                                                                                 | 1e6, 1000, 2, 2 |
-| `cn0_dbhz`, `pfa`, `pd`                | the sensitivity the searcher and the receivers are sized for, and the searcher's per-dwell false-alarm and detection targets                                                                                                                       | 55, 1e-3, 0.9   |
-| `doppler_uncertainty`                  | the searcher's span, Hz one-sided; it tiles the span in windows one epoch rate wide                                                                                                                                                                | 100             |
-| `code_only_epochs`                     | the whole code epochs the waveform's code-only window holds at any chip phase; sizes the coherent depth `D`, which must be at least 13 here (a windowed waveform)                                                                                  | 813             |
-| `doppler_rate`                         | the Doppler rate the depth is bounded against, Hz/s (0 = no bound)                                                                                                                                                                                 | 0               |
-| `max_peaks`                            | the peak list's capacity per dwell: the population plus the false peaks the gate admits                                                                                                                                                            | 16              |
-| `n_slots`                              | receivers held; the population plus release headroom                                                                                                                                                                                               | 12              |
-| `threads`                              | the workers the searcher's tiles and the receivers run across (1 = serial; the result is bit-identical at any count)                                                                                                                               | 1               |
-| `carrier_freq_hz`                      | the RF carrier the Doppler is physically coupled to; told, the searcher walks its blocks by each tile's code rate, the hand-off advances the seed by half a dwell's drift, and the receivers aid their code loops from the carrier (0 = uncoupled) | 0               |
-| `lost_confirm_s`                       | the release rule's interval: both flags down this long is *lost*; longer than the longest fade the link must ride                                                                                                                                  | 2.0             |
-| `max_emitter_on_time_secs`             | the on-time cap: a slot held this long is released and its emitter re-acquired                                                                                                                                                                     | 900             |
-| `segments`, `sps`, `differential`      | the receivers' despreader partials per epoch, the demodulator's samples per symbol, differential decoding                                                                                                                                          | 4, 8, 0         |
-| `gain`, `pullin_intervals`             | the receivers' correction: chips per chip of the interval-mean discriminator after the pull-in, and the intervals at gain 1 before it                                                                                                              | 0.125, 4        |
+| parameter                              | meaning                                                                                                                                                                                                                               | default         |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `code`                                 | the spreading code, 0/1 chips; every emitter is on it                                                                                                                                                                                 | required        |
+| `chip_rate`, `symbol_rate`, `spc`, `m` | the waveform: chips per second, data symbols per second, samples per chip, the constellation order                                                                                                                                    | 1e6, 1000, 2, 2 |
+| `cn0_dbhz`, `pfa`, `pd`                | the sensitivity the searcher and the receivers are sized for, and the searcher's per-dwell false-alarm and detection targets                                                                                                          | 55, 1e-3, 0.9   |
+| `doppler_uncertainty`                  | the searcher's span, Hz one-sided; it tiles the span in windows one epoch rate wide                                                                                                                                                   | 100             |
+| `code_only_epochs`                     | the whole code epochs the waveform's code-only window holds at any chip phase; sizes the coherent depth `D`, which must be at least 13 here (a windowed waveform)                                                                     | 813             |
+| `doppler_rate`                         | the Doppler rate the depth is bounded against, Hz/s (0 = no bound)                                                                                                                                                                    | 0               |
+| `max_peaks`                            | the peak list's capacity per dwell: the population plus the false peaks the gate admits                                                                                                                                               | 16              |
+| `n_slots`                              | receivers held; the population plus release headroom                                                                                                                                                                                  | 12              |
+| `threads`                              | the workers the searcher's tiles and the receivers run across (1 = serial; the result is bit-identical at any count)                                                                                                                  | 1               |
+| `carrier_freq_hz`                      | the RF carrier the Doppler is physically coupled to; told, the searcher walks its blocks by each tile's code rate, advances the seed by half a dwell's drift, and the receivers aid their code loops from the carrier (0 = uncoupled) | 0               |
+| `lost_confirm_s`                       | the release rule's interval: both flags down this long is *lost*; longer than the longest fade the link must ride                                                                                                                     | 2.0             |
+| `max_emitter_on_time_secs`             | the on-time cap: a slot held this long is released and its emitter re-acquired                                                                                                                                                        | 900             |
+| `segments`, `sps`, `differential`      | the receivers' despreader partials per epoch, the demodulator's samples per symbol, differential decoding                                                                                                                             | 4, 8, 0         |
+| `gain`, `pullin_intervals`             | the receivers' correction: chips per chip of the interval-mean discriminator after the pull-in, and the intervals at gain 1 before it                                                                                                 | 0.125, 4        |
 
 One knob is a method, because it is decided after the population is
 known: `set_event_log(log)` attaches the run's log (`None` detaches).

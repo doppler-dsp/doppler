@@ -833,10 +833,26 @@ COV_PATCH_MIN ?= 90
 # runs from inside $(COV_DIR) and reaches the script through $(CURDIR)/ --
 # a prefix there would be taken for the path.
 COV_GUARD     ?= scripts/mem-guard.sh
+# The instrumented C suite excludes the `sweep` validators, exactly as the
+# three sanitizer suites do (SAN_EXCLUDE_SWEEP). Spelled as its own variable
+# rather than a literal so `check_instrumented_sweep.py` can resolve it, and
+# so the two suites' escape hatches read the same. The measurement that
+# justifies it is at the ctest call site below. `COV_SWEEP=1` restores them.
+COV_EXCLUDE_SWEEP = $(if $(COV_SWEEP),,-LE sweep)
 export MEM_GUARD_PYTHON ?= $(PYTHON_EXECUTABLE)
 # Excluded from the report: vendored code, jm-generated binding aggregators
-# (`<mod>_ext.c`) and per-object fragments, and the test/bench harnesses — only
-# first-party _core.c counts. `native/src/app/` (the wfmgen CLI) is excluded
+# (`<mod>_ext.c`) and per-object fragments, and the test/bench/validation
+# harnesses — only first-party _core.c counts.
+#
+# `native/validation/` was MISSING from that list for as long as the list has
+# existed, and it is not a small omission: the validator harnesses are 9310
+# lines, a quarter of the reported denominator, counted as library code at
+# 78.97%. The rule stated below — "the test SOURCES stay out of the report
+# through COV_IGNORE; only what they exercised in library headers is added"
+# — is exactly as true of a `validate_*` harness as of a `test_*` one; the
+# regex simply never named the directory. Correcting it moves the reported
+# total from 84.36% to 86.05%, the number for doppler's own source
+# (doppler#1292). `native/src/app/` (the wfmgen CLI) is excluded
 # too: its body is an OBJECT lib compiled into BOTH the executable and a `.so`,
 # but the report attributes only to the `.so`, whose copy is never executed.
 #
@@ -850,7 +866,7 @@ export MEM_GUARD_PYTHON ?= $(PYTHON_EXECUTABLE)
 # stay measured. Only jm's own inline functions lose attribution, and the SIMD
 # MACROS doppler actually uses are unaffected — a macro expands at its call
 # site and is attributed to the `.c` that used it.
-COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|(^|/)jm_[a-z]+\.h$$|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks)/
+COV_IGNORE    ?= (^|/)(vendor|build|build-cov|native/src/app)/|(^|/)jm_[a-z]+\.h$$|_ext(_[a-z0-9_]+)?\.c$$|/(tests|benchmarks|validation)/
 
 # Preflight: can this toolchain link an instrumented binary at all? Without
 # it the build compiles every object and dies at the FIRST LINK with "cannot
@@ -941,8 +957,30 @@ rm -rf $(COV_DIR)/prof && mkdir -p $(COV_DIR)/prof
 # (LLVM_PROFILE_FILE's %p), so concurrent tests each write their own .profraw
 # and the merge below is unaffected -- the profile format is what makes this
 # safe, not luck.
+#
+# $(COV_EXCLUDE_SWEEP) for the reason SAN_EXCLUDE_SWEEP gives, measured again
+# here because coverage is the one instrumented suite where dropping a test
+# could lose REPORT data rather than only time. Both halves were measured on
+# one instrumented build, 20 cores, doppler#1292:
+#
+#   the 34 `sweep` validators are 94.3% of the instrumented ctest CPU
+#     (4615.7s of 4893.6s), and validate_acq_surface_jitter ALONE is 1261.7s
+#     against a 1266.0s leg -- so the suite finishes when that one test
+#     finishes and no amount of -j helps. Excluded: 55.7s.
+#   what the report loses is NINE LINES of 29738, 86.05% -> 86.02%, in four
+#     files (ber_meter, wfm_synth, doppler_channel, awgn). Each is a line
+#     a validator reaches and no unit test does, which is a missing C test
+#     rather than coverage worth 21 minutes of instrumented runtime.
+#
+# The 9.4-POINT drop a naive reading of the same two reports shows is the
+# validator HARNESSES reporting on themselves (9310 lines, 78.97% -> 15.54%)
+# -- they are harnesses like native/tests/, and COV_IGNORE now says so. The
+# two changes ship together on purpose: either alone reads as a collapse.
+#
+# COV_SWEEP=1 puts them back, as SAN_SWEEP=1 does for the sanitizers.
 cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
-    $(CURDIR)/$(COV_GUARD) $(CTEST) --output-on-failure -j $(NPROC)
+    $(CURDIR)/$(COV_GUARD) $(CTEST) --output-on-failure -j $(NPROC) \
+        $(COV_EXCLUDE_SWEEP)
 # -n auto for the same reason as ctest above: 486s serial in CI, 102s here.
 # The per-process profile argument is identical -- xdist workers are separate
 # processes and %p gives each its own .profraw.
@@ -1169,7 +1207,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 doc-sections-check \
                 installed-headers-check \
                 ci-image ci-image-check ci-image-repin-check \
-                ccsds-isolation-check \
+                ccsds-isolation-check instrumented-sweep-check \
                 ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats pr-watch \
                 wheel-check wheel-smoke release-smoke \
@@ -1211,7 +1249,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       workflow-syntax-check release-notes-size-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
-      ccsds-isolation-check
+      ccsds-isolation-check instrumented-sweep-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -3126,6 +3164,20 @@ ci-image-repin-check: ## Fail when a rebuilt CI-image pin is pending and unmerge
 # it over a seeded tree, as `issue-link-check` does.
 ccsds-isolation-check: ## Fail when a component outside ccsds_tm includes its headers
 	@$(UV) run python scripts/check_ccsds_isolation.py
+
+# The `sweep` validators cost ~20-40x under instrumentation and their `--check`
+# already runs in the Release suite. ASan, UBSan and TSan each excluded them,
+# with a measurement; the COVERAGE leg did not, and nothing could say so -- the
+# omission had no symptom until the job began being cancelled at its 90-minute
+# cap, which reads as flaky infrastructure rather than as a leg doing work
+# twice. It blocked every open PR in the repo for a day (doppler#1292).
+#
+# The rule is the property, not the flag: an instrumented block that runs ctest
+# must exclude the label. A fourth sanitizer added tomorrow is covered without
+# being registered anywhere. Logic in a script so the gate's own test can drive
+# it over seeded makefiles, as `issue-link-check` does.
+instrumented-sweep-check: ## Fail when an instrumented ctest leg runs the sweep validators
+	@$(UV) run python scripts/check_instrumented_sweep.py
 
 # The recorded specan demo frames are a projection of the specan source, so a
 # change to one without the other ships a demo that no longer matches the code.

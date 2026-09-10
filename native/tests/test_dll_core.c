@@ -350,7 +350,8 @@ main (void)
   /* ---------------------------------------------------------------- *
    * 6b. Symbol-period aid: the lock detector's looks become coherent  *
    *     over a symbol, and lock at a C/N0 where per-partial looks     *
-   *     cannot (docs/design/async-dsss-receiver.md §3.7, §12.3)        *
+   *     cannot (docs/design/async-dsss-receiver.md §3.7, and          *
+   *     docs/design/async-dsss-receiver-measurements.md §12.3)        *
    * ---------------------------------------------------------------- */
   {
     const size_t sf = 63, sps = 4, K = 4, nsym = 1500;
@@ -515,7 +516,8 @@ main (void)
   /* ---------------------------------------------------------------- *
    * 6c. Symbol-period aid: the code loop steers on the aided window,  *
    *     once per symbol, with bn kept per epoch                       *
-   *     (docs/design/async-dsss-receiver.md §3.7, §12.5)              *
+   *     (docs/design/async-dsss-receiver.md §3.7, and                 *
+   *     docs/design/async-dsss-receiver-measurements.md §12.5)        *
    * ---------------------------------------------------------------- */
   {
     /* 6b's asynchronous data stream (7.24 partials per symbol at four

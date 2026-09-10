@@ -25,7 +25,7 @@ ______________________________________________________________________
     at the same tile); each listed peak is one `push()` record. One
     argmax now serves both detectors (`det_peak_list` in `det_private.h`).
     Measured at the operating point (`validate_acq_peak_list`,
-    [design §12.6](docs/design/async-dsss-receiver.md)); the false-alarm
+    [measurements §12.6](docs/design/async-dsss-receiver-measurements.md)); the false-alarm
     rate under the list is the configured pfa. State blob v2.
 
 - **`HandoffAsyncDsssReceiver`, `seed()` and the lost state.** The tracking
@@ -66,7 +66,8 @@ ______________________________________________________________________
     `Dll.set_lock_verify` sizes the drop hysteresis from a budget.
     `AsyncDsssReceiver` applies both from its configuration; before this its
     detector read "unlocked" 96% of the time at Es/N0 5.7 dB on a loop that
-    never lost the code (`docs/design/async-dsss-receiver.md` §3.7, §12.4).
+    never lost the code (`docs/design/async-dsss-receiver.md` §3.7,
+    `docs/design/async-dsss-receiver-measurements.md` §12.4).
 
 - **`DopplerChannel.delay_samples`, `Resampler.delay`.** The resampler's
     group delay, closed-form from the bank (10.5 samples for the built-in
@@ -85,7 +86,7 @@ ______________________________________________________________________
     per-epoch meaning and the tracked rate is continuous across the switch.
     Measured against the per-epoch look-back at the operating point
     (`validate_dll_aid_jitter`,
-    [design §12.5](docs/design/async-dsss-receiver.md)): pull-in 20%
+    [measurements §12.5](docs/design/async-dsss-receiver-measurements.md)): pull-in 20%
     faster, jitter 0.8× above 45 dB-Hz and 1.3× at the 40 dB-Hz floor —
     hundredths of a chip either way. State blob version 9.
 
@@ -3154,7 +3155,7 @@ PRs.
     with its input — `kaiser_window` is the existing precedent for that shape.
     What max-log costs at 8PSK **in dB** is deliberately not claimed: it is an
     Eb/N0 offset on a decoded BER curve and cannot be measured until the
-    decoder exists (`docs/design/mpsk-soft.md` §5).
+    decoder exists (`docs/design/mpsk.md` §9.7, "Soft decisions").
 
 - **`docs/design/mpsk-soft.md` — the design for LLR output from the M-PSK
     constellation.** Planned, not built. `doppler.mpsk`'s module docstring has
@@ -5717,7 +5718,7 @@ PRs.
 
 - **just-makeit pin 0.61.0 → 0.62.0.** Adopts the two doppler-filed fixes that
     the `MpskReceiver`/`MpskReceiverR` collapse
-    (`docs/design/mpsk-refactor.md` §6) was blocked on, skipping 0.61.1 (a
+    (`docs/design/mpsk.md` §12, "The collapse") was blocked on, skipping 0.61.1 (a
     release-notes repair with no template change).
 
     **jm gh-1012** lets a `[[<obj>.views.methods]]` entry restating a parent's
@@ -7360,7 +7361,8 @@ PRs.
 
     The `m` is the part that was missing everywhere.
     `_mpsk_rx_harness.freq_offset_inside_bw` returned `frac * bn / sps`,
-    contradicting `docs/design/mpsk-refactor.md` §4.4 on two counts: the NDA
+    contradicting `docs/design/mpsk.md` §3.4, "Pull-in is a
+    loop-bandwidth property", on two counts: the NDA
     discriminator is an M-th power, so the bound carries a divide by `m`, and
     the bound has no `sps` in it at all. Without the `m` one call read
     identically at every order while asking a 4× harder question at 8PSK than

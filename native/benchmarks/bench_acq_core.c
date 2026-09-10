@@ -88,7 +88,8 @@ static const acq_bench_cfg_t CFGS[] = {
   { 2.0e6, 5000.0, "op2M_U5k", 7, 1, 1, 1 },
   /* One third of +/-50 kHz: what one of three engines pays when the
      uncertainty is sliced across processes instead of tiled in one
-     engine (docs/design/async-dsss-receiver.md §12.1). Three of these
+     engine (docs/design/async-dsss-receiver-measurements.md §12.1).
+     Three of these
      against one U50k row is the price of the slice. */
   { 5.0e6, 50000.0 / 3.0, "op5M_U17k", 7, 1, 1, 1 },
   { 2.0e6, 50000.0 / 3.0, "op2M_U17k", 19, 1, 1, 1 },

@@ -89,10 +89,19 @@ idle ──seed()──▶ refining ──pulled in──▶ tracking ──both
 The searcher's false alarms are part of this lifecycle by design: at
 `pfa = 1e-3` a noise peak seeds a free slot every few hundred milliseconds,
 pulls in to nothing, reports tracking with both flags down and is released
-one interval later. That is why a slot is an emitter's **by both
-coordinates** — its seed within the searcher's row of the emitter's
-Doppler *and* within a chip of its code phase — never by a count, and why
-`n_slots` carries headroom over the population.
+one interval later. That is why an expectation about the pool is never a
+count of assigned slots — a noise seed occupies one exactly as an emitter
+does — and why `n_slots` carries headroom over the population.
+
+Two rules meet here and are easy to merge into one. **The pool occupies a
+slot by the code phase it was handed**, and nothing else: that is why the
+zone it projects covers that code phase at *any* Doppler, since a tracked
+emitter's own data blocks put smeared copies of it at its own phase rows
+away (see the design page, §8.2). **An observer identifies whose slot it
+is by both coordinates** — the seed's Doppler within the searcher's row
+and its chip phase within a chip — because it is matching a slot against
+an emitter it already knows. The first is the mechanism. The second is how
+a test reads it, and it needs a truth the pool does not have.
 
 ## Configuring it
 
@@ -164,8 +173,10 @@ own Doppler and code phase, one leaving and returning, noise at the sum.
 ```
 
 The pool, fed one epoch per push, with the log attached and every slot's
-status read after each push; the `owner()` helper is how a test decides
-whose a slot is — by both coordinates:
+status read after each push. The `owner()` helper is the *identification*
+above rather than the pool's own rule: it matches a slot's seed against a
+known emitter on both coordinates, which a test can do because it has the
+truth and the pool cannot:
 
 ```python
 --8<-- "src/doppler/examples/async_dsss_pool_demo.py:pool"

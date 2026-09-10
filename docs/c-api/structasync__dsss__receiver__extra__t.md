@@ -115,7 +115,7 @@
 ### variable \_pad 
 
 ```C++
-uint8_t async_dsss_receiver_extra_t::_pad[3];
+uint8_t async_dsss_receiver_extra_t::_pad[2];
 ```
 
 
@@ -208,7 +208,7 @@ uint8_t async_dsss_receiver_extra_t::cell_refined;
 
 
 
-v6: the cell's carrier estimate has been folded; its estimator is a child of the cell blob too. 
+v6: the cell's carrier estimate has been folded; its estimator is a child of the cell blob too. A NAMED byte of the pad: unnamed padding is indeterminate in a designated initialiser, and a blob that carries it does not round-trip byte for byte under every compiler. 
  
 
 

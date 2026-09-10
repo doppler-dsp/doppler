@@ -389,7 +389,8 @@ extern "C"
     uint8_t  had_lock;     
     uint8_t  car_coasting; 
     uint8_t  cell;         
-    uint8_t  _pad[3];
+    uint8_t  cell_refined; 
+    uint8_t  _pad[2];
     double   seed_chip_phase;
     double   seed_doppler_hz_est;
     double   doppler_hz_est;
@@ -408,7 +409,6 @@ extern "C"
     lockdet_state_t sym_lockdet;  
     double   held_phase;          
     double   cell_rate_bias;
-    uint8_t  cell_refined;        
     uint64_t period_count;
     uint64_t intervals;
   } async_dsss_receiver_extra_t;

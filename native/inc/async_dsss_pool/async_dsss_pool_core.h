@@ -120,7 +120,7 @@ extern "C"
 #define ASYNC_DSSS_POOL_MAX_EMITTER_ON_TIME_SECS (15.0 * 60.0)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC DP_FOURCC ('A', 'D', 'P', 'L')
-#define ASYNC_DSSS_POOL_STATE_VERSION 1u
+#define ASYNC_DSSS_POOL_STATE_VERSION 2u /* v2: the flavour; v1: no flavour */
 
   /**
    * @brief One slot's picture, by value -- what `status()` returns.
@@ -171,6 +171,13 @@ extern "C"
                               the transitions' edges.                       */
     int      prev_code;  /**< Its lock flags at the last push.              */
     int      prev_sym;
+    int      had_code;   /**< The code flag has been up: the row's phase
+                              is the loop's. Until then it is the seed's,
+                              advanced on the dilated clock whatever the
+                              receiver's state -- a cell receiver reports
+                              tracking through its pull-in, and a row
+                              frozen there leaves the zone within a block
+                              at 20 ppm (section 12.27).                   */
   } async_dsss_pool_row_t;
 
   /**
@@ -200,6 +207,9 @@ extern "C"
                                   never released for time.                  */
     size_t   max_peaks;
     int      threads;
+    int      cell; /**< 1: the receivers are the cell mode's
+                        (async_dsss_pool_create_cell()); 0: the hand-off
+                        flavour's. Keys the blob.                          */
 
     /* The children. */
     acq_state_t                  *acq;
@@ -295,6 +305,92 @@ extern "C"
  * @endcode
  */
 async_dsss_pool_state_t *async_dsss_pool_create(const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa, double pd, double doppler_uncertainty, size_t code_only_epochs, double doppler_rate, size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz, double lost_confirm_s, double max_emitter_on_time_secs, size_t segments, size_t sps, int differential, double refine_max_error_db, size_t refine_samples_per_symbol, double refine_design_margin_db, size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential, size_t refine_max_n_blocks);
+
+/**
+ * @brief Create the pool on cell receivers: the searcher's timing drives
+ *        every slot (design section 12.22-12.26, #1283).
+ *
+ * The same lifecycle over `n_slots` CellAsyncDsssReceivers
+ * (async_dsss_receiver_create_cell()) instead of hand-off ones: a seed
+ * builds no refine stage, the receiver's Dll is held from the first sample
+ * and corrected once every `correct_periods` code periods -- here the
+ * searcher's own block depth D (`coherent_bins`), the timing the design
+ * measured -- by `gain` chips per chip of its interval-mean discriminator,
+ * gain 1 through `pullin_intervals`. push(), the table, the zone, the
+ * transitions and the releases are the hand-off pool's verbatim: the
+ * receivers report the same status record, and `refining` is the pull-in.
+ * There is no refine to floor, so set_refine_min_blocks() is refused.
+ *
+ * Two things the searcher must give a cell receiver, checked here and
+ * refused with NULL: a block depth above 1 (`code_only_epochs` > 1 with a
+ * window in the waveform -- at D = 1 there is no searcher timing to
+ * drive), and a Doppler row narrow enough that a seed half a row off lands
+ * inside the carrier loop's reliable pull-in -- `doppler_res_hz` at most
+ * four times ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (391 Hz at 5 Mcps over
+ * Gold-1023, so D >= 13; the operating point's D = 154 gives 31.7 Hz). A
+ * hand-off receiver's refine pulls a seed in from half a 4.9 kHz row; a
+ * cell receiver has only loop 1, and past twice its bound it never locks.
+ *
+ * @param code  Spreading code, one 0/1 chip per element.
+ * @param code_len  Chips in `code`.
+ * @param chip_rate  Chip rate, Hz (default: 1000000.0).
+ * @param symbol_rate  Data-symbol rate, Hz (default: 1000.0).
+ * @param spc  Samples per chip (default: 2).
+ * @param m  PSK order of the receivers (default: 2).
+ * @param cn0_dbhz  Design C/N0 for the searcher's sizing and the
+ *                  receivers' (default: 55.0).
+ * @param pfa  False-alarm target, the searcher's (default: 1e-3).
+ * @param pd  Detection-probability target (default: 0.9).
+ * @param doppler_uncertainty  The searcher's one-sided span, Hz
+ *                             (default: 100.0).
+ * @param code_only_epochs  Whole code-only epochs the waveform's window
+ *                          holds at any chip phase -- the block depth of
+ *                          section 2.3; must give D > 1 (default: 813).
+ * @param doppler_rate  Doppler rate the depth is bounded against, Hz/s;
+ *                      0 leaves the window as the only bound (default:
+ *                      0.0).
+ * @param max_peaks  The searcher's list capacity per dwell (default: 16).
+ * @param n_slots  Receivers held (default: 12).
+ * @param threads  Threads the receivers and the searcher's fan run across;
+ *                 <= 0 picks the online core count, 1 is serial (default:
+ *                 1).
+ * @param carrier_freq_hz  RF carrier the Doppler is physically coupled to,
+ *                         Hz, told to the searcher and every receiver; 0.0
+ *                         = uncoupled (default: 0.0).
+ * @param lost_confirm_s  The release rule's interval, seconds (section
+ *                        10) (default: 2.0).
+ * @param max_emitter_on_time_secs  Maximum on-air time of one emitter,
+ *                                  seconds; 0 = never (default: 900.0).
+ * @param segments  The receivers' live Dll segments (default: 4).
+ * @param sps  The receivers' samples per symbol (default: 8).
+ * @param differential  The receivers' differential demap (default: 0).
+ * @param gain  The receivers' correction gain, chips per chip of the
+ *              interval-mean read, (0, 1] (default: 0.125).
+ * @param pullin_intervals  Intervals at gain 1 before `gain` applies
+ *                          (default: 4).
+ * @return Heap-allocated state, or NULL on an invalid argument, a searcher
+ *         whose depth or row a cell receiver cannot take, or allocation
+ *         failure.
+ * @note Caller must call async_dsss_pool_destroy() when done.
+ * @code
+ * >>> import numpy as np
+ * >>> from doppler.dsss import CellAsyncDsssPool
+ * >>> from doppler.wfm import Gold
+ * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
+ * >>> pool = CellAsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+ * ...                          spc=2, cn0_dbhz=45.0, doppler_uncertainty=5e3,
+ * ...                          code_only_epochs=813, doppler_rate=500.0,
+ * ...                          n_slots=4)
+ * >>> (pool.n_slots, pool.n_assigned, pool.coherent_bins)
+ * (4, 0, 154)
+ * >>> round(pool.doppler_res_hz, 1)       # the row a seed comes from
+ * 31.7
+ * >>> hasattr(pool, "set_refine_min_blocks")   # nothing to floor
+ * False
+ *
+ * @endcode
+ */
+async_dsss_pool_state_t *async_dsss_pool_create_cell(const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa, double pd, double doppler_uncertainty, size_t code_only_epochs, double doppler_rate, size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz, double lost_confirm_s, double max_emitter_on_time_secs, size_t segments, size_t sps, int differential, double gain, size_t pullin_intervals);
 
 /**
  * @brief Destroy a async_dsss_pool instance and release all memory.
@@ -458,11 +554,13 @@ int async_dsss_pool_set_event_log(async_dsss_pool_state_t *state, dp_event_log_t
  *
  * Forwarded to all `n_slots` receivers; each applies it to the next
  * refine chain it builds, so a slot already refining keeps its dwell.
- * The receivers' default is 7 blocks. Config, not running state.
+ * The receivers' default is 7 blocks. Config, not running state. A pool
+ * on cell receivers (async_dsss_pool_create_cell()) has no refine to
+ * floor and refuses.
  *
  * @param state     Must be non-NULL.
  * @param n_blocks  The floor, blocks; 0 removes it.
- * @return `DP_OK`.
+ * @return `DP_OK`; `DP_ERR_INVALID` on a cell pool.
  * @code
  * >>> import numpy as np
  * >>> from doppler.dsss import AsyncDsssPool

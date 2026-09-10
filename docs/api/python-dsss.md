@@ -392,6 +392,19 @@ parameter whose default is the operating point of §6.1.
 
 ::: doppler.dsss.PoolSlot
 
+## `CellAsyncDsssPool` — the population on cell receivers
+
+The same pool over `CellAsyncDsssReceiver`s (design §8.2, §12.27): no
+refine, every slot's `Dll` held from the seed and corrected on the
+searcher's own block timing at `gain` after `pullin_intervals`. `push()`,
+`status()`, `symbols()`, the event log and the blob are `AsyncDsssPool`'s;
+the constructor takes no `refine_*` argument and there is no
+`set_refine_min_blocks()`. It refuses a searcher a cell receiver cannot
+take: a depth of 1, or a Doppler row past four times the carrier loop's
+pull-in bound (`D ≥ 13` at 5 Mcps over Gold-1023).
+
+::: doppler.dsss.CellAsyncDsssPool
+
 ## `bin_to_signed` — read an FFT grid the way numpy does
 
 Maps a reported Doppler **bin index** to its **signed** frequency index —

@@ -89,6 +89,8 @@ extern "C"
    * pre-despread. So the FLL is not exposed here at all, not merely
    * defaulted off. */
 #define ASYNC_DSSS_RX_BN_CARRIER 0.04
+#define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(chip_rate, code_len)                  \
+  (ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))
   /* Dll's own bn: the validated stable code-loop bandwidth for the
    * one-update-per-partial tracking geometry -- same value DsssReceiver's
    * own Dll uses, not dll_create()'s own default of 0.01. (A wider 0.005 was
@@ -234,6 +236,7 @@ extern "C"
     double   cell_gain;        
     size_t   pullin_intervals; 
     double   held_phase;       
+    int      cell_refined;     
     double   cell_rate_bias;   
     size_t   period_count;     
     uint64_t intervals;        
@@ -405,12 +408,13 @@ extern "C"
     lockdet_state_t sym_lockdet;  
     double   held_phase;          
     double   cell_rate_bias;
+    uint8_t  cell_refined;        
     uint64_t period_count;
     uint64_t intervals;
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 5u /* v5: the cell mode; v4: had_lock */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 6u /* v6: the cell pull-in; v5: cell */
 
   size_t async_dsss_receiver_state_bytes (
       const async_dsss_receiver_state_t *state);

@@ -42,6 +42,7 @@
 |  uint8\_t | [**car\_coasting**](#variable-car_coasting)  <br> |
 |  uint8\_t | [**cell**](#variable-cell)  <br> |
 |  double | [**cell\_rate\_bias**](#variable-cell_rate_bias)  <br> |
+|  uint8\_t | [**cell\_refined**](#variable-cell_refined)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  uint8\_t | [**had\_lock**](#variable-had_lock)  <br> |
@@ -194,6 +195,24 @@ double async_dsss_receiver_extra_t::cell_rate_bias;
 
 
 
+
+<hr>
+
+
+
+### variable cell\_refined 
+
+```C++
+uint8_t async_dsss_receiver_extra_t::cell_refined;
+```
+
+
+
+v6: the cell's carrier estimate has been folded; its estimator is a child of the cell blob too. 
+ 
+
+
+        
 
 <hr>
 

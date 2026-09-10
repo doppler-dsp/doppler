@@ -44,7 +44,7 @@ extern "C"
 #define ASYNC_DSSS_POOL_MAX_EMITTER_ON_TIME_SECS (15.0 * 60.0)
 
 #define ASYNC_DSSS_POOL_STATE_MAGIC DP_FOURCC ('A', 'D', 'P', 'L')
-#define ASYNC_DSSS_POOL_STATE_VERSION 1u
+#define ASYNC_DSSS_POOL_STATE_VERSION 2u /* v2: the flavour; v1: no flavour */
 
   typedef struct
   {
@@ -79,6 +79,7 @@ extern "C"
     int      prev_state; 
     int      prev_code;  
     int      prev_sym;
+    int      had_code;   
   } async_dsss_pool_row_t;
 
   typedef struct
@@ -100,7 +101,7 @@ extern "C"
     uint64_t max_on_samples; 
     size_t   max_peaks;
     int      threads;
-
+    int      cell; 
     /* The children. */
     acq_state_t                  *acq;
     async_dsss_receiver_state_t **rx;   
@@ -118,6 +119,8 @@ extern "C"
   } async_dsss_pool_state_t;
 
 async_dsss_pool_state_t *async_dsss_pool_create(const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa, double pd, double doppler_uncertainty, size_t code_only_epochs, double doppler_rate, size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz, double lost_confirm_s, double max_emitter_on_time_secs, size_t segments, size_t sps, int differential, double refine_max_error_db, size_t refine_samples_per_symbol, double refine_design_margin_db, size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential, size_t refine_max_n_blocks);
+
+async_dsss_pool_state_t *async_dsss_pool_create_cell(const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa, double pd, double doppler_uncertainty, size_t code_only_epochs, double doppler_rate, size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz, double lost_confirm_s, double max_emitter_on_time_secs, size_t segments, size_t sps, int differential, double gain, size_t pullin_intervals);
 
 void async_dsss_pool_destroy(async_dsss_pool_state_t *state);
 

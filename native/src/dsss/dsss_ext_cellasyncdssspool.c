@@ -1,12 +1,12 @@
 /*
- * dsss_ext_async_dsss_pool.c — AsyncDsssPool type for the dsss module.
+ * dsss_ext_cellasyncdssspool.c — CellAsyncDsssPool type for the dsss module.
  *
  * Included by dsss_ext.c (the module aggregator).
  * Hand-patches to this file are preserved across jm commands.
  * Do NOT compile this file directly — only dsss_ext.c is compiled.
  */
 /* ======================================================== */
-/* AsyncDsssPoolObject — wraps async_dsss_pool_state_t *       */
+/* CellAsyncDsssPoolObject — wraps async_dsss_pool_state_t *       */
 /* ======================================================== */
 
 #include "async_dsss_pool/async_dsss_pool_core.h"
@@ -14,10 +14,10 @@
 typedef struct
 {
   PyObject_HEAD async_dsss_pool_state_t *handle;
-} AsyncDsssPoolObject;
+} CellAsyncDsssPoolObject;
 
 static void
-AsyncDsssPoolObj_dealloc (AsyncDsssPoolObject *self)
+CellAsyncDsssPoolObj_dealloc (CellAsyncDsssPoolObject *self)
 {
   if (self->handle)
     async_dsss_pool_destroy (self->handle);
@@ -25,17 +25,18 @@ AsyncDsssPoolObj_dealloc (AsyncDsssPoolObject *self)
 }
 
 static PyObject *
-AsyncDsssPoolObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+CellAsyncDsssPoolObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  AsyncDsssPoolObject *self = (AsyncDsssPoolObject *)type->tp_alloc (type, 0);
+  CellAsyncDsssPoolObject *self
+      = (CellAsyncDsssPoolObject *)type->tp_alloc (type, 0);
   if (self)
     self->handle = NULL;
   return (PyObject *)self;
 }
 
 static int
-AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
-                       PyObject *kwds)
+CellAsyncDsssPoolObj_init (CellAsyncDsssPoolObject *self, PyObject *args,
+                           PyObject *kwds)
 {
   static char       *kwlist[]                 = { "code",
                                                   "chip_rate",
@@ -57,13 +58,8 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
                                                   "segments",
                                                   "sps",
                                                   "differential",
-                                                  "refine_max_error_db",
-                                                  "refine_samples_per_symbol",
-                                                  "refine_design_margin_db",
-                                                  "refine_n_fft",
-                                                  "refine_zero_pad",
-                                                  "refine_sequential",
-                                                  "refine_max_n_blocks",
+                                                  "gain",
+                                                  "pullin_intervals",
                                                   NULL };
   PyObject          *code_obj                 = NULL;
   double             chip_rate                = 1000000.0;
@@ -74,7 +70,7 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
   double             pfa                      = 1e-3;
   double             pd                       = 0.9;
   double             doppler_uncertainty      = 100.0;
-  unsigned long long code_only_epochs_raw     = 1;
+  unsigned long long code_only_epochs_raw     = 813;
   double             doppler_rate             = 0.0;
   unsigned long long max_peaks_raw            = 16;
   unsigned long long n_slots_raw              = 12;
@@ -85,63 +81,58 @@ AsyncDsssPoolObj_init (AsyncDsssPoolObject *self, PyObject *args,
   unsigned long long segments_raw             = 4;
   unsigned long long sps_raw                  = 8;
   int                differential             = 0;
-  double             refine_max_error_db      = 0.5;
-  unsigned long long refine_samples_per_symbol_raw = 4;
-  double             refine_design_margin_db       = 14.0;
-  unsigned long long refine_n_fft_raw              = 64;
-  unsigned long long refine_zero_pad_raw           = 8;
-  int                refine_sequential_raw         = false;
-  unsigned long long refine_max_n_blocks_raw       = 100000;
+  double             gain                     = 0.125;
+  unsigned long long pullin_intervals_raw     = 4;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|ddKiddddKdKKidddKKidKdKKpK", kwlist, &code_obj,
-          &chip_rate, &symbol_rate, &spc_raw, &m, &cn0_dbhz, &pfa, &pd,
+          args, kwds, "O|ddKiddddKdKKidddKKidK", kwlist, &code_obj, &chip_rate,
+          &symbol_rate, &spc_raw, &m, &cn0_dbhz, &pfa, &pd,
           &doppler_uncertainty, &code_only_epochs_raw, &doppler_rate,
           &max_peaks_raw, &n_slots_raw, &threads, &carrier_freq_hz,
           &lost_confirm_s, &max_emitter_on_time_secs, &segments_raw, &sps_raw,
-          &differential, &refine_max_error_db, &refine_samples_per_symbol_raw,
-          &refine_design_margin_db, &refine_n_fft_raw, &refine_zero_pad_raw,
-          &refine_sequential_raw, &refine_max_n_blocks_raw))
+          &differential, &gain, &pullin_intervals_raw))
     return -1;
-  size_t spc                       = (size_t)spc_raw;
-  size_t code_only_epochs          = (size_t)code_only_epochs_raw;
-  size_t max_peaks                 = (size_t)max_peaks_raw;
-  size_t n_slots                   = (size_t)n_slots_raw;
-  size_t segments                  = (size_t)segments_raw;
-  size_t sps                       = (size_t)sps_raw;
-  size_t refine_samples_per_symbol = (size_t)refine_samples_per_symbol_raw;
-  size_t refine_n_fft              = (size_t)refine_n_fft_raw;
-  size_t refine_zero_pad           = (size_t)refine_zero_pad_raw;
-  bool   refine_sequential         = (int)refine_sequential_raw;
-  size_t refine_max_n_blocks       = (size_t)refine_max_n_blocks_raw;
-  PyArrayObject *code_arr          = (PyArrayObject *)PyArray_FROM_OTF (
+  size_t         spc              = (size_t)spc_raw;
+  size_t         code_only_epochs = (size_t)code_only_epochs_raw;
+  size_t         max_peaks        = (size_t)max_peaks_raw;
+  size_t         n_slots          = (size_t)n_slots_raw;
+  size_t         segments         = (size_t)segments_raw;
+  size_t         sps              = (size_t)sps_raw;
+  size_t         pullin_intervals = (size_t)pullin_intervals_raw;
+  PyArrayObject *code_arr         = (PyArrayObject *)PyArray_FROM_OTF (
       code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
   if (!code_arr)
     {
       return -1;
     }
   size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle    = async_dsss_pool_create (
+  self->handle    = async_dsss_pool_create_cell (
       (const uint8_t *)PyArray_DATA (code_arr), code_len, chip_rate,
       symbol_rate, spc, m, cn0_dbhz, pfa, pd, doppler_uncertainty,
       code_only_epochs, doppler_rate, max_peaks, n_slots, threads,
       carrier_freq_hz, lost_confirm_s, max_emitter_on_time_secs, segments, sps,
-      differential, refine_max_error_db, refine_samples_per_symbol,
-      refine_design_margin_db, refine_n_fft, refine_zero_pad,
-      refine_sequential, refine_max_n_blocks);
+      differential, gain, pullin_intervals);
   Py_DECREF (code_arr);
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError,
-                       "async_dsss_pool_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "CellAsyncDsssPool: invalid parameter, or a searcher "
+                       "a cell receiver cannot take (need a non-empty code, "
+                       "chip_rate > 0, symbol_rate > 0, spc >= 1, n_slots >= "
+                       "1, max_peaks >= 1, carrier_freq_hz >= 0, "
+                       "lost_confirm_s >= 0, max_emitter_on_time_secs >= 0, "
+                       "0 < gain <= 1; a searcher depth D > 1 -- "
+                       "code_only_epochs > 1 -- whose Doppler row is at most "
+                       "four times the carrier loop's pull-in bound, "
+                       "doppler_res_hz <= 2 * 0.04 * chip_rate / code_len)");
       return -1;
     }
   return 0;
 }
 
 static PyObject *
-AsyncDsssPoolObj_reset (AsyncDsssPoolObject *self,
-                        PyObject            *Py_UNUSED (ignored))
+CellAsyncDsssPoolObj_reset (CellAsyncDsssPoolObject *self,
+                            PyObject                *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -153,8 +144,8 @@ AsyncDsssPoolObj_reset (AsyncDsssPoolObject *self,
 }
 
 static PyObject *
-AsyncDsssPoolObj_push (AsyncDsssPoolObject *self, PyObject *args,
-                       PyObject *kwds)
+CellAsyncDsssPoolObj_push (CellAsyncDsssPoolObject *self, PyObject *args,
+                           PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -178,7 +169,7 @@ AsyncDsssPoolObj_push (AsyncDsssPoolObject *self, PyObject *args,
   return PyLong_FromUnsignedLongLong ((unsigned long long)y);
 }
 
-static PyStructSequence_Field AsyncDsssPoolObj_status_fields[] = {
+static PyStructSequence_Field CellAsyncDsssPoolObj_status_fields[] = {
   { "slot", "The slot asked for." },
   { "assigned", "1 while a receiver holds an emitter." },
   { "state", "The receiver's ASYNC_DSSS_RX_* state; -1 for a slot that does "
@@ -199,17 +190,17 @@ static PyStructSequence_Field AsyncDsssPoolObj_status_fields[] = {
   { "assigned_samples", "Samples since the row was assigned." },
   { NULL, NULL },
 };
-static PyStructSequence_Desc AsyncDsssPoolObj_status_desc
+static PyStructSequence_Desc CellAsyncDsssPoolObj_status_desc
     = { "doppler.dsss.PoolSlot",
         "AsyncDsssPool's slot record: whether the slot is assigned, the seed "
         "it was assigned from, the receiver's live status (state 1 refining, "
         "2 tracking, 3 idle, 4 lost), and the samples since the assignment.",
-        AsyncDsssPoolObj_status_fields, 17 };
-static PyTypeObject *AsyncDsssPoolObj_status_type = NULL;
+        CellAsyncDsssPoolObj_status_fields, 17 };
+static PyTypeObject *CellAsyncDsssPoolObj_status_type = NULL;
 
 static PyObject *
-AsyncDsssPoolObj_status (AsyncDsssPoolObject *self, PyObject *args,
-                         PyObject *kwds)
+CellAsyncDsssPoolObj_status (CellAsyncDsssPoolObject *self, PyObject *args,
+                             PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -221,17 +212,17 @@ AsyncDsssPoolObj_status (AsyncDsssPoolObject *self, PyObject *args,
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &slot_raw))
     return NULL;
   size_t slot = (size_t)slot_raw;
-  if (!AsyncDsssPoolObj_status_type)
+  if (!CellAsyncDsssPoolObj_status_type)
     {
-      AsyncDsssPoolObj_status_type
-          = PyStructSequence_NewType (&AsyncDsssPoolObj_status_desc);
-      if (!AsyncDsssPoolObj_status_type)
+      CellAsyncDsssPoolObj_status_type
+          = PyStructSequence_NewType (&CellAsyncDsssPoolObj_status_desc);
+      if (!CellAsyncDsssPoolObj_status_type)
         {
           return NULL;
         }
     }
   async_dsss_pool_slot_t _r = async_dsss_pool_status (self->handle, slot);
-  PyObject *_o = PyStructSequence_New (AsyncDsssPoolObj_status_type);
+  PyObject *_o = PyStructSequence_New (CellAsyncDsssPoolObj_status_type);
   if (!_o)
     return NULL;
   PyStructSequence_SET_ITEM (
@@ -263,8 +254,8 @@ AsyncDsssPoolObj_status (AsyncDsssPoolObject *self, PyObject *args,
 }
 
 static PyObject *
-AsyncDsssPoolObj_symbols_max_out (AsyncDsssPoolObject *self,
-                                  PyObject            *Py_UNUSED (ignored))
+CellAsyncDsssPoolObj_symbols_max_out (CellAsyncDsssPoolObject *self,
+                                      PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -275,8 +266,8 @@ AsyncDsssPoolObj_symbols_max_out (AsyncDsssPoolObject *self,
 }
 
 static PyObject *
-AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
-                          PyObject *kwds)
+CellAsyncDsssPoolObj_symbols (CellAsyncDsssPoolObject *self, PyObject *args,
+                              PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -313,7 +304,9 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
         }
       size_t _cap     = (size_t)PyArray_SIZE (out_arr);
       size_t _omax    = async_dsss_pool_symbols_max_out (self->handle);
-      size_t _min_cap = _omax;
+      size_t _min_cap = _omax > async_dsss_pool_symbols_max_out (self->handle)
+                            ? _omax
+                            : (async_dsss_pool_symbols_max_out (self->handle));
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -336,7 +329,8 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
     }
   size_t _need = async_dsss_pool_symbols_max_out (self->handle);
   size_t _cap  = async_dsss_pool_symbols_max_out (self->handle);
-  (void)_need;
+  if (!_cap || _cap < _need)
+    _cap = _need;
   npy_intp  _adim = (npy_intp)_cap;
   PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
   if (!arr0)
@@ -362,8 +356,8 @@ AsyncDsssPoolObj_symbols (AsyncDsssPoolObject *self, PyObject *args,
 }
 
 static PyObject *
-AsyncDsssPoolObj_set_event_log (AsyncDsssPoolObject *self, PyObject *args,
-                                PyObject *kwds)
+CellAsyncDsssPoolObj_set_event_log (CellAsyncDsssPoolObject *self,
+                                    PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -403,8 +397,8 @@ AsyncDsssPoolObj_set_event_log (AsyncDsssPoolObject *self, PyObject *args,
 }
 
 static PyObject *
-AsyncDsssPoolObj_state_bytes (AsyncDsssPoolObject *self,
-                              PyObject            *Py_UNUSED (ignored))
+CellAsyncDsssPoolObj_state_bytes (CellAsyncDsssPoolObject *self,
+                                  PyObject                *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -415,8 +409,8 @@ AsyncDsssPoolObj_state_bytes (AsyncDsssPoolObject *self,
 }
 
 static PyObject *
-AsyncDsssPoolObj_get_state (AsyncDsssPoolObject *self,
-                            PyObject            *Py_UNUSED (ignored))
+CellAsyncDsssPoolObj_get_state (CellAsyncDsssPoolObject *self,
+                                PyObject                *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -432,7 +426,7 @@ AsyncDsssPoolObj_get_state (AsyncDsssPoolObject *self,
 }
 
 static PyObject *
-AsyncDsssPoolObj_set_state (AsyncDsssPoolObject *self, PyObject *arg)
+CellAsyncDsssPoolObj_set_state (CellAsyncDsssPoolObject *self, PyObject *arg)
 {
   if (!self->handle)
     {
@@ -458,8 +452,8 @@ AsyncDsssPoolObj_set_state (AsyncDsssPoolObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
-AsyncDsssPool_getprop_n_slots (AsyncDsssPoolObject *self,
-                               void                *Py_UNUSED (closure))
+CellAsyncDsssPool_getprop_n_slots (CellAsyncDsssPoolObject *self,
+                                   void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -470,8 +464,8 @@ AsyncDsssPool_getprop_n_slots (AsyncDsssPoolObject *self,
       (unsigned long long)self->handle->n_slots);
 }
 static PyObject *
-AsyncDsssPool_getprop_n_assigned (AsyncDsssPoolObject *self,
-                                  void                *Py_UNUSED (closure))
+CellAsyncDsssPool_getprop_n_assigned (CellAsyncDsssPoolObject *self,
+                                      void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -482,8 +476,8 @@ AsyncDsssPool_getprop_n_assigned (AsyncDsssPoolObject *self,
       (unsigned long long)self->handle->n_assigned);
 }
 static PyObject *
-AsyncDsssPool_getprop_dropped (AsyncDsssPoolObject *self,
-                               void                *Py_UNUSED (closure))
+CellAsyncDsssPool_getprop_dropped (CellAsyncDsssPoolObject *self,
+                                   void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -494,8 +488,8 @@ AsyncDsssPool_getprop_dropped (AsyncDsssPoolObject *self,
       (unsigned long long)self->handle->dropped);
 }
 static PyObject *
-AsyncDsssPool_getprop_events (AsyncDsssPoolObject *self,
-                              void                *Py_UNUSED (closure))
+CellAsyncDsssPool_getprop_events (CellAsyncDsssPoolObject *self,
+                                  void                    *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -506,8 +500,8 @@ AsyncDsssPool_getprop_events (AsyncDsssPoolObject *self,
       (unsigned long long)self->handle->events);
 }
 static PyObject *
-AsyncDsssPool_getprop_samples_consumed (AsyncDsssPoolObject *self,
-                                        void *Py_UNUSED (closure))
+CellAsyncDsssPool_getprop_samples_consumed (CellAsyncDsssPoolObject *self,
+                                            void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -518,8 +512,8 @@ AsyncDsssPool_getprop_samples_consumed (AsyncDsssPoolObject *self,
       (unsigned long long)self->handle->samples_consumed);
 }
 static PyObject *
-AsyncDsssPool_getprop_doppler_res_hz (AsyncDsssPoolObject *self,
-                                      void                *Py_UNUSED (closure))
+CellAsyncDsssPool_getprop_doppler_res_hz (CellAsyncDsssPoolObject *self,
+                                          void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -529,8 +523,8 @@ AsyncDsssPool_getprop_doppler_res_hz (AsyncDsssPoolObject *self,
   return PyFloat_FromDouble (((self->handle->acq->doppler_res_hz)));
 }
 static PyObject *
-AsyncDsssPool_getprop_coherent_bins (AsyncDsssPoolObject *self,
-                                     void                *Py_UNUSED (closure))
+CellAsyncDsssPool_getprop_coherent_bins (CellAsyncDsssPoolObject *self,
+                                         void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -541,51 +535,35 @@ AsyncDsssPool_getprop_coherent_bins (AsyncDsssPoolObject *self,
       (unsigned long long)((self->handle->acq->coherent_bins)));
 }
 
-static PyObject *
-AsyncDsssPool_getprop_refine_min_blocks (AsyncDsssPoolObject *self,
-                                         void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)((self->handle->rx[0]->refine_min_blocks)));
-}
-
-static PyGetSetDef AsyncDsssPool_getset[] = {
-  { "n_slots", (getter)AsyncDsssPool_getprop_n_slots, NULL,
+static PyGetSetDef CellAsyncDsssPool_getset[] = {
+  { "n_slots", (getter)CellAsyncDsssPool_getprop_n_slots, NULL,
     "Receivers the pool holds; it never exceeds this.\n", NULL },
-  { "n_assigned", (getter)AsyncDsssPool_getprop_n_assigned, NULL,
+  { "n_assigned", (getter)CellAsyncDsssPool_getprop_n_assigned, NULL,
     "Slots assigned right now.\n", NULL },
-  { "dropped", (getter)AsyncDsssPool_getprop_dropped, NULL,
+  { "dropped", (getter)CellAsyncDsssPool_getprop_dropped, NULL,
     "Detections dropped for want of a free slot since create or reset.\n",
     NULL },
-  { "events", (getter)AsyncDsssPool_getprop_events, NULL,
+  { "events", (getter)CellAsyncDsssPool_getprop_events, NULL,
     "Transitions since create or reset, logged or not.\n", NULL },
-  { "samples_consumed", (getter)AsyncDsssPool_getprop_samples_consumed, NULL,
+  { "samples_consumed", (getter)CellAsyncDsssPool_getprop_samples_consumed,
+    NULL,
     "Input samples pushed since create or reset -- the stream position every "
     "event is stamped at.\n",
     NULL },
-  { "doppler_res_hz", (getter)AsyncDsssPool_getprop_doppler_res_hz, NULL,
+  { "doppler_res_hz", (getter)CellAsyncDsssPool_getprop_doppler_res_hz, NULL,
     "The searcher's Doppler row, Hz -- the resolution a seed's Doppler is "
     "reported at.\n",
     NULL },
-  { "coherent_bins", (getter)AsyncDsssPool_getprop_coherent_bins, NULL,
+  { "coherent_bins", (getter)CellAsyncDsssPool_getprop_coherent_bins, NULL,
     "The searcher's block-coherent depth D, from code_only_epochs and "
     "doppler_rate (section 2.3).\n",
-    NULL },
-  { "refine_min_blocks", (getter)AsyncDsssPool_getprop_refine_min_blocks, NULL,
-    "The receivers' floor on the refine dwell, blocks (default 7); set with "
-    "set_refine_min_blocks().\n",
     NULL },
   { NULL }
 };
 
 static PyObject *
-AsyncDsssPoolObj_destroy (AsyncDsssPoolObject *self,
-                          PyObject            *Py_UNUSED (ignored))
+CellAsyncDsssPoolObj_destroy (CellAsyncDsssPoolObject *self,
+                              PyObject                *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
@@ -596,15 +574,15 @@ AsyncDsssPoolObj_destroy (AsyncDsssPoolObject *self,
 }
 
 static PyObject *
-AsyncDsssPoolObj_enter (AsyncDsssPoolObject *self,
-                        PyObject            *Py_UNUSED (ignored))
+CellAsyncDsssPoolObj_enter (CellAsyncDsssPoolObject *self,
+                            PyObject                *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
 }
 
 static PyObject *
-AsyncDsssPoolObj_exit (AsyncDsssPoolObject *self, PyObject *args)
+CellAsyncDsssPoolObj_exit (CellAsyncDsssPoolObject *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
@@ -615,37 +593,30 @@ AsyncDsssPoolObj_exit (AsyncDsssPoolObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyObject *
-AsyncDsssPoolObj_set_refine_min_blocks (AsyncDsssPoolObject *self,
-                                        PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[]    = { "n_blocks", NULL };
-  unsigned long long n_blocks_raw = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_blocks_raw))
-    return NULL;
-  size_t n_blocks = (size_t)n_blocks_raw;
-  int    _rc = async_dsss_pool_set_refine_min_blocks (self->handle, n_blocks);
-  if (_rc != 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
-                    "set_refine_min_blocks failed", (long long)_rc);
-      return NULL;
-    }
-  Py_RETURN_NONE;
-}
+static PyMethodDef CellAsyncDsssPoolObj_methods[] = {
+  { "reset", (PyCFunction)CellAsyncDsssPoolObj_reset, METH_NOARGS,
+    "Release every slot and start over: the searcher reset, every\n"
+    "receiver back to idle, the table cleared, the counters zeroed.\n"
+    "\n"
+    "The attached log stays attached and nothing is logged -- a reset is the\n"
+    "holder's decision, not an emitter's transition.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import AsyncDsssPool\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,\n"
+    "...                      spc=2, cn0_dbhz=45.0, n_slots=2)\n"
+    ">>> _ = pool.push(np.zeros(2046, np.complex64))\n"
+    ">>> pool.samples_consumed\n"
+    "2046\n"
+    ">>> pool.reset()\n"
+    ">>> (pool.samples_consumed, pool.n_assigned, pool.events)\n"
+    "(0, 0, 0)\n" },
 
-static PyMethodDef AsyncDsssPoolObj_methods[] = {
-  { "reset", (PyCFunction)AsyncDsssPoolObj_reset, METH_NOARGS,
-    "Reset AsyncDsssPool to its post-create state: the searcher reset,\n"
-    "every receiver back to idle, the table cleared, the counters zeroed.\n"
-    "The attached log stays attached; nothing is logged.\n" },
-
-  { "push", (PyCFunction)(void *)AsyncDsssPoolObj_push,
+  { "push", (PyCFunction)(void *)CellAsyncDsssPoolObj_push,
     METH_VARARGS | METH_KEYWORDS,
     "push(x) -> int\n"
     "\n"
@@ -697,7 +668,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "0\n"
     ">>> pool.samples_consumed                  # the stream position\n"
     "8184\n" },
-  { "status", (PyCFunction)(void *)AsyncDsssPoolObj_status,
+  { "status", (PyCFunction)(void *)CellAsyncDsssPoolObj_status,
     METH_VARARGS | METH_KEYWORDS,
     "status(slot) -> PoolSlot record (slot, assigned, state, seed_sample, "
     "seed_chip_phase, seed_doppler_hz, seed_cn0_dbhz, doppler_hz, chip_phase, "
@@ -737,7 +708,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "(1, 0, 3)\n"
     ">>> pool.status(2).state                  # no such slot\n"
     "-1\n" },
-  { "symbols", (PyCFunction)(void *)AsyncDsssPoolObj_symbols,
+  { "symbols", (PyCFunction)(void *)CellAsyncDsssPoolObj_symbols,
     METH_VARARGS | METH_KEYWORDS,
     "symbols(slot, out) -> ndarray\n"
     "\n"
@@ -774,7 +745,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     ">>> _ = pool.push(np.zeros(2046, np.complex64))\n"
     ">>> pool.symbols(0).shape                 # idle: nothing decided\n"
     "(0,)\n" },
-  { "symbols_max_out", (PyCFunction)AsyncDsssPoolObj_symbols_max_out,
+  { "symbols_max_out", (PyCFunction)CellAsyncDsssPoolObj_symbols_max_out,
     METH_NOARGS,
     "symbols_max_out() -> int\n"
     "\n"
@@ -785,7 +756,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "-------\n"
     "int\n"
     "    Output.\n" },
-  { "set_event_log", (PyCFunction)(void *)AsyncDsssPoolObj_set_event_log,
+  { "set_event_log", (PyCFunction)(void *)CellAsyncDsssPoolObj_set_event_log,
     METH_VARARGS | METH_KEYWORDS,
     "set_event_log(log) -> None\n"
     "\n"
@@ -832,7 +803,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     ">>> _ = pool.push(np.zeros(2046, np.complex64))\n"
     ">>> pool.set_event_log(None)              # detached\n"
     ">>> log.close()\n" },
-  { "state_bytes", (PyCFunction)AsyncDsssPoolObj_state_bytes, METH_NOARGS,
+  { "state_bytes", (PyCFunction)CellAsyncDsssPoolObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
     "The exact length `get_state` returns and `set_state` requires. It\n"
@@ -840,14 +811,14 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "construction), so read it from the instance rather than assuming a\n"
     "constant.\n"
     "\n"
-    "Raises ``RuntimeError`` if the AsyncDsssPool has already been\n"
+    "Raises ``RuntimeError`` if the CellAsyncDsssPool has already been\n"
     "destroyed.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "int\n"
     "    Byte length of one serialized state blob.\n" },
-  { "get_state", (PyCFunction)AsyncDsssPoolObj_get_state, METH_NOARGS,
+  { "get_state", (PyCFunction)CellAsyncDsssPoolObj_get_state, METH_NOARGS,
     "Serialize this object's mutable state to bytes.\n"
     "\n"
     "Captures exactly the state that evolves as the object runs, so a blob\n"
@@ -858,14 +829,14 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "implementation detail of the C core and is not a stable format across\n"
     "builds.\n"
     "\n"
-    "Raises ``RuntimeError`` if the AsyncDsssPool has already been\n"
+    "Raises ``RuntimeError`` if the CellAsyncDsssPool has already been\n"
     "destroyed.\n"
     "\n"
     "Returns\n"
     "-------\n"
     "bytes\n"
     "    Opaque snapshot, `state_bytes()` bytes long.\n" },
-  { "set_state", (PyCFunction)AsyncDsssPoolObj_set_state, METH_O,
+  { "set_state", (PyCFunction)CellAsyncDsssPoolObj_set_state, METH_O,
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
     "Overwrites the live state in place; the object keeps the parameters it\n"
@@ -875,14 +846,14 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"
-    "``RuntimeError`` if the AsyncDsssPool has already been destroyed.\n"
+    "``RuntimeError`` if the CellAsyncDsssPool has already been destroyed.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "blob : bytes\n"
     "    A `get_state()` blob from this type, exactly `state_bytes()` "
     "long.\n" },
-  { "destroy", (PyCFunction)AsyncDsssPoolObj_destroy, METH_NOARGS,
+  { "destroy", (PyCFunction)CellAsyncDsssPoolObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
@@ -892,7 +863,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "\n"
     "Idempotent: calling it again on an already-released object does\n"
     "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)AsyncDsssPoolObj_enter, METH_NOARGS,
+  { "__enter__", (PyCFunction)CellAsyncDsssPoolObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
     "Lets a AsyncDsssPool be used in a `with` statement so its C resources\n"
@@ -902,7 +873,7 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "-------\n"
     "AsyncDsssPool\n"
     "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)AsyncDsssPoolObj_exit, METH_VARARGS,
+  { "__exit__", (PyCFunction)CellAsyncDsssPoolObj_exit, METH_VARARGS,
     "Exit a context manager, releasing the AsyncDsssPool.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
@@ -917,58 +888,17 @@ static PyMethodDef AsyncDsssPoolObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { "set_refine_min_blocks",
-    (PyCFunction)(void *)AsyncDsssPoolObj_set_refine_min_blocks,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_refine_min_blocks(n_blocks) -> None\n"
-    "\n"
-    "Floor every receiver's refine dwell at n_blocks\n"
-    "(AsyncDsssReceiver.set_refine_min_blocks(); design section 12.16,\n"
-    "#1265): forwarded to all n_slots receivers, each applying it to the\n"
-    "next refine chain it builds. The receivers' default is 7 blocks; 0\n"
-    "removes the floor. Config, not running state.\n"
-    "\n"
-    "Forwarded to all `n_slots` receivers; each applies it to the next\n"
-    "refine chain it builds, so a slot already refining keeps its dwell. The\n"
-    "receivers' default is 7 blocks. Config, not running state. A pool on\n"
-    "cell receivers (async_dsss_pool_create_cell()) has no refine to floor\n"
-    "and refuses.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "n_blocks : int\n"
-    "    The floor, blocks; 0 removes it.\n"
-    "\n"
-    "Raises\n"
-    "------\n"
-    "ValueError\n"
-    "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``set_refine_min_blocks failed``, with the return code appended\n"
-    "    (gh-869).\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.dsss import AsyncDsssPool\n"
-    ">>> from doppler.wfm import Gold\n"
-    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
-    ">>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,\n"
-    "...                      spc=2, cn0_dbhz=45.0, n_slots=2)\n"
-    ">>> pool.refine_min_blocks\n"
-    "7\n"
-    ">>> pool.set_refine_min_blocks(12)\n"
-    ">>> pool.refine_min_blocks\n"
-    "12\n" },
   { NULL }
 };
 
-static PyTypeObject AsyncDsssPoolObjType = {
-  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.AsyncDsssPool",
-  .tp_basicsize                           = sizeof (AsyncDsssPoolObject),
-  .tp_dealloc = (destructor)AsyncDsssPoolObj_dealloc,
+static PyTypeObject CellAsyncDsssPoolObjType = {
+  PyVarObject_HEAD_INIT (NULL, 0).tp_name = "dsss.CellAsyncDsssPool",
+  .tp_basicsize                           = sizeof (CellAsyncDsssPoolObject),
+  .tp_dealloc = (destructor)CellAsyncDsssPoolObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a async_dsss_pool instance.\n"
+  = "Create the pool on cell receivers: the searcher's timing drives every\n"
+    "slot (design section 12.22-12.26, #1283).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -986,16 +916,15 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "    Design C/N0 for the searcher's sizing and the receivers' (default:\n"
     "    55.0).\n"
     "pfa : float, default 1e-3\n"
-    "    False-alarm target, the searcher's and the refine's (default: "
-    "1e-3).\n"
+    "    False-alarm target, the searcher's (default: 1e-3).\n"
     "pd : float, default 0.9\n"
     "    Detection-probability target (default: 0.9).\n"
     "doppler_uncertainty : float, default 100.0\n"
     "    The searcher's one-sided span, Hz (default: 100.0).\n"
-    "code_only_epochs : int, default 1\n"
+    "code_only_epochs : int, default 813\n"
     "    Whole code-only epochs the waveform's window holds at any chip phase "
     "--\n"
-    "    the block depth of section 2.3; 1 = no window (default: 1).\n"
+    "    the block depth of section 2.3; must give D > 1 (default: 813).\n"
     "doppler_rate : float, default 0.0\n"
     "    Doppler rate the depth is bounded against, Hz/s; 0 leaves the window "
     "as\n"
@@ -1014,66 +943,38 @@ static PyTypeObject AsyncDsssPoolObjType = {
     "lost_confirm_s : float, default 2.0\n"
     "    The release rule's interval, seconds (section 10) (default: 2.0).\n"
     "max_emitter_on_time_secs : float, default 900.0\n"
-    "    Maximum on-air time of one emitter, seconds: a slot held longer is\n"
-    "    released (`reason` on_time); 0 = never (default: 900.0,\n"
-    "    ASYNC_DSSS_POOL_MAX_EMITTER_ON_ TIME_SECS).\n"
+    "    Maximum on-air time of one emitter, seconds; 0 = never (default:\n"
+    "    900.0).\n"
     "segments : int, default 4\n"
     "    The receivers' live Dll segments (default: 4).\n"
     "sps : int, default 8\n"
     "    The receivers' samples per symbol (default: 8).\n"
     "differential : int, default 0\n"
     "    The receivers' differential demap (default: 0).\n"
-    "refine_max_error_db : float, default 0.5\n"
-    "    As async_dsss_receiver_create() (default: 0.5).\n"
-    "refine_samples_per_symbol : int, default 4\n"
-    "    As async_dsss_receiver_create() (default: 4).\n"
-    "refine_design_margin_db : float, default 14.0\n"
-    "    As async_dsss_receiver_create() (default: 14.0).\n"
-    "refine_n_fft : int, default 64\n"
-    "    As async_dsss_receiver_create() (default: 64).\n"
-    "refine_zero_pad : int, default 8\n"
-    "    As async_dsss_receiver_create() (default: 8).\n"
-    "refine_sequential : bool, default False\n"
-    "    As async_dsss_receiver_create() (default: false).\n"
-    "refine_max_n_blocks : int, default 100000\n"
-    "    As async_dsss_receiver_create() (default: 100000).\n"
+    "gain : float, default 0.125\n"
+    "    The receivers' correction gain, chips per chip of the interval-mean\n"
+    "    read, (0, 1] (default: 0.125).\n"
+    "pullin_intervals : int, default 4\n"
+    "    Intervals at gain 1 before `gain` applies (default: 4).\n"
     "\n"
     "Examples\n"
     "--------\n"
-    "Create with defaults:\n"
-    "\n"
-    ">>> from doppler.dsss import AsyncDsssPool\n"
-    ">>> obj = AsyncDsssPool(\n"
-    "...     code=np.zeros(1, dtype=np.uint8),\n"
-    "...     chip_rate=1000000.0,\n"
-    "...     symbol_rate=1000.0,\n"
-    "...     spc=2,\n"
-    "...     m=2,\n"
-    "...     cn0_dbhz=55.0,\n"
-    "...     pfa=1e-3,\n"
-    "...     pd=0.9,\n"
-    "...     doppler_uncertainty=100.0,\n"
-    "...     code_only_epochs=1,\n"
-    "...     doppler_rate=0.0,\n"
-    "...     max_peaks=16,\n"
-    "...     n_slots=12,\n"
-    "...     threads=1,\n"
-    "...     carrier_freq_hz=0.0,\n"
-    "...     lost_confirm_s=2.0,\n"
-    "...     max_emitter_on_time_secs=900.0,\n"
-    "...     segments=4,\n"
-    "...     sps=8,\n"
-    "...     differential=0,\n"
-    "...     refine_max_error_db=0.5,\n"
-    "...     refine_samples_per_symbol=4,\n"
-    "...     refine_design_margin_db=14.0,\n"
-    "...     refine_n_fft=64,\n"
-    "...     refine_zero_pad=8,\n"
-    "...     refine_sequential=False,\n"
-    "...     refine_max_n_blocks=100000,\n"
-    "... )\n",
-  .tp_methods = AsyncDsssPoolObj_methods,
-  .tp_getset  = AsyncDsssPool_getset,
-  .tp_new     = AsyncDsssPoolObj_new,
-  .tp_init    = (initproc)AsyncDsssPoolObj_init,
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import CellAsyncDsssPool\n"
+    ">>> from doppler.wfm import Gold\n"
+    ">>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)\n"
+    ">>> pool = CellAsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,\n"
+    "...                          spc=2, cn0_dbhz=45.0, "
+    "doppler_uncertainty=5e3,\n"
+    "...                          code_only_epochs=813, n_slots=4)\n"
+    ">>> (pool.n_slots, pool.n_assigned, pool.coherent_bins)\n"
+    "(4, 0, 154)\n"
+    ">>> round(pool.doppler_res_hz, 1)       # the row a seed comes from\n"
+    "31.7\n"
+    ">>> hasattr(pool, \"set_refine_min_blocks\")   # nothing to floor\n"
+    "False\n",
+  .tp_methods = CellAsyncDsssPoolObj_methods,
+  .tp_getset  = CellAsyncDsssPool_getset,
+  .tp_new     = CellAsyncDsssPoolObj_new,
+  .tp_init    = (initproc)CellAsyncDsssPoolObj_init,
 };

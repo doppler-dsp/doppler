@@ -1651,6 +1651,34 @@ same records, because nothing below the pool sees a time.
 The pool is off the searcher's push path: the spread is 10 dB (§5.4),
 inside the floor, so no replica is subtracted and §11.4 is not built.
 
+**The cell flavour.** A second constructor over the same core,
+`CellAsyncDsssPool` (`create_cell`), holds `n_slots` cell receivers
+(§11.1's `CellAsyncDsssReceiver`) instead of hand-off ones: no refine,
+every slot's `Dll` held from the seed and corrected on the searcher's own
+block timing (`correct_periods` = the searcher's depth `D`, the interval
+§12.22–12.26 measured), at the design gain after the pull-in. `push()`,
+the table, the zone, the transitions and the releases are the same code;
+the flavour keys the blob. Two things a cell receiver needs from the
+searcher are checked at create and refused: a depth above 1 (at `D = 1`
+there is no searcher timing), and a Doppler row narrow enough that a seed
+half a row off lands inside loop 1's reliable pull-in — `doppler_res_hz`
+at most four times `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` (391 Hz at 5 Mcps
+over Gold-1023, so `D ≥ 13`; the operating point's 154 gives 31.7 Hz). A
+hand-off receiver's refine pulls a seed in from half a 4.9 kHz row; a
+cell receiver has only loop 1. What the searcher still hands it that the
+row does not bound is §12.14's smeared copy — at 45 dB-Hz an emitter's
+first seed is routinely its own data block, hundreds of Hz off — so the
+cell receiver's pull-in estimates the seed's residual on its own despread
+stream (the hand-off's estimator, fed what the live chain hands
+`MpskReceiver`, no second chain, loop 1 held at the seed's frequency
+meanwhile as the refine's frozen wipe is) and folds it into loop 1 once;
+and the
+table advances a never-locked row on the seed's clock whatever the
+receiver's state, so the zone holds through that pull-in (§12.27:
+measured, the double assignment both cost before they were built). Parity with the hand-off pool on the lifecycle soak, at both
+C/N0s, is §12.27's claim; the retirement of the hand-off path is
+[#1283](https://github.com/doppler-dsp/doppler/issues/1283).
+
 ______________________________________________________________________
 
 ## 9. The two branches

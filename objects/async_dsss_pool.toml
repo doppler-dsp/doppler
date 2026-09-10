@@ -21,6 +21,10 @@ no_state = "true"
 no_step = "true"
 class_name = "AsyncDsssPool"
 serializable = "true"
+# A NULL create is an argument out of range (gh-482), not memory. The cell
+# view declares its own message below, and jm renders each face's own.
+create_error = "ValueError"
+create_error_message = "AsyncDsssPool: invalid parameter (need a non-empty code, chip_rate > 0, symbol_rate > 0, spc >= 1, n_slots >= 1, max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0, max_emitter_on_time_secs >= 0)"
 # dp_parallel.h's persistent pool is pthreads (the receivers across threads).
 extra_link_libs = ["Threads::Threads"]
 depends_on = [
@@ -304,3 +308,42 @@ name = "coherent_bins"
 type = "size_t"
 expr = "(self->handle->acq->coherent_bins)"
 doc = "The searcher's block-coherent depth D, from code_only_epochs and doppler_rate (section 2.3)."
+
+# ── The cell flavour: the same lifecycle on CellAsyncDsssReceivers ────────
+# (design section 12.22-12.27, #1283): no refine stage, every receiver's Dll
+# held from the seed and corrected on the searcher's own block timing
+# (`correct_periods` = the searcher's depth D). A difference in CONSTRUCTOR
+# is a flavour (the DDC/MatchedDDC shape): the methods, the record and the
+# blob's shape are shared verbatim; the flavour keys the blob. No refine
+# to floor, so that method and its read-back are not on this face.
+[[async_dsss_pool.views]]
+class_name = "CellAsyncDsssPool"
+create_fn = "async_dsss_pool_create_cell"
+create_error = "ValueError"
+create_error_message = "CellAsyncDsssPool: invalid parameter, or a searcher a cell receiver cannot take (need a non-empty code, chip_rate > 0, symbol_rate > 0, spc >= 1, n_slots >= 1, max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0, max_emitter_on_time_secs >= 0, 0 < gain <= 1; a searcher depth D > 1 -- code_only_epochs > 1 -- whose Doppler row is at most four times the carrier loop's pull-in bound, doppler_res_hz <= 2 * 0.04 * chip_rate / code_len)"
+exclude_methods = ["set_refine_min_blocks"]
+exclude_properties = ["refine_min_blocks"]
+init_params = [
+    { name = "code", type = "uint8_t[]" },
+    { name = "chip_rate", type = "double", default = "1000000.0" },
+    { name = "symbol_rate", type = "double", default = "1000.0" },
+    { name = "spc", type = "size_t", default = "2" },
+    { name = "m", type = "int", default = "2" },
+    { name = "cn0_dbhz", type = "double", default = "55.0" },
+    { name = "pfa", type = "double", default = "1e-3" },
+    { name = "pd", type = "double", default = "0.9" },
+    { name = "doppler_uncertainty", type = "double", default = "100.0" },
+    { name = "code_only_epochs", type = "size_t", default = "813" },
+    { name = "doppler_rate", type = "double", default = "0.0" },
+    { name = "max_peaks", type = "size_t", default = "16" },
+    { name = "n_slots", type = "size_t", default = "12" },
+    { name = "threads", type = "int", default = "1" },
+    { name = "carrier_freq_hz", type = "double", default = "0.0" },
+    { name = "lost_confirm_s", type = "double", default = "2.0" },
+    { name = "max_emitter_on_time_secs", type = "double", default = "900.0" },
+    { name = "segments", type = "size_t", default = "4" },
+    { name = "sps", type = "size_t", default = "8" },
+    { name = "differential", type = "int", default = "0" },
+    { name = "gain", type = "double", default = "0.125" },
+    { name = "pullin_intervals", type = "size_t", default = "4" },
+]

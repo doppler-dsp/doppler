@@ -43,6 +43,19 @@ The pool itself decides two things: which free slot a survivor seeds
 held past `max_emitter_on_time_secs` is released and its emitter is a new
 detection at its next window.
 
+`CellAsyncDsssPool` is the same object over `CellAsyncDsssReceiver`s: no
+refine stage, every slot's code loop held from the seed and corrected once
+every `D` code periods on the searcher's own timing, at `gain` (default
+1/8) after `pullin_intervals` (default 4) at gain 1. Everything above
+reads the same; the constructor drops the `refine_*` arguments and
+`set_refine_min_blocks()`, and refuses a searcher a cell receiver cannot
+take — `code_only_epochs` must give `D ≥ 13` at the 5 Mcps / Gold-1023
+geometry, so that a seed half a row off is inside the carrier loop's
+pull-in (see the design page, §8.2); a seed from a data-block dwell,
+hundreds of Hz off, is pulled in by an estimate on the receiver's own
+despread stream. Its numbers beside the hand-off pool's are the record's
+§12.27.
+
 ## One slot's lifecycle
 
 ```text

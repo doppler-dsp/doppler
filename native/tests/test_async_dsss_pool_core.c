@@ -60,6 +60,24 @@ make_pool (size_t n_slots, int threads)
                                  8, false, 100000);
 }
 
+/* The cell pool's fixture: a searcher deep enough that a seed lands inside
+   the receivers' carrier pull-in (D = 16 -> 305 Hz rows against the 391 Hz
+   the header allows; the operating point is 154), on a waveform whose
+   code-only window holds those epochs at any chip phase (33 epochs = 18.2
+   symbols; 20 of every 270, ten frames a second). */
+#define CELL_EPOCHS 31u
+#define CELL_W_SYM 20u
+#define CELL_F_SYM 270u
+
+static async_dsss_pool_state_t *
+make_cell_pool (size_t n_slots, int threads)
+{
+  return async_dsss_pool_create_cell (
+      g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU, CELL_EPOCHS,
+      0.0, 4, n_slots, threads, 0.0, LOST_S, 0.0, 4, 8, 0,
+      ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
+}
+
 /* One emitter: the capture at `doppler_hz`, its signal starting `delay`
    samples in (a chip phase), noise from the seed. */
 typedef struct
@@ -75,6 +93,17 @@ emitter (double doppler_hz, size_t delay, uint32_t seed)
   cap_t c;
   dp_dsss_capture (g_code, SF, SPC, FS, TSYM, doppler_hz, CN0, N_SYM,
                    PRE_SILENCE + delay, seed, &c.x, &c.n, &c.data);
+  return c;
+}
+
+/* The same emitter with the cell fixture's code-only window. */
+static cap_t
+emitter_w (double doppler_hz, size_t delay, uint32_t seed)
+{
+  cap_t c;
+  dp_dsss_windowed_capture (g_code, SF, SPC, FS, TSYM, doppler_hz, CN0, N_SYM,
+                            PRE_SILENCE + delay, seed, CELL_W_SYM, CELL_F_SYM,
+                            &c.x, &c.n, &c.data);
   return c;
 }
 
@@ -512,6 +541,213 @@ _test_state_roundtrip (void)
   return 0;
 }
 
+/* The cell flavour (design section 12.22-12.27, #1283): the same
+   lifecycle on cell receivers. Created only on a searcher a cell receiver
+   can take: no depth is no timing, and a row past four times the carrier
+   loop's pull-in bound puts a seed where loop 1 never locks (sabotage:
+   drop either refusal -> red). There is no refine to floor. */
+static int
+_test_cell_pool_refusals (void)
+{
+  /* D = 1: the default window, no searcher timing. */
+  DP_CHECK (async_dsss_pool_create_cell (
+                g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU, 1,
+                0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0,
+                ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN)
+            == NULL);
+  /* D = 12 -> 407 Hz rows: past the bound by 4%. D = 13 is inside. */
+  DP_CHECK (async_dsss_pool_create_cell (
+                g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU,
+                23, 0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0,
+                ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN)
+            == NULL);
+  async_dsss_pool_state_t *edge = async_dsss_pool_create_cell (
+      g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU, 25, 0.0, 4,
+      2, 1, 0.0, LOST_S, 0.0, 4, 8, 0, ASYNC_DSSS_RX_CELL_GAIN,
+      ASYNC_DSSS_RX_CELL_PULLIN);
+  DP_CHECK (edge != NULL && edge->acq->coherent_bins == 13
+            && edge->acq->doppler_res_hz
+                   <= 4.0 * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (CHIP_RATE, SF));
+  async_dsss_pool_destroy (edge);
+  /* The receivers' own argument checks reach through: gain 0. */
+  DP_CHECK (async_dsss_pool_create_cell (g_code, SF, CHIP_RATE, SYM_RATE, SPC,
+                                         2, CN0, 1e-3, 0.9, DU, CELL_EPOCHS,
+                                         0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8,
+                                         0, 0.0, ASYNC_DSSS_RX_CELL_PULLIN)
+            == NULL);
+  async_dsss_pool_state_t *p = make_cell_pool (2, 1);
+  DP_REQUIRE (p != NULL);
+  DP_CHECK (p->cell == 1 && p->acq->coherent_bins == 16);
+  DP_CHECK_MSG (async_dsss_pool_set_refine_min_blocks (p, 12)
+                    == DP_ERR_INVALID,
+                "a cell pool has no refine to floor");
+  DP_CHECK (async_dsss_pool_status (p, 0).state == ASYNC_DSSS_RX_IDLE);
+  async_dsss_pool_destroy (p);
+  return 0;
+}
+
+/* One emitter through the cell pool: assigned once from the window's
+   dwell, tracking with both flags and the phase on the emitter's, symbols
+   out, released by the rule when it goes off, assigned again when it
+   returns; the same records and symbols on two threads. */
+static int
+_test_cell_pool_lifecycle (void)
+{
+  cap_t                    e  = emitter_w (1500.0, 40, 110u);
+  async_dsss_pool_state_t *p  = make_cell_pool (3, 1);
+  async_dsss_pool_state_t *p2 = make_cell_pool (3, 2);
+  DP_REQUIRE (p && p2);
+  float _Complex *syms
+      = malloc (async_dsss_pool_symbols_max_out (p) * sizeof *syms);
+  float _Complex *syms2
+      = malloc (async_dsss_pool_symbols_max_out (p2) * sizeof *syms2);
+  size_t ns = 0, same = 1;
+  for (size_t pos = 0; pos + TE <= e.n; pos += TE)
+    {
+      size_t a  = async_dsss_pool_push (p, e.x + pos, TE);
+      size_t a2 = async_dsss_pool_push (p2, e.x + pos, TE);
+      same &= a == a2;
+      for (size_t i = 0; i < 3; i++)
+        {
+          async_dsss_pool_slot_t r = async_dsss_pool_status (p, i);
+          async_dsss_pool_slot_t q = async_dsss_pool_status (p2, i);
+          same &= memcmp (&r, &q, sizeof r) == 0;
+          size_t k = async_dsss_pool_symbols (
+              p, i, syms, async_dsss_pool_symbols_max_out (p));
+          size_t k2 = async_dsss_pool_symbols (
+              p2, i, syms2, async_dsss_pool_symbols_max_out (p2));
+          same &= k == k2 && memcmp (syms, syms2, k * sizeof *syms) == 0;
+          if (r.assigned)
+            ns += k;
+        }
+    }
+  DP_CHECK_MSG (same, "two threads give the one-thread records and "
+                      "symbols, bit for bit");
+  size_t count = 0;
+  size_t slot  = slot_of (p, 1500.0, 40, &count);
+  DP_CHECK_MSG (count == 1 && slot < 3,
+                "one emitter takes exactly one slot of the cell pool");
+  DP_CHECK (p->dropped == 0);
+  DP_REQUIRE (slot < 3);
+  async_dsss_pool_slot_t r = async_dsss_pool_status (p, slot);
+  DP_CHECK_MSG (r.assigned == 1 && r.state == ASYNC_DSSS_RX_TRACKING
+                    && r.code_locked == 1 && r.locked == 1,
+                "the cell receiver tracks the emitter with both flags");
+  DP_CHECK_MSG (fabs (r.seed_doppler_hz - 1500.0) <= p->acq->doppler_res_hz,
+                "the seed's Doppler is the emitter's row");
+  DP_CHECK_MSG (fabs (r.doppler_hz - 1500.0) < 60.0,
+                "loop 1 pulled the seed in from its row");
+  /* The held phase against the capture's: the Dll's convention is the
+     phase at the next sample, the capture's chip 0 is at its first
+     signal sample, so no constant separates them. */
+  double dc = fabs (r.chip_phase - truth_chip (40, p->samples_consumed));
+  if (dc > SF / 2.0)
+    dc = SF - dc;
+  printf ("  cell pool: seed %+.3f chips and %+.0f Hz from the emitter; "
+          "held phase %.4f chips off the capture's after %.2f s; %zu "
+          "symbols\n",
+          r.seed_chip_phase - truth_chip (40, r.seed_sample),
+          r.seed_doppler_hz - 1500.0, dc, (double)r.assigned_samples / FS, ns);
+  DP_CHECK_MSG (dc <= 0.1, "the held phase is the emitter's within a "
+                           "tenth of a chip");
+  DP_CHECK_MSG (ns > 0, "symbols are readable by slot");
+  DP_CHECK_MSG (p->events >= 2, "seeded and tracking were counted");
+  const uint64_t events_tracking = p->events;
+
+  /* Off the air: noise alone for twice the release interval. */
+  size_t          n_off = (size_t)(2.0 * LOST_S * FS);
+  float _Complex *nz;
+  size_t          nn;
+  double         *nd;
+  dp_dsss_capture (g_code, SF, SPC, FS, TSYM, 0.0, CN0, 1, n_off, 210u, &nz,
+                   &nn, &nd);
+  (void)feed (p, nz, n_off);
+  (void)slot_of (p, 1500.0, 40, &count);
+  DP_CHECK_MSG (count == 0, "the cell receiver reports lost and the pool "
+                            "releases its slot");
+  DP_CHECK_MSG (p->events >= events_tracking + 2, "lost and released");
+  free (nz);
+  free (nd);
+
+  /* Back on the air: assigned again -- the one re-assignment. */
+  (void)feed (p, e.x, e.n);
+  size_t again = slot_of (p, 1500.0, 40, &count);
+  DP_CHECK_MSG (count == 1 && again < 3,
+                "a returning emitter is a new detection into a free slot");
+  DP_CHECK (async_dsss_pool_status (p, again).state == ASYNC_DSSS_RX_TRACKING);
+  async_dsss_pool_reset (p);
+  DP_CHECK (p->n_assigned == 0 && p->events == 0 && p->samples_consumed == 0);
+  free (syms);
+  free (syms2);
+  async_dsss_pool_destroy (p2);
+  async_dsss_pool_destroy (p);
+  free (e.x);
+  free (e.data);
+  return 0;
+}
+
+/* The cell pool's blob: a mid-stream split resumes bit-exact, and the
+   flavour keys it -- a hand-off pool's blob is refused before a row is
+   touched (sabotage: drop the flavour from the envelope check -> the
+   receivers reject it, but only after the rows were overwritten). */
+static int
+_test_cell_pool_state_roundtrip (void)
+{
+  cap_t                    e    = emitter_w (1500.0, 40, 114u);
+  async_dsss_pool_state_t *live = make_cell_pool (2, 1);
+  async_dsss_pool_state_t *cold = make_cell_pool (2, 1);
+  DP_REQUIRE (live && cold);
+  const size_t half = (e.n / TE / 2) * TE;
+  (void)feed (live, e.x, half);
+  DP_CHECK (slot_of (live, 1500.0, 40, NULL) < 2);
+  size_t cb   = async_dsss_pool_state_bytes (live);
+  void  *blob = malloc (cb);
+  async_dsss_pool_get_state (live, blob);
+  DP_CHECK (async_dsss_pool_set_state (cold, blob) == DP_OK);
+  DP_CHECK (memcmp (cold->rows, live->rows, 2 * sizeof *cold->rows) == 0);
+  size_t          cap = async_dsss_pool_symbols_max_out (live);
+  float _Complex *sl  = malloc (cap * sizeof *sl);
+  float _Complex *sc  = malloc (cap * sizeof *sc);
+  int             ok  = 1;
+  for (size_t pos = half; pos + TE <= e.n; pos += TE)
+    {
+      (void)async_dsss_pool_push (live, e.x + pos, TE);
+      (void)async_dsss_pool_push (cold, e.x + pos, TE);
+      for (size_t i = 0; i < 2; i++)
+        {
+          size_t nl = async_dsss_pool_symbols (live, i, sl, cap);
+          size_t nc = async_dsss_pool_symbols (cold, i, sc, cap);
+          ok &= nl == nc && memcmp (sl, sc, nl * sizeof *sl) == 0;
+        }
+    }
+  DP_CHECK_MSG (ok && cold->events == live->events,
+                "a resumed cell pool's symbols are bit-identical");
+  free (sl);
+  free (sc);
+  /* The flavour keys the blob: the hand-off pool's is refused whole. */
+  async_dsss_pool_state_t *ho = async_dsss_pool_create (
+      g_code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0, 1e-3, 0.9, DU, CELL_EPOCHS,
+      0.0, 4, 2, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
+      100000);
+  DP_REQUIRE (ho != NULL);
+  void *hb = malloc (async_dsss_pool_state_bytes (ho));
+  async_dsss_pool_get_state (ho, hb);
+  async_dsss_pool_row_t before[2];
+  memcpy (before, cold->rows, sizeof before);
+  DP_CHECK (async_dsss_pool_set_state (cold, hb) == DP_ERR_INVALID);
+  DP_CHECK_MSG (memcmp (before, cold->rows, sizeof before) == 0,
+                "a refused blob left the table untouched");
+  DP_CHECK (async_dsss_pool_set_state (ho, blob) == DP_ERR_INVALID);
+  free (hb);
+  free (blob);
+  async_dsss_pool_destroy (ho);
+  async_dsss_pool_destroy (cold);
+  async_dsss_pool_destroy (live);
+  free (e.x);
+  free (e.data);
+  return 0;
+}
+
 /* doppler#1261: a hand-over past loop 1's pull-in leaves the receiver
    code-locked, carrier-unlocked, and loop 1 free-running -- measured here:
    the searcher at pfa 1e-2 (a 6-epoch dwell) seeds this capture 1847 Hz
@@ -597,5 +833,8 @@ main (void)
   (void)_test_event_log ();
   (void)_test_on_time_release_reset_and_the_floor ();
   (void)_test_state_roundtrip ();
+  (void)_test_cell_pool_refusals ();
+  (void)_test_cell_pool_lifecycle ();
+  (void)_test_cell_pool_state_roundtrip ();
   DP_TEST_END ("test_async_dsss_pool_core");
 }

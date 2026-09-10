@@ -112,12 +112,13 @@
 * **clip\_lin** ([**agc\_state\_t**](structagc__state__t.md))
 * **code\_locked** ([**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md), [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md))
 * **code\_rate** ([**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md), [**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md), [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md), [**dll\_state\_t**](structdll__state__t.md))
+* **cell** ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md), [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **code** ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md), [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md), [**conv\_enc\_state\_t**](structconv__enc__state__t.md), [**despreader\_state\_t**](structdespreader__state__t.md), [**dll\_state\_t**](structdll__state__t.md), [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md), [**rs\_t**](structrs__t.md), [**viterbi\_state\_t**](structviterbi__state__t.md), [**wfm\_synth\_state\_t**](structwfm__synth__state__t.md))
 * **code\_len** ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md), [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md))
 * **car\_carry\_len** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md), [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md), [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md))
 * **car\_coasting** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
-* **cell** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **cell\_rate\_bias** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
+* **cell\_refined** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **ca** ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **car** ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md), [**despreader\_state\_t**](structdespreader__state__t.md), [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md))
 * **car\_carry\_buf** ([**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md), [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md))
@@ -373,6 +374,7 @@
 ## h
 
 * **has\_nc** ([**acq\_extra\_t**](structacq__extra__t.md))
+* **had\_code** ([**async\_dsss\_pool\_row\_t**](structasync__dsss__pool__row__t.md))
 * **hits** ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md))
 * **had\_lock** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **handoff** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md))

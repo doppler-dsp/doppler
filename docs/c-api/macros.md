@@ -34,6 +34,7 @@
 * **ASYNC\_DSSS\_RECEIVER\_STATE\_MAGIC** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_BN\_CARRIER** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
+* **ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_CELL\_GAIN** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_CELL\_PULLIN** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))
 * **ASYNC\_DSSS\_RX\_DLL\_BN** ([**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md))

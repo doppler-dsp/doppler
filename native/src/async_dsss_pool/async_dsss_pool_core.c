@@ -83,17 +83,21 @@ release (async_dsss_pool_state_t *s, size_t i, uint64_t sample,
   row->prev_state = ASYNC_DSSS_RX_IDLE;
 }
 
-async_dsss_pool_state_t *
-async_dsss_pool_create (
-    const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate,
-    size_t spc, int m, double cn0_dbhz, double pfa, double pd,
-    double doppler_uncertainty, size_t code_only_epochs, double doppler_rate,
-    size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz,
-    double lost_confirm_s, double max_emitter_on_time_secs, size_t segments,
-    size_t sps, int differential, double refine_max_error_db,
-    size_t refine_samples_per_symbol, double refine_design_margin_db,
-    size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
-    size_t refine_max_n_blocks)
+/* Both flavours' constructor: the searcher first, since a cell receiver's
+   correction interval is its block depth and its seed's pull-in is bounded
+   by its row (the header's two refusals); then the receivers. */
+static async_dsss_pool_state_t *
+adp_new (const uint8_t *code, size_t code_len, double chip_rate,
+         double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
+         double pd, double doppler_uncertainty, size_t code_only_epochs,
+         double doppler_rate, size_t max_peaks, size_t n_slots, int threads,
+         double carrier_freq_hz, double lost_confirm_s,
+         double max_emitter_on_time_secs, size_t segments, size_t sps,
+         int differential, double refine_max_error_db,
+         size_t refine_samples_per_symbol, double refine_design_margin_db,
+         size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
+         size_t refine_max_n_blocks, int cell, double gain,
+         size_t pullin_intervals)
 {
   if (!code || code_len == 0 || !(chip_rate > 0.0) || !(symbol_rate > 0.0)
       || spc == 0 || n_slots == 0 || max_peaks == 0
@@ -114,6 +118,7 @@ async_dsss_pool_create (
   s->max_peaks       = max_peaks;
   s->threads         = threads;
   s->n_slots         = n_slots;
+  s->cell            = cell != 0;
 
   /* The searcher: continuous, with the depth the window buys, the list,
      the threads, and the carrier its hand-off and its blocks need. */
@@ -128,18 +133,38 @@ async_dsss_pool_create (
       async_dsss_pool_destroy (s);
       return NULL;
     }
+  /* A cell receiver is driven on the searcher's timing and pulled in by
+     its carrier loop alone: no depth is no timing, and a row wider than
+     four times the loop's bound puts a seed half a row off past the
+     twice-the-bound line the loop reliably acquires inside. */
+  if (cell
+      && (s->acq->coherent_bins < 2
+          || s->acq->doppler_res_hz > 4.0
+                                          * ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (
+                                              chip_rate, code_len)))
+    {
+      async_dsss_pool_destroy (s);
+      return NULL;
+    }
   s->rx    = dp_xcalloc (n_slots, sizeof *s->rx);
   s->rows  = dp_xcalloc (n_slots, sizeof *s->rows);
   s->n_sym = dp_xcalloc (n_slots, sizeof *s->n_sym);
   s->hits  = dp_xcalloc (max_peaks, sizeof *s->hits);
   for (size_t i = 0; i < n_slots; i++)
     {
-      s->rx[i] = async_dsss_receiver_create_handoff (
-          s->code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz, pfa, pd,
-          segments, sps, differential, refine_max_error_db,
-          refine_samples_per_symbol, refine_design_margin_db, refine_n_fft,
-          refine_zero_pad, refine_sequential, refine_max_n_blocks,
-          carrier_freq_hz, lost_confirm_s);
+      s->rx[i]
+          = cell ? async_dsss_receiver_create_cell (
+                       s->code, code_len, chip_rate, symbol_rate, spc, m,
+                       cn0_dbhz, pfa, pd, segments, sps, differential,
+                       carrier_freq_hz, lost_confirm_s, s->acq->coherent_bins,
+                       gain, pullin_intervals)
+                 : async_dsss_receiver_create_handoff (
+                       s->code, code_len, chip_rate, symbol_rate, spc, m,
+                       cn0_dbhz, pfa, pd, segments, sps, differential,
+                       refine_max_error_db, refine_samples_per_symbol,
+                       refine_design_margin_db, refine_n_fft, refine_zero_pad,
+                       refine_sequential, refine_max_n_blocks, carrier_freq_hz,
+                       lost_confirm_s);
       if (!s->rx[i])
         {
           async_dsss_pool_destroy (s);
@@ -151,6 +176,45 @@ async_dsss_pool_create (
      inline -- the same code path, bit-identical. */
   s->pool = threads == 1 ? NULL : dp_pool_create (threads);
   return s;
+}
+
+async_dsss_pool_state_t *
+async_dsss_pool_create (
+    const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate,
+    size_t spc, int m, double cn0_dbhz, double pfa, double pd,
+    double doppler_uncertainty, size_t code_only_epochs, double doppler_rate,
+    size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz,
+    double lost_confirm_s, double max_emitter_on_time_secs, size_t segments,
+    size_t sps, int differential, double refine_max_error_db,
+    size_t refine_samples_per_symbol, double refine_design_margin_db,
+    size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
+    size_t refine_max_n_blocks)
+{
+  return adp_new (code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz,
+                  pfa, pd, doppler_uncertainty, code_only_epochs, doppler_rate,
+                  max_peaks, n_slots, threads, carrier_freq_hz, lost_confirm_s,
+                  max_emitter_on_time_secs, segments, sps, differential,
+                  refine_max_error_db, refine_samples_per_symbol,
+                  refine_design_margin_db, refine_n_fft, refine_zero_pad,
+                  refine_sequential, refine_max_n_blocks, 0, 0.0, 0);
+}
+
+async_dsss_pool_state_t *
+async_dsss_pool_create_cell (
+    const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate,
+    size_t spc, int m, double cn0_dbhz, double pfa, double pd,
+    double doppler_uncertainty, size_t code_only_epochs, double doppler_rate,
+    size_t max_peaks, size_t n_slots, int threads, double carrier_freq_hz,
+    double lost_confirm_s, double max_emitter_on_time_secs, size_t segments,
+    size_t sps, int differential, double gain, size_t pullin_intervals)
+{
+  /* The refine parameters are the hand-off flavour's defaults: a cell
+     receiver builds no refine chain, so they size nothing. */
+  return adp_new (code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz,
+                  pfa, pd, doppler_uncertainty, code_only_epochs, doppler_rate,
+                  max_peaks, n_slots, threads, carrier_freq_hz, lost_confirm_s,
+                  max_emitter_on_time_secs, segments, sps, differential, 0.5,
+                  4, 14.0, 64, 8, false, 100000, 1, gain, pullin_intervals);
 }
 
 void
@@ -236,7 +300,9 @@ async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
       if (!row->assigned)
         continue;
       async_dsss_receiver_status_t st = async_dsss_receiver_status (s->rx[i]);
-      if (st.state == ASYNC_DSSS_RX_TRACKING)
+      if (st.state == ASYNC_DSSS_RX_TRACKING && st.code_locked)
+        row->had_code = 1;
+      if (st.state == ASYNC_DSSS_RX_TRACKING && row->had_code)
         {
           if (st.locked)
             row->doppler_hz = st.doppler_hz;
@@ -245,6 +311,8 @@ async_dsss_pool_push (async_dsss_pool_state_t *s, const float _Complex *x,
         }
       else
         {
+          /* Not yet tracking, or tracking with no code lock ever: the
+             seed's coordinates, its phase advanced to this block. */
           row->doppler_hz = row->seed_doppler_hz;
           row->chip_phase
               = advanced_phase (s, row->seed_chip_phase, row->seed_doppler_hz,
@@ -402,9 +470,11 @@ int
 async_dsss_pool_set_refine_min_blocks (async_dsss_pool_state_t *s,
                                        size_t                   n_blocks)
 {
+  /* Every receiver answers alike: the flavour is the pool's. */
+  int rc = DP_OK;
   for (size_t i = 0; i < s->n_slots; i++)
-    (void)async_dsss_receiver_set_refine_min_blocks (s->rx[i], n_blocks);
-  return DP_OK;
+    rc = async_dsss_receiver_set_refine_min_blocks (s->rx[i], n_blocks);
+  return rc;
 }
 
 int
@@ -423,6 +493,7 @@ typedef struct
   uint64_t dropped;
   uint64_t events;
   uint64_t samples_consumed;
+  uint64_t cell; /**< v2: the flavour -- a blob restores into its own. */
 } async_dsss_pool_extra_t;
 
 size_t
@@ -447,6 +518,7 @@ async_dsss_pool_get_state (const async_dsss_pool_state_t *s, void *blob)
     .dropped          = s->dropped,
     .events           = s->events,
     .samples_consumed = s->samples_consumed,
+    .cell             = (uint64_t)s->cell,
   };
   dp_w_bytes (&_w, &extra, sizeof extra);
   dp_w_bytes (&_w, s->rows, s->n_slots * sizeof *s->rows);
@@ -463,7 +535,8 @@ async_dsss_pool_set_state (async_dsss_pool_state_t *s, const void *blob)
   async_dsss_pool_extra_t extra;
   dp_r_bytes (&_r, &extra, sizeof extra);
   if (extra.n_slots != (uint64_t)s->n_slots
-      || extra.n_assigned > (uint64_t)s->n_slots)
+      || extra.n_assigned > (uint64_t)s->n_slots
+      || extra.cell != (uint64_t)s->cell)
     return DP_ERR_INVALID;
   dp_r_bytes (&_r, s->rows, s->n_slots * sizeof *s->rows);
   DP_R_CHILD (&_r, acq, s->acq);

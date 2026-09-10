@@ -741,7 +741,10 @@ def build(write: bool = True) -> Report:
     R.summary(
         "\n- Raw run: "
         + ", ".join(f"`data/stints_{c:.0f}.csv`" for c in _cn0s(d))
-        + ", `data/totals.csv` — the soak's `--emit` blocks"
+        + " (the hand-off pool), "
+        + ", ".join(f"`data/stints_{c:.0f}_cell.csv`" for c in _cn0s(d))
+        + " (the cell pool), `data/totals.csv` (both flavours, `cell` "
+        + "column) — the soak's `--emit` blocks"
     )
     R.emit(HERE / "results.md")
     return R

@@ -2014,3 +2014,123 @@ What it settles:
     one tile, and the pool on cell receivers (§12.27).
 
 ______________________________________________________________________
+
+### 12.27 What was measured (2026-09-10) — the pool on cell receivers
+
+**What was built.** `CellAsyncDsssPool` (`async_dsss_pool_create_cell`,
+[#1283](https://github.com/doppler-dsp/doppler/issues/1283)'s PR 3): the
+pool of §8.2 over `n_slots` cell receivers instead of hand-off ones, by the
+DDC/MatchedDDC rule — a second constructor over one core, `push()`, the
+table, the zone, the transitions, the releases and the blob's shape
+shared verbatim, the flavour keying the blob. Each receiver's correction
+interval is the searcher's own depth `D`, the timing §12.22–12.26 measured.
+The constructor refuses a searcher a cell receiver cannot take: `D = 1`
+(no searcher timing), and a Doppler row wider than four times loop 1's
+pull-in bound — named once now, `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`,
+`bn · chip_rate / (2 · code_len)` = 97.8 Hz at 5 Mcps over Gold-1023, the
+`costas_pullin.c` line reliable to twice — so that a seed half a row off
+lands inside it (`D ≥ 13` here; the operating point's 154 gives 31.7 Hz
+rows). Three C tests (refusals; the lifecycle on two thread counts; the
+flavour-keyed round trip) on a windowed fixture at `D = 16`, and four
+Python tests.
+
+**Two things the searcher hands a cell receiver that the row does not
+bound**, found by the soak's check on its first run and fixed at their
+owners:
+
+- **A data-block seed.** At 45 dB-Hz an emitter's first seed is
+    routinely §12.14's smeared copy — the hand-off check's own stints read
+    +781 and +245 Hz — which a hand-off receiver's refine pulls in and a
+    cell receiver's loop 1 (98 Hz, dead by four) cannot. The cell receiver
+    then held **code** lock (the code loop needs no carrier) and never
+    symbol lock, 0.75 of its held blocks against the hand-off's 0.99, and
+    the emitter was double-held for 29632 blocks (2932 both code-locked).
+    Fixed in the receiver, as decided: the pull-in estimates the seed's
+    residual on the **live chain's own despread stream** — the hand-off's
+    estimator (`carrier_acq`, the PSDMF on what the `RateConverter` hands
+    `MpskReceiver`, at the refine's resolution) with no second chain — and
+    folds it into loop 1 once, `MpskReceiver` re-centred; tracking follows
+    the pull-in intervals and the fold. A first try, "a seed with no flag
+    by twice the pull-in is lost", was wrong on the measurement: the code
+    flag came up. And the estimate alone was not enough at 40 dB-Hz: the
+    first cell sweep doubled emitter 8 for 10223 blocks on an 822 Hz
+    data-block seed (code lock 0.86 of held against the hand-off's 0.996
+    on the same stint). The estimator was cleared — probed on synthetic
+    despread BPSK at both rates at 40 dB-Hz it fires 20 of 20 with 100 Hz
+    of scatter — so what it was fed was the difference: the hand-off's
+    refine wipes with a *frozen* carrier, while the cell's loop 1 was
+    running through the pull-in with a residual past its bound, wrapping
+    its discriminator and smearing the stream. Loop 1 is now held at the
+    seed's frequency until the fold, as the refine's wipe is. Receiver
+    blob v6 (the estimator a child of the cell blob; `cell_refined`).
+- **A frozen row.** The table refreshed a tracking row from its locked
+    loop and kept it otherwise; a cell receiver reports tracking through
+    its pull-in, and a row frozen there at 20 ppm leaves the one-chip zone
+    within a block (100 chips/s of dilation), so the emitter's next hit
+    seeded a second receiver. The pool now advances a row on the seed's
+    dilated clock until its code flag has been up once, whatever the
+    receiver's state (`had_code`, pool blob v2).
+
+**What was measured.** The lifecycle soak of §12.14–12.17, both flavours
+on the same stimulus — ten emitters at their own Doppler within ±20 ppm
+of 2.5 GHz, arriving and leaving on their own schedules, 120 s at each
+C/N0, the pool at `D = 154`, twelve slots, twenty threads — and the same
+gates. The cell pool at the design gain 1/8 after four pull-in
+intervals; the hand-off pool as shipped:
+
+| C/N0, flavour | stints (scored) | missed / false / late | double-held blocks (both code-locked) | arrival → tracking, mean / max | code lock of held | symbol lock of held | departure → release, max | heap after warm-up |
+| ------------- | --------------- | --------------------- | ------------------------------------- | ------------------------------ | ----------------- | ------------------- | ------------------------ | ------------------ |
+| 45, hand-off  | 43 (38)         | 0 / 0 / 0             | 0 (0)                                 | 0.09 / 0.21 s                  | 0.9981            | 0.9968              | 2.07 s                   | +0.8 KiB           |
+| 45, **cell**  | 43 (38)         | 0 / 0 / 0             | 0 (0)                                 | 0.09 / 0.21 s                  | 0.9982            | 0.9969              | 2.15 s                   | +0.1 KiB           |
+| 40, hand-off  | 43 (38)         | 0 / 0 / 0             | 0 (0)                                 | 0.35 / 1.30 s                  | 0.9973            | 0.9842              | 2.04 s                   | +0.8 KiB           |
+| 40, **cell**  | 43 (38)         | 0 / 0 / 0             | 9032 (0)                              | 0.35 / 1.30 s                  | 0.9954            | 0.9813              | 2.04 s                   | −0.1 KiB           |
+
+Every gate passes on both flavours at both C/N0s (the validator's thirty
+limits, equal by design, 2.5 of its report). The budget twin (§12.17's
+measurement: the shipped DDC from 13 MSa/s in front of the pool, the
+check's two emitters, twenty threads):
+
+| flavour  | inside `push()` | of real time at 13 MSa/s (DDC + pool) | at the 30 MSa/s floor |
+| -------- | --------------- | ------------------------------------- | --------------------- |
+| hand-off | 47.1 s          | 3.219 (0.279 + 2.941)                 | 7.43                  |
+| cell     | 47.3 s          | 3.160 (0.206 + 2.954)                 | 7.29                  |
+
+What it settles:
+
+- **At 45 dB-Hz the cell pool is the hand-off pool.** The same 43
+    stints, the same seeds to the hertz (the searcher is the same), the
+    same arrival-to-tracking (0.09 s mean, 0.21 s max), code and symbol
+    lock of held to the fourth digit, nothing missed, released or doubled.
+    The estimate on the live chain gives the cell receiver the refine's
+    pull-in without the refine's chain.
+- **At 40 dB-Hz the gates hold and one stint does not.** Emitter 8's
+    first stint, seeded 822 Hz off from a data block read at 28.6 dB-Hz:
+    the cell receiver held code lock on 0.86 of its blocks and symbol lock
+    on 0.82 where the hand-off's refine pulled the same seed in
+    (0.996 / 0.980), and the emitter's next hit seeded a second receiver
+    for 9032 blocks — the first code-unlocked throughout, so the
+    both-locked gate passes and the recovery is the design's. One of 38
+    stints; the population's numbers move in the third digit (0.9954
+    against 0.9973 code, 0.9813 against 0.9842 symbol). The estimator was
+    cleared and loop 1 is held; whether the fold gave up at nine blocks on
+    that copy or landed a draw past the loop's line is not carried by the
+    status record — the gap [#1273](https://github.com/doppler-dsp/doppler/issues/1273)
+    names for the refine, now with the cell's instance on it.
+- **The cell pool costs what the hand-off pool costs.** 2.954 against
+    2.941 of a core per second of signal on the same threads: loop 1, the
+    `Dll`, the `RateConverter` and `MpskReceiver` run in both, and the
+    refine chain the cell mode does not build is not in either's steady
+    state. A seed's estimate is the refine's estimator on a stream the
+    live chain already produces.
+- **The gates.** `--check --cell` and its budget twin run in the ordinary
+    C suite beside the hand-off's pair; the validator runs both flavours
+    and gates them alike. Sabotaged red: the fold skipped (the far seed of
+    the receiver's test holds code lock and never symbol lock; the cell
+    soak doubles emitter 0 for 29632 blocks); the row advance dropped (the
+    same double, before the estimate existed); the refusals dropped
+    (`D = 1` and the 407 Hz row create).
+- **Not measured here:** the fold's outcome on a 40 dB-Hz data-block seed
+    (#1273); the 600 s soak on the cell flavour; two emitters within a
+    chip. The hand-off path's retirement is PR 4 (§12.28).
+
+______________________________________________________________________

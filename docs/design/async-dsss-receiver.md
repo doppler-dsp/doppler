@@ -1771,8 +1771,8 @@ a neighbour within a kilohertz crossing at a chip or two a second — to a
 receiver on its own that is a return — and that is the pool's, which
 knows the emitter has a slot (#1275).
 
-**The transition.** Hand-off mode has the state **lost**, beside idle /
-refining / tracking, and the receiver enters it on the rule above. In it the loops stop updating, the replica (§8 (iii)) is no longer
+**The transition.** The receiver has the state **lost**, beside idle /
+refining / tracking, and enters it on the rule above. In it the loops stop updating, the replica (§8 (iii)) is no longer
 published — its gate is code lock, which after §3.7 drops within
 milliseconds of a real loss and not otherwise, so publication stops at
 that drop, before the confirm interval has run — and the receiver reports
@@ -1958,8 +1958,8 @@ duration and returns both, so neither alone is the release. One flag down
 is a **degrade**, reported and not acted on; both down is the clock
 starting.
 
-Hand-off mode has the state **lost**, beside idle / refining / tracking.
-On the rule above the receiver enters it: the loops stop updating,
+The receiver has the state **lost**, beside idle / refining / tracking.
+On the rule above it enters that state: the loops stop updating,
 the replica of §11.4 stops being published — at the code-lock drop, before
 the confirm interval has run — and `get_lost()` reports it. The holder
 of the pool then releases the assignment and calls `reset()`, which in this

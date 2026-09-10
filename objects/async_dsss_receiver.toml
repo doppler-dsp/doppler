@@ -223,7 +223,7 @@ default = "0.0"
 # tracking puts the receiver in the lost state (`lost` == 1, loops stopped,
 # samples discarded until reset()). One flag down is a degrade, not a
 # release. 0.0 (this flavor's default) never enters lost -- the searching
-# receiver's exit is reset(), as before; the hand-off flavor defaults to 2.0,
+# receiver's exit is reset(), as before; the searching flavor defaults to 2.0,
 # past the measured fades (section 12.3).
 [[async_dsss_receiver.init_params]]
 name = "lost_confirm_s"
@@ -242,7 +242,7 @@ params = [{ name = "x", type = "float _Complex[]" }]
 
 [[async_dsss_receiver.methods]]
 name = "seed"
-doc = "Take a detection from outside and start refining from it: the hit's chip phase (Dll's instantaneous convention, at the next sample fed), coarse Doppler estimate and C/N0 estimate -- exactly what the searching flavor's own hit produces. Accepted while idle (hand-off flavor) or searching; refused on a receiver that already holds a seed (refining, tracking or lost -- reset() releases it) and for a chip_phase outside [0, code_len)."
+doc = "Take a detection from outside and start refining from it: the hit's chip phase (Dll's instantaneous convention, at the next sample fed), coarse Doppler estimate and C/N0 estimate -- exactly what the searching flavor's own hit produces. Accepted while idle (cell mode) or searching; refused on a receiver that already holds a seed (refining, tracking or lost -- reset() releases it) and for a chip_phase outside [0, code_len)."
 arg_type = "void"
 return_type = "int"
 status_return = true
@@ -351,7 +351,7 @@ doc = "1 while the refine stage (CarrierAcquisition collection) is active; 0 whi
 [[async_dsss_receiver.properties]]
 name = "idle"
 type = "int"
-doc = "1 while waiting for a seed (the hand-off flavor before seed() or after reset()); 0 in every other state."
+doc = "1 while waiting for a seed (cell mode, before seed() or after reset()); 0 in every other state."
 
 [[async_dsss_receiver.properties]]
 name = "lost"
@@ -443,7 +443,7 @@ doc = "Binary code-lock flag from the live tracking Dll's own verify-counted (pf
 # Design section 12.22-12.24 as a mode of this receiver (#1283): no refine,
 # the Dll held from the first sample and put back once an interval at a held
 # phase corrected by a gain (chips) times its interval-mean discriminator;
-# the carrier loop the hand-off's own. A difference in CONSTRUCTOR is a view:
+# the carrier loop the searching flavor's own. A difference in CONSTRUCTOR is a view:
 # seed(), the symbol path, the release rule and the status record are the
 # parent's.
 [[async_dsss_receiver.views]]

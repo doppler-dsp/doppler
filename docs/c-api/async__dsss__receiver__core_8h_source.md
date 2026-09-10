@@ -131,7 +131,7 @@ extern "C"
 
 /* The state machine's values (`state` below, also the first byte of a
  * serialized blob's extra record). Searching -> refining -> tracking is the
- * searching flavor's path; hand-off mode starts at idle and seed() puts it
+ * searching flavor's path; cell mode starts at idle and seed() puts it
  * at refining; lost is reached from tracking by the release rule and left
  * only by reset(). */
 #define ASYNC_DSSS_RX_SEARCHING 0
@@ -230,7 +230,7 @@ extern "C"
      * searcher's cell drives -- no refine, the Dll held from the first
      * sample and put back once an interval at a held phase corrected by a
      * gain times what its discriminator read (design section 12.22-12.24);
-     * the carrier loop the hand-off's own. */
+     * the carrier loop the searching flavor's own. */
     int      cell;             
     size_t   correct_periods;  
     double   cell_gain;        
@@ -368,7 +368,7 @@ extern "C"
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car_frozen + refine_dll + refine_rc + ca + car +
    * dll + rc + rx, always all nine in the searching flavor and the eight
-   * without acq in hand-off mode (a fixed shape per flavor, DsssReceiver's
+   * without acq in cell mode (a fixed shape per flavor, DsssReceiver's
    * own rationale). segments/sps/n/refine_segments and the flavor are the
    * layout key. */
 

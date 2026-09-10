@@ -369,7 +369,7 @@ adr_new_carrier_acq (const async_dsss_receiver_state_t *s, double target_rate)
 
 /* The cell mode's carrier pull-in (design section 12.27): the seed's
  * residual estimated on the live chain's own despread stream -- the
- * hand-off flavor's estimator, fed what the RateConverter hands
+ * retired hand-off flavour's estimator, fed what the RateConverter handed
  * MpskReceiver, no second chain -- and applied once, when the estimator
  * is ready or has given up: loop 1 retuned there (its phase continues;
  * the aid the Dll is steered on follows it every period), MpskReceiver
@@ -501,7 +501,7 @@ adr_process_refine (async_dsss_receiver_state_t *s, const float _Complex *x,
  * before the first lock, or while the code flag is up; with the flag down
  * the phase only dead-reckons, so a departed emitter's receiver cannot walk
  * onto a neighbour (#1271's hazard in the searcher-timed form). The carrier
- * is the hand-off flavor's own loop 1, running (it is what follows SPEC's
+ * is the searching flavor's own loop 1, running (it is what follows SPEC's
  * 500 Hz/s pre-despread; MpskReceiver's loop alone cannot), held on both
  * flags down as there.
  *
@@ -514,8 +514,8 @@ adr_process_refine (async_dsss_receiver_state_t *s, const float _Complex *x,
  * periods always is -- lands on the code's wrap, and moved across it the
  * Dll's partial bookkeeping emits or skips a period's partials (#1287;
  * measured: a symbol slip every few intervals on SPEC's geometry, where
- * the hand-off flavor on the same capture decoded clean). And spread over
- * a whole interval the bias falls under the NCO's 32-bit rate step (a few
+ * the retired hand-off flavour on the same capture decoded clean). And spread
+ * over a whole interval the bias falls under the NCO's 32-bit rate step (a few
  * parts in 10^7 -- 0.075 chip over 154 periods), so the Dll's phase
  * sawtoothed 0.06 chip about the held one (measured on the jitter
  * harness); over one period the same step is half a thousandth of a chip. */
@@ -642,7 +642,7 @@ adr_track_period (async_dsss_receiver_state_t *s, const float _Complex *period,
          estimate is folded (adr_cell_refine): a residual past the loop's
          bound wraps its discriminator as a zero-mean sinusoid and the loop
          flails, and the estimator would then read a wandering residual --
-         the hand-off's refine wipes with a FROZEN carrier for the same
+         the retired refine chain wiped with a FROZEN carrier for the same
          reason. Measured: at 45 dB-Hz the estimate found the peak through
          the flailing; at 40 an 822 Hz data-block seed did not pull in
          (section 12.27). */
@@ -750,7 +750,7 @@ adr_track_chain (async_dsss_receiver_state_t *s, const float _Complex *x,
 
 /* The one constructor behind both flavors. `cell` decides whether
  * the embedded Acquisition exists (the searching flavor) or the receiver
- * waits idle for an outside seed (hand-off mode, section 11.1 of the
+ * waits idle for an outside seed (cell mode, section 11.1 of the
  * design page): the chains past the seed are identical, so everything
  * else is shared verbatim. */
 static async_dsss_receiver_state_t *
@@ -840,7 +840,8 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
    * dsss_receiver_core.c's own state struct doc comment gives). */
   /* The cell mode has no refine: the searcher-timed correction pulls the
      seed's residual in (12.23), so none of that chain is built -- the
-     blob skips it too (keyed on `cell`, as `handoff` keys the engine). */
+     blob skips it too (keyed on `cell`; the flavour byte beside it is
+     `_pad0` since blob v7). */
   if (!cell)
     adr_build_refine_chain (obj, 0.0, 0.0, &obj->car_frozen, &obj->refine_dll,
                             &obj->refine_rc, &obj->ca,
@@ -870,8 +871,8 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
                 ASYNC_DSSS_RX_LOCK_N_DOWN);
   adr_reset_lock (obj);
   /* The cell mode's carrier pull-in estimator, on the live chain's
-     despread stream at its own rate (adr_cell_refine); the hand-off
-     flavor's is built with its refine chain per seed. */
+     despread stream at its own rate (adr_cell_refine); the retired
+     hand-off flavour built its own with a refine chain per seed. */
   if (cell)
     {
       obj->ca = adr_new_carrier_acq (obj, (double)sps * symbol_rate);
@@ -882,7 +883,7 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
          ratio to reach the refine's noise. Measured (validate_receiver
          _pullin, design section 12.28): at 40 dB-Hz the refine's dwell
          pulled in 7-9 draws of 10 from 100 Hz on, twice it 10 of 10 to
-         1000 Hz -- the hand-off's own curve -- for 40 ms more per seed
+         1000 Hz -- the retired flavour's own curve -- for 40 ms more per seed
          at 45 dB-Hz. */
       const size_t ratio = sps > refine_samples_per_symbol
                                ? sps / refine_samples_per_symbol
@@ -962,7 +963,7 @@ async_dsss_receiver_reset (async_dsss_receiver_state_t *state)
   state->cell_rate_bias = 0.0;
   state->period_count   = 0;
   state->intervals      = 0;
-  /* Hand-off mode has no search to return to: idle, waiting for the next
+  /* Cell mode has no search to return to: idle, waiting for the next
    * seed, is how the holder of a pool reuses the object. */
   adr_enter (state, state->acq ? ASYNC_DSSS_RX_SEARCHING : ASYNC_DSSS_RX_IDLE);
   state->seed_chip_phase     = 0.0;
@@ -1001,8 +1002,8 @@ async_dsss_receiver_seed (async_dsss_receiver_state_t *state,
       /* No refine: the track chain from the seed, its Dll held from the
          first sample (the loop coasts; the correction steers, 12.22), the
          held phase the seed's, the carrier loop seeded at the seed's
-         Doppler as the hand-off's is. Refining is the pull-in: gain 1 for
-         pullin_intervals, then tracking. */
+         Doppler as the retired flavour's was. Refining is the pull-in: gain 1
+         for pullin_intervals, then tracking. */
       adr_rebuild_track_chain (state, chip_phase, doppler_hz_est,
                                state->segments, state->sps, state->n);
       dll_hold_here (state->dll);
@@ -1096,10 +1097,10 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
          (adr_cell_refine), gain 1 on the correction through
          pullin_intervals (the gain schedule, whatever the state).
          Tracking once the estimate is folded (or given up) and a lock
-         flag is up -- what the hand-off flavor's hand-over means -- or
+         flag is up -- what the retired flavour's hand-over meant -- or
          at the end of the pull-in intervals regardless, so a seed that
          never locks reaches the release clock. No release clock before
-         that: lost is reached from tracking, as the hand-off's is. */
+         that: lost is reached from tracking, as the retired flavour's was. */
       size_t n = adr_track_chain (state, x, x_len, out, max_out);
       if (state->cell_refined
           && (dll_get_locked (state->dll) || state->sym_lockdet.locked
@@ -1217,7 +1218,7 @@ async_dsss_receiver_configure_search_raw (async_dsss_receiver_state_t *state,
                                           size_t doppler_bins, size_t n_noncoh)
 {
   if (!state->acq)
-    return -1; /* hand-off mode: no search to pin */
+    return -1; /* cell mode: no search to pin */
   return acq_configure_search_raw (state->acq, doppler_bins, n_noncoh);
 }
 

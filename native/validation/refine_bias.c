@@ -20,7 +20,7 @@
  * BPSK data at 2700 sym/s, a fixed carrier offset of F_TRUE, AWGN sized
  * from the C/N0), so the truth is a number the harness chose and the
  * clock is undilated -- the one variable is the estimate. The receiver
- * is the HAND-OFF flavor (`async_dsss_receiver_create_handoff`), seeded
+ * is the SEARCHING flavor (`async_dsss_receiver_create`), seeded
  * with the stimulus's own chip phase (the capture starts on chip 0) and
  * a Doppler of F_TRUE plus a chosen error, exactly what the searcher's
  * coarse D = 1 row hands it (its bin is 4.9 kHz wide, so ~1.1 kHz off at
@@ -253,7 +253,7 @@ main (int argc, char **argv)
 
   printf ("refine bias: Gold-1023 at 5 Mcps, spc 2, 2700 sym/s async BPSK "
           "at %.0f dB-Hz (Es/N0 %.1f dB); static capture at a carrier "
-          "offset of +-%.0f Hz; hand-off receiver, refine_n_fft %d (bin "
+          "offset of +-%.0f Hz; seeded receiver, refine_n_fft %d (bin "
           "%.1f Hz at %.0f sps), the error of get_doppler_hz() at the "
           "hand-over; block = one epoch (%.3f ms)\n\n",
           CN0, CN0 - 10.0 * log10 (SYM_RATE), F_TRUE, REFINE_N_FFT,

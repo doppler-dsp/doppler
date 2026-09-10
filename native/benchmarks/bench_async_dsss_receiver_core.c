@@ -246,7 +246,7 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
      #1283): seeded at the capture's own chip 0, no refine, the Dll
      coasting and steered once an interval -- the receiver a pool's
      searcher drives. Its warm row is what one held cell costs per sample,
-     beside the hand-off flavor's. */
+     beside the searching flavor's warm row. */
   static double t_cell[ITERATIONS];
   {
     const size_t                 periods = w->sf == 7 ? 100 : 154;
@@ -297,10 +297,11 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
             sec / (double)(n - half) * w->chip_rate * (double)w->spc);
     async_dsss_receiver_destroy (rx);
   }
-  printf ("\n  cell/warm per sample = %.2fx: the cell mode's steady state\n"
-          "  against the hand-off's, the same chain past the Dll with the\n"
-          "  Dll coasting and steered once an interval.\n",
-          (min_sec (t_cell, ITERATIONS)) / (min_sec (t_warm, ITERATIONS)));
+  printf (
+      "\n  cell/warm per sample = %.2fx: the cell mode's steady state\n"
+      "  against the searching flavor's, the same chain past the Dll with\n"
+      "  Dll coasting and steered once an interval.\n",
+      (min_sec (t_cell, ITERATIONS)) / (min_sec (t_warm, ITERATIONS)));
   printf ("\n  cold/warm per sample = %.2fx. The difference is acquisition\n"
           "  and refinement, paid once per burst; the warm row is what a\n"
           "  continuous receiver pays for as long as it holds lock. Sizing\n"

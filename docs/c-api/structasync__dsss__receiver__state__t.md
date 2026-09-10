@@ -172,7 +172,7 @@ acq_state_t* async_dsss_receiver_state_t::acq;
 
 
 
-The embedded search; NULL in hand-off mode ([**async\_dsss\_receiver\_create\_cell()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create_cell)), where the seed comes from outside. 
+The embedded search; NULL in cell mode ([**async\_dsss\_receiver\_create\_cell()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create_cell)), where the seed comes from outside. 
 
 
         

@@ -1,7 +1,7 @@
 /**
  * @file async_dsss_pool_core.h
  * @brief AsyncDsssPool -- one object holds the population: a searcher, a
- *        pool of hand-off receivers, the assigned table and the event log
+ *        pool of cell receivers, the assigned table and the event log
  *        (docs/design/async-dsss-receiver.md section 8.2).
  *
  * The multi-emitter use case (design section 6) has one channel searching
@@ -249,8 +249,9 @@ extern "C"
  * inside the carrier loop's reliable pull-in -- `doppler_res_hz` at most
  * four times ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (391 Hz at 5 Mcps over
  * Gold-1023, so D >= 13; the operating point's D = 154 gives 31.7 Hz). A
- * hand-off receiver's refine pulls a seed in from half a 4.9 kHz row; a
- * cell receiver has only loop 1, and past twice its bound it never locks.
+ * The retired hand-off flavour's refine pulled a seed in from half a
+ * 4.9 kHz row; a cell receiver has only loop 1, and past twice its bound
+ * it never locks.
  *
  * @param code  Spreading code, one 0/1 chip per element.
  * @param code_len  Chips in `code`.

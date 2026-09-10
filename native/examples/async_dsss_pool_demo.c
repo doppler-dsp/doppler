@@ -3,7 +3,7 @@
  *
  * `AsyncDsssPool` holds the population of the continuous async-DSSS use
  * case (docs/design/async-dsss-receiver.md §8.2): one searcher, `n_slots`
- * hand-off receivers created idle, the assigned table and the event log,
+ * cell receivers created idle, the assigned table and the event log,
  * behind a single `push()`. The Python twin
  * (`src/doppler/examples/async_dsss_pool_demo.py`) shows the same
  * lifecycle with a figure; this one shows what the binding does FOR you

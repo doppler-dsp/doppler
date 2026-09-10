@@ -438,42 +438,6 @@ name = "code_locked"
 type = "int"
 doc = "Binary code-lock flag from the live tracking Dll's own verify-counted (pfa-tuned) lock detector -- the fundamental DSSS \"am I despreading\" lock, de-chattered by up/down hysteresis."
 
-# ── Hand-off mode: the same receiver with no search of its own ─────────────
-#
-# The pool shape of docs/design/async-dsss-receiver.md section 11.1: one
-# searcher finds every emitter on the channel; one of these per emitter takes
-# the searcher's detection through seed() and tracks it until its own release
-# rule says gone. A difference in CONSTRUCTOR is a view (the ddc/MatchedDDC
-# shape): no embedded Acquisition (so no doppler_uncertainty and no
-# configure_search_raw), starts idle, reset() returns to idle; the chain past
-# the seed and every other method and property are the parent's verbatim.
-[[async_dsss_receiver.views]]
-class_name = "HandoffAsyncDsssReceiver"
-create_fn = "async_dsss_receiver_create_handoff"
-exclude_methods = ["configure_search_raw"]
-init_params = [
-    { name = "code", type = "uint8_t[]" },
-    { name = "chip_rate", type = "double", default = "1000000.0" },
-    { name = "symbol_rate", type = "double", default = "1000.0" },
-    { name = "spc", type = "size_t", default = "2" },
-    { name = "m", type = "int", default = "2" },
-    { name = "cn0_dbhz", type = "double", default = "55.0" },
-    { name = "pfa", type = "double", default = "1e-3" },
-    { name = "pd", type = "double", default = "0.9" },
-    { name = "segments", type = "size_t", default = "4" },
-    { name = "sps", type = "size_t", default = "8" },
-    { name = "differential", type = "int", default = "0" },
-    { name = "refine_max_error_db", type = "double", default = "0.5" },
-    { name = "refine_samples_per_symbol", type = "size_t", default = "4" },
-    { name = "refine_design_margin_db", type = "double", default = "14.0" },
-    { name = "refine_n_fft", type = "size_t", default = "64" },
-    { name = "refine_zero_pad", type = "size_t", default = "8" },
-    { name = "refine_sequential", type = "bool", default = "false" },
-    { name = "refine_max_n_blocks", type = "size_t", default = "100000" },
-    { name = "carrier_freq_hz", type = "double", default = "0.0" },
-    { name = "lost_confirm_s", type = "double", default = "2.0" },
-]
-
 # ── The cell mode: the receiver a searcher's cell drives ────────────────────
 #
 # Design section 12.22-12.24 as a mode of this receiver (#1283): no refine,

@@ -81,14 +81,12 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of hand-of
 
 | Type | Name |
 | ---: | :--- |
-|  [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* | [**async\_dsss\_pool\_create**](#function-async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t code\_only\_epochs, double doppler\_rate, size\_t max\_peaks, size\_t n\_slots, int threads, double carrier\_freq\_hz, double lost\_confirm\_s, double max\_emitter\_on\_time\_secs, size\_t segments, size\_t sps, int differential, double refine\_max\_error\_db, size\_t refine\_samples\_per\_symbol, double refine\_design\_margin\_db, size\_t refine\_n\_fft, size\_t refine\_zero\_pad, bool refine\_sequential, size\_t refine\_max\_n\_blocks) <br>_Create a async\_dsss\_pool instance._  |
-|  [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* | [**async\_dsss\_pool\_create\_cell**](#function-async_dsss_pool_create_cell) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t code\_only\_epochs, double doppler\_rate, size\_t max\_peaks, size\_t n\_slots, int threads, double carrier\_freq\_hz, double lost\_confirm\_s, double max\_emitter\_on\_time\_secs, size\_t segments, size\_t sps, int differential, double gain, size\_t pullin\_intervals) <br>_Create the pool on cell receivers: the searcher's timing drives every slot (design section 12.22-12.26, #1283)._  |
+|  [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* | [**async\_dsss\_pool\_create**](#function-async_dsss_pool_create) (const uint8\_t \* code, size\_t code\_len, double chip\_rate, double symbol\_rate, size\_t spc, int m, double cn0\_dbhz, double pfa, double pd, double doppler\_uncertainty, size\_t code\_only\_epochs, double doppler\_rate, size\_t max\_peaks, size\_t n\_slots, int threads, double carrier\_freq\_hz, double lost\_confirm\_s, double max\_emitter\_on\_time\_secs, size\_t segments, size\_t sps, int differential, double gain, size\_t pullin\_intervals) <br>_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (design section 12.22-12.28, #1283)._  |
 |  void | [**async\_dsss\_pool\_destroy**](#function-async_dsss_pool_destroy) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state) <br>_Destroy a async\_dsss\_pool instance and release all memory._  |
 |  void | [**async\_dsss\_pool\_get\_state**](#function-async_dsss_pool_get_state) (const [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**async\_dsss\_pool\_push**](#function-async_dsss_pool_push) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len) <br>_One block of raw cf32 samples through the population._  |
 |  void | [**async\_dsss\_pool\_reset**](#function-async_dsss_pool_reset) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state) <br>_Release every slot and start over: the searcher reset, every receiver back to idle, the table cleared, the counters zeroed._  |
 |  int | [**async\_dsss\_pool\_set\_event\_log**](#function-async_dsss_pool_set_event_log) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, [**dp\_event\_log\_t**](dp__event__log__core_8h.md#typedef-dp_event_log_t) \* log) <br>_Attach the run's event log (design section 8.1); NULL detaches._  |
-|  int | [**async\_dsss\_pool\_set\_refine\_min\_blocks**](#function-async_dsss_pool_set_refine_min_blocks) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, size\_t n\_blocks) <br>_Floor every receiver's refine dwell at_ `n_blocks` _(_[_**async\_dsss\_receiver\_set\_refine\_min\_blocks()**_](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_set_refine_min_blocks) _; design section 12.16, #1265)._ |
 |  int | [**async\_dsss\_pool\_set\_state**](#function-async_dsss_pool_set_state) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, const void \* blob) <br> |
 |  size\_t | [**async\_dsss\_pool\_state\_bytes**](#function-async_dsss_pool_state_bytes) (const [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state) <br> |
 |  [**async\_dsss\_pool\_slot\_t**](structasync__dsss__pool__slot__t.md) | [**async\_dsss\_pool\_status**](#function-async_dsss_pool_status) ([**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md) \* state, size\_t slot) <br>_One slot's picture, by value (_ [_**async\_dsss\_pool\_slot\_t**_](structasync__dsss__pool__slot__t.md) _)._ |
@@ -127,7 +125,7 @@ _AsyncDsssPool_  _one object holds the population: a searcher, a pool of hand-of
 | ---: | :--- |
 | define  | [**ASYNC\_DSSS\_POOL\_MAX\_EMITTER\_ON\_TIME\_SECS**](async__dsss__pool__core_8h.md#define-async_dsss_pool_max_emitter_on_time_secs)  `(15.0 \* 60.0)`<br> |
 | define  | [**ASYNC\_DSSS\_POOL\_STATE\_MAGIC**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'P', 'L')`<br> |
-| define  | [**ASYNC\_DSSS\_POOL\_STATE\_VERSION**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_version)  `2u /\* v2: the flavour; v1: no flavour \*/`<br> |
+| define  | [**ASYNC\_DSSS\_POOL\_STATE\_VERSION**](async__dsss__pool__core_8h.md#define-async_dsss_pool_state_version)  `3u /\* v3: cell receivers only; v2: the flavour \*/`<br> |
 
 ## Detailed Description
 
@@ -137,7 +135,7 @@ The multi-emitter use case (design section 6) has one channel searching without 
 
 
 * **one searcher**, `Acquisition` in continuous mode with the block coherence its code-only window buys (section 2.3) and a peak list (section 7.1), its tiles fanned across the threads the pool is given;
-* \*\*`n_slots` hand-off receivers\*\*, created idle. An idle or lost receiver consumes and discards what it is fed, so every receiver is fed every block and the feed has no per-state branch; they run across the same threads (`dp_parallel.h`);
+* \*\*`n_slots` cell receivers\*\*, created idle. An idle or lost receiver consumes and discards what it is fed, so every receiver is fed every block and the feed has no per-state branch; they run across the same threads (`dp_parallel.h`);
 * **the assigned table**, one row per slot: the seed's coordinates, and the row's CURRENT Doppler and chip phase  the live loop's once the receiver tracks, the seed's advanced by the clock dilation before  refreshed before every dwell is read, because an emitter drifts between windows and the seed is the wrong key (section 9);
 * **the event log**, borrowed by attachment (the telemetry shape): the pool is the one component that stamps.
 
@@ -184,121 +182,9 @@ Lifecycle: create, then push / status / symbols / reset as often as wanted, then
 
 ### function async\_dsss\_pool\_create 
 
-_Create a async\_dsss\_pool instance._ 
+_Create a async\_dsss\_pool instance: the population on cell receivers, the searcher's timing driving every slot (design section 12.22-12.28, #1283)._ 
 ```C++
 async_dsss_pool_state_t * async_dsss_pool_create (
-    const uint8_t * code,
-    size_t code_len,
-    double chip_rate,
-    double symbol_rate,
-    size_t spc,
-    int m,
-    double cn0_dbhz,
-    double pfa,
-    double pd,
-    double doppler_uncertainty,
-    size_t code_only_epochs,
-    double doppler_rate,
-    size_t max_peaks,
-    size_t n_slots,
-    int threads,
-    double carrier_freq_hz,
-    double lost_confirm_s,
-    double max_emitter_on_time_secs,
-    size_t segments,
-    size_t sps,
-    int differential,
-    double refine_max_error_db,
-    size_t refine_samples_per_symbol,
-    double refine_design_margin_db,
-    size_t refine_n_fft,
-    size_t refine_zero_pad,
-    bool refine_sequential,
-    size_t refine_max_n_blocks
-) 
-```
-
-
-
-Everything is sized once, here: the searcher with its list and its threads, `n_slots` idle receivers, the table. NULL for a NULL or empty code, a non-positive rate, `spc` or `n_slots` of 0, `max_peaks` outside the searcher's own range, a negative `lost_confirm_s` or `max_emitter_on_time_secs`, or a child that fails to open.
-
-
-
-
-**Parameters:**
-
-
-* `code` Spreading code, one 0/1 chip per element. 
-* `code_len` Chips in `code`. 
-* `chip_rate` Chip rate, Hz (default: 1000000.0). 
-* `symbol_rate` Data-symbol rate, Hz (default: 1000.0). 
-* `spc` Samples per chip (default: 2). 
-* `m` PSK order of the receivers (default: 2). 
-* `cn0_dbhz` Design C/N0 for the searcher's sizing and the receivers' (default: 55.0). 
-* `pfa` False-alarm target, the searcher's and the refine's (default: 1e-3). 
-* `pd` Detection-probability target (default: 0.9). 
-* `doppler_uncertainty` The searcher's one-sided span, Hz (default: 100.0). 
-* `code_only_epochs` Whole code-only epochs the waveform's window holds at any chip phase  the block depth of section 2.3; 1 = no window (default: 1). 
-* `doppler_rate` Doppler rate the depth is bounded against, Hz/s; 0 leaves the window as the only bound (default: 0.0). 
-* `max_peaks` The searcher's list capacity per dwell (default: 16). 
-* `n_slots` Receivers held (default: 12). 
-* `threads` Threads the receivers and the searcher's fan run across; &lt;= 0 picks the online core count, 1 is serial (default: 1). 
-* `carrier_freq_hz` RF carrier the Doppler is physically coupled to, Hz, told to the searcher and every receiver; 0.0 = uncoupled (default: 0.0). 
-* `lost_confirm_s` The release rule's interval, seconds (section 10) (default: 2.0). 
-* `max_emitter_on_time_secs` Maximum on-air time of one emitter, seconds: a slot held longer is released (`reason` on\_time); 0 = never (default: 900.0, ASYNC\_DSSS\_POOL\_MAX\_EMITTER\_ON\_ TIME\_SECS). 
-* `segments` The receivers' live Dll segments (default: 4). 
-* `sps` The receivers' samples per symbol (default: 8). 
-* `differential` The receivers' differential demap (default: 0). 
-* `refine_max_error_db` As [**async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create) (default: 0.5). 
-* `refine_samples_per_symbol` As [**async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create) (default: 4). 
-* `refine_design_margin_db` As [**async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create) (default: 14.0). 
-* `refine_n_fft` As [**async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create) (default: 64). 
-* `refine_zero_pad` As [**async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create) (default: 8). 
-* `refine_sequential` As [**async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create) (default: false). 
-* `refine_max_n_blocks` As [**async\_dsss\_receiver\_create()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create) (default: 100000). 
-
-
-
-**Returns:**
-
-Heap-allocated state, or NULL on allocation failure. 
-
-
-
-
-**Note:**
-
-Caller must call [**async\_dsss\_pool\_destroy()**](async__dsss__pool__core_8h.md#function-async_dsss_pool_destroy) when done. 
-```C++
->>> import numpy as np
->>> from doppler.dsss import AsyncDsssPool
->>> from doppler.wfm import Gold
->>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
->>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
-...                      spc=2, cn0_dbhz=45.0, doppler_uncertainty=5e3,
-...                      n_slots=4, lost_confirm_s=0.5)
->>> (pool.n_slots, pool.n_assigned, pool.coherent_bins)
-(4, 0, 1)
->>> round(pool.doppler_res_hz)          # one Doppler row of the searcher
-4888
-```
- 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function async\_dsss\_pool\_create\_cell 
-
-_Create the pool on cell receivers: the searcher's timing drives every slot (design section 12.22-12.26, #1283)._ 
-```C++
-async_dsss_pool_state_t * async_dsss_pool_create_cell (
     const uint8_t * code,
     size_t code_len,
     double chip_rate,
@@ -327,7 +213,7 @@ async_dsss_pool_state_t * async_dsss_pool_create_cell (
 
 
 
-The same lifecycle over `n_slots` CellAsyncDsssReceivers ([**async\_dsss\_receiver\_create\_cell()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create_cell)) instead of hand-off ones: a seed builds no refine stage, the receiver's Dll is held from the first sample and corrected once every `correct_periods` code periods  here the searcher's own block depth D (`coherent_bins`), the timing the design measured  by `gain` chips per chip of its interval-mean discriminator, gain 1 through `pullin_intervals`. push(), the table, the zone, the transitions and the releases are the hand-off pool's verbatim: the receivers report the same status record, and `refining` is the pull-in. There is no refine to floor, so set\_refine\_min\_blocks() is refused.
+The lifecycle of the file's doc over `n_slots` CellAsyncDsssReceivers ([**async\_dsss\_receiver\_create\_cell()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create_cell)): a seed builds no refine stage, the receiver's Dll is held from the first sample and corrected once every `correct_periods` code periods  here the searcher's own block depth D (`coherent_bins`), the timing the design measured  by `gain` chips per chip of its interval-mean discriminator, gain 1 through `pullin_intervals`. push(), the table, the zone, the transitions and the releases are section 8.2's: the receivers report the same status record, and `refining` is the pull-in. (The pool on hand-off receivers, with a refine chain per seed, was retired on 2026-09-10 once this one matched it on the soak, section 12.27-12.28.)
 
 
 Two things the searcher must give a cell receiver, checked here and refused with NULL: a block depth above 1 (`code_only_epochs` &gt; 1 with a window in the waveform  at D = 1 there is no searcher timing to drive), and a Doppler row narrow enough that a seed half a row off lands inside the carrier loop's reliable pull-in  `doppler_res_hz` at most four times ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ (391 Hz at 5 Mcps over Gold-1023, so D &gt;= 13; the operating point's D = 154 gives 31.7 Hz). A hand-off receiver's refine pulls a seed in from half a 4.9 kHz row; a cell receiver has only loop 1, and past twice its bound it never locks.
@@ -376,19 +262,17 @@ Heap-allocated state, or NULL on an invalid argument, a searcher whose depth or 
 Caller must call [**async\_dsss\_pool\_destroy()**](async__dsss__pool__core_8h.md#function-async_dsss_pool_destroy) when done. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import CellAsyncDsssPool
+>>> from doppler.dsss import AsyncDsssPool
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
->>> pool = CellAsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
-...                          spc=2, cn0_dbhz=45.0, doppler_uncertainty=5e3,
-...                          code_only_epochs=813, doppler_rate=500.0,
-...                          n_slots=4)
+>>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
+...                      spc=2, cn0_dbhz=45.0, doppler_uncertainty=5e3,
+...                      code_only_epochs=813, doppler_rate=500.0,
+...                      n_slots=4)
 >>> (pool.n_slots, pool.n_assigned, pool.coherent_bins)
 (4, 0, 154)
 >>> round(pool.doppler_res_hz, 1)       # the row a seed comes from
 31.7
->>> hasattr(pool, "set_refine_min_blocks")   # nothing to floor
-False
 ```
  
 
@@ -599,59 +483,6 @@ Borrowed, never owned: the holder opens, finalizes and closes it. From now on ev
 
 
 
-### function async\_dsss\_pool\_set\_refine\_min\_blocks 
-
-_Floor every receiver's refine dwell at_ `n_blocks` _(_[_**async\_dsss\_receiver\_set\_refine\_min\_blocks()**_](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_set_refine_min_blocks) _; design section 12.16, #1265)._
-```C++
-int async_dsss_pool_set_refine_min_blocks (
-    async_dsss_pool_state_t * state,
-    size_t n_blocks
-) 
-```
-
-
-
-Forwarded to all `n_slots` receivers; each applies it to the next refine chain it builds, so a slot already refining keeps its dwell. The receivers' default is 7 blocks. Config, not running state. A pool on cell receivers ([**async\_dsss\_pool\_create\_cell()**](async__dsss__pool__core_8h.md#function-async_dsss_pool_create_cell)) has no refine to floor and refuses.
-
-
-
-
-**Parameters:**
-
-
-* `state` Must be non-NULL. 
-* `n_blocks` The floor, blocks; 0 removes it. 
-
-
-
-**Returns:**
-
-`DP_OK`; `DP_ERR_INVALID` on a cell pool. 
-```C++
->>> import numpy as np
->>> from doppler.dsss import AsyncDsssPool
->>> from doppler.wfm import Gold
->>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
->>> pool = AsyncDsssPool(code, chip_rate=5e6, symbol_rate=2700.0,
-...                      spc=2, cn0_dbhz=45.0, n_slots=2)
->>> pool.refine_min_blocks
-7
->>> pool.set_refine_min_blocks(12)
->>> pool.refine_min_blocks
-12
-```
- 
-
-
-
-
-
-        
-
-<hr>
-
-
-
 ### function async\_dsss\_pool\_set\_state 
 
 ```C++
@@ -843,7 +674,7 @@ The one constant of design section 6.1: the maximum on-air time of a single emit
 ### define ASYNC\_DSSS\_POOL\_STATE\_VERSION 
 
 ```C++
-#define ASYNC_DSSS_POOL_STATE_VERSION `2u /* v2: the flavour; v1: no flavour */`
+#define ASYNC_DSSS_POOL_STATE_VERSION `3u /* v3: cell receivers only; v2: the flavour */`
 ```
 
 

@@ -47,12 +47,14 @@
 #include <unistd.h>
 #include <wfm_synth/wfm_synth_core.h>
 
-/* ── geometry: the operating point of design §6.1, at D = 1 ─────────────
- * 1023 chips at 5 Mcps, two samples per chip, 2700 sym/s asynchronous BPSK.
- * The searcher runs epoch by epoch (no code-only window in this stream, so
- * D = 1) over ±6 kHz: a Doppler row is one epoch rate, 4.89 kHz, and two
- * emitters two rows apart are two peaks. The release interval is short
- * so a departure is released inside a second of stream. */
+/* ── geometry: the operating point of design §6.1, at a demo's depth ─────
+ * 1023 chips at 5 Mcps, two samples per chip, 2700 sym/s asynchronous BPSK
+ * with a code-only window of 20 symbols every 270 (the operating point's
+ * is 450 of 4950). The searcher aligns blocks of D = 16 epochs inside it
+ * over ±6 kHz: a Doppler row is 305 Hz, inside the cell receivers' pull-in
+ * (the pool refuses a shallower searcher), and two emitters two rows
+ * apart are two peaks. The release interval is short so a departure is
+ * released inside a second of stream. */
 #define SF 1023u
 #define SPC 2u
 #define TE (SF * SPC)
@@ -63,6 +65,13 @@
 #define DU 6000.0
 #define LOST_S 0.3
 #define N_SLOTS 4u
+/* The code-only window the pool's searcher aligns its blocks inside: 20
+   symbols of every 270 (ten frames a second), which holds the 31 whole
+   epochs a depth of 16 needs at any chip phase -- 305 Hz rows, inside the
+   cell receivers' pull-in (async_dsss_pool_create()'s bound). */
+#define W_SYM 20u
+#define F_SYM 270u
+#define CODE_ONLY_EPOCHS 31u
 #define DOPPLER_A 1500.0
 #define DOPPLER_B (-3500.0)
 #define CHIP0_B 900.0 /* B's code phase at sample 0: its burn-in, chips */
@@ -89,9 +98,10 @@ emitter (const uint8_t *code, double doppler_hz, uint32_t seed)
       = wfm_synth_create (WFM_SYNTH_DSSS, FS, doppler_hz, WFM_SYNTH_SNR_CLEAN,
                           1, seed, (int)SPC, 15, 0, 0, 0.0);
   if (syn
-      && wfm_synth_set_dsss_cont (syn, code, SF, CHIP_RATE / SYM_RATE,
-                                  WFM_DSSS_DATA_PRBS, NULL, 0)
-             != 0)
+      && (wfm_synth_set_dsss_cont (syn, code, SF, CHIP_RATE / SYM_RATE,
+                                   WFM_DSSS_DATA_PRBS, NULL, 0)
+              != 0
+          || wfm_synth_set_dsss_window (syn, W_SYM, F_SYM) != 0))
     {
       wfm_synth_destroy (syn);
       syn = NULL;
@@ -159,9 +169,9 @@ main (void)
   /* The pool: the searcher's and the receivers' parameters pass through
      create() untouched; everything is sized here, once. */
   async_dsss_pool_state_t *pool = async_dsss_pool_create (
-      code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0_DBHZ, 1e-3, 0.9, DU, 1, 0.0,
-      4, N_SLOTS, 1, 0.0, LOST_S, 0.0, 4, 8, 0, 0.5, 4, 14.0, 64, 8, false,
-      100000);
+      code, SF, CHIP_RATE, SYM_RATE, SPC, 2, CN0_DBHZ, 1e-3, 0.9, DU,
+      CODE_ONLY_EPOCHS, 0.0, 4, N_SLOTS, 1, 0.0, LOST_S, 0.0, 4, 8, 0,
+      ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
   CHECK (pool != NULL, "the pool opens");
 
   /* §4's log, attached before the first push so nothing is missed. It is

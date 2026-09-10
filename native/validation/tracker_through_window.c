@@ -181,10 +181,13 @@ static size_t g_trace_every = 0; /* trace line cadence, blocks; 0 = none  */
 static async_dsss_receiver_state_t *
 make_rx (const uint8_t *code, double cn0_dbhz, int cond)
 {
-  return async_dsss_receiver_create_handoff (
-      code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 4, 8, 0, 0.5,
-      4, 14.0, 64, 8, false, 100000, cond != COND_STATIC ? CARRIER_HZ : 0.0,
-      LOST_CONFIRM_S);
+  /* The searching flavour, seeded from outside (the hand-off flavour that
+     carried this validator was retired, design section 12.28; seed() is a
+     method of both, and the refine chain under test is the same). */
+  return async_dsss_receiver_create (
+      code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0_dbhz, 1e-2, 0.9, 100.0, 4, 8,
+      0, 0.5, 4, 14.0, 64, 8, false, 100000,
+      cond != COND_STATIC ? CARRIER_HZ : 0.0, LOST_CONFIRM_S);
 }
 
 /* Is global sample `n` inside the code-only window, by the synth's clock? */

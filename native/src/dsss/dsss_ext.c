@@ -4,8 +4,8 @@
  * Objects: Despreader, BurstDespreader, Acquisition, BurstAcquisition,
  * PolynomialPhaseEstimator, BurstDemod, BurstCapture, DsssReceiver,
  * AsyncDsssReceiver, AsyncDsssPool, DsssBurstReceiver, PersistentBurstCapture,
- * HandoffAsyncDsssReceiver, CellAsyncDsssReceiver, CellAsyncDsssPool GENERATED
- * — do not hand-edit. Patches belong in the _ext_<obj>.c fragments.
+ * CellAsyncDsssReceiver GENERATED — do not hand-edit. Patches belong in the
+ * _ext_<obj>.c fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -23,12 +23,10 @@
 #include "dsss_ext_burst_capture.c"
 #include "dsss_ext_burst_demod.c"
 #include "dsss_ext_burst_despreader.c"
-#include "dsss_ext_cellasyncdssspool.c"
 #include "dsss_ext_cellasyncdsssreceiver.c"
 #include "dsss_ext_despreader.c"
 #include "dsss_ext_dsss_burst_receiver.c"
 #include "dsss_ext_dsss_receiver.c"
-#include "dsss_ext_handoffasyncdsssreceiver.c"
 #include "dsss_ext_persistentburstcapture.c"
 #include "dsss_ext_ppe.c"
 
@@ -161,20 +159,11 @@ PyInit_dsss (void)
     return NULL;
   if (PyType_Ready (&PersistentBurstCaptureObjType) < 0)
     return NULL;
-  if (PyType_Ready (&HandoffAsyncDsssReceiverObjType) < 0)
-    return NULL;
-  HandoffAsyncDsssReceiverObj_status_type
-      = AsyncDsssReceiverObj_status_type; /* ReceiverStatus: one public name,
-                                             one type */
   if (PyType_Ready (&CellAsyncDsssReceiverObjType) < 0)
     return NULL;
   CellAsyncDsssReceiverObj_status_type
       = AsyncDsssReceiverObj_status_type; /* ReceiverStatus: one public name,
                                              one type */
-  if (PyType_Ready (&CellAsyncDsssPoolObjType) < 0)
-    return NULL;
-  CellAsyncDsssPoolObj_status_type
-      = AsyncDsssPoolObj_status_type; /* PoolSlot: one public name, one type */
   PyObject *m = PyModule_Create (&dsss_moduledef);
   if (!m)
     return NULL;
@@ -304,30 +293,12 @@ PyInit_dsss (void)
       Py_DECREF (m);
       return NULL;
     }
-  Py_INCREF (&HandoffAsyncDsssReceiverObjType);
-  if (PyModule_AddObject (m, "HandoffAsyncDsssReceiver",
-                          (PyObject *)&HandoffAsyncDsssReceiverObjType)
-      < 0)
-    {
-      Py_DECREF (&HandoffAsyncDsssReceiverObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
   Py_INCREF (&CellAsyncDsssReceiverObjType);
   if (PyModule_AddObject (m, "CellAsyncDsssReceiver",
                           (PyObject *)&CellAsyncDsssReceiverObjType)
       < 0)
     {
       Py_DECREF (&CellAsyncDsssReceiverObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&CellAsyncDsssPoolObjType);
-  if (PyModule_AddObject (m, "CellAsyncDsssPool",
-                          (PyObject *)&CellAsyncDsssPoolObjType)
-      < 0)
-    {
-      Py_DECREF (&CellAsyncDsssPoolObjType);
       Py_DECREF (m);
       return NULL;
     }

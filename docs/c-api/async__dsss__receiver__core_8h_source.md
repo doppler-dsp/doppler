@@ -267,16 +267,6 @@ extern "C"
       size_t refine_max_n_blocks, double carrier_freq_hz,
       double lost_confirm_s);
 
-  async_dsss_receiver_state_t *async_dsss_receiver_create_handoff (
-      const uint8_t *code, size_t code_len, double chip_rate,
-      double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
-      double pd, size_t segments, size_t sps, int differential,
-      double refine_max_error_db, size_t refine_samples_per_symbol,
-      double refine_design_margin_db, size_t refine_n_fft,
-      size_t refine_zero_pad, bool refine_sequential,
-      size_t refine_max_n_blocks, double carrier_freq_hz,
-      double lost_confirm_s);
-
   async_dsss_receiver_state_t *async_dsss_receiver_create_cell (
       const uint8_t *code, size_t code_len, double chip_rate,
       double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
@@ -385,12 +375,12 @@ extern "C"
   typedef struct
   {
     uint8_t  state;
-    uint8_t  handoff; 
+    uint8_t  _pad0;   
     uint8_t  had_lock;     
     uint8_t  car_coasting; 
     uint8_t  cell;         
     uint8_t  cell_refined; 
-    uint8_t  _pad[2];
+    uint8_t  _pad[2]; /* the extra with _pad0: eight named bytes */
     double   seed_chip_phase;
     double   seed_doppler_hz_est;
     double   doppler_hz_est;
@@ -414,7 +404,7 @@ extern "C"
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 6u /* v6: the cell pull-in; v5: cell */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 7u /* v7: no hand-off flavor; v6: the cell pull-in */
 
   size_t async_dsss_receiver_state_bytes (
       const async_dsss_receiver_state_t *state);

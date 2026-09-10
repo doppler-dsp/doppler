@@ -748,7 +748,7 @@ adr_track_chain (async_dsss_receiver_state_t *s, const float _Complex *x,
   return emitted;
 }
 
-/* The one constructor behind both flavors. `with_search` decides whether
+/* The one constructor behind both flavors. `cell` decides whether
  * the embedded Acquisition exists (the searching flavor) or the receiver
  * waits idle for an outside seed (hand-off mode, section 11.1 of the
  * design page): the chains past the seed are identical, so everything
@@ -756,11 +756,10 @@ adr_track_chain (async_dsss_receiver_state_t *s, const float _Complex *x,
 static async_dsss_receiver_state_t *
 adr_new (const uint8_t *code, size_t code_len, double chip_rate,
          double symbol_rate, size_t spc, int m, double cn0_dbhz, double pfa,
-         double pd, bool with_search, double doppler_uncertainty,
-         size_t segments, size_t sps, int differential,
-         double refine_max_error_db, size_t refine_samples_per_symbol,
-         double refine_design_margin_db, size_t refine_n_fft,
-         size_t refine_zero_pad, bool refine_sequential,
+         double pd, double doppler_uncertainty, size_t segments, size_t sps,
+         int differential, double refine_max_error_db,
+         size_t refine_samples_per_symbol, double refine_design_margin_db,
+         size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
          size_t refine_max_n_blocks, double carrier_freq_hz,
          double lost_confirm_s, bool cell, size_t correct_periods, double gain,
          size_t pullin_intervals)
@@ -782,11 +781,11 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
   memcpy (obj->code, code, code_len);
   obj->code_len = code_len;
 
-  obj->acq = with_search ? dp_xnn (acq_create_continuous (
-                               obj->code, code_len, spc, chip_rate,
-                               symbol_rate, cn0_dbhz, doppler_uncertainty, pfa,
-                               pd, 0 /* noise_mode=mean */, 1, 0.0))
-                         : NULL;
+  obj->acq = !cell ? dp_xnn (acq_create_continuous (
+                         obj->code, code_len, spc, chip_rate, symbol_rate,
+                         cn0_dbhz, doppler_uncertainty, pfa, pd,
+                         0 /* noise_mode=mean */, 1, 0.0))
+                   : NULL;
   /* A physically-coupled carrier moves the code too: the searcher's
      hand-off advances its hit's phase by the drift over half its dwell
      (#1254), and a coherent block aligns its epochs (#1256). The same
@@ -802,7 +801,7 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
   obj->cn0_dbhz     = cn0_dbhz;
   obj->pfa          = pfa;
   obj->pd           = pd;
-  adr_enter (obj, with_search ? ASYNC_DSSS_RX_SEARCHING : ASYNC_DSSS_RX_IDLE);
+  adr_enter (obj, cell ? ASYNC_DSSS_RX_IDLE : ASYNC_DSSS_RX_SEARCHING);
 
   /* The release clock in input samples: the rule is a time, and the input
    * rate is the one clock every state of this object is fed at. */
@@ -874,7 +873,24 @@ adr_new (const uint8_t *code, size_t code_len, double chip_rate,
      despread stream at its own rate (adr_cell_refine); the hand-off
      flavor's is built with its refine chain per seed. */
   if (cell)
-    obj->ca = adr_new_carrier_acq (obj, (double)sps * symbol_rate);
+    {
+      obj->ca = adr_new_carrier_acq (obj, (double)sps * symbol_rate);
+      /* The live chain hands the estimator `sps` samples per symbol
+         where the refine chain hands it refine_samples_per_symbol; at the
+         refine's resolution a block then holds the same symbols in twice
+         the samples, and the estimate needs the dwell scaled by that
+         ratio to reach the refine's noise. Measured (validate_receiver
+         _pullin, design section 12.28): at 40 dB-Hz the refine's dwell
+         pulled in 7-9 draws of 10 from 100 Hz on, twice it 10 of 10 to
+         1000 Hz -- the hand-off's own curve -- for 40 ms more per seed
+         at 45 dB-Hz. */
+      const size_t ratio = sps > refine_samples_per_symbol
+                               ? sps / refine_samples_per_symbol
+                               : 1;
+      obj->ca->dwell_target *= ratio;
+      if (obj->ca->dwell_target > obj->ca->max_n_blocks)
+        obj->ca->dwell_target = obj->ca->max_n_blocks;
+    }
   return obj;
 }
 
@@ -889,24 +905,7 @@ async_dsss_receiver_create (
     double carrier_freq_hz, double lost_confirm_s)
 {
   return adr_new (code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz,
-                  pfa, pd, true, doppler_uncertainty, segments, sps,
-                  differential, refine_max_error_db, refine_samples_per_symbol,
-                  refine_design_margin_db, refine_n_fft, refine_zero_pad,
-                  refine_sequential, refine_max_n_blocks, carrier_freq_hz,
-                  lost_confirm_s, false, 1, 1.0, 0);
-}
-
-async_dsss_receiver_state_t *
-async_dsss_receiver_create_handoff (
-    const uint8_t *code, size_t code_len, double chip_rate, double symbol_rate,
-    size_t spc, int m, double cn0_dbhz, double pfa, double pd, size_t segments,
-    size_t sps, int differential, double refine_max_error_db,
-    size_t refine_samples_per_symbol, double refine_design_margin_db,
-    size_t refine_n_fft, size_t refine_zero_pad, bool refine_sequential,
-    size_t refine_max_n_blocks, double carrier_freq_hz, double lost_confirm_s)
-{
-  return adr_new (code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz,
-                  pfa, pd, false, 0.0, segments, sps, differential,
+                  pfa, pd, doppler_uncertainty, segments, sps, differential,
                   refine_max_error_db, refine_samples_per_symbol,
                   refine_design_margin_db, refine_n_fft, refine_zero_pad,
                   refine_sequential, refine_max_n_blocks, carrier_freq_hz,
@@ -926,9 +925,9 @@ async_dsss_receiver_create_cell (const uint8_t *code, size_t code_len,
   /* The refine parameters are the searching flavor's defaults: the cell
      mode builds no refine chain, so they size nothing. */
   return adr_new (code, code_len, chip_rate, symbol_rate, spc, m, cn0_dbhz,
-                  pfa, pd, false, 0.0, segments, sps, differential, 0.5, 4,
-                  14.0, 64, 8, false, 100000, carrier_freq_hz, lost_confirm_s,
-                  true, correct_periods, gain, pullin_intervals);
+                  pfa, pd, 0.0, segments, sps, differential, 0.5, 4, 14.0, 64,
+                  8, false, 100000, carrier_freq_hz, lost_confirm_s, true,
+                  correct_periods, gain, pullin_intervals);
 }
 
 void
@@ -1448,7 +1447,6 @@ async_dsss_receiver_get_state (const async_dsss_receiver_state_t *s,
                async_dsss_receiver_state_bytes (s));
   async_dsss_receiver_extra_t extra = {
     .state               = (uint8_t)s->state,
-    .handoff             = (uint8_t)(s->acq == NULL),
     .seed_chip_phase     = s->seed_chip_phase,
     .seed_doppler_hz_est = s->seed_doppler_hz_est,
     .doppler_hz_est      = s->doppler_hz_est,
@@ -1505,7 +1503,6 @@ async_dsss_receiver_set_state (async_dsss_receiver_state_t *s,
       || extra.n != (uint64_t)s->n
       || extra.refine_segments != (uint64_t)s->refine_segments
       || extra.car_carry_len > (uint64_t)s->tsamps
-      || extra.handoff != (uint8_t)(s->acq == NULL)
       || extra.cell != (uint8_t)(s->cell != 0)
       || extra.state > ASYNC_DSSS_RX_LOST)
     return DP_ERR_INVALID;

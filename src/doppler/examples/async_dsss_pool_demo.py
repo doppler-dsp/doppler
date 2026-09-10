@@ -38,7 +38,7 @@ import numpy as np
 
 from doppler.dsss import AsyncDsssPool
 from doppler.telemetry import EventLog
-from doppler.wfm import Gold, Synth, wfm_awgn_amplitude
+from doppler.wfm import Gold, Synth, _SynthEngine, wfm_awgn_amplitude
 
 SF = 1023
 CHIP_RATE = 5.0e6
@@ -47,7 +47,13 @@ FS = CHIP_RATE * SPC
 SYM_RATE = 2700.0
 TE = SF * SPC  # one code epoch, the push block
 CN0_DBHZ = 47.0
-DU = 6000.0  # the searcher's span: +-6 kHz, D = 1 rows of 4.9 kHz
+DU = 6000.0  # the searcher's span: +-6 kHz
+# The code-only window the searcher aligns its blocks inside: 20 symbols of
+# every 270 (ten frames a second; the operating point's is 450 of 4950),
+# holding the 31 whole epochs a depth of 16 needs at any chip phase -- rows
+# of 305 Hz, inside the cell receivers' pull-in (the pool refuses a
+# shallower searcher).
+W_SYM, F_SYM, CODE_ONLY_EPOCHS = 20, 270, 31
 LOST_S = 0.3  # the release interval, short enough to see
 N_SLOTS = 4
 EMITTERS = {  # name: (Doppler Hz, code phase at sample 0 in chips, seed)
@@ -60,21 +66,23 @@ CODE = np.asarray(Gold().generate(SF)).astype(np.uint8)
 
 
 # --8<-- [start:stimulus]
-def emitter(doppler_hz: float, chip0: int, seed: int) -> Synth:
+def emitter(doppler_hz: float, chip0: int, seed: int) -> _SynthEngine:
     """One emitter: the shipped continuous DSSS at a carrier offset, clean,
-    its code `chip0` chips in at the stream's first sample (a burn-in the
-    caller discards) -- two emitters must differ in code phase as well as
-    Doppler, since one phase is one peak to the searcher."""
-    syn = Synth(
+    with the waveform's code-only window, its code `chip0` chips in at the
+    stream's first sample (a burn-in the caller discards) -- two emitters
+    must differ in code phase as well as Doppler, since one phase is one
+    peak to the searcher. The engine rather than ``Synth``: the window is
+    the engine's alone (#1294)."""
+    syn = _SynthEngine(
         type="dsss",
-        data_code=bytes(CODE.tolist()),
-        symbol_rate=SYM_RATE,
-        sps=SPC,
-        snr=100.0,  # clean: the noise is added once, at the sum
         fs=FS,
         freq=doppler_hz,
+        snr=100.0,  # clean: the noise is added once, at the sum
+        sps=SPC,
         seed=seed,
     )
+    syn.set_dsss_cont(CODE, CHIP_RATE / SYM_RATE, data="prbs")
+    syn.set_dsss_window(W_SYM, F_SYM)
     if chip0:
         syn.steps(chip0 * SPC)
     return syn
@@ -129,6 +137,7 @@ def run(x: np.ndarray, events_path: str):
         cn0_dbhz=CN0_DBHZ,
         pfa=1e-3,
         doppler_uncertainty=DU,
+        code_only_epochs=CODE_ONLY_EPOCHS,
         n_slots=N_SLOTS,
         lost_confirm_s=LOST_S,
         threads=1,

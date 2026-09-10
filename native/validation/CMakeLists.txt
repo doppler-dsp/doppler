@@ -37,6 +37,19 @@ target_compile_options(validate_costas_pullin PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_costas_pullin
          COMMAND validate_costas_pullin --check)
 
+# The receiver's pull-in from a seed off in carrier, as a curve: the cell
+# flavour's estimate on its live chain beside the hand-off's refine (design
+# section 12.28). The check gates 45 dB-Hz to 800 Hz; the sweep reports 40.
+add_executable(validate_receiver_pullin
+               ${CMAKE_CURRENT_SOURCE_DIR}/receiver_pullin.c)
+target_include_directories(validate_receiver_pullin
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_receiver_pullin PRIVATE doppler_lib_static m)
+target_compile_options(validate_receiver_pullin PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_receiver_pullin
+         COMMAND validate_receiver_pullin --check)
+
 add_executable(validate_dll_jitter
                ${CMAKE_CURRENT_SOURCE_DIR}/dll_jitter.c)
 target_include_directories(validate_dll_jitter
@@ -502,13 +515,6 @@ add_test(NAME validate_async_dsss_pool_soak
 # a loaded runner cannot fail it; the twin costs 5 s over the check alone.
 add_test(NAME validate_async_dsss_pool_soak_budget
          COMMAND validate_async_dsss_pool_soak --check --budget --emit)
-# The same two on the pool's cell flavour (CellAsyncDsssPool, design
-# section 12.27): identical stimulus and gates, the receivers' flavour the
-# only difference -- parity is what the pair asserts.
-add_test(NAME validate_async_dsss_pool_soak_cell
-         COMMAND validate_async_dsss_pool_soak --check --cell)
-add_test(NAME validate_async_dsss_pool_soak_cell_budget
-         COMMAND validate_async_dsss_pool_soak --check --budget --emit --cell)
 
 # So `sweep` is what a sanitizer suite excludes (`ctest -LE sweep`). The spot
 # check still runs on every PR in the ordinary C suite, which is where it is

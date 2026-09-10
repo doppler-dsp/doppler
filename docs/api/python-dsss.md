@@ -327,29 +327,12 @@ for an end-to-end decode through physically-coupled Doppler.
 
 ::: doppler.dsss.AsyncDsssReceiver
 
-## `HandoffAsyncDsssReceiver` — the same receiver, seeded from outside
-
-The pool shape of the
-[continuous multi-emitter design](../design/async-dsss-receiver.md) (§11):
-one searcher finds every emitter on a channel, and one of these per emitter
-tracks it. It is `AsyncDsssReceiver` with no search of its own — a view over
-the same core — so it starts `idle`, takes the searcher's detection through
-`seed(chip_phase, doppler_hz_est, cn0_dbhz_est)` (assigned once: a second
-seed is refused until `reset()`, which returns to idle), and runs the same
-refine → track chain. Its release rule is the design's §11.2: both lock flags
-down, continuously, for longer than `lost_confirm_s` sets `lost`, stops the
-loops, and leaves the holder to `reset()` it for its next seed. `seed()`,
-`idle` and `lost` exist on `AsyncDsssReceiver` too (an outside hit beats its
-own search); only the constructor differs.
-
-::: doppler.dsss.HandoffAsyncDsssReceiver
-
 ## `CellAsyncDsssReceiver` — the receiver a searcher's cell drives
 
 The searcher-timed tracker of the
 [continuous multi-emitter design](../design/async-dsss-receiver.md)
 (§12.22–12.24) as a third constructor over the same core, by turning stages
-off. Seeded like the hand-off flavor, it builds no refine stage; the `Dll` is
+off. Seeded from outside through `seed()`, it builds no refine stage; the `Dll` is
 held from the first sample and never closes its own loop. Once every
 `correct_periods` code periods the held code phase — kept in double,
 dead-reckoned across the interval on the carrier loop's Doppler — is moved by
@@ -358,7 +341,7 @@ the `Dll` is steered to it by rate over the next interval, never by a phase
 kick. Gain 1 through `pullin_intervals` pulls the seed's residual in
 (`refining` is the pull-in), the design gain 1/8 holds after; with the code
 flag down the phase only dead-reckons. The pre-despread carrier loop runs as
-the hand-off flavor's — it is what follows a 500 Hz/s ramp — and so do the
+the searching flavor's — it is what follows a 500 Hz/s ramp — and so do the
 symbol path, the symbol lock, the release rule, `status()` and `reset()` to
 idle.
 
@@ -375,7 +358,7 @@ carries no timestamp: the holder owns the sample clock and stamps it (design
 The holder of the
 [continuous multi-emitter design](../design/async-dsss-receiver.md) (§8.2):
 one searcher (`Acquisition` in continuous mode with the block coherence of
-§2.3 and a peak list), `n_slots` `HandoffAsyncDsssReceiver`s created idle,
+§2.3 and a peak list), `n_slots` `CellAsyncDsssReceiver`s created idle,
 the assigned table, and the run's `EventLog` attached through
 `set_event_log()`. One `push()` per block feeds the searcher, drops every
 peak inside one exclusion zone of a live row as that emitter's own, seeds
@@ -386,24 +369,17 @@ transition — seeded, tracking, degrade, lost, released, dropped — is an
 event at the sample it happened. Per slot and by index: `status(slot)`
 by value and `symbols(slot)`, the last push's symbols. Nothing about the
 waveform or the population is baked in; every number is a constructor
-parameter whose default is the operating point of §6.1.
+parameter whose default is the operating point of §6.1. The receivers'
+correction runs on the searcher's own block timing at `gain` after
+`pullin_intervals`, so the constructor refuses a searcher a cell receiver
+cannot take: a depth of 1, or a Doppler row past four times the carrier
+loop's pull-in bound (`D ≥ 13` at 5 Mcps over Gold-1023; design §8.2). The
+pool on hand-off receivers, with a refine chain per seed, was retired on
+2026-09-10 once this one matched it (§12.27–12.28).
 
 ::: doppler.dsss.AsyncDsssPool
 
 ::: doppler.dsss.PoolSlot
-
-## `CellAsyncDsssPool` — the population on cell receivers
-
-The same pool over `CellAsyncDsssReceiver`s (design §8.2, §12.27): no
-refine, every slot's `Dll` held from the seed and corrected on the
-searcher's own block timing at `gain` after `pullin_intervals`. `push()`,
-`status()`, `symbols()`, the event log and the blob are `AsyncDsssPool`'s;
-the constructor takes no `refine_*` argument and there is no
-`set_refine_min_blocks()`. It refuses a searcher a cell receiver cannot
-take: a depth of 1, or a Doppler row past four times the carrier loop's
-pull-in bound (`D ≥ 13` at 5 Mcps over Gold-1023).
-
-::: doppler.dsss.CellAsyncDsssPool
 
 ## `bin_to_signed` — read an FFT grid the way numpy does
 

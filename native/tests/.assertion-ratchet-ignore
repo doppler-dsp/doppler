@@ -60,3 +60,16 @@ test_wfm_core.c -> test_ccsds_core.c  -2: the ASM section (the marker is
   same base, and two of those are new: the alias may not diverge from the
   `ccsds_tm_asm_bits` it delegates to, which is the failure the move itself
   could have introduced.
+
+test_async_dsss_pool_core.c  -30: the hand-off pool was retired for the
+  pool on cell receivers (doppler#1283, design section 12.28). What went:
+  `_test_table_holds_the_locked_doppler`, doppler#1261's reproduction -- a
+  hand-over past loop 1's pull-in at pfa 1e-2 on a D = 1 searcher, the
+  refine's own failure mode, which a cell receiver's pull-in estimate does
+  not have and a searcher the pool now accepts (D >= 13) cannot produce;
+  and the cell flavour's three tests, folded into the one flavour's (the
+  lifecycle, the cross-thread records, the round trip's refused blob and
+  untouched table, the held phase within a tenth of a chip). The refine
+  floor's forwarding went with the method. Nothing the object still does
+  stopped being measured; the table's locked-only rule is asserted on the
+  lifecycle's positive half and by the soak's double-assignment gate.

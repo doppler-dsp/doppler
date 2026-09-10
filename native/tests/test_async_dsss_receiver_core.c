@@ -139,10 +139,10 @@ _test_arg_validation (void)
                                         0.9, 100.0, 4, 8, 0, 0.5, 4, 14.0, 64,
                                         8, false, 100000, 0.0, -1.0)
             == NULL); /* lost_confirm_s < 0 */
-  DP_CHECK (async_dsss_receiver_create_handoff (
-                CODE7, 7, 1e6, 1e3, 2, 2, 55.0, 1e-3, 0.9, 4, 8, 0, 0.5, 4,
-                14.0, 64, 8, false, 100000, 0.0, NAN)
-            == NULL); /* lost_confirm_s NaN, hand-off flavor */
+  DP_CHECK (async_dsss_receiver_create_cell (CODE7, 7, 1e6, 1e3, 2, 2, 55.0,
+                                             1e-3, 0.9, 4, 8, 0, 0.0, NAN, 100,
+                                             0.125, 4)
+            == NULL); /* lost_confirm_s NaN, cell flavor */
 
   async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
       CODE7, 7, 1.0e6, 35714.29, 4, 2, 70.0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5, 4,
@@ -749,14 +749,17 @@ _noise_tail (size_t n, double fs, double cn0_dbhz, uint32_t seed)
   return x;
 }
 
-/* The CODE7 fixture's hand-off receiver: every number the searching-flavor
- * tests use, minus the search half-range, plus the release interval. */
+/* The CODE7 fixture's seeded receiver: the cell mode with every number the
+ * searching-flavor tests use, minus the search half-range, plus the release
+ * interval -- the lifecycle tests below ran on the hand-off flavor until it
+ * was retired (design section 12.28), and the lifecycle past the seed is
+ * the same object's. */
 static async_dsss_receiver_state_t *
-_handoff_rx (double cn0, double lost_confirm_s)
+_seeded_rx (double cn0, double lost_confirm_s)
 {
-  return async_dsss_receiver_create_handoff (
-      CODE7, 7, 1.0e6, 35714.29, 4, 2, cn0, 1e-2, 0.9, 4, 8, 0, 0.5, 4, 14.0,
-      32, 8, false, 100000, 0.0, lost_confirm_s);
+  return async_dsss_receiver_create_cell (
+      CODE7, 7, 1.0e6, 35714.29, 4, 2, cn0, 1e-2, 0.9, 4, 8, 0, 0.0,
+      lost_confirm_s, 100, ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
 }
 
 /* Hand-off mode, section 11.1: no search of its own. Idle consumes and
@@ -782,7 +785,7 @@ _test_handoff_seed_and_decode (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
-  async_dsss_receiver_state_t *rx = _handoff_rx (cn0, 0.0);
+  async_dsss_receiver_state_t *rx = _seeded_rx (cn0, 0.0);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -979,7 +982,7 @@ _test_lost_after_switch_off (void)
   const int    expect[3]    = { 1, 0, 0 };
   for (int k = 0; k < 3; k++)
     {
-      async_dsss_receiver_state_t *rx = _handoff_rx (cn0, intervals[k]);
+      async_dsss_receiver_state_t *rx = _seeded_rx (cn0, intervals[k]);
       DP_CHECK (rx != NULL);
       if (!rx)
         continue;
@@ -1023,7 +1026,7 @@ _test_lost_after_switch_off (void)
           size_t cb   = async_dsss_receiver_state_bytes (rx);
           void  *blob = malloc (cb);
           async_dsss_receiver_get_state (rx, blob);
-          async_dsss_receiver_state_t *rx2 = _handoff_rx (cn0, intervals[k]);
+          async_dsss_receiver_state_t *rx2 = _seeded_rx (cn0, intervals[k]);
           DP_CHECK (rx2 != NULL);
           if (rx2)
             {
@@ -1076,7 +1079,7 @@ _test_one_flag_down_is_a_degrade (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
-  async_dsss_receiver_state_t *rx = _handoff_rx (cn0, confirm_s);
+  async_dsss_receiver_state_t *rx = _seeded_rx (cn0, confirm_s);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -1140,9 +1143,9 @@ _test_refine_dwell_floor (void)
   uint32_t cst = 13;
   for (size_t i = 0; i < 1023; i++)
     code[i] = (uint8_t)(dp_bit (&cst) > 0 ? 0u : 1u);
-  async_dsss_receiver_state_t *rx = async_dsss_receiver_create_handoff (
-      code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 4, 8, 0, 0.5, 4, 14.0,
-      64, 8, false, 100000, 2.5e9, 2.0);
+  async_dsss_receiver_state_t *rx = async_dsss_receiver_create (
+      code, 1023, 5.0e6, 2700.0, 2, 2, 45.0, 1e-3, 0.9, 100.0, 4, 8, 0, 0.5, 4,
+      14.0, 64, 8, false, 100000, 2.5e9, 2.0);
   DP_REQUIRE (rx != NULL);
   DP_CHECK (rx->refine_min_blocks == ASYNC_DSSS_RX_REFINE_MIN_BLOCKS);
   DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, 45.0) == DP_OK);
@@ -1186,8 +1189,8 @@ _test_handoff_state_roundtrip (void)
 
   /* Idle round trip first: the cheapest blob, and the state the pool
    * checkpoints most. */
-  async_dsss_receiver_state_t *ra = _handoff_rx (cn0, 2.0);
-  async_dsss_receiver_state_t *rb = _handoff_rx (cn0, 2.0);
+  async_dsss_receiver_state_t *ra = _seeded_rx (cn0, 2.0);
+  async_dsss_receiver_state_t *rb = _seeded_rx (cn0, 2.0);
   DP_CHECK (ra != NULL && rb != NULL);
   if (!ra || !rb)
     {
@@ -1201,7 +1204,7 @@ _test_handoff_state_roundtrip (void)
     async_dsss_receiver_get_state (ra, blob);
     DP_CHECK (((async_dsss_receiver_extra_t *)((char *)blob
                                                + sizeof (dp_state_hdr_t)))
-                  ->handoff
+                  ->cell
               == 1);
     DP_CHECK (async_dsss_receiver_set_state (rb, blob) == DP_OK);
     DP_CHECK (async_dsss_receiver_get_idle (rb) == 1);
@@ -1290,7 +1293,7 @@ _test_status_record (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, pre_silence, 7,
                    &x, &n, &data);
 
-  async_dsss_receiver_state_t *rx = _handoff_rx (cn0, 0.02);
+  async_dsss_receiver_state_t *rx = _seeded_rx (cn0, 0.02);
   DP_CHECK (rx != NULL);
   if (!rx)
     {
@@ -1357,7 +1360,7 @@ _test_status_record (void)
   dp_dsss_capture (CODE7, sf, spc, fs, tsym, 0.0, cn0, n_sym, 0, 11, &x2, &n2,
                    &data2);
   {
-    async_dsss_receiver_state_t *rd = _handoff_rx (cn0, 0.0);
+    async_dsss_receiver_state_t *rd = _seeded_rx (cn0, 0.0);
     DP_CHECK (rd != NULL);
     if (rd)
       {
@@ -1988,7 +1991,7 @@ _test_cell_state_roundtrip (void)
   async_dsss_receiver_state_t *rb
       = _cell_rx (cn0, 2.0, carrier_hz, periods, 0.125, 4);
   DP_CHECK (ra && rb);
-  /* Idle: the mode in the blob; a hand-off blob is refused. */
+  /* Idle: the mode in the blob; a searching receiver's blob is refused. */
   {
     size_t cb   = async_dsss_receiver_state_bytes (ra);
     void  *blob = malloc (cb);
@@ -1996,12 +1999,14 @@ _test_cell_state_roundtrip (void)
     const async_dsss_receiver_extra_t *ex
         = (const async_dsss_receiver_extra_t *)((const char *)blob
                                                 + sizeof (dp_state_hdr_t));
-    DP_CHECK (ex->cell == 1 && ex->handoff == 1);
+    DP_CHECK (ex->cell == 1);
     DP_CHECK (async_dsss_receiver_set_state (rb, blob) == DP_OK);
     free (blob);
-    async_dsss_receiver_state_t *rh   = _handoff_rx (cn0, 2.0);
-    size_t                       ch_b = async_dsss_receiver_state_bytes (rh);
-    void                        *hb   = malloc (ch_b);
+    async_dsss_receiver_state_t *rh = async_dsss_receiver_create (
+        CODE7, 7, 1.0e6, 35714.29, 4, 2, cn0, 1e-2, 0.9, 500.0, 4, 8, 0, 0.5,
+        4, 14.0, 64, 8, false, 100000, carrier_hz, 2.0);
+    size_t ch_b = async_dsss_receiver_state_bytes (rh);
+    void  *hb   = malloc (ch_b);
     async_dsss_receiver_get_state (rh, hb);
     DP_CHECK (async_dsss_receiver_set_state (rb, hb) == DP_ERR_INVALID);
     free (hb);

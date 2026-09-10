@@ -50,6 +50,7 @@ _Composed receiver state._ [More...](#detailed-description)
 |  int | [**cell**](#variable-cell)  <br> |
 |  double | [**cell\_gain**](#variable-cell_gain)  <br> |
 |  double | [**cell\_rate\_bias**](#variable-cell_rate_bias)  <br> |
+|  int | [**cell\_refined**](#variable-cell_refined)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
@@ -374,6 +375,23 @@ double async_dsss_receiver_state_t::cell_rate_bias;
 
 Running: the rate bias steering the Dll onto the held phase over the next period (chips per chip), summed into its aid. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable cell\_refined 
+
+```C++
+int async_dsss_receiver_state_t::cell_refined;
+```
+
+
+
+Running: the seed's carrier residual has been estimated on the live chain and folded into loop 1 (adr\_cell\_refine). 
 
 
         

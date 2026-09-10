@@ -117,6 +117,7 @@
 * **add\_q15** ([**arith\_core.h**](arith__core_8h.md))
 * **add\_q8** ([**arith\_core.h**](arith__core_8h.md))
 * **async\_dsss\_pool\_create** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
+* **async\_dsss\_pool\_create\_cell** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **async\_dsss\_pool\_destroy** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **async\_dsss\_pool\_get\_state** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))
 * **async\_dsss\_pool\_push** ([**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md))

@@ -60,8 +60,17 @@ R = Report()
 
 @dataclass
 class Data:
+    """The soak's CSV blocks, per C/N0: the hand-off pool's, and the cell
+    pool's (`--cell`, design section 12.27) from a second run of the same
+    stimulus -- the flavour is the only difference, so the two are read
+    side by side and gated alike."""
+
     stints: dict[float, list[dict[str, float]]] = field(default_factory=dict)
     totals: dict[float, dict[str, float]] = field(default_factory=dict)
+    cell_stints: dict[float, list[dict[str, float]]] = field(
+        default_factory=dict
+    )
+    cell_totals: dict[float, dict[str, float]] = field(default_factory=dict)
 
 
 def _harness() -> Data:
@@ -77,20 +86,37 @@ def _harness() -> Data:
             f"run `make build` first. Every number in this report is the "
             f"C soak's."
         )
-    out = subprocess.run(
-        [str(HARNESS), "--check", "--emit"],
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout
     d = Data()
+    for cell in (False, True):
+        _parse(
+            subprocess.run(
+                [str(HARNESS), "--check", "--emit"]
+                + (["--cell"] if cell else []),
+                capture_output=True,
+                text=True,
+                check=False,
+            ).stdout,
+            d.cell_stints if cell else d.stints,
+            d.cell_totals if cell else d.totals,
+        )
+    if not d.totals or not d.cell_totals:
+        raise SystemExit("async_dsss_pool: the soak emitted no totals block")
+    return d
+
+
+def _parse(
+    out: str,
+    stints: dict[float, list[dict[str, float]]],
+    totals: dict[float, dict[str, float]],
+) -> None:
+    """One run's stdout into its `# stints` / `# totals` blocks."""
     name, cn0, header, rows = "", 0.0, [], []
 
     def flush() -> None:
         if name == "stints":
-            d.stints[cn0] = rows
+            stints[cn0] = rows
         elif name == "totals" and rows:
-            d.totals[cn0] = rows[0]
+            totals[cn0] = rows[0]
 
     for line in out.splitlines():
         line = line.strip()
@@ -109,9 +135,6 @@ def _harness() -> Data:
         else:
             rows.append(dict(zip(header, (float(v) for v in line.split(",")))))
     flush()
-    if not d.totals:
-        raise SystemExit("async_dsss_pool: the soak emitted no totals block")
-    return d
 
 
 def _write_csv(d: Data) -> None:
@@ -121,8 +144,15 @@ def _write_csv(d: Data) -> None:
             w = csv.DictWriter(fh, fieldnames=list(rows[0]))
             w.writeheader()
             w.writerows(rows)
+    for cn0, rows in d.cell_stints.items():
+        with (DATA / f"stints_{cn0:.0f}_cell.csv").open("w", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=list(rows[0]))
+            w.writeheader()
+            w.writerows(rows)
     with (DATA / "totals.csv").open("w", newline="") as fh:
-        rows = [d.totals[c] for c in sorted(d.totals, reverse=True)]
+        rows = [d.totals[c] for c in sorted(d.totals, reverse=True)] + [
+            d.cell_totals[c] for c in sorted(d.cell_totals, reverse=True)
+        ]
         w = csv.DictWriter(fh, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)
@@ -226,6 +256,26 @@ def section_object() -> None:
                 "nothing allocates per push once a block size has been seen",
                 "the soak's heap watch (§2.4)",
                 "pinned by the harness; see F5",
+            ],
+            [
+                "`CellAsyncDsssPool` is created only on a searcher a cell "
+                "receiver can take (D > 1, a row inside the carrier loop's "
+                "pull-in) and has no refine to floor",
+                "`_test_cell_pool_refusals`",
+                "pinned",
+            ],
+            [
+                "the cell pool assigns once, tracks with both flags on the "
+                "emitter's phase, releases and re-assigns; two threads give "
+                "one thread's records",
+                "`_test_cell_pool_lifecycle`",
+                "pinned",
+            ],
+            [
+                "the cell pool's blob resumes bit for bit and is keyed by "
+                "the flavour",
+                "`_test_cell_pool_state_roundtrip`",
+                "pinned",
             ],
         ],
     )
@@ -396,6 +446,62 @@ def characterise(d: Data) -> None:
     R.md()
 
 
+def _parity(d: Data) -> None:
+    """Section 2.5: the cell pool beside the hand-off pool on the same
+    stimulus -- the lifecycle counts and the cost, per C/N0."""
+    R.md("### 2.5 The cell flavour, beside the hand-off flavour")
+    R.md()
+    R.md(
+        "`CellAsyncDsssPool` (design section 12.27) runs the same soak on "
+        "cell receivers: no refine, every slot's `Dll` held from the seed "
+        "and corrected on the searcher's own block timing. The same "
+        "stimulus, the same gates; the receivers' flavour is the only "
+        "difference. `push()` seconds are the population's cost on the "
+        "run's threads."
+    )
+    R.md()
+    rows = []
+    for c in _cn0s(d):
+        for label, t in (
+            ("hand-off", d.totals[c]),
+            ("cell", d.cell_totals[c]),
+        ):
+            rows.append(
+                [
+                    f"{c:.0f}",
+                    label,
+                    f"{t['stints']:.0f}",
+                    f"{t['missed']:.0f}",
+                    f"{t['false_rel']:.0f}",
+                    f"{t['late_rel']:.0f}",
+                    f"{t['dbl_locked']:.0f}",
+                    f"{t['dropped']:.0f}",
+                    f"{t['held_of_on']:.3f}",
+                    f"{t['trk_of_held']:.3f}",
+                    f"{t['sym_of_held']:.3f}",
+                    f"{t['push_s']:.2f}",
+                ]
+            )
+    R.table(
+        [
+            "C/N0",
+            "flavour",
+            "stints",
+            "missed",
+            "false",
+            "late",
+            "double",
+            "dropped",
+            "held of on",
+            "code lock of held",
+            "symbol lock of held",
+            "push() s",
+        ],
+        rows,
+    )
+    R.md()
+
+
 def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
@@ -502,88 +608,97 @@ def limits(d: Data) -> None:
     R.md("## 4. Limits — the certified envelope")
     R.md()
     for c in _cn0s(d):
-        t = d.totals[c]
-        tag = f"{c:.0f} dB-Hz"
-        R.limit(t["missed"] == 0, f"[{tag}] no emitter on the air is missed")
-        R.limit(
-            t["false_rel"] == 0,
-            f"[{tag}] no emitter is released while on the air by the rule",
-        )
-        R.limit(
-            t["dbl_locked"] == 0,
-            f"[{tag}] no emitter is tracked by two receivers at once",
-        )
-        R.limit(
-            t["late_rel"] == 0,
-            f"[{tag}] every departed emitter is released within two "
-            f"intervals plus half a second",
-        )
-        R.limit(
-            t["max_assigned"] <= N_SLOTS,
-            f"[{tag}] the pool never exceeds its slots",
-        )
-        R.limit(
-            t["events"] == t["log_lines"],
-            f"[{tag}] every transition the pool counted reached the log",
-        )
-        R.limit(
-            t["heap_growth_kib"] <= 4.0,
-            f"[{tag}] the heap does not grow once every slot in use has "
-            f"built its chains",
-        )
-        held = [
-            s["t_held_s"]
-            for s in d.stints[c]
-            if s["t_held_s"] >= 0.0 and not s["truncated"]
-        ]
-        R.limit(
-            max(held) <= 4950.0 / 2700.0 + 0.25,
-            f"[{tag}] every arrival with a slot free is held within a frame "
-            f"and the refine",
-        )
-        R.limit(
-            t["trk_of_held"] >= 0.98,
-            f"[{tag}] a held emitter tracks with code lock on at least 98% "
-            f"of blocks",
-        )
-        R.limit(
-            t["sym_of_held"] >= 0.95,
-            f"[{tag}] a held emitter tracks with symbol lock on at least "
-            f"95% of blocks",
-        )
-        both = [
-            s["t_track_s"] - s["t_held_s"]
-            for s in d.stints[c]
-            if s["t_held_s"] >= 0.0 and s["t_track_s"] >= 0.0
-        ]
-        R.limit(
-            bool(both) and max(both) <= 0.5,
-            f"[{tag}] tracking follows the seed within half a second, the "
-            f"refine's dwell and the hand-over",
-        )
-        rel = [
-            s["t_rel_s"]
-            for s in d.stints[c]
-            if s["t_rel_s"] >= 0.0 and not s["rel_on_time"]
-        ]
-        R.limit(
-            bool(rel) and min(rel) >= LOST_CONFIRM_S,
-            f"[{tag}] no departed emitter is released before the interval",
-        )
-        R.limit(
-            t["on_time_rel"] >= 1 and t["reassign"] >= t["on_time_rel"],
-            f"[{tag}] a slot held past the cap is released on time and its "
-            f"emitter re-acquired into a free slot",
-        )
-        R.limit(
-            t["relocked"] == 0,
-            f"[{tag}] a returning emitter is a new detection, never its "
-            f"released receiver's re-lock",
-        )
-        R.limit(
-            t["dropped"] == 0 and t["waited"] == 0,
-            f"[{tag}] no hit is dropped and no stint waits for a slot",
-        )
+        _limits_for(f"{c:.0f} dB-Hz", d.totals[c], d.stints[c])
+    for c in _cn0s(d):
+        _limits_for(f"{c:.0f} dB-Hz, cell", d.cell_totals[c], d.cell_stints[c])
+
+
+def _limits_for(
+    tag: str, t: dict[str, float], stints: list[dict[str, float]]
+) -> None:
+    """One flavour's limits at one C/N0: equal for both flavours by design
+    (section 12.27) -- a gate the cell pool fails is a defect, never a
+    tolerance to widen."""
+    R.limit(t["missed"] == 0, f"[{tag}] no emitter on the air is missed")
+    R.limit(
+        t["false_rel"] == 0,
+        f"[{tag}] no emitter is released while on the air by the rule",
+    )
+    R.limit(
+        t["dbl_locked"] == 0,
+        f"[{tag}] no emitter is tracked by two receivers at once",
+    )
+    R.limit(
+        t["late_rel"] == 0,
+        f"[{tag}] every departed emitter is released within two "
+        f"intervals plus half a second",
+    )
+    R.limit(
+        t["max_assigned"] <= N_SLOTS,
+        f"[{tag}] the pool never exceeds its slots",
+    )
+    R.limit(
+        t["events"] == t["log_lines"],
+        f"[{tag}] every transition the pool counted reached the log",
+    )
+    R.limit(
+        t["heap_growth_kib"] <= 4.0,
+        f"[{tag}] the heap does not grow once every slot in use has "
+        f"built its chains",
+    )
+    held = [
+        s["t_held_s"]
+        for s in stints
+        if s["t_held_s"] >= 0.0 and not s["truncated"]
+    ]
+    R.limit(
+        max(held) <= 4950.0 / 2700.0 + 0.25,
+        f"[{tag}] every arrival with a slot free is held within a frame "
+        f"and the refine",
+    )
+    R.limit(
+        t["trk_of_held"] >= 0.98,
+        f"[{tag}] a held emitter tracks with code lock on at least 98% "
+        f"of blocks",
+    )
+    R.limit(
+        t["sym_of_held"] >= 0.95,
+        f"[{tag}] a held emitter tracks with symbol lock on at least "
+        f"95% of blocks",
+    )
+    both = [
+        s["t_track_s"] - s["t_held_s"]
+        for s in stints
+        if s["t_held_s"] >= 0.0 and s["t_track_s"] >= 0.0
+    ]
+    R.limit(
+        bool(both) and max(both) <= 0.5,
+        f"[{tag}] tracking follows the seed within half a second, the "
+        f"refine's dwell and the hand-over",
+    )
+    rel = [
+        s["t_rel_s"]
+        for s in stints
+        if s["t_rel_s"] >= 0.0 and not s["rel_on_time"]
+    ]
+    R.limit(
+        bool(rel) and min(rel) >= LOST_CONFIRM_S,
+        f"[{tag}] no departed emitter is released before the interval",
+    )
+    R.limit(
+        t["on_time_rel"] >= 1 and t["reassign"] >= t["on_time_rel"],
+        f"[{tag}] a slot held past the cap is released on time and its "
+        f"emitter re-acquired into a free slot",
+    )
+    R.limit(
+        t["relocked"] == 0,
+        f"[{tag}] a returning emitter is a new detection, never its "
+        f"released receiver's re-lock",
+    )
+    R.limit(
+        t["dropped"] == 0 and t["waited"] == 0,
+        f"[{tag}] no hit is dropped and no stint waits for a slot",
+    )
 
 
 def build(write: bool = True) -> Report:
@@ -596,6 +711,7 @@ def build(write: bool = True) -> Report:
     if write:
         _write_csv(d)
     characterise(d)
+    _parity(d)
     review(d)
     limits(d)
     R.executive(

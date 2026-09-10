@@ -10,7 +10,7 @@ import json
 import numpy as np
 import pytest
 
-from doppler.dsss import AsyncDsssPool
+from doppler.dsss import AsyncDsssPool, CellAsyncDsssPool
 from doppler.telemetry import EventLog
 from doppler.wfm import Gold
 
@@ -238,3 +238,144 @@ def test_state_round_trip_resumes_bit_exact_and_rejects():
         _pool(3).set_state(blob)  # another slot count
     with pytest.raises(TypeError):
         cold.set_state("not bytes")
+
+
+# ── The cell flavour (design section 12.22-12.27, #1283) ─────────────────
+# The same lifecycle on CellAsyncDsssReceivers: a searcher deep enough that
+# a seed lands inside the receivers' carrier pull-in (D = 16, 305 Hz rows
+# against the 391 Hz the C header allows), on a waveform whose code-only
+# window holds those epochs at any chip phase (20 symbols of every 270).
+CELL_EPOCHS = 31
+CELL_W_SYM = 20
+CELL_F_SYM = 270
+
+
+def _emitter_w(doppler_hz, delay, seed):
+    """`_emitter` with the cell fixture's code-only window: the first
+    CELL_W_SYM symbols of every CELL_F_SYM are +1 (the synth's rule)."""
+    rng = np.random.default_rng(seed)
+    n = int(N_SYM * TSYM) + 4 * TE
+    idx = np.arange(n)
+    data = (rng.integers(0, 2, N_SYM + 4) * 2 - 1).astype(float)
+    data[(np.arange(N_SYM + 4) % CELL_F_SYM) < CELL_W_SYM] = 1.0
+    si = np.clip(np.floor(idx / TSYM).astype(int), 0, len(data) - 1)
+    cph = (idx // SPC) % SF
+    sig = data[si] * _CSIGN[cph] * np.exp(2j * np.pi * doppler_hz / FS * idx)
+    sigma = 1.0 / np.sqrt(10.0 ** (CN0 / 10.0) / FS)
+    total = PRE + delay + n
+    noise = (sigma / np.sqrt(2.0)) * (
+        rng.standard_normal(total) + 1j * rng.standard_normal(total)
+    )
+    x = np.concatenate([np.zeros(PRE + delay), sig]) + noise
+    return x.astype(np.complex64)
+
+
+def _cell_pool(n_slots=3, threads=1, **kw):
+    args = {
+        "chip_rate": CHIP_RATE,
+        "symbol_rate": SYM_RATE,
+        "spc": SPC,
+        "cn0_dbhz": CN0,
+        "pfa": 1e-3,
+        "doppler_uncertainty": 6000.0,
+        "code_only_epochs": CELL_EPOCHS,
+        "max_peaks": 4,
+        "n_slots": n_slots,
+        "threads": threads,
+        "lost_confirm_s": LOST_S,
+    }
+    args.update(kw)
+    return CellAsyncDsssPool(CODE, **args)
+
+
+def test_cell_pool_creates_on_a_searcher_a_cell_receiver_can_take():
+    pool = _cell_pool()
+    assert (pool.n_slots, pool.n_assigned, pool.coherent_bins) == (3, 0, 16)
+    assert pool.doppler_res_hz < 391.0
+    # No refine to floor: neither the method nor its read-back.
+    assert not hasattr(pool, "set_refine_min_blocks")
+    assert not hasattr(pool, "refine_min_blocks")
+    with pytest.raises(TypeError):
+        _cell_pool(refine_n_fft=64)
+    # Refused: no searcher timing (D = 1), a row past the carrier loop's
+    # pull-in (D = 12 -> 407 Hz), and a receiver argument out of range.
+    for bad in (
+        {"code_only_epochs": 1},
+        {"code_only_epochs": 23},
+        {"gain": 0.0},
+    ):
+        with pytest.raises(ValueError, match="CellAsyncDsssPool"):
+            _cell_pool(**bad)
+
+
+def test_cell_pool_assigns_tracks_releases_and_reassigns():
+    x = _emitter_w(1500.0, 40, seed=110)
+    pool = _cell_pool()
+    # All but the last eight epochs, then those one at a time with the
+    # symbols read after each: an epoch carries half a symbol.
+    tail = 8 * TE
+    _feed(pool, x[: len(x) - tail])
+    slots = _slots_of(pool, 1500.0, 40)
+    assert len(slots) == 1 and pool.dropped == 0
+    n_sym = 0
+    for pos in range(len(x) - tail, len(x) - TE + 1, TE):
+        pool.push(x[pos : pos + TE])
+        n_sym += len(pool.symbols(slots[0]))
+    r = pool.status(slots[0])
+    assert (r.assigned, r.state, r.code_locked, r.locked) == (1, 2, 1, 1)
+    assert abs(r.doppler_hz - 1500.0) < 60.0
+    dc = abs(r.chip_phase - _truth_chip(40, pool.samples_consumed))
+    assert min(dc, SF - dc) <= 0.1
+    assert n_sym > 0
+    seen = pool.events
+    _feed(pool, _noise(int(2.0 * LOST_S * FS), seed=210))
+    assert _slots_of(pool, 1500.0, 40) == []
+    assert pool.events >= seen + 2
+    _feed(pool, x)
+    again = _slots_of(pool, 1500.0, 40)
+    assert len(again) == 1 and pool.status(again[0]).state == 2
+    pool.reset()
+    assert (pool.n_assigned, pool.events, pool.samples_consumed) == (0, 0, 0)
+
+
+def test_cell_pool_threads_give_the_same_records():
+    x = _emitter_w(1500.0, 40, seed=111)
+    a, b = _cell_pool(threads=1), _cell_pool(threads=2)
+    for pos in range(0, len(x) - TE + 1, TE):
+        assert a.push(x[pos : pos + TE]) == b.push(x[pos : pos + TE])
+        for i in range(3):
+            assert a.status(i) == b.status(i)
+            np.testing.assert_array_equal(a.symbols(i), b.symbols(i))
+
+
+def test_cell_pool_state_round_trip_is_flavour_keyed():
+    x = _emitter_w(1500.0, 40, seed=114)
+    live, cold = _cell_pool(n_slots=2), _cell_pool(n_slots=2)
+    half = (len(x) // TE // 2) * TE
+    _feed(live, x[:half])
+    assert _slots_of(live, 1500.0, 40)
+    blob = live.get_state()
+    cold.set_state(blob)
+    for pos in range(half, len(x) - TE + 1, TE):
+        live.push(x[pos : pos + TE])
+        cold.push(x[pos : pos + TE])
+        for i in range(2):
+            np.testing.assert_array_equal(live.symbols(i), cold.symbols(i))
+    assert cold.events == live.events
+    # The flavour keys the blob: the hand-off pool's is refused whole.
+    handoff = AsyncDsssPool(
+        CODE,
+        chip_rate=CHIP_RATE,
+        symbol_rate=SYM_RATE,
+        spc=SPC,
+        cn0_dbhz=CN0,
+        doppler_uncertainty=6000.0,
+        code_only_epochs=CELL_EPOCHS,
+        max_peaks=4,
+        n_slots=2,
+        lost_confirm_s=LOST_S,
+    )
+    with pytest.raises(ValueError):
+        cold.set_state(handoff.get_state())
+    with pytest.raises(ValueError):
+        handoff.set_state(blob)

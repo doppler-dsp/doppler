@@ -1496,7 +1496,8 @@ _test_cell_lifecycle_and_args (void)
   if (!rx)
     return 1;
   DP_CHECK (async_dsss_receiver_get_idle (rx) == 1);
-  DP_CHECK (rx->acq == NULL && rx->ca == NULL && rx->refine_dll == NULL);
+  /* No search and no refine chain; the pull-in's estimator is its own. */
+  DP_CHECK (rx->acq == NULL && rx->ca != NULL && rx->refine_dll == NULL);
   DP_CHECK (rx->cell == 1);
   DP_CHECK (async_dsss_receiver_set_refine_min_blocks (rx, 3)
             == DP_ERR_INVALID);
@@ -1525,6 +1526,83 @@ _test_cell_lifecycle_and_args (void)
  * being white to that gain. Sabotaged red: the correction's sign; the dead
  * reckoning dropped (the phase falls 0.14 chip behind per interval, the
  * correction at 1/8 cannot carry it); the gain ignored. */
+/* A cell seed past loop 1's pull-in -- four times its bound, where the
+   loop alone is dead (costas_pullin.c): a searcher's data-block copy,
+   section 12.14 -- is pulled in by the estimate on the live chain and
+   tracks with both flags at the emitter's Doppler; the same stimulus
+   seeded inside the bound tracks alike. Sabotage: mark the estimate
+   folded at the seed (skip adr_cell_refine) -> the far seed holds code
+   lock and never symbol lock. */
+static int
+_test_cell_seed_past_pullin_is_estimated (void)
+{
+  const size_t sf = 7, spc = 4;
+  const double fs         = 1.0e6 * (double)spc;
+  const double sym_rate   = 35714.29;
+  const double tsym       = fs / sym_rate;
+  const size_t te         = sf * spc;
+  const double carrier_hz = 2.5e8, ppm = 20.0;
+  const double doppler_hz = carrier_hz * ppm * 1e-6; /* 5 kHz */
+  const double cn0        = 58.0;
+  const size_t periods    = 100;
+  const size_t interval   = periods * te;
+  /* bn * chip_rate / (2 * code_len): 2857 Hz at this toy geometry. */
+  const double bound = ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (1.0e6, sf);
+  DP_CHECK (fabs (bound - 0.04 * 1.0e6 / 14.0) < 1e-9);
+
+  float _Complex *x;
+  size_t          n;
+  double         *data;
+  dp_dsss_dilated_capture (CODE7, sf, spc, fs, tsym, carrier_hz, ppm, 0.0, cn0,
+                           6000, 0, 11, &x, &n, &data);
+  doppler_channel_state_t *ch
+      = doppler_channel_create (fs, carrier_hz, ppm, 0.0);
+  const double delay = doppler_channel_get_delay_samples (ch);
+  doppler_channel_destroy (ch);
+  /* The offsets, in bounds: zero, and then past where the loops alone
+     acquire -- measured by sabotage (the fold skipped): at this toy
+     geometry the loops pull in 4 bounds by themselves, and fail at 16. */
+  const double offs[3] = { 0.0, 4.0 * bound, 16.0 * bound };
+  for (int k = 0; k < 3; k++)
+    {
+      async_dsss_receiver_state_t *rx
+          = _cell_rx (cn0, 0.0, carrier_hz, periods, 0.125, 4);
+      DP_REQUIRE (rx != NULL);
+      double seed = fmod (
+          _dilated_truth (0.0, ppm, delay, spc, sf) + 7.0 * 4.0, (double)sf);
+      DP_CHECK (async_dsss_receiver_seed (rx, seed, doppler_hz + offs[k], cn0)
+                == DP_OK);
+      float _Complex *syms       = malloc (n * sizeof *syms);
+      size_t          refined_at = 0;
+      for (size_t pos = 0; pos + interval <= n; pos += interval)
+        {
+          (void)async_dsss_receiver_steps (rx, x + pos, interval, syms, n);
+          if (rx->cell_refined && !refined_at)
+            refined_at = pos / interval + 1;
+        }
+      free (syms);
+      async_dsss_receiver_status_t st = async_dsss_receiver_status (rx);
+      printf ("  cell: seed %+.0f Hz off (%.1f bounds): estimate folded by "
+              "interval %zu; tracking %d code %d sym %d, Doppler %+.0f Hz "
+              "off the truth\n",
+              offs[k], offs[k] / bound, refined_at,
+              st.state == ASYNC_DSSS_RX_TRACKING, st.code_locked, st.locked,
+              st.doppler_hz - doppler_hz);
+      DP_CHECK_MSG (refined_at >= 1, "the estimate is folded");
+      DP_CHECK_MSG (st.state == ASYNC_DSSS_RX_TRACKING && st.code_locked
+                        && st.locked,
+                    k ? "a seed past the bound is pulled in and tracks "
+                        "with both flags"
+                      : "a seed inside the bound tracks with both flags");
+      DP_CHECK_MSG (fabs (st.doppler_hz - doppler_hz) < 0.1 * bound,
+                    "the Doppler reported is the emitter's");
+      async_dsss_receiver_destroy (rx);
+    }
+  free (x);
+  free (data);
+  return 0;
+}
+
 static int
 _test_cell_holds_and_decodes (void)
 {
@@ -1988,6 +2066,7 @@ main (void)
   (void)_test_handoff_state_roundtrip ();
   (void)_test_status_record ();
   (void)_test_cell_lifecycle_and_args ();
+  (void)_test_cell_seed_past_pullin_is_estimated ();
   (void)_test_cell_holds_and_decodes ();
   (void)_test_cell_holds_through_switch_off ();
   (void)_test_cell_ramp ();

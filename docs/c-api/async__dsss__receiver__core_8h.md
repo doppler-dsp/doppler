@@ -153,8 +153,9 @@ to tracking the same signal," only back to searching — matching every other ob
 | Type | Name |
 | ---: | :--- |
 | define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_MAGIC**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'D', 'R', 'X')`<br> |
-| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `5u /\* v5: the cell mode; v4: had\_lock \*/`<br> |
+| define  | [**ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION**](async__dsss__receiver__core_8h.md#define-async_dsss_receiver_state_version)  `6u /\* v6: the cell pull-in; v5: cell \*/`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier)  `0.04`<br> |
+| define  | [**ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_carrier_pullin_hz) (chip\_rate, code\_len) `([**ASYNC\_DSSS\_RX\_BN\_CARRIER**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_bn_carrier) \* (chip\_rate) / (2.0 \* (double)(code\_len)))`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CELL\_GAIN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_cell_gain)  `0.125`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_CELL\_PULLIN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_cell_pullin)  `4u`<br> |
 | define  | [**ASYNC\_DSSS\_RX\_DLL\_BN**](async__dsss__receiver__core_8h.md#define-async_dsss_rx_dll_bn)  `0.002`<br> |
@@ -515,7 +516,7 @@ async_dsss_receiver_state_t * async_dsss_receiver_create_cell (
 
 
 
-The searcher-timed tracker of docs/design/async-dsss-receiver.md section 12.22-12.24 as a mode of this receiver, by turning stages off. From the seed the live chain runs at once  no refine stage, no CarrierAcquisition  with the Dll held from the first sample (it coasts; its own loop never closes). Once every `correct_periods` code periods the held code phase, kept in double and dead-reckoned across the interval on the carrier loop's Doppler, is moved by `gain` chips per chip of what the coasting Dll's discriminator read over the interval (its per-steer mean, Dll.take\_error\_mean, through the discriminator's design slope) and the Dll steered to it by rate over the next interval (never a phase kick: at a period boundary that lands on the code's wrap and costs a period's partials, #1287)  gain 1 through the first `pullin_intervals` (the seed's residual, up to half a chip), the design gain after; refining is the pull-in, tracking follows. The correction is applied before the first lock or while the code flag is up; with the flag down the phase only dead-reckons, so a departed emitter's receiver cannot walk onto a neighbour. The carrier is the hand-off flavor's own pre-despread loop, running  it is what follows SPEC's 500 Hz/s (MpskReceiver's 27 Hz loop alone cannot), held on both flags down as there, and it refreshes the Dll's rate aid every period. Everything else  the symbol path, the symbol lock, the release rule, the status record, reset() to idle  is the hand-off flavor's verbatim. Measured on the receiver's own tests: the held phase sits on the channel's mapping at 0.003 chip sigma at gain 1/8 against 0.014 at gain 1 (12.26).
+The searcher-timed tracker of docs/design/async-dsss-receiver.md section 12.22-12.24 as a mode of this receiver, by turning stages off. From the seed the live chain runs at once  no refine stage, no CarrierAcquisition  with the Dll held from the first sample (it coasts; its own loop never closes). Once every `correct_periods` code periods the held code phase, kept in double and dead-reckoned across the interval on the carrier loop's Doppler, is moved by `gain` chips per chip of what the coasting Dll's discriminator read over the interval (its per-steer mean, Dll.take\_error\_mean, through the discriminator's design slope) and the Dll steered to it by rate over the next interval (never a phase kick: at a period boundary that lands on the code's wrap and costs a period's partials, #1287)  gain 1 through the first `pullin_intervals` (the seed's residual, up to half a chip), the design gain after; refining is the pull-in, tracking follows. The pull-in estimates the seed's carrier residual on the live chain's own despread stream  the hand-off flavor's estimator fed what the RateConverter hands MpskReceiver, no second chain, loop 1 held at the seed's frequency meanwhile as the refine's frozen wipe is  and folds it into loop 1 once, when the estimator is ready or has given up: a searcher's data-block copy seeds hundreds of Hz off (section 12.14), past loop 1's own bound (ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ), and without the estimate a cell receiver holds code lock on it and never symbol lock (section 12.27). The correction is applied before the first lock or while the code flag is up; with the flag down the phase only dead-reckons, so a departed emitter's receiver cannot walk onto a neighbour. The carrier is the hand-off flavor's own pre-despread loop, running  it is what follows SPEC's 500 Hz/s (MpskReceiver's 27 Hz loop alone cannot), held on both flags down as there, and it refreshes the Dll's rate aid every period. Everything else  the symbol path, the symbol lock, the release rule, the status record, reset() to idle  is the hand-off flavor's verbatim. Measured on the receiver's own tests: the held phase sits on the channel's mapping at 0.003 chip sigma at gain 1/8 against 0.014 at gain 1 (12.26).
 
 
 
@@ -1464,7 +1465,7 @@ size_t async_dsss_receiver_steps_max_out (
 ### define ASYNC\_DSSS\_RECEIVER\_STATE\_VERSION 
 
 ```C++
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION `5u /* v5: the cell mode; v4: had_lock */`
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION `6u /* v6: the cell pull-in; v5: cell */`
 ```
 
 
@@ -1482,6 +1483,26 @@ size_t async_dsss_receiver_steps_max_out (
 
 
 
+
+<hr>
+
+
+
+### define ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ 
+
+```C++
+#define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ (
+    chip_rate,
+    code_len
+) `( ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))`
+```
+
+
+
+The pre-despread carrier loop's acquisition bound, Hz: `bn / m` cycles per sample over its one-code-period update (`m = 2`, the squaring discriminator), `native/validation/costas_pullin.c`'s measured 100% line  reliable to twice it, dead by four. A seed with no refine behind it (the cell mode, [**async\_dsss\_receiver\_create\_cell()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create_cell)) must land inside it: the holder that seeds from a searcher's row checks the row against this ([**async\_dsss\_pool\_create\_cell()**](async__dsss__pool__core_8h.md#function-async_dsss_pool_create_cell)). 97.8 Hz at 5 Mcps over Gold-1023. 
+
+
+        
 
 <hr>
 

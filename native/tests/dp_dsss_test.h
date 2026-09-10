@@ -114,24 +114,35 @@
  * @param n_sym       data symbols to generate.
  * @param pre_silence noise-only samples prepended before the signal.
  * @param seed        RNG seed; the data bits and the noise share one stream.
+ * @param w_sym       code-only symbols opening every frame (+1 data): the
+ *                    window a block-coherent searcher aligns inside.
+ * @param f_sym       the frame, symbols; 0 = no window (dp_dsss_capture()).
  * @param x_out       receives the malloc'd capture. Caller frees.
  * @param n_out       receives the total sample count.
  * @param data_out    receives the malloc'd +-1 data symbols. Caller frees.
  */
 static inline void
-dp_dsss_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
-                 double tsym, double doppler_hz, double cn0_dbhz, size_t n_sym,
-                 size_t pre_silence, uint32_t seed, float _Complex **x_out,
-                 size_t *n_out, double **data_out)
+dp_dsss_windowed_capture (const uint8_t *code, size_t sf, size_t spc,
+                          double fs, double tsym, double doppler_hz,
+                          double cn0_dbhz, size_t n_sym, size_t pre_silence,
+                          uint32_t seed, size_t w_sym, size_t f_sym,
+                          float _Complex **x_out, size_t *n_out,
+                          double **data_out)
 {
   float *csign = malloc (sf * sizeof *csign);
   for (size_t i = 0; i < sf; i++)
     csign[i] = code[i] & 1 ? -1.0f : 1.0f;
 
+  /* The data: random +-1, except the code-only window -- the first
+     `w_sym` symbols of every `f_sym` are +1 (the synth's rule,
+     wfm_synth_cont_dsss_chip), which is what a block-coherent searcher
+     aligns its epochs inside. `f_sym` 0 is no window. */
   double  *data = malloc ((n_sym + 4) * sizeof *data);
   uint32_t st   = seed;
   for (size_t i = 0; i < n_sym + 4; i++)
-    data[i] = (dp_xs32 (&st) & 1u) ? 1.0 : -1.0;
+    data[i] = (f_sym && i % f_sym < w_sym) ? 1.0
+              : (dp_xs32 (&st) & 1u)       ? 1.0
+                                           : -1.0;
 
   size_t          n   = (size_t)((double)n_sym * tsym) + 4 * sf * spc;
   size_t          tot = pre_silence + n;
@@ -157,6 +168,18 @@ dp_dsss_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
   *x_out    = x;
   *n_out    = tot;
   *data_out = data;
+}
+
+/** dp_dsss_windowed_capture() with no window: every symbol is data. */
+static inline void
+dp_dsss_capture (const uint8_t *code, size_t sf, size_t spc, double fs,
+                 double tsym, double doppler_hz, double cn0_dbhz, size_t n_sym,
+                 size_t pre_silence, uint32_t seed, float _Complex **x_out,
+                 size_t *n_out, double **data_out)
+{
+  dp_dsss_windowed_capture (code, sf, spc, fs, tsym, doppler_hz, cn0_dbhz,
+                            n_sym, pre_silence, seed, 0, 0, x_out, n_out,
+                            data_out);
 }
 
 /**

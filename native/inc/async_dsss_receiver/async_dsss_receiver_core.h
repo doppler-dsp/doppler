@@ -182,6 +182,16 @@ extern "C"
    * pre-despread. So the FLL is not exposed here at all, not merely
    * defaulted off. */
 #define ASYNC_DSSS_RX_BN_CARRIER 0.04
+/** The pre-despread carrier loop's acquisition bound, Hz: `bn / m` cycles
+ *  per sample over its one-code-period update (`m = 2`, the squaring
+ *  discriminator), `native/validation/costas_pullin.c`'s measured 100%
+ *  line -- reliable to twice it, dead by four. A seed with no refine
+ *  behind it (the cell mode, async_dsss_receiver_create_cell()) must land
+ *  inside it: the holder that seeds from a searcher's row checks the row
+ *  against this (async_dsss_pool_create_cell()). 97.8 Hz at 5 Mcps over
+ *  Gold-1023. */
+#define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(chip_rate, code_len)                  \
+  (ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))
   /* Dll's own bn: the validated stable code-loop bandwidth for the
    * one-update-per-partial tracking geometry -- same value DsssReceiver's
    * own Dll uses, not dll_create()'s own default of 0.01. (A wider 0.005 was
@@ -382,6 +392,9 @@ extern "C"
     double   held_phase;       /**< Running: the held code phase at the
                                     next interval's start, chips in the
                                     Dll's convention, unwrapped.          */
+    int      cell_refined;     /**< Running: the seed's carrier residual has
+                                    been estimated on the live chain and
+                                    folded into loop 1 (adr_cell_refine). */
     double   cell_rate_bias;   /**< Running: the rate bias steering the Dll
                                     onto the held phase over the next
                                     period (chips per chip), summed into
@@ -721,7 +734,17 @@ extern "C"
    * on the code's wrap and costs a period's partials, #1287) -- gain 1
    * through the first `pullin_intervals` (the seed's residual, up to half a
    * chip), the design gain after; refining is the pull-in, tracking
-   * follows. The correction is applied before the first lock or while the
+   * follows. The pull-in estimates the seed's carrier residual on the live
+   * chain's own despread stream -- the hand-off flavor's estimator fed
+   * what the RateConverter hands MpskReceiver, no second chain, loop 1
+   * held at the seed's frequency meanwhile as the refine's frozen wipe
+   * is -- and folds it into loop 1 once, when the estimator is ready or
+   * has given up: a
+   * searcher's data-block copy seeds hundreds of Hz off (section 12.14),
+   * past loop 1's own bound (ASYNC_DSSS_RX_CARRIER_PULLIN_HZ), and without
+   * the estimate a cell receiver holds code lock on it and never symbol
+   * lock (section 12.27). The correction is applied before the first lock
+   * or while the
    * code flag is up; with the flag down the phase only dead-reckons, so a
    * departed emitter's receiver cannot walk onto a neighbour. The carrier
    * is the hand-off flavor's own pre-despread loop, running -- it is what
@@ -1266,12 +1289,15 @@ extern "C"
     lockdet_state_t sym_lockdet;  /**< restored by create()).             */
     double   held_phase;          /**< v5: the cell mode's running state. */
     double   cell_rate_bias;
+    uint8_t  cell_refined;        /**< v6: the cell's carrier estimate has
+                                       been folded; its estimator is a child
+                                       of the cell blob too.               */
     uint64_t period_count;
     uint64_t intervals;
   } async_dsss_receiver_extra_t;
 
 #define ASYNC_DSSS_RECEIVER_STATE_MAGIC DP_FOURCC ('A', 'D', 'R', 'X')
-#define ASYNC_DSSS_RECEIVER_STATE_VERSION 5u /* v5: the cell mode; v4: had_lock */
+#define ASYNC_DSSS_RECEIVER_STATE_VERSION 6u /* v6: the cell pull-in; v5: cell */
 
   size_t async_dsss_receiver_state_bytes (
       const async_dsss_receiver_state_t *state);

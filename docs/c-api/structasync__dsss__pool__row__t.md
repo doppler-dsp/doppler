@@ -39,6 +39,7 @@
 |  int | [**assigned**](#variable-assigned)  <br> |
 |  double | [**chip\_phase**](#variable-chip_phase)  <br> |
 |  double | [**doppler\_hz**](#variable-doppler_hz)  <br> |
+|  int | [**had\_code**](#variable-had_code)  <br> |
 |  int | [**prev\_code**](#variable-prev_code)  <br> |
 |  int | [**prev\_state**](#variable-prev_state)  <br> |
 |  int | [**prev\_sym**](#variable-prev_sym)  <br> |
@@ -142,6 +143,24 @@ double async_dsss_pool_row_t::doppler_hz;
 
 
 The row's current coordinates: the exclusion zone is keyed on these  refreshed every push from a LOCKED loop, held otherwise (#1261). 
+
+
+        
+
+<hr>
+
+
+
+### variable had\_code 
+
+```C++
+int async_dsss_pool_row_t::had_code;
+```
+
+
+
+The code flag has been up: the row's phase is the loop's. Until then it is the seed's, advanced on the dilated clock whatever the receiver's state  a cell receiver reports tracking through its pull-in, and a row frozen there leaves the zone within a block at 20 ppm (section 12.27). 
+ 
 
 
         

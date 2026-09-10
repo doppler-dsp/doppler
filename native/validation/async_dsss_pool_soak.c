@@ -117,6 +117,14 @@
  *                                            DIR/pool_soak_<cn0>.events
  *                                            (otherwise a temporary file,
  *                                            removed after it is read)
+ *   ... --cell                               the pool on cell receivers
+ *                                            (CellAsyncDsssPool, design
+ *                                            section 12.27): the same
+ *                                            stimulus, gates and CSV,
+ *                                            with `cell` = 1 in the
+ *                                            totals; the flavour's
+ *                                            parity is read across two
+ *                                            runs
  */
 #include "async_dsss_pool/async_dsss_pool_core.h"
 #include "awgn/awgn_core.h"
@@ -629,6 +637,9 @@ rss_kib (void)
 /* --refine-margin: the receivers' refine_design_margin_db, the pool's
    default of 14 dB unless given -- the dwell it sizes is #1265's axis. */
 static double g_refine_margin_db = 14.0;
+/* --cell: the pool on cell receivers (design section 12.27) -- the same
+   run, the receivers' flavour the only difference. */
+static int g_cell = 0;
 
 static int
 run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
@@ -643,11 +654,18 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
       = awgn_create (cfg->seed * 7919u + 1u,
                      awgn_amplitude_for_snr (
                          (float)(cfg->cn0_dbhz - 10.0 * log10 (FS)), 1.0f));
-  async_dsss_pool_state_t *p = async_dsss_pool_create (
-      code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cfg->cn0_dbhz, 1e-3, 0.9, DU,
-      CODE_ONLY_EPOCHS, DOPPLER_RATE, MAX_PEAKS, N_SLOTS, THREADS, CARRIER_HZ,
-      LOST_CONFIRM_S, cfg->max_on_s, 4, 8, 0, 0.5, 4, g_refine_margin_db, 64,
-      8, false, 100000);
+  async_dsss_pool_state_t *p
+      = g_cell
+            ? async_dsss_pool_create_cell (
+                  code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cfg->cn0_dbhz, 1e-3,
+                  0.9, DU, CODE_ONLY_EPOCHS, DOPPLER_RATE, MAX_PEAKS, N_SLOTS,
+                  THREADS, CARRIER_HZ, LOST_CONFIRM_S, cfg->max_on_s, 4, 8, 0,
+                  ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN)
+            : async_dsss_pool_create (
+                  code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cfg->cn0_dbhz, 1e-3,
+                  0.9, DU, CODE_ONLY_EPOCHS, DOPPLER_RATE, MAX_PEAKS, N_SLOTS,
+                  THREADS, CARRIER_HZ, LOST_CONFIRM_S, cfg->max_on_s, 4, 8, 0,
+                  0.5, 4, g_refine_margin_db, 64, 8, false, 100000);
   DP_REQUIRE_MSG (g && p, "the noise and the pool open");
   char path[256];
   if (g_events_dir)
@@ -664,11 +682,15 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
 
   printf ("  %zu emitters, %.0f s at %.0f dB-Hz; D = %zu (%.1f Hz rows), "
           "%d threads; on [%.1f, %.1f] s, off [%.1f, %.1f] s, the pool's "
-          "maximum on-air time %.0f s; refine margin %.0f dB\n",
+          "maximum on-air time %.0f s; %s\n",
           cfg->n_emit, cfg->duration_s, cfg->cn0_dbhz, p->acq->coherent_bins,
           p->acq->doppler_res_hz, dp_pool_threads (fan), cfg->on_min_s,
           cfg->on_max_s, cfg->off_min_s, cfg->off_max_s, cfg->max_on_s,
-          g_refine_margin_db);
+          g_cell ? "cell receivers (CellAsyncDsssPool): corrected once a "
+                   "block at gain 1/8, no refine"
+                 : "hand-off receivers");
+  if (!g_cell)
+    printf ("  refine margin %.0f dB\n", g_refine_margin_db);
   for (size_t k = 0; k < cfg->n_emit; k++)
     printf ("    emitter %zu: %+.2f ppm (%+.0f Hz), burn-in %.3f s%s\n", k,
             e[k].ppm, e[k].doppler_hz, (double)e[k].burn / FS,
@@ -1213,11 +1235,11 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
               "held_of_on,trk_of_held,sym_of_held,events,log_lines,"
               "clock_restarts,heap_base_mib,heap_step_max_kib,"
               "heap_growth_kib,rss_base_mib,rss_end_mib,ddc_s,push_s,"
-              "signal_s,arenas_base,arenas_end\n");
+              "signal_s,arenas_base,arenas_end,cell\n");
       printf (
           "%.0f,%zu,%.0f,%d,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,%zu,"
           "%llu,%zu,%zu,%u,%.5f,%.5f,%.5f,%llu,%zu,%zu,%.2f,%.2f,%.2f,"
-          "%.2f,%.2f,%.3f,%.3f,%.3f,%zu,%zu\n\n",
+          "%.2f,%.2f,%.3f,%.3f,%.3f,%zu,%zu,%d\n\n",
           cfg->cn0_dbhz, cfg->n_emit, cfg->duration_s, dp_pool_threads (fan),
           t->n_stints, t->scored, t->missed, t->false_rel, t->late_rel,
           t->over_rel, t->on_time_rel, t->reassign, t->dbl_locked,
@@ -1232,7 +1254,7 @@ run_soak (const cfg_t *cfg, const uint8_t *code, int trace, double late_s,
           t->heap_base / 1048576.0, t->heap_step_max / 1024.0,
           (t->heap_max - t->heap_base) / 1024.0, t->rss_base_kib / 1024.0,
           t->rss_end_kib / 1024.0, t->ddc_s, t->push_s, t->signal_s,
-          t->arenas_base, t->arenas);
+          t->arenas_base, t->arenas, g_cell);
     }
   if (g_budget)
     printf ("  budget: %.1f s of signal; inside the DDC %.1f s, inside "
@@ -1370,6 +1392,8 @@ main (int argc, char **argv)
         g_budget = 1;
       else if (strcmp (argv[a], "--emit") == 0)
         g_emit = 1;
+      else if (strcmp (argv[a], "--cell") == 0)
+        g_cell = 1;
     }
   if (g_budget)
     {
@@ -1388,6 +1412,9 @@ main (int argc, char **argv)
           "epoch (%.3f ms)\n\n",
           W_SYM, F_SYM, FRAME_S, MAX_PPM, CARRIER_HZ / 1e9, CODE_ONLY_EPOCHS,
           DU / 1e3, MAX_PEAKS, N_SLOTS, LOST_CONFIRM_S, (double)TE / FS * 1e3);
+  if (g_cell)
+    printf ("the pool on CELL receivers (--cell): every slot a "
+            "CellAsyncDsssReceiver on the searcher's timing, no refine\n\n");
 
   if (check)
     {

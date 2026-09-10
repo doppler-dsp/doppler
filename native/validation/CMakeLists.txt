@@ -502,6 +502,13 @@ add_test(NAME validate_async_dsss_pool_soak
 # a loaded runner cannot fail it; the twin costs 5 s over the check alone.
 add_test(NAME validate_async_dsss_pool_soak_budget
          COMMAND validate_async_dsss_pool_soak --check --budget --emit)
+# The same two on the pool's cell flavour (CellAsyncDsssPool, design
+# section 12.27): identical stimulus and gates, the receivers' flavour the
+# only difference -- parity is what the pair asserts.
+add_test(NAME validate_async_dsss_pool_soak_cell
+         COMMAND validate_async_dsss_pool_soak --check --cell)
+add_test(NAME validate_async_dsss_pool_soak_cell_budget
+         COMMAND validate_async_dsss_pool_soak --check --budget --emit --cell)
 
 # So `sweep` is what a sanitizer suite excludes (`ctest -LE sweep`). The spot
 # check still runs on every PR in the ordinary C suite, which is where it is

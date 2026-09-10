@@ -1,0 +1,28 @@
+# Design pages that still narrate their own construction.
+# This list may only SHRINK. See scripts/check_design_pages.py.
+# The burn-down is doppler#1302: one page per PR, each removing its own
+# lines with `check_design_pages.py --write`.
+docs/design/RESAMPLER.md	status-preamble
+docs/design/acq-fn.md	status-preamble
+docs/design/api-taxonomy.md	status-preamble
+docs/design/burst-bank.md	dated-heading
+docs/design/burst-bank.md	record-heading
+docs/design/burst-bank.md	status-preamble
+docs/design/burst-capture.md	dated-heading
+docs/design/burst-capture.md	status-preamble
+docs/design/coarse-channel.md	dated-heading
+docs/design/coarse-channel.md	record-heading
+docs/design/coarse-channel.md	status-preamble
+docs/design/corr2d-interpolated-inverse.md	status-preamble
+docs/design/dsss-acquisition.md	record-heading
+docs/design/dsss-acquisition.md	status-preamble
+docs/design/dsss-burst-receiver.md	dated-heading
+docs/design/dsss-burst-receiver.md	status-preamble
+docs/design/io-termination.md	record-heading
+docs/design/mpsk.md	record-heading
+docs/design/mpsk.md	status-preamble
+docs/design/rx-test.md	record-heading
+docs/design/rx-test.md	status-preamble
+docs/design/telemetry.md	record-heading
+docs/design/waveform-enum-ssot.md	record-heading
+docs/design/wfmgen-composition.md	record-heading

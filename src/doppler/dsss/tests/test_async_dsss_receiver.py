@@ -1,4 +1,4 @@
-"""AsyncDsssReceiver: Acquisition -> handoff -> CarrierAcquisition refine ->
+"""AsyncDsssReceiver: Acquisition -> hand-off -> CarrierAcquisition refine ->
 per-code-period Costas/Dll/RateConverter/MpskReceiver track, one object --
 the production C port of the validated Python prototype's own search ->
 refine -> track pipeline (validated in the coupled-despreader, freq-refine,
@@ -19,7 +19,6 @@ import pytest
 from doppler.dsss import (
     AsyncDsssReceiver,
     CellAsyncDsssReceiver,
-    HandoffAsyncDsssReceiver,
     ReceiverStatus,
 )
 from doppler.wfm import Gold
@@ -97,15 +96,6 @@ def _new_receiver(cn0_dbhz, **kwargs):
     )
 
 
-def _new_handoff(cn0_dbhz, **kwargs):
-    kwargs.setdefault("cn0_dbhz", cn0_dbhz)
-    kwargs.setdefault("segments", 4)
-    kwargs.setdefault("sps", 8)
-    return HandoffAsyncDsssReceiver(
-        CODE, chip_rate=CHIP_RATE, symbol_rate=SYM_RATE, spc=SPC, **kwargs
-    )
-
-
 def _feed(rx, x):
     out = [rx.steps(x[pos : pos + TE]) for pos in range(0, len(x) - TE, TE)]
     out = [s for s in out if len(s)]
@@ -121,58 +111,12 @@ def _noise(n, cn0_dbhz, seed):
     ).astype(np.complex64)
 
 
-# ── Hand-off mode (design section 11.1) ───────────────────────────────────
-
-
-def test_handoff_starts_idle_with_no_search():
-    rx = _new_handoff(70.0)
-    assert (rx.idle, rx.refining, rx.tracking, rx.lost) == (1, 0, 0, 0)
-    # No embedded search: neither its half-range nor its raw grid exist.
-    assert not hasattr(rx, "configure_search_raw")
-    with pytest.raises(TypeError):
-        _new_handoff(70.0, doppler_uncertainty=500.0)
-    # The parent keeps both, and is not idle: it is searching.
-    base = _new_receiver(70.0)
-    assert base.idle == 0
-    assert hasattr(base, "configure_search_raw")
-
-
-def test_handoff_idle_discards_then_seed_refines_and_decodes():
-    x, data = _make_ramp_signal(70.0, seed=21)
-    rx = _new_handoff(70.0)
-    # Idle consumes and discards -- the lead-in AND the start of the signal.
-    assert len(rx.steps(x[: PRE_SILENCE + 3 * TE])) == 0
-    assert rx.idle == 1
-    assert rx.chip_phase == 0.0
-
-    # The seed is the truth here: the capture puts chip 0 on its first signal
-    # sample and the ramp starts at 0 Hz.
-    rx.seed(0.0, 0.0, 70.0)
-    assert (rx.idle, rx.refining, rx.tracking) == (0, 1, 0)
-    assert rx.doppler_hz == 0.0
-    assert rx.cn0_dbhz_est == 70.0
-
-    syms = _feed(rx, x[PRE_SILENCE:])
-    assert rx.tracking == 1
-    assert len(syms) > 200
-    assert _best_ber(syms, data) < 0.05
-
-    # Assigned once: refused while it holds one, released by reset() -- to
-    # idle, since there is no search to return to.
-    with pytest.raises(ValueError, match="seed refused"):
-        rx.seed(0.0, 0.0, 70.0)
-    assert rx.tracking == 1
-    rx.reset()
-    assert (rx.idle, rx.tracking, rx.refining) == (1, 0, 0)
-    assert rx.chip_phase == 0.0
-    # ... and the same object takes its next seed.
-    rx.seed(0.0, 0.0, 70.0)
-    assert rx.refining == 1
+# ── Seeded from outside: the cell receiver (design section 11.1) ──────────
 
 
 @pytest.mark.parametrize("chip_phase", [-0.5, float(SF), float("nan")])
 def test_seed_refuses_a_phase_outside_the_code(chip_phase):
-    rx = _new_handoff(70.0)
+    rx = _new_cell(70.0)
     with pytest.raises(ValueError, match="seed refused"):
         rx.seed(chip_phase, 0.0, 70.0)
     assert rx.idle == 1
@@ -214,7 +158,7 @@ def test_lost_after_switch_off_then_reset_to_idle():
     confirm_s = 0.02
     off = _noise(int(0.2 * FS), 70.0, seed=99)
 
-    rx = _new_handoff(70.0, lost_confirm_s=confirm_s)
+    rx = _new_cell(70.0, lost_confirm_s=confirm_s)
     rx.seed(0.0, 0.0, 70.0)
     _feed(rx, x[PRE_SILENCE:])
     assert (rx.tracking, rx.code_locked, rx.locked, rx.lost) == (1, 1, 1, 0)
@@ -232,7 +176,7 @@ def test_lost_after_switch_off_then_reset_to_idle():
     assert rx.chip_phase == chip_before
     with pytest.raises(ValueError, match="seed refused"):
         rx.seed(0.0, 0.0, 70.0)
-    rx2 = _new_handoff(70.0, lost_confirm_s=confirm_s)
+    rx2 = _new_cell(70.0, lost_confirm_s=confirm_s)
     rx2.set_state(rx.get_state())
     assert rx2.lost == 1
     rx.reset()
@@ -244,7 +188,7 @@ def test_lost_after_switch_off_then_reset_to_idle():
 def test_lost_confirm_zero_never_releases():
     x, _data = _make_ramp_signal(70.0, seed=21)
     off = _noise(int(0.2 * FS), 70.0, seed=99)
-    rx = _new_handoff(70.0, lost_confirm_s=0.0)
+    rx = _new_cell(70.0, lost_confirm_s=0.0)
     rx.seed(0.0, 0.0, 70.0)
     _feed(rx, x[PRE_SILENCE:])
     assert rx.tracking == 1
@@ -252,39 +196,6 @@ def test_lost_confirm_zero_never_releases():
     assert not lost
     assert run > 0.05 * FS  # the flags did drop; the rule was off
     assert (rx.tracking, rx.lost) == (1, 0)
-
-
-def test_handoff_state_roundtrip_is_flavor_keyed():
-    x, _data = _make_ramp_signal(70.0, seed=21)
-    rx = _new_handoff(70.0)
-    # Idle: the blob the pool checkpoints most.
-    rx2 = _new_handoff(70.0)
-    rx2.set_state(rx.get_state())
-    assert rx2.idle == 1
-
-    rx.seed(0.0, 0.0, 70.0)
-    split = PRE_SILENCE + 300 * TE
-    _feed(rx, x[PRE_SILENCE:split])
-    assert rx.tracking == 1
-    blob = rx.get_state()
-    rx2.set_state(blob)
-    assert (rx2.tracking, rx2.idle) == (1, 0)
-    assert rx2.chip_phase == pytest.approx(rx.chip_phase)
-    # Bit-exact resume: the rest of the stream decodes identically.
-    a = _feed(rx, x[split:])
-    b = _feed(rx2, x[split:])
-    assert len(a) == len(b) > 20
-    assert np.array_equal(a, b)
-
-    # Across flavors the blob is refused both ways: the search engine is in
-    # one and not the other.
-    base = _new_receiver(70.0)
-    with pytest.raises(ValueError):
-        base.set_state(blob)
-    assert base.tracking == 0
-    with pytest.raises(ValueError):
-        rx2.set_state(base.get_state())
-    assert rx2.tracking == 1
 
 
 # ── The cell mode (design section 12.22-12.24 as a mode, #1283) ──────────
@@ -359,13 +270,22 @@ def test_cell_state_roundtrip_is_mode_keyed():
     b = _feed(rx2, x[split:])
     assert len(a) == len(b) > 20
     assert np.array_equal(a, b)
-    # Across the modes the blob is refused both ways: the refine children
-    # are in one and not the other.
-    hand = _new_handoff(70.0)
+    # Across the modes the blob is refused both ways: the search engine
+    # and the refine children are in one and not the other.
+    searching = AsyncDsssReceiver(
+        CODE,
+        chip_rate=CHIP_RATE,
+        symbol_rate=SYM_RATE,
+        spc=SPC,
+        cn0_dbhz=70.0,
+        doppler_uncertainty=500.0,
+        segments=4,
+        sps=8,
+    )
     with pytest.raises(ValueError):
-        hand.set_state(blob)
+        searching.set_state(blob)
     with pytest.raises(ValueError):
-        rx2.set_state(hand.get_state())
+        rx2.set_state(searching.get_state())
     assert rx2.tracking == 1
 
 
@@ -374,7 +294,7 @@ def test_cell_state_roundtrip_is_mode_keyed():
 
 def test_status_record_is_the_getters_other_face():
     x, _data = _make_ramp_signal(70.0, seed=21)
-    rx = _new_handoff(70.0, lost_confirm_s=0.02)
+    rx = _new_cell(70.0, lost_confirm_s=0.02)
     st = rx.status()
     assert isinstance(st, ReceiverStatus)
     assert (st.state, st.doppler_hz, st.code_locked, st.locked) == (

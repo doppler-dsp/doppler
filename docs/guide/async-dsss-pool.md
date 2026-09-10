@@ -1,7 +1,7 @@
 # Tracking a Population of DSSS Emitters with `AsyncDsssPool`
 
 `AsyncDsssPool` holds the whole multi-emitter lifecycle behind one
-`push()`: one searcher over the Doppler uncertainty, a pool of hand-off
+`push()`: one searcher over the Doppler uncertainty, a pool of cell
 receivers created idle, the assigned table that keeps a re-detection from
 becoming a second receiver, and the event log that records every
 transition at the sample it happened. Feed it the stream one block at a
@@ -31,30 +31,28 @@ are bursts, the burst chain is
 
 ## The objects inside, and what each decides
 
-| object                                 | in the pool                                                                                                                      | decides                                                                                                         |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `Acquisition` (continuous)             | one, over `doppler_uncertainty`, in coherent blocks of `D` epochs inside the code-only window, its tiles fanned across `threads` | every peak above the gate, per dwell, up to `max_peaks`                                                         |
-| `HandoffAsyncDsssReceiver` × `n_slots` | created idle; a seed starts refine → track; every one is fed every block                                                         | its own lock flags, and *lost* — both flags down for `lost_confirm_s`                                           |
-| the assigned table                     | one row per slot: the seed, and the receiver's live Doppler and chip phase while its loops are locked                            | a peak within one chip of a live row's code phase is that emitter's own and seeds nothing                       |
-| `EventLog` (attached)                  | borrowed by `set_event_log()`                                                                                                    | nothing — it records `seeded`, `tracking`, `degrade`, `lost`, `released`, `dropped` with the slot's coordinates |
+| object                              | in the pool                                                                                                                      | decides                                                                                                         |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `Acquisition` (continuous)          | one, over `doppler_uncertainty`, in coherent blocks of `D` epochs inside the code-only window, its tiles fanned across `threads` | every peak above the gate, per dwell, up to `max_peaks`                                                         |
+| `CellAsyncDsssReceiver` × `n_slots` | created idle; a seed starts the pull-in → track on the searcher's timing; every one is fed every block                           | its own lock flags, and *lost* — both flags down for `lost_confirm_s`                                           |
+| the assigned table                  | one row per slot: the seed, and the receiver's live Doppler and chip phase while its loops are locked                            | a peak within one chip of a live row's code phase is that emitter's own and seeds nothing                       |
+| `EventLog` (attached)               | borrowed by `set_event_log()`                                                                                                    | nothing — it records `seeded`, `tracking`, `degrade`, `lost`, `released`, `dropped` with the slot's coordinates |
 
 The pool itself decides two things: which free slot a survivor seeds
 (or `dropped` when there is none), and the **on-time release** — a slot
 held past `max_emitter_on_time_secs` is released and its emitter is a new
 detection at its next window.
 
-`CellAsyncDsssPool` is the same object over `CellAsyncDsssReceiver`s: no
-refine stage, every slot's code loop held from the seed and corrected once
-every `D` code periods on the searcher's own timing, at `gain` (default
-1/8) after `pullin_intervals` (default 4) at gain 1. Everything above
-reads the same; the constructor drops the `refine_*` arguments and
-`set_refine_min_blocks()`, and refuses a searcher a cell receiver cannot
-take — `code_only_epochs` must give `D ≥ 13` at the 5 Mcps / Gold-1023
-geometry, so that a seed half a row off is inside the carrier loop's
-pull-in (see the design page, §8.2); a seed from a data-block dwell,
-hundreds of Hz off, is pulled in by an estimate on the receiver's own
-despread stream. Its numbers beside the hand-off pool's are the record's
-§12.27.
+Every slot is a `CellAsyncDsssReceiver`: no refine stage, its code loop
+held from the seed and corrected once every `D` code periods on the
+searcher's own timing, at `gain` (default 1/8) after `pullin_intervals`
+(default 4) at gain 1; the seed's carrier residual is estimated on the
+receiver's own despread stream and folded once. The constructor refuses a
+searcher a cell receiver cannot take — `code_only_epochs` must give `D ≥ 13`
+at the 5 Mcps / Gold-1023 geometry, so that a seed half a row off is
+inside the carrier loop's pull-in (see the design page, §8.2). The pool on
+hand-off receivers, with a refine chain per seed, was retired on
+2026-09-10 once this one matched it on the soak (the record's §12.27–12.28).
 
 ## One slot's lifecycle
 
@@ -68,7 +66,8 @@ idle ──seed()──▶ refining ──hand-over──▶ tracking ──both
 - **`seeded`** — a listed peak at no live row's code phase, into a free
     slot. The seed carries the searcher's Doppler (to one row), chip phase
     (to half a chip) and C/N0 estimate.
-- **`tracking`** — the refine has handed over to the live chain; from
+- **`tracking`** — the pull-in has folded its estimate and a lock flag
+    is up; from
     here `status()` reports the loops' own Doppler and chip phase, and
     `symbols()` returns what the receiver decided on the last push.
 - **`degrade`** — one flag down. Nothing is acted on; the loops keep
@@ -84,7 +83,7 @@ idle ──seed()──▶ refining ──hand-over──▶ tracking ──both
 
 The searcher's false alarms are part of this lifecycle by design: at
 `pfa = 1e-3` a noise peak seeds a free slot every few hundred milliseconds,
-refines to nothing, reports tracking with both flags down and is released
+pulls in to nothing, reports tracking with both flags down and is released
 one interval later. That is why a slot is an emitter's **by both
 coordinates** — its seed within the searcher's row of the emitter's
 Doppler *and* within a chip of its code phase — never by a count, and why
@@ -96,28 +95,25 @@ Every number is a constructor parameter; the defaults are the design's
 operating point, and the searcher's and the receivers' own parameters pass
 through untouched.
 
-| parameter                              | meaning                                                                                                                                                                                                                                            | default          |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `code`                                 | the spreading code, 0/1 chips; every emitter is on it                                                                                                                                                                                              | required         |
-| `chip_rate`, `symbol_rate`, `spc`, `m` | the waveform: chips per second, data symbols per second, samples per chip, the constellation order                                                                                                                                                 | 1e6, 1000, 2, 2  |
-| `cn0_dbhz`, `pfa`, `pd`                | the sensitivity the searcher and the receivers are sized for, and the searcher's per-dwell false-alarm and detection targets                                                                                                                       | 55, 1e-3, 0.9    |
-| `doppler_uncertainty`                  | the searcher's span, Hz one-sided; it tiles the span in windows one epoch rate wide                                                                                                                                                                | 100              |
-| `code_only_epochs`                     | the whole code epochs the waveform's code-only window holds at any chip phase; sizes the coherent depth `D` (1 = no window, `D = 1`)                                                                                                               | 1                |
-| `doppler_rate`                         | the Doppler rate the depth is bounded against, Hz/s (0 = no bound)                                                                                                                                                                                 | 0                |
-| `max_peaks`                            | the peak list's capacity per dwell: the population plus the false peaks the gate admits                                                                                                                                                            | 16               |
-| `n_slots`                              | receivers held; the population plus release headroom                                                                                                                                                                                               | 12               |
-| `threads`                              | the workers the searcher's tiles and the receivers run across (1 = serial; the result is bit-identical at any count)                                                                                                                               | 1                |
-| `carrier_freq_hz`                      | the RF carrier the Doppler is physically coupled to; told, the searcher walks its blocks by each tile's code rate, the hand-off advances the seed by half a dwell's drift, and the receivers aid their code loops from the carrier (0 = uncoupled) | 0                |
-| `lost_confirm_s`                       | the release rule's interval: both flags down this long is *lost*; longer than the longest fade the link must ride                                                                                                                                  | 2.0              |
-| `max_emitter_on_time_secs`             | the on-time cap: a slot held this long is released and its emitter re-acquired                                                                                                                                                                     | 900              |
-| `segments`, `sps`, `differential`      | the receivers' despreader partials per epoch, the demodulator's samples per symbol, differential decoding                                                                                                                                          | 4, 8, 0          |
-| `refine_*`                             | the receivers' refine stage: its error budget, samples per symbol, design margin, FFT size, zero padding, sequential mode, block cap                                                                                                               | see the API page |
+| parameter                              | meaning                                                                                                                                                                                                                                            | default         |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `code`                                 | the spreading code, 0/1 chips; every emitter is on it                                                                                                                                                                                              | required        |
+| `chip_rate`, `symbol_rate`, `spc`, `m` | the waveform: chips per second, data symbols per second, samples per chip, the constellation order                                                                                                                                                 | 1e6, 1000, 2, 2 |
+| `cn0_dbhz`, `pfa`, `pd`                | the sensitivity the searcher and the receivers are sized for, and the searcher's per-dwell false-alarm and detection targets                                                                                                                       | 55, 1e-3, 0.9   |
+| `doppler_uncertainty`                  | the searcher's span, Hz one-sided; it tiles the span in windows one epoch rate wide                                                                                                                                                                | 100             |
+| `code_only_epochs`                     | the whole code epochs the waveform's code-only window holds at any chip phase; sizes the coherent depth `D`, which must be at least 13 here (a windowed waveform)                                                                                  | 813             |
+| `doppler_rate`                         | the Doppler rate the depth is bounded against, Hz/s (0 = no bound)                                                                                                                                                                                 | 0               |
+| `max_peaks`                            | the peak list's capacity per dwell: the population plus the false peaks the gate admits                                                                                                                                                            | 16              |
+| `n_slots`                              | receivers held; the population plus release headroom                                                                                                                                                                                               | 12              |
+| `threads`                              | the workers the searcher's tiles and the receivers run across (1 = serial; the result is bit-identical at any count)                                                                                                                               | 1               |
+| `carrier_freq_hz`                      | the RF carrier the Doppler is physically coupled to; told, the searcher walks its blocks by each tile's code rate, the hand-off advances the seed by half a dwell's drift, and the receivers aid their code loops from the carrier (0 = uncoupled) | 0               |
+| `lost_confirm_s`                       | the release rule's interval: both flags down this long is *lost*; longer than the longest fade the link must ride                                                                                                                                  | 2.0             |
+| `max_emitter_on_time_secs`             | the on-time cap: a slot held this long is released and its emitter re-acquired                                                                                                                                                                     | 900             |
+| `segments`, `sps`, `differential`      | the receivers' despreader partials per epoch, the demodulator's samples per symbol, differential decoding                                                                                                                                          | 4, 8, 0         |
+| `gain`, `pullin_intervals`             | the receivers' correction: chips per chip of the interval-mean discriminator after the pull-in, and the intervals at gain 1 before it                                                                                                              | 0.125, 4        |
 
-Two knobs are methods, because they are decided after the population is
-known: `set_refine_min_blocks(n)` floors every receiver's refine dwell
-(seven by default — a dwell sized for detection alone can be too short for
-the tracking chain's pull-in), and `set_event_log(log)` attaches the run's
-log (`None` detaches).
+One knob is a method, because it is decided after the population is
+known: `set_event_log(log)` attaches the run's log (`None` detaches).
 
 A physically-coupled carrier (`carrier_freq_hz > 0`) is the setting that
 matters most for a moving emitter: without it a 50 kHz Doppler smears the

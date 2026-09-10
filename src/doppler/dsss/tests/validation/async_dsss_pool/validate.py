@@ -60,17 +60,10 @@ R = Report()
 
 @dataclass
 class Data:
-    """The soak's CSV blocks, per C/N0: the hand-off pool's, and the cell
-    pool's (`--cell`, design section 12.27) from a second run of the same
-    stimulus -- the flavour is the only difference, so the two are read
-    side by side and gated alike."""
+    """The soak's CSV blocks, per C/N0."""
 
     stints: dict[float, list[dict[str, float]]] = field(default_factory=dict)
     totals: dict[float, dict[str, float]] = field(default_factory=dict)
-    cell_stints: dict[float, list[dict[str, float]]] = field(
-        default_factory=dict
-    )
-    cell_totals: dict[float, dict[str, float]] = field(default_factory=dict)
 
 
 def _harness() -> Data:
@@ -87,19 +80,17 @@ def _harness() -> Data:
             f"C soak's."
         )
     d = Data()
-    for cell in (False, True):
-        _parse(
-            subprocess.run(
-                [str(HARNESS), "--check", "--emit"]
-                + (["--cell"] if cell else []),
-                capture_output=True,
-                text=True,
-                check=False,
-            ).stdout,
-            d.cell_stints if cell else d.stints,
-            d.cell_totals if cell else d.totals,
-        )
-    if not d.totals or not d.cell_totals:
+    _parse(
+        subprocess.run(
+            [str(HARNESS), "--check", "--emit"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout,
+        d.stints,
+        d.totals,
+    )
+    if not d.totals:
         raise SystemExit("async_dsss_pool: the soak emitted no totals block")
     return d
 
@@ -144,15 +135,8 @@ def _write_csv(d: Data) -> None:
             w = csv.DictWriter(fh, fieldnames=list(rows[0]))
             w.writeheader()
             w.writerows(rows)
-    for cn0, rows in d.cell_stints.items():
-        with (DATA / f"stints_{cn0:.0f}_cell.csv").open("w", newline="") as fh:
-            w = csv.DictWriter(fh, fieldnames=list(rows[0]))
-            w.writeheader()
-            w.writerows(rows)
     with (DATA / "totals.csv").open("w", newline="") as fh:
-        rows = [d.totals[c] for c in sorted(d.totals, reverse=True)] + [
-            d.cell_totals[c] for c in sorted(d.cell_totals, reverse=True)
-        ]
+        rows = [d.totals[c] for c in sorted(d.totals, reverse=True)]
         w = csv.DictWriter(fh, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)
@@ -176,7 +160,7 @@ def section_object() -> None:
         "`AsyncDsssPool` (design section 8.2) composes one continuous "
         "`Acquisition` "
         "with the block coherence its code-only window buys, `n_slots` "
-        "hand-off `AsyncDsssReceiver`s created idle, the assigned table and "
+        "`CellAsyncDsssReceiver`s created idle, the assigned table and "
         "the event log by attachment, behind one `push()` per block: feed "
         "the searcher; refresh the table from every locked loop; drop every "
         "peak within a chip of a live row's code phase as that emitter's "
@@ -237,8 +221,8 @@ def section_object() -> None:
             ],
             [
                 "a slot held past the cap is released `on_time`; reset logs "
-                "nothing; the refine floor reaches every slot",
-                "`_test_on_time_release_reset_and_the_floor`",
+                "nothing",
+                "`_test_on_time_release_and_reset`",
                 "pinned",
             ],
             [
@@ -258,23 +242,9 @@ def section_object() -> None:
                 "pinned by the harness; see F5",
             ],
             [
-                "`CellAsyncDsssPool` is created only on a searcher a cell "
-                "receiver can take (D > 1, a row inside the carrier loop's "
-                "pull-in) and has no refine to floor",
-                "`_test_cell_pool_refusals`",
-                "pinned",
-            ],
-            [
-                "the cell pool assigns once, tracks with both flags on the "
-                "emitter's phase, releases and re-assigns; two threads give "
-                "one thread's records",
-                "`_test_cell_pool_lifecycle`",
-                "pinned",
-            ],
-            [
-                "the cell pool's blob resumes bit for bit and is keyed by "
-                "the flavour",
-                "`_test_cell_pool_state_roundtrip`",
+                "the pool is created only on a searcher a cell receiver can "
+                "take (D > 1, a row inside the carrier loop's pull-in)",
+                "`_test_refusals`",
                 "pinned",
             ],
         ],
@@ -446,62 +416,6 @@ def characterise(d: Data) -> None:
     R.md()
 
 
-def _parity(d: Data) -> None:
-    """Section 2.5: the cell pool beside the hand-off pool on the same
-    stimulus -- the lifecycle counts and the cost, per C/N0."""
-    R.md("### 2.5 The cell flavour, beside the hand-off flavour")
-    R.md()
-    R.md(
-        "`CellAsyncDsssPool` (design section 12.27) runs the same soak on "
-        "cell receivers: no refine, every slot's `Dll` held from the seed "
-        "and corrected on the searcher's own block timing. The same "
-        "stimulus, the same gates; the receivers' flavour is the only "
-        "difference. `push()` seconds are the population's cost on the "
-        "run's threads."
-    )
-    R.md()
-    rows = []
-    for c in _cn0s(d):
-        for label, t in (
-            ("hand-off", d.totals[c]),
-            ("cell", d.cell_totals[c]),
-        ):
-            rows.append(
-                [
-                    f"{c:.0f}",
-                    label,
-                    f"{t['stints']:.0f}",
-                    f"{t['missed']:.0f}",
-                    f"{t['false_rel']:.0f}",
-                    f"{t['late_rel']:.0f}",
-                    f"{t['dbl_locked']:.0f}",
-                    f"{t['dropped']:.0f}",
-                    f"{t['held_of_on']:.3f}",
-                    f"{t['trk_of_held']:.3f}",
-                    f"{t['sym_of_held']:.3f}",
-                    f"{t['push_s']:.2f}",
-                ]
-            )
-    R.table(
-        [
-            "C/N0",
-            "flavour",
-            "stints",
-            "missed",
-            "false",
-            "late",
-            "double",
-            "dropped",
-            "held of on",
-            "code lock of held",
-            "symbol lock of held",
-            "push() s",
-        ],
-        rows,
-    )
-    R.md()
-
-
 def review(d: Data) -> None:
     R.md("## 3. Review — findings")
     R.md()
@@ -609,16 +523,12 @@ def limits(d: Data) -> None:
     R.md()
     for c in _cn0s(d):
         _limits_for(f"{c:.0f} dB-Hz", d.totals[c], d.stints[c])
-    for c in _cn0s(d):
-        _limits_for(f"{c:.0f} dB-Hz, cell", d.cell_totals[c], d.cell_stints[c])
 
 
 def _limits_for(
     tag: str, t: dict[str, float], stints: list[dict[str, float]]
 ) -> None:
-    """One flavour's limits at one C/N0: equal for both flavours by design
-    (section 12.27) -- a gate the cell pool fails is a defect, never a
-    tolerance to widen."""
+    """The limits at one C/N0."""
     R.limit(t["missed"] == 0, f"[{tag}] no emitter on the air is missed")
     R.limit(
         t["false_rel"] == 0,
@@ -654,7 +564,7 @@ def _limits_for(
     R.limit(
         max(held) <= 4950.0 / 2700.0 + 0.25,
         f"[{tag}] every arrival with a slot free is held within a frame "
-        f"and the refine",
+        f"and the pull-in",
     )
     R.limit(
         t["trk_of_held"] >= 0.98,
@@ -674,7 +584,7 @@ def _limits_for(
     R.limit(
         bool(both) and max(both) <= 0.5,
         f"[{tag}] tracking follows the seed within half a second, the "
-        f"refine's dwell and the hand-over",
+        f"pull-in's estimate and its lock",
     )
     rel = [
         s["t_rel_s"]
@@ -711,7 +621,6 @@ def build(write: bool = True) -> Report:
     if write:
         _write_csv(d)
     characterise(d)
-    _parity(d)
     review(d)
     limits(d)
     R.executive(
@@ -741,10 +650,7 @@ def build(write: bool = True) -> Report:
     R.summary(
         "\n- Raw run: "
         + ", ".join(f"`data/stints_{c:.0f}.csv`" for c in _cn0s(d))
-        + " (the hand-off pool), "
-        + ", ".join(f"`data/stints_{c:.0f}_cell.csv`" for c in _cn0s(d))
-        + " (the cell pool), `data/totals.csv` (both flavours, `cell` "
-        + "column) — the soak's `--emit` blocks"
+        + ", `data/totals.csv` — the soak's `--emit` blocks"
     )
     R.emit(HERE / "results.md")
     return R

@@ -2,7 +2,7 @@
 # (docs/design/async-dsss-receiver.md §8.2, decided 2026-09-03).
 #
 # One searcher (Acquisition in continuous mode with the block coherence of
-# §2.3 and a peak list), n_slots hand-off receivers created idle, the
+# §2.3 and a peak list), n_slots cell receivers created idle, the
 # assigned table, and the event log borrowed by attachment. One push() per
 # block: feed the searcher, refresh the table from every live receiver's
 # status(), drop every peak within a chip of a live row's code phase, seed
@@ -21,10 +21,10 @@ no_state = "true"
 no_step = "true"
 class_name = "AsyncDsssPool"
 serializable = "true"
-# A NULL create is an argument out of range (gh-482), not memory. The cell
-# view declares its own message below, and jm renders each face's own.
+# A NULL create is an argument out of range, or a searcher a cell receiver
+# cannot take (gh-482), not memory.
 create_error = "ValueError"
-create_error_message = "AsyncDsssPool: invalid parameter (need a non-empty code, chip_rate > 0, symbol_rate > 0, spc >= 1, n_slots >= 1, max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0, max_emitter_on_time_secs >= 0)"
+create_error_message = "AsyncDsssPool: invalid parameter, or a searcher a cell receiver cannot take (need a non-empty code, chip_rate > 0, symbol_rate > 0, spc >= 1, n_slots >= 1, max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0, max_emitter_on_time_secs >= 0, 0 < gain <= 1; a searcher depth D > 1 -- code_only_epochs > 1 -- whose Doppler row is at most four times the carrier loop's pull-in bound, doppler_res_hz <= 2 * 0.04 * chip_rate / code_len)"
 # dp_parallel.h's persistent pool is pthreads (the receivers across threads).
 extra_link_libs = ["Threads::Threads"]
 depends_on = [
@@ -101,7 +101,7 @@ default = "100.0"
 [[async_dsss_pool.init_params]]
 name = "code_only_epochs"
 type = "size_t"
-default = "1"
+default = "813"
 
 [[async_dsss_pool.init_params]]
 name = "doppler_rate"
@@ -157,40 +157,18 @@ name = "differential"
 type = "int"
 default = "0"
 
+# The receivers' correction: its gain in chips per chip of the interval-mean
+# discriminator after the pull-in, and the intervals at gain 1 before it
+# (design section 12.24, 12.26).
 [[async_dsss_pool.init_params]]
-name = "refine_max_error_db"
+name = "gain"
 type = "double"
-default = "0.5"
+default = "0.125"
 
 [[async_dsss_pool.init_params]]
-name = "refine_samples_per_symbol"
+name = "pullin_intervals"
 type = "size_t"
 default = "4"
-
-[[async_dsss_pool.init_params]]
-name = "refine_design_margin_db"
-type = "double"
-default = "14.0"
-
-[[async_dsss_pool.init_params]]
-name = "refine_n_fft"
-type = "size_t"
-default = "64"
-
-[[async_dsss_pool.init_params]]
-name = "refine_zero_pad"
-type = "size_t"
-default = "8"
-
-[[async_dsss_pool.init_params]]
-name = "refine_sequential"
-type = "bool"
-default = "false"
-
-[[async_dsss_pool.init_params]]
-name = "refine_max_n_blocks"
-type = "size_t"
-default = "100000"
 
 # ── Methods ──────────────────────────────────────────────────────────────
 [[async_dsss_pool.methods]]
@@ -250,23 +228,7 @@ params = [
   { name = "log", type = "dp_event_log_t *", capsule = "doppler.telemetry.dp_event_log", header = "dp_event_log/dp_event_log_core.h" },
 ]
 
-[[async_dsss_pool.methods]]
-name = "set_refine_min_blocks"
-doc = "Floor every receiver's refine dwell at n_blocks (AsyncDsssReceiver.set_refine_min_blocks(); design section 12.16, #1265): forwarded to all n_slots receivers, each applying it to the next refine chain it builds. The receivers' default is 7 blocks; 0 removes the floor. Config, not running state."
-arg_type = "void"
-return_type = "int"
-status_return = true
-params = [
-  { name = "n_blocks", type = "size_t" },
-]
-
 # ── Read-back ────────────────────────────────────────────────────────────
-[[async_dsss_pool.properties]]
-name = "refine_min_blocks"
-type = "size_t"
-expr = "(self->handle->rx[0]->refine_min_blocks)"
-doc = "The receivers' floor on the refine dwell, blocks (default 7); set with set_refine_min_blocks()."
-
 [[async_dsss_pool.properties]]
 name = "n_slots"
 type = "size_t"
@@ -308,42 +270,3 @@ name = "coherent_bins"
 type = "size_t"
 expr = "(self->handle->acq->coherent_bins)"
 doc = "The searcher's block-coherent depth D, from code_only_epochs and doppler_rate (section 2.3)."
-
-# ── The cell flavour: the same lifecycle on CellAsyncDsssReceivers ────────
-# (design section 12.22-12.27, #1283): no refine stage, every receiver's Dll
-# held from the seed and corrected on the searcher's own block timing
-# (`correct_periods` = the searcher's depth D). A difference in CONSTRUCTOR
-# is a flavour (the DDC/MatchedDDC shape): the methods, the record and the
-# blob's shape are shared verbatim; the flavour keys the blob. No refine
-# to floor, so that method and its read-back are not on this face.
-[[async_dsss_pool.views]]
-class_name = "CellAsyncDsssPool"
-create_fn = "async_dsss_pool_create_cell"
-create_error = "ValueError"
-create_error_message = "CellAsyncDsssPool: invalid parameter, or a searcher a cell receiver cannot take (need a non-empty code, chip_rate > 0, symbol_rate > 0, spc >= 1, n_slots >= 1, max_peaks >= 1, carrier_freq_hz >= 0, lost_confirm_s >= 0, max_emitter_on_time_secs >= 0, 0 < gain <= 1; a searcher depth D > 1 -- code_only_epochs > 1 -- whose Doppler row is at most four times the carrier loop's pull-in bound, doppler_res_hz <= 2 * 0.04 * chip_rate / code_len)"
-exclude_methods = ["set_refine_min_blocks"]
-exclude_properties = ["refine_min_blocks"]
-init_params = [
-    { name = "code", type = "uint8_t[]" },
-    { name = "chip_rate", type = "double", default = "1000000.0" },
-    { name = "symbol_rate", type = "double", default = "1000.0" },
-    { name = "spc", type = "size_t", default = "2" },
-    { name = "m", type = "int", default = "2" },
-    { name = "cn0_dbhz", type = "double", default = "55.0" },
-    { name = "pfa", type = "double", default = "1e-3" },
-    { name = "pd", type = "double", default = "0.9" },
-    { name = "doppler_uncertainty", type = "double", default = "100.0" },
-    { name = "code_only_epochs", type = "size_t", default = "813" },
-    { name = "doppler_rate", type = "double", default = "0.0" },
-    { name = "max_peaks", type = "size_t", default = "16" },
-    { name = "n_slots", type = "size_t", default = "12" },
-    { name = "threads", type = "int", default = "1" },
-    { name = "carrier_freq_hz", type = "double", default = "0.0" },
-    { name = "lost_confirm_s", type = "double", default = "2.0" },
-    { name = "max_emitter_on_time_secs", type = "double", default = "900.0" },
-    { name = "segments", type = "size_t", default = "4" },
-    { name = "sps", type = "size_t", default = "8" },
-    { name = "differential", type = "int", default = "0" },
-    { name = "gain", type = "double", default = "0.125" },
-    { name = "pullin_intervals", type = "size_t", default = "4" },
-]

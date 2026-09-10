@@ -20,6 +20,13 @@
 #define SYM_RATE 2700.0
 #define ITERATIONS 200
 #define N_SLOTS 12
+/* The code-only window the searcher aligns inside: 20 symbols of every
+   270, holding the 31 whole epochs a depth of 16 needs at any chip phase
+   (the pool refuses a searcher without one, or with a row past its
+   receivers' pull-in). */
+#define W_SYM 20u
+#define F_SYM 270u
+#define CODE_ONLY_EPOCHS 31u
 
 static double
 elapsed_sec (struct timespec *t0, struct timespec *t1)
@@ -61,8 +68,10 @@ build_capture (const uint8_t *code, size_t n_sym, double doppler_hz,
       if (si != sym)
         {
           lfsr = (lfsr >> 1) ^ (uint32_t)(-(int32_t)(lfsr & 1u) & 0xB400u);
-          a    = (lfsr & 1u) ? -1.0f : 1.0f;
-          sym  = si;
+          /* The window: the first W_SYM symbols of every F_SYM carry the
+             code alone (+1), the synth's rule. */
+          a   = (si % F_SYM < W_SYM) ? 1.0f : (lfsr & 1u) ? -1.0f : 1.0f;
+          sym = si;
         }
       double ph = 2.0 * M_PI * doppler_hz / FS * (double)i;
       x[i]      = a * (code[(i / SPC) % SF] ? -1.0f : 1.0f)
@@ -98,9 +107,9 @@ main (void)
   for (int k = 0; k < 2; k++)
     {
       async_dsss_pool_state_t *p = async_dsss_pool_create (
-          code, SF, CHIP_RATE, SYM_RATE, SPC, 2, 47.0, 1e-2, 0.9, 6000.0, 1,
-          0.0, 4, N_SLOTS, threads[k], 0.0, 2.0, 0.0, 4, 8, 0, 0.5, 4, 14.0,
-          64, 8, false, 100000);
+          code, SF, CHIP_RATE, SYM_RATE, SPC, 2, 47.0, 1e-2, 0.9, 6000.0,
+          CODE_ONLY_EPOCHS, 0.0, 4, N_SLOTS, threads[k], 0.0, 2.0, 0.0, 4, 8,
+          0, ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
       if (!p)
         return 1;
       /* Warm: the emitter acquired and tracking before the timed pushes. */

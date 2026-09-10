@@ -8,7 +8,7 @@ object that holds the *population*:
 [`dsss.AsyncDsssPool`](../api/python-dsss.md), the holder of the
 continuous multi-emitter use case in
 [the async DSSS receiver design](../design/async-dsss-receiver.md) (§8.2)
-— one searcher, a pool of hand-off receivers created idle, the assigned
+— one searcher, a pool of cell receivers created idle, the assigned
 table, and the event log by attachment, behind a single `push()`.
 
 Two emitters on **one Gold code**, told apart by Doppler and code phase
@@ -17,7 +17,7 @@ receiver's own rule (both lock flags down for the confirm interval, §10);
 it returns and is a *new* detection into whichever slot is free — the one
 re-assignment the lifecycle permits. The searcher's false alarms are part
 of that lifecycle: at pfa 1e-3 a noise peak seeds a free slot every few
-hundred milliseconds, refines to nothing, and is released one interval
+hundred milliseconds, pulls in to nothing, and is released one interval
 later. That is why the figure colours them, and why a slot is an
 emitter's **by both coordinates** — its seed within the searcher's row of
 the emitter's Doppler *and* within a chip of its code phase — never by a
@@ -27,7 +27,7 @@ borrowed log the caller closes.
 
 ## The geometry
 
-The operating point of the design's §6.1 at `D = 1`: a 1023-chip Gold
+The operating point of the design's §6.1 at a demo's depth, `D = 16`: a 1023-chip Gold
 code at 5 Mcps, two samples per chip, asynchronous BPSK at 2700 sym/s;
 the searcher epoch by epoch over ±6 kHz, so a Doppler row is one epoch
 rate (4.89 kHz) and two emitters two rows apart are two peaks; a release

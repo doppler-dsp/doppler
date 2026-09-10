@@ -38,7 +38,6 @@ _AsyncDsssPool state._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq**](#variable-acq)  <br> |
 |  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
-|  int | [**cell**](#variable-cell)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  uint8\_t \* | [**code**](#variable-code)  <br> |
 |  size\_t | [**code\_len**](#variable-code_len)  <br> |
@@ -140,24 +139,6 @@ double async_dsss_pool_state_t::carrier_freq_hz;
 
 
 
-
-<hr>
-
-
-
-### variable cell 
-
-```C++
-int async_dsss_pool_state_t::cell;
-```
-
-
-
-1: the receivers are the cell mode's ([**async\_dsss\_pool\_create\_cell()**](async__dsss__pool__core_8h.md#function-async_dsss_pool_create_cell)); 0: the hand-off flavour's. Keys the blob. 
- 
-
-
-        
 
 <hr>
 

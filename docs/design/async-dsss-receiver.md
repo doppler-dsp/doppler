@@ -839,13 +839,13 @@ through the `get_*()` family and the status record (§11.3):
     (`get_locked()`, the `cos(2φ)` statistic over a 30-symbol dwell, declared
     after 30 consecutive symbols at or above 0.5 and dropped after 15 below 0.3).
 
-- **idle** and **lost** — the hand-off flavor's two more (§11): idle is
+- **idle** and **lost** — the cell flavor's two more (§11): idle is
     waiting for a seed, lost is the release rule's verdict (§10).
 
 `DsssReceiver` is the same object without the refining stage — a hit's coarse
 Doppler goes straight to tracking — and §1.2's note (2) is why the refine
 exists: the 4–5 dB pull-in cliff the coarse-only hand-off left. `reset()`
-returns the searching flavor to searching and the hand-off flavor to idle:
+returns the searching flavor to searching and the cell flavor to idle:
 a receiver that has locked cannot be reset back onto the same signal. Both
 are serializable (`state_bytes`/`get_state`/`set_state`), every child
 included.
@@ -870,11 +870,12 @@ included.
     `code_phase`, and `MpskReceiver`'s `init_norm_freq` is cycles per its
     own partial-rate input — spelled out in
     [DsssReceiver](../gallery/dsss-receiver.md)'s example.
-- **The hand-off flavor** (§11.1), `HandoffAsyncDsssReceiver`, is a view
-    over the same core with no embedded `Acquisition`: it starts idle,
-    `seed(chip_phase, doppler_hz_est, cn0_dbhz_est)` starts the refine →
-    track chain (a method of both flavors; refused on a receiver that
-    already holds one), `reset()` returns to idle. The release rule (§10,
+- **The cell flavor** (§11.1), `CellAsyncDsssReceiver`, is a view over the
+    same core with no embedded `Acquisition` and no refine chain: it starts
+    idle, `seed(chip_phase, doppler_hz_est, cn0_dbhz_est)` starts the
+    pull-in → track chain on the searcher's timing (a method of both
+    flavors; refused on a receiver that already holds one), `reset()`
+    returns to idle. The release rule (§10,
     §11.2) enters lost; one flag down is a degrade; the clock also runs
     from the first tracking sample, so a seed that never locks within the
     interval is released the same way. While the interval runs the loops
@@ -1438,7 +1439,7 @@ flowchart LR
         Z -->|yes| OWN["that emitter's own:<br/>nothing"]
         Z -->|no, a slot free| SEED["acq_build_handoff() → seed()<br/>«seeded»"]
         Z -->|no slot free| DROP["«dropped»"]
-        SEED --> RX["12 hand-off receivers, idle until seeded<br/>refine → track (§4, §11); every one fed every block,<br/>across the threads"]
+        SEED --> RX["12 cell receivers, idle until seeded<br/>pull-in → track (§4, §11); every one fed every block,<br/>across the threads"]
         X --> RX
         RX -->|"status(): Doppler, chip phase, flags"| T["the assigned table:<br/>one row per slot, keyed on locked loops"]
         T --> Z
@@ -1579,8 +1580,8 @@ Everything it holds is sized once, at create:
     coherence of §2.3 and `max_peaks` of order 16 (§7.1) — its tiles fanned
     a roll per thread across the threads the pool is given, the forward
     transform and the list on the calling thread.
-- **`n_slots` hand-off receivers** — twelve here, §10's ten plus release
-    headroom — created
+- **`n_slots` cell receivers** (§11.1) — twelve here, §10's ten plus
+    release headroom — created
     idle. An idle or lost receiver consumes and discards what it is fed,
     so every receiver is fed every block and the feed has no per-state
     branch; the receivers run under `dp_parallel.h` across the thread
@@ -1619,7 +1620,7 @@ stateDiagram-v2
     [*] --> idle : create(), reset()
     idle --> refining : a peak at no live row's code phase, a free slot — seed(), «seeded»
     state assigned {
-        refining --> tracking : the refine hands over — «tracking»
+        refining --> tracking : the pull-in folds its estimate and a flag comes up — «tracking»
         tracking --> tracking : one flag down — «degrade»
         tracking --> lost : both flags down longer than lost_confirm_s — «lost»
     }
@@ -1635,7 +1636,7 @@ stateDiagram-v2
 
 The receiver decides `lost` (§10) and the pool acts on it; the pool alone
 decides the on-time release, and nothing else takes a slot from a live
-receiver. `idle` is the hand-off flavor's resting state — waiting for a
+receiver. `idle` is the cell receiver's resting state — waiting for a
 seed, never searching — and a released emitter still on the air re-enters
 at its next window as a new detection.
 
@@ -1651,33 +1652,27 @@ same records, because nothing below the pool sees a time.
 The pool is off the searcher's push path: the spread is 10 dB (§5.4),
 inside the floor, so no replica is subtracted and §11.4 is not built.
 
-**The cell flavour.** A second constructor over the same core,
-`CellAsyncDsssPool` (`create_cell`), holds `n_slots` cell receivers
-(§11.1's `CellAsyncDsssReceiver`) instead of hand-off ones: no refine,
-every slot's `Dll` held from the seed and corrected on the searcher's own
-block timing (`correct_periods` = the searcher's depth `D`, the interval
-§12.22–12.26 measured), at the design gain after the pull-in. `push()`,
-the table, the zone, the transitions and the releases are the same code;
-the flavour keys the blob. Two things a cell receiver needs from the
-searcher are checked at create and refused: a depth above 1 (at `D = 1`
-there is no searcher timing), and a Doppler row narrow enough that a seed
-half a row off lands inside loop 1's reliable pull-in — `doppler_res_hz`
-at most four times `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` (391 Hz at 5 Mcps
-over Gold-1023, so `D ≥ 13`; the operating point's 154 gives 31.7 Hz). A
-hand-off receiver's refine pulls a seed in from half a 4.9 kHz row; a
-cell receiver has only loop 1. What the searcher still hands it that the
-row does not bound is §12.14's smeared copy — at 45 dB-Hz an emitter's
-first seed is routinely its own data block, hundreds of Hz off — so the
-cell receiver's pull-in estimates the seed's residual on its own despread
-stream (the hand-off's estimator, fed what the live chain hands
-`MpskReceiver`, no second chain, loop 1 held at the seed's frequency
-meanwhile as the refine's frozen wipe is) and folds it into loop 1 once;
-and the
-table advances a never-locked row on the seed's clock whatever the
-receiver's state, so the zone holds through that pull-in (§12.27:
-measured, the double assignment both cost before they were built). Parity with the hand-off pool on the lifecycle soak, at both
-C/N0s, is §12.27's claim; the retirement of the hand-off path is
-[#1283](https://github.com/doppler-dsp/doppler/issues/1283).
+**The receivers are cell receivers.** Every slot is §11.1's
+`CellAsyncDsssReceiver`: no refine chain, its `Dll` held from the seed and
+corrected on the searcher's own block timing (`correct_periods` = the
+searcher's depth `D`, the interval §12.22–12.26 measured), at the design
+gain after the pull-in. Two things a cell receiver needs from the searcher
+are checked at create and refused: a depth above 1 (at `D = 1` there is no
+searcher timing), and a Doppler row narrow enough that a seed half a row
+off lands inside loop 1's reliable pull-in — `doppler_res_hz` at most four
+times `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ` (391 Hz at 5 Mcps over Gold-1023,
+so `D ≥ 13`; the operating point's 154 gives 31.7 Hz). What the searcher
+still hands it that the row does not bound is §12.14's smeared copy — at
+45 dB-Hz an emitter's first seed is routinely its own data block, hundreds
+of Hz off — so the cell receiver's pull-in estimates the seed's residual on
+its own despread stream (§11.1) and the table advances a never-locked row
+on the seed's clock whatever the receiver's state, so the zone holds
+through that pull-in (§12.27: measured, the double assignment both cost
+before they were built). The pool on hand-off receivers — the same seed
+into each receiver's own refine chain, a chain built per seed — was the
+pool from §12.13 to §12.27 and was retired on 2026-09-10 once this one
+matched it on the lifecycle soak at both C/N0s and on the pull-in curve
+(§12.27–12.28, [#1283](https://github.com/doppler-dsp/doppler/issues/1283)).
 
 ______________________________________________________________________
 
@@ -1781,7 +1776,7 @@ that drop, before the confirm interval has run — and the receiver reports
 lost to whoever holds the pool. The holder then
 **releases the assignment**: the emitter leaves the assigned table, so the
 searcher may report those coordinates again, and the receiver is reset to
-the hand-off mode's idle — *waiting for a seed*, not searching — for the
+the cell mode's idle — *waiting for a seed*, not searching — for the
 pool to reuse. Nothing else moves: the searcher was never told to stop
 looking there and the other receivers are untouched. The one
 re-assignment the lifecycle permits is this one: an emitter released while
@@ -1812,7 +1807,7 @@ the 15-minute maximum on-time (§13).
 **The pool.** Ten emitters at once plus the receivers still inside a
 confirm interval on emitters that have just left: at one departure a
 minute and a confirm interval of a second, the headroom is one. A pool of
-about twelve hand-off-mode receivers, each a tracker chain on the
+about twelve cell-mode receivers, each a tracker chain on the
 application's threads beside the searcher's own cost (`burst-bank.md`
 §11.2), is the whole population.
 
@@ -1873,7 +1868,7 @@ stream the whole pool must consume at 30 MSa/s comfortably. The receiver of §4
 has five things for that, none of which is a new receiver; the measurements
 that sized them are §12.
 
-### 11.1 The hand-off mode: an acquisition input, and an internal bypass
+### 11.1 The cell mode: an acquisition input, and an internal bypass
 
 In the pool the search is the searcher's, so the receiver **takes a
 detection from outside** — the `DetectionEvent` of §2.2, exactly as its own
@@ -1894,36 +1889,58 @@ shared verbatim. Two consequences follow:
     flavors, and a view shares methods verbatim in any case. On a receiver that
     is not idle it **refuses**: "assigned once" is enforced by the object, not
     by the orchestrator's discipline.
-- **`reset()` in hand-off mode returns to idle — waiting for a seed — not to
-    searching**, because there is no search to return to. Samples pushed in
-    idle are consumed and discarded, so the feeding loop has no special case,
-    and the pool reuses the object without reallocating.
+- **`reset()` in the seeded mode returns to idle — waiting for a seed — not
+    to searching**, because there is no search to return to. Samples pushed
+    in idle are consumed and discarded, so the feeding loop has no special
+    case, and the pool reuses the object without reallocating.
 
-**The cell mode.** A third constructor over the same core,
-`CellAsyncDsssReceiver` (`create_cell`), is the searcher-timed tracker of
-§12.22–12.24 built by turning stages off rather than by a second object:
-seeded like the hand-off flavor, it builds no refine stage, holds the `Dll`
-from the first sample, and once every `correct_periods` code periods moves a
-held code phase — kept in double and dead-reckoned across the interval on
-the carrier loop's Doppler — by a gain in chips times the coasting `Dll`'s
-interval-mean discriminator (`Dll.take_error_mean`), steering the `Dll` to
-it by rate over the next interval rather than by a phase kick (at a period
-boundary a kick lands on the code's wrap and costs a period's partials,
-[#1287](https://github.com/doppler-dsp/doppler/issues/1287)). Gain 1
-through the pull-in intervals, the design gain 1/8 after; with the code
-flag down the phase only dead-reckons, the searcher-timed form of §10's
-hold. The pre-despread carrier loop runs as the hand-off flavor's: measured
-with it frozen at the seed's Doppler, `MpskReceiver`'s 27 Hz loop alone lost
-the symbol lock 40 intervals of 48 on SPEC's 500 Hz/s (BER 0.45); running,
-the ramp is followed to 3 Hz with the lock never down. Everything past the
-`Dll` — the symbol path, the symbol lock, the release rule, the status
-record — is the hand-off flavor's verbatim, and `seed()` and `reset()`
-behave as above. Measured on the receiver's own tests: the held phase sits
-on the channel's mapping at 0.004 chip σ at gain 1/8 against 0.016 at gain
-1, the switched-off receiver stays where its emitter left it, and SPEC's
-ramp decodes at BER 0 with one constant alignment (§12.26). The pool's
-flavour on it, and the hand-off path's retirement, are
-[#1283](https://github.com/doppler-dsp/doppler/issues/1283).
+**The cell mode is that constructor**, `CellAsyncDsssReceiver`
+(`create_cell`): the searcher-timed tracker of §12.22–12.24 built by turning
+stages off rather than by a second object. Seeded from outside, it builds no
+refine chain, holds the `Dll` from the first sample, and once every
+`correct_periods` code periods moves a held code phase — kept in double and
+dead-reckoned across the interval on the carrier loop's Doppler — by a gain
+in chips times the coasting `Dll`'s interval-mean discriminator
+(`Dll.take_error_mean`), steering the `Dll` to it by rate over the next
+interval rather than by a phase kick (at a period boundary a kick lands on
+the code's wrap and costs a period's partials,
+[#1287](https://github.com/doppler-dsp/doppler/issues/1287)). Gain 1 through
+the pull-in intervals, the design gain 1/8 after; with the code flag down
+the phase only dead-reckons, the searcher-timed form of §10's hold.
+
+Its pull-in is the refine's estimator on its own stream, not a second chain:
+the seed's carrier residual is estimated by `carrier_acq` (the PSDMF of
+§2.2) on what the live chain's `RateConverter` hands `MpskReceiver`, with
+loop 1 held at the seed's frequency meanwhile as the refine's frozen wipe
+is, and folded into loop 1 once, `MpskReceiver` re-centred; the estimator's
+dwell is the refine's scaled by the ratio of the two feeds' sample rates,
+which is what it takes to reach the refine's noise (§12.28's curve: at
+40 dB-Hz the refine's dwell pulled in 7–9 draws of 10 from 100 Hz on, twice
+it 10 of 10 to 1000 Hz — the hand-off flavour's own curve — for 40 ms more
+per seed at 45 dB-Hz). Tracking follows the fold and the first lock flag,
+or the end of the pull-in intervals regardless, so a seed that never locks
+reaches the release clock. The pre-despread carrier loop then runs as the
+searching flavor's: measured with it frozen at the seed's Doppler,
+`MpskReceiver`'s 27 Hz loop alone lost the symbol lock 40 intervals of 48 on
+SPEC's 500 Hz/s (BER 0.45); running, the ramp is followed to 3 Hz with the
+lock never down. Everything past the `Dll` — the symbol path, the symbol
+lock, the release rule, the status record — is the searching flavor's
+verbatim, and `seed()` and `reset()` behave as above. Measured on the
+receiver's own tests: the held phase sits on the channel's mapping at
+0.003 chip σ at gain 1/8 against 0.014 at gain 1, the switched-off receiver
+stays where its emitter left it, and SPEC's ramp decodes at BER 0 with one
+constant alignment (§12.26); on the searcher's own stream it holds 0.0056
+and 0.0082 chip at 45 and 40 dB-Hz, 1.9× and 2.7× under the closed loop it
+replaced.
+
+**The hand-off flavor it replaced** — `HandoffAsyncDsssReceiver`, the same
+seed into this object's own refine chain and a hand-over to a fresh track
+chain, the pool's receiver from §12.13 to §12.27 — was retired on
+2026-09-10 once the cell mode matched it on the lifecycle soak at both
+C/N0s and on the pull-in curve (§12.27–12.28,
+[#1283](https://github.com/doppler-dsp/doppler/issues/1283)). The base
+receiver keeps its refine for its own search; a seeded refine is the base
+receiver's `seed()`.
 
 ### 11.2 The lost state, and the release
 
@@ -2020,10 +2037,11 @@ Twelve receivers at twice the chip rate — 10 MSa/s at the top of the range —
 on the application's threads, beside one searcher and one front-end DDC; the
 budget is 100 ns per output sample per core at the operating point and 43 at
 the 30 MSa/s floor, half of that as the working margin (§6.4). What that asks of the receiver: nothing allocates per `push()` or per
-state change (the pool runs for hours), the replica writes into a caller
-buffer, the status record is by value, and one receiver's cost per output
-sample is a number §12.1 and §12.17 report beside the count of emitters
-kept.
+state change (the pool runs for hours — a cell receiver builds nothing per
+seed, where the hand-off flavor built a refine chain), the replica writes
+into a caller buffer, the status record is by value, and one receiver's
+cost per output sample is a number §12.1, §12.17 and §12.27 report beside
+the count of emitters kept.
 
 ______________________________________________________________________
 
@@ -2049,6 +2067,10 @@ same section numbers. What each step settled:
 | the tracker through the window             | both flags hold through every window; the seed's pull-in defect found and fixed (#1249, #1254)                                                                                                                                                                         | §12.9–11              |
 | the searcher's cost with `D`, and the fan  | 523 ns per sample serially at `D = 154`, 164 on four threads, 125 on eight; 53 MB per block, 160 MB of surface                                                                                                                                                         | §12.8                 |
 | the searcher's cell as the code tracker    | in the window the surface reads the phase as the loop does; under data the coasting DLL on the raw block does; closed on its own cell it holds the emitter at the loop's jitter, and with the correction filtered at gain 1/8 at 2.5× under it, for 25 s at both C/N0s | §12.20–24             |
+| the DLL's one steer                        | the discriminator, its clamp and the coast hold had two homes; one `dll_steer()`, the per-steer sum a holder reads, a held loop that takes a new rate aid                                                                                                              | §12.25                |
+| the cell mode as a product                 | the shipped `CellAsyncDsssReceiver` holds 0.0056 / 0.0082 chip at 45 / 40 dB-Hz on the searcher's stream, 1.9× / 2.7× under the closed loop, at the hand-off's BER at 45; the carrier slips cycles at 40 in both flavours (#1289)                                      | §12.26                |
+| the pool on cell receivers                 | parity with the hand-off pool to the fourth digit at 45 dB-Hz, every gate at 40, the same cost; a data-block seed needs the refine's estimator on the live chain and loop 1 held meanwhile                                                                             | §12.27                |
+| the retirement                             | the pull-in as a curve: with the estimator's dwell scaled to the live chain's rate the cell receiver pulls in every draw the refine did, at both C/N0s; the 600 s soak; the hand-off path deleted                                                                      | §12.28                |
 
 ### 12.1 The budget, per stage
 
@@ -2213,9 +2235,11 @@ ______________________________________________________________________
     searcher's realized Pfa is about twice the configured one
     ([#1064](https://github.com/doppler-dsp/doppler/issues/1064), the
     interpolated cells the gate's maximum runs over).
-- **The receivers' chains are built per seed and hand-over**, not once
-    at create ([#1269](https://github.com/doppler-dsp/doppler/issues/1269)):
-    a first-use step in the heap, not growth with time.
+- **The receivers' track chains are built per seed**, not once at create
+    ([#1269](https://github.com/doppler-dsp/doppler/issues/1269)): a
+    first-use step in the heap, not growth with time. The refine chain that
+    was also built per seed and hand-over went with the hand-off flavour
+    (§12.28).
 - **The budget.** The population runs at 4.1× real time on twenty threads
     where the requirement asks for 0.5 (§12.17); the block searcher's depth
     owns most of it (§12.8), and what the 48-core server does with it is a

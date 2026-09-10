@@ -273,9 +273,7 @@ typedef struct
      from the surface at the first window dwell as the held mode is,
      scored on its status(); its symbols kept for the BER. */
   async_dsss_receiver_state_t *rx;
-  double rx_gain;    /* NAN = no receiver                    */
-  int    rx_handoff; /* the hand-off flavour on the same seed,
-                        for parity (no cell gain)            */
+  double          rx_gain; /* NAN = no receiver                    */
   int             rx_seeded;
   uint64_t        rx_seed_at;  /* samples_consumed at the seed         */
   uint64_t        rx_seed_sym; /* the synth's symbol index there       */
@@ -849,18 +847,10 @@ run (acq_state_t *a, const uint8_t *code, double ppm, double cn0,
   c->rx_nsyms  = 0;
   if (!isnan (c->rx_gain) && a->coherent_bins > 1)
     {
-      /* The hand-off flavour's refine is the release harness's
-         (tracker_through_window.c): the parity reference on the same
-         seed and stream. */
-      c->rx = c->rx_handoff
-                  ? async_dsss_receiver_create_handoff (
-                        code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0, PFA, PD,
-                        SEGMENTS, RX_SPS, 0, 0.5, 4, 14.0, 64, 8, false,
-                        100000, CARRIER_HZ, 0.0)
-                  : async_dsss_receiver_create_cell (
-                        code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0, PFA, PD,
-                        SEGMENTS, RX_SPS, 0, CARRIER_HZ, 0.0, a->coherent_bins,
-                        c->rx_gain, ASYNC_DSSS_RX_CELL_PULLIN);
+      c->rx = async_dsss_receiver_create_cell (
+          code, SF, CHIP_RATE, SYM_RATE, SPC, 2, cn0, PFA, PD, SEGMENTS,
+          RX_SPS, 0, CARRIER_HZ, 0.0, a->coherent_bins, c->rx_gain,
+          ASYNC_DSSS_RX_CELL_PULLIN);
       DP_REQUIRE_MSG (c->rx != NULL, "the receiver opens");
       c->rx_out = dp_xmalloc (TE * sizeof *c->rx_out);
       c->rx_syms_cap
@@ -1740,30 +1730,25 @@ main (int argc, char **argv)
              seeded from the surface at the first window dwell, fed the
              epochs from there, its held phase read off its status and
              its symbols scored against the synth's payload. The cell
-             mode at the design gain, at gain 1 under dilation, and the
-             hand-off flavour on the same seed as the parity reference
-             (its phase is undefined until its refine ends, so its
-             window row is not a read). The check runs the design gain
-             only: it carries the cell's claims, and the reference is the
-             record's (the instrumented coverage build runs this check
-             at 20x, where one more stream is a quarter of an hour). */
+             mode at the design gain, and at gain 1 under dilation (the
+             hand-off flavour ran beside them as the parity reference
+             until it was retired, section 12.26-12.28). The check runs
+             the design gain only: it carries the cell's claims (the
+             instrumented coverage build runs this check at 20x, where
+             one more stream is a quarter of an hour). */
           if (ppms[pi] == 18.0)
-            for (size_t fi = 0; fi < 3; fi++)
+            for (size_t fi = 0; fi < 2; fi++)
               {
-                const int    handoff = fi == 2;
-                const double g       = fi == 1 ? 1.0 : ASYNC_DSSS_RX_CELL_GAIN;
+                const double g = fi == 1 ? 1.0 : ASYNC_DSSS_RX_CELL_GAIN;
                 if (check && fi)
                   continue;
-                c.rx_gain    = g;
-                c.rx_handoff = handoff;
+                c.rx_gain = g;
                 DP_REQUIRE (run (a, code, ppms[pi], cn0s[ci],
                                  31u + (uint32_t)pi, cal.c0, W_SYM, NAN, &c,
                                  n_dw)
                             == 0);
                 c.rx_gain        = NAN;
-                c.rx_handoff     = 0;
-                const char *name = handoff ? "HandoffAsyncDsssReceiver"
-                                           : "CellAsyncDsssReceiver";
+                const char *name = "CellAsyncDsssReceiver";
                 stat_t      rw, rd;
                 stats (&c, &cal, 1, &rw);
                 stats (&c, &cal, 0, &rd);
@@ -1774,22 +1759,15 @@ main (int argc, char **argv)
                             name, c.n);
                     continue;
                   }
-                if (handoff)
-                  printf ("    %s: seeded at dwell %zu, %+.3f chips from "
-                          "the truth; %zu symbols over %.1f s\n",
-                          name, c.rx_at, c.rx_seed_err, c.rx_nsyms,
-                          (double)(c.n - c.rx_at) * (double)c.dwell_len / FS);
-                else
-                  printf ("    %s, gain %.3f: seeded at dwell %zu, %+.3f "
-                          "chips from the truth; %zu symbols over %.1f s\n",
-                          name, g, c.rx_at, c.rx_seed_err, c.rx_nsyms,
-                          (double)(c.n - c.rx_at) * (double)c.dwell_len / FS);
-                if (!handoff)
-                  print_rx ("window", &rw);
+                printf ("    %s, gain %.3f: seeded at dwell %zu, %+.3f "
+                        "chips from the truth; %zu symbols over %.1f s\n",
+                        name, g, c.rx_at, c.rx_seed_err, c.rx_nsyms,
+                        (double)(c.n - c.rx_at) * (double)c.dwell_len / FS);
+                print_rx ("window", &rw);
                 print_rx ("data", &rd);
                 size_t       slips;
                 const double ber = score_ber (&c, cn0s[ci], "data", &slips);
-                if (check && !handoff)
+                if (check)
                   {
                     DP_CHECK_MSG (rd.n_rx >= 100 && rd.n_rx_held == rd.n_rx
                                       && rw.n_rx_held == rw.n_rx,

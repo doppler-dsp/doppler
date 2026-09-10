@@ -821,7 +821,8 @@ void dll_hold_here(dll_state_t *state);
  * keeps its per-epoch meaning and the tracked rate is continuous across
  * the switch either way -- a loop that has pulled in a code Doppler keeps
  * it when the aid is turned on or off. Measured against the per-epoch
- * loop at the operating point (docs/design/async-dsss-receiver.md §12.5,
+ * loop at the operating point
+ * (docs/design/async-dsss-receiver-measurements.md §12.5,
  * `validate_dll_aid_jitter`): pull-in about 20% faster, and a code jitter
  * 0.8x the per-epoch loop's above 45 dB-Hz -- where the look-back's own
  * handling of the data transitions sets it -- and 1.2-1.4x at the 40

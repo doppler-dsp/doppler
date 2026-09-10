@@ -1624,8 +1624,9 @@ class Acquisition:
         carrier at the block's middle, relative to its tile's centre; its
         neighbours along the code axis are complex early and late arms, so a
         tracker can form the coherent discriminator `Re(conj(P) (L - E)) /
-        |P|^2`, which the magnitude surface cannot (design §12.21). Coherent
-        path only: a non-coherent dwell (`n_noncoh > 1`) is a power sum with no
+        |P|^2`, which the magnitude surface cannot
+        (docs/design/async-dsss-receiver-measurements.md §12.21). Coherent path
+        only: a non-coherent dwell (`n_noncoh > 1`) is a power sum with no
         phase, and reads 0.
 
         Parameters
@@ -1677,8 +1678,9 @@ class Acquisition:
         middle by the tile's code-rate hypothesis, so the phase is continuous
         along the column for an emitter at the tile's centre and rotates at its
         offset from it. At an emitter's cell this is what a despreader
-        produces, one value per epoch, phase included (design §12.21). Valid
-        once a block is whole, until the next epoch is pushed.
+        produces, one value per epoch, phase included
+        (docs/design/async-dsss-receiver-measurements.md §12.21). Valid once a
+        block is whole, until the next epoch is pushed.
 
         Parameters
         ----------
@@ -1731,8 +1733,9 @@ class Acquisition:
         tile-edge re-ask (acq_resolve_tile_alias()); exposed so a tracker can
         re-correlate them at any code phase, rate or symbol boundary the
         engine's own grid does not have — a symbol-rate despreader at the
-        tracked timing runs on exactly this (design §12.21). Valid once a block
-        is whole, until the next epoch is pushed.
+        tracked timing runs on exactly this
+        (docs/design/async-dsss-receiver-measurements.md §12.21). Valid once a
+        block is whole, until the next epoch is pushed.
 
         Parameters
         ----------
@@ -6565,10 +6568,10 @@ class AsyncDsssPool:
         out: NDArray[np.complex64] | None = None,
     ) -> NDArray[np.complex64]:
         """The symbols slot `slot`'s receiver decided on the last push(),
-        borrowed from the pool's own buffer (sized once at create by the
-        receiver's steps_max_out()): empty while the slot is idle, refining or
-        lost. Valid until the next push(), reset() or set_state(). Raises
-        ValueError for a slot outside [0, n_slots).
+        borrowed from the pool's own buffer (grown on demand to the largest
+        block pushed so far, and never shrunk): empty while the slot is idle,
+        refining or lost. Valid until the next push(), reset() or set_state().
+        Raises ValueError for a slot outside [0, n_slots).
 
         Copied from the pool's own buffer, which the next push() overwrites.
         Empty while the slot is idle, refining or lost, and for a slot outside

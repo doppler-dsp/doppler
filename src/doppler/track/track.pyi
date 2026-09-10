@@ -1075,18 +1075,19 @@ class Dll:
         across the switch either way -- a loop that has pulled in a code
         Doppler keeps it when the aid is turned on or off. Measured against the
         per-epoch loop at the operating point
-        (docs/design/async-dsss-receiver.md §12.5, `validate_dll_aid_jitter`):
-        pull-in about 20% faster, and a code jitter 0.8x the per-epoch loop's
-        above 45 dB-Hz -- where the look-back's own handling of the data
-        transitions sets it -- and 1.2-1.4x at the 40 dB-Hz floor, where the
-        noise sets it and the window's unused partials cost more than its
-        coherence buys; hundredths of a chip either way. The emitted partial
-        stream is untouched: the look-back still supplies its normalisation.
-        The search is blind to WHICH hypothesis is right on any one symbol --
-        it needs no decision and no external timing -- so it costs nothing at
-        cold start and follows a slowly drifting symbol clock by itself. `L` is
-        capped at four epochs of partials so a long symbol (a low data rate)
-        does not ask for coherence across more carrier than the wipe-off holds.
+        (docs/design/async-dsss-receiver-measurements.md §12.5,
+        `validate_dll_aid_jitter`): pull-in about 20% faster, and a code jitter
+        0.8x the per-epoch loop's above 45 dB-Hz -- where the look-back's own
+        handling of the data transitions sets it -- and 1.2-1.4x at the 40
+        dB-Hz floor, where the noise sets it and the window's unused partials
+        cost more than its coherence buys; hundredths of a chip either way. The
+        emitted partial stream is untouched: the look-back still supplies its
+        normalisation. The search is blind to WHICH hypothesis is right on any
+        one symbol -- it needs no decision and no external timing -- so it
+        costs nothing at cold start and follows a slowly drifting symbol clock
+        by itself. `L` is capped at four epochs of partials so a long symbol (a
+        low data rate) does not ask for coherence across more carrier than the
+        wipe-off holds.
 
         Parameters
         ----------

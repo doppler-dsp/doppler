@@ -2,8 +2,9 @@
 
 Imports its helpers and runs one short signal at the design floor, so the
 per-push suite keeps the finding behind
-`docs/design/async-dsss-receiver.md` §12.4 honest: the DLL's default
-20-partial detector reads "unlocked" most of the time at Es/N0 5.7 dB on a
+`docs/design/async-dsss-receiver-measurements.md` §12.4 honest: the
+DLL's default 20-partial detector reads "unlocked" most of the time at
+Es/N0 5.7 dB on a
 loop that is tracking perfectly, and the symbol-period-aided detector does
 not.
 """

@@ -2,7 +2,8 @@
 async-DSSS operating point: default per-partial looks, sized per-partial
 looks, and the symbol-period-aided looks, on one signal, with telemetry.
 
-This is the run behind `docs/design/async-dsss-receiver.md` §12.4: the
+This is the run behind
+`docs/design/async-dsss-receiver-measurements.md` §12.4: the
 DLL the packaged `AsyncDsssReceiver` builds (`bn 0.002, segments 4`), fed
 the shipped synth's continuous DSSS (Gold-1023 at 5 Mcps, 2 samples per
 chip, 2700 sym/s asynchronous BPSK) with a `Telemetry` context attached,

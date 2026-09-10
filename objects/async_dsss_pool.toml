@@ -211,7 +211,7 @@ record_module = "doppler.dsss"
 
 [[async_dsss_pool.methods]]
 name = "symbols"
-doc = "The symbols slot `slot`'s receiver decided on the last push(), borrowed from the pool's own buffer (sized once at create by the receiver's steps_max_out()): empty while the slot is idle, refining or lost. Valid until the next push(), reset() or set_state(). Raises ValueError for a slot outside [0, n_slots)."
+doc = "The symbols slot `slot`'s receiver decided on the last push(), borrowed from the pool's own buffer (grown on demand to the largest block pushed so far, and never shrunk): empty while the slot is idle, refining or lost. Valid until the next push(), reset() or set_state(). Raises ValueError for a slot outside [0, n_slots)."
 arg_type = "void"
 return_type = "float _Complex"
 variable_output = true

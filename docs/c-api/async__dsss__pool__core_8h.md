@@ -8,7 +8,7 @@
 
 [Go to the source code of this file](async__dsss__pool__core_8h_source.md)
 
-_AsyncDsssPool_  _one object holds the population: a searcher, a pool of hand-off receivers, the assigned table and the event log (docs/design/async-dsss-receiver.md section 8.2)._[More...](#detailed-description)
+_AsyncDsssPool_  _one object holds the population: a searcher, a pool of cell receivers, the assigned table and the event log (docs/design/async-dsss-receiver.md section 8.2)._[More...](#detailed-description)
 
 * `#include "clib_common.h"`
 * `#include "jm_perf.h"`
@@ -216,7 +216,7 @@ async_dsss_pool_state_t * async_dsss_pool_create (
 The lifecycle of the file's doc over `n_slots` CellAsyncDsssReceivers ([**async\_dsss\_receiver\_create\_cell()**](async__dsss__receiver__core_8h.md#function-async_dsss_receiver_create_cell)): a seed builds no refine stage, the receiver's Dll is held from the first sample and corrected once every `correct_periods` code periods  here the searcher's own block depth D (`coherent_bins`), the timing the design measured  by `gain` chips per chip of its interval-mean discriminator, gain 1 through `pullin_intervals`. push(), the table, the zone, the transitions and the releases are section 8.2's: the receivers report the same status record, and `refining` is the pull-in. (The pool on hand-off receivers, with a refine chain per seed, was retired on 2026-09-10 once this one matched it on the soak, section 12.27-12.28.)
 
 
-Two things the searcher must give a cell receiver, checked here and refused with NULL: a block depth above 1 (`code_only_epochs` &gt; 1 with a window in the waveform  at D = 1 there is no searcher timing to drive), and a Doppler row narrow enough that a seed half a row off lands inside the carrier loop's reliable pull-in  `doppler_res_hz` at most four times ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ (391 Hz at 5 Mcps over Gold-1023, so D &gt;= 13; the operating point's D = 154 gives 31.7 Hz). A hand-off receiver's refine pulls a seed in from half a 4.9 kHz row; a cell receiver has only loop 1, and past twice its bound it never locks.
+Two things the searcher must give a cell receiver, checked here and refused with NULL: a block depth above 1 (`code_only_epochs` &gt; 1 with a window in the waveform  at D = 1 there is no searcher timing to drive), and a Doppler row narrow enough that a seed half a row off lands inside the carrier loop's reliable pull-in  `doppler_res_hz` at most four times ASYNC\_DSSS\_RX\_CARRIER\_PULLIN\_HZ (391 Hz at 5 Mcps over Gold-1023, so D &gt;= 13; the operating point's D = 154 gives 31.7 Hz). A The retired hand-off flavour's refine pulled a seed in from half a 4.9 kHz row; a cell receiver has only loop 1, and past twice its bound it never locks.
 
 
 

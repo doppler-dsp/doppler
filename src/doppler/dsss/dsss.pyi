@@ -5050,7 +5050,7 @@ class AsyncDsssReceiver:
         sharpens the coarse Doppler estimate, and only once it is ready (or
         gives up) is the live tracking chain built and demodulation begins.
         Accepts any block size; state carries across calls, so a capture can be
-        fed in frames of any length with no seam. Idle (hand-off mode, before a
+        fed in frames of any length with no seam. Idle (cell mode, before a
         seed) and lost (after the release rule fires) consume the samples and
         emit nothing, so the feeding loop is the same in every state; while
         tracking, the release clock runs on the two lock flags after every call
@@ -5140,7 +5140,7 @@ class AsyncDsssReceiver:
         """Take a detection from outside and start refining from it: the hit's
         chip phase (Dll's instantaneous convention, at the next sample fed),
         coarse Doppler estimate and C/N0 estimate -- exactly what the searching
-        flavor's own hit produces. Accepted while idle (hand-off flavor) or
+        flavor's own hit produces. Accepted while idle (cell mode) or
         searching; refused on a receiver that already holds a seed (refining,
         tracking or lost -- reset() releases it) and for a chip_phase outside
         [0, code_len).
@@ -5159,7 +5159,7 @@ class AsyncDsssReceiver:
         Refused (`DP_ERR_INVALID`, nothing changes) on a receiver that is not
         waiting for one -- refining, tracking or lost -- because "assigned
         once" is a property of the object, not of the caller's bookkeeping;
-        `reset()` releases it. Accepted while idle (hand-off mode) or searching
+        `reset()` releases it. Accepted while idle (cell mode) or searching
         (the searching flavor: an outside hit simply beats its own). Also
         refused for a `chip_phase` outside `[0, code_len)` or a non-finite
         value.
@@ -5515,8 +5515,8 @@ class AsyncDsssReceiver:
 
     @property
     def idle(self) -> int:
-        """1 while waiting for a seed (the hand-off flavor before seed() or
-        after reset()); 0 in every other state.
+        """1 while waiting for a seed (cell mode, before seed() or after
+        reset()); 0 in every other state.
         """
 
     @property
@@ -5699,7 +5699,7 @@ class CellAsyncDsssReceiver:
     m : int, default 2
         PSK order (2, 4 or 8).
     cn0_dbhz : float, default 55.0
-        Design C/N0, dB-Hz -- sizes the Dll's lock detector as the hand-off
+        Design C/N0, dB-Hz -- sizes the Dll's lock detector as the searching
         flavor's.
     pfa : float, default 1e-3
         Acquisition false-alarm probability (kept for the flavor's shared
@@ -5789,7 +5789,7 @@ class CellAsyncDsssReceiver:
         sharpens the coarse Doppler estimate, and only once it is ready (or
         gives up) is the live tracking chain built and demodulation begins.
         Accepts any block size; state carries across calls, so a capture can be
-        fed in frames of any length with no seam. Idle (hand-off mode, before a
+        fed in frames of any length with no seam. Idle (cell mode, before a
         seed) and lost (after the release rule fires) consume the samples and
         emit nothing, so the feeding loop is the same in every state; while
         tracking, the release clock runs on the two lock flags after every call
@@ -5879,7 +5879,7 @@ class CellAsyncDsssReceiver:
         """Take a detection from outside and start refining from it: the hit's
         chip phase (Dll's instantaneous convention, at the next sample fed),
         coarse Doppler estimate and C/N0 estimate -- exactly what the searching
-        flavor's own hit produces. Accepted while idle (hand-off flavor) or
+        flavor's own hit produces. Accepted while idle (cell mode) or
         searching; refused on a receiver that already holds a seed (refining,
         tracking or lost -- reset() releases it) and for a chip_phase outside
         [0, code_len).
@@ -5898,7 +5898,7 @@ class CellAsyncDsssReceiver:
         Refused (`DP_ERR_INVALID`, nothing changes) on a receiver that is not
         waiting for one -- refining, tracking or lost -- because "assigned
         once" is a property of the object, not of the caller's bookkeeping;
-        `reset()` releases it. Accepted while idle (hand-off mode) or searching
+        `reset()` releases it. Accepted while idle (cell mode) or searching
         (the searching flavor: an outside hit simply beats its own). Also
         refused for a `chip_phase` outside `[0, code_len)` or a non-finite
         value.
@@ -6164,8 +6164,8 @@ class CellAsyncDsssReceiver:
 
     @property
     def idle(self) -> int:
-        """1 while waiting for a seed (the hand-off flavor before seed() or
-        after reset()); 0 in every other state.
+        """1 while waiting for a seed (cell mode, before seed() or after
+        reset()); 0 in every other state.
         """
 
     @property

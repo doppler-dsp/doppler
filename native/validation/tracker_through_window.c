@@ -24,7 +24,7 @@
  * shipped window (`wfm_synth_set_dsss_window`: 450 code-only symbols of
  * every 4950 -- a 1.83 s frame, a 0.17 s window); noise from the shipped
  * awgn generator sized by awgn_amplitude_for_snr() from the C/N0. The
- * receiver is the HAND-OFF flavor (`async_dsss_receiver_create_handoff`),
+ * receiver is the SEARCHING flavor (`async_dsss_receiver_create`),
  * seeded once with what the searcher hands it: the shipped `acq`
  * continuous engine runs on the same received blocks until its first hit,
  * and acq_build_handoff() of that hit is the seed -- the pool's own path
@@ -172,7 +172,8 @@ make_emitter (const uint8_t *code, uint32_t seed)
   return syn;
 }
 
-/* The hand-off flavor, §12.3's tracker parameters, the design's release
+/* The searching flavor seeded from outside, §12.3's tracker parameters,
+   the design's release
    interval; the carrier-to-code aid on through the channel (§12.5). */
 static double g_d0_ppm      = 0.0; /* --trace: the channel's own numbers  */
 static double g_ppm_s       = RAMP_PPM_S;
@@ -298,7 +299,7 @@ run_trial (const uint8_t *code, int cond, double cn0_dbhz, uint32_t seed,
                                                     ho.doppler_hz_est,
                                                     ho.cn0_dbhz_est)
                               == 0,
-                          "the hand-off receiver takes the searcher's seed");
+                          "the seeded receiver takes the searcher's seed");
           out->seed_s = (double)n / FS;
           seeded      = 1;
           if (g_trace_every)
@@ -499,7 +500,7 @@ main (int argc, char **argv)
 
   printf ("tracker through the window: Gold-1023 at 5 Mcps, spc 2, 2700 "
           "sym/s async BPSK, %u code-only symbols of every %u (%.1f ms "
-          "window, %.2f s frame); hand-off receiver, release at %.0f s; "
+          "window, %.2f s frame); seeded receiver, release at %.0f s; "
           "block = one epoch (%.3f ms)\n\n",
           W_SYM, F_SYM, (double)W_SYM / SYM_RATE * 1e3,
           (double)F_SYM / SYM_RATE, LOST_CONFIRM_S, (double)TE / FS * 1e3);
@@ -560,7 +561,7 @@ main (int argc, char **argv)
       if (check)
         {
           DP_CHECK_MSG (settled == 1 && tot.blocks > 0,
-                        "the hand-off receiver settles on its seed and "
+                        "the seeded receiver settles on its seed and "
                         "the windows are seen");
           DP_CHECK_MSG (!tot.lost, "the release rule never fires on a "
                                    "pure-code window");

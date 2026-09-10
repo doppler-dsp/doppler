@@ -729,8 +729,8 @@ static PyGetSetDef AsyncDsssReceiver_getset[] = {
     "while searching or tracking.\n",
     NULL },
   { "idle", (getter)AsyncDsssReceiver_getprop_idle, NULL,
-    "1 while waiting for a seed (the hand-off flavor before seed() or after "
-    "reset()); 0 in every other state.\n",
+    "1 while waiting for a seed (cell mode, before seed() or after reset()); "
+    "0 in every other state.\n",
     NULL },
   { "lost", (getter)AsyncDsssReceiver_getprop_lost, NULL,
     "1 once the release rule has fired: both lock flags were down, "
@@ -966,7 +966,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "sharpens the coarse Doppler estimate, and only once it is ready (or\n"
     "gives up) is the live tracking chain built and demodulation begins.\n"
     "Accepts any block size; state carries across calls, so a capture can be\n"
-    "fed in frames of any length with no seam. Idle (hand-off mode, before a\n"
+    "fed in frames of any length with no seam. Idle (cell mode, before a\n"
     "seed) and lost (after the release rule fires) consume the samples and\n"
     "emit nothing, so the feeding loop is the same in every state; while\n"
     "tracking, the release clock runs on the two lock flags after every call\n"
@@ -1053,7 +1053,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "Take a detection from outside and start refining from it: the hit's\n"
     "chip phase (Dll's instantaneous convention, at the next sample fed),\n"
     "coarse Doppler estimate and C/N0 estimate -- exactly what the searching\n"
-    "flavor's own hit produces. Accepted while idle (hand-off flavor) or\n"
+    "flavor's own hit produces. Accepted while idle (cell mode) or\n"
     "searching; refused on a receiver that already holds a seed (refining,\n"
     "tracking or lost -- reset() releases it) and for a chip_phase outside\n"
     "[0, code_len).\n"
@@ -1072,7 +1072,7 @@ static PyMethodDef AsyncDsssReceiverObj_methods[] = {
     "Refused (`DP_ERR_INVALID`, nothing changes) on a receiver that is not\n"
     "waiting for one -- refining, tracking or lost -- because \"assigned\n"
     "once\" is a property of the object, not of the caller's bookkeeping;\n"
-    "`reset()` releases it. Accepted while idle (hand-off mode) or searching\n"
+    "`reset()` releases it. Accepted while idle (cell mode) or searching\n"
     "(the searching flavor: an outside hit simply beats its own). Also\n"
     "refused for a `chip_phase` outside `[0, code_len)` or a non-finite\n"
     "value.\n"

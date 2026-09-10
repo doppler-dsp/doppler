@@ -407,8 +407,8 @@ def characterise(d: Data) -> None:
     )
     R.md(
         "The heap is sampled once a second after a warm-up and re-based at "
-        "every slot's first tracking — a receiver builds its chains on its "
-        "first seed and hand-over, a first-use step kept apart from growth "
+        "every slot's first tracking — a receiver builds its track chain on "
+        "its first seed, a first-use step kept apart from growth "
         "with time (section 5.1). The searcher's block and surface at D = 154 "
         "are "
         "the half gigabyte."
@@ -444,10 +444,12 @@ def review(d: Data) -> None:
     R.find(
         "F3",
         "FIXED",
-        "The refine's dwell is floored at `refine_min_blocks` (seven): sized "
+        "The refine's dwell was floored at `refine_min_blocks` (seven): sized "
         "for detection alone it shrank to two blocks at 45 dB-Hz, where "
         "one hand-over in sixty fell outside the tracking chain's pull-in "
-        "(section 12.16, #1265).",
+        "(section 12.16, #1265). Superseded — the pool is on cell "
+        "receivers, which build no refine chain, and the knob is gone "
+        "(section 12.28, #1283).",
     )
     R.find(
         "F4",
@@ -463,11 +465,12 @@ def review(d: Data) -> None:
     R.find(
         "F5",
         "CONFIRMED",
-        "Each receiver builds its refine and track chains on its first seed "
-        "and hand-over and frees them on reset (#1269) — a per-transition "
-        "allocation, not a leak: the heap is flat once every slot has been "
-        "used once, and the soak reports the first-use step apart from "
-        "growth.",
+        "Each receiver builds its track chain on its first seed and frees it "
+        "on reset (#1269) — a per-transition allocation, not a leak: the "
+        "heap is flat once every slot has been used once, and the soak "
+        "reports the first-use step apart from growth. The refine chain "
+        "that was also built per seed went with the hand-off flavour "
+        "(section 12.28, #1283).",
     )
     R.find(
         "F6",

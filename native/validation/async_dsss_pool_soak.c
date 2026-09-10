@@ -6,7 +6,7 @@
  *        each of those took.
  *
  * The continuous async-DSSS design (docs/design/async-dsss-receiver.md
- * §6.1, §12 step 7) has one searcher and a pool of hand-off receivers
+ * §6.1, §12 step 7) has one searcher and a pool of cell receivers
  * holding a population that changes about once a minute: an emitter comes
  * into view at whatever point of its frame it has reached, is detected in
  * its next code-only window, seeded into a free receiver, tracked by that

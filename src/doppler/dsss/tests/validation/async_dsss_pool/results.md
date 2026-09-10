@@ -68,9 +68,9 @@ At 45 dB-Hz the emitter's own data blocks seed it in the first block or two — 
 
 | C/N0 dB-Hz | heap after warm-up MiB | largest first-use step KiB | growth since the last first use KiB | resident high-water mark MiB |
 |---|---|---|---|---|
-| 45 | 501.6 | 0.1 | +0.0 | 254.0 → 254.0 |
+| 45 | 501.6 | 0.1 | +0.0 | 254.1 → 254.1 |
 
-The heap is sampled once a second after a warm-up and re-based at every slot's first tracking — a receiver builds its chains on its first seed and hand-over, a first-use step kept apart from growth with time (section 5.1). The searcher's block and surface at D = 154 are the half gigabyte.
+The heap is sampled once a second after a warm-up and re-based at every slot's first tracking — a receiver builds its track chain on its first seed, a first-use step kept apart from growth with time (section 5.1). The searcher's block and surface at D = 154 are the half gigabyte.
 
 ## 3. Review — findings
 
@@ -78,11 +78,11 @@ The heap is sampled once a second after a warm-up and re-based at every slot's f
 
 - **F2 · FIXED** — The Dll's symbol-aided looks no longer overlap, so a decision reads each stretch of noise once: the code flag's returns on noise after a departure fell from about one a second to 0.004 (section 12.15, #1264). This run's clock restarted 0 time(s) in 16 s.
 
-- **F3 · FIXED** — The refine's dwell is floored at `refine_min_blocks` (seven): sized for detection alone it shrank to two blocks at 45 dB-Hz, where one hand-over in sixty fell outside the tracking chain's pull-in (section 12.16, #1265).
+- **F3 · FIXED** — The refine's dwell was floored at `refine_min_blocks` (seven): sized for detection alone it shrank to two blocks at 45 dB-Hz, where one hand-over in sixty fell outside the tracking chain's pull-in (section 12.16, #1265). Superseded — the pool is on cell receivers, which build no refine chain, and the knob is gone (section 12.28, #1283).
 
 - **F4 · BY DESIGN** — The searcher's false alarms are part of the lifecycle: at pfa 1e-3 a noise peak seeds a free slot, refines to nothing, reports tracking with both flags down and is released one interval later. The realized rate is about twice the configured one (#1064). Every expectation is therefore about the emitter's slot by both coordinates, never a count of slots, and `n_slots` carries that headroom.
 
-- **F5 · CONFIRMED** — Each receiver builds its refine and track chains on its first seed and hand-over and frees them on reset (#1269) — a per-transition allocation, not a leak: the heap is flat once every slot has been used once, and the soak reports the first-use step apart from growth.
+- **F5 · CONFIRMED** — Each receiver builds its track chain on its first seed and frees it on reset (#1269) — a per-transition allocation, not a leak: the heap is flat once every slot has been used once, and the soak reports the first-use step apart from growth. The refine chain that was also built per seed went with the hand-off flavour (section 12.28, #1283).
 
 - **F6 · BY DESIGN** — The code flag still returns on noise at about 0.004 per second, and one return inside the interval restarts the release clock once, so the release is bounded on two intervals — one departure in a hundred; two returns inside one interval is a 1e-4 event.
 

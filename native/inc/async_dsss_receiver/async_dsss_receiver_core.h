@@ -54,7 +54,7 @@
  *     coupled Doppler (offset AND 500 Hz/s ramp), so despreading is coherent
  *     and MpskReceiver is left only a small residual. (Pure PLL -- no FLL
  *     anywhere, see the `ASYNC_DSSS_RX_BN_CARRIER` comment.)
- *   - **idle** (`get_idle() == 1`, hand-off mode only): waiting for a seed.
+ *   - **idle** (`get_idle() == 1`, cell mode only): waiting for a seed.
  *     Samples are consumed and discarded, so a feeding loop needs no
  *     special case.
  *   - **lost** (`get_lost() == 1`): the emitter is gone. Entered from
@@ -192,7 +192,7 @@ extern "C"
  *  line -- reliable to twice it, dead by four. A seed with no refine
  *  behind it (the cell mode, async_dsss_receiver_create_cell()) must land
  *  inside it: the holder that seeds from a searcher's row checks the row
- *  against this (async_dsss_pool_create_cell()). 97.8 Hz at 5 Mcps over
+ *  against this (async_dsss_pool_create()). 97.8 Hz at 5 Mcps over
  *  Gold-1023. */
 #define ASYNC_DSSS_RX_CARRIER_PULLIN_HZ(chip_rate, code_len)                  \
   (ASYNC_DSSS_RX_BN_CARRIER * (chip_rate) / (2.0 * (double)(code_len)))
@@ -239,7 +239,7 @@ extern "C"
 
 /* The state machine's values (`state` below, also the first byte of a
  * serialized blob's extra record). Searching -> refining -> tracking is the
- * searching flavor's path; hand-off mode starts at idle and seed() puts it
+ * searching flavor's path; cell mode starts at idle and seed() puts it
  * at refining; lost is reached from tracking by the release rule and left
  * only by reset(). */
 #define ASYNC_DSSS_RX_SEARCHING 0
@@ -260,7 +260,7 @@ extern "C"
    */
   typedef struct
   {
-    acq_state_t *acq; /**< The embedded search; NULL in hand-off mode
+    acq_state_t *acq; /**< The embedded search; NULL in cell mode
                            (async_dsss_receiver_create_cell()), where
                            the seed comes from outside. */
 
@@ -386,7 +386,7 @@ extern "C"
      * searcher's cell drives -- no refine, the Dll held from the first
      * sample and put back once an interval at a held phase corrected by a
      * gain times what its discriminator read (design section 12.22-12.24);
-     * the carrier loop the hand-off's own. */
+     * the carrier loop the searching flavor's own. */
     int      cell;             /**< Config: 1 = the cell mode.            */
     size_t   correct_periods;  /**< Config: code periods per correction --
                                     the searcher's block depth in a pool. */
@@ -606,7 +606,7 @@ extern "C"
    * through the first `pullin_intervals` (the seed's residual, up to half a
    * chip), the design gain after; refining is the pull-in, tracking
    * follows. The pull-in estimates the seed's carrier residual on the live
-   * chain's own despread stream -- the hand-off flavor's estimator fed
+   * chain's own despread stream -- the searching flavor's estimator fed
    * what the RateConverter hands MpskReceiver, no second chain, loop 1
    * held at the seed's frequency meanwhile as the refine's frozen wipe
    * is, the dwell scaled by `sps` over the refine's samples per symbol so
@@ -620,11 +620,11 @@ extern "C"
    * or while the
    * code flag is up; with the flag down the phase only dead-reckons, so a
    * departed emitter's receiver cannot walk onto a neighbour. The carrier
-   * is the hand-off flavor's own pre-despread loop, running -- it is what
+   * is the searching flavor's own pre-despread loop, running -- it is what
    * follows SPEC's 500 Hz/s (MpskReceiver's 27 Hz loop alone cannot), held
    * on both flags down as there, and it refreshes the Dll's rate aid every
    * period. Everything else -- the symbol path, the symbol lock, the
-   * release rule, the status record, reset() to idle -- is the hand-off
+   * release rule, the status record, reset() to idle -- is the searching
    * flavor's verbatim. Measured on the receiver's own tests: the held phase
    * sits on the channel's mapping at 0.003 chip sigma at gain 1/8 against
    * 0.014 at gain 1 (12.26).
@@ -636,7 +636,7 @@ extern "C"
    * @param spc             Samples per chip.
    * @param m               PSK order (2, 4 or 8).
    * @param cn0_dbhz        Design C/N0, dB-Hz -- sizes the Dll's lock
-   *                        detector as the hand-off flavor's.
+   *                        detector as the searching flavor's.
    * @param pfa             Acquisition false-alarm probability (kept for
    *                        the flavor's shared config; no search runs).
    * @param pd              Likewise.
@@ -686,12 +686,12 @@ extern "C"
   void async_dsss_receiver_destroy (async_dsss_receiver_state_t *state);
 
   /**
-   * @brief Return to the searching state -- or, in hand-off mode, to idle.
+   * @brief Return to the searching state -- or, in cell mode, to idle.
    * Resets the embedded Acquisition (if any) and rebuilds both the
    * refine-stage and live-tracking chains back to their placeholder seed
    * (phase 0, no Doppler). A receiver that has locked cannot be "reset back
    * to tracking the same signal," only back to searching — matching every
-   * other object's reset() semantics in this codebase. In hand-off mode
+   * other object's reset() semantics in this codebase. In cell mode
    * there is no search to return to, so this is how the holder of a pool
    * releases a lost receiver for its next seed, with no reallocation.
    * @param state Must be non-NULL.
@@ -721,7 +721,7 @@ extern "C"
    * sharpens the coarse Doppler estimate, and only once it is ready (or
    * gives up) is the live tracking chain built and demodulation begins.
    * Accepts any block size; state carries across calls, so a capture can be
-   * fed in frames of any length with no seam. Idle (hand-off mode, before a
+   * fed in frames of any length with no seam. Idle (cell mode, before a
    * seed) and lost (after the release rule fires) consume the samples and
    * emit nothing, so the feeding loop is the same in every state; while
    * tracking, the release clock runs on the two lock flags after every
@@ -801,7 +801,7 @@ extern "C"
    * Refused (`DP_ERR_INVALID`, nothing changes) on a receiver that is not
    * waiting for one -- refining, tracking or lost -- because "assigned once"
    * is a property of the object, not of the caller's bookkeeping; `reset()`
-   * releases it. Accepted while idle (hand-off mode) or searching (the
+   * releases it. Accepted while idle (cell mode) or searching (the
    * searching flavor: an outside hit simply beats its own). Also refused
    * for a `chip_phase` outside `[0, code_len)` or a non-finite value.
    *
@@ -917,7 +917,7 @@ extern "C"
   async_dsss_receiver_status_t async_dsss_receiver_status (
       const async_dsss_receiver_state_t *state);
 
-  /** @brief 1 while waiting for a seed (hand-off mode, before seed() or
+  /** @brief 1 while waiting for a seed (cell mode, before seed() or
    * after reset()); 0 in every other state. */
   int async_dsss_receiver_get_idle (const async_dsss_receiver_state_t *state);
 
@@ -943,7 +943,7 @@ extern "C"
    *                      (1..256); more looks buys sensitivity at the cost
    *                      of dwell, replacing the auto-sized count.
    * @return 0 on success, -1 on invalid grid (see acq_configure_search_raw)
-   *         or in hand-off mode, which has no search to pin.
+   *         or in cell mode, which has no search to pin.
    * @code
    * >>> import numpy as np
    * >>> from doppler.dsss import AsyncDsssReceiver
@@ -1129,7 +1129,7 @@ extern "C"
   /* ── Serializable state (standard bytes interface; see dp_state.h) ──────
    * Composition: acq + car_frozen + refine_dll + refine_rc + ca + car +
    * dll + rc + rx, always all nine in the searching flavor and the eight
-   * without acq in hand-off mode (a fixed shape per flavor, DsssReceiver's
+   * without acq in cell mode (a fixed shape per flavor, DsssReceiver's
    * own rationale). segments/sps/n/refine_segments and the flavor are the
    * layout key. */
 

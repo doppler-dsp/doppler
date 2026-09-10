@@ -26,7 +26,7 @@
  * this project's own established per-test-file convention).
  *
  * The multi-emitter additions (docs/design/async-dsss-receiver.md section
- * 11.1-11.2): hand-off mode (no search; idle -> seed -> refine -> track,
+ * 11.1-11.2): cell mode (no search; idle -> seed -> refine -> track,
  * assigned once, reset() to idle), seed() on the searching flavor and its
  * range checks, the release rule (both flags down past lost_confirm_s ->
  * lost, not before, never at 0) and the flavor-keyed state round trip.
@@ -762,13 +762,13 @@ _seeded_rx (double cn0, double lost_confirm_s)
       lost_confirm_s, 100, ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
 }
 
-/* Hand-off mode, section 11.1: no search of its own. Idle consumes and
+/* Cell mode, section 11.1: no search of its own. Idle consumes and
  * discards; a seed -- here the truth, since the capture puts chip 0 on its
  * first signal sample with no Doppler -- starts the refine -> track chain
  * the searching flavor runs; a second seed is refused until reset(), which
  * returns to idle, and the object decodes again from the next seed. */
 static int
-_test_handoff_seed_and_decode (void)
+_test_cell_seed_and_decode (void)
 {
   const size_t sf = 7, spc = 4;
   const double fs          = 1.0e6 * (double)spc;
@@ -1127,8 +1127,8 @@ _test_one_flag_down_is_a_degrade (void)
   return 0;
 }
 
-/* The blob is keyed by flavor: a hand-off receiver's state resumes
- * bit-for-bit into another hand-off receiver, and neither flavor accepts
+/* The blob is keyed by flavor: a cell receiver's state resumes
+ * bit-for-bit into another cell receiver, and neither flavor accepts
  * the other's blob (the search engine is in one and not the other). */
 /* #1265: the refine's dwell is floored at refine_min_blocks whatever the
    detection sizing asks. At 45 dB-Hz with the shipped margin det_n_noncoh
@@ -1170,7 +1170,7 @@ _test_refine_dwell_floor (void)
 }
 
 static int
-_test_handoff_state_roundtrip (void)
+_test_seeded_blob_keyed_by_flavor (void)
 {
   const size_t sf = 7, spc = 4;
   const double fs          = 1.0e6 * (double)spc;
@@ -1635,7 +1635,8 @@ _test_cell_holds_and_decodes (void)
   /* The truth is the channel's own mapping; the Dll's convention is the
      code phase at the next sample, so no constant is calibrated -- the
      coasting loop reads the mapping to a hundredth of a chip (the running
-     hand-off loop, for the record, converges 0.24 chip off it here). */
+     searching flavor's loop, for the record, converges 0.24 chip off it here).
+   */
   const double c = 0.0;
 
   const double gains[2] = { 0.125, 1.0 };
@@ -1820,7 +1821,7 @@ _test_cell_holds_through_switch_off (void)
   return 0;
 }
 
-/* The ramp: the carrier loop of the hand-off flavor runs in the cell mode
+/* The ramp: the searching flavor's carrier loop runs in the cell mode
  * too, so a ramping carrier is followed pre-despread and the symbol lock
  * never breaks. Sabotaged red: the carrier loop frozen in the cell mode
  * (the status Doppler stays at the seed and the lock drops). */
@@ -1922,7 +1923,7 @@ _test_cell_ramp_at_spec (void)
       periods, ASYNC_DSSS_RX_CELL_GAIN, ASYNC_DSSS_RX_CELL_PULLIN);
   DP_CHECK (rx != NULL);
   /* Chip 0 on the first signal sample, the ramp from 0 Hz: the seed is the
-     truth, as the hand-off tests seed. */
+     truth, as the cell-mode tests seed. */
   DP_CHECK (async_dsss_receiver_seed (rx, 0.0, 0.0, cn0) == DP_OK);
   float _Complex *syms = malloc (n * sizeof *syms);
   size_t          ns = 0, down = 0, pos = pre, k = 0;
@@ -1956,9 +1957,9 @@ _test_cell_ramp_at_spec (void)
   return 0;
 }
 
-/* The blob: keyed on the mode (a hand-off blob is refused), no refine
+/* The blob: keyed on the mode (a searching-flavour blob is refused), no refine
  * children, the held phase and Doppler and the interval clocks in it -- a
- * receiver resumed mid-stream emits the hand-off's symbols and holds its
+ * receiver resumed mid-stream emits the same symbols and holds its
  * phase. Sabotaged red: held_phase left out of the extra record (the
  * resumed receiver's next correction puts its Dll at 0). */
 static int
@@ -2063,12 +2064,12 @@ main (void)
   (void)_test_spec_combined_scenario_at_spec_floor ();
   (void)_test_awgn_esn0_floor ();
   (void)_test_accessor_coverage ();
-  (void)_test_handoff_seed_and_decode ();
+  (void)_test_cell_seed_and_decode ();
   (void)_test_seed_on_searching_flavor ();
   (void)_test_lost_after_switch_off ();
   (void)_test_one_flag_down_is_a_degrade ();
   (void)_test_refine_dwell_floor ();
-  (void)_test_handoff_state_roundtrip ();
+  (void)_test_seeded_blob_keyed_by_flavor ();
   (void)_test_status_record ();
   (void)_test_cell_lifecycle_and_args ();
   (void)_test_cell_seed_past_pullin_is_estimated ();

@@ -1270,7 +1270,14 @@ extern "C"
     uint8_t  cell;         /**< v5: the cell mode -- no refine children in
                                 the blob; a blob does not travel between
                                 the modes.                             */
-    uint8_t  _pad[3];
+    uint8_t  cell_refined; /**< v6: the cell's carrier estimate has been
+                                folded; its estimator is a child of the
+                                cell blob too. A NAMED byte of the pad:
+                                unnamed padding is indeterminate in a
+                                designated initialiser, and a blob that
+                                carries it does not round-trip byte for
+                                byte under every compiler.            */
+    uint8_t  _pad[2];
     double   seed_chip_phase;
     double   seed_doppler_hz_est;
     double   doppler_hz_est;
@@ -1289,9 +1296,6 @@ extern "C"
     lockdet_state_t sym_lockdet;  /**< restored by create()).             */
     double   held_phase;          /**< v5: the cell mode's running state. */
     double   cell_rate_bias;
-    uint8_t  cell_refined;        /**< v6: the cell's carrier estimate has
-                                       been folded; its estimator is a child
-                                       of the cell blob too.               */
     uint64_t period_count;
     uint64_t intervals;
   } async_dsss_receiver_extra_t;

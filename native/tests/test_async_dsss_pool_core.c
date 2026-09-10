@@ -597,25 +597,29 @@ _test_cell_pool_lifecycle (void)
   async_dsss_pool_state_t *p  = make_cell_pool (3, 1);
   async_dsss_pool_state_t *p2 = make_cell_pool (3, 2);
   DP_REQUIRE (p && p2);
-  float _Complex *syms
-      = malloc (async_dsss_pool_symbols_max_out (p) * sizeof *syms);
-  float _Complex *syms2
-      = malloc (async_dsss_pool_symbols_max_out (p2) * sizeof *syms2);
-  size_t ns = 0, same = 1;
+  /* The symbol buffer is sized by the first push (grow-on-demand): the
+     capacity is 0 before it, so allocate after. */
+  float _Complex *syms = NULL, *syms2 = NULL;
+  size_t          cap = 0;
+  size_t          ns = 0, same = 1;
   for (size_t pos = 0; pos + TE <= e.n; pos += TE)
     {
       size_t a  = async_dsss_pool_push (p, e.x + pos, TE);
       size_t a2 = async_dsss_pool_push (p2, e.x + pos, TE);
       same &= a == a2;
+      if (!syms)
+        {
+          cap   = async_dsss_pool_symbols_max_out (p);
+          syms  = malloc (cap * sizeof *syms);
+          syms2 = malloc (cap * sizeof *syms2);
+        }
       for (size_t i = 0; i < 3; i++)
         {
           async_dsss_pool_slot_t r = async_dsss_pool_status (p, i);
           async_dsss_pool_slot_t q = async_dsss_pool_status (p2, i);
           same &= memcmp (&r, &q, sizeof r) == 0;
-          size_t k = async_dsss_pool_symbols (
-              p, i, syms, async_dsss_pool_symbols_max_out (p));
-          size_t k2 = async_dsss_pool_symbols (
-              p2, i, syms2, async_dsss_pool_symbols_max_out (p2));
+          size_t k  = async_dsss_pool_symbols (p, i, syms, cap);
+          size_t k2 = async_dsss_pool_symbols (p2, i, syms2, cap);
           same &= k == k2 && memcmp (syms, syms2, k * sizeof *syms) == 0;
           if (r.assigned)
             ns += k;

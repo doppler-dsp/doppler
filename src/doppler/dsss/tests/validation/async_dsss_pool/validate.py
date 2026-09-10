@@ -457,10 +457,13 @@ def review(d: Data) -> None:
         "The searcher's false alarms are part of the lifecycle: at pfa 1e-3 "
         "a noise peak seeds a free slot, refines to nothing, reports "
         "tracking with both flags down and is released one interval later. "
-        "The realized rate is about twice the configured one (#1064). Every "
-        "expectation is therefore about the emitter's slot by both "
-        "coordinates, never a count of slots, and `n_slots` carries that "
-        "headroom.",
+        "The realized rate is about twice the configured one (#1064). No "
+        "expectation may therefore be a count of slots. It is an "
+        "identification instead, and the two rules that meet there stay "
+        "apart: the pool occupies a slot by the **seed code phase** alone "
+        "(hence a zone at every Doppler), while this harness, which has the "
+        "truth, confirms whose slot it is on both coordinates. `n_slots` "
+        "carries the headroom.",
     )
     R.find(
         "F5",
@@ -629,10 +632,13 @@ def build(write: bool = True) -> Report:
     R.executive(
         "AsyncDsssPool",
         [
-            "**A slot is an emitter's by both coordinates, never by a "
-            "count.** The searcher's false alarms take a free slot for one "
-            "release interval each, by design (F4); read the table by seed "
-            "Doppler and chip phase, and size the pool with that headroom.",
+            "**Never read the pool by a count of assigned slots.** The "
+            "searcher's false alarms take a free slot for one release "
+            "interval each, by design (F4), so a count says nothing. The "
+            "pool occupies a slot by the **seed code phase** and nothing "
+            "else — that is why the exclusion zone spans every Doppler — "
+            "while an observer holding the truth confirms whose slot it is "
+            "on both coordinates. Size `n_slots` with that headroom.",
             "**Expect the seed from the emitter's own data blocks at "
             "45 dB-Hz** — hundreds of Hz off, in the first block or two — "
             "and from its window at 40, within a frame. Both pull in; the "

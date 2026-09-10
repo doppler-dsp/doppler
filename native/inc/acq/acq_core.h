@@ -105,7 +105,9 @@
  * listed peak is therefore asked at its ROW's frequency before it is
  * reported -- the block's raw epochs correlated with the replica at the
  * pick's code phase, mixed by the row's frequency and by that one span
- * down and up, the winner reported (design §2.3, §12.18, doppler#1270).
+ * down and up, the winner reported (design §2.3,
+ * docs/design/async-dsss-receiver-measurements.md §12.18,
+ * doppler#1270).
  *
  * **A roll per thread** (design §2.3): the tiles are independent after the
  * one forward transform, so the per-epoch tile loop and, at `D > 1`, the
@@ -1011,7 +1013,8 @@ extern "C"
    * neighbours along the code axis are complex early and late arms, so a
    * tracker can form the coherent discriminator
    * `Re(conj(P) (L - E)) / |P|^2`, which the magnitude surface cannot
-   * (design §12.21). Coherent path only: a non-coherent dwell
+   * (docs/design/async-dsss-receiver-measurements.md
+   * §12.21). Coherent path only: a non-coherent dwell
    * (`n_noncoh > 1`) is a power sum with no phase, and reads 0.
    *
    * @param state Must be non-NULL.
@@ -1057,7 +1060,8 @@ extern "C"
    * hypothesis, so the phase is continuous along the column for an
    * emitter at the tile's centre and rotates at its offset from it. At
    * an emitter's cell this is what a despreader produces, one value per
-   * epoch, phase included (design §12.21). Valid once a block is whole,
+   * epoch, phase included (docs/design/async-dsss-receiver-measurements.md
+   * §12.21). Valid once a block is whole,
    * until the next epoch is pushed.
    *
    * @param state Must be non-NULL.
@@ -1105,8 +1109,10 @@ extern "C"
    * for the tile-edge re-ask (acq_resolve_tile_alias()); exposed so a
    * tracker can re-correlate them at any code phase, rate or symbol
    * boundary the engine's own grid does not have — a symbol-rate
-   * despreader at the tracked timing runs on exactly this (design
-   * §12.21). Valid once a block is whole, until the next epoch is pushed.
+   * despreader at the tracked timing runs on exactly this
+   * (docs/design/async-dsss-receiver-measurements.md
+   * §12.21). Valid once a block is whole, until the next epoch is
+   * pushed.
    *
    * @param state Must be non-NULL.
    * @param out   At least `coherent_bins * code_bins` complex floats.

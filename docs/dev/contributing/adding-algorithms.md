@@ -342,7 +342,8 @@ Two rules the table implies, stated so they are not inferred:
 - **A harness renders nothing.** If the signal under test is a waveform
     this library can generate, the harness calls the generator. The first
     pass of the continuous async-DSSS validators
-    ([`async-dsss-receiver.md`](../../design/async-dsss-receiver.md) §12)
+    ([`async-dsss-receiver-measurements.md`](../../design/async-dsss-receiver-measurements.md)
+    §12)
     built its emitter from chips by hand and derived its own noise sigma;
     the shipped path gave the same numbers to within trial spread, and the
     hand-rolled one was deleted — not because it was wrong that day, but

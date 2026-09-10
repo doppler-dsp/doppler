@@ -1214,7 +1214,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 installed-headers-check \
                 ci-image ci-image-check ci-image-repin-check \
                 ccsds-isolation-check instrumented-sweep-check \
-                cargo-lock-check \
+                cargo-lock-check design-pages-check \
                 ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats pr-watch \
                 wheel-check wheel-smoke release-smoke \
@@ -1256,7 +1256,8 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       workflow-syntax-check release-notes-size-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
-      ccsds-isolation-check cargo-lock-check instrumented-sweep-check
+      ccsds-isolation-check cargo-lock-check instrumented-sweep-check \
+      design-pages-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -3198,6 +3199,21 @@ cargo-lock-check: ## Fail when Cargo.lock's doppler version lags Cargo.toml
 # it over seeded makefiles, as `issue-link-check` does.
 instrumented-sweep-check: ## Fail when an instrumented ctest leg runs the sweep validators
 	@$(UV) run python scripts/check_instrumented_sweep.py
+
+# A design page states what IS. The convention was written down, applied once
+# by hand to this very page -- async-dsss-receiver.md was split at 3686 lines,
+# its dated record moved to a companion -measurements.md keeping the section
+# numbers -- and then did not hold: the page was back to 2270 lines and 17%
+# play-by-play. A rule with no gate is a wish.
+#
+# Three patterns, each a heading or a preamble and never prose: a dated
+# section, a `**Status:**`/`*Phase N*` preamble, a record-family heading. The
+# companion `-measurements.md` is exempt BY NAME, so a new one is covered the
+# moment it exists. Ratcheted, because rx-test.md (1270) and mpsk.md (1978, 79
+# external §-citations) cannot be fixed here -- and the list fails on a FIXED
+# entry too, so it can only shrink.
+design-pages-check: ## Fail when a design page narrates its own construction
+	@$(UV) run python scripts/check_design_pages.py
 
 # The recorded specan demo frames are a projection of the specan source, so a
 # change to one without the other ships a demo that no longer matches the code.

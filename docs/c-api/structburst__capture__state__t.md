@@ -75,6 +75,10 @@ _BurstCapture state._ [More...](#detailed-description)
 |  size\_t | [**reps**](#variable-reps)  <br> |
 |  size\_t | [**retain\_span**](#variable-retain_span)  <br> |
 |  uint64\_t | [**samples\_fed**](#variable-samples_fed)  <br> |
+|  [**fft\_state\_t**](structfft__state__t.md) \* | [**slow\_fft**](#variable-slow_fft)  <br> |
+|  float \_Complex \* | [**slow\_in**](#variable-slow_in)  <br> |
+|  size\_t | [**slow\_n**](#variable-slow_n)  <br> |
+|  float \_Complex \* | [**slow\_out**](#variable-slow_out)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  uint64\_t | [**suppress\_base**](#variable-suppress_base)  <br> |
 |  uint64\_t | [**suppress\_until**](#variable-suppress_until)  <br> |
@@ -325,7 +329,7 @@ float _Complex* burst_capture_state_t::corr_buf;
 
 
 
-Per-offset code-period correlations, reused across the candidate sweep so the sliding correlation is computed once and the non-coherent combine just indexes it. 
+Per-offset code-period correlations, reused across the candidate sweep so the sliding correlation is computed once and every candidate just indexes it. COMPLEX, and that is the point: it held `|c| + 0i` until doppler#1312 and the phase was discarded before any candidate could use it. 
  
 
 
@@ -847,6 +851,76 @@ uint64_t burst_capture_state_t::samples_fed;
 
 Stream position: total samples ever pushed. What makes an epoch stream-ABSOLUTE, and the reason preamble\_start is a quantity only this object can compute. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable slow\_fft 
+
+```C++
+fft_state_t* burst_capture_state_t::slow_fft;
+```
+
+
+
+Slow-time transform across the repetitions: the Doppler search that turns the candidate score from a non-coherent sum into a coherent peak. Sized `slow_n`. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable slow\_in 
+
+```C++
+float _Complex* burst_capture_state_t::slow_in;
+```
+
+
+
+`reps` correlations, zero-padded to slow\_n. 
+
+
+        
+
+<hr>
+
+
+
+### variable slow\_n 
+
+```C++
+size_t burst_capture_state_t::slow_n;
+```
+
+
+
+Zero-padded slow-time length. Interpolates the Doppler axis so a residual between bins is not straddled; the UNAMBIGUOUS span is +-1/(2\*code\_period) either way, which is exactly what acquisition can leave behind (half its own Doppler bin), so the search covers the residual by construction and has no range to choose. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable slow\_out 
+
+```C++
+float _Complex* burst_capture_state_t::slow_out;
+```
+
+
+
+Its transform. Peak magnitude is the score. 
 
 
         

@@ -90,13 +90,15 @@ int
 main (void)
 {
   /* Spelled out so this listing stops compiling if a signature drifts --
-     ny_out/nx_out trail dwell/nthreads, and every one of those four is an
-     integer, so a stale parameter ORDER would still compile at the call
-     site and silently misconfigure the correlator. */
+     ny_out/nx_out trail dwell/nthreads and col_out trails those, and every
+     one of those five is an integer, so a stale parameter ORDER would still
+     compile at the call site and silently misconfigure the correlator. */
   corr2d_state_t *(*create) (const float complex *, size_t, size_t, size_t,
-                             int, size_t, size_t)
+                             int, size_t, size_t, int)
       = corr2d_create;
-  /* ny_out/nx_out: inverse/output size; 0 => use ny/nx. Must be >= ny/nx. */
+  /* ny_out/nx_out: inverse/output size; 0 => use ny/nx. Must be >= ny/nx.
+     col_out: emit only that correlation lag, one value per row; < 0 for
+     the whole map. */
   size_t (*execute) (corr2d_state_t *, const float complex *, size_t,
                      float complex *, size_t)
       = corr2d_execute; /* writes min(ny_out*nx_out, max_out) */

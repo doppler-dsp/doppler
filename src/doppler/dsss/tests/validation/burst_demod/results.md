@@ -38,7 +38,7 @@ Step 1 of `docs/dev/contributing/validation.md`. The C test was 192 lines with 1
 | `frame_offset` is the symbol offset of the sync word | **observed only as 0**, its degenerate value | §2.2 |
 | `n_symbols` is the despread data symbols produced | **no mention in either language** | §2.2 |
 | `reset()` re-arms the demodulator | **called by nothing in either language** | §2.3 |
-| `est_freq_hz` / `est_rate_hz` / `est_snr_db` report the estimate | C, printed but barely asserted | §2.4 |
+| `est_freq_hz` / `est_rate_hz` / `est_cn0_dbhz` / `est_timing_chips` report the estimate | C, printed but barely asserted | §2.4 |
 | returns 0 on failure / too-short burst | C, at 8 samples | §2.1 |
 | `demod_max_out()` is the payload length | Python | §2.5 |
 
@@ -92,7 +92,8 @@ With no loops, the feedforward estimate is the only thing standing between the b
 |---|---|---|---|
 | est_freq_hz | 48000.0 | 48000.0 | 0.0 |
 | est_rate_hz | 0.0 | 0 | — |
-| est_snr_db | — | 70.9 | — |
+| est_cn0_dbhz | — | 163.0 | — |
+| est_timing_chips | — | +0.000 | — |
 
 The injected residual is `F0 * fs` = 48000 Hz and the object reports it to **0.0 Hz** — in Hz, not in cycles per sample, which is the conversion a caller would otherwise have to guess.
 

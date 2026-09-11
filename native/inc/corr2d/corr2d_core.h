@@ -140,8 +140,9 @@ typedef struct {
  * @param col_out   Emit ONLY this correlation lag, or < 0 for the whole map.
  *                  When set, a dump writes @p ny values -- one per row --
  *                  instead of ny*nx_out, computed as the time-domain sum
- *                  `sum_p conj(ref[p]) * row[(p + col_out) mod nx]`, which
- *                  is what R(i, col_out) expands to once the 1/nx cancels.
+ *                  over p of `conj(ref(p)) * row((p + col_out) mod nx)`,
+ *                  which is what R(i, col_out) expands to once the 1/nx
+ *                  cancels.
  *                  No transform runs in either direction, so the cost per
  *                  row is O(nx) rather than O(nx log nx).  Requires the
  *                  single-row-reference fast path (a caller that knows its
@@ -150,7 +151,7 @@ typedef struct {
  *                  column is a fractional lag, which no time-domain sum
  *                  produces.  create() returns NULL if @p col_out >= 0 with
  *                  a reference the fast path rejects, with @p ny_out or
- *                  @p nx_out decoupled, or with a lag outside [0, nx).
+ *                  @p nx_out decoupled, or with a lag outside 0 .. nx-1.
  * @return Heap-allocated state, or NULL on failure.
  * @code
  * >>> from doppler.spectral import Corr2D

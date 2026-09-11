@@ -1,5 +1,5 @@
 /*
- * measure_rec_nfft.c — recommended zero-padded length: next_pow2(n * pad).
+ * measure_rec_nfft.c — recommended zero-padded length: next_pow_two(n * pad).
  */
 #include "measure/measure_core.h"
 

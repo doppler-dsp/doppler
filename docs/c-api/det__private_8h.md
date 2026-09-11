@@ -13,6 +13,7 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 * `#include <stdint.h>`
 * `#include <stdlib.h>`
 * `#include <string.h>`
+* `#include "util/util_core.h"`
 
 
 
@@ -67,7 +68,6 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 |  size\_t | [**det\_peak\_scan**](#function-det_peak_scan) (const float \* surf, const uint8\_t \* mask, size\_t k0, size\_t k1) <br>_One scan of det\_peak\_list(): the first maximum of_ `surf` _over the cells_`[k0, k1)` _that_`mask` _leaves as candidates._ |
 |  void | [**det\_peak\_zone**](#function-det_peak_zone) (uint8\_t \* mask, size\_t ny, size\_t nx, size\_t r, size\_t c, size\_t excl\_rows, size\_t excl\_cols) <br>_The exclusion zone of a pick at_ `(r, c)` _, marked into_`mask` _:_`excl_rows` _either side along the rows and_`excl_cols` _along the columns, CIRCULAR on both axes (an FFT bin axis by a circular correlation lag axis), each half-width clamped to half the axis._ |
 |  dp\_f32\_t \* | [**det\_ring\_create**](#function-det_ring_create) (size\_t cap\_min) <br> |
-|  size\_t | [**next\_pow2**](#function-next_pow2) (size\_t n) <br> |
 
 
 
@@ -280,21 +280,6 @@ static void det_peak_zone (
 ```C++
 static dp_f32_t * det_ring_create (
     size_t cap_min
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function next\_pow2 
-
-```C++
-static size_t next_pow2 (
-    size_t n
 ) 
 ```
 

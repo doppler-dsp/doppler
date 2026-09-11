@@ -24,7 +24,7 @@ def test_defaults_construct():
     # (patched in the binding fragment).
     m = ToneMeasure()
     assert m.n == 8192
-    assert m.nfft == 16384  # next_pow2(8192 * 2)
+    assert m.nfft == 16384  # next_pow_two(8192 * 2)
     assert m.lobe_bins > 0
 
 

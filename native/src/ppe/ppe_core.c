@@ -1,4 +1,5 @@
 #include "ppe/ppe_core.h"
+#include "util/util_core.h"
 
 #include <complex.h>
 #include <math.h>
@@ -7,16 +8,6 @@
 /* Rate-grid oversampling (vs the 1/L^2 resolution) and a hard bin cap. */
 #define PPE_OVERSAMPLE 2.0
 #define PPE_MAX_RATE_BINS 8192
-
-/* Smallest power of two >= n (>= 1). */
-static size_t
-next_pow2 (size_t n)
-{
-  size_t p = 1;
-  while (p < n)
-    p <<= 1;
-  return p;
-}
 
 ppe_state_t *
 ppe_create (size_t max_len, double max_rate)
@@ -29,7 +20,7 @@ ppe_create (size_t max_len, double max_rate)
   s->max_len = max_len;
   /* 4x zero-pad: finer frequency grid + accurate parabolic peak interpolation
    * (the input is often short — preamble partials / symbol streams). */
-  s->nfft     = next_pow2 (max_len) << 2;
+  s->nfft     = next_pow_two (max_len) << 2;
   s->max_rate = max_rate;
 
   /* Chirp-rate grid: resolution ~ 1/L^2 (a rate error r smears the dechirped

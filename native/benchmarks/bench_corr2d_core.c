@@ -65,7 +65,7 @@ main (void)
     for (size_t j = 0; j < nx; j++)
       ref[j] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
 
-    corr2d_state_t *obj = corr2d_create (ref, ny, nx, 1, 1, 0, 0);
+    corr2d_state_t *obj = corr2d_create (ref, ny, nx, 1, 1, 0, 0, -1);
     corr2d_execute (obj, in, n, out, n); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
@@ -91,7 +91,7 @@ main (void)
     for (size_t k = 0; k < n; k++)
       ref[k] = _rand_uniform (&seed) + _rand_uniform (&seed) * I;
 
-    corr2d_state_t *obj = corr2d_create (ref, ny, nx, 1, 1, 0, 0);
+    corr2d_state_t *obj = corr2d_create (ref, ny, nx, 1, 1, 0, 0, -1);
     corr2d_execute (obj, in, n, out, n); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {

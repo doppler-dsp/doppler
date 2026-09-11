@@ -33,6 +33,56 @@ def square_clip(y: complex, lin: float) -> complex:
 
     """
 
+def next_pow_two(n: int) -> int:
+    """Smallest power of two greater than or equal to n. The
+    transform-sizing primitive: zero-padded FFT lengths, ring capacities
+    and grow-on-demand buffers all want the same rounding, and five
+    identical private copies of it were in the tree before this one.
+    Saturating rather than wrapping -- 0 is returned when the answer
+    exceeds SIZE_MAX, because a doubling loop run past the top shifts to
+    zero and spins forever.
+
+    The transform-sizing primitive. A zero-padded FFT length, a ring
+    capacity, a grow-on-demand buffer -- all of them want the same "round
+    up to a power of two", and all of them had been writing the doubling
+    loop out where they stood. FIVE identical private copies were in the
+    tree when this landed -- `detector/det_private.h`, `delay_core.c`,
+    `psd_core.c`, `specan_core.c` and `ppe_core.c`, each a `static` one
+    none of the others could reach -- alongside bare `while (c < n) c *= 2`
+    loops seeded from whatever each caller happened to start at, which is
+    the shape that lets one quietly start at 4 and another at 1 and neither
+    be wrong until they are compared. None of the four guarded the overflow
+    below.
+
+    Saturating rather than wrapping: a doubling loop run past the top of
+    `size_t` shifts to zero and spins forever, so the one case that cannot
+    be expressed returns 0 instead of hanging. A caller sizing an
+    allocation gets a refusal it can see.
+
+    Parameters
+    ----------
+    n : int
+        Value to round up. 0 and 1 both give 1.
+
+    Returns
+    -------
+    int
+        The smallest power of two >= n, or 0 if that exceeds `SIZE_MAX`.
+
+    Examples
+    --------
+    >>> from doppler.util import next_pow_two
+    >>> next_pow_two(0), next_pow_two(1), next_pow_two(2)
+    (1, 1, 2)
+    >>> next_pow_two(3), next_pow_two(4), next_pow_two(5)
+    (4, 4, 8)
+    >>> next_pow_two(1000)        # a zero-padded transform length
+    1024
+    >>> next_pow_two(1 << 20)     # already a power of two, unchanged
+    1048576
+
+    """
+
 def saturate(v: float, lo: float, hi: float, nan_to: float) -> float:
     """Saturate a value into [lo, hi], total over every double including
     NaN and both infinities. The NaN destination is a parameter because

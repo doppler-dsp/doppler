@@ -284,19 +284,6 @@ test_window_starts_at_the_burst (void)
   const burst_capture_event_t *ev = burst_capture_event_at (s, 0);
   DP_REQUIRE (ev != NULL);
   DP_CHECK (ev->preamble_start == at);
-  /* refine_margin is the runner-up period over the winner. Compare against
-     the ENVELOPE (reps-1)/reps, never a constant: the floor RISES with depth
-     (0.55 at reps=2, 0.77 at 4, 0.94 at 16), so a fixed 0.9 -- which is what
-     this line said first -- is correct at 4 and asserts nothing at 16. A
-     resolved period sits AT the envelope; an unresolved one runs to 1. */
-  {
-    double envelope = (double)(REPS - 1u) / (double)REPS;
-    DP_CHECK (ev->refine_margin < envelope + 0.1);
-    /* ...and not absurdly BELOW it either, which would mean the winner beat
-       its rivals by more than the triangular overlap allows -- a scoring
-       bug rather than a good detection. */
-    DP_CHECK (ev->refine_margin > envelope - 0.3);
-  }
   DP_CHECK (ev->doppler_res_hz > 0.0);
 
   /* The window is the burst, not a window near it. */
@@ -682,7 +669,6 @@ test_accessors_agree_with_the_event (void)
   DP_CHECK (burst_capture_get_doppler_hz_est (s) == e->doppler_hz_est);
   DP_CHECK (burst_capture_get_doppler_res_hz (s) == e->doppler_res_hz);
   DP_CHECK (burst_capture_get_cn0_dbhz_est (s) == e->cn0_dbhz_est);
-  DP_CHECK (burst_capture_get_refine_margin (s) == e->refine_margin);
   DP_CHECK (burst_capture_get_pending (s) == s->pending);
   DP_CHECK (burst_capture_get_dropped (s) == s->dropped);
   DP_CHECK (burst_capture_get_n_bursts (s) == 1u);
@@ -1241,7 +1227,7 @@ test_refine_span_bounds_start_to_start (void)
      window is EXPECTED, and this geometry reliably yields one -- so asserting
      the count would be asserting the false-alarm rate is zero, and the test
      would fail for the object behaving correctly. A caller separates the two
-     with cn0_dbhz_est and refine_margin, which is what they are exposed for;
+     with cn0_dbhz_est, which is what it is exposed for;
      the rate itself is characterized, not pinned here. */
   DP_REQUIRE (n >= 2u * BURST_LEN);
   int found[2] = { 0, 0 };
@@ -1649,5 +1635,42 @@ main (void)
     return 1;
   if (test_backed_rejects_a_bad_path ())
     return 1;
+
+  /* ── a blob from the PREVIOUS state version is refused ────────────────────
+   *
+   * The version exists to make an incompatible layout a refusal instead of a
+   * reinterpretation, and nothing pinned that: the round-trip macro clobbers
+   * the MAGIC, which a blob carrying a real magic and a stale version gets
+   * past. doppler#1312 removed a field from both this state and its pending
+   * queue -- the size check alone would not have caught it if some other
+   * field had absorbed the eight bytes, which is exactly the case the version
+   * is for. Rewriting only the version word leaves every other byte valid, so
+   * this fails if and only if the version is actually consulted. */
+  {
+    burst_capture_state_t *s = make ();
+    DP_REQUIRE (s != NULL);
+    size_t cb = burst_capture_state_bytes (s);
+    DP_REQUIRE (cb > sizeof (dp_state_hdr_t));
+    unsigned char *blob = malloc (cb);
+    DP_REQUIRE (blob != NULL);
+    burst_capture_get_state (s, blob);
+    /* Unmodified, it restores. */
+    DP_CHECK (burst_capture_set_state (s, blob) == DP_OK);
+    /* One version back -- every other byte still valid. */
+    dp_state_hdr_t hdr;
+    memcpy (&hdr, blob, sizeof hdr);
+    DP_CHECK (hdr.version == BURST_CAPTURE_STATE_VERSION);
+    hdr.version = (uint16_t)(BURST_CAPTURE_STATE_VERSION - 1u);
+    memcpy (blob, &hdr, sizeof hdr);
+    DP_CHECK (burst_capture_set_state (s, blob) == DP_ERR_INVALID);
+    /* ...and one version FORWARD is refused too, so the check is not a
+       >= comparison that would accept anything newer. */
+    hdr.version = (uint16_t)(BURST_CAPTURE_STATE_VERSION + 1u);
+    memcpy (blob, &hdr, sizeof hdr);
+    DP_CHECK (burst_capture_set_state (s, blob) == DP_ERR_INVALID);
+    free (blob);
+    burst_capture_destroy (s);
+  }
+
   DP_TEST_END ("test_burst_capture_core");
 }

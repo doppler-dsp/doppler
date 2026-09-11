@@ -55,7 +55,7 @@ w = PSD(
     fs=100e6,          # sample rate (Hz)
     window="kaiser",   # "hann" or "kaiser"
     beta=12.0,         # Kaiser shape (ignored for Hann)
-    pad=2,             # zero-pad factor → nfft = next_pow2(n * pad)
+    pad=2,             # zero-pad factor → nfft = next_pow_two(n * pad)
     full_scale=1.0,    # amplitude that reads 0 dBFS in the dB getters
     bits=0,            # bits>0 sets full_scale = 2**(bits-1) (ADC dBFS)
     mode="mean",       # "mean" | "exp" | "maxhold" | "minhold"
@@ -67,7 +67,7 @@ w.nfft     # 8192   — zero-padded transform length (sets the bin spacing)
 
 - **`n`** is the *segment* length — it sets the resolution bandwidth
     (`rbw ≈ enbw · fs / n`). Longer segments resolve closer tones.
-- **`pad`** zero-pads each segment to `nfft = next_pow2(n · pad)`. Padding
+- **`pad`** zero-pads each segment to `nfft = next_pow_two(n · pad)`. Padding
     interpolates the spectrum (finer bin spacing, smoother peaks) without
     improving resolution — it does **not** sharpen two close tones, it just draws
     the lobe with more points.

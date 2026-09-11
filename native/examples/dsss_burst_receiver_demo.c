@@ -343,14 +343,13 @@ main (void)
 
     printf ("§5  every read-back, per burst (%zu payload(s), %zu event(s)):\n",
             got / FRAME_SYMS, nev);
-    printf ("       # %8s %8s %8s %9s %8s %8s %8s %7s\n", "start", "dopp_hz",
-            "res_hz", "cn0_dBHz", "freq_hz", "rate_hz", "conf_dB", "margin");
+    printf ("       # %8s %8s %8s %9s %8s %8s %8s\n", "start", "dopp_hz",
+            "res_hz", "cn0_dBHz", "freq_hz", "rate_hz", "conf_dB");
     for (size_t i = 0; i < nev; i++)
-      printf ("      %2zu %8llu %8.1f %8.1f %9.2f %8.2f %8.2f %8.2f %7.3f\n",
-              i, (unsigned long long)ev[i].preamble_start,
-              ev[i].doppler_hz_est, ev[i].doppler_res_hz, ev[i].cn0_dbhz_est,
-              ev[i].est_freq_hz, ev[i].est_rate_hz, ev[i].demod_cn0_dbhz,
-              ev[i].refine_margin);
+      printf ("      %2zu %8llu %8.1f %8.1f %9.2f %8.2f %8.2f %8.2f\n", i,
+              (unsigned long long)ev[i].preamble_start, ev[i].doppler_hz_est,
+              ev[i].doppler_res_hz, ev[i].cn0_dbhz_est, ev[i].est_freq_hz,
+              ev[i].est_rate_hz, ev[i].demod_cn0_dbhz);
     printf ("      scene: bin %.1f Hz, C/N0 %.2f dB-Hz, true offset 0 Hz,"
             " no chirp\n",
             bin_hz, cn0_true);
@@ -378,8 +377,7 @@ main (void)
                 with anything: it was the preamble estimator's peak-to-mean,
                 carrying the coherent processing gain (doppler#1304). */
              && fabs (e->demod_cn0_dbhz - cn0_true) < 3.0
-             && fabs (e->demod_timing_chips) < 0.5 && e->refine_margin > 0.0
-             && e->refine_margin < 1.0;
+             && fabs (e->demod_timing_chips) < 0.5;
       }
     /* The scalar members are not a second source: they ARE the last row. */
     if (ok && nev)
@@ -393,8 +391,7 @@ main (void)
              && rx->est_freq_hz == last->est_freq_hz
              && rx->est_rate_hz == last->est_rate_hz
              && rx->demod_cn0_dbhz == last->demod_cn0_dbhz
-             && rx->demod_timing_chips == last->demod_timing_chips
-             && rx->refine_margin == last->refine_margin;
+             && rx->demod_timing_chips == last->demod_timing_chips;
       }
     dsss_burst_receiver_destroy (rx);
     printf ("      -> every row checks out against the scene; the scalar"

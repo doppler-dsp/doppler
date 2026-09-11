@@ -378,13 +378,13 @@ DsssBurstReceiverObj_events_get_dtype (void)
       Py_INCREF (DsssBurstReceiverObj_events_dtype);
       return DsssBurstReceiverObj_events_dtype;
     }
-  names = Py_BuildValue ("[ssssssssss]", "preamble_start", "doppler_hz_est",
+  names = Py_BuildValue ("[sssssssss]", "preamble_start", "doppler_hz_est",
                          "doppler_res_hz", "cn0_dbhz_est", "est_freq_hz",
                          "est_rate_hz", "demod_cn0_dbhz", "demod_timing_chips",
-                         "refine_margin", "frame_valid");
+                         "frame_valid");
   if (!names)
     goto done;
-  formats = PyList_New (10);
+  formats = PyList_New (9);
   if (!formats)
     goto done;
   PyList_SET_ITEM (formats, 0, (PyObject *)PyArray_DescrFromType (NPY_UINT64));
@@ -395,10 +395,9 @@ DsssBurstReceiverObj_events_get_dtype (void)
   PyList_SET_ITEM (formats, 5, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
   PyList_SET_ITEM (formats, 6, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
   PyList_SET_ITEM (formats, 7, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
-  PyList_SET_ITEM (formats, 8, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
-  PyList_SET_ITEM (formats, 9, (PyObject *)PyArray_DescrFromType (NPY_UINT8));
+  PyList_SET_ITEM (formats, 8, (PyObject *)PyArray_DescrFromType (NPY_UINT8));
   offsets = Py_BuildValue (
-      "[nnnnnnnnnn]", (Py_ssize_t)offsetof (dsss_br_event_t, preamble_start),
+      "[nnnnnnnnn]", (Py_ssize_t)offsetof (dsss_br_event_t, preamble_start),
       (Py_ssize_t)offsetof (dsss_br_event_t, doppler_hz_est),
       (Py_ssize_t)offsetof (dsss_br_event_t, doppler_res_hz),
       (Py_ssize_t)offsetof (dsss_br_event_t, cn0_dbhz_est),
@@ -406,7 +405,6 @@ DsssBurstReceiverObj_events_get_dtype (void)
       (Py_ssize_t)offsetof (dsss_br_event_t, est_rate_hz),
       (Py_ssize_t)offsetof (dsss_br_event_t, demod_cn0_dbhz),
       (Py_ssize_t)offsetof (dsss_br_event_t, demod_timing_chips),
-      (Py_ssize_t)offsetof (dsss_br_event_t, refine_margin),
       (Py_ssize_t)offsetof (dsss_br_event_t, frame_valid));
   if (!offsets)
     goto done;
@@ -748,19 +746,6 @@ DsssBurstReceiver_getprop_demod_timing_chips (DsssBurstReceiverObject *self,
       dsss_burst_receiver_get_demod_timing_chips (self->handle));
 }
 static PyObject *
-DsssBurstReceiver_getprop_refine_margin (DsssBurstReceiverObject *self,
-                                         void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (
-      dsss_burst_receiver_get_refine_margin (self->handle));
-}
-static PyObject *
 DsssBurstReceiver_getprop_frame_valid (DsssBurstReceiverObject *self,
                                        void *Py_UNUSED (closure))
 {
@@ -882,8 +867,6 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "for. Acquisition resolves a start to one SAMPLE, so a non-zero residual "
     "here is structural.\n",
     NULL },
-  { "refine_margin", (getter)DsssBurstReceiver_getprop_refine_margin, NULL,
-    "Runner-up period over the winner.\n", NULL },
   { "frame_valid", (getter)DsssBurstReceiver_getprop_frame_valid, NULL,
     "Whether the most recent window's frame passed its error detection -- "
     "this receiver's frame ends in a CRC-16. The verdict that decides whether "
@@ -1234,8 +1217,6 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "    Demod's C/N0, dB-Hz, channel-referred.\n"
     "demod_timing_chips : float\n"
     "    Start error the demod measured, chips.\n"
-    "refine_margin : float\n"
-    "    Runner-up period over the winner.\n"
     "frame_valid : int\n"
     "    The frame passed its error detection.\n" },
   { "events_max_out", (PyCFunction)DsssBurstReceiverObj_events_max_out,

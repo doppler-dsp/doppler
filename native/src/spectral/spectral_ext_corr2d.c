@@ -37,16 +37,17 @@ static int
 Corr2DObj_init (Corr2DObject *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "ref", "dwell", "nthreads", "ny_out", "nx_out", NULL };
+      = { "ref", "dwell", "nthreads", "ny_out", "nx_out", "col_out", NULL };
   PyObject          *ref_obj    = NULL;
   unsigned long long dwell_raw  = 1;
   int                nthreads   = 1;
   unsigned long long ny_out_raw = 0;
   unsigned long long nx_out_raw = 0;
+  int                col_out    = -1;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KiKK", kwlist, &ref_obj,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KiKKi", kwlist, &ref_obj,
                                     &dwell_raw, &nthreads, &ny_out_raw,
-                                    &nx_out_raw))
+                                    &nx_out_raw, &col_out))
     return -1;
   size_t         dwell   = (size_t)dwell_raw;
   size_t         ny_out  = (size_t)ny_out_raw;
@@ -69,9 +70,9 @@ Corr2DObj_init (Corr2DObject *self, PyObject *args, PyObject *kwds)
     }
   size_t ref_dim0 = (size_t)PyArray_DIM (ref_arr, 0);
   size_t ref_dim1 = (size_t)PyArray_DIM (ref_arr, 1);
-  self->handle
-      = corr2d_create ((const float _Complex *)PyArray_DATA (ref_arr),
-                       ref_dim0, ref_dim1, dwell, nthreads, ny_out, nx_out);
+  self->handle = corr2d_create ((const float _Complex *)PyArray_DATA (ref_arr),
+                                ref_dim0, ref_dim1, dwell, nthreads, ny_out,
+                                nx_out, col_out);
   Py_DECREF (ref_arr);
   if (!self->handle)
     {
@@ -339,6 +340,17 @@ Corr2D_getprop_count (Corr2DObject *self, void *Py_UNUSED (closure))
   return PyLong_FromUnsignedLongLong ((unsigned long long)self->handle->count);
 }
 
+static PyObject *
+Corr2D_getprop_col_out (Corr2DObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromLong ((long)self->handle->col_out);
+}
+
 static PyGetSetDef Corr2D_getset[]
     = { { "ny", (getter)Corr2D_getprop_ny, NULL, "Row count.\n", NULL },
         { "nx", (getter)Corr2D_getprop_nx, NULL, "Column count.\n", NULL },
@@ -352,6 +364,8 @@ static PyGetSetDef Corr2D_getset[]
           NULL },
         { "count", (getter)Corr2D_getprop_count, NULL,
           "Frames accumulated (0 … dwell-1).\n", NULL },
+        { "col_out", (getter)Corr2D_getprop_col_out, NULL,
+          "Output column, or < 0 for the full map.\n", NULL },
         { NULL } };
 
 static PyObject *

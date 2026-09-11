@@ -299,7 +299,7 @@ static PyGetSetDef CarrierAcquisition_getset[] = {
     "max_n_blocks constructor argument, echoed back.\n",
     NULL },
   { "nfft", (getter)CarrierAcquisition_getprop_nfft, NULL,
-    "PSD transform length (next_pow2(n_fft*zero_pad)) -- the length any "
+    "PSD transform length (next_pow_two(n_fft*zero_pad)) -- the length any "
     "caller-supplied template array must match.\n",
     NULL },
   { NULL }
@@ -508,7 +508,7 @@ static PyTypeObject CarrierAcquisitionObjType = {
     "    Kaiser beta (ignored for hann/blackman-harris).\n"
     "psd_template : NDArray[np.float32], default ...\n"
     "    Known PSD-shape template override, length must equal nfft =\n"
-    "    next_pow2(round(sample_rate_hz /resolution_hz) * zero_pad);\n"
+    "    next_pow_two(round(sample_rate_hz /resolution_hz) * zero_pad);\n"
     "    NULL/length-0 means \"not supplied\" -- the default "
     "rectangular-pulse\n"
     "    sinc^2 template (from symbol_rate_hz) is used.\n"

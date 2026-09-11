@@ -2580,7 +2580,7 @@ class PolynomialPhaseEstimator:
 
     @property
     def nfft(self) -> int:
-        """zero-padded transform length: 4 * next_pow2 (max_len). The 4x is
+        """zero-padded transform length: 4 * next_pow_two (max_len). The 4x is
         deliberate -- a finer frequency grid before the parabolic peak
         refinement, which matters because the input is often short (preamble
         partials, symbol streams). It also sizes `buf`, `spec` and `mag`, so
@@ -3578,16 +3578,6 @@ class BurstCapture:
         """
 
     @property
-    def refine_margin(self) -> float:
-        """The refine stage's own confidence: the best rival code period's
-        score over the winner's. The envelope is (reps-1)/reps when the right
-        repetition wins, so compare against THAT and never a constant -- the
-        floor rises with depth (0.55 at reps=2, 0.77 at 4, 0.94 at 16). Near 1
-        means the period was not resolved, which nothing else in the chain can
-        see.
-        """
-
-    @property
     def burst_len(self) -> int:
         """Samples in one emitted window -- the burst length this capture was
         built for, and the stride of a row in push()'s return.
@@ -4230,16 +4220,6 @@ class PersistentBurstCapture:
         then saturates at the code's own autocorrelation-sidelobe floor once
         the true C/N0 exceeds what this code and geometry can resolve -- a real
         ceiling, not a fault.
-        """
-
-    @property
-    def refine_margin(self) -> float:
-        """The refine stage's own confidence: the best rival code period's
-        score over the winner's. The envelope is (reps-1)/reps when the right
-        repetition wins, so compare against THAT and never a constant -- the
-        floor rises with depth (0.55 at reps=2, 0.77 at 4, 0.94 at 16). Near 1
-        means the period was not resolved, which nothing else in the chain can
-        see.
         """
 
     @property
@@ -7280,10 +7260,6 @@ class DsssBurstReceiver:
         corrected for. Acquisition resolves a start to one SAMPLE, so a
         non-zero residual here is structural.
         """
-
-    @property
-    def refine_margin(self) -> float:
-        """Runner-up period over the winner."""
 
     @property
     def frame_valid(self) -> bool:

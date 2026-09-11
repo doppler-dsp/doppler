@@ -94,7 +94,6 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  double | [**burst\_capture\_get\_pd\_predicted**](#function-burst_capture_get_pd_predicted) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Detection probability the sized grid actually predicts._  |
 |  size\_t | [**burst\_capture\_get\_pending**](#function-burst_capture_get_pending) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  uint64\_t | [**burst\_capture\_get\_preamble\_start**](#function-burst_capture_get_preamble_start) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
-|  double | [**burst\_capture\_get\_refine\_margin**](#function-burst_capture_get_refine_margin) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  void | [**burst\_capture\_get\_state**](#function-burst_capture_get_state) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, void \* blob) <br>_Serialize into_ `blob` _, which must be state\_bytes() long._ |
 |  double | [**burst\_capture\_get\_straddle\_loss**](#function-burst_capture_get_straddle_loss) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Correlation kept, worst case, by a burst landing between bins._  |
 |  size\_t | [**burst\_capture\_push**](#function-burst_capture_push) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream samples; get back every burst whose window has arrived._  |
@@ -138,7 +137,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 | ---: | :--- |
 | define  | [**BURST\_CAPTURE\_HITS**](burst__capture__core_8h.md#define-burst_capture_hits)  `16u`<br>_Detections collected from acquisition per batch._  |
 | define  | [**BURST\_CAPTURE\_STATE\_MAGIC**](burst__capture__core_8h.md#define-burst_capture_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('B', 'C', 'A', 'P')`<br>_State blob magic — a wrong blob is rejected, not reinterpreted._  |
-| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `2u`<br>_State blob layout version._  |
+| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `3u`<br>_State blob layout version._  |
 
 ## Detailed Description
 
@@ -751,21 +750,6 @@ uint64_t burst_capture_get_preamble_start (
 
 
 
-### function burst\_capture\_get\_refine\_margin 
-
-```C++
-double burst_capture_get_refine_margin (
-    const burst_capture_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
 ### function burst\_capture\_get\_state 
 
 _Serialize into_ `blob` _, which must be state\_bytes() long._
@@ -1085,7 +1069,7 @@ _State blob magic — a wrong blob is rejected, not reinterpreted._
 
 _State blob layout version._ 
 ```C++
-#define BURST_CAPTURE_STATE_VERSION `2u`
+#define BURST_CAPTURE_STATE_VERSION `3u`
 ```
 
 

@@ -97,7 +97,6 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  uint64\_t | [**dsss\_burst\_receiver\_get\_n\_bursts**](#function-dsss_burst_receiver_get_n_bursts) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  size\_t | [**dsss\_burst\_receiver\_get\_pending**](#function-dsss_burst_receiver_get_pending) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  uint64\_t | [**dsss\_burst\_receiver\_get\_preamble\_start**](#function-dsss_burst_receiver_get_preamble_start) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
-|  double | [**dsss\_burst\_receiver\_get\_refine\_margin**](#function-dsss_burst_receiver_get_refine_margin) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  size\_t | [**dsss\_burst\_receiver\_get\_refine\_span**](#function-dsss_burst_receiver_get_refine_span) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  size\_t | [**dsss\_burst\_receiver\_get\_retain\_span**](#function-dsss_burst_receiver_get_retain_span) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  void | [**dsss\_burst\_receiver\_get\_state**](#function-dsss_burst_receiver_get_state) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**dsss\_burst\_receiver\_state\_bytes()**_](dsss__burst__receiver__core_8h.md#function-dsss_burst_receiver_state_bytes) _long)._ |
@@ -140,7 +139,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 | Type | Name |
 | ---: | :--- |
 | define  | [**DSSS\_BURST\_RECEIVER\_STATE\_MAGIC**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('D', 'B', 'R', 'X')`<br>_Per-object envelope tag: "DBRX" (DsssBurstReceiver)._  |
-| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `6u`<br> |
+| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `7u`<br> |
 
 ## Detailed Description
 
@@ -630,21 +629,6 @@ uint64_t dsss_burst_receiver_get_preamble_start (
 
 
 
-### function dsss\_burst\_receiver\_get\_refine\_margin 
-
-```C++
-double dsss_burst_receiver_get_refine_margin (
-    const dsss_burst_receiver_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
 ### function dsss\_burst\_receiver\_get\_refine\_span 
 
 ```C++
@@ -992,7 +976,7 @@ _Per-object envelope tag: "DBRX" (DsssBurstReceiver)._
 ### define DSSS\_BURST\_RECEIVER\_STATE\_VERSION 
 
 ```C++
-#define DSSS_BURST_RECEIVER_STATE_VERSION `6u`
+#define DSSS_BURST_RECEIVER_STATE_VERSION `7u`
 ```
 
 

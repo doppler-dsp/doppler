@@ -184,7 +184,6 @@ result_fields = [
   { name = "est_rate_hz", type = "double" },
   { name = "demod_cn0_dbhz", type = "double" },
   { name = "demod_timing_chips", type = "double" },
-  { name = "refine_margin", type = "double" },
   { name = "frame_valid", type = "uint8_t" },
 ]
 
@@ -253,12 +252,6 @@ doc = "Burst-start error the demodulator measured on the last completed burst, i
 # The refine stage's own confidence: the winning preamble correlation over
 # its nearest whole-period competitor. The envelope is (reps-1)/reps when the
 # right repetition wins, so a value near 1 means the period was NOT resolved.
-# Exposed because nothing else in the chain can see a hand-off go wrong --
-# a locked carrier on a mis-windowed burst reads as a healthy lock_metric.
-[[dsss_burst_receiver.properties]]
-name = "refine_margin"
-type = "double"
-
 [[dsss_burst_receiver.properties]]
 name = "frame_valid"
 type = "bool"

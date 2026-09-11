@@ -32,16 +32,17 @@ differently — the first is a geometry constraint, the second is a filter.
 **Right — separating a real window from a spurious one.** At `pfa = 1e-3`
 over a surface this size a false alarm is expected, not a defect: this object
 is a detector's output stage, and gating it on signal quality would make it
-lie about what it found. So the caller filters, and the two read-backs it
-filters with are `refine_margin` and `cn0_dbhz_est`. This panel scatters both
-for every window the capture emitted across the sweep, coloured by whether a
-burst was actually transmitted there, and reports the separation each one
-buys.
+lie about what it found. So the caller filters, and the read-back it filters
+with is `cn0_dbhz_est`. This panel plots its distribution for every window
+the capture emitted across the sweep, split by whether a burst was actually
+transmitted there, and reports the separation it buys.
 
-`refine_margin` is the runner-up code period's score over the winner's, so
-**lower is better** and a value near 1 means the period was not resolved. A
-window sitting on noise has nothing to resolve, which is exactly why the
-statistic separates.
+It used to plot `refine_margin` on the other axis. That read-back was
+removed in doppler#1312, and the sweep had already shown why it was the
+wrong filter: it separated the two populations by hundredths where
+`cn0_dbhz_est` separates them by about 9 dB. A window sitting on noise has
+no code period to resolve, so the margin's answer was degenerate rather
+than informative.
 
 What it measures, not what it hopes
 -----------------------------------
@@ -178,7 +179,7 @@ def run_pair(gap: int, seed: int) -> tuple[int, int, list[tuple]]:
 
     Returns ``(found, extra, rows)`` — how many of the two transmitted bursts
     came back, how many windows named a position no burst occupied, and one
-    ``(margin, cn0, is_real)`` row per window emitted.
+    ``(cn0, is_real)`` row per window emitted.
     """
     rng = np.random.default_rng(seed)
     first = int(rng.integers(6000, 12000))
@@ -196,10 +197,8 @@ def run_pair(gap: int, seed: int) -> tuple[int, int, list[tuple]]:
     rows = []
     for k, s in enumerate(starts):
         real = any(abs(int(s) - a) <= tol for a in at)
-        rows.append(
-            (float(ev["refine_margin"][k]), float(ev["cn0_dbhz_est"][k]), real)
-        )
-    extra = sum(1 for _, _, real in rows if not real)
+        rows.append((float(ev["cn0_dbhz_est"][k]), real))
+    extra = sum(1 for _, real in rows if not real)
     return found, extra, rows
 
 
@@ -225,14 +224,12 @@ def separation(rows) -> dict:
     Reported as the gap between the two populations' medians, in the
     statistic's own units -- a difference a caller can put a threshold in.
     """
-    real = [r for r in rows if r[2]]
-    spur = [r for r in rows if not r[2]]
+    real = [r for r in rows if r[1]]
+    spur = [r for r in rows if not r[1]]
     out = {"n_real": len(real), "n_spurious": len(spur)}
     if real and spur:
-        out["margin_real"] = float(np.median([r[0] for r in real]))
-        out["margin_spurious"] = float(np.median([r[0] for r in spur]))
-        out["cn0_real"] = float(np.median([r[1] for r in real]))
-        out["cn0_spurious"] = float(np.median([r[1] for r in spur]))
+        out["cn0_real"] = float(np.median([r[0] for r in real]))
+        out["cn0_spurious"] = float(np.median([r[0] for r in spur]))
     return out
 
 
@@ -263,39 +260,44 @@ def _plot(gaps, found, extra, rows, out_path: str) -> None:
     ax0.grid(alpha=0.3)
     ax0.legend(fontsize=8)
 
-    real = [r for r in rows if r[2]]
-    spur = [r for r in rows if not r[2]]
-    if real:
-        ax1.scatter(
-            [r[0] for r in real],
-            [r[1] for r in real],
-            s=14,
-            alpha=0.6,
-            label=f"at a real burst (n={len(real)})",
+    real = [r[0] for r in rows if r[1]]
+    spur = [r[0] for r in rows if not r[1]]
+    # Two histograms on one axis rather than a scatter: with one statistic
+    # left, what a caller needs to see is where a threshold can go, which is
+    # the OVERLAP of the two populations and not their cloud shape.
+    if real or spur:
+        lo = min(real + spur)
+        hi = max(real + spur)
+        bins = np.linspace(lo, hi, 40)
+        if real:
+            ax1.hist(
+                real,
+                bins=bins,
+                alpha=0.6,
+                label=f"at a real burst (n={len(real)})",
+            )
+        if spur:
+            ax1.hist(
+                spur,
+                bins=bins,
+                alpha=0.6,
+                label=f"spurious (n={len(spur)})",
+            )
+    if real and spur:
+        ax1.axvline(
+            0.5 * (float(np.median(real)) + float(np.median(spur))),
+            color="grey",
+            ls=":",
+            label="midpoint of the medians",
         )
-    if spur:
-        ax1.scatter(
-            [r[0] for r in spur],
-            [r[1] for r in spur],
-            s=14,
-            alpha=0.6,
-            marker="x",
-            label=f"spurious (n={len(spur)})",
-        )
-    ax1.axvline(
-        (REPS - 1) / REPS,
-        color="grey",
-        ls=":",
-        label=f"(reps-1)/reps = {(REPS - 1) / REPS:.2f}",
-    )
-    ax1.set_xlabel("refine_margin   (rival / winner — lower is better)")
-    ax1.set_ylabel("cn0_dbhz_est (dB-Hz)")
+    ax1.set_xlabel("cn0_dbhz_est (dB-Hz)")
+    ax1.set_ylabel("windows")
     ax1.set_title("Separating a real window from a spurious one")
     ax1.grid(alpha=0.3)
     ax1.legend(fontsize=8)
 
     fig.suptitle(
-        "BurstCapture — the spacing floor, and the two read-backs a caller "
+        "BurstCapture — the spacing floor, and the read-back a caller "
         "filters with",
         fontsize=11,
     )

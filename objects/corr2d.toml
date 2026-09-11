@@ -45,6 +45,17 @@ name = "nx_out"
 type = "size_t"
 default = "0"
 
+# Known-column output: emit only this correlation lag (one value per row)
+# instead of the whole map. A caller that already knows the lag -- refine
+# knows the code phase modulo the epoch -- would otherwise hand-roll the
+# lag-0 sum beside this kernel, which is how a second replica of the code
+# gets built. Trailing + default -1 (the whole map) keeps
+# Corr2D(ref, dwell, nthreads, ny_out, nx_out) backward-compatible.
+[[corr2d.init_params]]
+name = "col_out"
+type = "int"
+default = "-1"
+
 [[corr2d.methods]]
 name = "execute"
 arg_type = "float _Complex"
@@ -78,6 +89,11 @@ field = true
 [[corr2d.properties]]
 name = "n_out"
 type = "size_t"
+field = true
+
+[[corr2d.properties]]
+name = "col_out"
+type = "int"
 field = true
 
 [[corr2d.properties]]

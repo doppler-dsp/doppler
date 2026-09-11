@@ -49,7 +49,25 @@ SCAN_DIRS = (
     "docs",
 )
 SCAN_FILES = ("Makefile", "CMakeLists.txt", "just-makeit.toml", "mkdocs.yml")
-SKIP_PARTS = frozenset({"build", "docs/c-api", "__pycache__", ".git"})
+# `.venv`/`site-packages` are INSTALLED trees, not source: the downstream
+# example syncs a virtualenv under `examples/`, and an installed copy of
+# doppler's own stubs then carries every name this gate is asked about. That
+# made a rename unfinishable on any machine that had built the example --
+# six occurrences the committing repo does not contain and cannot fix --
+# while a fresh CI checkout, which has no venv yet, passed. A gate whose
+# verdict depends on what happens to be installed is not measuring the
+# source. Everything here is either generated from `native/` or not ours.
+SKIP_PARTS = frozenset(
+    {
+        "build",
+        "docs/c-api",
+        "__pycache__",
+        ".git",
+        ".venv",
+        "site-packages",
+        "node_modules",
+    }
+)
 SUFFIXES = frozenset(
     {".c", ".h", ".py", ".md", ".txt", ".toml", ".yml", ".yaml", ".sh", ".pyi"}
 )
@@ -105,9 +123,19 @@ def main() -> int:
     # explains why. So does its data file.
     exempt = {RETIRED.resolve(), Path(__file__).resolve()}
 
+    # ...and so does the changelog entry that ANNOUNCES a retirement. Naming
+    # the old identifier is the entry's whole job: someone upgrading greps
+    # their own tree for `next_pow2` and has to land on the note that says
+    # what replaced it. Narrow on purpose -- `changelog.d` holds release
+    # prose and nothing that compiles or imports, so a name surviving here
+    # cannot be a call site. The FULL CHANGELOG.md is assembled from these
+    # and is likewise prose.
+    exempt_dirs = (ROOT / "changelog.d",)
+
     hits: list[str] = []
     for path in _files():
-        if path.resolve() in exempt:
+        rp = path.resolve()
+        if rp in exempt or any(d in rp.parents for d in exempt_dirs):
             continue
         try:
             text = path.read_text(encoding="utf-8")

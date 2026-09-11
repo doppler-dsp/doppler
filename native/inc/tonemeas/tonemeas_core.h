@@ -37,7 +37,7 @@ extern "C" {
 /**
  * @brief ToneMeasure state: owned window, FFT plan and analysis scratch.
  *
- * Allocate with tonemeas_create().  `nfft = next_pow2(n * MEASURE_PAD)` is the
+ * Allocate with tonemeas_create().  `nfft = next_pow_two(n * MEASURE_PAD)` is the
  * zero-padded transform length; `enbw` is the window's equivalent-noise
  * bandwidth (bins); `lobe_bins` is the main-lobe half-width L over which a
  * component's power is integrated; `spur_guard_bins` (>= L) is the wider

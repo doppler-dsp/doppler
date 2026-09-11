@@ -6,9 +6,9 @@ deliberately by `make characterize`. See
 
 Phase 7 of `docs/dev/contributing/adding-algorithms.md`, for the object
 designed in `docs/design/dsss-burst-receiver.md`. It exists to answer the
-one number that design left open — the refine stage's discrimination margin,
-measured where it FAILS rather than where it holds — and it found a second,
-larger effect on the way.
+one number that design left open — where the refine stage stops naming the
+right repetition, measured where it FAILS rather than where it holds — and
+it found a second, larger effect on the way.
 
 The two panels
 --------------
@@ -43,16 +43,16 @@ far from the operating point answers a question nobody asked.
 **Right — refine's period discrimination vs C/N0.** Acquisition fixes the
 code phase within a period; refine decides WHICH repetition, by correlating
 one code period at each of the `reps` positions the preamble would occupy
-and summing the magnitudes. The nearest rival period scores
-`(reps-1)/reps` of the winner — 2.5 dB at `reps = 4` — and the design doc
-recorded that as a margin measured only where it does not fail. This is
-where it fails.
+and combining those correlations coherently over a Doppler search
+(doppler#1312). The design doc recorded the discrimination only where it
+holds. This is where it fails.
 
-`refine_margin` is the receiver's own view of that decision (rival over
-winner, so *lower is better* and a value near 1 means the period was not
-resolved). Plotting it beside the correct-period rate is the point: it is
-the only signal in the chain that sees a broken hand-off, because a
-mis-windowed burst still has a carrier and still reads as locked.
+The correct-period rate is plotted against the CRC rate on the same axis,
+and the GAP between them is the reading: a correct period with a failing
+CRC is the link being too weak to carry a frame, while the reverse cannot
+happen. The pair replaces the `refine_margin` series this panel used to
+carry — a read-back whose floor moved with `reps`, which nothing in the
+library branched on, and which was removed in doppler#1312.
 
 What it measures, not what it hopes
 -----------------------------------
@@ -168,10 +168,10 @@ def cn0_dbhz(sigma: float) -> float:
 
 def _run_one(
     at: int, sigma: float, seed: int, codes=None, burst=None
-) -> tuple[bool, bool, float]:
+) -> tuple[bool, bool]:
     """Drive the real receiver over one capture.
 
-    Returns (period correct, CRC valid, refine margin). "Period correct"
+    Returns (period correct, CRC valid). "Period correct"
     means `preamble_start` names the exact sample the burst began at --
     stricter than a passing CRC, and the criterion a consumer of the
     detection event depends on.
@@ -199,12 +199,8 @@ def _run_one(
         if bits.size:
             # A returned frame is the receiver's whole claim; whether it
             # checks out is the DeFramer's answer (doppler#1022).
-            return (
-                rx.preamble_start == at,
-                bool(bits.size),
-                float(rx.refine_margin),
-            )
-    return (False, False, float("nan"))
+            return (rx.preamble_start == at, bool(bits.size))
+    return (False, False)
 
 
 #: C/N0 the offset sweep runs at, as an input noise sigma.
@@ -235,28 +231,34 @@ def sweep_offset(codes, sigma: float = OFFSET_SIGMA):
 
 
 def sweep_cn0() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Correct-period rate and refine margin vs C/N0.
+    """Correct-period rate, and the CRC rate beneath it, vs C/N0.
 
     The burst start is redrawn per trial across a whole code period, so the
     sweep folds in the sub-period alignment a real link would have rather
     than measuring one lucky phase.
+
+    The CRC rate is the second series because it is the one that separates
+    "refine put the window in the wrong place" from "the link was too weak
+    to carry a frame at all": a correct period with a failing CRC is a
+    noise problem, a failing period with a passing CRC cannot happen. It
+    replaces the refine margin this sweep used to plot, which was removed
+    in doppler#1312 -- a read-back whose floor moved with `reps` and on
+    which nothing in the library ever branched.
     """
     cn0 = np.array([cn0_dbhz(s) for s in SIGMAS])
     rate = np.zeros(len(SIGMAS))
-    margin = np.full(len(SIGMAS), np.nan)
+    crc = np.zeros(len(SIGMAS))
     for i, sigma in enumerate(SIGMAS):
-        good, margins = 0, []
+        good, ok = 0, 0
         for k in range(TRIALS):
             rng = np.random.default_rng(9000 + 97 * i + k)
             at = BASE_AT + int(rng.integers(0, CODE_PERIOD))
-            period_ok, _crc, m = _run_one(at, sigma, seed=1000 + k)
+            period_ok, crc_ok = _run_one(at, sigma, seed=1000 + k)
             good += int(period_ok)
-            if m == m:  # not NaN -- a burst was actually produced
-                margins.append(m)
+            ok += int(crc_ok)
         rate[i] = good / TRIALS
-        if margins:
-            margin[i] = float(np.median(margins))
-    return cn0, rate, margin
+        crc[i] = ok / TRIALS
+    return cn0, rate, crc
 
 
 def main(out_path: str | None = None) -> None:
@@ -313,22 +315,18 @@ def main(out_path: str | None = None) -> None:
     )
     print("       fraction of bursts. That is doppler#1006.")
 
-    cn0, rate, margin = sweep_cn0()
+    cn0, rate, crc = sweep_cn0()
     print(
         f"\n[2] refine period discrimination vs C/N0 ({TRIALS} trials/point)"
     )
-    print(f"    {'C/N0':>8} {'correct period':>15} {'median margin':>14}")
-    for c, r, m in zip(cn0, rate, margin):
-        print(f"    {c:>8.1f} {r:>14.0%} {m:>14.3f}")
-    ideal = (REPS - 1) / REPS
-    print(
-        f"    predicted rival ratio at high C/N0: (reps-1)/reps = {ideal:.3f}"
-    )
+    print(f"    {'C/N0':>8} {'correct period':>15} {'CRC ok':>14}")
+    for c, r, m in zip(cn0, rate, crc):
+        print(f"    {c:>8.1f} {r:>14.0%} {m:>13.0%}")
 
-    _plot(results, cn0, rate, margin, out_path)
+    _plot(results, cn0, rate, crc, out_path)
 
 
-def _plot(results, cn0, rate, margin, out_path: str) -> None:
+def _plot(results, cn0, rate, crc, out_path: str) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -391,31 +389,16 @@ def _plot(results, cn0, rate, margin, out_path: str) -> None:
     ax1.tick_params(axis="y", labelcolor="C0")
     ax1.grid(alpha=0.3)
 
-    ax2 = ax1.twinx()
-    ax2.plot(
-        cn0, margin, "s--", color="C3", ms=4, label="refine_margin (median)"
-    )
-    ax2.axhline(
-        (REPS - 1) / REPS,
-        color="0.5",
-        ls=":",
-        lw=1.2,
-        label=f"(reps-1)/reps = {(REPS - 1) / REPS:.2f}",
-    )
-    ax2.axhline(1.0, color="C3", ls="-", lw=0.8, alpha=0.5)
-    ax2.set_ylabel(
-        "refine_margin — rival / winner (lower is better)", color="C3"
-    )
-    ax2.set_ylim(0.7, 1.02)
-    ax2.tick_params(axis="y", labelcolor="C3")
+    # The CRC rate on the SAME axis, because both are fractions of the same
+    # trials: the gap between them is the whole story. A correct period with
+    # a failing CRC is the link being too weak to carry the frame; the
+    # reverse cannot happen, so the two curves can only close, never cross.
+    ax1.plot(cn0, crc, "s--", color="C3", ms=4, label="CRC passes")
     ax1.set_title(
-        "Refine resolves the period until the\nmargin closes on 1",
+        "Refine holds the exact period until the\nlink itself gives out",
         fontsize=10,
     )
-
-    h0, l0 = ax1.get_legend_handles_labels()
-    h1, l1 = ax2.get_legend_handles_labels()
-    ax1.legend(h0 + h1, l0 + l1, fontsize=8, loc="lower right")
+    ax1.legend(fontsize=8, loc="lower right")
 
     fig.tight_layout(rect=(0, 0, 1, 0.92))
     fig.savefig(out_path, dpi=110)

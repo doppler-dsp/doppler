@@ -28,6 +28,18 @@ _bind_square_clip (PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+_bind_next_pow_two (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char       *_kwlist[] = { "n", NULL };
+  unsigned long long n_raw     = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
+    return NULL;
+  size_t n = (size_t)n_raw;
+  return PyLong_FromUnsignedLongLong ((unsigned long long)next_pow_two (n));
+}
+
+static PyObject *
 _bind_saturate (PyObject *self, PyObject *args, PyObject *kwds)
 {
   (void)self;
@@ -106,6 +118,54 @@ static PyMethodDef util_module_methods[] = {
     "(0.25+0.25j)\n"
     ">>> square_clip(-2.0+0.0j, 1.0)   # negative real clipped\n"
     "(-1+0j)\n" },
+  { "next_pow_two", (PyCFunction)(void *)_bind_next_pow_two,
+    METH_VARARGS | METH_KEYWORDS,
+    "Smallest power of two greater than or equal to n. The\n"
+    "transform-sizing primitive: zero-padded FFT lengths, ring capacities\n"
+    "and grow-on-demand buffers all want the same rounding, and five\n"
+    "identical private copies of it were in the tree before this one.\n"
+    "Saturating rather than wrapping -- 0 is returned when the answer\n"
+    "exceeds SIZE_MAX, because a doubling loop run past the top shifts to\n"
+    "zero and spins forever.\n"
+    "\n"
+    "The transform-sizing primitive. A zero-padded FFT length, a ring\n"
+    "capacity, a grow-on-demand buffer -- all of them want the same \"round\n"
+    "up to a power of two\", and all of them had been writing the doubling\n"
+    "loop out where they stood. FIVE identical private copies were in the\n"
+    "tree when this landed -- `detector/det_private.h`, `delay_core.c`,\n"
+    "`psd_core.c`, `specan_core.c` and `ppe_core.c`, each a `static` one\n"
+    "none of the others could reach -- alongside bare `while (c < n) c *= 2`\n"
+    "loops seeded from whatever each caller happened to start at, which is\n"
+    "the shape that lets one quietly start at 4 and another at 1 and neither\n"
+    "be wrong until they are compared. None of the four guarded the overflow\n"
+    "below.\n"
+    "\n"
+    "Saturating rather than wrapping: a doubling loop run past the top of\n"
+    "`size_t` shifts to zero and spins forever, so the one case that cannot\n"
+    "be expressed returns 0 instead of hanging. A caller sizing an\n"
+    "allocation gets a refusal it can see.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    Value to round up. 0 and 1 both give 1.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    The smallest power of two >= n, or 0 if that exceeds `SIZE_MAX`.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.util import next_pow_two\n"
+    ">>> next_pow_two(0), next_pow_two(1), next_pow_two(2)\n"
+    "(1, 1, 2)\n"
+    ">>> next_pow_two(3), next_pow_two(4), next_pow_two(5)\n"
+    "(4, 4, 8)\n"
+    ">>> next_pow_two(1000)        # a zero-padded transform length\n"
+    "1024\n"
+    ">>> next_pow_two(1 << 20)     # already a power of two, unchanged\n"
+    "1048576\n" },
   { "saturate", (PyCFunction)(void *)_bind_saturate,
     METH_VARARGS | METH_KEYWORDS,
     "Saturate a value into [lo, hi], total over every double including\n"

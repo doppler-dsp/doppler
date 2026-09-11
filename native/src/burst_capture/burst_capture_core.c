@@ -9,19 +9,11 @@
  */
 #include "burst_capture/burst_capture_core.h"
 
+#include "util/util_core.h"
+
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-
-/** @brief Smallest power of two >= n (the ring's capacity contract). */
-static size_t
-burst_capture_pow2_ceil (size_t n)
-{
-  size_t p = 1u;
-  while (p < n)
-    p <<= 1;
-  return p;
-}
 
 /**
  * @brief Both constructors, differing only in where the ring's pages live.
@@ -128,7 +120,7 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
     /* Twice the retained span, so `chunk_max` below is never zero: a push
        larger than the ring is processed in slices rather than refused,
        which is what "accepts any block size" costs. */
-    size_t cap = burst_capture_pow2_ceil (2u * s->retain_span);
+    size_t cap = next_pow_two (2u * s->retain_span);
     if (path)
       {
         /* A file failure is the CALLER's -- a bad path, a full disk, a
@@ -165,14 +157,26 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
     s->q = dp_xcalloc (s->q_cap, sizeof *s->q);
   }
 
-  /* Refine scratch. The chip signs are real, so a per-period correlation is
-     a signed sum over the window rather than a complex multiply -- and
-     expanding them to samples once here keeps the divide out of the inner
-     loop. */
-  s->ref_sign = dp_xmalloc (s->code_period * sizeof *s->ref_sign);
-  for (size_t i = 0; i < s->code_period; i++)
-    s->ref_sign[i]
-        = (s->acq_code[(i / spc) % acq_code_len] & 1u) ? -1.0f : 1.0f;
+  /* Refine's per-period correlator. Acquisition has already fixed the code
+     phase within a period, so refine needs exactly ONE lag of the
+     correlation -- which is `corr2d`'s known-lag mode, a plain O(P) sum
+     with no transform in either direction. Going through the kernel rather
+     than writing that sum out here is what keeps ONE replica of the
+     preamble code in the tree: the hand-rolled version built a second one,
+     spc-expanded by its own rule, free to drift from the oversampled
+     replica acquisition correlates against. */
+  {
+    float _Complex *replica = dp_xcalloc (s->code_period, sizeof *replica);
+    for (size_t i = 0; i < s->code_period; i++)
+      replica[i] = (s->acq_code[(i / spc) % acq_code_len] & 1u) ? -1.0f : 1.0f;
+    /* ny = 1: a candidate position is one row, and the positions are fed
+       one at a time because how many are reachable varies near the start
+       of the stream (the anchor cannot back off past sample 0). */
+    s->pcorr = corr2d_create (replica, 1, s->code_period, 1, 1, 0, 0, 0);
+    free (replica);
+    if (!s->pcorr)
+      goto fail;
+  }
 
   /* One correlation per candidate preamble POSITION, not per sample: the
      candidates are anchor + k*P, so the whole search is (k_lo+k_hi+reps)
@@ -188,9 +192,7 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
      exactly the most acquisition can leave (half of its own bin), so the
      search covers the residual by construction (doppler#1312). */
   {
-    size_t n = 4u;
-    while (n < 4u * reps)
-      n *= 2u;
+    size_t n    = next_pow_two (4u * reps);
     s->slow_n   = n;
     s->slow_in  = dp_xmalloc (n * sizeof *s->slow_in);
     s->slow_out = dp_xmalloc (n * sizeof *s->slow_out);
@@ -260,7 +262,7 @@ burst_capture_destroy (burst_capture_state_t *state)
   if (state->hist)
     dp_f32_destroy (state->hist);
   free (state->acq_code);
-  free (state->ref_sign);
+  corr2d_destroy (state->pcorr);
   free (state->corr_buf);
   if (state->slow_fft)
     fft_destroy (state->slow_fft);
@@ -304,7 +306,6 @@ burst_capture_reset (burst_capture_state_t *state)
   state->doppler_hz_est = 0.0;
   state->doppler_res_hz = 0.0;
   state->cn0_dbhz_est   = 0.0;
-  state->refine_margin  = 0.0;
   /* `dropped` and `n_bursts` deliberately survive: a lost burst stays lost,
      and a lifetime count that reset() zeroed would report a clean stream. */
 }
@@ -331,18 +332,15 @@ burst_capture_have (const burst_capture_state_t *s, uint64_t pos, size_t n)
  * The magnitude used to be taken here, which threw away the one thing that
  * lets the repetitions be combined coherently (doppler#1312).
  */
-static float _Complex burst_capture_period_corr (
-    const burst_capture_state_t *s, uint64_t pos)
+static float _Complex burst_capture_period_corr (burst_capture_state_t *s,
+                                                 uint64_t               pos)
 {
-  const float _Complex *w  = burst_capture_at (s, pos);
-  float                 re = 0.0f, im = 0.0f;
-  for (size_t j = 0; j < s->code_period; j++)
-    {
-      float g = s->ref_sign[j];
-      re += g * crealf (w[j]);
-      im += g * cimagf (w[j]);
-    }
-  return re + im * I;
+  /* The history ring is double-mapped, so one code period is contiguous at
+     any position and goes straight into the kernel as a single row. */
+  float _Complex out = 0.0f;
+  corr2d_execute (s->pcorr, burst_capture_at (s, pos), s->code_period, &out,
+                  1);
+  return out;
 }
 
 /**
@@ -356,51 +354,37 @@ static float _Complex burst_capture_period_corr (
  * nothing between: the sub-period question is already answered.
  *
  * Score each candidate by correlating one code period at every position the
- * preamble would occupy and summing the MAGNITUDES. Only `reps - abs(k)` of
- * those positions still land on preamble when a candidate is `k` periods
- * off, so the score follows a triangular envelope peaking at the truth.
+ * preamble would occupy, then combining those `reps` correlations COHERENTLY
+ * across the repetitions -- a zero-padded slow-time transform, strongest bin
+ * taken. Only `reps - abs(k)` of the positions still land on preamble when a
+ * candidate is `k` periods off, so the score peaks at the truth.
  *
- * **Non-coherent across the repetitions, deliberately.** Correlating all
- * `reps * P` samples as one reference is the obvious form and does not
- * survive the residual acquisition leaves: measured, a quarter of a Doppler
- * bin put the coherent peak two whole periods off, with the true position
- * 639x below it. Same coherent-then-non-coherent split `acq` itself uses,
- * asked a finer question.
+ * **Coherent, with the Doppler search that makes it survivable.** Summing
+ * the magnitudes instead sheds the combining loss as the preamble deepens:
+ * coherent gains about `10*log10(reps)` where non-coherent gains
+ * `5*log10(reps)`, and swept at 300 trials a point (255 chips, spc 2,
+ * residual half a slow-time bin) the correct-repetition rate at 39 dB-Hz
+ * went 0.59 -> 0.70 at reps 5, 0.60 -> 0.81 at 10 and 0.54 -> 0.80 at 16.
  *
- * **How short is "short enough" -- the number, which this comment used to
- * assert without.** Acquisition leaves a residual of at most half a bin, and
- * a bin is `chip_rate / (sf * coherent_bins)`; one code period lasts
- * `sf / chip_rate` seconds. The product is
- *
- *     2*pi * (res/2) * T_P  =  pi / coherent_bins
- *
- * -- `sf` and `chip_rate` CANCEL, so the phase a residual rotates across one
- * code period depends on the coherent depth alone, and on nothing else about
- * the waveform. Across M periods it is `M*pi/coherent_bins`.
- *
- * At the depth this object is usually sized to (`coherent_bins = reps = 4`)
- * one period is already 45 degrees, so M = 1 is the right choice and the
- * fully coherent form is 180 degrees at M = 4 -- which is the null the
- * measurement above walked into.
- *
- * It also says where the choice stops being free: `M <= coherent_bins / 2`
- * keeps the rotation within 90 degrees, so a DEEPER search (`reps = 8` sizes
- * `coherent_bins` up to 8) could coherently integrate 2 or 4 periods and gain
- * amplitude this form discards. Whether that moves the sensitivity knee is
- * unmeasured -- doppler#1177.
+ * A fixed-phase coherent sum really does collapse under the residual
+ * acquisition leaves -- measured, a quarter of a Doppler bin put that peak
+ * two whole periods off, the true position 639x below it. The slow-time
+ * transform is what removes that failure rather than tolerating it: the
+ * unambiguous span across the repetitions is `+-1/(2*P)` and acquisition
+ * leaves at most half its own bin, `1/(2*D*P)`, so the search covers the
+ * residual BY CONSTRUCTION -- there is no hypothesis range to choose and
+ * nothing to tune (doppler#1312). It improves WITH residual rather than
+ * degrading: at reps 5, 42 dB-Hz, 0.84 -> 0.93 at a quarter bin.
  *
  * @param s      Capture.
  * @param anchor Coarse code epoch from the hit.
  * @param start  Written with the refined stream-absolute preamble start.
- * @param margin Written with the runner-up ratio: the best rival period over
- *               the winner. Near 1 means the period was NOT resolved, which
- *               nothing else in the chain can see.
  * @return Non-zero on success; 0 if the search window is not yet reachable,
  *         in which case the caller must try again rather than drop the hit.
  */
 static int
 burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
-                      uint64_t *start, double *margin)
+                      uint64_t *start)
 {
   size_t P    = s->code_period;
   size_t reps = s->reps;
@@ -449,7 +433,7 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
      length, so it shifts every candidate by the same constant -- identical
      at all 48 points, a theorem rather than a result), and square-law scored
      within 0.01 of linear everywhere. */
-  double best = -1.0, runner = 0.0;
+  double best   = -1.0;
   size_t best_k = 0;
   for (size_t k = 0; k + reps <= n_pos; k++)
     {
@@ -468,24 +452,14 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
           if (m > pk)
             pk = m;
         }
-      /* Winner and runner-up in ONE pass. A second sweep would have to
-         redo every transform, and the old one silently read the real part
-         of what is now a complex correlation. */
       if (pk > best)
         {
-          runner = best;
           best   = pk;
           best_k = k;
         }
-      else if (pk > runner)
-        runner = pk;
     }
 
   *start = lo + (uint64_t)(best_k * P);
-  /* `pk` is a POWER, so the ratio is rooted to stay the amplitude ratio the
-     margin has always been -- its envelope is still (reps-1)/reps and a
-     caller comparing against that is unaffected. */
-  *margin = best > 0.0 ? sqrt (runner / best) : 1.0;
   return 1;
 }
 
@@ -531,7 +505,7 @@ burst_capture_emit (burst_capture_state_t *s)
 
   if (!e->refined)
     {
-      if (!burst_capture_refine (s, e->anchor, &e->start, &e->margin))
+      if (!burst_capture_refine (s, e->anchor, &e->start))
         return 0;
       e->refined = 1;
     }
@@ -573,7 +547,6 @@ burst_capture_emit (burst_capture_state_t *s)
   s->preamble_start      = e->start;
   s->doppler_hz_est      = e->doppler_hz;
   s->cn0_dbhz_est        = e->cn0_dbhz;
-  s->refine_margin       = e->margin;
   s->doppler_res_hz      = eng->doppler_res_hz;
   s->n_bursts++;
 
@@ -586,7 +559,6 @@ burst_capture_emit (burst_capture_state_t *s)
     r->doppler_hz_est        = s->doppler_hz_est;
     r->doppler_res_hz        = s->doppler_res_hz;
     r->cn0_dbhz_est          = s->cn0_dbhz_est;
-    r->refine_margin         = s->refine_margin;
   }
 
   s->q_head = (s->q_head + 1u) % s->q_cap;
@@ -804,7 +776,6 @@ burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
                       cand->anchor     = epoch;
                       cand->peak_mag   = (double)hits[i].peak_mag;
                       cand->start      = 0;
-                      cand->margin     = 1.0;
                       cand->shadowed   = shadow;
                       cand->refined    = 0;
                       cand->doppler_hz = dp_fftfreq (
@@ -824,7 +795,6 @@ burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
                   = &state->q[(state->q_head + state->pending) % state->q_cap];
               q->anchor   = epoch;
               q->start    = 0;
-              q->margin   = 1.0;
               q->peak_mag = (double)hits[i].peak_mag;
               q->refined  = 0;
               q->shadowed = shadow;
@@ -997,12 +967,6 @@ burst_capture_get_cn0_dbhz_est (const burst_capture_state_t *state)
   return state->cn0_dbhz_est;
 }
 
-double
-burst_capture_get_refine_margin (const burst_capture_state_t *state)
-{
-  return state->refine_margin;
-}
-
 size_t
 burst_capture_get_pending (const burst_capture_state_t *state)
 {
@@ -1127,7 +1091,7 @@ burst_capture_state_bytes (const burst_capture_state_t *s)
      coincidence. Both variable regions are fixed-size with a length prefix. */
   return sizeof (dp_state_hdr_t)
          + sizeof (uint64_t) * 4u /* samples_fed, n_bursts, dropped, start  */
-         + sizeof (double) * 4u   /* the event's doubles                    */
+         + sizeof (double) * 3u   /* the event's doubles                    */
          + sizeof (uint64_t)      /* suppress_until                         */
          + sizeof (uint32_t) * 2u /* pending, q_head                        */
          + sizeof (burst_capture_pending_t) * s->q_cap
@@ -1158,7 +1122,6 @@ burst_capture_get_state (const burst_capture_state_t *s, void *blob)
   dp_w_f64 (&_w, s->doppler_hz_est);
   dp_w_f64 (&_w, s->doppler_res_hz);
   dp_w_f64 (&_w, s->cn0_dbhz_est);
-  dp_w_f64 (&_w, s->refine_margin);
   dp_w_u64 (&_w, s->suppress_until);
 
   /* The detections in flight. Omitting these would resume a capture that had
@@ -1223,7 +1186,6 @@ burst_capture_set_state (burst_capture_state_t *s, const void *blob)
   s->doppler_hz_est = dp_r_f64 (&_r);
   s->doppler_res_hz = dp_r_f64 (&_r);
   s->cn0_dbhz_est   = dp_r_f64 (&_r);
-  s->refine_margin  = dp_r_f64 (&_r);
   s->suppress_until = dp_r_u64 (&_r);
   s->suppress_base  = s->suppress_until;
 

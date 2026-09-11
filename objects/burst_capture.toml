@@ -178,7 +178,6 @@ result_fields = [
   { name = "doppler_hz_est", type = "double" },
   { name = "doppler_res_hz", type = "double" },
   { name = "cn0_dbhz_est", type = "double" },
-  { name = "refine_margin", type = "double" },
 ]
 
 [[burst_capture.methods]]
@@ -233,11 +232,6 @@ doc = "Acquisition's native Doppler bin width = chip_rate/(sf*coherent_bins), Hz
 name = "cn0_dbhz_est"
 type = "double"
 doc = "Estimated carrier-to-noise density of the most recent window (dB-Hz), backed out of the hit's test statistic. A LOWER BOUND: it tracks the true C/N0 while receiver noise dominates the CFAR estimate, then saturates at the code's own autocorrelation-sidelobe floor once the true C/N0 exceeds what this code and geometry can resolve -- a real ceiling, not a fault."
-
-[[burst_capture.properties]]
-name = "refine_margin"
-type = "double"
-doc = "The refine stage's own confidence: the best rival code period's score over the winner's. The envelope is (reps-1)/reps when the right repetition wins, so compare against THAT and never a constant -- the floor rises with depth (0.55 at reps=2, 0.77 at 4, 0.94 at 16). Near 1 means the period was not resolved, which nothing else in the chain can see."
 
 [[burst_capture.properties]]
 name = "burst_len"

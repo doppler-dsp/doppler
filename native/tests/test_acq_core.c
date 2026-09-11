@@ -1160,7 +1160,6 @@ main (void)
     /* det_private.h's other statics are the engine's; naming them keeps the
        compiler quiet about a header-only helper this test does not call. */
     (void)det_ring_create;
-    (void)next_pow2;
     (void)det_cmp_f32_asc;
     enum
     {

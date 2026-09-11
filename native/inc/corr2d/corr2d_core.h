@@ -28,7 +28,7 @@
  * Lifecycle:
  * @code
  * float _Complex ref[NY * NX] = { ... };    // row-major 2-D reference
- * corr2d_state_t *c = corr2d_create(ref, NY, NX, 4, 1);
+ * corr2d_state_t *c = corr2d_create(ref, NY, NX, 4, 1, 0, 0, -1);
  * float _Complex out[NY * NX];
  * for (int i = 0; i < 4; i++) {
  *     size_t n_out = corr2d_execute(c, frame[i], NY*NX, out, NY*NX);
@@ -99,6 +99,16 @@ typedef struct {
   size_t n_out;             /**< ny_out * nx_out — output element count.  */
   size_t dwell;             /**< Integration depth.                       */
   size_t count;             /**< Frames accumulated (0 … dwell-1).        */
+  /* Known-column output (see corr2d_create's @p col_out).  A caller that
+   * already knows the correlation lag it wants does not need the other
+   * nx_out-1 columns, and evaluating the inverse at one bin is a dot
+   * product against the conjugated reference, with NO transform in either
+   * direction -- O(nx) per row against the full map's O(nx log nx), which
+   * is what makes the kernel affordable for a caller that would otherwise
+   * hand-roll the lag sum beside it. */
+  int             col_out;   /**< Output column, or < 0 for the full map. */
+  float _Complex *col_ref;   /**< conj(ref row 0) in the TIME domain, length
+                                  nx; NULL when col_out < 0.              */
   /** Bounce buffer for a dump into an under-sized `out` (jm gh-138).
    *  Both execute paths -- the 2-D inverse and the per-row fast path --
    *  write the full n_out surface, so a short `out` is served by writing
@@ -127,6 +137,20 @@ typedef struct {
  *                  peak, sub-bin resolution.  Native is bit-exact and allocates
  *                  no extra buffers.
  * @param nx_out    Inverse/output columns; 0 => native (nx).  Must be >= nx.
+ * @param col_out   Emit ONLY this correlation lag, or < 0 for the whole map.
+ *                  When set, a dump writes @p ny values -- one per row --
+ *                  instead of ny*nx_out, computed as the time-domain sum
+ *                  `sum_p conj(ref[p]) * row[(p + col_out) mod nx]`, which
+ *                  is what R(i, col_out) expands to once the 1/nx cancels.
+ *                  No transform runs in either direction, so the cost per
+ *                  row is O(nx) rather than O(nx log nx).  Requires the
+ *                  single-row-reference fast path (a caller that knows its
+ *                  lag is by construction correlating against a code
+ *                  replica) and the NATIVE output grid: an interpolated
+ *                  column is a fractional lag, which no time-domain sum
+ *                  produces.  create() returns NULL if @p col_out >= 0 with
+ *                  a reference the fast path rejects, with @p ny_out or
+ *                  @p nx_out decoupled, or with a lag outside [0, nx).
  * @return Heap-allocated state, or NULL on failure.
  * @code
  * >>> from doppler.spectral import Corr2D
@@ -139,7 +163,7 @@ typedef struct {
  */
 corr2d_state_t *corr2d_create(const float _Complex *ref, size_t ny, size_t nx,
                               size_t dwell, int nthreads, size_t ny_out,
-                              size_t nx_out);
+                              size_t nx_out, int col_out);
 
 /** @brief Destroy and free a corr2d instance.  @param state May be NULL. */
 void corr2d_destroy(corr2d_state_t *state);
@@ -183,7 +207,9 @@ void corr2d_reset(corr2d_state_t *state);
  */
 int corr2d_set_ref(corr2d_state_t *state, const float _Complex *ref);
 
-/** @brief Maximum output samples per execute call (always == ny*nx). */
+/** @brief Maximum output samples per execute call (@ref corr2d_state_t::n_out
+ *         -- ny*nx_out normally, or ny when a single @ref
+ *         corr2d_state_t::col_out was selected). */
 size_t corr2d_execute_max_out(corr2d_state_t *state);
 
 /**

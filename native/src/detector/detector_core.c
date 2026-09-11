@@ -8,7 +8,7 @@
  *   |·|² + argmax → noise estimate → threshold gate → det_result_t[]
  *
  * Ring buffer sizing:
- *   capacity = next_pow2(max(n, 512))
+ *   capacity = next_pow_two(max(n, 512))
  *
  * The factor 512 ensures the double-mapping page-alignment constraint is met:
  *   512 samples × 8 bytes/sample (float _Complex) = 4096 bytes = 1 page.

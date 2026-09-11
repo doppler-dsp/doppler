@@ -103,7 +103,6 @@ object's entire diagnostic surface:
 | `est_rate_hz`        | chirp-rate estimate                         | zero, because `max_rate=0` switches that axis **off**    |
 | `demod_cn0_dbhz`     | C/N0 **measured** on the decoded symbols    | the scene's own C/N0, from the other side of the bound   |
 | `demod_timing_chips` | burst-start error the demod removed         | a fraction of a chip — acquisition resolves to a sample  |
-| `refine_margin`      | runner-up code period over the winner       | strictly under 1, or the wrong period won                |
 | `frame_valid`        | every check that RAN came out good          | 1, on every burst                                        |
 | `frame_checked`      | checking stages actually reversed           | 1 with a CRC, 0 with none — a different fact from a fail |
 

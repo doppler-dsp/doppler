@@ -118,7 +118,7 @@ static PyMethodDef measure_module_methods[] = {
     "    Required capture length, or 0 on bad args.\n" },
   { "measure_rec_nfft", (PyCFunction)(void *)_bind_measure_rec_nfft,
     METH_VARARGS | METH_KEYWORDS,
-    "Recommended zero-padded transform length: next_pow2(n * pad).\n"
+    "Recommended zero-padded transform length: next_pow_two(n * pad).\n"
     "\n"
     "Parameters\n"
     "----------\n"

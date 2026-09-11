@@ -268,7 +268,6 @@
 * **burst\_capture\_get\_pd\_predicted** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_pending** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_preamble\_start** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
-* **burst\_capture\_get\_refine\_margin** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_state** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_straddle\_loss** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_push** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
@@ -801,7 +800,6 @@
 * **dsss\_burst\_receiver\_get\_n\_bursts** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_get\_pending** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_get\_preamble\_start** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
-* **dsss\_burst\_receiver\_get\_refine\_margin** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_get\_refine\_span** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_get\_retain\_span** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
 * **dsss\_burst\_receiver\_get\_state** ([**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md))
@@ -1248,7 +1246,6 @@
 ## n
 
 * **nrz\_to\_bin** ([**cvt\_core.h**](cvt__core_8h.md))
-* **next\_pow2** ([**det\_private.h**](det__private_8h.md))
 * **nco\_add\_ovf\_** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_create** ([**nco\_core.h**](nco__core_8h.md))
 * **nco\_destroy** ([**nco\_core.h**](nco__core_8h.md))
@@ -1293,6 +1290,7 @@
 * **nprmeas\_spectrum\_dbfs** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **nprmeas\_spectrum\_dbfs\_max\_out** ([**nprmeas\_core.h**](nprmeas__core_8h.md))
 * **noise\_floor\_db** ([**spectral\_core.h**](spectral__core_8h.md))
+* **next\_pow\_two** ([**util\_core.h**](util__core_8h.md))
 * **node\_sync\_scan** ([**viterbi\_core.h**](viterbi__core_8h.md))
 * **node\_sync\_score** ([**viterbi\_core.h**](viterbi__core_8h.md))
 * **node\_sync\_scored\_symbols** ([**viterbi\_core.h**](viterbi__core_8h.md))

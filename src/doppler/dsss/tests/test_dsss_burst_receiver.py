@@ -68,7 +68,6 @@ def test_construct_and_read_back_the_event_fields() -> None:
     assert r.est_rate_hz == 0.0
     assert r.demod_cn0_dbhz == 0.0
     assert r.demod_timing_chips == 0.0
-    assert r.refine_margin == 0.0
     assert r.pending == 0
     assert r.dropped == 0
     assert r.n_bursts == 0
@@ -245,8 +244,6 @@ def test_decodes_a_burst_and_publishes_the_event() -> None:
     assert r.preamble_start == at
     assert r.n_bursts == 1
     assert r.dropped == 0
-    # Resolved cleanly: the nearest rival period sits near (reps-1)/reps.
-    assert 0.0 < r.refine_margin < 0.9
 
 
 def test_the_event_survives_a_state_round_trip_mid_stream() -> None:

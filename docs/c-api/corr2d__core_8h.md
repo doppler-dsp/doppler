@@ -60,10 +60,10 @@ _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#de
 
 | Type | Name |
 | ---: | :--- |
-|  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**corr2d\_create**](#function-corr2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads, size\_t ny\_out, size\_t nx\_out) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**corr\_create()**_](corr__core_8h.md#function-corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
+|  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**corr2d\_create**](#function-corr2d_create) (const float \_Complex \* ref, size\_t ny, size\_t nx, size\_t dwell, int nthreads, size\_t ny\_out, size\_t nx\_out, int col\_out) <br>_Allocate a 2-D FFT correlator with coherent integrate-and-dump. Two-dimensional extension of_ [_**corr\_create()**_](corr__core_8h.md#function-corr_create) _. The reference is a flat row-major ny×nx CF32 array; its conjugate spectrum is pre-computed once so each execute() call costs two 2-D FFTs plus ny\*nx complex multiplies. The Python wrapper requires_`ref` _to be a 2-D ndarray with shape (ny, nx); it passes a flat view to C._ |
 |  void | [**corr2d\_destroy**](#function-corr2d_destroy) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Destroy and free a corr2d instance._  |
 |  size\_t | [**corr2d\_execute**](#function-corr2d_execute) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float \_Complex \* in, size\_t n\_in, float \_Complex \* out, size\_t max\_out) <br>_Correlate one 2-D frame and optionally dump the coherent accumulator. Runs the 2-D pipeline: FFT2 → pointwise multiply with ref\_spec → accumulate the cross-spectrum; on dump, IFFT2 → normalise (÷ ny\*nx). Accumulating in the frequency domain and inverting once is exactly the per-frame inverse summed, by linearity of the IFFT — valid because the dwell is_ **coherent** _(a complex sum); a non-coherent (magnitude) integration could not defer the inverse. The Python wrapper accepts a (ny, nx) CF32 ndarray; a dump returns a flat length-ny\*nx ndarray, a no-dump returns None._ |
-|  size\_t | [**corr2d\_execute\_max\_out**](#function-corr2d_execute_max_out) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Maximum output samples per execute call (always == ny\*nx)._  |
+|  size\_t | [**corr2d\_execute\_max\_out**](#function-corr2d_execute_max_out) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Maximum output samples per execute call (_ [_**corr2d\_state\_t::n\_out**_](structcorr2d__state__t.md#variable-n_out) __ _ny\*nx\_out normally, or ny when a single_[_**corr2d\_state\_t::col\_out**_](structcorr2d__state__t.md#variable-col_out) _was selected)._ |
 |  void | [**corr2d\_get\_state**](#function-corr2d_get_state) (const [**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, void \* blob) <br> |
 |  void | [**corr2d\_reset**](#function-corr2d_reset) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state) <br>_Zero the accumulator and reset the integration counter to 0. Equivalent to starting a fresh dwell cycle without rebuilding FFT plans or recomputing ref\_spec._  |
 |  int | [**corr2d\_set\_ref**](#function-corr2d_set_ref) ([**corr2d\_state\_t**](structcorr2d__state__t.md) \* state, const float \_Complex \* ref) <br>_Replace the reference and recompute its spectrum._  |
@@ -121,7 +121,7 @@ The reference spectrum is pre-computed at create time. The int-dump semantics ar
 Lifecycle: 
 ```C++
 float _Complex ref[NY * NX] = { ... };    // row-major 2-D reference
-corr2d_state_t *c = corr2d_create(ref, NY, NX, 4, 1);
+corr2d_state_t *c = corr2d_create(ref, NY, NX, 4, 1, 0, 0, -1);
 float _Complex out[NY * NX];
 for (int i = 0; i < 4; i++) {
     size_t n_out = corr2d_execute(c, frame[i], NY*NX, out, NY*NX);
@@ -149,7 +149,8 @@ corr2d_state_t * corr2d_create (
     size_t dwell,
     int nthreads,
     size_t ny_out,
-    size_t nx_out
+    size_t nx_out,
+    int col_out
 ) 
 ```
 
@@ -167,6 +168,7 @@ corr2d_state_t * corr2d_create (
 * `nthreads` Accepted for API compatibility; ignored. 
 * `ny_out` Inverse/output rows; 0 =&gt; native (ny). Must be &gt;= ny. A larger output zero-pads the cross-spectrum before the inverse, returning the band-limited (Dirichlet) interpolation of the correlation on a finer (ny\_out, nx\_out) grid — same peak, sub-bin resolution. Native is bit-exact and allocates no extra buffers. 
 * `nx_out` Inverse/output columns; 0 =&gt; native (nx). Must be &gt;= nx. 
+* `col_out` Emit ONLY this correlation lag, or &lt; 0 for the whole map. When set, a dump writes `ny` values  one per row  instead of ny\*nx\_out, computed as the time-domain sum `sum_p conj(ref[p]) * row[(p + col_out) mod nx]`, which is what R(i, col\_out) expands to once the 1/nx cancels. No transform runs in either direction, so the cost per row is O(nx) rather than O(nx log nx). Requires the single-row-reference fast path (a caller that knows its lag is by construction correlating against a code replica) and the NATIVE output grid: an interpolated column is a fractional lag, which no time-domain sum produces. create() returns NULL if `col_out` &gt;= 0 with a reference the fast path rejects, with `ny_out` or `nx_out` decoupled, or with a lag outside [0, nx). 
 
 
 
@@ -276,7 +278,7 @@ True
 
 ### function corr2d\_execute\_max\_out 
 
-_Maximum output samples per execute call (always == ny\*nx)._ 
+_Maximum output samples per execute call (_ [_**corr2d\_state\_t::n\_out**_](structcorr2d__state__t.md#variable-n_out) __ _ny\*nx\_out normally, or ny when a single_[_**corr2d\_state\_t::col\_out**_](structcorr2d__state__t.md#variable-col_out) _was selected)._
 ```C++
 size_t corr2d_execute_max_out (
     corr2d_state_t * state

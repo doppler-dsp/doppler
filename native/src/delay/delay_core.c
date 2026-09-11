@@ -1,15 +1,8 @@
 #include "delay/delay_core.h"
+#include "util/util_core.h"
 #include <string.h>
 
 /* Round n up to the next power of two (returns 1 for n==0). */
-static size_t
-next_pow2 (size_t n)
-{
-  size_t c = 1;
-  while (c < n)
-    c <<= 1;
-  return c;
-}
 
 delay_state_t *
 delay_create (size_t num_taps)
@@ -19,7 +12,7 @@ delay_create (size_t num_taps)
     return NULL;
 
   state->num_taps = num_taps;
-  state->capacity = next_pow2 (num_taps > 0 ? num_taps : 1);
+  state->capacity = next_pow_two (num_taps > 0 ? num_taps : 1);
   state->mask     = state->capacity - 1;
   state->head     = 0;
 

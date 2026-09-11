@@ -22,7 +22,7 @@
  * caller actually passed, with a visible extra bump where a boundary is
  * crossed. Both effects are real and this file separates them rather than
  * explaining them -- the mechanism behind the bump (the padded multiplies,
- * the ring capacity, which is `next_pow2(num_taps)` and also steps there,
+ * the ring capacity, which is `next_pow_two(num_taps)` and also steps there,
  * or the coefficient array leaving a cache line) is not isolated by these
  * four rows and is not claimed here.
  *

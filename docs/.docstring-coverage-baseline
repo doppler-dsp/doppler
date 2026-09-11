@@ -739,7 +739,6 @@ doppler.dsss.BurstCapture.pending sr
 doppler.dsss.BurstCapture.preamble_start sr
 doppler.dsss.BurstCapture.push sr
 doppler.dsss.BurstCapture.push_max_out sr
-doppler.dsss.BurstCapture.refine_margin sr
 doppler.dsss.BurstCapture.refine_span sr
 doppler.dsss.BurstCapture.release sr
 doppler.dsss.BurstCapture.reset sr
@@ -834,7 +833,6 @@ doppler.dsss.DsssBurstReceiver.pending sr
 doppler.dsss.DsssBurstReceiver.preamble_start sr
 doppler.dsss.DsssBurstReceiver.push sr
 doppler.dsss.DsssBurstReceiver.push_max_out sr
-doppler.dsss.DsssBurstReceiver.refine_margin sr
 doppler.dsss.DsssBurstReceiver.refine_span sr
 doppler.dsss.DsssBurstReceiver.reset sr
 doppler.dsss.DsssBurstReceiver.retain_span sr
@@ -891,7 +889,6 @@ doppler.dsss.PersistentBurstCapture.pending sr
 doppler.dsss.PersistentBurstCapture.preamble_start sr
 doppler.dsss.PersistentBurstCapture.push sr
 doppler.dsss.PersistentBurstCapture.push_max_out sr
-doppler.dsss.PersistentBurstCapture.refine_margin sr
 doppler.dsss.PersistentBurstCapture.refine_span sr
 doppler.dsss.PersistentBurstCapture.release sr
 doppler.dsss.PersistentBurstCapture.reset sr

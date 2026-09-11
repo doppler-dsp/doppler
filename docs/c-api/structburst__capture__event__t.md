@@ -40,7 +40,6 @@ _One captured burst's event, as_ `events()` _hands it back._[More...](#detailed-
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
-|  double | [**refine\_margin**](#variable-refine_margin)  <br> |
 
 
 
@@ -163,24 +162,6 @@ uint64_t burst_capture_event_t::preamble_start;
 
 
 Exact stream position of the preamble. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable refine\_margin 
-
-```C++
-double burst_capture_event_t::refine_margin;
-```
-
-
-
-Runner-up period over the winner. 
  
 
 

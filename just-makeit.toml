@@ -1713,7 +1713,7 @@ type = "int"
 
 [[module.measure.functions]]
 name = "measure_rec_nfft"
-doc = "Recommended zero-padded transform length: next_pow2(n * pad)."
+doc = "Recommended zero-padded transform length: next_pow_two(n * pad)."
 return_type = "size_t"
 
 [[module.measure.functions.params]]
@@ -2487,6 +2487,15 @@ type = "float _Complex"
 [[module.util.functions.params]]
 name = "lin"
 type = "float"
+
+[[module.util.functions]]
+name = "next_pow_two"
+doc = "Smallest power of two greater than or equal to n. The transform-sizing primitive: zero-padded FFT lengths, ring capacities and grow-on-demand buffers all want the same rounding, and five identical private copies of it were in the tree before this one. Saturating rather than wrapping -- 0 is returned when the answer exceeds SIZE_MAX, because a doubling loop run past the top shifts to zero and spins forever."
+return_type = "size_t"
+
+[[module.util.functions.params]]
+name = "n"
+type = "size_t"
 
 [[module.util.functions]]
 name = "saturate"

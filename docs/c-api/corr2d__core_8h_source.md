@@ -53,12 +53,21 @@ typedef struct {
   size_t n_out;             
   size_t dwell;             
   size_t count;             
+  /* Known-column output (see corr2d_create's @p col_out).  A caller that
+   * already knows the correlation lag it wants does not need the other
+   * nx_out-1 columns, and evaluating the inverse at one bin is a dot
+   * product against the conjugated reference, with NO transform in either
+   * direction -- O(nx) per row against the full map's O(nx log nx), which
+   * is what makes the kernel affordable for a caller that would otherwise
+   * hand-roll the lag sum beside it. */
+  int             col_out;   
+  float _Complex *col_ref;   
   float _Complex *work_trunc;
 } corr2d_state_t;
 
 corr2d_state_t *corr2d_create(const float _Complex *ref, size_t ny, size_t nx,
                               size_t dwell, int nthreads, size_t ny_out,
-                              size_t nx_out);
+                              size_t nx_out, int col_out);
 
 void corr2d_destroy(corr2d_state_t *state);
 

@@ -161,9 +161,8 @@ main (void)
              read-backs describe only the last one, which is why a call
              completing several needs the list. */
           const burst_capture_event_t *ev = burst_capture_event_at (cap, i);
-          printf ("  %-4zu %-12llu %-12.1f %-10.3f %s\n", ++n_found,
+          printf ("  %-4zu %-12llu %-12.1f %s\n", ++n_found,
                   (unsigned long long)ev->preamble_start, ev->cn0_dbhz_est,
-                  ev->refine_margin,
                   ev->cn0_dbhz_est > 52.0 ? "burst" : "likely spurious");
 
           if (n_found == 1u)

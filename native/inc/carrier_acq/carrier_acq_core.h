@@ -122,7 +122,7 @@ typedef struct {
  * @param window          Enum index; 0=hann, 1=kaiser, 2=blackman-harris.
  * @param beta            Kaiser beta (ignored for hann/blackman-harris).
  * @param psd_template     Known PSD-shape template override, length
- *                        must equal nfft = next_pow2(round(sample_rate_hz
+ *                        must equal nfft = next_pow_two(round(sample_rate_hz
  *                        /resolution_hz) * zero_pad); NULL/length-0 means
  *                        "not supplied" -- the default rectangular-pulse
  *                        sinc^2 template (from symbol_rate_hz) is used.

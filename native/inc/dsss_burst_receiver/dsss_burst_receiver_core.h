@@ -51,7 +51,6 @@ typedef struct
   double   est_rate_hz;    /**< Demod's chirp-rate estimate.               */
   double   demod_cn0_dbhz; /**< Demod's C/N0, dB-Hz, channel-referred.     */
   double   demod_timing_chips; /**< Start error the demod measured, chips.  */
-  double   refine_margin;  /**< Runner-up period over the winner.          */
   uint8_t  frame_valid;    /**< The frame passed its error detection.      */
 } dsss_br_event_t;
 
@@ -142,9 +141,6 @@ typedef struct {
                                 back with burst_capture_release(), so a
                                 decoy cannot own the span of a real burst
                                 behind it (doppler#1181, doppler#1004).   */
-  double   refine_margin;  /**< Winning preamble correlation over its
-                                nearest whole-period competitor. Near 1
-                                means the period was NOT resolved.         */
 
   /* ── The completed bursts of the LAST push ───────────────────────────
    * Scratch, deliberately NOT serialized: it describes the most recent
@@ -445,7 +441,6 @@ double dsss_burst_receiver_get_est_freq_hz(const dsss_burst_receiver_state_t *st
 double dsss_burst_receiver_get_est_rate_hz(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_demod_cn0_dbhz(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_demod_timing_chips(const dsss_burst_receiver_state_t *state);
-double dsss_burst_receiver_get_refine_margin(const dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_get_pending(const dsss_burst_receiver_state_t *state);
 uint64_t dsss_burst_receiver_get_dropped(const dsss_burst_receiver_state_t *state);
 uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *state);
@@ -463,7 +458,7 @@ uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *sta
 
 /** @brief Per-object envelope tag: "DBRX" (DsssBurstReceiver). */
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
-#define DSSS_BURST_RECEIVER_STATE_VERSION 6u
+#define DSSS_BURST_RECEIVER_STATE_VERSION 7u
 
 /** @brief Byte size of @p state's blob (envelope + payload + child). */
 size_t dsss_burst_receiver_state_bytes(const dsss_burst_receiver_state_t *state);

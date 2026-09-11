@@ -464,7 +464,9 @@ the frame a hit was stamped on. On the non-coherent path that frame is the
 frame — gets an anchor up to `n_noncoh · coherent_bins` periods late. Sized
 at the old default of 50 dB-Hz the burst sizer chose `n_noncoh = 6` at the
 test geometry, and the same 34 dB scene came back **9 and 3 periods late**
-with a `refine_margin` of 0.68, which reads better than a correct 0.81.
+— while the `refine_margin` of the day read 0.68, *better* than a correct
+0.81, which is one of the reasons that read-back was later removed
+(doppler#1312): it was most confident exactly where it was most wrong.
 
 The extra looks could not have helped either: the sizer's Pd model assumes
 signal in every look, which is the continuous engine's situation, not a

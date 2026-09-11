@@ -236,7 +236,7 @@ size_t ppe_state_t::nfft;
 
 
 
-zero-padded transform length: 4 \* next\_pow2 (max\_len). The 4x is deliberate  a finer frequency grid before the parabolic peak refinement, which matters because the input is often short (preamble partials, symbol streams). It also sizes `buf`, `spec` and `mag`, so the footprint is 4x what a bare next-pow2 would suggest. 
+zero-padded transform length: 4 \* next\_pow\_two (max\_len). The 4x is deliberate  a finer frequency grid before the parabolic peak refinement, which matters because the input is often short (preamble partials, symbol streams). It also sizes `buf`, `spec` and `mag`, so the footprint is 4x what a bare next-pow2 would suggest. 
  
 
 

@@ -17,10 +17,7 @@ What this shows
 3. **How to tell a real burst from a false alarm.** At `pfa = 1e-3` a
    spurious window is expected — this object is a detector's output stage and
    will not gate on signal quality. The read-back that separates them is
-   `cn0_dbhz_est`, by about 9 dB. It is *not* `refine_margin`, which is the
-   intuitive choice and separates them by hundredths: the margin answers
-   "was the code period resolved", and a window on noise has no period to
-   resolve.
+   `cn0_dbhz_est`, by about 9 dB.
 
 Every claim above is asserted, so exit 0 means demonstrated AND checked.
 
@@ -152,15 +149,13 @@ def main() -> None:
     ev = one.events()
     starts = [int(s) for s in ev["preamble_start"]]
 
-    print(
-        f"\n  {'#':<4}{'start':<10}{'error':<8}{'C/N0':<9}{'margin':<9}verdict"
-    )
+    print(f"\n  {'#':<4}{'start':<10}{'error':<8}{'C/N0':<9}verdict")
     for i, s in enumerate(starts):
         err = min((s - a for a in AT), key=abs)
         real = any(s == a for a in AT)
         print(
             f"  {i + 1:<4}{s:<10}{err if not real else 0:<8}"
-            f"{ev['cn0_dbhz_est'][i]:<9.1f}{ev['refine_margin'][i]:<9.3f}"
+            f"{ev['cn0_dbhz_est'][i]:<9.1f}"
             f"{'burst' if real else 'spurious'}"
         )
 

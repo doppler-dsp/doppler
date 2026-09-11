@@ -25,7 +25,7 @@ extern "C" {
  * that range — so window leakage never caps SFDR/SNR — while keeping the main
  * lobe (hence resolution bandwidth) as narrow as the data allows. */
 
-/* Internal zero-pad factor (nfft = next_pow2(n * MEASURE_PAD)). */
+/* Internal zero-pad factor (nfft = next_pow_two(n * MEASURE_PAD)). */
 #define MEASURE_PAD 2u
 
 /* Sidelobe headroom below the ideal converter SNR: a B-bit ADC's spur/noise

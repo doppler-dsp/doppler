@@ -74,7 +74,7 @@ There is no list here to update.
 | [BurstCapture](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_capture/results.md)            | `dsss`       | 22/22  | 6        | 1 — F6                     |
 | [BurstDemod](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_demod/results.md)                | `dsss`       | 15/15  | 5        | none                       |
 | [BurstDespreader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_despreader/results.md)      | `dsss`       | 15/15  | 5        | none                       |
-| [DsssBurstReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md) | `dsss`       | 32/32  | 11       | none                       |
+| [DsssBurstReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md) | `dsss`       | 27/27  | 10       | none                       |
 | [PolynomialPhaseEstimator](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/ppe/results.md)          | `dsss`       | 15/15  | 5        | none                       |
 | [M-PSK constellation](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/mpsk/tests/validation/mpsk/results.md)              | `mpsk`       | 24/24  | 5        | 1 — F3                     |
 | [resamp](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/resample/tests/validation/resamp/results.md)                     | `resample`   | 14/14  | 9        | none                       |

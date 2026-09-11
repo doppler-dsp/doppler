@@ -554,7 +554,7 @@ def demo_burst_demod(rx, hits, acq, acq_code, data_code, payload_bits):
         )
         print(
             f"  {k:<3} {'ok' if valid else 'FAIL':<5} {errs:>4} "
-            f"{d.est_freq_hz:>12.1f} {d.est_snr_db:>11.1f} "
+            f"{d.est_freq_hz:>12.1f} {d.est_cn0_dbhz:>11.1f} "
             f"{d.frame_offset:>9d}"
         )
         results.append((valid, errs))

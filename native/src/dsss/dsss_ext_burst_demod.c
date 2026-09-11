@@ -238,6 +238,106 @@ BurstDemodObj_llrs (BurstDemodObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
+BurstDemodObj_symbols_max_out (BurstDemodObject *self, PyObject *args)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  Py_ssize_t n = 0;
+  if (!PyArg_ParseTuple (args, "n", &n))
+    return NULL;
+  return PyLong_FromSize_t (
+      burst_demod_symbols_max_out (self->handle, (size_t)n));
+}
+
+static PyObject *
+BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "count", "out", NULL };
+  Py_ssize_t   n         = 1;
+  PyObject    *out_obj   = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
+    return NULL;
+  if (out_obj && out_obj != Py_None)
+    {
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
+      if (!PyArray_Check (out_obj)
+          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
+          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
+        {
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
+          return NULL;
+        }
+      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
+          out_obj, NPY_COMPLEX64,
+          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+      if (!out_arr)
+        {
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = burst_demod_symbols_max_out (self->handle, (size_t)n);
+      size_t _min_cap = _omax;
+      if (_cap < _min_cap)
+        {
+          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
+                        _cap, _min_cap);
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      size_t n_out = burst_demod_symbols (
+          self->handle, (size_t)n, (float _Complex *)PyArray_DATA (out_arr),
+          _cap);
+      npy_intp  _odim  = (npy_intp)n_out;
+      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
+                                                    PyArray_DATA (out_arr));
+      if (!_oview)
+        {
+          Py_DECREF (out_arr);
+          return NULL;
+        }
+      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      return _oview;
+    }
+  size_t _need = (size_t)n;
+  size_t _cap  = burst_demod_symbols_max_out (self->handle, (size_t)n);
+  (void)_need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
+  if (!arr0)
+    {
+      return NULL;
+    }
+  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out = burst_demod_symbols (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
+}
+
+static PyObject *
 BurstDemodObj_set_prior (BurstDemodObject *self, PyObject *args,
                          PyObject *kwds)
 {
@@ -432,15 +532,26 @@ BurstDemod_getprop_est_rate_hz (BurstDemodObject *self,
   return PyFloat_FromDouble (self->handle->est_rate_hz);
 }
 static PyObject *
-BurstDemod_getprop_est_snr_db (BurstDemodObject *self,
-                               void             *Py_UNUSED (closure))
+BurstDemod_getprop_est_cn0_dbhz (BurstDemodObject *self,
+                                 void             *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->est_snr_db);
+  return PyFloat_FromDouble (self->handle->est_cn0_dbhz);
+}
+static PyObject *
+BurstDemod_getprop_est_timing_chips (BurstDemodObject *self,
+                                     void             *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble (self->handle->est_timing_chips);
 }
 static PyObject *
 BurstDemod_getprop_frame_syms (BurstDemodObject *self,
@@ -454,7 +565,6 @@ BurstDemod_getprop_frame_syms (BurstDemodObject *self,
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)self->handle->frame_syms);
 }
-
 static PyObject *
 BurstDemod_getprop_est_n0 (BurstDemodObject *self, void *Py_UNUSED (closure))
 {
@@ -475,12 +585,33 @@ static PyGetSetDef BurstDemod_getset[] = {
     "estimated residual Doppler (Hz).\n", NULL },
   { "est_rate_hz", (getter)BurstDemod_getprop_est_rate_hz, NULL,
     "estimated Doppler rate (Hz/s).\n", NULL },
-  { "est_snr_db", (getter)BurstDemod_getprop_est_snr_db, NULL,
-    "estimator confidence (dB).\n", NULL },
+  { "est_cn0_dbhz", (getter)BurstDemod_getprop_est_cn0_dbhz, NULL,
+    "Carrier-to-noise DENSITY of the last demod(), dB-Hz, referred to the "
+    "CHANNEL. The realized symbol estimate `1/est_n0` lifted to a density by "
+    "the symbol rate (`chip_rate/data_sf`, the identity C/N0 = Es/N0 * Rs) "
+    "and corrected for the despreading loss that `est_timing_chips` measures. "
+    "Sample-rate invariant, so a front-end rate change does not move it, and "
+    "it does not move when the receiver's own start is off by a fraction of a "
+    "chip -- which a realized SNR does, by 4.8 dB at half a chip. Zero until "
+    "a demod() produces a frame. Replaces `est_snr_db`, which was never an "
+    "SNR: it published the preamble estimator's spectral prominence, carrying "
+    "the full coherent processing gain and swinging 33 dB with alignment at a "
+    "fixed input (doppler#1304).\n",
+    NULL },
+  { "est_timing_chips", (getter)BurstDemod_getprop_est_timing_chips, NULL,
+    "Burst-start error the last demod() MEASURED, in chips, signed, relative "
+    "to the `start` given to set_prior(). The whole-sample part was removed "
+    "before despreading; only the sub-sample fraction remains a loss, and "
+    "only that fraction is taken out of `est_cn0_dbhz`. The symbols keep the "
+    "loss either way. Acquisition resolves a start to one SAMPLE, so a "
+    "residual of a fraction of a chip is structural rather than a caller's "
+    "error -- which is why the number is published instead of assumed to be "
+    "zero.\n",
+    NULL },
   { "frame_syms", (getter)BurstDemod_getprop_frame_syms, NULL,
-    "symbols the frame occupies AFTER the sync word — a number the "
-    "caller states. What they MEAN is the frame description's business, "
-    "one layer up.\n",
+    "symbols the frame occupies AFTER the sync word — a number the caller "
+    "states. What they MEAN is the frame description's business, one layer "
+    "up.\n",
     NULL },
   { "est_n0", (getter)BurstDemod_getprop_est_n0, NULL,
     "Noise power the LLRs are scaled by, referred to unit symbol amplitude — "
@@ -522,106 +653,6 @@ BurstDemodObj_exit (BurstDemodObject *self, PyObject *args)
       self->handle = NULL;
     }
   Py_RETURN_NONE;
-}
-
-static PyObject *
-BurstDemodObj_symbols (BurstDemodObject *self, PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char *_kwlist[] = { "count", "out", NULL };
-  Py_ssize_t   n         = 1;
-  PyObject    *out_obj   = NULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "|nO", _kwlist, &n, &out_obj))
-    return NULL;
-  if (out_obj && out_obj != Py_None)
-    {
-      /* Require the exact dtype AND C-contiguity — either mismatch makes
-       * the marshal write into a temp copy, not the caller's buffer. */
-      if (!PyArray_Check (out_obj)
-          || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
-          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
-          || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
-        {
-          PyErr_SetString (PyExc_TypeError,
-                           "out must be a writable, C-contiguous"
-                           " ndarray of the output dtype");
-          return NULL;
-        }
-      PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
-          out_obj, NPY_COMPLEX64,
-          NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
-      if (!out_arr)
-        {
-          return NULL;
-        }
-      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax    = burst_demod_symbols_max_out (self->handle, (size_t)n);
-      size_t _min_cap = _omax;
-      if (_cap < _min_cap)
-        {
-          PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
-                        _cap, _min_cap);
-          Py_DECREF (out_arr);
-          return NULL;
-        }
-      size_t n_out = burst_demod_symbols (
-          self->handle, (size_t)n, (float _Complex *)PyArray_DATA (out_arr),
-          _cap);
-      npy_intp  _odim  = (npy_intp)n_out;
-      PyObject *_oview = PyArray_SimpleNewFromData (1, &_odim, NPY_COMPLEX64,
-                                                    PyArray_DATA (out_arr));
-      if (!_oview)
-        {
-          Py_DECREF (out_arr);
-          return NULL;
-        }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
-      return _oview;
-    }
-  size_t _need = (size_t)n;
-  size_t _cap  = burst_demod_symbols_max_out (self->handle, (size_t)n);
-  (void)_need;
-  npy_intp  _adim = (npy_intp)_cap;
-  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX64);
-  if (!arr0)
-    {
-      return NULL;
-    }
-  float _Complex *_d0 = (float _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
-  size_t n_out = burst_demod_symbols (self->handle, (size_t)n, _d0, _cap);
-  if ((size_t)n_out == _cap)
-    {
-      return arr0;
-    }
-  npy_intp     _odim = (npy_intp)n_out;
-  PyArray_Dims _rs0  = { &_odim, 1 };
-  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
-  if (!v0)
-    {
-      Py_DECREF (arr0);
-      return NULL;
-    }
-  Py_DECREF (v0);
-  return arr0;
-}
-
-static PyObject *
-BurstDemodObj_symbols_max_out (BurstDemodObject *self, PyObject *args)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  Py_ssize_t n = 0;
-  if (!PyArg_ParseTuple (args, "n", &n))
-    return NULL;
-  return PyLong_FromSize_t (
-      burst_demod_symbols_max_out (self->handle, (size_t)n));
 }
 
 static PyMethodDef BurstDemodObj_methods[] = {
@@ -782,6 +813,79 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "-------\n"
     "int\n"
     "    Output.\n" },
+  { "symbols", (PyCFunction)(void *)BurstDemodObj_symbols,
+    METH_VARARGS | METH_KEYWORDS,
+    "symbols(count=1) -> ndarray\n"
+    "\n"
+    "The DEROTATED complex symbols of the last demod() — the\n"
+    "constellation `llrs()` is the real part of. Same span and\n"
+    "normalisation: the whole frame, scaled to unit mean-|Re|, so\n"
+    "`symbols.real` is `llrs()` up to `est_n0`. The quadrature is why this\n"
+    "exists: after derotation the real axis carries the signal and the\n"
+    "imaginary axis carries noise alone, so a residual phase error — which\n"
+    "scales Re by `cos(phi)` without adding noise — is indistinguishable\n"
+    "from a genuine amplitude or SNR loss in mean |LLR|, in LLR spread and\n"
+    "in BER alike. Measured over 20000 BPSK symbols, a 30° phase error and\n"
+    "an amplitude loss of `cos(30°)` agreed to three decimals in all three\n"
+    "and differed only in Q/I energy, 0.386 against 0.077. That is a\n"
+    "pointing problem against a link-budget one, on a burst this object\n"
+    "already characterised well enough to know. It was built either way and\n"
+    "freed unread (doppler#1087).\n"
+    "\n"
+    "Same span and same normalisation as burst_demod_llrs(): the whole\n"
+    "frame, scaled to unit mean-|Re| by the burst's own estimate, so\n"
+    "`crealf(symbols[k])` is that bit's LLR up to est_n0.\n"
+    "\n"
+    "The quadrature is why this exists. After derotation the real axis\n"
+    "carries the signal and the imaginary axis carries noise alone, so Q is\n"
+    "diagnostic: a residual phase error scales Re by `cos(phi)` WITHOUT\n"
+    "adding noise, which makes it indistinguishable from a genuine amplitude\n"
+    "or SNR loss in mean |LLR|, in LLR spread and in BER alike. Measured\n"
+    "over 20000 BPSK symbols, a 30 degree phase error and an amplitude loss\n"
+    "of `cos(30 deg)` agreed to three decimals in all three, and differed\n"
+    "only in Q/I energy — 0.386 against 0.077 (doppler#1087). That is the\n"
+    "difference between a pointing problem and a link-budget one, on a burst\n"
+    "this object already characterised well enough to know.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "count : int\n"
+    "    How many output samples to ask for. The call may return fewer; size\n"
+    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
+    "    worst case.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Receives the symbols, one per frame bit.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    Symbols written — `min(frame bits, max_out)`, or 0 if the last\n"
+    "    demod() produced no frame.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import BurstDemod\n"
+    ">>> dcode = (np.arange(50) & 1).astype(np.uint8)\n"
+    ">>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)\n"
+    ">>> d.set_sync(np.zeros(13, dtype=np.uint8))\n"
+    ">>> d.symbols_max_out(1)       # one per frame symbol, as llrs()\n"
+    "93\n" },
+  { "symbols_max_out", (PyCFunction)BurstDemodObj_symbols_max_out,
+    METH_VARARGS,
+    "symbols_max_out(n) -> int\n"
+    "\n"
+    "Max symbols burst_demod_symbols() writes: the frame's length.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    Ignored — the count is the last demod()'s frame.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "set_prior", (PyCFunction)(void *)BurstDemodObj_set_prior,
     METH_VARARGS | METH_KEYWORDS,
     "set_prior(f0_coarse, start) -> None\n"
@@ -824,9 +928,9 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "object's. The soft twin of the same decisions is burst_demod_llrs().\n"
     "\n"
     "On return the read-back fields report the outcome — frame_offset,\n"
-    "n_symbols, and the est_freq_hz / est_rate_hz / est_snr_db estimates.\n"
-    "The templates and prior must already be set via set_preamble(),\n"
-    "set_sync(), set_prior().\n"
+    "n_symbols, and the est_freq_hz / est_rate_hz / est_cn0_dbhz /\n"
+    "est_timing_chips estimates. The templates and prior must already be set\n"
+    "via set_preamble(), set_sync(), set_prior().\n"
     "\n"
     "The C function returns the number of bits written; the Python binding\n"
     "returns those bits as an array (a view into a reused buffer unless an\n"
@@ -927,79 +1031,6 @@ static PyMethodDef BurstDemodObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { "symbols", (PyCFunction)(void *)BurstDemodObj_symbols,
-    METH_VARARGS | METH_KEYWORDS,
-    "symbols(count=1) -> ndarray\n"
-    "\n"
-    "The DEROTATED complex symbols of the last demod() — the\n"
-    "constellation `llrs()` is the real part of. Same span and\n"
-    "normalisation: the whole frame, scaled to unit mean-|Re|, so\n"
-    "`symbols.real` is `llrs()` up to `est_n0`. The quadrature is why this\n"
-    "exists: after derotation the real axis carries the signal and the\n"
-    "imaginary axis carries noise alone, so a residual phase error — which\n"
-    "scales Re by `cos(phi)` without adding noise — is indistinguishable\n"
-    "from a genuine amplitude or SNR loss in mean |LLR|, in LLR spread and\n"
-    "in BER alike. Measured over 20000 BPSK symbols, a 30° phase error and\n"
-    "an amplitude loss of `cos(30°)` agreed to three decimals in all three\n"
-    "and differed only in Q/I energy, 0.386 against 0.077. That is a\n"
-    "pointing problem against a link-budget one, on a burst this object\n"
-    "already characterised well enough to know. It was built either way and\n"
-    "freed unread (doppler#1087).\n"
-    "\n"
-    "Same span and same normalisation as burst_demod_llrs(): the whole\n"
-    "frame, scaled to unit mean-|Re| by the burst's own estimate, so\n"
-    "`crealf(symbols[k])` is that bit's LLR up to est_n0.\n"
-    "\n"
-    "The quadrature is why this exists. After derotation the real axis\n"
-    "carries the signal and the imaginary axis carries noise alone, so Q is\n"
-    "diagnostic: a residual phase error scales Re by `cos(phi)` WITHOUT\n"
-    "adding noise, which makes it indistinguishable from a genuine amplitude\n"
-    "or SNR loss in mean |LLR|, in LLR spread and in BER alike. Measured\n"
-    "over 20000 BPSK symbols, a 30 degree phase error and an amplitude loss\n"
-    "of `cos(30 deg)` agreed to three decimals in all three, and differed\n"
-    "only in Q/I energy — 0.386 against 0.077 (doppler#1087). That is the\n"
-    "difference between a pointing problem and a link-budget one, on a burst\n"
-    "this object already characterised well enough to know.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "count : int\n"
-    "    How many output samples to ask for. The call may return fewer; size\n"
-    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
-    "    worst case.\n"
-    "out : NDArray[np.complex64] | None\n"
-    "    Receives the symbols, one per frame bit.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "NDArray[np.complex64]\n"
-    "    Symbols written — `min(frame bits, max_out)`, or 0 if the last\n"
-    "    demod() produced no frame.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.dsss import BurstDemod\n"
-    ">>> dcode = (np.arange(50) & 1).astype(np.uint8)\n"
-    ">>> d = BurstDemod(dcode, spc=4, chip_rate=1e6, frame_syms=93)\n"
-    ">>> d.set_sync(np.zeros(13, dtype=np.uint8))\n"
-    ">>> d.symbols_max_out(1)       # one per frame symbol, as llrs()\n"
-    "93\n" },
-  { "symbols_max_out", (PyCFunction)BurstDemodObj_symbols_max_out,
-    METH_VARARGS,
-    "symbols_max_out(n) -> int\n"
-    "\n"
-    "Max symbols burst_demod_symbols() writes: the frame's length.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "n : int\n"
-    "    Ignored — the count is the last demod()'s frame.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    Output.\n" },
   { NULL }
 };
 

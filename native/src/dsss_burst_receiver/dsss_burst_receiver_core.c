@@ -187,14 +187,15 @@ dsss_burst_receiver_reset (dsss_burst_receiver_state_t *state)
    * doppler_hz_est beside a cleared preamble_start describes a burst that
    * was never demodulated -- the silent failure burst_demod's own report
    * (F4) found in exactly this shape. */
-  state->preamble_start = 0;
-  state->doppler_hz_est = 0.0;
-  state->doppler_res_hz = 0.0;
-  state->cn0_dbhz_est   = 0.0;
-  state->est_freq_hz    = 0.0;
-  state->est_rate_hz    = 0.0;
-  state->est_snr_db     = 0.0;
-  state->refine_margin  = 0.0;
+  state->preamble_start     = 0;
+  state->doppler_hz_est     = 0.0;
+  state->doppler_res_hz     = 0.0;
+  state->cn0_dbhz_est       = 0.0;
+  state->est_freq_hz        = 0.0;
+  state->est_rate_hz        = 0.0;
+  state->demod_cn0_dbhz     = 0.0;
+  state->demod_timing_chips = 0.0;
+  state->refine_margin      = 0.0;
 
   /* n_bursts and dropped are LIFETIME counters and deliberately survive:
    * they answer "did this receiver ever lose samples", which a reset that
@@ -244,15 +245,16 @@ dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
      from a previous one. The first five are the capture's -- copied rather
      than re-derived, because the capture measured them; the last three are
      the demodulator's own estimates, which is the half this object adds. */
-  s->preamble_start = ce->preamble_start;
-  s->doppler_hz_est = ce->doppler_hz_est;
-  s->doppler_res_hz = ce->doppler_res_hz;
-  s->cn0_dbhz_est   = ce->cn0_dbhz_est;
-  s->refine_margin  = ce->refine_margin;
-  s->est_freq_hz    = s->demod->est_freq_hz;
-  s->est_rate_hz    = s->demod->est_rate_hz;
-  s->est_snr_db     = s->demod->est_snr_db;
-  s->frame_valid    = dsss_br_frame_valid (s);
+  s->preamble_start     = ce->preamble_start;
+  s->doppler_hz_est     = ce->doppler_hz_est;
+  s->doppler_res_hz     = ce->doppler_res_hz;
+  s->cn0_dbhz_est       = ce->cn0_dbhz_est;
+  s->refine_margin      = ce->refine_margin;
+  s->est_freq_hz        = s->demod->est_freq_hz;
+  s->est_rate_hz        = s->demod->est_rate_hz;
+  s->demod_cn0_dbhz     = s->demod->est_cn0_dbhz;
+  s->demod_timing_chips = s->demod->est_timing_chips;
+  s->frame_valid        = dsss_br_frame_valid (s);
   s->n_bursts++;
 
   /* The burst's SOFT bits, alongside its record and for the same reason: one
@@ -282,16 +284,17 @@ dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
       s->ev_cap  = cap;
     }
   {
-    dsss_br_event_t *r = &s->ev[s->ev_len++];
-    r->preamble_start  = s->preamble_start;
-    r->doppler_hz_est  = s->doppler_hz_est;
-    r->doppler_res_hz  = s->doppler_res_hz;
-    r->cn0_dbhz_est    = s->cn0_dbhz_est;
-    r->est_freq_hz     = s->est_freq_hz;
-    r->est_rate_hz     = s->est_rate_hz;
-    r->est_snr_db      = s->est_snr_db;
-    r->refine_margin   = s->refine_margin;
-    r->frame_valid     = (uint8_t)s->frame_valid;
+    dsss_br_event_t *r    = &s->ev[s->ev_len++];
+    r->preamble_start     = s->preamble_start;
+    r->doppler_hz_est     = s->doppler_hz_est;
+    r->doppler_res_hz     = s->doppler_res_hz;
+    r->cn0_dbhz_est       = s->cn0_dbhz_est;
+    r->est_freq_hz        = s->est_freq_hz;
+    r->est_rate_hz        = s->est_rate_hz;
+    r->demod_cn0_dbhz     = s->demod_cn0_dbhz;
+    r->demod_timing_chips = s->demod_timing_chips;
+    r->refine_margin      = s->refine_margin;
+    r->frame_valid        = (uint8_t)s->frame_valid;
   }
   return n;
 }
@@ -426,9 +429,17 @@ dsss_burst_receiver_get_est_rate_hz (const dsss_burst_receiver_state_t *state)
 }
 
 double
-dsss_burst_receiver_get_est_snr_db (const dsss_burst_receiver_state_t *state)
+dsss_burst_receiver_get_demod_timing_chips (
+    const dsss_burst_receiver_state_t *state)
 {
-  return state->est_snr_db;
+  return state->demod_timing_chips;
+}
+
+double
+dsss_burst_receiver_get_demod_cn0_dbhz (
+    const dsss_burst_receiver_state_t *state)
+{
+  return state->demod_cn0_dbhz;
 }
 
 double
@@ -526,7 +537,7 @@ dsss_burst_receiver_state_bytes (const dsss_burst_receiver_state_t *s)
      the half it owns. */
   return sizeof (dp_state_hdr_t)
          + sizeof (uint64_t) * 2u /* n_bursts, preamble_start              */
-         + sizeof (double) * 7u   /* the event's doubles                   */
+         + sizeof (double) * 8u   /* the event's doubles                   */
          + burst_capture_state_bytes (s->cap);
 }
 
@@ -545,7 +556,8 @@ dsss_burst_receiver_get_state (const dsss_burst_receiver_state_t *s,
   dp_w_f64 (&_w, s->cn0_dbhz_est);
   dp_w_f64 (&_w, s->est_freq_hz);
   dp_w_f64 (&_w, s->est_rate_hz);
-  dp_w_f64 (&_w, s->est_snr_db);
+  dp_w_f64 (&_w, s->demod_cn0_dbhz);
+  dp_w_f64 (&_w, s->demod_timing_chips);
   dp_w_f64 (&_w, s->refine_margin);
 
   /* The capture's sub-blob, self-validating: it opens with its own envelope,
@@ -569,15 +581,16 @@ dsss_burst_receiver_set_state (dsss_burst_receiver_state_t *s,
                DSSS_BURST_RECEIVER_STATE_VERSION,
                dsss_burst_receiver_state_bytes (s));
 
-  s->n_bursts       = dp_r_u64 (&_r);
-  s->preamble_start = dp_r_u64 (&_r);
-  s->doppler_hz_est = dp_r_f64 (&_r);
-  s->doppler_res_hz = dp_r_f64 (&_r);
-  s->cn0_dbhz_est   = dp_r_f64 (&_r);
-  s->est_freq_hz    = dp_r_f64 (&_r);
-  s->est_rate_hz    = dp_r_f64 (&_r);
-  s->est_snr_db     = dp_r_f64 (&_r);
-  s->refine_margin  = dp_r_f64 (&_r);
+  s->n_bursts           = dp_r_u64 (&_r);
+  s->preamble_start     = dp_r_u64 (&_r);
+  s->doppler_hz_est     = dp_r_f64 (&_r);
+  s->doppler_res_hz     = dp_r_f64 (&_r);
+  s->cn0_dbhz_est       = dp_r_f64 (&_r);
+  s->est_freq_hz        = dp_r_f64 (&_r);
+  s->est_rate_hz        = dp_r_f64 (&_r);
+  s->demod_cn0_dbhz     = dp_r_f64 (&_r);
+  s->demod_timing_chips = dp_r_f64 (&_r);
+  s->refine_margin      = dp_r_f64 (&_r);
 
   {
     const void *region

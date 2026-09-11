@@ -61,7 +61,8 @@ extern "C"
     size_t n_symbols;    
     double est_freq_hz;  
     double est_rate_hz;  
-    double est_snr_db;   
+    double est_cn0_dbhz; 
+    double est_timing_chips; 
   } burst_demod_state_t;
 
   burst_demod_state_t *burst_demod_create (const uint8_t *data_code,

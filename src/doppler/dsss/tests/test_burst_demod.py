@@ -193,9 +193,17 @@ def test_symbols_quadrature_shows_what_no_other_readback_does():
     carries noise alone, so a phase-coherence problem lands in Q and nowhere
     else. Measured through this object, a Doppler rate the estimator is not
     configured to track raises Q/I by more than an order of magnitude while
-    `est_snr_db` does not move, `est_rate_hz` still reports 0, and the frame
-    still decodes -- so nothing in the pre-#1087 read-back surface reveals
-    it. That is the difference between a pointing problem and a clean link.
+    `est_rate_hz` still reports 0 and the frame still decodes, so neither
+    says anything is wrong.
+
+    `est_cn0_dbhz` DOES fall, by 101 dB on a noiseless input, which its
+    predecessor `est_snr_db` did not: the noise is read off the quadrature,
+    and a rotation puts signal there. That is an improvement -- the problem
+    is no longer invisible in the read-back surface -- but it is not a
+    diagnosis. A phase error and a genuine noise floor produce the SAME
+    C/N0, because to that estimator they are the same energy in the same
+    axis. Only Q against I says which one happened, which is why the
+    constellation is kept (doppler#1087, doppler#1304).
     """
     payload = ((np.arange(PAYLOAD) * 7 + 3) & 1).astype(np.uint8)
 
@@ -212,11 +220,253 @@ def test_symbols_quadrature_shows_what_no_other_readback_does():
 
     # Both still decode, so the bits say nothing is wrong...
     assert _frame_ok(clean_bits) and _frame_ok(rated_bits)
-    # ...and the scalar estimates do not separate them either.
-    assert rated.est_snr_db == pytest.approx(clean.est_snr_db, abs=1.0)
+    # ...and the rate the estimator was not configured to track reads zero.
     assert rated.est_rate_hz == pytest.approx(0.0, abs=1.0)
+    # The C/N0 does NOT hide it, which is the change from est_snr_db.
+    assert rated.est_cn0_dbhz < clean.est_cn0_dbhz - 20.0, (
+        "a rotation puts signal in the quadrature, and the noise estimate "
+        "reads it as noise -- the C/N0 must fall rather than sit still"
+    )
     # Only the quadrature does.
     assert qi_rated > 5.0 * qi_clean, (
         f"Q/I {qi_rated:.5f} vs clean {qi_clean:.5f} -- the quadrature is "
         "the axis that shows a phase-coherence problem"
+    )
+
+
+# ── est_cn0_dbhz: a CHANNEL quantity, through the binding ────────────────
+#
+# The C test pins the estimator; these pin what a Python caller sees, which
+# is where doppler#1304 was reported from. `est_snr_db` used to sit here and
+# could be compared with nothing: it published the preamble estimator's
+# spectral prominence, carrying the coherent processing gain, so it read
+# 59 dB on a 25 dB link and swung 33 dB with the burst start alone.
+
+SYM_RATE = CHIP_RATE / DATA_SF
+
+
+def _sigma_for(es_n0_db):
+    """Per-sample noise sigma for a stated Es/N0.
+
+    Es is `DATA_SF * SPC` samples of unit power, and `_burst` adds complex
+    noise of total power `sigma**2`, so the per-sample SNR is the Es/N0 less
+    the samples per symbol.
+    """
+    return 10 ** (-(es_n0_db - 10 * np.log10(DATA_SF * SPC)) / 20.0)
+
+
+def _cn0(es_n0_db, *, lead=0, seed=0):
+    """One burst at a known Es/N0, started `lead` samples late."""
+    payload = ((np.arange(PAYLOAD) * 7 + 3) & 1).astype(np.uint8)
+    rng = np.random.default_rng(700 + seed)
+    sigma = _sigma_for(es_n0_db)
+    y = _burst(payload, 0.012, 0.0, rng=rng, sigma=sigma)
+    if lead:
+        pad = (sigma / np.sqrt(2.0)) * (
+            rng.standard_normal(lead) + 1j * rng.standard_normal(lead)
+        )
+        y = np.concatenate([pad.astype(np.complex64), y]).astype(np.complex64)
+    d = _make(0.0)
+    d.set_prior(0.012, 0)
+    d.demod(y)
+    return d
+
+
+@pytest.mark.parametrize("es_n0_db", [10.0, 20.0, 30.0])
+def test_cn0_reports_the_channel(es_n0_db):
+    """C/N0 = Es/N0 * Rs, and the object is asked for a channel it was given.
+
+    Over a 20 dB span, because the defect this replaced was a value that
+    saturated: a prominence stops rising once the noise no longer sets the
+    spectrum's mean, so it agreed with nothing at the top of the range.
+    """
+    want = es_n0_db + 10 * np.log10(SYM_RATE)
+    got = [_cn0(es_n0_db, seed=s).est_cn0_dbhz for s in range(6)]
+    assert np.median(got) == pytest.approx(want, abs=2.0)
+
+
+@pytest.mark.parametrize("lead", list(range(SPC // 2 + 1)))
+def test_cn0_is_flat_across_a_sub_chip_start_error(lead):
+    """A receiver's own timing error is not a property of the channel.
+
+    Acquisition resolves a start to one SAMPLE, so a residual fraction of a
+    chip is structural. It costs the despreader real amplitude -- a realized
+    SNR falls 4.8 dB at half a chip -- and the object removes what it can,
+    measures the rest, and takes it back out of the reported number.
+    """
+    want = 25.0 + 10 * np.log10(SYM_RATE)
+    got = [_cn0(25.0, lead=lead, seed=s).est_cn0_dbhz for s in range(6)]
+    assert np.median(got) == pytest.approx(want, abs=2.0)
+
+
+@pytest.mark.parametrize("lead", [1, 2])
+def test_the_start_error_is_reported_not_just_removed(lead):
+    """Half the point: a reader can see what was corrected."""
+    tau = [_cn0(25.0, lead=lead, seed=s).est_timing_chips for s in range(6)]
+    assert np.median(tau) == pytest.approx(lead / SPC, abs=0.1)
+
+
+def test_cn0_does_not_depend_on_est_segments():
+    """`est_segments` shapes the preamble estimator's partials, only.
+
+    It used to decide the answer: `est_snr_db` was read off those partials,
+    and a truncating `lseg_chips` with the remainder clamped into the last
+    segment made one partial run long, which cost 23.8 dB. The C/N0 is
+    measured on the DATA symbols instead, so the knob cannot reach it.
+
+    This pins that separation rather than the partial-length defect, which
+    is still there and is doppler#1305 -- measured to move nothing this
+    object reports. What would fail here is someone wiring C/N0 back to the
+    preamble estimator. ACQ_SF is 500, which 10 divides and 32 does not.
+    """
+    want = 25.0 + 10 * np.log10(SYM_RATE)
+    payload = ((np.arange(PAYLOAD) * 7 + 3) & 1).astype(np.uint8)
+    for segs in (5, 10, 32):
+        got = []
+        for s in range(6):
+            rng = np.random.default_rng(800 + s)
+            d = BurstDemod(_DCODE, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, segs)
+            d.set_preamble(_ACODE, REPS)
+            d.set_sync(SYNC)
+            d.set_prior(0.012, 0)
+            d.demod(
+                _burst(payload, 0.012, 0.0, rng=rng, sigma=_sigma_for(25.0))
+            )
+            got.append(d.est_cn0_dbhz)
+        assert np.median(got) == pytest.approx(want, abs=2.0), (
+            f"est_segments={segs} moved the channel's C/N0"
+        )
+
+
+# ── The sub-sample half of the timing term ──────────────────────────────
+#
+# The integer part of a start error is REMOVED by shifting; the fraction of
+# a sample that a shift cannot reach is measured and taken back out of the
+# reported C/N0. Two things have to be true for that half to be exercised at
+# all, and neither is true of the tests above:
+#
+#   * the signal must be BAND-LIMITED. A rectangular chip sampled on-grid is
+#     invariant to a sub-sample delay -- every sample stays inside the chip
+#     it was in -- so there is no residual to correct. A front end filters,
+#     and then there is.
+#   * the search must have ROOM BEFORE the burst. The parabola needs the
+#     point either side of its peak, so with `start = 0` it never runs and
+#     the reported offset is always an exact multiple of 1/spc.
+#
+# Both were missing from the first version of these tests, which is why they
+# passed with the correction removed.
+
+_OS = 8  # build at _OS*SPC, band-limit, decimate back to SPC by phase
+_LEAD = 64
+
+
+def _burst_offgrid(payload, f0, phase, *, rng, sigma):
+    """A burst whose start does NOT land on the sample grid.
+
+    `phase` in [0, _OS) delays by `phase/_OS` of a sample.
+    """
+    crc = _crc16(payload)
+    crc_bits = np.array([(crc >> (15 - j)) & 1 for j in range(16)], np.uint8)
+    frame = np.concatenate([SYNC, payload, crc_bits])
+    chips = [np.tile(_csign(_ACODE), REPS)]
+    chips += [_csign(b) * _csign(_DCODE) for b in frame]
+    hi = np.repeat(np.concatenate(chips), SPC * _OS).astype(float)
+    h = np.hanning(2 * _OS + 1)
+    hi = np.convolve(hi, h / h.sum(), mode="same")
+    lo = hi[phase::_OS][: len(hi) // _OS].astype(np.complex64)
+    n = np.arange(len(lo))
+    y = lo * np.exp(2j * np.pi * f0 * n)
+    y = y + (sigma / np.sqrt(2.0)) * (
+        rng.standard_normal(len(y)) + 1j * rng.standard_normal(len(y))
+    )
+
+    # Slack at BOTH ends. Before, so the parabola has the point either side
+    # of its peak; after, because the search may only reach forward as far as
+    # the frame does not already need -- a window sized exactly to one burst
+    # lets it walk the last symbol off the end, which is an event with no
+    # bits behind it.
+    def _noise(n):
+        return (sigma / np.sqrt(2.0)) * (
+            rng.standard_normal(n) + 1j * rng.standard_normal(n)
+        )
+
+    return np.concatenate([_noise(_LEAD), y, _noise(_LEAD)]).astype(
+        np.complex64
+    )
+
+
+def test_cn0_holds_across_a_sub_sample_start_error():
+    """The residual the shift cannot remove is corrected, and it is worth it.
+
+    Asserted as the SIGN of the phase dependence rather than a bias bound,
+    because the band-limiting costs its own ~0.8 dB of correlation and that
+    loss is common to every phase -- an absolute bound would be measuring
+    the filter. What the correction owns is the part that VARIES with the
+    offset: the phases with the largest sub-sample error must not read lower
+    than the phases with the smallest.
+
+    Measured at Es/N0 25 dB over eight phases, eight seeds each: corrected,
+    the extremes read 0.27 dB ABOVE the centre (the triangular model over-
+    corrects slightly for a filtered pulse, whose autocorrelation is rounder
+    than a rectangular chip's). Uncorrected they read 0.50 dB BELOW it. The
+    sign is the gate, so removing the correction turns this red with a
+    0.77 dB margin rather than a hair.
+    """
+    payload = ((np.arange(PAYLOAD) * 7 + 3) & 1).astype(np.uint8)
+    sigma = _sigma_for(25.0)
+    per_phase = []
+    for phase in range(_OS):
+        got = []
+        for s in range(8):
+            rng = np.random.default_rng(900 + s)
+            d = _make(0.0)
+            d.set_prior(0.012, _LEAD)
+            d.demod(
+                _burst_offgrid(payload, 0.012, phase, rng=rng, sigma=sigma)
+            )
+            if d.est_cn0_dbhz:
+                got.append(d.est_cn0_dbhz)
+        assert got, f"phase {phase}: no burst produced a frame"
+        per_phase.append(float(np.median(got)))
+
+    # Phase 0 and _OS-1 carry the largest sub-sample residual; the middle
+    # two carry the smallest.
+    extremes = (per_phase[0] + per_phase[-1]) / 2.0
+    centre = (per_phase[_OS // 2 - 1] + per_phase[_OS // 2]) / 2.0
+    assert extremes > centre - 0.1, (
+        f"the largest sub-sample offsets read {centre - extremes:.2f} dB "
+        f"below the smallest -- the residual timing is not being taken out "
+        f"of the C/N0 (per phase: {[round(v, 2) for v in per_phase]})"
+    )
+
+
+def test_the_sub_sample_offset_is_measured_not_quantised():
+    """`est_timing_chips` resolves BELOW one sample when it has room to.
+
+    Without the lead-in the parabola cannot run and every answer is an exact
+    multiple of 1/spc, which would make the correction above a no-op that
+    still looked like it worked.
+    """
+    payload = ((np.arange(PAYLOAD) * 7 + 3) & 1).astype(np.uint8)
+    sigma = _sigma_for(25.0)
+    taus = []
+    for phase in range(_OS):
+        vals = []
+        for s in range(8):
+            rng = np.random.default_rng(950 + s)
+            d = _make(0.0)
+            d.set_prior(0.012, _LEAD)
+            d.demod(
+                _burst_offgrid(payload, 0.012, phase, rng=rng, sigma=sigma)
+            )
+            vals.append(d.est_timing_chips)
+        taus.append(float(np.median(vals)))
+    quantum = 1.0 / SPC
+    off_grid = [t for t in taus if abs(t / quantum - round(t / quantum)) > 0.1]
+    assert len(off_grid) >= _OS - 2, (
+        f"{len(off_grid)} of {_OS} phases resolved off the 1/spc grid -- "
+        "the sub-sample interpolation is not running"
+    )
+    assert taus == sorted(taus, reverse=True), (
+        f"the measured offset must move monotonically with the delay: {taus}"
     )

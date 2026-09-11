@@ -314,7 +314,8 @@ What exists today:
     assembles `[preamble | sync | payload | CRC-16]`.
 - `burst_demod_state_t` exposes per-frame read-backs after `demod()`:
     `frame_valid` (CRC matched), `frame_offset` (sync word symbol offset),
-    `n_symbols`, `est_freq_hz`, `est_rate_hz`, `est_snr_db`.
+    `n_symbols`, `est_freq_hz`, `est_rate_hz`, `est_cn0_dbhz`,
+    `est_timing_chips`.
 
 ~~What does not exist: **any accumulation across frames.**~~ **`frame_meter`
 now does** (`native/inc/frame_meter/frame_meter_core.h`,

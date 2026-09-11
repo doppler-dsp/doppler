@@ -142,9 +142,16 @@ type = "double"
 field = true
 
 [[burst_demod.properties]]
-name = "est_snr_db"
+name = "est_cn0_dbhz"
 type = "double"
 field = true
+doc = "Carrier-to-noise DENSITY of the last demod(), dB-Hz, referred to the CHANNEL. The realized symbol estimate `1/est_n0` lifted to a density by the symbol rate (`chip_rate/data_sf`, the identity C/N0 = Es/N0 * Rs) and corrected for the despreading loss that `est_timing_chips` measures. Sample-rate invariant, so a front-end rate change does not move it, and it does not move when the receiver's own start is off by a fraction of a chip -- which a realized SNR does, by 4.8 dB at half a chip. Zero until a demod() produces a frame. Replaces `est_snr_db`, which was never an SNR: it published the preamble estimator's spectral prominence, carrying the full coherent processing gain and swinging 33 dB with alignment at a fixed input (doppler#1304)."
+
+[[burst_demod.properties]]
+name = "est_timing_chips"
+type = "double"
+field = true
+doc = "Burst-start error the last demod() MEASURED, in chips, signed, relative to the `start` given to set_prior(). The whole-sample part was removed before despreading; only the sub-sample fraction remains a loss, and only that fraction is taken out of `est_cn0_dbhz`. The symbols keep the loss either way. Acquisition resolves a start to one SAMPLE, so a residual of a fraction of a chip is structural rather than a caller's error -- which is why the number is published instead of assumed to be zero."
 
 [[burst_demod.properties]]
 name = "frame_syms"

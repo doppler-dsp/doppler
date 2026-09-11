@@ -107,7 +107,7 @@ DsssBurstReceiverObj_init (DsssBurstReceiverObject *self, PyObject *args,
       PyErr_SetString (PyExc_ValueError,
                        "DsssBurstReceiver: invalid parameter (need non-empty "
                        "acq_code/data_code/sync, reps >= 1, spc >= 1, "
-                       "chip_rate > 0, frame_syms >= 1, cn0_dbhz > 0, 0 < "
+                       "chip_rate > 0, frame_syms >= 1, cn0_dbhz >= 0, 0 < "
                        "pfa < 1, 0 < pd < 1)");
       return -1;
     }
@@ -378,12 +378,13 @@ DsssBurstReceiverObj_events_get_dtype (void)
       Py_INCREF (DsssBurstReceiverObj_events_dtype);
       return DsssBurstReceiverObj_events_dtype;
     }
-  names = Py_BuildValue ("[ssssssss]", "preamble_start", "doppler_hz_est",
+  names = Py_BuildValue ("[ssssssssss]", "preamble_start", "doppler_hz_est",
                          "doppler_res_hz", "cn0_dbhz_est", "est_freq_hz",
-                         "est_rate_hz", "est_snr_db", "refine_margin");
+                         "est_rate_hz", "demod_cn0_dbhz", "demod_timing_chips",
+                         "refine_margin", "frame_valid");
   if (!names)
     goto done;
-  formats = PyList_New (8);
+  formats = PyList_New (10);
   if (!formats)
     goto done;
   PyList_SET_ITEM (formats, 0, (PyObject *)PyArray_DescrFromType (NPY_UINT64));
@@ -394,15 +395,19 @@ DsssBurstReceiverObj_events_get_dtype (void)
   PyList_SET_ITEM (formats, 5, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
   PyList_SET_ITEM (formats, 6, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
   PyList_SET_ITEM (formats, 7, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
+  PyList_SET_ITEM (formats, 8, (PyObject *)PyArray_DescrFromType (NPY_DOUBLE));
+  PyList_SET_ITEM (formats, 9, (PyObject *)PyArray_DescrFromType (NPY_UINT8));
   offsets = Py_BuildValue (
-      "[nnnnnnnn]", (Py_ssize_t)offsetof (dsss_br_event_t, preamble_start),
+      "[nnnnnnnnnn]", (Py_ssize_t)offsetof (dsss_br_event_t, preamble_start),
       (Py_ssize_t)offsetof (dsss_br_event_t, doppler_hz_est),
       (Py_ssize_t)offsetof (dsss_br_event_t, doppler_res_hz),
       (Py_ssize_t)offsetof (dsss_br_event_t, cn0_dbhz_est),
       (Py_ssize_t)offsetof (dsss_br_event_t, est_freq_hz),
       (Py_ssize_t)offsetof (dsss_br_event_t, est_rate_hz),
-      (Py_ssize_t)offsetof (dsss_br_event_t, est_snr_db),
-      (Py_ssize_t)offsetof (dsss_br_event_t, refine_margin));
+      (Py_ssize_t)offsetof (dsss_br_event_t, demod_cn0_dbhz),
+      (Py_ssize_t)offsetof (dsss_br_event_t, demod_timing_chips),
+      (Py_ssize_t)offsetof (dsss_br_event_t, refine_margin),
+      (Py_ssize_t)offsetof (dsss_br_event_t, frame_valid));
   if (!offsets)
     goto done;
   spec = Py_BuildValue ("{s:O,s:O,s:O,s:n}", "names", names, "formats",
@@ -717,8 +722,8 @@ DsssBurstReceiver_getprop_est_rate_hz (DsssBurstReceiverObject *self,
       dsss_burst_receiver_get_est_rate_hz (self->handle));
 }
 static PyObject *
-DsssBurstReceiver_getprop_est_snr_db (DsssBurstReceiverObject *self,
-                                      void *Py_UNUSED (closure))
+DsssBurstReceiver_getprop_demod_cn0_dbhz (DsssBurstReceiverObject *self,
+                                          void *Py_UNUSED (closure))
 {
   if (!self->handle)
     {
@@ -727,7 +732,20 @@ DsssBurstReceiver_getprop_est_snr_db (DsssBurstReceiverObject *self,
     }
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
-      dsss_burst_receiver_get_est_snr_db (self->handle));
+      dsss_burst_receiver_get_demod_cn0_dbhz (self->handle));
+}
+static PyObject *
+DsssBurstReceiver_getprop_demod_timing_chips (DsssBurstReceiverObject *self,
+                                              void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (
+      dsss_burst_receiver_get_demod_timing_chips (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_refine_margin (DsssBurstReceiverObject *self,
@@ -741,6 +759,32 @@ DsssBurstReceiver_getprop_refine_margin (DsssBurstReceiverObject *self,
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyFloat_FromDouble (
       dsss_burst_receiver_get_refine_margin (self->handle));
+}
+static PyObject *
+DsssBurstReceiver_getprop_frame_valid (DsssBurstReceiverObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyBool_FromLong (
+      (long)(dsss_burst_receiver_get_frame_valid (self->handle)));
+}
+static PyObject *
+DsssBurstReceiver_getprop_min_gap (DsssBurstReceiverObject *self,
+                                   void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dsss_burst_receiver_get_min_gap (self->handle));
 }
 static PyObject *
 DsssBurstReceiver_getprop_refine_span (DsssBurstReceiverObject *self,
@@ -808,34 +852,6 @@ DsssBurstReceiver_getprop_n_bursts (DsssBurstReceiverObject *self,
       (unsigned long long)dsss_burst_receiver_get_n_bursts (self->handle));
 }
 
-static PyObject *
-DsssBurstReceiver_getprop_min_gap (DsssBurstReceiverObject *self,
-                                   void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dsss_burst_receiver_get_min_gap (self->handle));
-}
-
-static PyObject *
-DsssBurstReceiver_getprop_frame_valid (DsssBurstReceiverObject *self,
-                                       void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyBool_FromLong (
-      (long)(dsss_burst_receiver_get_frame_valid (self->handle)));
-}
-
 static PyGetSetDef DsssBurstReceiver_getset[] = {
   { "preamble_start", (getter)DsssBurstReceiver_getprop_preamble_start, NULL,
     "Exact stream position of the preamble.\n", NULL },
@@ -849,10 +865,42 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "Demod's residual-frequency estimate.\n", NULL },
   { "est_rate_hz", (getter)DsssBurstReceiver_getprop_est_rate_hz, NULL,
     "Demod's chirp-rate estimate.\n", NULL },
-  { "est_snr_db", (getter)DsssBurstReceiver_getprop_est_snr_db, NULL,
-    "Demod's post-decode SNR estimate.\n", NULL },
+  { "demod_cn0_dbhz", (getter)DsssBurstReceiver_getprop_demod_cn0_dbhz, NULL,
+    "The demodulator's C/N0 for the last completed burst, dB-Hz, referred to "
+    "the CHANNEL: measured on the decoded symbols and corrected for the "
+    "sub-chip start error `demod_timing_chips` reports. Distinct from "
+    "`cn0_dbhz_est`, which is ACQUISITION's saturating lower bound from the "
+    "hit; this one is a measurement, and the two are named for their stage "
+    "rather than by word order so they cannot be confused. Replaces "
+    "`est_snr_db`, which was never an SNR (doppler#1304).\n",
+    NULL },
+  { "demod_timing_chips", (getter)DsssBurstReceiver_getprop_demod_timing_chips,
+    NULL,
+    "Burst-start error the demodulator measured on the last completed burst, "
+    "in chips, signed. Whole samples were removed before despreading; the "
+    "remaining fraction of a sample is what `demod_cn0_dbhz` is corrected "
+    "for. Acquisition resolves a start to one SAMPLE, so a non-zero residual "
+    "here is structural.\n",
+    NULL },
   { "refine_margin", (getter)DsssBurstReceiver_getprop_refine_margin, NULL,
     "Runner-up period over the winner.\n", NULL },
+  { "frame_valid", (getter)DsssBurstReceiver_getprop_frame_valid, NULL,
+    "Whether the most recent window's frame passed its error detection -- "
+    "this receiver's frame ends in a CRC-16. The verdict that decides whether "
+    "the window OWNS its span: a failed window is given back to the capture "
+    "(`release`), so a decoy ahead of a real burst cannot swallow it "
+    "(doppler#1181). Per burst, read `events()['frame_valid']`.\n",
+    NULL },
+  { "min_gap", (getter)DsssBurstReceiver_getprop_min_gap, NULL,
+    "Dead air to leave BETWEEN bursts, in samples — edge to edge.\n"
+    "\n"
+    "The number a caller placing bursts actually wants, derived by the "
+    "capture\n"
+    "rather than left as a rule to apply: `refine_span + reps*code_period -\n"
+    "burst_len`, floored at zero. `refine_span` below is the reach it comes "
+    "from,\n"
+    "and is a start-to-start bound rather than a gap.\n",
+    NULL },
   { "refine_span", (getter)DsssBurstReceiver_getprop_refine_span, NULL,
     "Coalescing window, in samples -- the reach over which two detections\n"
     "are ONE preamble.\n"
@@ -922,23 +970,6 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "Bursts DEMODULATED, lifetime. Distinct from the capture's own count, "
     "which is windows EMITTED: they differ by any window the demodulator "
     "refused, and that difference is the thing worth seeing.\n",
-    NULL },
-  { "min_gap", (getter)DsssBurstReceiver_getprop_min_gap, NULL,
-    "Dead air to leave BETWEEN bursts, in samples — edge to edge.\n"
-    "\n"
-    "The number a caller placing bursts actually wants, derived by the "
-    "capture\n"
-    "rather than left as a rule to apply: `refine_span + reps*code_period -\n"
-    "burst_len`, floored at zero. `refine_span` below is the reach it comes "
-    "from,\n"
-    "and is a start-to-start bound rather than a gap.\n",
-    NULL },
-  { "frame_valid", (getter)DsssBurstReceiver_getprop_frame_valid, NULL,
-    "Whether the most recent window's frame passed its error detection -- "
-    "this receiver's frame ends in a CRC-16. The verdict that decides whether "
-    "the window OWNS its span: a failed window is given back to the capture "
-    "(`release`), so a decoy ahead of a real burst cannot swallow it "
-    "(doppler#1181). Per burst, read `events()['frame_valid']`.\n",
     NULL },
   { NULL }
 };
@@ -1199,8 +1230,10 @@ static PyMethodDef DsssBurstReceiverObj_methods[] = {
     "    Demod's residual-frequency estimate.\n"
     "est_rate_hz : float\n"
     "    Demod's chirp-rate estimate.\n"
-    "est_snr_db : float\n"
-    "    Demod's post-decode SNR estimate.\n"
+    "demod_cn0_dbhz : float\n"
+    "    Demod's C/N0, dB-Hz, channel-referred.\n"
+    "demod_timing_chips : float\n"
+    "    Start error the demod measured, chips.\n"
     "refine_margin : float\n"
     "    Runner-up period over the winner.\n"
     "frame_valid : int\n"
@@ -1416,8 +1449,7 @@ static PyTypeObject DsssBurstReceiverObjType = {
     "    invalid parameter (need non-empty acq_code/data_code/sync, reps >= "
     "1,\n"
     "    spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz >= 0, 0 < pfa < "
-    "1, "
-    "0\n"
+    "1, 0\n"
     "    < pd < 1)``.\n"
     "\n"
     "Examples\n"

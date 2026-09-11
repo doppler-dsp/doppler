@@ -349,7 +349,7 @@ main (void)
       printf ("      %2zu %8llu %8.1f %8.1f %9.2f %8.2f %8.2f %8.2f %7.3f\n",
               i, (unsigned long long)ev[i].preamble_start,
               ev[i].doppler_hz_est, ev[i].doppler_res_hz, ev[i].cn0_dbhz_est,
-              ev[i].est_freq_hz, ev[i].est_rate_hz, ev[i].est_snr_db,
+              ev[i].est_freq_hz, ev[i].est_rate_hz, ev[i].demod_cn0_dbhz,
               ev[i].refine_margin);
     printf ("      scene: bin %.1f Hz, C/N0 %.2f dB-Hz, true offset 0 Hz,"
             " no chirp\n",
@@ -372,9 +372,13 @@ main (void)
              /* cn0_dbhz_est is documented as a LOWER bound */
              && e->cn0_dbhz_est <= cn0_true + 1.5
              && e->cn0_dbhz_est >= cn0_true - 3.0
-             /* est_snr_db is the estimator's peak-to-mean confidence, NOT
-                a link SNR -- do not compare it with Es/N0 */
-             && e->est_snr_db > 10.0 && e->refine_margin > 0.0
+             /* demod_cn0_dbhz IS a link quantity now, so the demo checks
+                it against the scene's own C/N0 rather than against a bare
+                threshold. Its predecessor est_snr_db could not be compared
+                with anything: it was the preamble estimator's peak-to-mean,
+                carrying the coherent processing gain (doppler#1304). */
+             && fabs (e->demod_cn0_dbhz - cn0_true) < 3.0
+             && fabs (e->demod_timing_chips) < 0.5 && e->refine_margin > 0.0
              && e->refine_margin < 1.0;
       }
     /* The scalar members are not a second source: they ARE the last row. */
@@ -388,7 +392,8 @@ main (void)
              && rx->cn0_dbhz_est == last->cn0_dbhz_est
              && rx->est_freq_hz == last->est_freq_hz
              && rx->est_rate_hz == last->est_rate_hz
-             && rx->est_snr_db == last->est_snr_db
+             && rx->demod_cn0_dbhz == last->demod_cn0_dbhz
+             && rx->demod_timing_chips == last->demod_timing_chips
              && rx->refine_margin == last->refine_margin;
       }
     dsss_burst_receiver_destroy (rx);

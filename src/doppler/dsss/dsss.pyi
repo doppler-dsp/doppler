@@ -3026,8 +3026,31 @@ class BurstDemod:
         """estimated Doppler rate (Hz/s)."""
 
     @property
-    def est_snr_db(self) -> float:
-        """estimator confidence (dB)."""
+    def est_cn0_dbhz(self) -> float:
+        """Carrier-to-noise DENSITY of the last demod(), dB-Hz, referred to the
+        CHANNEL. The realized symbol estimate `1/est_n0` lifted to a density by
+        the symbol rate (`chip_rate/data_sf`, the identity C/N0 = Es/N0 * Rs)
+        and corrected for the despreading loss that `est_timing_chips`
+        measures. Sample-rate invariant, so a front-end rate change does not
+        move it, and it does not move when the receiver's own start is off by a
+        fraction of a chip -- which a realized SNR does, by 4.8 dB at half a
+        chip. Zero until a demod() produces a frame. Replaces `est_snr_db`,
+        which was never an SNR: it published the preamble estimator's spectral
+        prominence, carrying the full coherent processing gain and swinging 33
+        dB with alignment at a fixed input (doppler#1304).
+        """
+
+    @property
+    def est_timing_chips(self) -> float:
+        """Burst-start error the last demod() MEASURED, in chips, signed,
+        relative to the `start` given to set_prior(). The whole-sample part was
+        removed before despreading; only the sub-sample fraction remains a
+        loss, and only that fraction is taken out of `est_cn0_dbhz`. The
+        symbols keep the loss either way. Acquisition resolves a start to one
+        SAMPLE, so a residual of a fraction of a chip is structural rather than
+        a caller's error -- which is why the number is published instead of
+        assumed to be zero.
+        """
 
     @property
     def frame_syms(self) -> int:
@@ -7239,8 +7262,24 @@ class DsssBurstReceiver:
         """Demod's chirp-rate estimate."""
 
     @property
-    def est_snr_db(self) -> float:
-        """Demod's post-decode SNR estimate."""
+    def demod_cn0_dbhz(self) -> float:
+        """The demodulator's C/N0 for the last completed burst, dB-Hz, referred
+        to the CHANNEL: measured on the decoded symbols and corrected for the
+        sub-chip start error `demod_timing_chips` reports. Distinct from
+        `cn0_dbhz_est`, which is ACQUISITION's saturating lower bound from the
+        hit; this one is a measurement, and the two are named for their stage
+        rather than by word order so they cannot be confused. Replaces
+        `est_snr_db`, which was never an SNR (doppler#1304).
+        """
+
+    @property
+    def demod_timing_chips(self) -> float:
+        """Burst-start error the demodulator measured on the last completed
+        burst, in chips, signed. Whole samples were removed before despreading;
+        the remaining fraction of a sample is what `demod_cn0_dbhz` is
+        corrected for. Acquisition resolves a start to one SAMPLE, so a
+        non-zero residual here is structural.
+        """
 
     @property
     def refine_margin(self) -> float:

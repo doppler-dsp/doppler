@@ -369,12 +369,6 @@ test_decodes_a_burst_from_a_stream (void)
     errs += (out[SYNC_LEN + i] != want[i]);
   DP_CHECK (errs == 0);
 
-  /* Refine's own confidence: the nearest whole-period competitor should sit
-     near (reps-1)/reps = 0.75, well clear of 1. A margin at 1 means the
-     period was not resolved -- the failure nothing else in the chain sees. */
-  DP_CHECK (dsss_burst_receiver_get_refine_margin (s) < 0.9);
-  DP_CHECK (dsss_burst_receiver_get_refine_margin (s) > 0.0);
-
   DP_CHECK (dsss_burst_receiver_get_dropped (s) == 0);
   dsss_burst_receiver_destroy (s);
   return 0;
@@ -424,37 +418,27 @@ test_decodes_under_residual_doppler (void)
       DP_CHECK (got == FRAME_SYMS);
       DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
       DP_CHECK (frame_ok (out));
-      DP_CHECK (dsss_burst_receiver_get_refine_margin (s) < 0.9);
       dsss_burst_receiver_destroy (s);
     }
   return 0;
 }
 
-/* One TRUE burst is reported once, false alarms are marked, and
- * refine_margin agrees with the CRC on which is which.
+/* One TRUE burst is reported once, and a false alarm is marked by its CRC.
  *
- * Three claims in one capture because they are one property. Acquisition
- * fires on every frame lying inside the preamble, so without suppression a
- * single burst is claimed `reps` times over. It also false-alarms in noise at
- * a finite rate, and a false alarm legitimately RETURNS bits -- the caller's
- * verdict is the frame's own CRC, not the fact that something came back. An
- * earlier version asserted "exactly one return" and failed the moment the
- * acquisition code was good enough to reach its designed false-alarm rate.
- *
- * The margin claim is the one that matters and it is the object's whole
- * reason for existing: a mis-windowed burst still has a carrier, so a
- * lock-style indicator reads healthy through a broken hand-off. Here the
- * true burst resolves its period (margin well below 1) and every false alarm
- * does not (margin near 1) -- the two agree with the CRC without being told
- * about it.
+ * Acquisition fires on every frame lying inside the preamble, so without
+ * suppression a single burst is claimed `reps` times over. It also
+ * false-alarms in noise at a finite rate, and a false alarm legitimately
+ * RETURNS bits -- the caller's verdict is the frame's own CRC, not the fact
+ * that something came back. An earlier version asserted "exactly one
+ * return" and failed the moment the acquisition code was good enough to
+ * reach its designed false-alarm rate.
  *
  * The noise is deterministic (dp_gauss from a fixed seed), so the false
  * alarm below is reproducible rather than hoped for; the count is asserted
  * so this cannot quietly become vacuous if the realization changes. It did
  * change once: seed 12345 carried a false alarm under the old two-look grid
  * and none under the one-look grid a burst engine now always sizes
- * (doppler#1181). Seed 11 came from sweeping 1..59 -- 9 and 11 carry one;
- * 11's sits at margin 0.982 against the real burst's 0.807. */
+ * (doppler#1181). Seed 11 came from sweeping 1..59 -- 9 and 11 carry one. */
 static int
 test_true_burst_once_and_false_alarms_marked (void)
 {
@@ -467,25 +451,20 @@ test_true_burst_once_and_false_alarms_marked (void)
 
   uint8_t out[FRAME_SYMS];
   size_t  n_valid = 0, n_false = 0;
-  double  valid_margin = 1.0, worst_false_margin = 0.0;
 
   for (size_t off = 0; off < 40000; off += 777)
     {
       size_t n = (off + 777 <= 40000) ? 777 : (40000 - off);
       if (!dsss_burst_receiver_push (s, cap + off, n, out, FRAME_SYMS))
         continue;
-      double m = dsss_burst_receiver_get_refine_margin (s);
       if (frame_ok (out))
         {
           n_valid++;
-          valid_margin = m;
           DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == AT);
         }
       else
         {
           n_false++;
-          if (m > worst_false_margin)
-            worst_false_margin = m;
         }
     }
 
@@ -495,14 +474,10 @@ test_true_burst_once_and_false_alarms_marked (void)
   DP_CHECK (dsss_burst_receiver_get_n_bursts (s) >= 1);
 
   /* Non-vacuous: this capture really does contain a false alarm, so the
-     comparison below is measuring something. */
+     CRC is separating two populations rather than one. */
   DP_CHECK_MSG (n_false >= 1,
-                "no false alarm in this capture -- the margin comparison "
-                "below would be vacuous");
-
-  /* The margin tells them apart, unprompted. */
-  DP_CHECK (valid_margin < 0.9);
-  DP_CHECK (worst_false_margin > valid_margin);
+                "no false alarm in this capture -- the CRC claim above "
+                "would be vacuous");
 
   dsss_burst_receiver_destroy (s);
   return 0;
@@ -1001,7 +976,6 @@ test_reset_clears_the_event_but_not_the_counters (void)
   s->preamble_start   = 4096;
   s->doppler_hz_est   = 1234.5;
   s->demod_cn0_dbhz   = 12.0;
-  s->refine_margin    = 0.75;
   s->cap->pending     = 2;
   s->n_bursts         = 7;
   s->cap->dropped     = 3;
@@ -1015,7 +989,6 @@ test_reset_clears_the_event_but_not_the_counters (void)
   /* no burst, so nothing to check */
   DP_CHECK (dsss_burst_receiver_get_doppler_hz_est (s) == 0.0);
   DP_CHECK (dsss_burst_receiver_get_demod_cn0_dbhz (s) == 0.0);
-  DP_CHECK (dsss_burst_receiver_get_refine_margin (s) == 0.0);
   DP_CHECK (dsss_burst_receiver_get_pending (s) == 0);
   DP_CHECK (s->cap->samples_fed == 0);
 
@@ -1223,5 +1196,38 @@ main (void)
     return 1;
   if (test_destroy_null_is_safe ())
     return 1;
+
+  /* ── a blob from the PREVIOUS state version is refused ────────────────────
+   *
+   * The version exists to make an incompatible layout a refusal instead of a
+   * reinterpretation, and nothing pinned that: the round-trip macro clobbers
+   * the MAGIC, which a blob carrying a real magic and a stale version gets
+   * past. doppler#1312 removed a field from this state -- the size check
+   * alone would not have caught it if another field had absorbed the eight
+   * bytes, which is exactly the case the version is for. Rewriting only the
+   * version word leaves every other byte valid, so this fails if and only if
+   * the version is actually consulted. */
+  {
+    dsss_burst_receiver_state_t *s = make_rx ();
+    DP_REQUIRE (s != NULL);
+    size_t cb = dsss_burst_receiver_state_bytes (s);
+    DP_REQUIRE (cb > sizeof (dp_state_hdr_t));
+    unsigned char *blob = malloc (cb);
+    DP_REQUIRE (blob != NULL);
+    dsss_burst_receiver_get_state (s, blob);
+    DP_CHECK (dsss_burst_receiver_set_state (s, blob) == DP_OK);
+    dp_state_hdr_t hdr;
+    memcpy (&hdr, blob, sizeof hdr);
+    DP_CHECK (hdr.version == DSSS_BURST_RECEIVER_STATE_VERSION);
+    hdr.version = (uint16_t)(DSSS_BURST_RECEIVER_STATE_VERSION - 1u);
+    memcpy (blob, &hdr, sizeof hdr);
+    DP_CHECK (dsss_burst_receiver_set_state (s, blob) == DP_ERR_INVALID);
+    hdr.version = (uint16_t)(DSSS_BURST_RECEIVER_STATE_VERSION + 1u);
+    memcpy (blob, &hdr, sizeof hdr);
+    DP_CHECK (dsss_burst_receiver_set_state (s, blob) == DP_ERR_INVALID);
+    free (blob);
+    dsss_burst_receiver_destroy (s);
+  }
+
   DP_TEST_END ("test_dsss_burst_receiver_core");
 }

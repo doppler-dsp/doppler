@@ -75,7 +75,7 @@ detector2d_create (const float _Complex *ref, size_t ny, size_t nx,
     goto fail;
   state->ring_cap = state->ring->capacity;
 
-  state->corr = corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0);
+  state->corr = corr2d_create (ref, ny, nx, dwell, nthreads, 0, 0, -1);
   if (!state->corr)
     goto fail;
 

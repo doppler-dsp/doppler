@@ -1,6 +1,8 @@
 #include "corr2d/corr2d_core.h"
 
 #include "clib_common.h"
+#include <complex.h>
+#include <math.h>
 #include <string.h>
 
 /* 1-D spectral zero-pad: q (length m >= n) is the band-limited (Dirichlet)
@@ -64,7 +66,7 @@ corr2d_is_single_row_ref (const float _Complex *ref, size_t ny, size_t nx)
 
 corr2d_state_t *
 corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
-               int nthreads, size_t ny_out, size_t nx_out)
+               int nthreads, size_t ny_out, size_t nx_out, int col_out)
 {
   corr2d_state_t *state = calloc (1, sizeof (*state)); /* NULL-init pointers */
   if (!state)
@@ -96,6 +98,17 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
    * matched forward/inverse row-transform length — see the header doc
    * comment) and a reference with no energy outside row 0. */
   int fast = (nyo == ny) && corr2d_is_single_row_ref (ref, ny, nx);
+  /* A known output column is only defined on the fast path: the general
+     2-D inverse mixes rows, so there is no per-row bin to evaluate. A
+     caller that knows its lag is correlating against a code replica, which
+     is the single-row shape by construction -- so rather than silently
+     falling back to the full map (and returning n_out the caller did not
+     ask for), refuse the configuration. */
+  if (col_out >= 0 && (!fast || nxo != nx || (size_t)col_out >= nx))
+    {
+      free (state);
+      return NULL;
+    }
 
   state->work_fft = malloc (n * sizeof (*state->work_fft));
   state->accum    = calloc (n, sizeof (*state->accum));
@@ -163,6 +176,27 @@ corr2d_create (const float _Complex *ref, size_t ny, size_t nx, size_t dwell,
   state->n_out     = nyo * nxo;
   state->dwell     = dwell;
   state->count     = 0;
+  state->col_out   = col_out;
+
+  if (col_out >= 0)
+    {
+      /* One value per row, not a whole map. */
+      state->n_out = ny;
+      /* A single known lag needs no transform at ALL, in either direction.
+         Expanding the definition,
+
+           R(i,j) = (1/nx) * sum_v X[v]*conj(H[v])*exp(+2i*pi*v*j/nx)
+                  = sum_p conj(h[p]) * x[(p + j) mod nx]
+
+         -- the 1/nx cancels against the row-orthogonality sum, leaving a
+         plain dot product against the conjugated reference. So this path
+         skips the forward FFT too: O(nx) per row against the full map's
+         O(nx log nx), which is the whole reason a caller who knows its lag
+         would otherwise write the sum out by hand beside this kernel. */
+      state->col_ref = dp_xmalloc (nx * sizeof (*state->col_ref));
+      for (size_t v = 0; v < nx; v++)
+        state->col_ref[v] = conjf (ref[v]);
+    }
   return state;
 
 fail:
@@ -185,6 +219,7 @@ corr2d_destroy (corr2d_state_t *state)
     fft_destroy (state->inv1d);
   free (state->ref_spec);
   free (state->row_ref_spec);
+  free (state->col_ref);
   free (state->work_fft);
   free (state->accum);
   free (state->work_pad);
@@ -244,6 +279,12 @@ corr2d_set_ref (corr2d_state_t *state, const float _Complex *ref)
                         state->nx);
       for (size_t k = 0; k < state->nx; k++)
         state->row_ref_spec[k] = conjf (state->row_ref_spec[k]);
+      /* The known-lag path reads the TIME-domain replica, so refreshing
+         only the spectrum would leave it correlating against the old code
+         -- silently, and forever. */
+      if (state->col_ref)
+        for (size_t k = 0; k < state->nx; k++)
+          state->col_ref[k] = conjf (ref[k]);
     }
   else
     {
@@ -276,6 +317,32 @@ corr2d_execute_fast (corr2d_state_t *state, const float _Complex *in,
                      float _Complex *out)
 {
   const size_t ny = state->ny, nx = state->nx, nxo = state->nx_out;
+
+  if (state->col_out >= 0)
+    {
+      /* Known lag: correlate in the time domain, no transform either way.
+         The running sum lives in the first ny entries of `accum` so the
+         serialized state keeps covering it -- a dwell interrupted mid-way
+         still resumes, exactly as the full path's product spectrum does. */
+      const size_t j0 = (size_t)state->col_out;
+      for (size_t i = 0; i < ny; i++)
+        {
+          const float _Complex *x = in + i * nx;
+          float _Complex acc      = 0.0f;
+          for (size_t p = 0; p < nx; p++)
+            acc += state->col_ref[p] * x[(p + j0) % nx];
+          state->accum[i] += acc;
+        }
+      if (++state->count == state->dwell)
+        {
+          for (size_t i = 0; i < ny; i++)
+            out[i] = state->accum[i];
+          memset (state->accum, 0, state->n * sizeof (*state->accum));
+          state->count = 0;
+          return state->n_out;
+        }
+      return 0;
+    }
 
   for (size_t i = 0; i < ny; i++)
     fft_execute_cf32 (state->fwd1d, in + i * nx, nx, state->work_fft + i * nx,

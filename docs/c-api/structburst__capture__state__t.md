@@ -62,14 +62,13 @@ _BurstCapture state._ [More...](#detailed-description)
 |  size\_t | [**k\_lo**](#variable-k_lo)  <br> |
 |  size\_t | [**min\_gap**](#variable-min_gap)  <br> |
 |  uint64\_t | [**n\_bursts**](#variable-n_bursts)  <br> |
+|  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**pcorr**](#variable-pcorr)  <br> |
 |  size\_t | [**pending**](#variable-pending)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
 |  [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md) \* | [**q**](#variable-q)  <br> |
 |  size\_t | [**q\_cap**](#variable-q_cap)  <br> |
 |  size\_t | [**q\_head**](#variable-q_head)  <br> |
 |  int | [**recovered**](#variable-recovered)  <br> |
-|  float \* | [**ref\_sign**](#variable-ref_sign)  <br> |
-|  double | [**refine\_margin**](#variable-refine_margin)  <br> |
 |  size\_t | [**refine\_span**](#variable-refine_span)  <br> |
 |  uint8\_t \* | [**released**](#variable-released)  <br> |
 |  size\_t | [**reps**](#variable-reps)  <br> |
@@ -621,6 +620,24 @@ Windows emitted, lifetime.
 
 
 
+### variable pcorr 
+
+```C++
+corr2d_state_t* burst_capture_state_t::pcorr;
+```
+
+
+
+Per-period correlator against the preamble replica, at the ONE lag refine needs: the code phase is already fixed by acquisition, so this is `corr2d` in its known-lag mode (`col_out = 0`) rather than a private sum. One replica of the code, in one place  a second copy here is exactly how the norm\_freq -&gt; phase\_inc conversion came to disagree with itself in three files. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable pending 
 
 ```C++
@@ -720,42 +737,6 @@ int burst_capture_state_t::recovered;
 
 
 Non-zero when create() found the backing file already holding a ring of exactly this geometry, so its samples ARE the look-back. Zero when the file was created or resized, which zeroes it  and then a blob claiming retained history has nothing to reach back into, which set\_state() refuses rather than resuming into silence. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable ref\_sign 
-
-```C++
-float* burst_capture_state_t::ref_sign;
-```
-
-
-
-One code period of +-1 chip signs, spc-expanded. Real, so the per-period correlation is a signed sum rather than a complex multiply. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable refine\_margin 
-
-```C++
-double burst_capture_state_t::refine_margin;
-```
-
-
-
-Winning preamble correlation over its nearest whole-period competitor. Near 1 means the period was NOT resolved. 
  
 
 

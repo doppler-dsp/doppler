@@ -176,10 +176,10 @@ main (void)
     ppe_destroy (p);
   }
 
-  /* ── nfft is 4x next_pow2(max_len), and the header said otherwise ─────
+  /* ── nfft is 4x next_pow_two(max_len), and the header said otherwise ─────
    *
    * The struct field was documented as "next pow2 of max_len" while the
-   * implementation uses `next_pow2 (max_len) << 2`. That is not a cosmetic
+   * implementation uses `next_pow_two (max_len) << 2`. That is not a cosmetic
    * slip: nfft sizes `buf`, `spec` and `mag`, so a caller budgeting memory
    * from the header was out by 4x, and the same 4x is what makes the
    * sub-bin refinement above as accurate as it is. Pinned so the comment

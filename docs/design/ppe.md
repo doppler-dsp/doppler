@@ -76,7 +76,7 @@ parabola's basin. The hypothesis count is forced **odd**, so a zero rate lands
 on a node rather than straddling two.
 
 **The frequency axis** is refined the same way, but it is also **zero-padded
-4×** before the transform — `nfft = 4 · next_pow2(max_len)`. Padding buys no
+4×** before the transform — `nfft = 4 · next_pow_two(max_len)`. Padding buys no
 information, so the reason is not resolution but *conditioning*: parabolic
 interpolation assumes the peak is locally parabolic, and it is a better
 assumption on a finely sampled main lobe than on a coarse one. The inputs here

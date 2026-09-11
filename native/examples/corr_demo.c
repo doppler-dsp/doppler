@@ -160,7 +160,7 @@ demo_corr2d (void)
   fill_pn (ref, N);
   circ_shift_2d (x, ref, NY, NX, DR, DC);
 
-  corr2d_state_t *c = corr2d_create (ref, NY, NX, 1, 1, 0, 0);
+  corr2d_state_t *c = corr2d_create (ref, NY, NX, 1, 1, 0, 0, -1);
   corr2d_execute (c, x, N, out, N);
   corr2d_destroy (c);
 

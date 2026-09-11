@@ -163,7 +163,6 @@ def _drive(rx, cap, stop_on_first=True):
                     "bits": bits,
                     "start": int(rx.preamble_start),
                     "valid": _frame_ok(bits),
-                    "margin": float(rx.refine_margin),
                 }
             )
             if stop_on_first:
@@ -189,13 +188,6 @@ class Data:
     epoch_rows: list[list[str]] = field(default_factory=list)
     epoch_all_exact: bool = False
     epoch_near_start: bool = False
-    margin_rows: list[list[str]] = field(default_factory=list)
-    margin_healthy: float = 1.0
-    margin_predicted: float = 0.0
-    margin_tracks_prediction: bool = False
-    reps_rows: list[list[str]] = field(default_factory=list)
-    reps_floor_tracks: bool = False
-    reps_separation_scales: bool = False
     amp_rows: list[list[str]] = field(default_factory=list)
     amp_invariant: bool = False
     amp_span_db: float = 0.0
@@ -204,9 +196,7 @@ class Data:
     pd_low: float = 1.0
     pd_mid: float = 0.0
     pd_monotone: bool = False
-    truncated_margin: float = 0.0
-    truncated_rejected: bool = False
-    margin_separates: bool = False
+    refine_start_exact: bool = False
     code_rows: list[list[str]] = field(default_factory=list)
     good_code_pts: float = 0.0
     poor_code_pts: float = 0.0
@@ -254,8 +244,8 @@ def section_object() -> None:
             ],
             [
                 "`.../characterization/dsss_burst_receiver/`",
-                "the sweeps behind §2.3 and §2.7 — margin vs C/N0, and "
-                "detection vs the acquisition code",
+                "the sweeps behind §2.3 and §2.6 — correct-repetition "
+                "rate vs C/N0, and detection vs the acquisition code",
             ],
             [
                 "`burst_acq`, `burst_despreader`, `burst_demod` reports",
@@ -293,33 +283,28 @@ def section_object() -> None:
             ],
             [
                 "refine names WHICH preamble repetition",
-                "C, sabotage-proven against a coherent combine",
-                "§2.3",
-            ],
-            [
-                "`refine_margin` reports that decision's confidence",
-                "**its negative case needed a real false alarm to exist**",
+                "C, sabotage-proven; a coherent slide over a Doppler search",
                 "§2.3",
             ],
             [
                 "the fraction of bursts it FINDS, at a given C/N0",
                 "**nothing — no report in this chain gated a Pd**",
-                "§2.6",
+                "§2.5",
             ],
             [
                 "a burst is claimed once however many frames fire",
                 "C, needs a grid where several DO fire",
-                "§2.8",
+                "§2.7",
             ],
             [
                 "`state_bytes()` is a pure function of configuration",
                 "**jm's binding depends on it; nothing said so**",
-                "§2.9",
+                "§2.8",
             ],
             [
                 "any block size is accepted",
                 "C, including a push larger than the ring",
-                "§2.8",
+                "§2.7",
             ],
         ],
     )
@@ -337,7 +322,6 @@ def characterise() -> Data:
     _sec_end_to_end(d)
     _sec_epoch(d)
     _sec_refine(d)
-    _sec_reps(d)
     _sec_amplitude(d)
     _sec_pd(d)
     _sec_code(d)
@@ -355,37 +339,6 @@ def _cn0(sigma: float) -> float:
     axis is comparable to a `cn0_dbhz` a caller would pass in.
     """
     return 10.0 * np.log10(1.0 / sigma**2) + 10.0 * np.log10(FS)
-
-
-def _margin_at(reps_cfg: int, reps_sig: int) -> float:
-    """refine_margin for a preamble of `reps_sig` reps, receiver on
-    `reps_cfg`. Equal means intact; one short means clipped."""
-    chips = [np.tile(_sgn(ACQ_CODE), reps_sig)] + [
-        _sgn(b) * _sgn(DATA_CODE)
-        for b in np.concatenate(
-            [
-                SYNC,
-                PAYLOAD_BITS,
-                np.array(
-                    [(crc16(PAYLOAD_BITS) >> (15 - j)) & 1 for j in range(16)],
-                    np.uint8,
-                ),
-            ]
-        )
-    ]
-    burst = np.repeat(np.concatenate(chips), SPC).astype(np.complex64)
-    rx = DsssBurstReceiver(
-        ACQ_CODE,
-        DATA_CODE,
-        SYNC,
-        reps=reps_cfg,
-        spc=SPC,
-        chip_rate=CHIP_RATE,
-        frame_syms=FRAME_SYMS,
-        cn0_dbhz=55.0,
-    )
-    hits = _drive(rx, _capture(6000, 0.02, seed=42, burst=burst))
-    return hits[0]["margin"] if hits else float("nan")
 
 
 def _sec_end_to_end(d: Data) -> None:
@@ -483,163 +436,49 @@ def _sec_epoch(d: Data) -> None:
 
 
 def _sec_refine(d: Data) -> None:
-    R.md("### 2.3 Refine — which repetition, and how sure")
+    R.md("### 2.3 Refine — which repetition")
     R.md()
     R.md(
         "A preamble is the same code repeated, so a correlation against the "
         "code cannot say which repetition a detection landed on. The "
-        "preamble can, because it has finite extent: score each candidate "
-        "by correlating one code period at every position the preamble "
-        "would occupy and summing the magnitudes. Only `reps - |k|` of them "
-        "still land on preamble when a candidate is `k` periods off, so the "
-        "score follows a triangular envelope peaking at the truth."
+        "preamble can, because it has finite extent: correlate one code "
+        "period at every position the preamble would occupy, then combine "
+        "those `reps` correlations COHERENTLY across the repetitions — a "
+        "zero-padded slow-time transform, strongest bin taken. Only "
+        "`reps - |k|` of the positions still land on preamble when a "
+        "candidate is `k` periods off, so the score peaks at the truth."
     )
     R.md()
-    d.margin_predicted = (REPS - 1) / REPS
+    R.md(
+        "The Doppler search is what makes the coherent form survivable "
+        "rather than a liability. A fixed-phase coherent sum collapses "
+        "under the residual acquisition leaves — measured, a quarter of a "
+        "bin put that peak two whole periods off, the true position 639x "
+        "below it. The unambiguous span across the repetitions is "
+        "`±1/(2P)` and acquisition leaves at most half its own bin, "
+        "`1/(2·D·P)`, so the search covers the residual BY CONSTRUCTION: "
+        "there is no hypothesis range to choose and nothing to tune "
+        "(doppler#1312)."
+    )
+    R.md()
     rx = _rx()
     hits = _drive(rx, _capture(5000, 0.02, seed=3))
-    d.margin_healthy = hits[0]["margin"]
-    # Relative to the prediction, NOT against a fixed number: the floor is
-    # (reps-1)/reps, so an absolute threshold is only ever right for one
-    # reps. See §2.4.
-    d.margin_tracks_prediction = (
-        d.margin_predicted <= d.margin_healthy <= d.margin_predicted + 0.08
-    )
+    d.refine_start_exact = bool(hits) and hits[0]["start"] == 5000
 
-    # The negative case, constructed rather than waited for: a preamble
-    # CLIPPED to three of its four repetitions. The receiver still expects
-    # four, so no candidate period can win cleanly and the envelope the
-    # stage relies on flattens. A real link condition -- a burst that
-    # starts mid-transmission, or is truncated by a capture boundary --
-    # and deterministic, unlike hoping a false alarm turns up in a
-    # particular noise realization.
-    clipped = _burst_reps(3)
-    rx2 = _rx()
-    hits2 = _drive(rx2, _capture(5000, 0.02, seed=3, burst=clipped))
-    d.truncated_margin = hits2[0]["margin"] if hits2 else 0.0
-    d.truncated_rejected = bool(hits2) and not hits2[0]["valid"]
-    d.margin_separates = d.truncated_margin > d.margin_healthy
-    rows = [
-        [
-            "intact preamble (4 of 4 reps)",
-            f"{d.margin_healthy:.3f}",
-            "True",
-            f"predicted (reps-1)/reps = {d.margin_predicted:.3f}",
-        ],
-        [
-            "preamble clipped to 3 of 4 reps",
-            f"{d.truncated_margin:.3f}",
-            str(hits2[0]["valid"]) if hits2 else "—",
-            "no period wins cleanly — the envelope has flattened",
-        ],
-    ]
-    R.table(["stimulus", "refine_margin", "frame checks out", "note"], rows)
-    d.margin_rows = rows
-    R.md(
-        f"`refine_margin` is the rival period over the winner, so **lower "
-        f"is better** and a value near 1 means the period was not resolved. "
-        f"Intact, it reads **{d.margin_healthy:.3f}** against the predicted "
-        f"{d.margin_predicted:.3f}; clipped, **{d.truncated_margin:.3f}** — "
-        f"and the CRC independently rejects that burst "
-        f"(**{d.truncated_rejected}**). The two agree without being told "
-        f"about each other, which is what makes the healthy reading "
-        f"evidence rather than a constant."
-    )
-    R.md()
-    R.md(
-        "That is the gap this object closes. A window one code period off "
-        "still carries a carrier, so a lock-style indicator reads perfectly "
-        "healthy through a broken hand-off — the failure `acq_core.h` "
-        "already records historically as a receiver reporting tracking "
-        "while decoding noise. `refine_margin` is the only quantity in the "
-        "chain that sees it."
-    )
-    R.md()
-    R.md(
-        "Where it stops working is measured in the characterization rather "
-        "than here, because it is a sweep: the correct-period rate holds at "
-        "100% down to roughly 60 dB-Hz and collapses to 58% by 56.5, while "
-        "the margin closes from 0.774 to 0.87 — so the read-back degrades "
-        "before the decode does."
-    )
-    R.md()
-
-
-def _sec_reps(d: Data) -> None:
-    R.md("### 2.4 The margin's floor moves with `reps`")
-    R.md()
-    R.md(
-        "The envelope refine relies on is triangular: a candidate `k` "
-        "periods off still has `reps - |k|` of its positions on preamble, "
-        "so the nearest rival scores `(reps-1)/reps`. That is a **floor "
-        "that rises with `reps`** — and it is the reason no fixed threshold "
-        "on `refine_margin` can be right for every configuration."
-    )
-    R.md()
-    rows, csv = [], []
-    floor_ok = sep_ok = True
-    for reps in (2, 4, 8):
-        healthy = _margin_at(reps, reps)
-        clipped = _margin_at(reps, reps - 1)
-        pred = (reps - 1) / reps
-        sep = clipped - healthy
-        floor_ok &= pred <= healthy <= pred + 0.08
-        sep_ok &= sep >= 0.5 / reps
-        rows.append(
-            [
-                str(reps),
-                f"{pred:.3f}",
-                f"{healthy:.3f}",
-                f"{clipped:.3f}",
-                f"{sep:.3f}",
-            ]
-        )
-        csv.append([reps, pred, healthy, clipped, sep])
     R.table(
-        [
-            "reps",
-            "predicted (reps-1)/reps",
-            "healthy margin",
-            "clipped preamble",
-            "separation",
-        ],
-        rows,
-    )
-    _csv(HERE / "data" / "reps.csv", "reps,predicted,healthy,clipped,sep", csv)
-    d.reps_rows = rows
-    d.reps_floor_tracks = floor_ok
-    d.reps_separation_scales = sep_ok
-    R.md(
-        f"The healthy reading tracks the prediction at every depth "
-        f"(**{d.reps_floor_tracks}**), and the separation between resolved "
-        f"and unresolved **halves with every doubling of `reps`** "
-        f"(**{d.reps_separation_scales}**) — it scales as roughly `1/reps`, "
-        f"because both readings are converging on 1 from opposite sides."
-    )
-    R.md()
-    R.md(
-        "**Two consequences a caller must not miss.** First, more "
-        "repetitions buy sensitivity and COST discrimination: the same "
-        "sweep that moves the acquisition knee from 66.0 dB-Hz at `reps=2` "
-        "to 54.9 at `reps=16` shrinks the margin's separation from 0.37 to "
-        "0.05. Second, and concretely: **compare `refine_margin` against "
-        "`(reps-1)/reps`, never against a constant.** A rule like "
-        '"healthy is below 0.9" is correct at `reps=4` and simply wrong at '
-        "8 or 16, where a perfectly resolved burst reads 0.89 and 0.94. "
-        "This report asserted exactly that constant until the sweep was "
-        "run."
+        ["stimulus", "reported start", "names the exact sample"],
+        [["intact preamble (4 of 4 reps)", "5000", str(d.refine_start_exact)]],
     )
     R.md()
 
 
 def _sec_amplitude(d: Data) -> None:
-    R.md("### 2.5 Amplitude invariance")
+    R.md("### 2.4 Amplitude invariance")
     R.md()
     R.md(
         "Every gate in the chain is a RATIO — `test_stat` is peak over the "
-        "CFAR noise estimate, `refine_margin` is the rival period over the "
-        "winner — so the receiver should not care what level a burst "
-        "arrives at, only how it compares to its own noise. Worth "
+        "CFAR noise estimate — so the receiver should not care what level "
+        "a burst arrives at, only how it compares to its own noise. Worth "
         "measuring rather than assuming, because a float32 pipeline that "
         "squares magnitudes has somewhere to lose it."
     )
@@ -656,22 +495,21 @@ def _sec_amplitude(d: Data) -> None:
         )
         hits = _drive(rx, cap)
         ok = bool(hits) and hits[0]["valid"] and hits[0]["start"] == 5000
-        m = hits[0]["margin"] if hits else float("nan")
         if ref is None:
-            ref = m
-        invariant &= ok and abs(m - ref) < 0.01
-        rows.append([f"{db:+.0f}", f"{amp:.3g}", str(ok), f"{m:.3f}"])
-        csv.append([db, amp, int(ok), m])
+            ref = ok
+        invariant &= ok and ok == ref
+        rows.append([f"{db:+.0f}", f"{amp:.3g}", str(ok)])
+        csv.append([db, amp, int(ok)])
     R.table(
-        ["burst level (dB)", "amplitude", "decoded", "refine_margin"], rows
+        ["burst level (dB)", "amplitude", "decoded at the exact start"], rows
     )
-    _csv(HERE / "data" / "amplitude.csv", "level_db,amp,decoded,margin", csv)
+    _csv(HERE / "data" / "amplitude.csv", "level_db,amp,decoded", csv)
     d.amp_rows = rows
     d.amp_invariant = invariant
     d.amp_span_db = decades[-1] - decades[0]
     R.md(
         f"Identical behaviour across **{d.amp_span_db:.0f} dB** of burst "
-        f"level, with the margin unchanged to three decimals "
+        f"level — decoded, at the exact start, at every one "
         f"(**{d.amp_invariant}**). The noise is scaled with the signal, so "
         f"C/N0 is held and level is the only variable — which is the "
         f"question being asked."
@@ -688,7 +526,7 @@ def _sec_amplitude(d: Data) -> None:
 
 
 def _sec_pd(d: Data) -> None:
-    R.md("### 2.6 Detection probability — the fraction it actually finds")
+    R.md("### 2.5 Detection probability — the fraction it actually finds")
     R.md()
     R.md(
         "Everything above asks whether the receiver handles a burst "
@@ -741,7 +579,7 @@ def _sec_pd(d: Data) -> None:
     R.md(
         "**These numbers belong to this geometry**, not to the object: they "
         "move with the code length, `reps`, `spc` and the CFAR sizing. "
-        "§2.4 shows the knee shifting 11 dB across `reps` alone. What is "
+        "the knee shifts 11 dB across `reps` alone. What is "
         "certified here is the SHAPE — saturate, transition, floor — and "
         "that the transition sits where the characterization's sweep puts "
         "it."
@@ -750,7 +588,7 @@ def _sec_pd(d: Data) -> None:
 
 
 def _sec_code(d: Data) -> None:
-    R.md("### 2.7 What actually loses a burst is the CODE")
+    R.md("### 2.6 What actually loses a burst is the CODE")
     R.md()
     R.md(
         "Acquisition frames the stream sequentially and **without "
@@ -816,7 +654,7 @@ def _sec_code(d: Data) -> None:
 
 
 def _sec_bounds(d: Data) -> None:
-    R.md("### 2.8 What it refuses, and what it does not double-count")
+    R.md("### 2.7 What it refuses, and what it does not double-count")
     R.md()
     rx = _rx()
     nothing = np.zeros(1, np.complex64)
@@ -864,7 +702,7 @@ def _sec_bounds(d: Data) -> None:
 
 
 def _sec_state(d: Data) -> None:
-    R.md("### 2.9 State — a pure function of configuration")
+    R.md("### 2.8 State — a pure function of configuration")
     R.md()
     R.md(
         "`state_bytes()` has to be constant for a given configuration, and "
@@ -923,7 +761,7 @@ def _sec_state(d: Data) -> None:
 
 def _sec_decoy(d: Data) -> None:
     """A weaker detection arriving FIRST must not cost the burst behind it."""
-    R.md("### 2.10 A spurious detection ahead of a real burst")
+    R.md("### 2.9 A spurious detection ahead of a real burst")
     R.md()
     R.md(
         "The chain-visible failure this object was certified without. "
@@ -961,14 +799,14 @@ def _sec_decoy(d: Data) -> None:
                 str(gap),
                 f"{gap / burst_len:.2f}",
                 "yes" if good else "NO",
-                f"{good[0]['margin']:.3f}" if good else "--",
+                str(good[0]["start"]) if good else "--",
             ]
         )
     d.decoy_rows = rows
     d.decoy_all_survive = all(survived)
 
     R.table(
-        ["decoy lead (samples)", "of a burst", "burst decoded", "margin"],
+        ["decoy lead (samples)", "of a burst", "burst decoded", "at sample"],
         rows,
     )
     R.md()
@@ -998,7 +836,7 @@ def _sec_decoy(d: Data) -> None:
 
 def _sec_blocks(d: Data) -> None:
     """The block size is the caller's choice and must not change the answer."""
-    R.md("### 2.11 Several bursts, and the caller's block size")
+    R.md("### 2.10 Several bursts, and the caller's block size")
     R.md()
     R.md(
         "Every other section here streams ONE burst. That is the shape of "
@@ -1156,36 +994,27 @@ def review(d: Data) -> None:
         "an issue. A 42% loss measured against burst position looked "
         "exactly like preambles straddling frame boundaries; the same "
         "sweep with a different code of the same length lost nothing "
-        "(§2.7). The tests have been moved onto a real m-sequence, built "
+        "(§2.6). The tests have been moved onto a real m-sequence, built "
         "with the library's own generator, because a receiver measured on "
         "a code no caller would choose measures the wrong thing.",
     )
     R.find(
-        "F7b",
-        "FIXED",
-        "**`refine_margin` had no fixed threshold, and this report asserted "
-        "one anyway.** The limit read `margin < 0.9`, which is true at "
-        "`reps = 4` and false at 8 and 16, where a perfectly resolved burst "
-        "reads 0.887 and 0.944 — the floor is `(reps-1)/reps` and rises "
-        "with depth. Worse, the separation between resolved and unresolved "
-        "HALVES with every doubling of `reps` (0.37 at 2, down to 0.05 at "
-        "16), so the read-back's usefulness degrades exactly where the "
-        "extra repetitions were bought for sensitivity. The limit is now "
-        "relative to the prediction, and §2.4 states the trade. Found by "
-        "sweeping a parameter the first certification held fixed.",
-    )
-    R.find(
         "F7",
-        "BY DESIGN",
-        "**`refine_margin` is the only quantity in the chain that can see a "
-        "broken hand-off.** A window one code period off still carries a "
-        "carrier, so a lock indicator reads healthy while the despread "
-        "output is noise — the failure `acq_core.h` records historically. "
-        "The margin separates the two unprompted (§2.3), and its NEGATIVE "
-        "case is exercised by a clipped preamble -- a real link condition, "
-        "and deterministic -- rather than by hoping a false alarm turns up "
-        "in a particular noise realization, which is what makes the "
-        "positive reading evidence rather than a constant.",
+        "FIXED",
+        "**`refine_margin` was removed.** It reported the runner-up code "
+        "period over the winner, and nothing in the library ever branched "
+        "on it — it was assigned, forwarded, exposed and serialized, and "
+        "read by no decision. What it cost was a threshold no caller could "
+        "get right: the floor is `(reps-1)/reps`, so it RISES with depth "
+        "(0.55 at reps 2, 0.77 at 4, 0.94 at 16) and the separation "
+        "between resolved and unresolved HALVES with every doubling. This "
+        "report asserted a fixed `margin < 0.9` until a sweep showed it "
+        "vacuous at 8 and 16, then asserted a relative bound instead — a "
+        "read-back whose own report needed two attempts to state a "
+        "correct limit for is not a read-back a caller can use. Gone in "
+        "doppler#1312 along with every `(reps-1)/reps` claim built on it; "
+        "doppler#1310 is closed by the removal rather than by the "
+        "calibration it was waiting for.",
     )
     R.find(
         "F8",
@@ -1215,7 +1044,7 @@ def review(d: Data) -> None:
         "**Nothing caught this because no test anywhere put two bursts in "
         "one stream** -- with a single burst, everything discarded after it "
         "was noise, so the loss was unobservable, and this report's own "
-        "`any_block_size` limit had the same blind spot. §2.11 is that gate. "
+        "`any_block_size` limit had the same blind spot. §2.10 is that gate. "
         "Draining every arrived detection rather than one per chunk is also "
         "what bounds retention, so `dropped` is now 0 by construction. See "
         "doppler#1008.",
@@ -1236,7 +1065,7 @@ def review(d: Data) -> None:
         "DECODED). The tie-break is on `peak_mag` and deliberately not "
         "`test_stat` — the latter is peak over a noise estimate averaged "
         "across the surface, so a BARE preamble, raising no floor, "
-        "outscores a real burst whose payload does. §2.10 pins it. "
+        "outscores a real burst whose payload does. §2.9 pins it. "
         "Note this report could not have caught it at its own geometry: "
         "with this payload `burst_len` (2448) is UNDER `refine_span` "
         "(2480), so the window cannot reach past the burst it belongs to. "
@@ -1277,13 +1106,6 @@ def limits(d: Data) -> None:
         "search span, where backing off must still move in whole periods",
     )
     R.limit(
-        d.margin_tracks_prediction,
-        f"refine_margin reads {d.margin_healthy:.3f} on a resolved burst, "
-        f"within 0.08 of the predicted (reps-1)/reps = "
-        f"{d.margin_predicted:.3f} — a RELATIVE claim, because the floor "
-        f"moves with reps",
-    )
-    R.limit(
         d.pd_high >= 0.9,
         f"Pd saturates above the knee: {d.pd_high:.2f} at "
         f"{d.pd_rows[0][0]} dB-Hz",
@@ -1300,40 +1122,19 @@ def limits(d: Data) -> None:
         "shape rather than two endpoints",
     )
     R.limit(
-        d.reps_floor_tracks,
-        "the healthy margin tracks (reps-1)/reps to within 0.08 at reps 2, "
-        "4 and 8 — the floor MOVES, so the claim is relative",
-    )
-    R.limit(
-        d.reps_separation_scales,
-        "...and the resolved/unresolved separation is at least 0.5/reps, "
-        "halving with every doubling — more repetitions buy sensitivity "
-        "and cost discrimination",
-    )
-    R.limit(
-        len(d.reps_rows) == 3,
-        "the reps sweep measures three depths, so the scaling is a trend "
-        "rather than a single point",
-    )
-    R.limit(
         d.amp_invariant,
-        f"decoding and refine_margin are unchanged across "
-        f"{d.amp_span_db:.0f} dB of burst level at constant C/N0 — every "
-        f"gate in the chain is a ratio",
+        f"decoding lands on the exact start across {d.amp_span_db:.0f} dB "
+        f"of burst level at constant C/N0 — every gate in the chain is a "
+        f"ratio",
     )
     R.limit(
         len(d.amp_rows) == 5,
         "the amplitude sweep spans five levels, not two",
     )
     R.limit(
-        d.truncated_rejected,
-        "a preamble clipped to three of its four repetitions is REJECTED "
-        "by the CRC — the negative case, constructed rather than waited for",
-    )
-    R.limit(
-        d.margin_separates,
-        f"...and refine_margin says so independently "
-        f"({d.truncated_margin:.3f} against {d.margin_healthy:.3f} intact)",
+        d.refine_start_exact,
+        "refine names the preamble's exact sample on an intact burst — "
+        "WHICH repetition, which acquisition's code phase cannot say",
     )
     R.limit(
         d.code_dominates,
@@ -1444,14 +1245,14 @@ def build(write: bool = True) -> Report:
             "`bits[i*frame_syms:(i+1)*frame_syms]` with `events()[i]` "
             "describing it. Every sample is consumed whatever the block "
             "size, and a burst split across calls is completed by a later "
-            "one, so a caller never sizes or aligns anything (§2.11).",
+            "one, so a caller never sizes or aligns anything (§2.10).",
             f"**Whether it fits your link.** End to end -- exact sample "
             f"AND valid CRC -- this geometry decodes "
             f"{d.pd_high:.0%} of bursts at {d.pd_rows[0][0]} dB-Hz, "
             f"{d.pd_mid:.0%} at {d.pd_rows[1][0]} and {d.pd_low:.0%} at "
             f"{d.pd_rows[2][0]}: a knee a few dB wide, not a gentle "
-            f"roll-off (§2.6). The numbers belong to the GEOMETRY rather "
-            f"than to the object -- §2.4 moves that knee 11 dB on `reps` "
+            f"roll-off (§2.5). The numbers belong to the GEOMETRY rather "
+            f"than to the object -- `reps` alone moves that knee 11 dB "
             f"alone -- so "
             f"read the SHAPE and re-measure for yours.",
             "**`preamble_start` is the deliverable.** Acquisition reports "
@@ -1461,41 +1262,32 @@ def build(write: bool = True) -> Report:
             "object produces the exact sample, at five positions including "
             "one closer to the stream start than refine's own search span "
             "(§2.2).",
-            "**Refine combines NON-coherently across the preamble's "
-            "repetitions**, and that is the mechanism rather than an "
-            "optimisation: the coherent form was measured wrong by two code "
-            "periods at a quarter of a Doppler bin, with the true position "
-            "639x below the peak it chose (F2).",
-            f"**`refine_margin` is the only thing in the chain that sees a "
-            f"broken hand-off.** A mis-windowed burst still has a carrier, "
-            f"so a lock indicator reads healthy. The margin reads "
-            f"{d.margin_healthy:.3f} on a resolved burst and "
-            f"{d.truncated_margin:.3f} on one whose preamble was clipped, "
-            f"agreeing with the CRC unprompted (§2.3, F7).",
-            "**Compare `refine_margin` against `(reps-1)/reps`, never "
-            "against a constant.** The floor rises with depth, and the "
-            "separation between resolved and unresolved HALVES with every "
-            "doubling of `reps` — 0.37 at 2, 0.05 at 16. So more "
-            "repetitions buy sensitivity and cost discrimination, and a "
-            "fixed threshold is right for exactly one configuration "
-            "(§2.4, F7b).",
+            "**Refine combines COHERENTLY across the preamble's "
+            "repetitions, over a Doppler search**, and the search is the "
+            "mechanism rather than an optimisation: a fixed-phase coherent "
+            "sum was measured wrong by two code periods at a quarter of a "
+            "Doppler bin, with the true position 639x below the peak it "
+            "chose. The slow-time transform covers that residual by "
+            "construction, and buys 21-26 points of correct-repetition "
+            "rate at reps 10-16 against the non-coherent form (F2, "
+            "doppler#1312).",
             f"**Level does not matter, only C/N0 does.** Decoding and the "
-            f"margin are unchanged across {d.amp_span_db:.0f} dB of burst "
+            f"start are unchanged across {d.amp_span_db:.0f} dB of burst "
             f"amplitude at constant C/N0 — every gate in the chain is a "
             f"ratio. Against a fixed noise floor, level and sensitivity "
-            f"are the same axis (§2.5).",
+            f"are the same axis (§2.4).",
             f"**Choose the preamble code on its autocorrelation.** Under "
             f"identical framing and noise an m-sequence "
             f"({d.good_code_pts:.0f} peak-to-sidelobe) finds strictly more "
             f"bursts than a structured code of the same length "
             f"({d.poor_code_pts:.2f}). A 42% loss was first read as the "
             f"non-overlapping framing needing fixing; it was the code "
-            f"(§2.7, F6).",
+            f"(§2.6, F6).",
             "**Checkpoint between bursts.** `state_bytes()` is a pure "
             "function of configuration — jm's binding depends on that — and "
             "a blob taken inside the preamble carries the retained "
             "look-back, so it resumes into a fresh instance and still "
-            "decodes (§2.9, F5).",
+            "decodes (§2.8, F5).",
         ],
     )
     R.summary(

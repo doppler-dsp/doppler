@@ -56,6 +56,7 @@ _Util module — public C API._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**ema\_alpha\_decim**](#function-ema_alpha_decim) (double alpha, size\_t d) <br>_The EMA coefficient that advances_ `d` _samples in one step:_`1 - (1 - alpha)^d` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**ema\_step**](#function-ema_step) (double state, double x, double alpha) <br>_One step of a first-order exponential moving average:_ `state <- state + alpha * (x - state)` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) size\_t | [**next\_pow\_two**](#function-next_pow_two) (size\_t n) <br>_Smallest power of two greater than or equal to_ `n` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**saturate**](#function-saturate) (double v, double lo, double hi, double nan\_to) <br>_Saturate a value into_ `[lo, hi]` _,_**total over every double** _— including NaN and both infinities._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**square\_clip**](#function-square_clip) (float \_Complex y, float lin) <br>_Square-clip a complex sample: clip the real and imaginary parts independently to_ `[-lin, lin]` _(a square region in the IQ plane, not a circular magnitude limit). Each component is passed through unchanged when its magnitude is within the threshold and clamped to the nearest boundary otherwise._ |
 
@@ -244,6 +245,58 @@ NOT total in `x`: a non-finite observation poisons the state permanently, becaus
 ```
  
 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function next\_pow\_two 
+
+_Smallest power of two greater than or equal to_ `n` _._
+```C++
+JM_FORCEINLINE size_t next_pow_two (
+    size_t n
+) 
+```
+
+
+
+The transform-sizing primitive. A zero-padded FFT length, a ring capacity, a grow-on-demand buffer  all of them want the same "round up to a power of two", and all of them had been writing the doubling loop out where they stood. FIVE identical private copies were in the tree when this landed  `detector/det_private.h`, `delay_core.c`, `psd_core.c`, `specan_core.c` and `ppe_core.c`, each a `static` one none of the others could reach  alongside bare `while (c < n) c *= 2` loops seeded from whatever each caller happened to start at, which is the shape that lets one quietly start at 4 and another at 1 and neither be wrong until they are compared. None of the four guarded the overflow below.
+
+
+Saturating rather than wrapping: a doubling loop run past the top of `size_t` shifts to zero and spins forever, so the one case that cannot be expressed returns 0 instead of hanging. A caller sizing an allocation gets a refusal it can see.
+
+
+
+
+**Parameters:**
+
+
+* `n` Value to round up. 0 and 1 both give 1. 
+
+
+
+**Returns:**
+
+The smallest power of two &gt;= `n`, or 0 if that exceeds `SIZE_MAX`. 
+```C++
+>>> from doppler.util import next_pow_two
+>>> next_pow_two(0), next_pow_two(1), next_pow_two(2)
+(1, 1, 2)
+>>> next_pow_two(3), next_pow_two(4), next_pow_two(5)
+(4, 4, 8)
+>>> next_pow_two(1000)        # a zero-padded transform length
+1024
+>>> next_pow_two(1 << 20)     # already a power of two, unchanged
+1048576
+```
+ 
 
 
 

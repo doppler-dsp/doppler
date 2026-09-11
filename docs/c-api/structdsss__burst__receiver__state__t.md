@@ -63,7 +63,6 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  size\_t | [**llr\_len**](#variable-llr_len)  <br> |
 |  uint64\_t | [**n\_bursts**](#variable-n_bursts)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
-|  double | [**refine\_margin**](#variable-refine_margin)  <br> |
 |  size\_t | [**reps**](#variable-reps)  <br> |
 |  size\_t | [**spc**](#variable-spc)  <br> |
 |  uint8\_t \* | [**sync**](#variable-sync)  <br> |
@@ -601,24 +600,6 @@ uint64_t dsss_burst_receiver_state_t::preamble_start;
 
 
 Stream-absolute preamble start. Never late. 
-
-
-        
-
-<hr>
-
-
-
-### variable refine\_margin 
-
-```C++
-double dsss_burst_receiver_state_t::refine_margin;
-```
-
-
-
-Winning preamble correlation over its nearest whole-period competitor. Near 1 means the period was NOT resolved. 
- 
 
 
         

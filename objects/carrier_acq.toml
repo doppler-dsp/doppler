@@ -85,7 +85,7 @@ default = "0.0f"
 # "not supplied": carrier_acq_create() computes the default
 # rectangular-pulse sinc^2 template internally from symbol_rate_hz (the
 # average spectral shape of a random NRZ BPSK symbol stream). A
-# caller-supplied array must be length nfft (== next_pow2(n_fft*zero_pad))
+# caller-supplied array must be length nfft (== next_pow_two(n_fft*zero_pad))
 # and is used verbatim instead, for a different pulse shape/modulation.
 [[carrier_acq.init_params]]
 name = "psd_template"
@@ -172,4 +172,4 @@ doc = "Sequential mode's own give-up cap (independent of dwell_target) -- the ma
 name = "nfft"
 type = "size_t"
 field = true
-doc = "PSD transform length (next_pow2(n_fft*zero_pad)) -- the length any caller-supplied template array must match."
+doc = "PSD transform length (next_pow_two(n_fft*zero_pad)) -- the length any caller-supplied template array must match."

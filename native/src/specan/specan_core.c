@@ -8,6 +8,7 @@
  * the signal processing itself lives in those composed objects.
  */
 #include "specan/specan_core.h"
+#include "util/util_core.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -23,14 +24,6 @@
 #define SPECAN_EPS 1e-20f
 
 /* Smallest power of two >= x (x >= 1). */
-static size_t
-next_pow2 (size_t x)
-{
-  size_t p = 1;
-  while (p < x)
-    p <<= 1;
-  return p;
-}
 
 /* Kaiser beta whose equivalent noise bandwidth (in FFT bins) equals
  * target_enbw, found by bisection on the actual window — exact for this n.
@@ -71,7 +64,7 @@ specan_create (double fs, double span, double rbw, double src_center,
     fs_out = fs;
 
   /* RBW → window length (coarse) + Kaiser beta (fine). */
-  size_t n = next_pow2 ((size_t)ceil (fs_out / rbw));
+  size_t n = next_pow_two ((size_t)ceil (fs_out / rbw));
   if (n < 2)
     n = 2;
   double target_enbw = rbw / (fs_out / (double)n);
@@ -81,7 +74,7 @@ specan_create (double fs, double span, double rbw, double src_center,
 
   /* Zero-padded transform length (must match psd_create's nfft) and the
    * central display crop covering ±span/2. */
-  size_t nfft = next_pow2 (n * SPECAN_PAD);
+  size_t nfft = next_pow_two (n * SPECAN_PAD);
   size_t half = (size_t)lround ((double)nfft / 2.56);
   if (half > nfft / 2)
     half = nfft / 2;

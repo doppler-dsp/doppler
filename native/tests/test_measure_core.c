@@ -77,7 +77,7 @@ main (void)
     DP_CHECK (measure_min_samples (-1.0, 1000.0, 12, 0.0, 1) == 0);
   }
 
-  /* ── measure_rec_nfft: next_pow2(n * max(pad, 1)) ───────────────── */
+  /* ── measure_rec_nfft: next_pow_two(n * max(pad, 1)) ───────────────── */
   {
     DP_CHECK (measure_rec_nfft (1024, 1) == 1024); /* already a power of two */
     DP_CHECK (measure_rec_nfft (1000, 1) == 1024);

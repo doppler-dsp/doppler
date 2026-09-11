@@ -24,7 +24,7 @@ extern "C" {
  * that range — so window leakage never caps SFDR/SNR — while keeping the main
  * lobe (hence resolution bandwidth) as narrow as the data allows. */
 
-/* Internal zero-pad factor (nfft = next_pow2(n * MEASURE_PAD)). */
+/* Internal zero-pad factor (nfft = next_pow_two(n * MEASURE_PAD)). */
 #define MEASURE_PAD 2u
 
 /* Sidelobe headroom below the ideal converter SNR: a B-bit ADC's spur/noise
@@ -174,7 +174,7 @@ typedef struct {
 size_t measure_min_samples(double fs, double target_rbw, size_t bits,
                            double dynamic_range_db, int complex_input);
 
-/** @brief Recommended zero-padded transform length: next_pow2(n * max(pad,1)). */
+/** @brief Recommended zero-padded transform length: next_pow_two(n * max(pad,1)). */
 size_t measure_rec_nfft(size_t n, size_t pad);
 
 /** @brief FFT processing gain in dB: 10*log10(nfft / 2). */

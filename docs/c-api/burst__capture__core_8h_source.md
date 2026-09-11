@@ -27,7 +27,7 @@
 #define BURST_CAPTURE_HITS 16u
 
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
-#define BURST_CAPTURE_STATE_VERSION 2u
+#define BURST_CAPTURE_STATE_VERSION 3u
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,7 +39,6 @@ typedef struct
   double   doppler_hz_est; 
   double   doppler_res_hz; 
   double   cn0_dbhz_est;   
-  double   refine_margin;  
 } burst_capture_event_t;
 
 typedef struct
@@ -57,7 +56,6 @@ typedef struct
   uint64_t start;      
   double   doppler_hz; 
   double   cn0_dbhz;   
-  double   margin;     
   double   peak_mag;   
   int      refined;    
   int      shadowed;   
@@ -84,9 +82,8 @@ typedef struct
   double   doppler_hz_est; 
   double   doppler_res_hz; 
   double   cn0_dbhz_est;   
-  double   refine_margin;  
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
-  float *ref_sign;   
+  corr2d_state_t *pcorr; 
   float _Complex *corr_buf; 
   fft_state_t *slow_fft;    
   float _Complex *slow_in;  
@@ -234,7 +231,6 @@ uint64_t burst_capture_get_preamble_start(const burst_capture_state_t *state);
 double burst_capture_get_doppler_hz_est(const burst_capture_state_t *state);
 double burst_capture_get_doppler_res_hz(const burst_capture_state_t *state);
 double burst_capture_get_cn0_dbhz_est(const burst_capture_state_t *state);
-double burst_capture_get_refine_margin(const burst_capture_state_t *state);
 size_t burst_capture_get_pending(const burst_capture_state_t *state);
 uint64_t burst_capture_get_dropped(const burst_capture_state_t *state);
 uint64_t burst_capture_get_n_bursts(const burst_capture_state_t *state);

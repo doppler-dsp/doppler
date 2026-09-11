@@ -66,7 +66,7 @@ typedef struct {
  * @param fs          Sample rate in Hz (used for dB/Hz and band frequencies).
  * @param window      Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris.
  * @param beta        Kaiser beta (ignored for Hann/Blackman-Harris).
- * @param pad         Zero-pad factor (>= 1); nfft = next_pow2(n * pad).
+ * @param pad         Zero-pad factor (>= 1); nfft = next_pow_two(n * pad).
  * @param full_scale  Amplitude that reads 0 dBFS in the dB getters (> 0).
  *                    Ignored when @p bits > 0.
  * @param bits        ADC depth: when > 0, sets full_scale = 2^(bits-1) (the

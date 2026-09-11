@@ -45,7 +45,6 @@ _One completed burst's event, as_ `events()` _hands it back._[More...](#detailed
 |  double | [**est\_rate\_hz**](#variable-est_rate_hz)  <br> |
 |  uint8\_t | [**frame\_valid**](#variable-frame_valid)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
-|  double | [**refine\_margin**](#variable-refine_margin)  <br> |
 
 
 
@@ -255,24 +254,6 @@ uint64_t dsss_br_event_t::preamble_start;
 
 
 Exact stream position of the preamble. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable refine\_margin 
-
-```C++
-double dsss_br_event_t::refine_margin;
-```
-
-
-
-Runner-up period over the winner. 
  
 
 

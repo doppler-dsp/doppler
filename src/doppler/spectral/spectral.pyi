@@ -834,6 +834,18 @@ class Corr2D:
         bit-exact and allocates no extra buffers.
     nx_out : int, default 0
         Inverse/output columns; 0 => native (nx). Must be >= nx.
+    col_out : int, default -1
+        Emit ONLY this correlation lag, or < 0 for the whole map. When set, a
+        dump writes ny values -- one per row -- instead of ny*nx_out, computed
+        as the time-domain sum `sum_p conj(ref[p]) * row[(p + col_out) mod
+        nx]`, which is what R(i, col_out) expands to once the 1/nx cancels. No
+        transform runs in either direction, so the cost per row is O(nx) rather
+        than O(nx log nx). Requires the single-row-reference fast path (a
+        caller that knows its lag is by construction correlating against a code
+        replica) and the NATIVE output grid: an interpolated column is a
+        fractional lag, which no time-domain sum produces. create() returns
+        NULL if col_out >= 0 with a reference the fast path rejects, with
+        ny_out or nx_out decoupled, or with a lag outside [0, nx).
 
     Examples
     --------
@@ -852,6 +864,7 @@ class Corr2D:
         nthreads: int = ...,
         ny_out: int = ...,
         nx_out: int = ...,
+        col_out: int = ...,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -918,7 +931,9 @@ class Corr2D:
         """
 
     def execute_max_out(self) -> int:
-        """Maximum output samples per execute call (always == ny*nx).
+        """Maximum output samples per execute call (corr2d_state_t::n_out --
+        ny*nx_out normally, or ny when a single corr2d_state_t::col_out was
+        selected).
 
         Returns
         -------
@@ -1000,6 +1015,10 @@ class Corr2D:
         """ny_out * nx_out — output element count."""
 
     @property
+    def col_out(self) -> int:
+        """Output column, or < 0 for the full map."""
+
+    @property
     def dwell(self) -> int:
         """Integration depth."""
 
@@ -1061,7 +1080,7 @@ class CorrDetector:
     chunk sizes can be pushed. After every int-dump the peak-to-noise test
     statistic is compared against threshold; a det_result_t is emitted when it
     passes. Setting threshold to 0.0 unconditionally fires on every dump. The
-    ring capacity is next_pow2(max(n, 512)) complex samples.
+    ring capacity is next_pow_two(max(n, 512)) complex samples.
 
     Parameters
     ----------
@@ -1559,7 +1578,7 @@ class PSD:
     beta : float, default 0.0
         Kaiser beta (ignored for Hann/Blackman-Harris).
     pad : int, default 1
-        Zero-pad factor (>= 1); nfft = next_pow2(n * pad).
+        Zero-pad factor (>= 1); nfft = next_pow_two(n * pad).
     full_scale : float, default 1.0
         Amplitude that reads 0 dBFS in the dB getters (> 0). Ignored when bits
         > 0.

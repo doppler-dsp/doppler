@@ -29,6 +29,19 @@ extern "C"
     return r + i * I;
   }
 
+  JM_FORCEINLINE size_t
+  next_pow_two (size_t n)
+  {
+    size_t c = 1u;
+    while (c < n)
+      {
+        if (c > ((size_t)-1) / 2u)
+          return 0u;
+        c <<= 1;
+      }
+    return c;
+  }
+
   JM_FORCEINLINE double
   saturate (double v, double lo, double hi, double nan_to)
   {

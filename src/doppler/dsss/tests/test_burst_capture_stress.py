@@ -19,7 +19,6 @@ import numpy as np
 
 from doppler.dsss.tests.characterization.burst_capture.characterize import (
     BURST_LEN,
-    REPS,
     SIGMA,
     _gaps,
     acq_code,
@@ -49,11 +48,13 @@ def test_a_generous_gap_captures_both_bursts():
     """The top of the envelope: well past the floor, both come back."""
     found, _extra, rows = run_pair(gap=_gaps(capture().min_gap)[-1], seed=7)
     assert found == 2, "both transmitted bursts must be captured"
-    real = [r for r in rows if r[2]]
+    real = [r for r in rows if r[1]]
     assert len(real) == 2
-    # A resolved period sits at the (reps-1)/reps envelope, not near 1.
-    envelope = (REPS - 1) / REPS
-    assert all(r[0] < envelope + 0.15 for r in real)
+    # Every window that landed on a real burst reports a C/N0 above the
+    # spurious population's -- the one read-back a caller filters with.
+    spur = [r for r in rows if not r[1]]
+    if spur:
+        assert min(r[0] for r in real) > max(r[0] for r in spur)
 
 
 def test_touching_bursts_are_the_hard_end():
@@ -69,7 +70,7 @@ def test_touching_bursts_are_the_hard_end():
 
 
 def test_separation_reports_both_populations():
-    rows = [(0.8, 57.0, True), (0.86, 48.0, False)]
+    rows = [(57.0, True), (48.0, False)]
     sep = separation(rows)
     assert sep["n_real"] == 1 and sep["n_spurious"] == 1
     # cn0 is the statistic that separates; the characterization measured

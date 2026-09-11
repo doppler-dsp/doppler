@@ -1202,7 +1202,7 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
          ACQ_DOPPLER_INTERP). */
       new_corr = corr2d_create (
           new_ref, (new_freq_bins > 1) ? 1 : new_db * new_interp, cb, 1, 1, 0,
-          0); /* wideband mode never runs it: one row, not D * interp */
+          0, -1); /* wideband mode never runs it: one row, not D * interp */
       if (!new_corr)
         goto fail;
       /* Zero-padded slow-time transform: `new_db` real inputs into a

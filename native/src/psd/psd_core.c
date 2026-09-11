@@ -18,20 +18,13 @@
  */
 #include "psd/psd_core.h"
 #include "spectral/spectral_core.h"
+#include "util/util_core.h"
 #include <math.h>
 
 /* Power floor (~ -200 dB) guarding log10 of empty / zero bins. */
 #define PSD_FLOOR 1e-20
 
 /* Smallest power of two >= x. */
-static size_t
-next_pow2 (size_t x)
-{
-  size_t p = 1;
-  while (p < x)
-    p <<= 1;
-  return p;
-}
 
 /* ── lifecycle ─────────────────────────────────────────────────────────── */
 
@@ -55,7 +48,7 @@ psd_create (size_t n, double fs, int window, float beta, size_t pad,
   if (!s)
     return NULL;
 
-  const size_t nfft = next_pow2 (n * pad);
+  const size_t nfft = next_pow_two (n * pad);
   s->n              = n;
   s->nfft           = nfft;
   s->fs             = fs;

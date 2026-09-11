@@ -52,16 +52,6 @@ dsss_br_frame_valid (const dsss_burst_receiver_state_t *s)
   return rx == dp_crc16_ccitt (bits + s->sync_len, payload);
 }
 
-/** @brief Smallest power of two >= n (the ring's capacity contract). */
-static size_t
-dsss_br_pow2_ceil (size_t n)
-{
-  size_t p = 1u;
-  while (p < n)
-    p <<= 1;
-  return p;
-}
-
 dsss_burst_receiver_state_t *
 dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
                             const uint8_t *data_code, size_t data_code_len,
@@ -195,7 +185,6 @@ dsss_burst_receiver_reset (dsss_burst_receiver_state_t *state)
   state->est_rate_hz        = 0.0;
   state->demod_cn0_dbhz     = 0.0;
   state->demod_timing_chips = 0.0;
-  state->refine_margin      = 0.0;
 
   /* n_bursts and dropped are LIFETIME counters and deliberately survive:
    * they answer "did this receiver ever lose samples", which a reset that
@@ -249,7 +238,6 @@ dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
   s->doppler_hz_est     = ce->doppler_hz_est;
   s->doppler_res_hz     = ce->doppler_res_hz;
   s->cn0_dbhz_est       = ce->cn0_dbhz_est;
-  s->refine_margin      = ce->refine_margin;
   s->est_freq_hz        = s->demod->est_freq_hz;
   s->est_rate_hz        = s->demod->est_rate_hz;
   s->demod_cn0_dbhz     = s->demod->est_cn0_dbhz;
@@ -293,7 +281,6 @@ dsss_br_demod_one (dsss_burst_receiver_state_t *s, size_t i, uint8_t *out,
     r->est_rate_hz        = s->est_rate_hz;
     r->demod_cn0_dbhz     = s->demod_cn0_dbhz;
     r->demod_timing_chips = s->demod_timing_chips;
-    r->refine_margin      = s->refine_margin;
     r->frame_valid        = (uint8_t)s->frame_valid;
   }
   return n;
@@ -442,13 +429,6 @@ dsss_burst_receiver_get_demod_cn0_dbhz (
   return state->demod_cn0_dbhz;
 }
 
-double
-dsss_burst_receiver_get_refine_margin (
-    const dsss_burst_receiver_state_t *state)
-{
-  return state->refine_margin;
-}
-
 bool
 dsss_burst_receiver_get_frame_valid (const dsss_burst_receiver_state_t *state)
 {
@@ -537,7 +517,7 @@ dsss_burst_receiver_state_bytes (const dsss_burst_receiver_state_t *s)
      the half it owns. */
   return sizeof (dp_state_hdr_t)
          + sizeof (uint64_t) * 2u /* n_bursts, preamble_start              */
-         + sizeof (double) * 8u   /* the event's doubles                   */
+         + sizeof (double) * 7u   /* the event's doubles                   */
          + burst_capture_state_bytes (s->cap);
 }
 
@@ -558,7 +538,6 @@ dsss_burst_receiver_get_state (const dsss_burst_receiver_state_t *s,
   dp_w_f64 (&_w, s->est_rate_hz);
   dp_w_f64 (&_w, s->demod_cn0_dbhz);
   dp_w_f64 (&_w, s->demod_timing_chips);
-  dp_w_f64 (&_w, s->refine_margin);
 
   /* The capture's sub-blob, self-validating: it opens with its own envelope,
      so a corrupted or foreign child is rejected by the child rather than
@@ -590,7 +569,6 @@ dsss_burst_receiver_set_state (dsss_burst_receiver_state_t *s,
   s->est_rate_hz        = dp_r_f64 (&_r);
   s->demod_cn0_dbhz     = dp_r_f64 (&_r);
   s->demod_timing_chips = dp_r_f64 (&_r);
-  s->refine_margin      = dp_r_f64 (&_r);
 
   {
     const void *region

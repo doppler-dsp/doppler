@@ -39,7 +39,6 @@ _One detection between acquisition and emission._ [More...](#detailed-descriptio
 |  uint64\_t | [**anchor**](#variable-anchor)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  double | [**doppler\_hz**](#variable-doppler_hz)  <br> |
-|  double | [**margin**](#variable-margin)  <br> |
 |  double | [**peak\_mag**](#variable-peak_mag)  <br> |
 |  int | [**refined**](#variable-refined)  <br> |
 |  int | [**shadowed**](#variable-shadowed)  <br> |
@@ -144,24 +143,6 @@ double burst_capture_pending_t::doppler_hz;
 
 
 Signed coarse Doppler, Hz. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable margin 
-
-```C++
-double burst_capture_pending_t::margin;
-```
-
-
-
-Refine runner-up ratio; valid once `refined`. 
  
 
 

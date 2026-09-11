@@ -122,12 +122,7 @@ def test_push_returns_windows_and_a_matching_event():
     assert ev["preamble_start"][0] == cap.preamble_start == at
     assert ev["doppler_res_hz"][0] == cap.doppler_res_hz > 0.0
     assert ev["cn0_dbhz_est"][0] == cap.cn0_dbhz_est
-    assert ev["refine_margin"][0] == cap.refine_margin
     assert ev["doppler_hz_est"][0] == cap.doppler_hz_est
-    # The margin's floor is (reps-1)/reps, never a constant: it RISES with
-    # depth, so comparing against 0.9 at reps=16 would assert nothing.
-    assert ev["refine_margin"][0] < (REPS - 1) / REPS + 0.1
-
     assert cap.dropped == 0
     assert cap.n_bursts == 1
     assert cap.pending == 0

@@ -1132,7 +1132,7 @@ async_dsss_receiver_steps (async_dsss_receiver_state_t *state,
        * the plan doc). Uses `refine_n_fft` (the RAW per-block sample
        * count `carrier_acq_create()` consumes per `n_blocks` increment)
        * -- NOT `ca->nfft` (the zero-padded PSD *transform* length,
-       * `next_pow2(refine_n_fft*refine_zero_pad)`, a different and much
+       * `next_pow_two(refine_n_fft*refine_zero_pad)`, a different and much
        * larger number). */
       double target_rate
           = (double)state->refine_samples_per_symbol * state->symbol_rate;

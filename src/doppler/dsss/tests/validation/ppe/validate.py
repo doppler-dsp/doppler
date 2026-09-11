@@ -592,7 +592,8 @@ def review(d: Data) -> None:
         "FIXED",
         "**The `nfft` field comment was wrong by 4x.** It documented the "
         'transform length as *"next pow2 of max_len"*; the implementation '
-        "uses `next_pow2 (max_len) << 2`. Not cosmetic: `nfft` sizes `buf`, "
+        "uses `next_pow_two (max_len) << 2`. Not cosmetic: `nfft` sizes "
+        "`buf`, "
         "`spec` and `mag`, so a caller budgeting memory from the header was "
         "out by a factor of four on three buffers. The 4x is also what "
         "makes the sub-bin accuracy in §2.1 what it is, so the comment was "
@@ -670,7 +671,7 @@ def limits(d: Data) -> None:
     )
     R.limit(
         d.nfft_is_4x,
-        "nfft is 4 * next_pow2(max_len) at three lengths — the documented "
+        "nfft is 4 * next_pow_two(max_len) at three lengths — the documented "
         "footprint, corrected",
     )
     R.limit(
@@ -752,7 +753,8 @@ def build(write: bool = True) -> Report:
             f"quadrupling the segment adds {d.snr_gain_db:.1f} dB on "
             f"identical input. A confidence threshold set from it moves "
             f"whenever the segment length does (§2.4, F3).",
-            "**`nfft` is 4x next_pow2(max_len), not next_pow2.** The header "
+            "**`nfft` is 4x next_pow_two(max_len), not next_pow_two.** The "
+            "header "
             "said otherwise, and three buffers scale with it — so memory "
             "budgeted from the old comment was out by four (§2.3, F2).",
             "**`max_rate = 0` returns rate exactly 0.0**, not a small "

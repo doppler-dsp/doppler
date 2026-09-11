@@ -46,7 +46,7 @@ ______________________________________________________________________
 push arbitrary-sized chunks. After each integrate-and-dump it compares the
 peak-to-noise test statistic against `threshold` and emits a detection result
 when it passes (`threshold = 0.0` fires on every dump). The ring capacity is
-`next_pow2(max(n, 512))` complex samples.
+`next_pow_two(max(n, 512))` complex samples.
 
 ```python
 import numpy as np
@@ -81,7 +81,7 @@ ______________________________________________________________________
 the single PSD core the [measurement suite](python-measure.md) also consumes (see
 the [Power Spectra & Measurements guide](../guide/spectral-psd.md) for the usage
 walk-through). A capture longer than `n` is split into `floor(len/n)` segments;
-each is windowed, **zero-padded to `nfft = next_pow2(n·pad)`**, FFT'd, converted
+each is windowed, **zero-padded to `nfft = next_pow_two(n·pad)`**, FFT'd, converted
 to power, fftshifted to DC-centred order and folded into a running average
 ([`AccTrace`](python-accumulator.md), `mode` of `"mean"` / `"exp"` / `"maxhold"`
 / `"minhold"`). Feed complex baseband with `accumulate()` or real input with
@@ -96,7 +96,7 @@ cf32_capture = (np.random.randn(8192)
 w = PSD(n=1024, fs=1e6, window="kaiser", beta=8.0,
           pad=2, full_scale=1.0, bits=0, mode="mean")   # bits>0 -> 2**(bits-1)
 w.accumulate(cf32_capture)                 # or w.accumulate_real(f32_capture)
-w.n, w.nfft                                # 1024, 2048 (= next_pow2(1024 * 2))
+w.n, w.nfft                                # 1024, 2048 (= next_pow_two(1024 * 2))
 
 # display spectra (DC-centred, dBFS w.r.t. full_scale)
 psd_db = w.psd_db()                        # averaged power spectrum, dB

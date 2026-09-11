@@ -24,7 +24,7 @@ class CarrierAcquisition:
         Kaiser beta (ignored for hann/blackman-harris).
     psd_template : NDArray[np.float32], default ...
         Known PSD-shape template override, length must equal nfft =
-        next_pow2(round(sample_rate_hz /resolution_hz) * zero_pad);
+        next_pow_two(round(sample_rate_hz /resolution_hz) * zero_pad);
         NULL/length-0 means "not supplied" -- the default rectangular-pulse
         sinc^2 template (from symbol_rate_hz) is used.
     pfa : float, default 1e-3
@@ -230,8 +230,8 @@ class CarrierAcquisition:
 
     @property
     def nfft(self) -> int:
-        """PSD transform length (next_pow2(n_fft*zero_pad)) -- the length any
-        caller-supplied template array must match.
+        """PSD transform length (next_pow_two(n_fft*zero_pad)) -- the length
+        any caller-supplied template array must match.
         """
 
     def destroy(self) -> None:

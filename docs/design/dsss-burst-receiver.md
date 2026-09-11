@@ -145,27 +145,35 @@ event chainable rather than merely consumable.
 **preamble** can, because it has finite extent — its edges break exactly the
 periodicity a bare code correlation is blind to. Score a candidate offset by
 correlating one code period at each of the `REPS` positions the preamble
-would occupy and summing the **magnitudes**; the score at a whole-period
-offset `k` follows the triangular overlap envelope `(REPS - abs(k)) / REPS`,
-because only `REPS - abs(k)` of those positions still land on preamble.
+would occupy, then combining those `REPS` correlations **coherently** across
+the repetitions — a zero-padded slow-time transform, strongest bin taken. The
+score at a whole-period offset `k` still follows the triangular overlap
+envelope `(REPS - abs(k)) / REPS`, because only `REPS - abs(k)` of those
+positions land on preamble.
 
-**Combine non-coherently, one code period at a time — not the whole preamble
-as one reference.** This correction cost a measurement: the first version
-correlated all `REPS × P` samples coherently and was verified on a capture
-with *zero* Doppler, where it cannot fail. Acquisition leaves up to half a
-bin of residual, and a coherent integration that long does not survive it:
+**Coherent, but only with a Doppler search across the repetitions — not a
+fixed-phase sum.** This distinction cost a measurement: the first version
+correlated all `REPS × P` samples coherently at ONE phase and was verified on
+a capture with *zero* Doppler, where it cannot fail. Acquisition leaves up to
+half a bin of residual, and a fixed-phase integration that long does not
+survive it:
 
-| residual Doppler | coherent whole preamble                                    | non-coherent per period |
+| residual Doppler | fixed-phase whole preamble                                 | non-coherent per period |
 | ---------------- | ---------------------------------------------------------- | ----------------------- |
 | 0                | exact                                                      | exact                   |
 | 0.25 bin         | **wrong by 2 periods** (true position 639× below the peak) | exact                   |
 | 0.50 bin         | **wrong by 1 period** (310× below)                         | exact                   |
 
-So the per-period form is not an optimization, it is the mechanism. Each
-correlation spans one code period rather than `REPS` of them, so the phase
-rotation a half-bin residual produces stays small enough to integrate
-through, and the envelope survives. It is the same coherent-then-non-coherent
-split `acq` itself uses, applied to a finer question.
+So the per-period correlation is not an optimization, it is the mechanism.
+Each correlation spans one code period rather than `REPS` of them, so the
+phase rotation a half-bin residual produces stays small within a period —
+and the residual that remains ACROSS the periods is then searched rather
+than tolerated. That search is what lets the combining be coherent: its
+unambiguous span is `±1/(2P)` and acquisition can leave at most `1/(2·D·P)`,
+so it covers the residual by construction, with no hypothesis range to
+choose. Summing magnitudes instead was the original answer and sheds the
+combining loss as the preamble deepens — see doppler#1312 for the sweep that
+replaced it.
 
 Measured at three noise levels, against a coarse guess deliberately placed
 two periods early:
@@ -438,36 +446,39 @@ decision already made.
 ### 6.1 The refine stage's margin and span
 
 The *mechanism* is settled (§3.4): correlate one code period at each of the
-preamble's `REPS` positions, sum the magnitudes, and the triangular overlap
-envelope names the repetition. What is not settled is its operating
-envelope.
+preamble's `REPS` positions, combine those correlations coherently across
+the repetitions through a zero-padded slow-time transform, and take the
+strongest bin. What is not settled is its operating envelope.
 
-- **The discrimination margin — MEASURED** (phase 7,
+- **Where it stops naming the right repetition — MEASURED** (phase 7,
     `src/doppler/dsss/tests/characterization/dsss_burst_receiver/`). At
-    `REPS = 4`, `ACQ_SF = 31`: `refine_margin` sits at **0.774** against the
-    predicted `(REPS-1)/REPS = 0.750` from 100 dB-Hz down to about 70, then
-    climbs as the rival closes — 0.81 at 66 dB-Hz, 0.83 at 63, 0.87 at 56.5.
-    The correct-period rate holds at 100% to roughly 60 dB-Hz and falls off a
-    cliff below: 88% at 57.7, 58% at 56.5. So the knee for this geometry is
-    **~58–60 dB-Hz**, and `refine_margin` is a usable health signal rather
-    than an ornament: it reads ~0.87 where the stage is failing against
-    ~0.775 where it is not.
+    `REPS = 4`, `ACQ_SF = 31` the correct-period rate holds at 100% to
+    roughly 60 dB-Hz and falls off a cliff below: 88% at 57.7, 58% at 56.5.
+    The knee for this geometry is **~58–60 dB-Hz**.
 
-    **How the floor moves with `REPS` — MEASURED, and it is a trade.** The
-    floor is `(REPS-1)/REPS`, so it RISES with depth: 0.55 measured at
-    `REPS=2`, 0.77 at 4, 0.89 at 8, 0.94 at 16. The separation between a
-    resolved burst and an unresolved one therefore **halves with every
-    doubling** — 0.37, 0.20, 0.10, 0.05 — while the acquisition knee
-    improves from 66.0 to 54.9 dB-Hz over the same range. More repetitions
-    buy sensitivity and cost discrimination. Concretely: compare
-    `refine_margin` against `(REPS-1)/REPS`, never against a constant; the
-    certification asserted a fixed 0.9 until this sweep was run, which is
-    correct at `REPS=4` and wrong at 8 and 16.
+    **Depth buys sensitivity.** The acquisition knee improves from 66.0 to
+    54.9 dB-Hz as `REPS` goes 2 → 16. Under the non-coherent boxcar this
+    came at a cost in discrimination that grew with the same knob; the
+    coherent slide reverses that, gaining about `10·log10(REPS)` where the
+    boxcar gained `5·log10(REPS)` — swept at 300 trials a point, the
+    correct-repetition rate at 39 dB-Hz went 0.59 → 0.70 at `REPS=5`,
+    0.60 → 0.81 at 10 and 0.54 → 0.80 at 16 (doppler#1312).
 
-    **A margin measured only where it does not fail is not a margin** — and
-    this section's own first draft is the cautionary case: the coherent form
-    was "verified" on a zero-Doppler capture and was wrong by two code
-    periods the moment a quarter of a bin was present.
+    **`refine_margin` was removed** (doppler#1312). It reported the
+    runner-up period over the winner, nothing in the library branched on
+    it, and its floor was `(REPS-1)/REPS` — rising with depth (0.55 at 2,
+    0.77 at 4, 0.94 at 16) so that the separation between a resolved and
+    an unresolved burst halved with every doubling. It was also most
+    confident where it was most wrong: `burst-capture.md` records a
+    mis-windowed burst reading 0.68 against a correct 0.81.
+
+    **A property measured only where it does not fail is not measured** —
+    and this section's own first draft is the cautionary case: a
+    fixed-phase coherent form was "verified" on a zero-Doppler capture and
+    was wrong by two code periods the moment a quarter of a bin was
+    present. The Doppler search is what makes the coherent form safe; the
+    span it covers is `±1/(2P)` against the at-most `1/(2·D·P)` that
+    acquisition can leave, so it covers the residual by construction.
 
 - **What actually loses bursts is the CODE, not the framing.** The same
     characterization swept the burst's start across a whole acquisition frame
@@ -499,8 +510,9 @@ envelope.
     It is `dsss_br_refine()`, a static function in
     `dsss_burst_receiver_core.c`. It does not compose `Corr` as this bullet
     guessed: the candidates are `anchor + k·P` and nothing between, so the
-    stage correlates one code period at each preamble position against a
-    sign reference the receiver holds, and sums magnitudes (§3.4). The
+    stage correlates one code period at each preamble position — through
+    `corr2d`'s known-lag mode, so the code replica has one home — and
+    combines the results coherently over a Doppler search (§3.4). The
     decision followed phase 3, as this bullet asked — the wording stayed
     open long after the code closed it. Where refine LIVES is a separate
     question, and §11 answers it: out of this object, into `BurstCapture`,
@@ -572,8 +584,8 @@ push(x, n) ->
               stops once its result array fills and abandons the rest)
     per claimed burst WHOSE WINDOW HAS ARRIVED -- all of them, not one:
         REFINE   score offsets over +/- REPS*P: one code-period
-                 correlation per preamble position, magnitudes
-                 summed non-coherently                            (§3.4)
+                 correlation per preamble position, combined
+                 coherently over a Doppler search                 (§3.4)
                  -> exact preamble_start, to the sample
         EVENT    build DetectionEvent (fold via dp_fftfreq, one home)
         DEMOD    window the burst from the event ALONE            (goal 4)

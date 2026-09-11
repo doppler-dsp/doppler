@@ -1061,7 +1061,7 @@ def measure_min_samples(
     """
 
 def measure_rec_nfft(n: int, pad: int) -> int:
-    """Recommended zero-padded transform length: next_pow2(n * pad).
+    """Recommended zero-padded transform length: next_pow_two(n * pad).
 
     Parameters
     ----------

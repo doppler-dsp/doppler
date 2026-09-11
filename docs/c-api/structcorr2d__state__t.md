@@ -37,6 +37,8 @@ _2-D FFT correlator state._ [More...](#detailed-description)
 | Type | Name |
 | ---: | :--- |
 |  float \_Complex \* | [**accum**](#variable-accum)  <br> |
+|  int | [**col\_out**](#variable-col_out)  <br> |
+|  float \_Complex \* | [**col\_ref**](#variable-col_ref)  <br> |
 |  size\_t | [**count**](#variable-count)  <br> |
 |  size\_t | [**dwell**](#variable-dwell)  <br> |
 |  int | [**fast\_path**](#variable-fast_path)  <br> |
@@ -123,6 +125,41 @@ float _Complex* corr2d_state_t::accum;
 
 
 Coherent product-spectrum accumulator, same (ny,nx)/reinterpretation rule as work\_fft. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable col\_out 
+
+```C++
+int corr2d_state_t::col_out;
+```
+
+
+
+Output column, or &lt; 0 for the full map. 
+
+
+        
+
+<hr>
+
+
+
+### variable col\_ref 
+
+```C++
+float _Complex* corr2d_state_t::col_ref;
+```
+
+
+
+conj(ref row 0) in the TIME domain, length nx; NULL when col\_out &lt; 0. 
  
 
 

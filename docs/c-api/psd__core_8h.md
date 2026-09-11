@@ -322,7 +322,7 @@ psd_state_t * psd_create (
 * `fs` Sample rate in Hz (used for dB/Hz and band frequencies). 
 * `window` Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris. 
 * `beta` Kaiser beta (ignored for Hann/Blackman-Harris). 
-* `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow2(n \* pad). 
+* `pad` Zero-pad factor (&gt;= 1); nfft = next\_pow\_two(n \* pad). 
 * `full_scale` Amplitude that reads 0 dBFS in the dB getters (&gt; 0). Ignored when `bits` &gt; 0. 
 * `bits` ADC depth: when &gt; 0, sets full\_scale = 2^(bits-1) (the single definition of the dBFS reference); 0 = use `full_scale` directly. 
 * `mode` Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold). 

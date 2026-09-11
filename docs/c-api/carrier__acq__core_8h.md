@@ -187,7 +187,7 @@ carrier_acq_state_t * carrier_acq_create (
 * `zero_pad` PSD zero-pad factor (&gt;= 1); see [**psd\_core.h**](psd__core_8h.md). 
 * `window` Enum index; 0=hann, 1=kaiser, 2=blackman-harris. 
 * `beta` Kaiser beta (ignored for hann/blackman-harris). 
-* `psd_template` Known PSD-shape template override, length must equal nfft = next\_pow2(round(sample\_rate\_hz /resolution\_hz) \* zero\_pad); NULL/length-0 means "not supplied"  the default rectangular-pulse sinc^2 template (from symbol\_rate\_hz) is used. 
+* `psd_template` Known PSD-shape template override, length must equal nfft = next\_pow\_two(round(sample\_rate\_hz /resolution\_hz) \* zero\_pad); NULL/length-0 means "not supplied"  the default rectangular-pulse sinc^2 template (from symbol\_rate\_hz) is used. 
 * `psd_template_len` Length of `psd_template` (0 if not supplied). 
 * `pfa` Target per-test false-alarm probability. 
 * `pd` Target detection probability. 

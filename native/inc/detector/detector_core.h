@@ -114,7 +114,7 @@ typedef struct
  * chunk sizes can be pushed.  After every int-dump the peak-to-noise test
  * statistic is compared against @p threshold; a det_result_t is emitted when
  * it passes.  Setting @p threshold to 0.0 unconditionally fires on every dump.
- * The ring capacity is next_pow2(max(n, 512)) complex samples.
+ * The ring capacity is next_pow_two(max(n, 512)) complex samples.
  *
  * @param ref        Reference signal, CF32 ndarray of length ref_len.
  * @param ref_len    Reference / FFT length in complex samples.

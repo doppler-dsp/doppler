@@ -178,7 +178,7 @@ static PyGetSetDef PolynomialPhaseEstimator_getset[] = {
   { "max_len", (getter)PolynomialPhaseEstimator_getprop_max_len, NULL,
     "max input length (sizes the plan/scratch).\n", NULL },
   { "nfft", (getter)PolynomialPhaseEstimator_getprop_nfft, NULL,
-    "zero-padded transform length: 4 * next_pow2 (max_len). The 4x is "
+    "zero-padded transform length: 4 * next_pow_two (max_len). The 4x is "
     "deliberate -- a finer frequency grid before the parabolic peak "
     "refinement, which matters because the input is often short (preamble "
     "partials, symbol streams). It also sizes `buf`, `spec` and `mag`, so "

@@ -312,7 +312,6 @@ def characterise() -> Data:
     )
     R.md()
     cn0_gap = d.sep.get("cn0_real", 0) - d.sep.get("cn0_spurious", 0)
-    margin_gap = d.sep.get("margin_spurious", 0) - d.sep.get("margin_real", 0)
     R.table(
         ["statistic", "at a real burst", "at a spurious window", "separation"],
         [
@@ -322,22 +321,19 @@ def characterise() -> Data:
                 f"{d.sep.get('cn0_spurious', float('nan')):.1f}",
                 f"{cn0_gap:.1f} dB",
             ],
-            [
-                "`refine_margin`",
-                f"{d.sep.get('margin_real', float('nan')):.3f}",
-                f"{d.sep.get('margin_spurious', float('nan')):.3f}",
-                f"{margin_gap:.3f}",
-            ],
         ],
     )
     R.md()
     R.md(
         f"Over {d.sep.get('n_real', 0)} real and "
-        f"{d.sep.get('n_spurious', 0)} spurious windows. The answer is "
-        "`cn0_dbhz_est`, and it is not the intuitive one — `refine_margin` "
-        "is the stage's own health signal and separates the two populations "
-        "by a few hundredths, because a window on noise has no period to "
-        "resolve and scores much like one that resolved it. Recorded as F2."
+        f"{d.sep.get('n_spurious', 0)} spurious windows. `cn0_dbhz_est` is "
+        "the only read-back on this object a caller should filter with. "
+        "`refine_margin` used to sit in this table as the intuitive "
+        "alternative and separated the two populations by a few hundredths "
+        "against this one's dB — a window on noise has no code period to "
+        "resolve, so it scored much like one that resolved it. It was "
+        "removed outright in doppler#1312; F2 is kept as the record of why "
+        "it was the wrong filter."
     )
     R.md()
 
@@ -422,7 +418,6 @@ def characterise() -> Data:
     d.rows_match = bool(len(c1.events()) == win.size // BURST_LEN)
     d.accessors_agree = bool(
         int(c1.preamble_start) == int(c1.events()["preamble_start"][0])
-        and c1.refine_margin == float(c1.events()["refine_margin"][0])
         and c1.cn0_dbhz_est == float(c1.events()["cn0_dbhz_est"][0])
     )
     d.res_hz_ok = bool(c1.doppler_res_hz > 0.0)
@@ -594,16 +589,17 @@ def review(d: Data) -> None:
     R.find(
         "F2",
         "BY DESIGN",
-        "**`refine_margin` is not the statistic to filter on; `cn0_dbhz_est` "
-        f"is.** The margin separates real from spurious windows by "
-        f"{d.sep.get('margin_spurious', 0) - d.sep.get('margin_real', 0):.3f} "
-        f"against C/N0's "
+        "**`refine_margin` was not the statistic to filter on; "
+        "`cn0_dbhz_est` is** — and the margin has since been removed "
+        "(doppler#1312). It separated real from spurious windows by "
+        "hundredths against C/N0's "
         f"{d.sep.get('cn0_real', 0) - d.sep.get('cn0_spurious', 0):.1f} dB "
-        "(§2.5). That reads as a defect and is not one: the margin answers "
-        "'was the code PERIOD resolved', and a window sitting on noise has "
-        "no period to resolve, so it scores much like one that did. It is a "
-        "hand-off health signal, which is a different question from 'is "
-        "anything there'.",
+        "(§2.5), which read as a defect and was not one: the margin "
+        "answered 'was the code PERIOD resolved', and a window sitting on "
+        "noise has no period to resolve, so it scored much like one that "
+        "did. Kept as the record of why an intuitive read-back was the "
+        "wrong filter, and of what replaced it: nothing, because "
+        "`cn0_dbhz_est` was always the answer.",
     )
     R.find(
         "F3",
@@ -799,11 +795,11 @@ def build(write: bool = True) -> Report:
             "gives `max(0, refine_span - burst_len)`; measured, a pair needs "
             f"{next((g for g, f in zip(d.gaps, d.found) if f >= 1.0), 0)} "
             "samples before both bursts are reliably captured (§2.4, F1).",
-            "**Filter on `cn0_dbhz_est`, not `refine_margin`.** A spurious "
-            "window is expected at `pfa = 1e-3` and this object will not "
-            "gate on quality; C/N0 separates the two populations by "
+            "**Filter on `cn0_dbhz_est`.** A spurious window is expected "
+            "at `pfa = 1e-3` and this object will not gate on quality; "
+            "C/N0 separates the two populations by "
             f"{d.sep.get('cn0_real', 0) - d.sep.get('cn0_spurious', 0):.1f} "
-            "dB while the margin separates them by hundredths (§2.5, F2).",
+            "dB, and it is the only read-back that does (§2.5, F2).",
             "**Block size is not a parameter of the answer.** From 333 "
             "samples to a push larger than the ring, the windows are "
             "bit-identical and nothing is dropped (§2.3).",

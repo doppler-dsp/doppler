@@ -17,18 +17,11 @@
 #include <string.h>
 
 /* det_noise_mode_t must be visible before this header is included. */
+#include "util/util_core.h"
+
 #ifndef DET_NOISE_MODE_T_DEFINED
 #  error "Include detector_core.h or detector2d_core.h before det_private.h"
 #endif
-
-static size_t
-next_pow2 (size_t n)
-{
-  size_t c = 1;
-  while (c < n)
-    c <<= 1;
-  return c;
-}
 
 /* Create a dp_f32_t ring of at least cap_min complex samples.
  * dp_f32_create requires the byte count to be page-aligned, which varies
@@ -37,7 +30,7 @@ next_pow2 (size_t n)
 static dp_f32_t *
 det_ring_create (size_t cap_min)
 {
-  size_t cap = next_pow2 (cap_min > 1 ? cap_min : 1);
+  size_t cap = next_pow_two (cap_min > 1 ? cap_min : 1);
   dp_f32_t *ring = NULL;
   while (!ring)
     {

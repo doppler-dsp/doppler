@@ -56,7 +56,7 @@ extern "C"
   typedef struct
   {
     size_t max_len;  /**< max input length (sizes the plan/scratch).        */
-    size_t nfft;     /**< zero-padded transform length: 4 * next_pow2
+    size_t nfft;     /**< zero-padded transform length: 4 * next_pow_two
                           (max_len). The 4x is deliberate -- a finer
                           frequency grid before the parabolic peak
                           refinement, which matters because the input

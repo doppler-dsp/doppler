@@ -60,9 +60,9 @@ Bottom left
     alongside `doppler_hz_est`.
 
 Bottom right
-    Quality: the C/N0 estimate against the analytic C/N0 of the scene, the
-    estimator's own confidence, and the refine margin against the 1.0 it
-    must stay under. Every bar is a probe a caller can read at run time.
+    Quality: the C/N0 estimate against the analytic C/N0 of the scene, and
+    the estimator's own confidence. Every bar is a probe a caller can read
+    at run time.
 """
 
 import matplotlib
@@ -322,15 +322,14 @@ CN0_DBHZ_TRUE = ESN0_DB + 10.0 * np.log10(CHIP_RATE / DATA_SF)
 print("\nevery read-back, per burst (events(), one row per decoded burst):")
 print(
     f"  {'#':>2} {'start':>7} {'dopp_hz':>8} {'res_hz':>8} {'cn0_dBHz':>9} "
-    f"{'freq_hz':>8} {'rate_hz':>8} {'conf_dB':>8} {'margin':>7}"
+    f"{'freq_hz':>8} {'rate_hz':>8} {'conf_dB':>8}"
 )
 for i, e in enumerate(events):
     print(
         f"  {i:>2} {int(e['preamble_start']):>7} "
         f"{e['doppler_hz_est']:>8.1f} {e['doppler_res_hz']:>8.1f} "
         f"{e['cn0_dbhz_est']:>9.2f} {e['est_freq_hz']:>8.2f} "
-        f"{e['est_rate_hz']:>8.2f} {e['demod_cn0_dbhz']:>8.2f} "
-        f"{e['refine_margin']:>7.3f}"
+        f"{e['est_rate_hz']:>8.2f} {e['demod_cn0_dbhz']:>8.2f}"
     )
 print(
     f"  scene: bin {BIN_HZ:.1f} Hz, C/N0 {CN0_DBHZ_TRUE:.2f} dB-Hz "
@@ -394,10 +393,6 @@ for i, e in enumerate(events):
     assert abs(e["demod_timing_chips"]) < 0.5, (
         f"{where}: start error {e['demod_timing_chips']:+.3f} chip sits at "
         "the half-chip search bound, so the estimate is a floor"
-    )
-    assert 0.0 < e["refine_margin"] < 1.0, (
-        f"{where}: refine margin {e['refine_margin']:.3f} — the runner-up "
-        "period was not beaten by the winner"
     )
 
 # The scalars are not a second source: they ARE the last row.
@@ -534,9 +529,8 @@ ax2.set_ylim(min(resid.min(), 0.1) / 3, BIN_HZ * 4)
 ax2.legend(fontsize=8, loc="upper right")
 ax2.grid(alpha=0.3, which="both", axis="y")
 
-# Quality: two dB quantities on the left axis, the dimensionless refine
-# margin on the right, and the CRC flag as the marker that says the row is
-# worth reading at all.
+# Quality: two dB quantities, and the CRC flag as the marker that says the
+# row is worth reading at all.
 w = 0.35
 ax3.bar(
     idx - w / 2,
@@ -566,19 +560,6 @@ ax3.set_ylabel("dB / dB-Hz")
 ax3.set_ylim(0, CN0_DBHZ_TRUE * 1.45)
 ax3.grid(alpha=0.3, axis="y")
 
-ax3m = ax3.twinx()
-ax3m.plot(
-    idx,
-    events["refine_margin"],
-    "D-",
-    color="tab:green",
-    ms=5,
-    label="refine_margin (runner-up / winner)",
-)
-ax3m.axhline(1.0, color="tab:green", lw=0.8, ls=":", alpha=0.7)
-ax3m.set_ylim(0, 1.45 / 1.25)
-ax3m.set_ylabel("margin (must stay < 1)")
-
 for i in range(len(events)):
     ax3.annotate(
         "CRC ok" if deframed_ok[i] else "CRC BAD",
@@ -587,9 +568,7 @@ for i in range(len(events)):
         fontsize=7,
         color="0.25",
     )
-h0, l0 = ax3.get_legend_handles_labels()
-h1, l1 = ax3m.get_legend_handles_labels()
-ax3.legend(h0 + h1, l0 + l1, fontsize=7, loc="upper center", ncol=2)
+ax3.legend(fontsize=7, loc="upper center", ncol=2)
 ax3.set_title(
     "Every quality read-back, checked against the scene\n"
     "(C/N0 is a lower bound; confidence is peak-to-mean, not a link SNR)",

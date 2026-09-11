@@ -66,7 +66,7 @@
 /** @brief State blob magic — a wrong blob is rejected, not reinterpreted. */
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
 /** @brief State blob layout version. */
-#define BURST_CAPTURE_STATE_VERSION 2u
+#define BURST_CAPTURE_STATE_VERSION 3u
 
 #ifdef __cplusplus
 extern "C" {
@@ -92,7 +92,6 @@ typedef struct
   double   doppler_hz_est; /**< Signed coarse Doppler, Hz.                 */
   double   doppler_res_hz; /**< Acquisition's native bin width, Hz.        */
   double   cn0_dbhz_est;   /**< C/N0 lower bound from the hit, dB-Hz.      */
-  double   refine_margin;  /**< Runner-up period over the winner.          */
 } burst_capture_event_t;
 
 /**
@@ -139,7 +138,6 @@ typedef struct
   uint64_t start;      /**< Refined preamble start; valid once `refined`.   */
   double   doppler_hz; /**< Signed coarse Doppler, Hz.                      */
   double   cn0_dbhz;   /**< C/N0 lower bound from the hit, dB-Hz.           */
-  double   margin;     /**< Refine runner-up ratio; valid once `refined`.   */
   double   peak_mag;   /**< The hit's RAW CFAR peak. Two detections naming
                             the same preamble keep the stronger, so a weak
                             hit that merely arrived first cannot own the
@@ -204,14 +202,17 @@ typedef struct
   double   doppler_hz_est; /**< Signed coarse Doppler, Hz.                  */
   double   doppler_res_hz; /**< Width of that estimate.                     */
   double   cn0_dbhz_est;   /**< C/N0 lower bound, dB-Hz (saturating).       */
-  double   refine_margin;  /**< Winning preamble correlation over its
-                                nearest whole-period competitor. Near 1
-                                means the period was NOT resolved.         */
 
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
-  float *ref_sign;   /**< One code period of +-1 chip signs, spc-expanded.
-                          Real, so the per-period correlation is a signed
-                          sum rather than a complex multiply.              */
+  corr2d_state_t *pcorr; /**< Per-period correlator against the preamble
+                              replica, at the ONE lag refine needs: the
+                              code phase is already fixed by acquisition,
+                              so this is `corr2d` in its known-lag mode
+                              (`col_out = 0`) rather than a private sum.
+                              One replica of the code, in one place --
+                              a second copy here is exactly how the
+                              norm_freq -> phase_inc conversion came to
+                              disagree with itself in three files.       */
   float _Complex *corr_buf; /**< Per-offset code-period correlations, reused
                                  across the candidate sweep so the sliding
                                  correlation is computed once and every
@@ -772,7 +773,6 @@ uint64_t burst_capture_get_preamble_start(const burst_capture_state_t *state);
 double burst_capture_get_doppler_hz_est(const burst_capture_state_t *state);
 double burst_capture_get_doppler_res_hz(const burst_capture_state_t *state);
 double burst_capture_get_cn0_dbhz_est(const burst_capture_state_t *state);
-double burst_capture_get_refine_margin(const burst_capture_state_t *state);
 size_t burst_capture_get_pending(const burst_capture_state_t *state);
 uint64_t burst_capture_get_dropped(const burst_capture_state_t *state);
 uint64_t burst_capture_get_n_bursts(const burst_capture_state_t *state);

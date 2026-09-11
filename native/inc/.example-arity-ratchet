@@ -16,7 +16,6 @@
 native/inc/async_dsss_receiver/async_dsss_receiver_core.h async_dsss_receiver_create
 native/inc/ber_meter/ber_meter_core.h ber_meter_score
 native/inc/corr/corr_core.h corr_create
-native/inc/corr2d/corr2d_core.h corr2d_create
 native/inc/delay/delay_core.h delay_create
 native/inc/dll/dll_core.h dll_create
 native/inc/dsss_receiver/dsss_receiver_core.h dsss_receiver_create

@@ -35,3 +35,17 @@
 doxygen-pin-image	make doxygen-check / gen-c-api, which shim $(CI_IMAGE)
 DOXYGEN_PIN_IMAGE	CI_IMAGE (.github/ci-images.env)
 doppler-doxygen:	the CI image — see deploy/docker/README.md
+
+# doppler#1312: `next_pow2` was FIVE identical private statics -- det_private.h,
+# delay_core.c, psd_core.c, specan_core.c, ppe_core.c -- none reachable from
+# the others, none guarding the overflow that makes the doubling loop spin
+# forever. The primitive is `next_pow_two` in util_core.h (header-only,
+# JM_FORCEINLINE, so including the header is the whole cost). This row is what
+# stops a sixth copy: a private one has to name itself something, and the
+# obvious name is now refused.
+\bnext_pow2\b	next_pow_two (native/inc/util/util_core.h)
+# ...and the OTHER spelling, which is how two of the seven stayed hidden from
+# a grep for the first: `burst_capture_pow2_ceil` and `dsss_br_pow2_ceil` were
+# the same function again, module-prefixed. A name-based gate only works if it
+# covers the names people actually reach for.
+\b[a-z0-9_]*pow2_ceil\b	next_pow_two (native/inc/util/util_core.h)

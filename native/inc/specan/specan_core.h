@@ -98,9 +98,9 @@ extern "C"
    * @brief Create a natural-parameter spectrum analyzer.
    *
    * Derives the DSP from the instrument parameters: `fs_out = min(span·1.28,
-   * fs)`, `n = next_pow2(ceil(fs_out/rbw))` (the coarse RBW knob), a Kaiser
+   * fs)`, `n = next_pow_two(ceil(fs_out/rbw))` (the coarse RBW knob), a Kaiser
    * `beta` solved so the window ENBW realises `rbw` (the fine knob),
-   * `nfft = next_pow2(2·n)`, and the central display crop covering ±span/2.
+   * `nfft = next_pow_two(2·n)`, and the central display crop covering ±span/2.
    *
    * @param fs          Input sample rate (Hz).  Must be > 0.
    * @param span        Display span (Hz).  Must be > 0.

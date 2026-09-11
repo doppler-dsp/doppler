@@ -837,15 +837,15 @@ class Corr2D:
     col_out : int, default -1
         Emit ONLY this correlation lag, or < 0 for the whole map. When set, a
         dump writes ny values -- one per row -- instead of ny*nx_out, computed
-        as the time-domain sum `sum_p conj(ref[p]) * row[(p + col_out) mod
-        nx]`, which is what R(i, col_out) expands to once the 1/nx cancels. No
+        as the time-domain sum over p of `conj(ref(p)) * row((p + col_out) mod
+        nx)`, which is what R(i, col_out) expands to once the 1/nx cancels. No
         transform runs in either direction, so the cost per row is O(nx) rather
         than O(nx log nx). Requires the single-row-reference fast path (a
         caller that knows its lag is by construction correlating against a code
         replica) and the NATIVE output grid: an interpolated column is a
         fractional lag, which no time-domain sum produces. create() returns
         NULL if col_out >= 0 with a reference the fast path rejects, with
-        ny_out or nx_out decoupled, or with a lag outside [0, nx).
+        ny_out or nx_out decoupled, or with a lag outside 0 .. nx-1.
 
     Examples
     --------

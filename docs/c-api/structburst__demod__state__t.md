@@ -43,11 +43,12 @@ _BurstDemod state. Allocate with_ [_**burst\_demod\_create()**_](burst__demod__c
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  uint8\_t \* | [**data\_code**](#variable-data_code)  <br> |
 |  size\_t | [**data\_sf**](#variable-data_sf)  <br> |
+|  double | [**est\_cn0\_dbhz**](#variable-est_cn0_dbhz)  <br> |
 |  double | [**est\_freq\_hz**](#variable-est_freq_hz)  <br> |
 |  double | [**est\_n0**](#variable-est_n0)  <br> |
 |  double | [**est\_rate\_hz**](#variable-est_rate_hz)  <br> |
 |  size\_t | [**est\_segments**](#variable-est_segments)  <br> |
-|  double | [**est\_snr\_db**](#variable-est_snr_db)  <br> |
+|  double | [**est\_timing\_chips**](#variable-est_timing_chips)  <br> |
 |  double | [**f0\_prior**](#variable-f0_prior)  <br> |
 |  size\_t | [**frame\_offset**](#variable-frame_offset)  <br> |
 |  size\_t | [**frame\_syms**](#variable-frame_syms)  <br> |
@@ -237,6 +238,24 @@ data spreading factor (chips/symbol).
 
 
 
+### variable est\_cn0\_dbhz 
+
+```C++
+double burst_demod_state_t::est_cn0_dbhz;
+```
+
+
+
+Carrier-to-noise DENSITY, dB-Hz, referred to the CHANNEL: the realized symbol estimate `1/est_n0` lifted by the symbol rate and corrected for the despreading loss that `est_timing_chips` measures. Sample-rate invariant, so it survives a front-end rate change, and it does not move when the receiver's own timing is off by a fraction of a chip  which a realized SNR does, by 4.8 dB at half a chip. Zero until a demod() produces a frame. DEGRADED BY RESIDUAL PHASE, by construction: `est_n0` reads the noise off the quadrature, and a rotation puts signal there, so an untracked Doppler rate reads as a worse link  101 dB worse on a noiseless input. The realized link IS worse, so the number is not wrong; it simply cannot say WHICH of the two happened. [**burst\_demod\_symbols()**](burst__demod__core_8h.md#function-burst_demod_symbols) can, because only Q against I separates them (doppler#1087). See doppler#1304. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable est\_freq\_hz 
 
 ```C++
@@ -309,15 +328,15 @@ partials per acq period for the estimate.
 
 
 
-### variable est\_snr\_db 
+### variable est\_timing\_chips 
 
 ```C++
-double burst_demod_state_t::est_snr_db;
+double burst_demod_state_t::est_timing_chips;
 ```
 
 
 
-estimator confidence (dB). 
+Burst-start error the demodulator MEASURED, in chips, signed, relative to the `start` given to set\_prior(). The whole-SAMPLE part of it was removed before despreading; only the fraction of a sample that a shift cannot remove is still a loss, and only that fraction is taken out of `est_cn0_dbhz`. The symbols keep the loss either way. Acquisition resolves a start to one SAMPLE, so a residual here is structural rather than a caller's error. BOUNDED at half a chip, which is the metric's limit and not a budget: a whole-chip slip re-aligns every partial against its neighbour's chip and reads as no slip at all. A magnitude AT that bound therefore means the search saturated  the start is further out than this object can measure, and `est_cn0_dbhz` is then a floor rather than a measurement. Fixing that is acquisition's, which is what resolves a start. 
  
 
 

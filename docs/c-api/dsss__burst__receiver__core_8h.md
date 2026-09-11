@@ -85,12 +85,13 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  size\_t | [**dsss\_burst\_receiver\_events**](#function-dsss_burst_receiver_events) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state, size\_t n, [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* out, size\_t max\_out) <br>_The event record for each burst the last push() returned._  |
 |  size\_t | [**dsss\_burst\_receiver\_events\_max\_out**](#function-dsss_burst_receiver_events_max_out) ([**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br>_Max records events() writes: one per burst the last push() returned._  |
 |  double | [**dsss\_burst\_receiver\_get\_cn0\_dbhz\_est**](#function-dsss_burst_receiver_get_cn0_dbhz_est) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
+|  double | [**dsss\_burst\_receiver\_get\_demod\_cn0\_dbhz**](#function-dsss_burst_receiver_get_demod_cn0_dbhz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
+|  double | [**dsss\_burst\_receiver\_get\_demod\_timing\_chips**](#function-dsss_burst_receiver_get_demod_timing_chips) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_doppler\_hz\_est**](#function-dsss_burst_receiver_get_doppler_hz_est) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_doppler\_res\_hz**](#function-dsss_burst_receiver_get_doppler_res_hz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  uint64\_t | [**dsss\_burst\_receiver\_get\_dropped**](#function-dsss_burst_receiver_get_dropped) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_est\_freq\_hz**](#function-dsss_burst_receiver_get_est_freq_hz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_est\_rate\_hz**](#function-dsss_burst_receiver_get_est_rate_hz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
-|  double | [**dsss\_burst\_receiver\_get\_est\_snr\_db**](#function-dsss_burst_receiver_get_est_snr_db) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  bool | [**dsss\_burst\_receiver\_get\_frame\_valid**](#function-dsss_burst_receiver_get_frame_valid) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  size\_t | [**dsss\_burst\_receiver\_get\_min\_gap**](#function-dsss_burst_receiver_get_min_gap) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  uint64\_t | [**dsss\_burst\_receiver\_get\_n\_bursts**](#function-dsss_burst_receiver_get_n_bursts) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
@@ -139,7 +140,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 | Type | Name |
 | ---: | :--- |
 | define  | [**DSSS\_BURST\_RECEIVER\_STATE\_MAGIC**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc)('D', 'B', 'R', 'X')`<br>_Per-object envelope tag: "DBRX" (DsssBurstReceiver)._  |
-| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `5u`<br> |
+| define  | [**DSSS\_BURST\_RECEIVER\_STATE\_VERSION**](dsss__burst__receiver__core_8h.md#define-dsss_burst_receiver_state_version)  `6u`<br> |
 
 ## Detailed Description
 
@@ -449,6 +450,36 @@ double dsss_burst_receiver_get_cn0_dbhz_est (
 
 
 
+### function dsss\_burst\_receiver\_get\_demod\_cn0\_dbhz 
+
+```C++
+double dsss_burst_receiver_get_demod_cn0_dbhz (
+    const dsss_burst_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function dsss\_burst\_receiver\_get\_demod\_timing\_chips 
+
+```C++
+double dsss_burst_receiver_get_demod_timing_chips (
+    const dsss_burst_receiver_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function dsss\_burst\_receiver\_get\_doppler\_hz\_est 
 
 ```C++
@@ -513,21 +544,6 @@ double dsss_burst_receiver_get_est_freq_hz (
 
 ```C++
 double dsss_burst_receiver_get_est_rate_hz (
-    const dsss_burst_receiver_state_t * state
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dsss\_burst\_receiver\_get\_est\_snr\_db 
-
-```C++
-double dsss_burst_receiver_get_est_snr_db (
     const dsss_burst_receiver_state_t * state
 ) 
 ```
@@ -976,7 +992,7 @@ _Per-object envelope tag: "DBRX" (DsssBurstReceiver)._
 ### define DSSS\_BURST\_RECEIVER\_STATE\_VERSION 
 
 ```C++
-#define DSSS_BURST_RECEIVER_STATE_VERSION `5u`
+#define DSSS_BURST_RECEIVER_STATE_VERSION `6u`
 ```
 
 

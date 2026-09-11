@@ -115,7 +115,47 @@ extern "C"
     size_t n_symbols;    /**< despread data symbols produced.             */
     double est_freq_hz;  /**< estimated residual Doppler (Hz).            */
     double est_rate_hz;  /**< estimated Doppler rate (Hz/s).              */
-    double est_snr_db;   /**< estimator confidence (dB).                  */
+    double est_cn0_dbhz; /**< Carrier-to-noise DENSITY, dB-Hz, referred to
+                              the CHANNEL: the realized symbol estimate
+                              `1/est_n0` lifted by the symbol rate and
+                              corrected for the despreading loss that
+                              @c est_timing_chips measures. Sample-rate
+                              invariant, so it survives a front-end
+                              rate change, and it does not move when the
+                              receiver's own timing is off by a fraction
+                              of a chip -- which a realized SNR does, by
+                              4.8 dB at half a chip. Zero until a demod()
+                              produces a frame.
+                              DEGRADED BY RESIDUAL PHASE, by construction:
+                              @c est_n0 reads the noise off the quadrature,
+                              and a rotation puts signal there, so an
+                              untracked Doppler rate reads as a worse link
+                              -- 101 dB worse on a noiseless input. The
+                              realized link IS worse, so the number is not
+                              wrong; it simply cannot say WHICH of the two
+                              happened. burst_demod_symbols() can, because
+                              only Q against I separates them
+                              (doppler#1087). See doppler#1304.          */
+    double est_timing_chips; /**< Burst-start error the demodulator MEASURED,
+                              in chips, signed, relative to the @c start
+                              given to set_prior(). The whole-SAMPLE part of
+                              it was removed before despreading; only the
+                              fraction of a sample that a shift cannot
+                              remove is still a loss, and only that fraction
+                              is taken out of @c est_cn0_dbhz. The symbols
+                              keep the loss either way. Acquisition resolves
+                              a start to one SAMPLE, so a residual here is
+                              structural rather than a caller's error.
+                              BOUNDED at half a chip, which is the metric's
+                              limit and not a budget: a whole-chip slip
+                              re-aligns every partial against its
+                              neighbour's chip and reads as no slip at all.
+                              A magnitude AT that bound therefore means the
+                              search saturated -- the start is further out
+                              than this object can measure, and
+                              @c est_cn0_dbhz is then a floor rather than a
+                              measurement. Fixing that is acquisition's,
+                              which is what resolves a start.              */
   } burst_demod_state_t;
 
   /**
@@ -412,8 +452,8 @@ extern "C"
    * the same decisions is burst_demod_llrs().
    *
    * On return the read-back fields report the outcome — @c frame_offset,
-   * @c n_symbols, and the @c est_freq_hz / @c est_rate_hz / @c est_snr_db
-   * estimates. The templates and prior must already be set via
+   * @c n_symbols, and the @c est_freq_hz / @c est_rate_hz /
+   * @c est_cn0_dbhz / @c est_timing_chips estimates. The templates and prior must already be set via
    * set_preamble(), set_sync(), set_prior().
    *
    * The C function returns the number of bits written; the Python binding

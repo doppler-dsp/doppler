@@ -1,4 +1,5 @@
 #include "burst_demod/burst_demod_core.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include <complex.h>
 #include <math.h>
@@ -181,9 +182,9 @@ run_case (const char *name, double f0, double f0_prior, double mu,
                 "the payload it received");
 
   printf ("  %-10s f0=%.4f(prior %.4f) mu=%.2e | est f=%.1fHz r=%.2eHz/s "
-          "snr=%.0f off=%zu errs=%zu\n",
+          "cn0=%.1fdBHz tau=%+.3fchip off=%zu errs=%zu\n",
           name, f0, f0_prior, mu, d->est_freq_hz, d->est_rate_hz,
-          d->est_snr_db, d->frame_offset, errs);
+          d->est_cn0_dbhz, d->est_timing_chips, d->frame_offset, errs);
   burst_demod_destroy (d);
   free (y);
   return 0;
@@ -489,7 +490,8 @@ main (void)
             DP_CHECK (d->frame_offset == 0);
             DP_CHECK (d->est_freq_hz == 0.0);
             DP_CHECK (d->est_rate_hz == 0.0);
-            DP_CHECK (d->est_snr_db == 0.0);
+            DP_CHECK (d->est_cn0_dbhz == 0.0);
+            DP_CHECK (d->est_timing_chips == 0.0);
             burst_demod_destroy (d);
           }
         free (y);
@@ -627,7 +629,7 @@ main (void)
      * quadrature (doppler#1087). After derotation the real axis carries the
      * signal and the imaginary axis carries noise alone, so Q is the only
      * place a phase-coherence problem shows: measured through this object, a
-     * Doppler rate of 1e5 Hz/s raises Q/I 41x while est_snr_db, est_rate_hz
+     * Doppler rate of 1e5 Hz/s raises Q/I 41x while est_cn0_dbhz, est_rate_hz
      * and the bits are all unchanged. */
     float _Complex *sy = malloc (nl * sizeof *sy);
     DP_REQUIRE (sy != NULL);
@@ -673,6 +675,138 @@ main (void)
     free (llr);
     burst_demod_destroy (d);
     free (y);
+  }
+
+  /* ── est_cn0_dbhz is a CHANNEL quantity: right, and flat ─────────────
+   *
+   * Its predecessor est_snr_db was the preamble estimator's spectral
+   * prominence and could be compared with nothing: it carried the coherent
+   * processing gain, read 59 dB at a 25 dB input, and moved 33 dB with the
+   * burst start alone at a fixed channel (doppler#1304).
+   *
+   * So all three of its failures are pinned here, against a channel whose
+   * C/N0 this test sets: the VALUE, the flatness across a sub-chip start
+   * error, and independence of a segmentation the estimate has no business
+   * depending on. Each seeds noise itself rather than reusing run_case, so
+   * the true C/N0 is known rather than inferred.
+   *
+   * C/N0 = Es/N0 * Rs, with Rs = chip_rate/DATA_SF: a density, so it is the
+   * same number whatever `spc` the front end runs at. */
+  {
+    uint8_t acode[ACQ_SF], dcode[DATA_SF], payload[PAYLOAD];
+    for (size_t i = 0; i < ACQ_SF; i++)
+      acode[i] = (uint8_t)((i * 2654435761u >> 13) & 1u);
+    for (size_t i = 0; i < DATA_SF; i++)
+      dcode[i] = (uint8_t)((i * 40503u >> 7) & 1u);
+    for (size_t i = 0; i < PAYLOAD; i++)
+      payload[i] = (uint8_t)((i * 7u + 3u) & 1u);
+
+    const double sym_rate = CHIP_RATE / (double)DATA_SF;
+    const size_t cap
+        = (ACQ_SF * ACQ_REPS + (SYNC_LEN + PAYLOAD + CRC_BITS) * DATA_SF) * SPC
+          + 64;
+    float _Complex *y    = malloc (cap * sizeof *y);
+    float _Complex *z    = malloc (cap * sizeof *z);
+    uint8_t        *bits = malloc (FRAME_SYMS);
+    DP_REQUIRE (y != NULL && z != NULL && bits != NULL);
+
+    /* One burst at a stated Es/N0, started `lead` samples late, demodulated
+       with `segs` estimator segments. Returns the reported C/N0, or -1e9
+       when no frame came back. */
+    double   got_cn0 = 0.0, got_tau = 0.0;
+    uint32_t seed_state = 0;
+#define CN0_RUN(es_n0_db, lead, segs)                                         \
+  do                                                                          \
+    {                                                                         \
+      const double f0_ = 0.012;                                               \
+      size_t       n_  = build_burst (y, acode, dcode, payload, f0_, 0.0);    \
+      /* per-sample sigma from Es/N0: Es is DATA_SF*SPC samples of unit       \
+         power, and the noise is complex with sigma^2 total. */               \
+      double sig_                                                             \
+          = pow (10.0, -((es_n0_db) - 10.0 * log10 ((double)(DATA_SF * SPC))) \
+                           / 20.0);                                           \
+      seed_state = 12345u;                                                    \
+      for (size_t k_ = 0; k_ < (lead); k_++)                                  \
+        z[k_] = 0.0f;                                                         \
+      for (size_t k_ = 0; k_ < n_; k_++)                                      \
+        z[k_ + (lead)] = y[k_];                                               \
+      /* dp_cgauss is E|z|^2 = 1, so sigma scales straight to total noise     \
+         power -- the shared harness owns the convention. */                  \
+      for (size_t k_ = 0; k_ < n_ + (lead); k_++)                             \
+        z[k_] += (float)sig_ * dp_cgauss (&seed_state);                       \
+      burst_demod_state_t *dd_ = burst_demod_create (                         \
+          dcode, DATA_SF, SPC, CHIP_RATE, 0.0, 0.0, FRAME_SYMS, (segs));      \
+      DP_REQUIRE (dd_ != NULL);                                               \
+      burst_demod_set_preamble (dd_, acode, ACQ_SF, ACQ_REPS);                \
+      burst_demod_set_sync (dd_, SYNC, SYNC_LEN);                             \
+      burst_demod_set_prior (dd_, f0_, 0);                                    \
+      size_t nb_ = burst_demod_demod (dd_, z, n_ + (lead), bits, FRAME_SYMS); \
+      got_cn0    = (nb_ == FRAME_SYMS) ? dd_->est_cn0_dbhz : -1e9;            \
+      got_tau    = dd_->est_timing_chips;                                     \
+      burst_demod_destroy (dd_);                                              \
+    }                                                                         \
+  while (0)
+
+    /* 1. The VALUE, over a 20 dB span. A prominence cannot do this: it has
+          the processing gain in it and saturates at the top of the range. */
+    for (int es = 10; es <= 30; es += 10)
+      {
+        const double want = (double)es + 10.0 * log10 (sym_rate);
+        CN0_RUN (es, 0, 10);
+        if (fabs (got_cn0 - want) >= 2.0)
+          printf ("    Es/N0 %d: reported %.1f dB-Hz, true %.1f\n", es,
+                  got_cn0, want);
+        DP_CHECK_MSG (fabs (got_cn0 - want) < 2.0,
+                      "C/N0 must be the CHANNEL's, not the estimator's");
+      }
+
+    /* 2. FLAT across a sub-chip start error, which is what a realized SNR
+          is not: the same channel read 4.8 dB lower at half a chip before
+          the timing term existed. The offset is REPORTED, and reporting it
+          is half the point -- a reader can see what was corrected. */
+    {
+      const double want = 25.0 + 10.0 * log10 (sym_rate);
+      for (size_t lead = 0; lead <= SPC / 2; lead++)
+        {
+          CN0_RUN (25, lead, 10);
+          if (fabs (got_cn0 - want) >= 2.0
+              || fabs (got_tau - (double)lead / (double)SPC) >= 0.1)
+            printf ("    lead %zu: C/N0 %.1f (true %.1f), tau %+.3f chip\n",
+                    lead, got_cn0, want, got_tau);
+          DP_CHECK_MSG (fabs (got_cn0 - want) < 2.0,
+                        "a sub-chip start error must not move a CHANNEL "
+                        "C/N0 -- a realized one falls 4.8 dB at half a chip");
+          DP_CHECK_MSG (fabs (got_tau - (double)lead / (double)SPC) < 0.1,
+                        "the start error the object removed is REPORTED");
+        }
+    }
+
+    /* 3. INDEPENDENT of est_segments, which only shapes the preamble
+          estimator's partials. It used to dominate the answer: est_snr_db
+          was read off those partials, and at an acq_sf est_segments does
+          not divide the last one ran long and cost 23.8 dB. C/N0 is
+          measured on the DATA symbols, so the knob cannot reach it -- that
+          SEPARATION is what this pins, not the partial-length defect,
+          which remains and is doppler#1305. ACQ_SF here is 500, so 10
+          divides it and 32 does not; both must land on the same channel. */
+    {
+      const double want   = 25.0 + 10.0 * log10 (sym_rate);
+      const size_t segs[] = { 5, 10, 32 };
+      for (size_t i = 0; i < sizeof segs / sizeof *segs; i++)
+        {
+          CN0_RUN (25, 0, segs[i]);
+          if (fabs (got_cn0 - want) >= 2.0)
+            printf ("    est_segments %zu: C/N0 %.1f, true %.1f\n", segs[i],
+                    got_cn0, want);
+          DP_CHECK_MSG (fabs (got_cn0 - want) < 2.0,
+                        "est_segments shapes the preamble estimator's "
+                        "partials and must not move the channel's C/N0");
+        }
+    }
+#undef CN0_RUN
+    free (y);
+    free (z);
+    free (bits);
   }
 
   DP_TEST_END ("test_burst_demod_core");

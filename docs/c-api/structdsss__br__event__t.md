@@ -37,11 +37,12 @@ _One completed burst's event, as_ `events()` _hands it back._[More...](#detailed
 | Type | Name |
 | ---: | :--- |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
+|  double | [**demod\_cn0\_dbhz**](#variable-demod_cn0_dbhz)  <br> |
+|  double | [**demod\_timing\_chips**](#variable-demod_timing_chips)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
 |  double | [**est\_freq\_hz**](#variable-est_freq_hz)  <br> |
 |  double | [**est\_rate\_hz**](#variable-est_rate_hz)  <br> |
-|  double | [**est\_snr\_db**](#variable-est_snr_db)  <br> |
 |  uint8\_t | [**frame\_valid**](#variable-frame_valid)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
 |  double | [**refine\_margin**](#variable-refine_margin)  <br> |
@@ -119,6 +120,42 @@ C/N0 lower bound from the hit, dB-Hz.
 
 
 
+### variable demod\_cn0\_dbhz 
+
+```C++
+double dsss_br_event_t::demod_cn0_dbhz;
+```
+
+
+
+Demod's C/N0, dB-Hz, channel-referred. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable demod\_timing\_chips 
+
+```C++
+double dsss_br_event_t::demod_timing_chips;
+```
+
+
+
+Start error the demod measured, chips. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable doppler\_hz\_est 
 
 ```C++
@@ -182,24 +219,6 @@ double dsss_br_event_t::est_rate_hz;
 
 
 Demod's chirp-rate estimate. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable est\_snr\_db 
-
-```C++
-double dsss_br_event_t::est_snr_db;
-```
-
-
-
-Demod's post-decode SNR estimate. 
  
 
 

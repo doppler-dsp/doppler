@@ -182,7 +182,8 @@ result_fields = [
   { name = "cn0_dbhz_est", type = "double" },
   { name = "est_freq_hz", type = "double" },
   { name = "est_rate_hz", type = "double" },
-  { name = "est_snr_db", type = "double" },
+  { name = "demod_cn0_dbhz", type = "double" },
+  { name = "demod_timing_chips", type = "double" },
   { name = "refine_margin", type = "double" },
   { name = "frame_valid", type = "uint8_t" },
 ]
@@ -240,8 +241,14 @@ name = "est_rate_hz"
 type = "double"
 
 [[dsss_burst_receiver.properties]]
-name = "est_snr_db"
+name = "demod_cn0_dbhz"
 type = "double"
+doc = "The demodulator's C/N0 for the last completed burst, dB-Hz, referred to the CHANNEL: measured on the decoded symbols and corrected for the sub-chip start error `demod_timing_chips` reports. Distinct from `cn0_dbhz_est`, which is ACQUISITION's saturating lower bound from the hit; this one is a measurement, and the two are named for their stage rather than by word order so they cannot be confused. Replaces `est_snr_db`, which was never an SNR (doppler#1304)."
+
+[[dsss_burst_receiver.properties]]
+name = "demod_timing_chips"
+type = "double"
+doc = "Burst-start error the demodulator measured on the last completed burst, in chips, signed. Whole samples were removed before despreading; the remaining fraction of a sample is what `demod_cn0_dbhz` is corrected for. Acquisition resolves a start to one SAMPLE, so a non-zero residual here is structural."
 
 # The refine stage's own confidence: the winning preamble correlation over
 # its nearest whole-period competitor. The envelope is (reps-1)/reps when the

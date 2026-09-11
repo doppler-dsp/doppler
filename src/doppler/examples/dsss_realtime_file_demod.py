@@ -278,7 +278,8 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
                 code_phase=int(start),
                 bits=payload,
                 est_freq_hz=d.est_freq_hz + nominal_hz,
-                est_snr_db=d.est_snr_db,
+                est_cn0_dbhz=d.est_cn0_dbhz,
+                est_timing_chips=d.est_timing_chips,
             )
             break
     return rec
@@ -372,7 +373,7 @@ def main():
             errs = int(np.sum(r["bits"] != _PAYLOAD_BITS))
             print(
                 f"  {dt:5.1f} {k:<5} {'ok':<4} {errs:>4} {ts:>5} {cp:>6} "
-                f"{r['est_freq_hz']:>11.0f} {r['est_snr_db']:>8.1f}"
+                f"{r['est_freq_hz']:>11.0f} {r['est_cn0_dbhz']:>8.1f}"
             )
         else:
             tag = "no-det" if not r["detected"] else "FAIL"
@@ -385,7 +386,7 @@ def main():
             int(np.sum(r["bits"] != _PAYLOAD_BITS)) for r in decoded
         )
         dopps = [r["est_freq_hz"] for r in decoded]
-        snrs = [r["est_snr_db"] for r in decoded]
+        snrs = [r["est_cn0_dbhz"] for r in decoded]
         print(
             f"\n  summary: {len(decoded)}/{len(results)} bursts decoded, "
             f"{bit_errs} bit error(s) | "

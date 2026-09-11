@@ -49,7 +49,8 @@ typedef struct
   double   cn0_dbhz_est;   /**< C/N0 lower bound from the hit, dB-Hz.      */
   double   est_freq_hz;    /**< Demod's residual-frequency estimate.       */
   double   est_rate_hz;    /**< Demod's chirp-rate estimate.               */
-  double   est_snr_db;     /**< Demod's post-decode SNR estimate.          */
+  double   demod_cn0_dbhz; /**< Demod's C/N0, dB-Hz, channel-referred.     */
+  double   demod_timing_chips; /**< Start error the demod measured, chips.  */
   double   refine_margin;  /**< Runner-up period over the winner.          */
   uint8_t  frame_valid;    /**< The frame passed its error detection.      */
 } dsss_br_event_t;
@@ -118,7 +119,22 @@ typedef struct {
   double   cn0_dbhz_est;   /**< C/N0 lower bound, dB-Hz (saturating).       */
   double   est_freq_hz;    /**< Demod's own residual estimate, Hz.          */
   double   est_rate_hz;    /**< Demod's own chirp-rate estimate.            */
-  double   est_snr_db;     /**< Demod's own post-decode SNR estimate.       */
+  double   demod_cn0_dbhz; /**< Demod's own C/N0, dB-Hz, referred to the
+                                CHANNEL and corrected for the sub-chip start
+                                error `demod_timing_chips` reports. Named for
+                                its STAGE rather than `est_`-prefixed like
+                                its siblings, because `cn0_dbhz_est` above is
+                                acquisition's and two fields differing only
+                                by word order is a reader's trap. The two are
+                                not the same measurement: acquisition's is a
+                                saturating lower bound from the hit, this one
+                                is measured on the decoded symbols. Replaces
+                                `est_snr_db`, which was never an SNR
+                                (doppler#1304).                             */
+  double   demod_timing_chips; /**< Burst-start error the demod measured, in
+                                chips, signed. Whole samples were removed
+                                before despreading; the fraction that
+                                remains is taken out of `demod_cn0_dbhz`.  */
   int      frame_valid;    /**< The last window's frame passed its error
                                 detection -- THIS receiver's frame carries a
                                 CRC-16 trailer. The verdict the capture
@@ -427,7 +443,8 @@ double dsss_burst_receiver_get_doppler_res_hz(const dsss_burst_receiver_state_t 
 double dsss_burst_receiver_get_cn0_dbhz_est(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_est_freq_hz(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_est_rate_hz(const dsss_burst_receiver_state_t *state);
-double dsss_burst_receiver_get_est_snr_db(const dsss_burst_receiver_state_t *state);
+double dsss_burst_receiver_get_demod_cn0_dbhz(const dsss_burst_receiver_state_t *state);
+double dsss_burst_receiver_get_demod_timing_chips(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_refine_margin(const dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_get_pending(const dsss_burst_receiver_state_t *state);
 uint64_t dsss_burst_receiver_get_dropped(const dsss_burst_receiver_state_t *state);
@@ -446,7 +463,7 @@ uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *sta
 
 /** @brief Per-object envelope tag: "DBRX" (DsssBurstReceiver). */
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
-#define DSSS_BURST_RECEIVER_STATE_VERSION 5u
+#define DSSS_BURST_RECEIVER_STATE_VERSION 6u
 
 /** @brief Byte size of @p state's blob (envelope + payload + child). */
 size_t dsss_burst_receiver_state_bytes(const dsss_burst_receiver_state_t *state);

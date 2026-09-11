@@ -66,7 +66,8 @@ def test_construct_and_read_back_the_event_fields() -> None:
     assert r.cn0_dbhz_est == 0.0
     assert r.est_freq_hz == 0.0
     assert r.est_rate_hz == 0.0
-    assert r.est_snr_db == 0.0
+    assert r.demod_cn0_dbhz == 0.0
+    assert r.demod_timing_chips == 0.0
     assert r.refine_margin == 0.0
     assert r.pending == 0
     assert r.dropped == 0

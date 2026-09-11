@@ -252,7 +252,7 @@ size_t burst_demod_demod (
 Runs the whole feedforward chain on the supplied samples: estimate the (frequency, chirp-rate) from the preamble, dechirp, despread the data section to soft symbols, sync-align and derotate, and slice `frame_syms` symbols to bits. It writes the frame as received — sync word first — and makes no claim about what those bits are for: undoing the frame needs a description, and that is a caller's, not this object's. The soft twin of the same decisions is [**burst\_demod\_llrs()**](burst__demod__core_8h.md#function-burst_demod_llrs).
 
 
-On return the read-back fields report the outcome — `frame_offset`, `n_symbols`, and the `est_freq_hz` / `est_rate_hz` / `est_snr_db` estimates. The templates and prior must already be set via set\_preamble(), set\_sync(), set\_prior().
+On return the read-back fields report the outcome — `frame_offset`, `n_symbols`, and the `est_freq_hz` / `est_rate_hz` / `est_cn0_dbhz` / `est_timing_chips` estimates. The templates and prior must already be set via set\_preamble(), set\_sync(), set\_prior().
 
 
 The C function returns the number of bits written; the Python binding returns those bits as an array (a view into a reused buffer unless an `out` buffer is supplied).

@@ -73,11 +73,12 @@ burst_demod_destroy (burst_demod_state_t *s)
 void
 burst_demod_reset (burst_demod_state_t *s)
 {
-  s->frame_offset = 0;
-  s->n_symbols    = 0;
-  s->est_freq_hz  = 0.0;
-  s->est_rate_hz  = 0.0;
-  s->est_snr_db   = 0.0;
+  s->frame_offset     = 0;
+  s->n_symbols        = 0;
+  s->est_freq_hz      = 0.0;
+  s->est_rate_hz      = 0.0;
+  s->est_cn0_dbhz     = 0.0;
+  s->est_timing_chips = 0.0;
 }
 
 void
@@ -184,9 +185,22 @@ burst_demod_demod_max_out (burst_demod_state_t *s)
  */
 static void
 form_partials (const burst_demod_state_t *s, const float _Complex *x,
-               double f0, double mu, size_t lseg_chips, float _Complex *part)
+               size_t start, double f0, double mu, size_t lseg_chips,
+               float _Complex *part)
 {
   const size_t npre = s->acq_sf * s->acq_reps * s->spc;
+  /* `seg` overflows by one whenever est_segments does not divide acq_sf, and
+     the overflow is CLAMPED into the final segment, which therefore runs
+     long -- 19 chips against 12 at acq_sf=127, est_segments=10. That is a
+     periodic amplitude ripple on the partial sequence at the segment rate,
+     and it cost the retired `est_snr_db` 23.8 dB on that configuration.
+     Nothing this object still reports depends on it: C/N0, the frequency
+     estimate, the timing estimate and the decode rate were measured across
+     the normal and the pathological segmentations (1 chip against 64) and
+     none moved, so the alternative -- dropping the remainder to keep the
+     partials equal -- would trade 5.5% of the preamble's energy for no
+     effect anyone can observe. Left as it is, and recorded in doppler#1305
+     for whoever next reads a statistic off these partials. */
   for (size_t m = 0; m < s->n_part; m++)
     part[m] = 0.0f;
   for (size_t n = 0; n < npre; n++)
@@ -200,9 +214,30 @@ form_partials (const burst_demod_state_t *s, const float _Complex *x,
       size_t m  = rep * s->est_segments + seg;
       double ph = wrap_pi (
           -2.0 * M_PI * (f0 * (double)n + 0.5 * mu * (double)n * (double)n));
-      part[m] += x[s->start + n] * cexpf ((float)ph * I)
+      part[m] += x[start + n] * cexpf ((float)ph * I)
                  * chip_sign (s->acq_code[inper]);
     }
+}
+
+/* Coherent energy in the partials formed at @p start: the timing metric.
+ *
+ * Each partial is a coherent despread over one segment, so a start error
+ * mis-signs the samples that have slid across a chip boundary and shrinks
+ * every |part[m]|. Summing the SQUARED magnitudes makes the metric blind to
+ * the carrier -- a partial is short enough that the residual rotation across
+ * one is negligible -- so timing can be searched without first knowing the
+ * frequency to better than the segment rate. */
+static double
+partial_energy (const burst_demod_state_t *s, const float _Complex *x,
+                size_t start, double f0, double mu, size_t lseg_chips,
+                float _Complex *part)
+{
+  form_partials (s, x, start, f0, mu, lseg_chips, part);
+  double e = 0.0;
+  for (size_t m = 0; m < s->n_part; m++)
+    e += (double)crealf (part[m]) * crealf (part[m])
+         + (double)cimagf (part[m]) * cimagf (part[m]);
+  return e;
 }
 
 /* Dechirp the data section by (f0, mu) and prompt-despread to soft BPSK
@@ -250,32 +285,147 @@ burst_demod_demod (burst_demod_state_t *s, const float _Complex *x,
   if (!s->ppe || !s->sync || s->frame_syms == 0)
     return 0;
 
-  const size_t npre  = s->acq_sf * s->acq_reps * s->spc;
-  const size_t data0 = s->start + npre;
-  if (data0 >= x_len)
+  const size_t npre = s->acq_sf * s->acq_reps * s->spc;
+  if (s->start + npre >= x_len)
     return 0;
   const double fs         = s->chip_rate * (double)s->spc;
   size_t       lseg_chips = s->acq_sf / s->est_segments;
   if (lseg_chips == 0)
     lseg_chips = 1;
-  const double lseg = (double)(lseg_chips * s->spc);
+  const double lseg  = (double)(lseg_chips * s->spc);
+  size_t       start = s->start;
 
   /* ── 1) Feedforward estimate from the unmodulated preamble, iterated. ─────
    * Data-aided (the preamble is known), so no squaring ambiguity: re-dechirp
    * by the running (f0, mu) and re-estimate; the residual collapses toward DC,
    * removing the freq/rate coupling bias of a single pass. */
-  double       f0 = s->f0_prior, mu = 0.0;
-  ppe_result_t est = { 0.0, 0.0, 0.0 };
+  double f0 = s->f0_prior, mu = 0.0;
   for (int it = 0; it < BURST_DEMOD_EST_ITERS; it++)
     {
-      form_partials (s, x, f0, mu, lseg_chips, s->part);
-      est = ppe_estimate (s->ppe, s->part, s->n_part);
+      form_partials (s, x, start, f0, mu, lseg_chips, s->part);
+      ppe_result_t est = ppe_estimate (s->ppe, s->part, s->n_part);
       f0 += est.freq_norm / lseg;
       mu += est.rate_norm / (lseg * lseg);
     }
-  s->est_freq_hz = f0 * fs;
-  s->est_rate_hz = mu * fs * fs;
-  s->est_snr_db  = est.snr_db;
+
+  /* ── 1b) Sub-chip burst timing ─────────────────────────────────────
+   *
+   * Acquisition resolves a burst start to one SAMPLE, so at `spc` samples
+   * per chip the start handed here carries up to half a sample of error by
+   * construction. Despreading is a correlation against a chip sequence, so
+   * that error costs amplitude: for rectangular chips the loss is the
+   * triangular `1 - |tau|` in chips, and it lands on the SIGNAL alone. An
+   * SNR read downstream of it therefore moves with the receiver's own
+   * timing -- 4.8 dB at half a chip, measured -- while the channel has not
+   * changed. Both halves matter, so both are done: the integer part is
+   * REMOVED (which also buys the demodulator its margin back) and the
+   * fraction that cannot be removed by shifting is measured and taken out
+   * of the reported C/N0 (doppler#1304).
+   *
+   * The search reaches HALF A CHIP either way and no further, which is
+   * not a budget but a limit of the metric. Summing |part|^2 throws the
+   * sign away, so a slip of a WHOLE chip re-aligns every partial against
+   * its neighbour's chip and reads the same energy as no slip at all --
+   * exactly the same at one chip per segment, where the partial is a
+   * single chip. Searching that far therefore does not find a better peak,
+   * it finds an alias: at est_segments = acq_sf it took 11 of 16 bursts to
+   * the +1 chip edge and lost every one of their frames. Half a chip
+   * still covers a sample-resolved start several times over.
+   *
+   * The peak is refined by the usual parabola on the three points around
+   * it. */
+  double tau_chips = 0.0, resid_chips = 0.0;
+  if (s->spc >= 2)
+    {
+      const size_t span = s->spc / 2;
+      /* A forward shift spends samples off the END of the buffer, and the
+         frame still has to fit. The composing receiver hands a window that
+         begins exactly at the preamble and is sized for one burst, so a
+         search free to walk forward can push the last symbol outside it and
+         return no frame at all -- an event with no bits behind it, which is
+         how this was found. The reach forward is therefore whatever the
+         frame does not already need. */
+      const size_t tsym = s->data_sf * s->spc;
+      const size_t need = s->frame_syms * tsym;
+      size_t       fwd  = 0;
+      if (x_len > start + npre + need)
+        {
+          fwd = x_len - start - npre - need;
+          if (fwd > span)
+            fwd = span;
+        }
+      double best_e = -1.0;
+      size_t best_d = span;
+      /* Fixed size, argument already validated: only genuine OOM can fail
+         it, so it takes the abort-on-OOM helper rather than an unwind path
+         no test can reach. */
+      double *en = dp_xmalloc ((span + fwd + 1) * sizeof *en);
+      for (size_t i = 0; i <= span + fwd; i++)
+        {
+          /* An offset that would read before the buffer, or past its end, is
+             not a candidate -- not a clamped one, which would let the parabola
+             interpolate against a value measured somewhere else. */
+          en[i] = -1.0;
+          if (i < span && start < span - i)
+            continue;
+          size_t cand = start + i - span;
+          if (cand + npre >= x_len)
+            continue;
+          en[i] = partial_energy (s, x, cand, f0, mu, lseg_chips, s->part);
+          if (en[i] > best_e)
+            {
+              best_e = en[i];
+              best_d = i;
+            }
+        }
+      if (best_e <= 0.0)
+        {
+          free (en);
+          return 0;
+        }
+      double frac = 0.0;
+      if (best_d > 0 && best_d < span + fwd && en[best_d - 1] >= 0.0
+          && en[best_d + 1] >= 0.0)
+        {
+          double ym1 = en[best_d - 1], y0 = en[best_d], yp1 = en[best_d + 1];
+          double den = ym1 - 2.0 * y0 + yp1;
+          if (den < 0.0) /* a maximum, not a saddle or a flat run */
+            {
+              frac = 0.5 * (ym1 - yp1) / den;
+              if (frac > 0.5)
+                frac = 0.5;
+              if (frac < -0.5)
+                frac = -0.5;
+            }
+        }
+      free (en);
+      start     = start + best_d - span; /* the integer part, REMOVED       */
+      tau_chips = ((double)best_d - (double)span + frac) / (double)s->spc;
+      /* Only the FRACTION survives the shift, so only the fraction is a loss
+         still to be taken out. Reporting the total and correcting the total
+         would double-count the part that was removed. */
+      resid_chips = frac / (double)s->spc;
+      /* Re-estimate the carrier on the corrected timing, but ONLY if the
+         timing actually moved. The partials are a function of `start`, so
+         when the search lands on the offset already in use they are the
+         ones the loop above converged on, and iterating again is not a
+         refinement -- it is a second random walk from the same point. */
+      if (best_d != span)
+        for (int it = 0; it < BURST_DEMOD_EST_ITERS; it++)
+          {
+            form_partials (s, x, start, f0, mu, lseg_chips, s->part);
+            ppe_result_t est = ppe_estimate (s->ppe, s->part, s->n_part);
+            f0 += est.freq_norm / lseg;
+            mu += est.rate_norm / (lseg * lseg);
+          }
+    }
+  s->est_timing_chips = tau_chips;
+  s->est_freq_hz      = f0 * fs;
+  s->est_rate_hz      = mu * fs * fs;
+
+  const size_t data0 = start + npre;
+  if (data0 >= x_len)
+    return 0;
 
   /* ── 2) Dechirp + despread (coarse), then NDA-refine (freq, rate) over the
    * long data-symbol baseline and despread again.
@@ -424,6 +574,30 @@ burst_demod_demod (burst_demod_state_t *s, const float _Complex *x,
       if (!(n0 > 1e-12))
         n0 = 1e-12;
       s->est_n0 = n0;
+      /* C/N0, referred to the CHANNEL.
+       *
+       * `1/n0` is Es/N0 as REALIZED at the correlator: signal power over
+       * total noise power, both referred to unit symbol amplitude. Two
+       * things separate that from the channel's carrier-to-noise density.
+       *
+       * The symbol rate lifts an energy ratio to a density ratio --
+       * C/N0 = Es/N0 * Rs, the textbook identity -- and Rs is
+       * chip_rate/data_sf here. That is what makes the answer sample-rate
+       * invariant: a front-end that changes `spc` changes neither side.
+       *
+       * The residual timing costs the SIGNAL amplitude a factor
+       * `1 - |tau|` (rectangular chips, the triangular autocorrelation) and
+       * leaves the noise alone, so dividing the power ratio by its square
+       * puts back what the receiver's own timing error took out. The
+       * symbols keep the loss; only the reported number is corrected, and
+       * `est_timing_chips` says how much was corrected. */
+      double rho = 1.0 - fabs (resid_chips);
+      if (rho < 0.5)
+        rho = 0.5; /* half a sample cannot exceed half a chip; a guard, not
+                      a correction anyone should be relying on */
+      const double esn0 = 1.0 / (n0 * rho * rho);
+      s->est_cn0_dbhz   = 10.0 * log10 (esn0)
+                          + 10.0 * log10 (s->chip_rate / (double)s->data_sf);
       if (a > 0.0)
         for (size_t k = 0; k < frame; k++)
           unit[k] /= (float)a;

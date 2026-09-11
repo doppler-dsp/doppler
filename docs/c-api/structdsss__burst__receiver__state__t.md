@@ -46,11 +46,12 @@ _DsssBurstReceiver state._ [More...](#detailed-description)
 |  uint8\_t \* | [**data\_code**](#variable-data_code)  <br> |
 |  size\_t | [**data\_code\_len**](#variable-data_code_len)  <br> |
 |  [**burst\_demod\_state\_t**](structburst__demod__state__t.md) \* | [**demod**](#variable-demod)  <br> |
+|  double | [**demod\_cn0\_dbhz**](#variable-demod_cn0_dbhz)  <br> |
+|  double | [**demod\_timing\_chips**](#variable-demod_timing_chips)  <br> |
 |  double | [**doppler\_hz\_est**](#variable-doppler_hz_est)  <br> |
 |  double | [**doppler\_res\_hz**](#variable-doppler_res_hz)  <br> |
 |  double | [**est\_freq\_hz**](#variable-est_freq_hz)  <br> |
 |  double | [**est\_rate\_hz**](#variable-est_rate_hz)  <br> |
-|  double | [**est\_snr\_db**](#variable-est_snr_db)  <br> |
 |  [**dsss\_br\_event\_t**](structdsss__br__event__t.md) \* | [**ev**](#variable-ev)  <br> |
 |  size\_t | [**ev\_cap**](#variable-ev_cap)  <br> |
 |  size\_t | [**ev\_len**](#variable-ev_len)  <br> |
@@ -303,6 +304,42 @@ Demod stage, re-seeded per burst.
 
 
 
+### variable demod\_cn0\_dbhz 
+
+```C++
+double dsss_burst_receiver_state_t::demod_cn0_dbhz;
+```
+
+
+
+Demod's own C/N0, dB-Hz, referred to the CHANNEL and corrected for the sub-chip start error `demod_timing_chips` reports. Named for its STAGE rather than `est_`-prefixed like its siblings, because `cn0_dbhz_est` above is acquisition's and two fields differing only by word order is a reader's trap. The two are not the same measurement: acquisition's is a saturating lower bound from the hit, this one is measured on the decoded symbols. Replaces `est_snr_db`, which was never an SNR (doppler#1304). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable demod\_timing\_chips 
+
+```C++
+double dsss_burst_receiver_state_t::demod_timing_chips;
+```
+
+
+
+Burst-start error the demod measured, in chips, signed. Whole samples were removed before despreading; the fraction that remains is taken out of `demod_cn0_dbhz`. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable doppler\_hz\_est 
 
 ```C++
@@ -366,24 +403,6 @@ double dsss_burst_receiver_state_t::est_rate_hz;
 
 
 Demod's own chirp-rate estimate. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable est\_snr\_db 
-
-```C++
-double dsss_burst_receiver_state_t::est_snr_db;
-```
-
-
-
-Demod's own post-decode SNR estimate. 
  
 
 

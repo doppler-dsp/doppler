@@ -329,7 +329,7 @@ for i, e in enumerate(events):
         f"  {i:>2} {int(e['preamble_start']):>7} "
         f"{e['doppler_hz_est']:>8.1f} {e['doppler_res_hz']:>8.1f} "
         f"{e['cn0_dbhz_est']:>9.2f} {e['est_freq_hz']:>8.2f} "
-        f"{e['est_rate_hz']:>8.2f} {e['est_snr_db']:>8.2f} "
+        f"{e['est_rate_hz']:>8.2f} {e['demod_cn0_dbhz']:>8.2f} "
         f"{e['refine_margin']:>7.3f}"
     )
 print(
@@ -380,11 +380,20 @@ for i, e in enumerate(events):
         f"{where}: C/N0 estimate {e['cn0_dbhz_est']:.2f} dB-Hz is more than "
         f"3 dB under the scene's {CN0_DBHZ_TRUE:.2f} dB-Hz"
     )
-    # `est_snr_db` is the estimator's own peak-to-mean confidence, NOT a
-    # link SNR — do not compare it with Es/N0.
-    assert e["est_snr_db"] > 10.0, (
-        f"{where}: estimator confidence {e['est_snr_db']:.1f} dB — the "
-        "winning row barely stood out from its own mean"
+    # `demod_cn0_dbhz` IS the same quantity as the scene's C/N0, measured
+    # on the decoded symbols instead of bounded from the acquisition hit, so
+    # it is checked against the truth from BOTH sides. Its predecessor
+    # `est_snr_db` could only be checked against a bare threshold: it was the
+    # preamble estimator's peak-to-mean, carrying the coherent processing
+    # gain, and comparing it with a link budget was a category error
+    # (doppler#1304).
+    assert abs(e["demod_cn0_dbhz"] - CN0_DBHZ_TRUE) < 3.0, (
+        f"{where}: demod C/N0 {e['demod_cn0_dbhz']:.2f} dB-Hz is more than "
+        f"3 dB off the scene's {CN0_DBHZ_TRUE:.2f} dB-Hz"
+    )
+    assert abs(e["demod_timing_chips"]) < 0.5, (
+        f"{where}: start error {e['demod_timing_chips']:+.3f} chip sits at "
+        "the half-chip search bound, so the estimate is a floor"
     )
     assert 0.0 < e["refine_margin"] < 1.0, (
         f"{where}: refine margin {e['refine_margin']:.3f} — the runner-up "
@@ -538,10 +547,10 @@ ax3.bar(
 )
 ax3.bar(
     idx + w / 2,
-    events["est_snr_db"],
+    events["demod_cn0_dbhz"],
     width=w,
     color="tab:orange",
-    label="est_snr_db (estimator confidence)",
+    label="demod_cn0_dbhz (measured)",
 )
 ax3.axhline(
     CN0_DBHZ_TRUE,

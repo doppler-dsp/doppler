@@ -93,18 +93,19 @@ One `push()` can complete several bursts, and the scalar properties
 hands back the same fields *per burst*, and between them they are the
 object's entire diagnostic surface:
 
-| field            | what it is                                  | what it is checked against here                          |
-| ---------------- | ------------------------------------------- | -------------------------------------------------------- |
-| `preamble_start` | exact stream position of the preamble       | the burst's true start, sample for sample                |
-| `doppler_hz_est` | signed coarse Doppler, from the search grid | must sit inside the bin that contains the truth          |
-| `doppler_res_hz` | that grid's bin width                       | `fs / (sf * spc)` — `acq` transforms `sf*spc` verbatim   |
-| `cn0_dbhz_est`   | C/N0 **lower bound** implied by the hit     | `Es/N0 + 10·log10(Rs)` of the scene that was generated   |
-| `est_freq_hz`    | residual frequency after refine + demod     | a hundredth of one search bin — and it beats that by far |
-| `est_rate_hz`    | chirp-rate estimate                         | zero, because `max_rate=0` switches that axis **off**    |
-| `est_snr_db`     | the estimator's own peak-to-mean confidence | a floor — it is **not** a link SNR                       |
-| `refine_margin`  | runner-up code period over the winner       | strictly under 1, or the wrong period won                |
-| `frame_valid`    | every check that RAN came out good          | 1, on every burst                                        |
-| `frame_checked`  | checking stages actually reversed           | 1 with a CRC, 0 with none — a different fact from a fail |
+| field                | what it is                                  | what it is checked against here                          |
+| -------------------- | ------------------------------------------- | -------------------------------------------------------- |
+| `preamble_start`     | exact stream position of the preamble       | the burst's true start, sample for sample                |
+| `doppler_hz_est`     | signed coarse Doppler, from the search grid | must sit inside the bin that contains the truth          |
+| `doppler_res_hz`     | that grid's bin width                       | `fs / (sf * spc)` — `acq` transforms `sf*spc` verbatim   |
+| `cn0_dbhz_est`       | C/N0 **lower bound** implied by the hit     | `Es/N0 + 10·log10(Rs)` of the scene that was generated   |
+| `est_freq_hz`        | residual frequency after refine + demod     | a hundredth of one search bin — and it beats that by far |
+| `est_rate_hz`        | chirp-rate estimate                         | zero, because `max_rate=0` switches that axis **off**    |
+| `demod_cn0_dbhz`     | C/N0 **measured** on the decoded symbols    | the scene's own C/N0, from the other side of the bound   |
+| `demod_timing_chips` | burst-start error the demod removed         | a fraction of a chip — acquisition resolves to a sample  |
+| `refine_margin`      | runner-up code period over the winner       | strictly under 1, or the wrong period won                |
+| `frame_valid`        | every check that RAN came out good          | 1, on every burst                                        |
+| `frame_checked`      | checking stages actually reversed           | 1 with a CRC, 0 with none — a different fact from a fail |
 
 <!-- docs-snippet: skip=an excerpt whose names (results, capture, truth) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
 
@@ -127,9 +128,18 @@ mentioning them:
 - **`est_rate_hz == 0` is a configuration fact, not a measurement.** This
     receiver was built with `max_rate=0.0`, so the chirp axis is not
     searched. A caller who wants a rate has to ask for one.
-- **`est_snr_db` is confidence, not SNR.** It is the winning estimator
-    row's peak-to-mean ratio. Comparing it with the link's Es/N0 will give
-    a number that looks meaningful and is not.
+- **`cn0_dbhz_est` and `demod_cn0_dbhz` are the same quantity from
+    opposite sides.** Acquisition's is a lower bound from the hit and is
+    allowed to be pessimistic; the demodulator's is measured on the decoded
+    symbols and is asked to land on the scene. The example asserts the bound
+    from below and the measurement from both sides, which is why they are
+    plotted on one axis.
+- **`demod_timing_chips` is not an error report.** Acquisition resolves a
+    burst start to one SAMPLE, so a residual fraction of a chip is
+    structural. The demodulator removes the whole samples, measures the
+    rest, and takes the loss back out of `demod_cn0_dbhz` — the field says
+    how much was corrected. A magnitude AT half a chip means the search
+    saturated and the C/N0 is a floor (doppler#1304).
 
 ## The receiver stops at hard and soft decisions
 

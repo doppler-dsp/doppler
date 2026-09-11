@@ -257,7 +257,8 @@ def section_object() -> None:
                 "§2.3",
             ],
             [
-                "`est_freq_hz` / `est_rate_hz` / `est_snr_db` report the "
+                "`est_freq_hz` / `est_rate_hz` / `est_cn0_dbhz` / "
+                "`est_timing_chips` report the "
                 "estimate",
                 "C, printed but barely asserted",
                 "§2.4",
@@ -445,9 +446,10 @@ def _sec_reset(d: Data) -> None:
         float(dd.est_freq_hz),
         int(dd.frame_offset),
         float(dd.est_rate_hz),
-        float(dd.est_snr_db),
+        float(dd.est_cn0_dbhz),
+        float(dd.est_timing_chips),
     )
-    d.reset_clears = after == (0, 0.0, 0, 0.0, 0.0)
+    d.reset_clears = after == (0, 0.0, 0, 0.0, 0.0, 0.0)
     rows = [
         ["n_symbols", str(before[0]), str(after[0])],
         ["est_freq_hz", f"{before[1]:.2f}", f"{after[1]:.2f}"],
@@ -486,7 +488,8 @@ def _sec_estimate(d: Data) -> None:
             f"{d.est_freq_err_hz:.1f}",
         ],
         ["est_rate_hz", "0.0", f"{dd.est_rate_hz:.3g}", "—"],
-        ["est_snr_db", "—", f"{dd.est_snr_db:.1f}", "—"],
+        ["est_cn0_dbhz", "—", f"{dd.est_cn0_dbhz:.1f}", "—"],
+        ["est_timing_chips", "—", f"{dd.est_timing_chips:+.3f}", "—"],
     ]
     R.table(["read-back", "injected", "reported", "error (Hz)"], rows)
     d.est_rows = rows

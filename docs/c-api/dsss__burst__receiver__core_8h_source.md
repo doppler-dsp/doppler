@@ -25,7 +25,8 @@ typedef struct
   double   cn0_dbhz_est;   
   double   est_freq_hz;    
   double   est_rate_hz;    
-  double   est_snr_db;     
+  double   demod_cn0_dbhz; 
+  double   demod_timing_chips; 
   double   refine_margin;  
   uint8_t  frame_valid;    
 } dsss_br_event_t;
@@ -77,7 +78,8 @@ typedef struct {
   double   cn0_dbhz_est;   
   double   est_freq_hz;    
   double   est_rate_hz;    
-  double   est_snr_db;     
+  double   demod_cn0_dbhz; 
+  double   demod_timing_chips; 
   int      frame_valid;    
   double   refine_margin;  
   /* ── The completed bursts of the LAST push ───────────────────────────
@@ -131,7 +133,8 @@ double dsss_burst_receiver_get_doppler_res_hz(const dsss_burst_receiver_state_t 
 double dsss_burst_receiver_get_cn0_dbhz_est(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_est_freq_hz(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_est_rate_hz(const dsss_burst_receiver_state_t *state);
-double dsss_burst_receiver_get_est_snr_db(const dsss_burst_receiver_state_t *state);
+double dsss_burst_receiver_get_demod_cn0_dbhz(const dsss_burst_receiver_state_t *state);
+double dsss_burst_receiver_get_demod_timing_chips(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_refine_margin(const dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_get_pending(const dsss_burst_receiver_state_t *state);
 uint64_t dsss_burst_receiver_get_dropped(const dsss_burst_receiver_state_t *state);
@@ -149,7 +152,7 @@ uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *sta
  */
 
 #define DSSS_BURST_RECEIVER_STATE_MAGIC DP_FOURCC('D', 'B', 'R', 'X')
-#define DSSS_BURST_RECEIVER_STATE_VERSION 5u
+#define DSSS_BURST_RECEIVER_STATE_VERSION 6u
 
 size_t dsss_burst_receiver_state_bytes(const dsss_burst_receiver_state_t *state);
 

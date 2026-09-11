@@ -1000,7 +1000,7 @@ test_reset_clears_the_event_but_not_the_counters (void)
    * produce one yet; phase 3 replaces this with a real burst. */
   s->preamble_start   = 4096;
   s->doppler_hz_est   = 1234.5;
-  s->est_snr_db       = 12.0;
+  s->demod_cn0_dbhz   = 12.0;
   s->refine_margin    = 0.75;
   s->cap->pending     = 2;
   s->n_bursts         = 7;
@@ -1014,7 +1014,7 @@ test_reset_clears_the_event_but_not_the_counters (void)
   DP_CHECK (dsss_burst_receiver_get_preamble_start (s) == 0);
   /* no burst, so nothing to check */
   DP_CHECK (dsss_burst_receiver_get_doppler_hz_est (s) == 0.0);
-  DP_CHECK (dsss_burst_receiver_get_est_snr_db (s) == 0.0);
+  DP_CHECK (dsss_burst_receiver_get_demod_cn0_dbhz (s) == 0.0);
   DP_CHECK (dsss_burst_receiver_get_refine_margin (s) == 0.0);
   DP_CHECK (dsss_burst_receiver_get_pending (s) == 0);
   DP_CHECK (s->cap->samples_fed == 0);

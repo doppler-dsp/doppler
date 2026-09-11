@@ -88,6 +88,10 @@ typedef struct
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
   float *ref_sign;   
   float _Complex *corr_buf; 
+  fft_state_t *slow_fft;    
+  float _Complex *slow_in;  
+  float _Complex *slow_out; 
+  size_t          slow_n;   
   size_t refine_span;  
   size_t corr_len;     
   size_t min_gap;      

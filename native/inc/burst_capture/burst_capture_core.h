@@ -214,8 +214,25 @@ typedef struct
                           sum rather than a complex multiply.              */
   float _Complex *corr_buf; /**< Per-offset code-period correlations, reused
                                  across the candidate sweep so the sliding
-                                 correlation is computed once and the
-                                 non-coherent combine just indexes it.     */
+                                 correlation is computed once and every
+                                 candidate just indexes it. COMPLEX, and
+                                 that is the point: it held `|c| + 0i` until
+                                 doppler#1312 and the phase was discarded
+                                 before any candidate could use it.        */
+  fft_state_t *slow_fft;    /**< Slow-time transform across the repetitions:
+                                 the Doppler search that turns the candidate
+                                 score from a non-coherent sum into a
+                                 coherent peak. Sized `slow_n`.            */
+  float _Complex *slow_in;  /**< `reps` correlations, zero-padded to slow_n.*/
+  float _Complex *slow_out; /**< Its transform. Peak magnitude is the score.*/
+  size_t          slow_n;   /**< Zero-padded slow-time length. Interpolates
+                                 the Doppler axis so a residual between bins
+                                 is not straddled; the UNAMBIGUOUS span is
+                                 +-1/(2*code_period) either way, which is
+                                 exactly what acquisition can leave behind
+                                 (half its own Doppler bin), so the search
+                                 covers the residual by construction and
+                                 has no range to choose.                   */
   size_t refine_span;  /**< Candidate offsets searched, in samples:
                             `(k_lo + k_hi + reps) * code_period`. Read it
                             rather than restating the formula -- the design

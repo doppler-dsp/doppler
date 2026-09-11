@@ -180,6 +180,25 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
   s->corr_len = s->k_lo + s->k_hi + reps + 1u;
   s->corr_buf = dp_xmalloc (s->corr_len * sizeof *s->corr_buf);
 
+  /* The slow-time transform that searches Doppler across the repetitions.
+     Zero-padded to at least 4x `reps` so a residual falling between bins is
+     interpolated rather than straddled -- the same reason acquisition
+     zero-pads its own Doppler axis. The UNAMBIGUOUS span does not depend on
+     the padding: it is +-1/(2*code_period) whatever `slow_n` is, and that is
+     exactly the most acquisition can leave (half of its own bin), so the
+     search covers the residual by construction (doppler#1312). */
+  {
+    size_t n = 4u;
+    while (n < 4u * reps)
+      n *= 2u;
+    s->slow_n   = n;
+    s->slow_in  = dp_xmalloc (n * sizeof *s->slow_in);
+    s->slow_out = dp_xmalloc (n * sizeof *s->slow_out);
+    s->slow_fft = fft_create (n, -1, 1);
+    if (!s->slow_fft)
+      goto fail;
+  }
+
   /* ── The composed child ─────────────────────────────────────────────
    * Certified individually; this object owns only the seam around it.
    * noise_mode 0 = mean, matching burst_acq's own default. */
@@ -243,6 +262,10 @@ burst_capture_destroy (burst_capture_state_t *state)
   free (state->acq_code);
   free (state->ref_sign);
   free (state->corr_buf);
+  if (state->slow_fft)
+    fft_destroy (state->slow_fft);
+  free (state->slow_in);
+  free (state->slow_out);
   free (state->q);
   free (state->win);
   free (state->released);
@@ -303,9 +326,13 @@ burst_capture_have (const burst_capture_state_t *s, uint64_t pos, size_t n)
   return pos >= s->hist->tail && pos + n <= s->hist->head;
 }
 
-/** @brief |correlation| of one code period of preamble at @p pos. */
-static double
-burst_capture_period_mag (const burst_capture_state_t *s, uint64_t pos)
+/** @brief Correlation of one code period of preamble at @p pos, WITH phase.
+ *
+ * The magnitude used to be taken here, which threw away the one thing that
+ * lets the repetitions be combined coherently (doppler#1312).
+ */
+static float _Complex burst_capture_period_corr (
+    const burst_capture_state_t *s, uint64_t pos)
 {
   const float _Complex *w  = burst_capture_at (s, pos);
   float                 re = 0.0f, im = 0.0f;
@@ -315,7 +342,7 @@ burst_capture_period_mag (const burst_capture_state_t *s, uint64_t pos)
       re += g * crealf (w[j]);
       im += g * cimagf (w[j]);
     }
-  return sqrt ((double)re * re + (double)im * im);
+  return re + im * I;
 }
 
 /**
@@ -400,41 +427,65 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
     return 0;
 
   /* One correlation per preamble POSITION over the whole candidate range,
-     computed once; each candidate's score is a sum of `reps` of them. */
+     computed once; every candidate indexes it. */
   size_t n_pos = n_cand + reps - 1u;
   if (n_pos > s->corr_len)
     n_pos = s->corr_len;
   for (size_t i = 0; i < n_pos; i++)
-    s->corr_buf[i]
-        = (float)burst_capture_period_mag (s, lo + (uint64_t)(i * P))
-          + 0.0f * I;
+    s->corr_buf[i] = burst_capture_period_corr (s, lo + (uint64_t)(i * P));
 
+  /* A candidate's score is its COHERENT peak over Doppler: the `reps`
+     correlations transformed along slow time, strongest bin taken. The
+     non-coherent sum this replaces shed the combining loss as `reps` grew --
+     swept over 300 trials a point at 255 chips, spc 2, residual half a
+     slow-time bin, correct-repetition rate at 39 dB-Hz went 0.59 -> 0.70 at
+     reps 5, 0.60 -> 0.81 at 10 and 0.54 -> 0.80 at 16. Coherent gains about
+     10*log10(reps) where non-coherent gains 5*log10(reps), so the deeper the
+     preamble the more the old form gave away; `dsss-burst-receiver.md`
+     measured the same thing from the other side, its envelope floor climbing
+     0.55 -> 0.94 across those depths.
+     Two shapes measured and NOT adopted, both in doppler#1312: subtracting
+     the background cannot move the argmax at all (the boxcar has fixed
+     length, so it shifts every candidate by the same constant -- identical
+     at all 48 points, a theorem rather than a result), and square-law scored
+     within 0.01 of linear everywhere. */
   double best = -1.0, runner = 0.0;
   size_t best_k = 0;
   for (size_t k = 0; k + reps <= n_pos; k++)
     {
-      double sum = 0.0;
       for (size_t r = 0; r < reps; r++)
-        sum += (double)crealf (s->corr_buf[k + r]);
-      if (sum > best)
+        s->slow_in[r] = s->corr_buf[k + r];
+      for (size_t r = reps; r < s->slow_n; r++)
+        s->slow_in[r] = 0.0f;
+      fft_execute_cf32 (s->slow_fft, s->slow_in, s->slow_n, s->slow_out,
+                        s->slow_n);
+      double pk = 0.0;
+      for (size_t b = 0; b < s->slow_n; b++)
         {
-          best   = sum;
+          double m
+              = (double)crealf (s->slow_out[b]) * crealf (s->slow_out[b])
+                + (double)cimagf (s->slow_out[b]) * cimagf (s->slow_out[b]);
+          if (m > pk)
+            pk = m;
+        }
+      /* Winner and runner-up in ONE pass. A second sweep would have to
+         redo every transform, and the old one silently read the real part
+         of what is now a complex correlation. */
+      if (pk > best)
+        {
+          runner = best;
+          best   = pk;
           best_k = k;
         }
-    }
-  for (size_t k = 0; k + reps <= n_pos; k++)
-    {
-      if (k == best_k)
-        continue;
-      double sum = 0.0;
-      for (size_t r = 0; r < reps; r++)
-        sum += (double)crealf (s->corr_buf[k + r]);
-      if (sum > runner)
-        runner = sum;
+      else if (pk > runner)
+        runner = pk;
     }
 
-  *start  = lo + (uint64_t)(best_k * P);
-  *margin = best > 0.0 ? runner / best : 1.0;
+  *start = lo + (uint64_t)(best_k * P);
+  /* `pk` is a POWER, so the ratio is rooted to stay the amplitude ratio the
+     margin has always been -- its envelope is still (reps-1)/reps and a
+     caller comparing against that is unaffected. */
+  *margin = best > 0.0 ? sqrt (runner / best) : 1.0;
   return 1;
 }
 

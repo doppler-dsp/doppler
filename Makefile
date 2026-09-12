@@ -1096,7 +1096,12 @@ endef
 # half-supported -- doppler has cut zero of them -- and supporting them needs a
 # change in the vendored standard.mk: just-buildit/just-buildit.github.io#30.
 #
-# uv.lock's copy is re-synced by the `uv lock` below; CHANGELOG is prose.
+# uv.lock's and ffi/rust/Cargo.lock's copies are re-synced by the `uv lock`
+# and `cargo metadata` below; CHANGELOG is prose. A LOCKFILE is never a site
+# in the table above -- it is generated, so the fix belongs where it is
+# generated from, and a regex rewriting one by hand would be overwritten by
+# the next build anyway. Cargo.lock sat at 0.46.0 against a 0.47.0 project
+# precisely because nothing regenerated it here (doppler#1316).
 VERSION_SITES_CMD = python3 scripts/version_sites.py
 
 # The labels, once. The probe COMMAND is identical for every site, so this
@@ -1124,6 +1129,7 @@ VERSION_PROBES := $(foreach L,$(VERSION_SITE_LABELS),$(VERSION_PROBE_NEWLINE)$(L
 define BUMP_VERSION_CMD
 $(VERSION_SITES_CMD) --write $(VERSION)
 uv lock
+cd ffi/rust && cargo metadata --offline --format-version 1 >/dev/null
 @$(MAKE) --no-print-directory docs-relink
 endef
 
@@ -1208,6 +1214,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 installed-headers-check \
                 ci-image ci-image-check ci-image-repin-check \
                 ccsds-isolation-check instrumented-sweep-check \
+                cargo-lock-check \
                 ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats pr-watch \
                 wheel-check wheel-smoke release-smoke \
@@ -1249,7 +1256,7 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       workflow-syntax-check release-notes-size-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
-      ccsds-isolation-check instrumented-sweep-check
+      ccsds-isolation-check cargo-lock-check instrumented-sweep-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A
@@ -3165,6 +3172,18 @@ ci-image-repin-check: ## Fail when a rebuilt CI-image pin is pending and unmerge
 # it over a seeded tree, as `issue-link-check` does.
 ccsds-isolation-check: ## Fail when a component outside ccsds_tm includes its headers
 	@$(UV) run python scripts/check_ccsds_isolation.py
+
+# Cargo.lock records the resolved graph INCLUDING doppler's own version, and
+# `bump-version` never regenerated it -- so it stated 0.46.0 against a 0.47.0
+# project, one whole release behind. It had no symptom because nothing reads
+# it: cargo simply rewrites it on the next build, which is how it was found
+# (a `cargo metadata` inside `make gates` dirtied the tree mid-rebase).
+#
+# A staleness gate rather than a sixth version site: the lockfile is
+# GENERATED, so this compares it against its source instead of restating the
+# number a third time. Same shape as gen-c-api-check and validate-check.
+cargo-lock-check: ## Fail when Cargo.lock's doppler version lags Cargo.toml
+	@$(UV) run python scripts/check_cargo_lock.py
 
 # The `sweep` validators cost ~20-40x under instrumentation and their `--check`
 # already runs in the Release suite. ASan, UBSan and TSan each excluded them,

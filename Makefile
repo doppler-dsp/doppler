@@ -344,9 +344,31 @@ endef
 
 # ── Test ─────────────────────────────────────────────────────────────────────
 # `test` is CTest (native/ unit tests); the Python suite is `test-python`.
-TEST_CMD      = $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure
+#
+# $(TEST_EXCLUDE_SWEEP) for the reason SAN_EXCLUDE_SWEEP and COV_EXCLUDE_SWEEP
+# give, extended to the OPTIMISED suite -- doppler#1292 measured the
+# instrumented ones and stopped there, so `make test` was the one consumer
+# still paying for the whole set. Measured 2026-09-12, 20 cores, serial:
+#
+#   the 34 `sweep` validators are 88.5% of the C suite (294.2s of 332.4s);
+#     the other 138 tests are 38.2s. Three validators added in the six days
+#     to 2026-09-08 are 199.3s of that 294.2s on their own.
+#   `make test` is what CI runs on EVERY platform build (ci.yml), so that
+#     294.2s was paid three times per push -- ubuntu-22.04, ubuntu-24.04 and
+#     macos-latest -- for one set of machine-independent numeric checks.
+#
+# They are not dropped, they are RELOCATED: `make test-sweep` runs them and
+# the `sweep validators` CI job runs that, once, on the pinned image. Which
+# is also the only place their wall-clock budget means anything, so the two
+# belong in one target rather than two.
+#
+# TEST_SWEEP=1 puts them back -- `make test TEST_SWEEP=1` is the full C
+# battery, as SAN_SWEEP=1 and COV_SWEEP=1 are for their suites.
+TEST_EXCLUDE_SWEEP = $(if $(TEST_SWEEP),,-LE sweep)
+TEST_CMD      = $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
+                    $(TEST_EXCLUDE_SWEEP)
 TEST_FAST_CMD = $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
-                    --stop-on-failure
+                    --stop-on-failure $(TEST_EXCLUDE_SWEEP)
 # The SELECTION must match CI's exactly, or `make test-python` means one thing
 # locally and another in CI — which it did: local ran everything under src/,
 # CI excluded the `docs_snippets` and `examples` markers. Those two markers have
@@ -542,7 +564,8 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 drift-check doxygen-check docs-check \
                 gen-c-api-check \
                 validate-check \
-                test-all test-stubs test-api-docs test-snippets test-rust \
+                test-all test-sweep test-stubs test-api-docs test-snippets \
+                test-rust \
                 abi-check link-check installed-headers-check \
                 test-asan test-ubsan test-tsan \
                 consumer-faces-check burst-pipeline-check glibc-gate \
@@ -1203,6 +1226,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 jm-pin \
                 issue-link-check \
                 validate validate-c validate-check \
+                test-sweep validation-time-baseline \
                 characterize characterization-check \
                 doxygen-warn-gate \
                 test-examples-c test-examples-python test-example-downstream \
@@ -2266,6 +2290,31 @@ VALIDATORS_C = $(patsubst native/validation/%.c,\
                  $(BUILD_DIR)/native/validation/validate_%,\
                  $(shell git ls-files 'native/validation/*.c'))
 VALIDATE_C_OUT = $(BUILD_DIR)/validation-full
+
+# The `sweep` validators' SPOT CHECKS, relocated out of `make test` (see
+# TEST_EXCLUDE_SWEEP) and run once, here. ONE run serves both purposes: it
+# executes the checks and it produces the timings the budget gate reads, so
+# the gate cannot be measuring a different run from the one that passed.
+#
+# The log goes to a file rather than a pipe: `ctest | tee` would hand this
+# recipe tee's exit status and a failing validator would read as a pass.
+.PHONY: test-sweep validation-time-baseline
+test-sweep: ## Run the sweep validators' spot checks + gate their wall-clock budget
+	@mkdir -p $(BUILD_DIR)
+	$(CTEST) --test-dir $(BUILD_DIR) --output-on-failure -L sweep \
+	    > $(BUILD_DIR)/sweep-ctest.log 2>&1; \
+	 rc=$$?; cat $(BUILD_DIR)/sweep-ctest.log; \
+	 if [ $$rc -ne 0 ]; then exit $$rc; fi
+	$(UV) run python scripts/check_validation_times.py \
+	    --ctest-log $(BUILD_DIR)/sweep-ctest.log --build $(BUILD_DIR) \
+	    $(if $(SWEEP_STRICT),--strict,)
+
+# The ratchet's shrink path, the sibling of lint-alloc-helpers-baseline.
+validation-time-baseline: ## Re-record the sweep spot-check budget from a run
+	$(CTEST) --test-dir $(BUILD_DIR) --output-on-failure -L sweep \
+	    > $(BUILD_DIR)/sweep-ctest.log 2>&1 || true
+	$(UV) run python scripts/check_validation_times.py \
+	    --ctest-log $(BUILD_DIR)/sweep-ctest.log --build $(BUILD_DIR) --update
 
 .PHONY: validate-c
 validate-c: ## Run every C validation harness's FULL sweep (not the --check subset)

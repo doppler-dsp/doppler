@@ -1,0 +1,95 @@
+# Baseline for scripts/check_validation_times.py -- a RATCHET.
+#
+# Wall-clock seconds for each `sweep`-labelled validator's --check SPOT
+# CHECK, the downselected run ctest performs on every push. Not the full
+# sweep: that is `make validate-c` and is not timed here.
+#
+# WHY THIS EXISTS. The spot-check/full-sweep split was introduced because
+# ratesync_scurve's full sweep was 81s and 78% of `make test-fast`; its
+# subset is 11.8s and has held. Nothing generalised the rule, so three
+# validators added in six days (2026-09-06..08) arrived with subsets of
+# 87.0s, 58.7s and 53.5s -- 60% of the whole C suite, and the largest of
+# them bigger than the full sweep that motivated the split in the first
+# place. A rule that fixed one instance and gated nothing is a wish.
+#
+# TWO RULES, and they are about different things. Keeping them apart is
+# the point -- the alloc-helper file once carried two that contradicted
+# each other, and the first draft of this one repeated the mistake by
+# promising a reason would permit something the code then refused.
+#
+#   1. THE RUN must come in under its recorded number (x2.0, see below).
+#      No reason on the line changes that; a reason is not a mute button.
+#   2. THE NUMBER may only SHRINK, unless the line carries a reason. That
+#      is about the EDIT, and the gate detects a raise by diffing this
+#      file against the base ref -- so a raise is reviewed as a raise.
+#
+# A sweep validator not listed here fails the gate: a new spot check has
+# to state its cost, which is the whole point -- the three above were
+# reviewed and merged without anyone seeing a number. Re-record with
+#
+#     make validation-time-baseline
+#
+# A time that stayed high after its validator got cheaper is a waiver
+# outliving its reason, so the gate fails on that too.
+#
+# THESE ARE CI SECONDS, NOT YOURS. Recorded on the pinned CI image, which
+# is where the gate is authoritative, and a dev box is much faster --
+# measured 2026-09-12 across the same 34 checks:
+#
+#   CI 688.3s total against 293.1s on a 20-core workstation: 2.35x, and
+#   per-test 1.9x to 2.8x (acq_surface_jitter 221.9s vs 87.0s).
+#
+# The first draft of this table held the WORKSTATION numbers, and with the
+# 2.0x tolerance that would have gone red on nearly every substantial test
+# the moment CI ran it -- for a reason that has nothing to do with the
+# code. That is doppler#543's failure mode exactly: it removed a CI
+# wall-clock gate whose verdicts reversed between CI and a dev box. It was
+# caught here only because a missing `uv` stopped the job before the gate
+# ran, which is luck, not design.
+#
+# So: the numbers are CI's, the gate FAILS only under --strict (set in the
+# `sweep validators` job and nowhere else), and the stale-waiver check is
+# strict-only too -- on a faster machine every entry would look stale and
+# the report would be noise. Locally `make test-sweep` reports totals and
+# nothing else, which is all a dev box can honestly say.
+#
+# The deterministic successor -- gate each validator's WORK COUNT, which is
+# a property of the source and not of the machine -- is doppler#1328. The
+# 2.35x above is the argument for it.
+#
+# Recorded 2026-09-12 from the `sweep validators` job, run 34712193774.
+
+validate_acq_surface_jitter            221.9
+validate_async_dsss_pool_soak_budget   138.3
+validate_async_dsss_pool_soak          128.1
+validate_async_dsss_receiver_release    34.7
+validate_receiver_pullin                26.1
+validate_acq_peak_list                  23.2
+validate_ratesync_scurve                22.1
+validate_tracker_through_window         17.2
+validate_acq_block_coherent             14.8
+validate_costas_pullin                  11.9
+validate_dll_aid_jitter                  9.9
+validate_rx_battery                      9.0
+validate_rx_coding_gain                  8.4
+validate_refine_bias                     8.0
+validate_carrier_mpsk_jitter             4.4
+validate_ber_despreader                  3.7
+validate_dll_jitter                      2.1
+validate_mpsk_receiver_real_ber          0.9
+validate_rx_frame_fer                    0.8
+validate_costas_jitter                   0.7
+validate_mpsk_receiver_ber               0.5
+validate_carrier_nda_pullin              0.4
+validate_symsync_lock                    0.3
+validate_wfm_follow_keepup               0.3
+validate_loop_filter_noise_bw            0.2
+validate_mpsk_diff_penalty               0.2
+validate_acq_emitter_floor               0.1
+validate_carrier_mpsk_scurve             0.1
+validate_carrier_nda_lock                0.1
+validate_carrier_nda_scurve              0.1
+validate_carrier_nda_step_response       0.1
+validate_interleave_burst_gain           0.1
+validate_lockdet_verify                  0.1
+validate_wfmgen_certify                  0.1

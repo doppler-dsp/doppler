@@ -141,6 +141,10 @@ Here is a list of all files with brief descriptions:
             * **file** [**f32\_to\_i16u32\_core.h**](f32__to__i16u32__core_8h.md) _Scale-and-saturate float to Q15-in-uint32 converter._     
         * **dir** [**f32\_to\_i16u64**](dir_212e21299d76aa740bbad8810e4bf50a.md)     
             * **file** [**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md) _Scale-and-saturate float to Q15-in-uint64 converter._     
+        * **dir** [**f32\_to\_i32**](dir_9f277c348fdc2d73ff85df72003f099b.md)     
+            * **file** [**f32\_to\_i32\_core.h**](f32__to__i32__core_8h.md) _Scale-and-saturate float-to-int32 converter._     
+        * **dir** [**f32\_to\_i8**](dir_b1f46cddbee3624386fd88f96d7cfb35.md)     
+            * **file** [**f32\_to\_i8\_core.h**](f32__to__i8__core_8h.md) _Scale-and-saturate float-to-int8 converter._     
         * **dir** [**f32\_to\_uq15**](dir_4e8c99e54919bb49218552fb8f2fb678.md)     
             * **file** [**f32\_to\_uq15\_core.h**](f32__to__uq15__core_8h.md) _Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter._     
         * **dir** [**farrow**](dir_3474bb67440308cdab2155867b5160e7.md)     

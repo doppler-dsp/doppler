@@ -1132,11 +1132,28 @@ def test_writer_clip_detection(tmp_path):
     with pytest.raises(RuntimeError):
         _ = w.clipped  # the handle is freed; live stats are no longer readable
 
-    # clean at full scale: peak 0 dBFS, no clip.
+    # Clean at full scale -- but "full scale" is one code below +1.0.
+    #
+    # The wire's full scale is 2^(N-1) (dp_format_full_scale, and every cvt
+    # converter's default), so +1.0 maps to 2^15 = 32768, which is one past
+    # INT16_MAX by construction and saturates to 32767. A signal that
+    # touches +1.0 therefore DOES clip, and the writer says so -- that is the
+    # mapping working, not failing. The largest input that does not clip is
+    # one code below it, and -1.0 is exact because -32768 is representable.
+    clean = np.float32(
+        np.iinfo("<i2").max / (float(np.iinfo("<i2").max) + 1.0)
+    )
     c = Writer(tmp_path / "clean.ci16", fs=1e6, sample_type="ci16")
-    c.write(np.array([1.0 + 1.0j, -1.0 - 1.0j], dtype=np.complex64))
-    assert not c.clipped and abs(c.peak_dbfs) < 1e-4
+    c.write(np.array([clean + clean * 1j, -1.0 - 1.0j], dtype=np.complex64))
+    assert not c.clipped
+    assert abs(c.peak_dbfs) < 1e-3  # peak is |-1.0| = 1.0 -> 0 dBFS
     c.close()
+
+    # And the boundary itself: +1.0 saturates, -1.0 does not.
+    b = Writer(tmp_path / "bound.ci16", fs=1e6, sample_type="ci16")
+    b.write(np.array([1.0 + 0.0j], dtype=np.complex64))
+    assert b.clipped, "+1.0 maps to 32768 and must report the saturation"
+    b.close()
 
     # float never clips, even past full scale.
     f = Writer(tmp_path / "x.cf32", fs=1e6, sample_type="cf32")

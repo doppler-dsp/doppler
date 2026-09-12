@@ -4,6 +4,214 @@ import numpy as np
 from numpy.typing import NDArray
 
 @final
+class F32ToI8:
+    """Create a f32_to_i8 instance.
+
+    Parameters
+    ----------
+    scale : float, default 128.0
+        Multiply factor applied before rounding and saturation (default:
+        128.0f). Use 128.0 to convert a normalised `[-1, +1]` signal to the
+        full 8-bit range.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.cvt import F32ToI8
+    >>> obj = F32ToI8(scale=128.0)
+
+    """
+    def __init__(self, scale: float = ...) -> None: ...
+
+    def reset(self) -> None:
+        """Clear the sticky clip flag, starting a fresh saturation history.
+
+        Zeroes clipped so a subsequent clipped query reflects only samples seen
+        after this call; the immutable scale is preserved. Call it at a buffer
+        or segment boundary so a saturation on one block does not leak into the
+        next.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI8
+        >>> c = F32ToI8()
+        >>> c.step(9.0)          # out of range -> saturates, latches clipped
+        127
+        >>> c.reset()            # forget the clip history
+        >>> c.clipped
+        False
+
+        """
+
+    def step(self, x: float) -> int:
+        """Scale one float sample by scale, round, and saturate to int8.
+
+        Computes round(x * scale), clamps to the int8 range `[-128, 127]`, and
+        latches the sticky clipped flag if the scaled value fell outside that
+        range before clamping. At the default scale of 128 a normalised `[-1,
+        +1]` input maps to the full 8-bit code range.
+
+        Parameters
+        ----------
+        x : float
+            Input sample, normally a normalised float in `[-1, +1]`.
+
+        Returns
+        -------
+        int
+            Saturated int8 code in `[-128, 127]`.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI8
+        >>> c = F32ToI8(scale=128.0)    # normalised float -> full-scale int8
+        >>> c.step(0.5)                 # 0.5 * 128
+        64
+        >>> c.step(2.0)                 # beyond +1.0 -> saturates to max
+        127
+        >>> c.clipped                   # sticky flag latched by the clip
+        True
+
+        """
+
+    def steps(
+        self,
+        x: NDArray[np.float32],
+        out: NDArray[np.int8] | None = None,
+    ) -> NDArray[np.int8]:
+        """Process a block of float samples to int8.
+
+        Applies step() to every element. The clipped flag is updated
+        cumulatively across the block — a single saturating sample raises it
+        for the entire call. Accepts an optional pre-allocated output array;
+        allocates a fresh one when output is NULL.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.int8]
+            Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI8
+        >>> import numpy as np
+        >>> x = np.array([0.0, 0.5, -1.0, 0.99], dtype=np.float32)
+        >>> F32ToI8().steps(x).tolist()   # scale=128 -> full-scale int8
+        [0, 64, -128, 127]
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the F32ToI8 has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the F32ToI8 has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the F32ToI8 has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def clipped(self) -> bool:
+        """True if any sample has been saturated since the last reset()."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "F32ToI8":
+        """Enter a context manager, returning this object.
+
+        Lets a F32ToI8 be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        F32ToI8
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the F32ToI8.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
 class F32ToI16:
     """Create a f32_to_i16 instance.
 
@@ -196,6 +404,364 @@ class F32ToI16:
         tb: object | None = ...,
     ) -> None:
         """Exit a context manager, releasing the F32ToI16.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class F32ToI32:
+    """Create a f32_to_i32 instance.
+
+    Parameters
+    ----------
+    scale : float, default 2147483648.0
+        Multiply factor applied before rounding and saturation (default:
+        2147483648.0f). Use 2^31 to convert a normalised `[-1, +1]` signal to
+        the full 32-bit range.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.cvt import F32ToI32
+    >>> obj = F32ToI32(scale=2147483648.0)
+
+    """
+    def __init__(self, scale: float = ...) -> None: ...
+
+    def reset(self) -> None:
+        """Clear the sticky clip flag, starting a fresh saturation history.
+
+        Zeroes clipped so a subsequent clipped query reflects only samples seen
+        after this call; the immutable scale is preserved. Call it at a buffer
+        or segment boundary so a saturation on one block does not leak into the
+        next.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI32
+        >>> c = F32ToI32()
+        >>> c.step(9.0)          # out of range -> saturates, latches clipped
+        2147483647
+        >>> c.reset()            # forget the clip history
+        >>> c.clipped
+        False
+
+        """
+
+    def step(self, x: float) -> int:
+        """Scale one float sample by scale, round, and saturate to int32.
+
+        Computes round(x * scale), clamps to the int32 range `[-2147483648,
+        2147483647]`, and latches the sticky clipped flag if the scaled value
+        fell outside that range before clamping. At the default scale of 2^31 a
+        normalised `[-1, +1]` input maps to the full 32-bit code range.
+
+        Unlike its int8 and int16 siblings this works in double throughout.
+        INT32_MAX is not representable as a float — 2147483647.0f rounds UP to
+        2^31 — so a float `fminf(s, 2147483647.0f)` clamps to a value one past
+        the range it is trying to enforce, and the following lround()
+        overflows. The float32 input still bounds the useful precision at 24
+        bits; the double is there to make the CLAMP exact, not to invent
+        significance.
+
+        Parameters
+        ----------
+        x : float
+            Input sample, normally a normalised float in `[-1, +1]`.
+
+        Returns
+        -------
+        int
+            Saturated int32 code in `[-2147483648, 2147483647]`.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI32
+        >>> c = F32ToI32(scale=2147483648.0)  # normalised float -> full-scale
+        >>> c.step(0.5)                       # 0.5 * 2**31
+        1073741824
+        >>> c.step(2.0)                       # beyond +1.0 -> saturates to max
+        2147483647
+        >>> c.clipped                         # sticky flag latched by the clip
+        True
+
+        """
+
+    def steps(
+        self,
+        x: NDArray[np.float32],
+        out: NDArray[np.int32] | None = None,
+    ) -> NDArray[np.int32]:
+        """Process a block of float samples to int32.
+
+        Applies step() to every element. The clipped flag is updated
+        cumulatively across the block — a single saturating sample raises it
+        for the entire call. Accepts an optional pre-allocated output array;
+        allocates a fresh one when output is NULL.
+
+        Parameters
+        ----------
+        x : NDArray[np.float32]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.int32]
+            Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import F32ToI32
+        >>> import numpy as np
+        >>> x = np.array([0.0, 0.25, -1.0], dtype=np.float32)
+        >>> F32ToI32().steps(x).tolist()   # scale=2**31 -> full-scale int32
+        [0, 536870912, -2147483648]
+
+        """
+
+    def state_bytes(self) -> int:
+        """Size in bytes of this object's serialized state.
+
+        The exact length `get_state` returns and `set_state` requires. It
+        depends on how the object was constructed (state arrays are sized at
+        construction), so read it from the instance rather than assuming a
+        constant.
+
+        Raises ``RuntimeError`` if the F32ToI32 has already been destroyed.
+
+        Returns
+        -------
+        int
+            Byte length of one serialized state blob.
+        """
+
+    def get_state(self) -> bytes:
+        """Serialize this object's mutable state to bytes.
+
+        Captures exactly the state that evolves as the object runs, so a blob
+        taken now and restored later resumes from this point. Construction
+        parameters are not included: restore into an object built the same way.
+
+        The blob is opaque and always `state_bytes()` long. Its layout is an
+        implementation detail of the C core and is not a stable format across
+        builds.
+
+        Raises ``RuntimeError`` if the F32ToI32 has already been destroyed.
+
+        Returns
+        -------
+        bytes
+            Opaque snapshot, `state_bytes()` bytes long.
+        """
+
+    def set_state(self, blob: bytes) -> None:
+        """Restore mutable state from a `get_state()` blob.
+
+        Overwrites the live state in place; the object keeps the parameters it
+        was constructed with. Length is validated against `state_bytes()`
+        before the blob is handed to the C core, and the core may reject it as
+        well.
+
+        Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its
+        length differs from `state_bytes()` or the core rejects it, and
+        ``RuntimeError`` if the F32ToI32 has already been destroyed.
+
+        Parameters
+        ----------
+        blob : bytes
+            A `get_state()` blob from this type, exactly `state_bytes()` long.
+        """
+
+    @property
+    def clipped(self) -> bool:
+        """True if any sample has been saturated since the last reset()."""
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "F32ToI32":
+        """Enter a context manager, returning this object.
+
+        Lets a F32ToI32 be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        F32ToI32
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the F32ToI32.
+
+        Equivalent to calling `destroy()`. Returns ``None``, so an exception
+        raised inside the `with` body propagates normally; this never
+        suppresses one.
+
+        Parameters
+        ----------
+        exc_type : object | None
+            Exception class, or None. Ignored.
+        exc : object | None
+            Exception instance, or None. Ignored.
+        tb : object | None
+            Traceback object, or None. Ignored.
+        """
+
+@final
+class I8ToF32:
+    """Create a i8_to_f32 instance.
+
+    Parameters
+    ----------
+    scale : float, default 128.0
+        Denominator scale; 1/scale is applied to each sample (default: 128.0f).
+        Use 128.0 to recover normalised floats from a signed 8-bit stream.
+
+    Examples
+    --------
+    Create with defaults:
+
+    >>> from doppler.cvt import I8ToF32
+    >>> obj = I8ToF32(scale=128.0)
+
+    """
+    def __init__(self, scale: float = ...) -> None: ...
+
+    def reset(self) -> None:
+        """No-op reset, provided only for lifecycle symmetry.
+
+        No mutable state exists beyond the immutable iscale, so there is
+        nothing to clear; the method exists so every converter in the module
+        presents the same create / step / reset / destroy lifecycle.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I8ToF32
+        >>> c = I8ToF32()
+        >>> c.reset()           # stateless converter -> reset is a no-op
+        >>> round(c.step(-128), 4)
+        -1.0
+
+        """
+
+    def step(self, x: int) -> float:
+        """Convert one signed int8 sample to a normalised float via 1/scale.
+
+        Returns (float)x * iscale, a single multiply on the hot path. At the
+        default scale of 128 the full int8 range recovers `[-1.0, ~+1.0)` — the
+        front end of an 8-bit IQ path (e.g. a signed-8 RTL-SDR stream) into
+        normalised floats.
+
+        Parameters
+        ----------
+        x : int
+            Signed int8 code in `[-128, 127]`.
+
+        Returns
+        -------
+        float
+            Normalised float, `x / scale`.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I8ToF32
+        >>> c = I8ToF32(scale=128.0)   # signed 8-bit -> normalised float
+        >>> round(c.step(64), 4)        # 64 / 128
+        0.5
+        >>> round(c.step(-128), 4)      # full-negative code -> -1.0
+        -1.0
+
+        """
+
+    def steps(
+        self,
+        x: NDArray[np.int8],
+        out: NDArray[np.float32] | None = None,
+    ) -> NDArray[np.float32]:
+        """Process a block of int8 samples to float32.
+
+        Applies step() to every element. Accepts an optional pre-allocated
+        output array; allocates a fresh one when output is NULL.
+
+        Parameters
+        ----------
+        x : NDArray[np.int8]
+            Input.
+
+        Returns
+        -------
+        NDArray[np.float32]
+            Output.
+
+        Examples
+        --------
+        >>> from doppler.cvt import I8ToF32
+        >>> import numpy as np
+        >>> I8ToF32().steps(np.array([0, 64, -128], dtype=np.int8)).tolist()
+        [0.0, 0.5, -1.0]
+
+        """
+
+    def destroy(self) -> None:
+        """Release the underlying C resources immediately.
+
+        Ordinarily unnecessary: the resources are freed when the object is
+        garbage-collected. Call this to release them at a definite point
+        instead, or use the object as a context manager, which calls it on
+        exit.
+
+        Idempotent: calling it again on an already-released object does
+        nothing. Every other method raises ``RuntimeError`` once it has run.
+        """
+
+
+    def __enter__(self) -> "I8ToF32":
+        """Enter a context manager, returning this object.
+
+        Lets a I8ToF32 be used in a `with` statement so its C resources are
+        released deterministically on exit rather than at collection time.
+
+        Returns
+        -------
+        I8ToF32
+            This same object, not a copy.
+        """
+
+    def __exit__(
+        self,
+        exc_type: object | None = ...,
+        exc: object | None = ...,
+        tb: object | None = ...,
+    ) -> None:
+        """Exit a context manager, releasing the I8ToF32.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never
@@ -484,148 +1050,6 @@ class I32ToF32:
         tb: object | None = ...,
     ) -> None:
         """Exit a context manager, releasing the I32ToF32.
-
-        Equivalent to calling `destroy()`. Returns ``None``, so an exception
-        raised inside the `with` body propagates normally; this never
-        suppresses one.
-
-        Parameters
-        ----------
-        exc_type : object | None
-            Exception class, or None. Ignored.
-        exc : object | None
-            Exception instance, or None. Ignored.
-        tb : object | None
-            Traceback object, or None. Ignored.
-        """
-
-@final
-class I8ToF32:
-    """Create a i8_to_f32 instance.
-
-    Parameters
-    ----------
-    scale : float, default 128.0
-        Denominator scale; 1/scale is applied to each sample (default: 128.0f).
-        Use 128.0 to recover normalised floats from a signed 8-bit stream.
-
-    Examples
-    --------
-    Create with defaults:
-
-    >>> from doppler.cvt import I8ToF32
-    >>> obj = I8ToF32(scale=128.0)
-
-    """
-    def __init__(self, scale: float = ...) -> None: ...
-
-    def reset(self) -> None:
-        """No-op reset, provided only for lifecycle symmetry.
-
-        No mutable state exists beyond the immutable iscale, so there is
-        nothing to clear; the method exists so every converter in the module
-        presents the same create / step / reset / destroy lifecycle.
-
-        Examples
-        --------
-        >>> from doppler.cvt import I8ToF32
-        >>> c = I8ToF32()
-        >>> c.reset()           # stateless converter -> reset is a no-op
-        >>> round(c.step(-128), 4)
-        -1.0
-
-        """
-
-    def step(self, x: int) -> float:
-        """Convert one signed int8 sample to a normalised float via 1/scale.
-
-        Returns (float)x * iscale, a single multiply on the hot path. At the
-        default scale of 128 the full int8 range recovers `[-1.0, ~+1.0)` — the
-        front end of an 8-bit IQ path (e.g. a signed-8 RTL-SDR stream) into
-        normalised floats.
-
-        Parameters
-        ----------
-        x : int
-            Signed int8 code in `[-128, 127]`.
-
-        Returns
-        -------
-        float
-            Normalised float, `x / scale`.
-
-        Examples
-        --------
-        >>> from doppler.cvt import I8ToF32
-        >>> c = I8ToF32(scale=128.0)   # signed 8-bit -> normalised float
-        >>> round(c.step(64), 4)        # 64 / 128
-        0.5
-        >>> round(c.step(-128), 4)      # full-negative code -> -1.0
-        -1.0
-
-        """
-
-    def steps(
-        self,
-        x: NDArray[np.int8],
-        out: NDArray[np.float32] | None = None,
-    ) -> NDArray[np.float32]:
-        """Process a block of int8 samples to float32.
-
-        Applies step() to every element. Accepts an optional pre-allocated
-        output array; allocates a fresh one when output is NULL.
-
-        Parameters
-        ----------
-        x : NDArray[np.int8]
-            Input.
-
-        Returns
-        -------
-        NDArray[np.float32]
-            Output.
-
-        Examples
-        --------
-        >>> from doppler.cvt import I8ToF32
-        >>> import numpy as np
-        >>> I8ToF32().steps(np.array([0, 64, -128], dtype=np.int8)).tolist()
-        [0.0, 0.5, -1.0]
-
-        """
-
-    def destroy(self) -> None:
-        """Release the underlying C resources immediately.
-
-        Ordinarily unnecessary: the resources are freed when the object is
-        garbage-collected. Call this to release them at a definite point
-        instead, or use the object as a context manager, which calls it on
-        exit.
-
-        Idempotent: calling it again on an already-released object does
-        nothing. Every other method raises ``RuntimeError`` once it has run.
-        """
-
-
-    def __enter__(self) -> "I8ToF32":
-        """Enter a context manager, returning this object.
-
-        Lets a I8ToF32 be used in a `with` statement so its C resources are
-        released deterministically on exit rather than at collection time.
-
-        Returns
-        -------
-        I8ToF32
-            This same object, not a copy.
-        """
-
-    def __exit__(
-        self,
-        exc_type: object | None = ...,
-        exc: object | None = ...,
-        tb: object | None = ...,
-    ) -> None:
-        """Exit a context manager, releasing the I8ToF32.
 
         Equivalent to calling `destroy()`. Returns ``None``, so an exception
         raised inside the `with` body propagates normally; this never

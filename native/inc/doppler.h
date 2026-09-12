@@ -28,13 +28,17 @@
 
 #include "wfm_writer/wfm_writer_core.h"
 
+#include "f32_to_i8/f32_to_i8_core.h"
+
 #include "f32_to_i16/f32_to_i16_core.h"
+
+#include "f32_to_i32/f32_to_i32_core.h"
+
+#include "i8_to_f32/i8_to_f32_core.h"
 
 #include "i16_to_f32/i16_to_f32_core.h"
 
 #include "i32_to_f32/i32_to_f32_core.h"
-
-#include "i8_to_f32/i8_to_f32_core.h"
 
 #include "f32_to_i16u32/f32_to_i16u32_core.h"
 

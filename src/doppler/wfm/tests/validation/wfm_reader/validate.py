@@ -50,14 +50,26 @@ R = Report()
 FS = 2.4e6
 FC = 1.42e9
 
-# The five complex wire types, the numpy dtype each lands as, and the
-# full-scale constant that inverts the writer's quantiser.
+
+def _full_scale(dtype: str) -> float | None:
+    """2^(N-1) for an integer wire type, None for a float one.
+
+    Derived from the type rather than tabulated: the constant belongs to
+    dp_format_full_scale() and the cvt converters, and a third copy here is
+    what doppler#1117 was about. np.iinfo().max is 2^(N-1)-1, so the full
+    scale is one more -- which is also the magnitude of the type's most
+    negative code, the one that IS full scale.
+    """
+    return None if "i" not in dtype else float(np.iinfo(dtype).max) + 1.0
+
+
+# The five complex wire types and the numpy dtype each lands as.
 WIRE = [
     ("cf32", "<c8", None),
     ("cf64", "<c16", None),
-    ("ci32", "<i4", 2147483647.0),
-    ("ci16", "<i2", 32767.0),
-    ("ci8", "<i1", 127.0),
+    ("ci32", "<i4", _full_scale("<i4")),
+    ("ci16", "<i2", _full_scale("<i2")),
+    ("ci8", "<i1", _full_scale("<i1")),
 ]
 
 N = 2048
@@ -208,17 +220,20 @@ def measure_wire(d: Data, tmp: Path) -> None:
     R.md(
         "The reader agrees with an independent decode on every type. The "
         "residual against the ORIGINAL samples is the writer's "
-        "quantisation, not the reader's, and it is exactly one LSB per "
-        "component -- the bound truncation gives, reached rather than "
-        "approached. The float types are exact."
+        "quantisation, not the reader's, and it is **half** an LSB per "
+        "component -- the bound round-to-nearest gives, reached rather "
+        "than approached. It was a whole LSB until gh-1117 replaced three "
+        "private truncating quantisers with calls to the `cvt` "
+        "converters. The float types are exact."
     )
     R.md()
     R.md(
         "The last column is worth a caller's attention: the COMPLEX error "
-        "reaches about **1.41 LSB**, because both axes truncate "
-        "independently and `sqrt(2)` of one LSB is what that costs. An "
-        "error budget written per component and then applied to `|z|` is "
-        "40% optimistic."
+        "runs above the per-component one, because the two axes quantise "
+        "independently and the worst case is `sqrt(2)` of a component's "
+        "bound -- 0.707 LSB against 0.500. An error budget written per "
+        "component and then applied to `|z|` is 40% optimistic, whichever "
+        "way the quantiser rounds."
     )
     R.md()
 

@@ -156,6 +156,16 @@ extern "C"
    * formats, which are already full-scale, and 0 for a code this build does
    * not know.
    *
+   * 2^(N-1), not 2^(N-1)-1: the code grid a converter has is 2^N equally
+   * spaced steps of 1/2^(N-1), so this is the scale that maps the normalised
+   * range onto that grid exactly and lets a dyadic value round-trip with no
+   * error. An input of exactly +1.0 lands one past the type's maximum by
+   * construction and the converters saturate it, which is what the mapping
+   * means rather than a failure of it. It is the same constant every cvt
+   * converter defaults to, in both directions — this function and
+   * f32_to_i16/i16_to_f32 and their int8/int32 siblings must not disagree,
+   * and doppler#1117 is what disagreeing cost.
+   *
    * @param type Sample format.
    * @return Full-scale value per component, or 0.
    */
@@ -165,20 +175,20 @@ extern "C"
     switch (type)
       {
       case CI8:
-        return 127.0;
+        return 128.0;
       case CI16:
-        return 32767.0;
+        return 32768.0;
       case CI32:
-        return 2147483647.0;
+        return 2147483648.0;
       case CF32:
       case CF64:
         return 1.0;
       case SI8:
-        return 127.0;
+        return 128.0;
       case SI16:
-        return 32767.0;
+        return 32768.0;
       case SI32:
-        return 2147483647.0;
+        return 2147483648.0;
       case SF32:
       case SF64:
         return 1.0;

@@ -2,14 +2,16 @@ add_library(cvt_core OBJECT cvt_core.c int_to_bin.c hex_to_bin.c bin_to_int.c bi
 target_include_directories(cvt_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# cvt Python module — aggregates: F32ToI16, I16ToF32, I32ToF32, I8ToF32, F32ToI16U32, F32ToI16U64, I16U32ToF32, I16U64ToF32, F32ToUQ15, UQ15ToF32, ADC
+# cvt Python module — aggregates: F32ToI8, F32ToI16, F32ToI32, I8ToF32, I16ToF32, I32ToF32, F32ToI16U32, F32ToI16U64, I16U32ToF32, I16U64ToF32, F32ToUQ15, UQ15ToF32, ADC
 Python3_add_library(cvt MODULE WITH_SOABI cvt_ext.c)
 target_link_libraries(cvt PRIVATE
     cvt_core
+    f32_to_i8_core
     f32_to_i16_core
+    f32_to_i32_core
+    i8_to_f32_core
     i16_to_f32_core
     i32_to_f32_core
-    i8_to_f32_core
     f32_to_i16u32_core
     f32_to_i16u64_core
     i16u32_to_f32_core
@@ -34,10 +36,12 @@ add_executable(test_cvt_core
     ${CMAKE_SOURCE_DIR}/native/tests/test_cvt_core.c)
 target_link_libraries(test_cvt_core PRIVATE
     cvt_core
+    f32_to_i8_core
     f32_to_i16_core
+    f32_to_i32_core
+    i8_to_f32_core
     i16_to_f32_core
     i32_to_f32_core
-    i8_to_f32_core
     f32_to_i16u32_core
     f32_to_i16u64_core
     i16u32_to_f32_core
@@ -54,10 +58,12 @@ add_executable(bench_cvt_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_cvt_core.c)
 target_link_libraries(bench_cvt_core PRIVATE
     cvt_core
+    f32_to_i8_core
     f32_to_i16_core
+    f32_to_i32_core
+    i8_to_f32_core
     i16_to_f32_core
     i32_to_f32_core
-    i8_to_f32_core
     f32_to_i16u32_core
     f32_to_i16u64_core
     i16u32_to_f32_core

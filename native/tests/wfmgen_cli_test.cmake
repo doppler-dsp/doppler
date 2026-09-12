@@ -41,9 +41,19 @@ expect_size(wg_tone.bin 64)
 #    regression anchor for the single-segment path. Regenerated when the
 #    friendly CLI defaults landed (fs=1.0, sps=1, seed=0): this run omits --sps,
 #    so the new sps=1 default (1 sample/symbol, not 8) moved the bytes.
+#
+#    Regenerated again for doppler#1117: the writer quantised with a private
+#    copy that TRUNCATED at a full scale of 32767, and now routes through the
+#    cvt converters, which round to nearest at 2^15. Every one of the 128
+#    codes moved, each by at most 1 LSB. The hash below was not merely
+#    re-recorded -- the new bytes were checked to be bit-identical to
+#    `doppler.cvt.F32ToI16().steps()` over the same run's cf32 output, which
+#    is the property the issue asks for, and that check is kept as a test
+#    (src/doppler/wfm/tests/test_wire_matches_cvt.py) so the next drift is
+#    caught by an oracle rather than by an unexplained hash change.
 run(--type qpsk --count 64 --sample-type ci16 --seed 7 -o wg_q.bin)
 file(MD5 wg_q.bin h1)
-set(WG_Q_GOLDEN "d0afb7878f1e0eb189183dcca28610f8")
+set(WG_Q_GOLDEN "295c3dc1f142460f3c3699d8298acb16")
 if(NOT h1 STREQUAL WG_Q_GOLDEN)
     message(FATAL_ERROR
         "wfmgen single-segment output drifted: got ${h1}, want ${WG_Q_GOLDEN}")

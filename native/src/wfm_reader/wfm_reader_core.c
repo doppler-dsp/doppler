@@ -17,16 +17,25 @@
 #include <time.h>
 
 #include "cJSON.h"
+#include "dp_format.h"
 #include "dp_isotime.h"
+#include "i16_to_f32/i16_to_f32_core.h"
+#include "i32_to_f32/i32_to_f32_core.h"
+#include "i8_to_f32/i8_to_f32_core.h"
 #include "wfm/wfm_keywords.h"
 #include "wfm/wfm_path.h"
 
 /* per sample_type (0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8) — mirror wfm_writer
  */
-static const size_t ELEM[5]  = { 4, 8, 4, 2, 1 }; /* bytes per component */
-static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
+static const size_t ELEM[5] = { 4, 8, 4, 2, 1 }; /* bytes per component */
 static const char   FMTCH[5]
     = { 'F', 'D', 'L', 'I', 'B' }; /* BLUE format char */
+/* The wire types this reader decodes, in sample_type order, so full scale is
+   asked of dp_format rather than tabulated a third time. There was a
+   SCALE[] here; it and the writer's copy and wfm_sink's literals were three
+   statements of one constant, which is how they came to disagree with the
+   cvt converters (doppler#1117). */
+static const dp_sample_type_t STYPE_FMT[5] = { CF32, CF64, CI32, CI16, CI8 };
 
 struct wfm_reader_state
 {
@@ -121,16 +130,24 @@ convert_elem (const uint8_t *p, int stype, int be)
       {
         int32_t a;
         swab_copy (&a, p, 4, be);
-        return (float)(a / SCALE[2]);
+        i32_to_f32_state_t c
+            = { .iscale = 1.0f / (float)dp_format_full_scale (CI32) };
+        return i32_to_f32_step (&c, a);
       }
     case 3:
       {
         int16_t a;
         swab_copy (&a, p, 2, be);
-        return (float)(a / SCALE[3]);
+        i16_to_f32_state_t c
+            = { .iscale = 1.0f / (float)dp_format_full_scale (CI16) };
+        return i16_to_f32_step (&c, a);
       }
     default:
-      return (float)((int8_t)p[0] / SCALE[4]);
+      {
+        i8_to_f32_state_t c
+            = { .iscale = 1.0f / (float)dp_format_full_scale (CI8) };
+        return i8_to_f32_step (&c, (int8_t)p[0]);
+      }
     }
 }
 
@@ -168,12 +185,12 @@ typedef struct
    names, complex five then scalar five.
 
    `r->sample_type` is the ELEMENT index alone -- 0..4 -- because ELEM[],
-   SCALE[] and convert_elem() are all indexed by it, and `r->mode` carries the
-   component count separately. That split is right internally and wrong at the
-   surface: a real float capture reporting `sample_type == "cf32"` alongside
-   `mode == "scalar"` says two contradictory things, and the combined name is
-   also exactly what wfm_reader_create() accepts as a hint, so what you pass
-   for a headerless file is what you get back. */
+   STYPE_FMT[] and convert_elem() are all indexed by it, and `r->mode` carries
+   the component count separately. That split is right internally and wrong at
+   the surface: a real float capture reporting `sample_type == "cf32"`
+   alongside `mode == "scalar"` says two contradictory things, and the combined
+   name is also exactly what wfm_reader_create() accepts as a hint, so what you
+   pass for a headerless file is what you get back. */
 static int
 reported_stype (const wfm_reader_state_t *r)
 {
@@ -952,9 +969,9 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
      and with every other sample landing in Q.
 
      Split rather than widened. `sample_type` stays the 0..4 ELEMENT index
-     that ELEM[], SCALE[] and convert_elem() are all indexed by, and the mode
-     goes where the mode goes -- a header-bearing file sets both from its own
-     bytes further down, and this is the same two fields set from a hint.
+     that ELEM[], STYPE_FMT[] and convert_elem() are all indexed by, and the
+     mode goes where the mode goes -- a header-bearing file sets both from its
+     own bytes further down, and this is the same two fields set from a hint.
 
      WFM_READER_STYPE_AUTO is the ELEVENTH value and means the caller said
      nothing: a headerless file then takes its type from the sidecar beside
@@ -1140,7 +1157,7 @@ wfm_reader_info (const wfm_reader_state_t *r, wfm_reader_info_t *info)
 static size_t
 read_csv (wfm_reader_state_t *r, float _Complex *out, size_t max)
 {
-  double         scale = (r->sample_type >= 2) ? SCALE[r->sample_type] : 1.0;
+  double         scale = dp_format_full_scale (STYPE_FMT[r->sample_type]);
   const unsigned nc    = comps (r->mode);
   size_t         i;
   for (i = 0; i < max; i++)

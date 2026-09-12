@@ -1,0 +1,19 @@
+[f32_to_i8]
+arg_type = "float"
+return_type = "int8_t"
+mutable = "false"
+no_state = "true"
+no_step = "false"
+class_name = "F32ToI8"
+serializable = "true"
+
+[[f32_to_i8.init_params]]
+name = "scale"
+type = "float"
+default = "128.0f"
+
+[[f32_to_i8.properties]]
+name = "clipped"
+doc = "True if any sample has been saturated since the last reset()."
+type = "bool"
+field = true

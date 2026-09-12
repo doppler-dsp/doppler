@@ -45,10 +45,11 @@ ReaderObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 ReaderObj_init (ReaderObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]        = { "path", "sample_type", "endian", NULL };
-  PyObject    *path            = NULL; /* fspath -> bytes */
-  const char  *sample_type_str = "cf32";
-  const char  *endian_str      = "le";
+  static char *kwlist[] = { "path", "sample_type", "endian", NULL };
+  PyObject    *path     = NULL; /* fspath -> bytes */
+  const char  *sample_type_str
+      = "auto"; /* doppler#1120: hand-owned, see below */
+  const char *endian_str = "le";
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "O&|ss", kwlist,
                                     PyUnicode_FSConverter, &path,
@@ -57,8 +58,18 @@ ReaderObj_init (ReaderObject *self, PyObject *args, PyObject *kwds)
       Py_XDECREF (path);
       return -1;
     }
+  /* HAND-ADDED, like the five scalar branches below it, and for the same
+     reason: jm generates this chain from the manifest's string_enum and a
+     regenerated fragment drops anything hand-owned (see
+     just-buildit/just-makeit#1273). "auto" is WFM_READER_STYPE_AUTO (-1),
+     which is not an index into any enum -- it means the caller named no
+     type, so a headerless capture takes its type from its own sidecar
+     (doppler#1120). Keep it FIRST: it is the default, so it is the branch
+     taken on almost every call. */
   int sample_type = 0;
-  if (strcmp (sample_type_str, "cf32") == 0)
+  if (strcmp (sample_type_str, "auto") == 0)
+    sample_type = WFM_READER_STYPE_AUTO;
+  else if (strcmp (sample_type_str, "cf32") == 0)
     sample_type = 0;
   else if (strcmp (sample_type_str, "cf64") == 0)
     sample_type = 1;
@@ -81,9 +92,9 @@ ReaderObj_init (ReaderObject *self, PyObject *args, PyObject *kwds)
   else
     {
       PyErr_Format (PyExc_ValueError,
-                    "sample_type must be one of \"cf32\", \"cf64\", \"ci32\", "
-                    "\"ci16\", \"ci8\", \"f32\", \"f64\", \"i32\", \"i16\", "
-                    "\"i8\", got '%s'",
+                    "sample_type must be one of \"auto\", \"cf32\", "
+                    "\"cf64\", \"ci32\", \"ci16\", \"ci8\", \"f32\", "
+                    "\"f64\", \"i32\", \"i16\", \"i8\", got '%s'",
                     sample_type_str);
       Py_XDECREF (path);
       return -1;

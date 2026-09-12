@@ -144,8 +144,8 @@ class Data:
     hint_rows: list[list[str]] = field(default_factory=list)
     hint_silent: int = 0
     hint_total: int = 0
-    hint_all_wrong_type: bool = False
-    fs_lost: float = -1.0
+    hint_all_right_type: bool = False
+    fs_recovered: float = -1.0
     unreachable: list[str] = field(default_factory=list)
 
 
@@ -614,7 +614,7 @@ def measure_reader(d: Data, tmp: Path) -> None:
             )
     d.hint_rows = rows
     d.hint_silent, d.hint_total = silent, total
-    d.hint_all_wrong_type = all(r[2] == "cf32" for r in rows)
+    d.hint_all_right_type = all(r[2] == r[1] for r in rows)
     R.table(
         [
             "samples written",
@@ -627,21 +627,31 @@ def measure_reader(d: Data, tmp: Path) -> None:
         rows,
     )
     R.md(
-        f"The reader reports `cf32` every time, and the documented "
-        f"safeguard -- `trailing_bytes`, which the docstring names for "
-        f"exactly this -- stays silent in {silent} of {total} cases. It "
-        "can only fire when the byte count fails to divide by 8, so every "
-        "even sample count is invisible. **ci32 is invisible at every "
-        "length**: it is 8 bytes per complex sample, the same as cf32, so "
-        "the count comes back correct and every value is wrong. No "
-        "size-based check could ever separate those two."
+        "The reader reports the type it was WRITTEN as, every time, with "
+        "no hint passed -- it reads the `<path>.sigmf-meta` sidecar this "
+        "writer leaves beside every raw capture (gh-1120, fixed). Before "
+        "that it reported `cf32` for all nine and handed back half the "
+        "samples at the wrong stride."
     )
     R.md()
-    d.fs_lost = float(Reader(tmp / "hint_512_ci16.raw").fs)
     R.md(
-        f"The sample rate goes the same way: the sidecar records "
-        f"`core:sample_rate` = {FS:.0f}, and the reader reports "
-        f"{d.fs_lost:.1f}. Filed as gh-1120."
+        f"The `trailing_bytes` column is kept because it documents a "
+        f"PERMANENT property, not a fixed one: it is silent in {silent} "
+        f"of {total} cases and could not have been the safeguard the old "
+        "docstring offered. It fires only when the byte count fails to "
+        "divide, so every even sample count is invisible, and **ci32 is "
+        "invisible at every length** -- 8 bytes per complex sample, the "
+        "same as cf32, so the count comes back correct and every value "
+        "would be wrong. No size-based check could ever separate those "
+        "two, which is why the answer had to come from the sidecar rather "
+        "than from a better check."
+    )
+    R.md()
+    d.fs_recovered = float(Reader(tmp / "hint_512_ci16.raw").fs)
+    R.md(
+        f"The sample rate comes back with it: the sidecar records "
+        f"`core:sample_rate` = {FS:.0f}, and the reader now reports "
+        f"{d.fs_recovered:.0f}."
     )
     R.md()
 
@@ -766,25 +776,25 @@ def review(d: Data) -> None:
     )
     R.find(
         "F5",
-        "CONFIRMED",
-        "**The writer records the sample type in a sidecar the reader does "
-        "not read, and the documented safeguard cannot see it** "
-        "(gh-1120). Every raw capture gets a `<path>.sigmf-meta` beside it "
-        "carrying `core:datatype` and `core:sample_rate` -- the writer's "
-        "own comment says the sidecar exists because raw and CSV "
-        'otherwise "hand back a file nobody could interpret". `Reader` '
-        "opens the same path and does not look: it reports `cf32`, "
-        f"`fs = {d.fs_lost:.1f}` against the {FS:.0f} recorded beside it, "
-        "half the samples, and garbage values, with nothing raised. "
-        "`Reader`'s docstring points at `trailing_bytes` for a wrong hint; "
-        f"measured, it stays silent in {d.hint_silent} of "
-        f"{d.hint_total} cases, because it can only fire when the byte "
-        "count fails to divide by 8 -- so every even sample count is "
-        "invisible. For ci32 it can NEVER fire: 8 bytes per complex "
-        "sample, the same as cf32, so the count is right and every value "
-        "is wrong (§2.5). Passing `sample_type=` works and is the current "
-        "contract; the defect is that the answer is already on disk and "
-        "getting it wrong is silent.",
+        "FIXED",
+        "**The writer recorded the sample type in a sidecar the reader did "
+        "not read** (gh-1120, fixed). Every raw capture gets a "
+        "`<path>.sigmf-meta` beside it carrying `core:datatype` and "
+        "`core:sample_rate` -- the writer's own comment says the sidecar "
+        'exists because raw and CSV otherwise "hand back a file nobody '
+        'could interpret" -- and `Reader`, opening the same path, did not '
+        "look. It reported `cf32`, `fs = 0.0` against the "
+        f"{FS:.0f} recorded beside it, half the samples and garbage "
+        "values, with nothing raised. `Reader` now consults that sidecar "
+        "for a headerless capture when the caller names no type, and "
+        f"§2.5 measures all {d.hint_total} cases coming back as written, "
+        f"with `fs = {d.fs_recovered:.0f}`. A named `sample_type=` still "
+        "wins, so a stale sidecar can be overridden. What does NOT change "
+        "is `trailing_bytes`: it stays silent in "
+        f"{d.hint_silent} of {d.hint_total} cases and can never fire for "
+        "ci32 read as cf32, so it was never capable of being the "
+        "safeguard the docstring offered -- that claim is gone from the "
+        "header too.",
     )
 
 
@@ -861,18 +871,17 @@ def limits(d: Data) -> None:
     )
     R.limit(
         d.reader_agrees,
-        "Reader recovers the written samples across blue, csv and raw -- "
-        "raw only when told the type",
+        "Reader recovers the written samples across blue, csv and raw, "
+        "raw included WITHOUT being told the type",
     )
     R.limit(
-        d.hint_all_wrong_type and d.hint_silent >= 6,
-        f"an untold raw capture reads back as cf32 with trailing_bytes "
-        f"silent in {d.hint_silent}/{d.hint_total} cases -- recorded so "
-        "gh-1120 cannot be closed without this report moving",
+        d.hint_all_right_type,
+        f"an untold raw capture reads back as the type it was written as, "
+        f"in all {d.hint_total} cases -- the sidecar names it (gh-1120)",
     )
     R.limit(
-        d.fs_lost == 0.0,
-        "and the sample rate the sidecar records comes back as 0.0",
+        d.fs_recovered == FS,
+        f"and the rate the sidecar records comes back as {FS:.0f}, not 0.0",
     )
     R.limit(
         len(d.unreachable) == 4,
@@ -963,14 +972,14 @@ def build(write: bool = True) -> Report:
                 "a float capture still reports a peak -- which "
                 "`StreamSink`, whose own comment says it mirrors this "
                 "object, does not (§2.3, F3).",
-                "**Tell `Reader` the sample type of a raw capture.** "
-                "The writer records it in a `.sigmf-meta` sidecar and the "
-                "reader does not read it, so an untold raw capture comes "
-                "back as cf32 -- half the samples and garbage values, "
-                f"with `trailing_bytes` silent in {d.hint_silent} of "
-                f"{d.hint_total} cases and unable to fire at all for "
-                "ci32. Use BLUE or SigMF if you want the file to say what "
-                "it is (§2.5, F5, gh-1120).",
+                "**A raw capture now says what it is -- through its "
+                "sidecar.** The writer records the type and rate in a "
+                "`.sigmf-meta` beside the file and `Reader` reads it, so "
+                "a round trip needs no `sample_type=` (gh-1120). Name one "
+                "anyway to override a stale sidecar; it wins. Keep the "
+                "sidecar with the capture, though: it is a second file, "
+                "and BLUE or SigMF is still the answer when the metadata "
+                "has to travel INSIDE the artifact (§2.5, F5).",
                 "**Turn the clip counter on before you need it.** The peak "
                 "is always tracked and free; the per-component fraction is "
                 "opt-in, and off by default a fully saturated capture "

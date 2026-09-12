@@ -870,6 +870,65 @@ open_sigmf (wfm_reader_state_t *r, const char *path, const char *meta)
   return 0;
 }
 
+/* Adopt the `<path>.sigmf-meta` sidecar this library's own writer leaves
+   beside a headerless capture. Raw and CSV carry no datatype and no rate, so
+   without this a doppler round trip through Writer and Reader returned garbage
+   at the wrong stride, silently: the writer wrote the answer down and the
+   reader declined to read it (doppler#1120).
+
+   Only for the headerless two. BLUE and SigMF carry their own metadata in the
+   artifact being read, and a sidecar must never get a vote against it.
+
+   The NAME is the whole reason this is safe, and it is why wfm_meta_path()
+   is called rather than the derivation being repeated here. A raw capture's
+   sidecar is `<path>.sigmf-meta` -- APPENDED, so it is 1:1 with the file it
+   describes. The comment further down in this function refuses to SNIFF for
+   `<base>.sigmf-meta` (the SWAPPED form) beside an arbitrary file, because a
+   shared base name hijacked two unrelated files the first time that was
+   tried. That refusal stands and this does not weaken it: `cap.csv` and a
+   genuine `cap.sigmf-data` still resolve to different sidecars.
+
+   PRECEDENCE. An explicit hint wins over the sidecar for the type it names,
+   so a caller can override a stale one -- that is what AUTO is for, and why
+   it is a distinct value rather than a re-reading of the cf32 default. fs,
+   fc and t0 are adopted regardless, because the hint cannot carry them and
+   the alternative is the 0.0 this function exists to stop reporting. */
+static void
+adopt_sidecar (wfm_reader_state_t *r, const char *path, int hint_is_auto)
+{
+  char meta[1024];
+  wfm_meta_path (path, meta, sizeof meta);
+
+  int    stype = 0, mode = 0, endian = 0, has_fc = 0, has_t0 = 0;
+  double fs = 0.0, fc = 0.0, t0 = 0.0;
+  if (parse_sigmf_meta (meta, &stype, &mode, &endian, &fs, &fc, &has_fc, &t0,
+                        &has_t0)
+      != 0)
+    return;
+
+  if (hint_is_auto)
+    {
+      r->sample_type = stype;
+      r->mode        = mode;
+      r->endian      = endian;
+    }
+  if (fs > 0.0)
+    {
+      r->fs        = fs;
+      r->fs_source = WFM_FS_SIGMF;
+    }
+  if (has_fc)
+    {
+      r->fc        = fc;
+      r->fc_source = WFM_FC_SIGMF;
+    }
+  if (has_t0)
+    {
+      r->t0_unix_sec = t0;
+      r->t0_source   = WFM_T0_SIGMF;
+    }
+}
+
 /* Record where the samples begin, so reset() can rewind to exactly here. The
    offset differs per file type (512 into an attached BLUE, 0 for a .det, raw
    or SigMF payload), so it is captured once each path is positioned -- which
@@ -895,15 +954,25 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
      Split rather than widened. `sample_type` stays the 0..4 ELEMENT index
      that ELEM[], SCALE[] and convert_elem() are all indexed by, and the mode
      goes where the mode goes -- a header-bearing file sets both from its own
-     bytes further down, and this is the same two fields set from a hint. */
-  if (!path || hint_stype < 0 || hint_stype > 9)
+     bytes further down, and this is the same two fields set from a hint.
+
+     WFM_READER_STYPE_AUTO is the ELEVENTH value and means the caller said
+     nothing: a headerless file then takes its type from the sidecar beside
+     it, and falls back to cf32/le when there is none. It has to be its own
+     value rather than a re-reading of the cf32 default, because
+     `Reader(p, sample_type="cf32")` is a caller who HAS said something and
+     must still win over a stale sidecar. -1 was free -- it returned NULL
+     here until now -- so no C caller can be relying on the old meaning. */
+  if (!path || hint_stype < WFM_READER_STYPE_AUTO || hint_stype > 9)
     return NULL;
   wfm_reader_state_t *r = (wfm_reader_state_t *)calloc (1, sizeof *r);
   if (!r)
     return NULL;
-  r->sample_type = hint_stype % 5;
-  r->mode        = (hint_stype >= 5) ? WFM_MODE_SCALAR : WFM_MODE_COMPLEX;
-  r->endian      = hint_endian ? 1 : 0;
+  const int hint_is_auto = (hint_stype == WFM_READER_STYPE_AUTO);
+  r->sample_type         = hint_is_auto ? 0 : hint_stype % 5;
+  r->mode   = (!hint_is_auto && hint_stype >= 5) ? WFM_MODE_SCALAR
+                                                 : WFM_MODE_COMPLEX;
+  r->endian = hint_endian ? 1 : 0;
   char side[1024];
 
   /* SigMF named as such: <base>.sigmf-data REQUIRES its <base>.sigmf-meta
@@ -1026,11 +1095,17 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
       r->fp        = fopen (path, "r");
       if (!r->fp)
         goto fail;
+      adopt_sidecar (r, path, hint_is_auto);
       return ready (r);
     }
 
   rewind (r->fp);
   r->file_type = WFM_FT_RAW;
+  /* Before fill_nsamples() and ready(): both measure the payload in units of
+     the sample type, so adopting after them would count the file at the
+     wrong stride and leave trailing bytes that are an artifact of the order.
+   */
+  adopt_sidecar (r, path, hint_is_auto);
   fill_nsamples (r);
   return ready (r);
 

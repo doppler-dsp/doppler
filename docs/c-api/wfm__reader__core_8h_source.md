@@ -70,6 +70,8 @@ extern "C"
     WFM_FOLLOW_INTERRUPTED  
   } wfm_follow_end_t;
 
+#define WFM_READER_STYPE_AUTO (-1)
+
   typedef struct
   {
     int    file_type;   

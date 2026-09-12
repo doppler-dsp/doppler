@@ -94,7 +94,7 @@ There is no list here to update.
 | [Plan](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_plan/results.md)                          | `wfm`        | 17/17  | 4        | 2 — F1, F2                 |
 | [Reader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_reader/results.md)                      | `wfm`        | 16/16  | 4        | 2 — F2, F3                 |
 | [Synth](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_synth/results.md)                        | `wfm`        | 19/19  | 6        | 2 — F2, F5                 |
-| [Writer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_writer/results.md)                      | `wfm`        | 16/16  | 5        | 2 — F1, F5                 |
+| [Writer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/wfm/tests/validation/wfm_writer/results.md)                      | `wfm`        | 16/16  | 5        | 1 — F1                     |
 | [ccsds_tm](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/ccsds_tm/results.md)                          | `— (C only)` | 12/12  | 5        | 1 — F2                     |
 | [conv](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/conv/results.md)                                  | `— (C only)` | 7/7    | 3        | none                       |
 | [rs](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/tests/validation/rs/results.md)                                      | `— (C only)` | 11/11  | 4        | none                       |

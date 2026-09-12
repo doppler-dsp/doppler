@@ -13,6 +13,568 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.48.0] — 2026-09-12
+
+### Breaking
+
+- **`BurstDemod.est_snr_db` and `DsssBurstReceiver.est_snr_db` are gone,
+    replaced by `est_cn0_dbhz` / `demod_cn0_dbhz` in dB-Hz.** The old field
+    was never an SNR: it published the preamble estimator's spectral
+    prominence, which carries the coherent processing gain and reads 59 dB on
+    a 25 dB link. Renamed rather than redefined, so a threshold written
+    against the old number fails loudly instead of silently changing meaning
+    ([#1304](https://github.com/doppler-dsp/doppler/issues/1304)). The
+    receiver's state blob is version 6.
+
+- **`doppler.wfm.ccsds_asm_bits()` is now `doppler.ccsds.asm_bits()`.** A
+    standard's marker was a CCSDS translation unit compiled into the *general*
+    `wfm_core` and a CCSDS name in `doppler.wfm.__all__`; it moved to a module
+    of its own, beside the general layer rather than under it. `ccsds_tm`'s
+    transforms still have no binding — describe a CADU with `FrameDesc`.
+    [#1220](https://github.com/doppler-dsp/doppler/issues/1220),
+    [the frame design page](https://github.com/doppler-dsp/doppler/blob/main/docs/design/frame-description.md).
+
+- **`FrameDesc`'s builder verbs raise instead of returning `-1`.** `add_field`,
+    `add_stage`, `add_hex`, `add_value`, `add_derived`, `add_stage_over` and
+    `name_field` now raise `ValueError` naming the refusal; the successful
+    return is still the new index. `field_index` keeps its `-1`, because a name
+    that matches nothing is an answer rather than a refusal.
+    [#1222](https://github.com/doppler-dsp/doppler/issues/1222).
+
+- **`AsyncDsssPool` is the pool on cell receivers** (part of #1283, closes
+    it): the constructor drops the `refine_*` arguments and takes `gain`
+    and `pullin_intervals`; `code_only_epochs` defaults to 813 and must
+    give a searcher depth a cell receiver can take (`D ≥ 13` at 5 Mcps over
+    Gold-1023 — a windowed waveform); `set_refine_min_blocks()` and
+    `refine_min_blocks` are gone. `CellAsyncDsssPool` was the same object
+    for one release and is folded in. Design §8.2, §12.27–12.28.
+
+- **`refine_margin` is removed** from `BurstCapture`, `PersistentBurstCapture`
+    and `DsssBurstReceiver` — property, event field and C accessors. Nothing
+    branched on it, and no threshold was portable: its floor is
+    `(reps-1)/reps`, so it rose with depth. Both state blobs change shape
+    (`BURST_CAPTURE_STATE_VERSION` 3, `DSSS_BURST_RECEIVER_STATE_VERSION` 7);
+    an older blob is refused at the envelope. Closes
+    [#1310](https://github.com/doppler-dsp/doppler/issues/1310).
+
+### Added
+
+- **`validate_acq_block_coherent`** (`make validate-c`, its `--check` in
+    the C suite): the block-coherent searcher measured at the operating
+    point — the aligned block's floor (−21 dB at another code phase), three
+    straddling blocks (a transition, the data section, the window's edge)
+    read through the surface tap and the concentration probe, Pfa per block
+    (the configured rate over the interpolated cells, #1064), and the
+    realized Pd against C/N0 for D = 1, 16 and 154 (design §12.7).
+
+- **`Acquisition(code_only_epochs, doppler_rate)` — the engine now allows a
+    coherent depth inside every window tile, to accommodate waveforms with
+    code-only windows (design §2.3).** The whole code-only epochs such a
+    window holds size a depth `D = min((W+1)/2, f_epoch/sqrt(2·rate))`, run
+    in non-overlapping `D`-epoch blocks per tile; the Doppler axis becomes
+    one grid of `window_bins · D` bins of `chip_rate/(sf·D)` in FFT order,
+    which `doppler_bin`, the hand-off and the surface axis all index. The
+    block rides in the state blob (v3); the defaults are `D = 1` and the
+    engine exactly as before. The hand-off's fold now runs over the combined
+    bin count, which also makes it right for a burst engine's coherent axis.
+
+- **The symbol-aligned re-correlation on the raw block, measured**
+    (design §12.22): the shipped `Dll` held, rate-aided by the held
+    Doppler, put at the searcher's cell once a block (`set_code_phase`)
+    and fed the block wiped by the shipped `LO`, reads the code phase
+    under data at 0.014 chip per block at 45 dB-Hz and 0.026 at 40, the
+    closed loop's own 0.013 and 0.021 — the searcher-timed tracker's last
+    open number. Found on the way: a coasting loop drifts 1.9 chips/s on
+    its NCO's quantisation of the aid, and un-wiped, the DLL's partials
+    lose 17 dB to a 45 kHz carrier.
+
+- **`Acquisition` exposes its complex intermediates, measured** (design
+    §12.21): `surface_complex()`, the decided dwell's surface before the
+    magnitude, amplitude and carrier phase per cell; `block_prompt(tile,   col, out)`, one cell's column of the last whole block, the per-epoch
+    complex correlations at a code phase; `block_raw()`, the block's
+    samples as pushed. On them the surface tracker reads the code phase at
+    0.012 chip per dwell in the window at 45 dB-Hz, beside the DLL's 0.013,
+    and 0.031 under data where the magnitude read gave 0.085.
+
+- **The searcher-timed tracker closed on its own cell, measured**
+    (`validate_acq_surface_jitter`, design §12.23–24): acquired from the
+    surface alone, dead-reckoned on the held Doppler and corrected once
+    a block by the coasting `Dll`'s read of the wiped raw block, it holds
+    the emitter at the closed loop's jitter over 25 s and never leaves
+    the cell where the surface's maximum was the emitter in 58% of data
+    dwells at the floor; with the correction filtered at gain 1/8 it
+    holds at 0.005 chip at 45 dB-Hz and 0.008 at 40, 2.5× under the
+    loop, on a ~0.004 chip floor that is not the noise (source named,
+    not measured). The `--check` is in the C suite.
+
+- **`Acquisition` is instrumented (design §2.4).** `set_telemetry(tlm,   prefix, decim)` registers ten probes per decided dwell — the test
+    statistic and its gate, the CFAR reference, the strongest cell and where
+    it is, the peak count and the held twins, the peak's concentration (its main lobe over its whole
+    column: the splatter discriminator) and whether the gate fired. `keep_surface` then
+    `surface(out)` returns the dwell's whole surface in the gate's units,
+    with `surface_doppler_hz()` / `surface_chip_phase()` as its axes, so the
+    2-D test statistic can be plotted; in C `acq_set_surface_sink()` streams
+    every k-th dwell's surface. Both flavours; nothing costs anything until
+    attached.
+
+- **The searcher fans its tiles across a persistent pool (design §2.3).**
+    A tiled continuous `Acquisition` now runs the per-epoch tile loop and,
+    at `D > 1`, the block-end column loop across workers created once with
+    the engine and parked between pushes, the machine's online cores by
+    default; `set_threads(n)` re-sizes it (0 = cores, 1 = serial) and
+    `threads` reports it. Every tile owns its inverse plan and scratch, so
+    the surface and the hits are byte-identical at any thread count. Burst
+    and single-tile engines stay serial.
+
+- **The searcher's surface as a code tracker, measured**
+    (`validate_acq_surface_jitter`, design §12.20): the early/prompt/late
+    discriminator read off the correlation surface at an emitter's cell,
+    inverted through its measured S-curve, reads the code phase at 0.015
+    chip per 31.5 ms dwell in the code-only window at 45 dB-Hz and 0.026 at
+    40, beside the DLL's 0.013 and 0.021 per epoch, and the Doppler to
+    under a hertz from the rows; under data the tile's rows summed as power
+    read it at 0.08 to 0.12 chip per dwell. The `--check` is in the C suite.
+
+- **The pool's lifecycle soak — `validate_async_dsss_pool_soak`** (design
+    §12 step 7, §12.14): emitters from the shipped synth with its window,
+    each through the shipped `doppler_channel` at its own Doppler, arriving
+    and leaving at the sum; one `AsyncDsssPool` at the operating point with
+    the event log attached; every emitter scored by its own slot against
+    the stimulus's truth — assigned once per stint, tracked, released by
+    the rule, re-acquired on return, nothing dropped. `--check` on ctest
+    (two emitters, 12.5 s), the ten-emitter sweep under `make validate-c`.
+
+- **`AsyncDsssPool` is certified** (design §12.17): its validation report
+    renders the soak's own regression subset (`--check --emit`, 66 s on
+    twenty cores) so the per-push gates and the evidence are one run, and
+    the population soaks — ten emitters for 120 s and for 600 s, and the
+    whole population timed behind the shipped DDC (`--budget`) — are the
+    design page's. The soak's heap watch reads the pool and nothing
+    else: glibc's tcache off (it re-execs itself with the tunable) and its
+    own stint records sized before the base — the +53 KiB the 600 s run
+    read was those two, and the heap is flat to a page over ten minutes.
+    `async_dsss_pool_demo` in C and Python, with a gallery page.
+
+- **`AsyncDsssPool` — one object holds the population** (design §8.2,
+    §12.13): one searcher, `n_slots` hand-off receivers created idle, the
+    assigned table with the exclusion zone keyed on where each emitter is
+    now, and the run's `EventLog` by attachment; one `push()` per block
+    seeds, feeds across threads, and releases; `status(slot)` by value,
+    `symbols(slot)` borrowed; the composition serializes as a whole.
+    [#1260](https://github.com/doppler-dsp/doppler/issues/1260).
+
+- **`ccsds_tm` isolation is now gated, not just asserted.** `wfm/wfm_frame.h`
+    says a component outside `ccsds_tm` must not include its headers, or the
+    two form a cycle; nothing measured it, and four components did anyway. A
+    ratchet in `make lint` fails on a new one **and** on an allowlist entry
+    that no longer violates, so the list can only shrink rather than rotting
+    into an exemption nobody rereads
+    ([#853](https://github.com/doppler-dsp/doppler/issues/853)).
+
+- **`Corr2D` takes a `col_out` lag**, emitting one value per row instead of
+    the whole correlation map. A caller that already knows its lag — refine
+    knows the code phase modulo the epoch — gets the plain time-domain sum
+    with no transform in either direction, `O(nx)` per row against the map's
+    `O(nx log nx)`. This is what lets `BurstCapture` correlate through the
+    shared kernel rather than hand-rolling the sum beside it.
+
+- **A design page states what IS, and `make lint` now says so.** Three
+    heading-and-preamble patterns — a dated section, a `**Status:**` or
+    `*Phase N*` preamble, a record-family heading — fail
+    `design-pages-check`; the companion `-measurements.md` is exempt by name,
+    so a new one is covered the moment it exists. Ratcheted at 24 entries
+    across 15 pages, failing on a **fixed** entry too so the list can only
+    shrink ([#1302](https://github.com/doppler-dsp/doppler/issues/1302)).
+
+- **`Dll.take_error_mean()`** (C: `dll_take_error()`): every steer adds its
+    discriminator to a running sum, coasting or not; take returns the count
+    and sum and zeroes them — the block-mean read a holder corrects a
+    coasting loop on (design §12.22–12.24, the searcher-timed receiver's
+    correction), on both correlation paths. In the state blob (v12).
+
+- **`dp_pool_create` / `dp_pool_run` / `dp_pool_destroy`** in `dp_parallel.h`:
+    the bounded parallel-for's contract — every index to exactly one worker,
+    bit-identical to the serial loop, the range always completed — over
+    helpers created once and parked between runs, so a fan costs a hand-off,
+    not a thread creation per worker. A pool of one, or `NULL`, runs on the
+    caller. The searcher's roll per thread (design §2.3) stands on it.
+
+- **`telemetry.EventLog` — a run's events as SigMF annotations.** A transition
+    (seeded, tracking, lost, a stream gap) is a span of the sample stream, so
+    it is an annotation, appended live to a tail-able JSON-Lines file and
+    finalized into a `.sigmf-meta` through the writer's existing emitter. The
+    reader now parses SigMF's `core:datetime` too, so a SigMF replay lands on
+    its own timeline. One line ceiling (16 KiB) is held on both sides, and a
+    file that is not a regular file is refused before a byte of it is read:
+    the first draft read `/dev/full` without end and took a machine down.
+    Design:
+    [§8.1](https://github.com/doppler-dsp/doppler/blob/main/docs/design/async-dsss-receiver.md).
+
+- **The open stage kind is demonstrated, not just asserted.** §6 of
+    `wfmgen_frame_demo.c` allocates `WFM_STAGE_USER + 1`, supplies its kernel
+    through a one-entry `wfm_frame_ops_t`, and shows the assembly refused
+    without it and reversed with it. The gallery page's "a kind that is open"
+    bullet was the design's central claim and the one nothing on that page ran.
+
+- **And the Python face of it**: `frame_own_stage_demo.py` describes the same
+    generic frame, runs its own kernel in Python and hands the wire the result
+    — the way round the deliberate absence of a Python ops table
+    ([#1125](https://github.com/doppler-dsp/doppler/issues/1125)). It is also
+    the first worked frame example in Python that is not a CCSDS CADU.
+
+- **`make instrumented-sweep-check`** fails when a makefile block that builds
+    with `-fsanitize=` or `-DDOPPLER_COVERAGE=ON` runs `ctest` without
+    excluding the `sweep` label. It reads the makefiles rather than a roster,
+    so a fourth instrumented suite is covered without being registered.
+    [#1292](https://github.com/doppler-dsp/doppler/issues/1292).
+
+- **`next_pow_two` in `doppler.util`** — the transform-sizing primitive.
+    Seven identical private copies were in the tree, under two spellings
+    (`next_pow2` in `det_private.h`, `delay_core.c`, `psd_core.c`,
+    `specan_core.c`, `ppe_core.c`; `*_pow2_ceil` in `burst_capture_core.c` and
+    `dsss_burst_receiver_core.c`, the latter already dead). None guarded the
+    overflow that makes a doubling loop spin forever; this one saturates to 0.
+    Both spellings are now refused by the retired-names gate.
+
+- **`CellAsyncDsssPool`** (C: `async_dsss_pool_create_cell`, part of #1283):
+    the population on `CellAsyncDsssReceiver`s — no refine, every slot
+    corrected on the searcher's own block timing. The lifecycle, the table,
+    the zone and the blob are `AsyncDsssPool`'s; it refuses a searcher a cell
+    receiver cannot take (`D ≥ 13` at 5 Mcps over Gold-1023, the carrier
+    loop's pull-in bound now named once, `ASYNC_DSSS_RX_CARRIER_PULLIN_HZ`).
+    A cell seed's carrier residual is now estimated on the live chain's own
+    despread stream (the refine's estimator, no second chain), and the pool
+    advances a never-locked row on the seed's clock (design §8.2; measured
+    at parity with the hand-off pool on the soak, §12.27).
+
+- **`CellAsyncDsssReceiver`** (C: `async_dsss_receiver_create_cell`, part of
+    #1283): the receiver a searcher's cell drives — design §12.22–12.24 as a
+    mode of `AsyncDsssReceiver`, by turning stages off: no refine, the `Dll`
+    held and steered by rate to a held phase corrected once an interval by a
+    gain times its interval-mean discriminator. On the searcher's own stream
+    it holds 0.0056 / 0.0082 chip at 45 / 40 dB-Hz, 1.9× / 2.7× under the
+    hand-off flavour's closed `Dll` on the same seed, at its BER at 45 dB-Hz
+    (design §12.26; the 40 dB-Hz carrier cycle slips both share are #1289).
+
+- **`doppler.wfm` exports named stage kinds** — `STAGE_CRC16`, `STAGE_RS`,
+    `STAGE_RANDOMISE`, `STAGE_CONV`, `STAGE_INTERLEAVE` and `STAGE_USER`,
+    generated from `wfm_stage_kind_t` by `scripts/gen_stage_kinds.py`. Five
+    hand copies of the numbering are deleted. `add_stage(kind=...)` stays an
+    int because the kind is an open `uint32_t` a caller extends.
+    [#1223](https://github.com/doppler-dsp/doppler/issues/1223).
+
+- **`Synth.set_dsss_window(code_only_symbols, frame_symbols)` — the
+    continuous DSSS stream gains a frame.** Of every `frame_symbols` symbols
+    on the data clock, the first `code_only_symbols` carry the pure code and
+    no data, the rest the payload, running on across frames. The symbol clock
+    free-runs through the window: the chip and data clocks have no fixed
+    relation, and a frame edge falls at no particular chip phase.
+    `frame_symbols=0` is the stream exactly as before. The multi-emitter
+    waveform's 450-in-4950 window, and what the searcher's coherent depth is
+    measured against (design §12 step 10).
+
+- **`validate_tracker_through_window`** (`make validate-c`, its `--check` in
+    the C suite): the hand-off receiver, seeded by the searcher, through ten
+    frames of the windowed waveform (design §12.9) — code lock never drops
+    in a 167 ms pure-code window at either C/N0, symbol lock coasts it and
+    needs no pull-in, and the release never fires. Under SPEC's Doppler
+    ramp the same harness found the chain failing to pull in from the
+    searcher's seed at the floor (#1249).
+
+### Changed
+
+- **The block searcher's per-cell passes run per tile (design §2.3, #1243).**
+    The magnitude, the CFAR reference, the working mask and every scan of
+    the peak list run on the engine's pool, one chunk of rows per tile,
+    and merge serially in tile order; the block-end scatter reads a
+    per-tile row table and the column gather goes 32 columns at a time.
+    At the operating point (5 Mcps, ±50 kHz, D = 154) that is 624 → 523 ns
+    per sample serially and 288 → 164 on four threads, byte-identical at
+    any thread count. The CFAR mean over a tiled surface is now a mean of
+    the tiles' means (equal cells), so its last bits can differ from
+    before; a single-tile engine is unchanged to the bit.
+
+- **The async-DSSS design page states what is; its dated record is a
+    measurements page.** `docs/design/async-dsss-receiver.md` keeps the
+    design and `async-dsss-receiver-measurements.md` the eighteen dated
+    entries of §12, section numbers shared. `AsyncDsssPool` gains a user's
+    guide (`docs/guide/async-dsss-pool.md`), its validation report's
+    findings are restated the same way, and the lifecycle page
+    (`adding-algorithms.md`) carries what the consolidation taught it: the
+    measurements companion, the blob version bump, the soak's shape, the
+    report's one run, a composition's guide, the changelog fragment and the
+    issue-link check.
+
+- **`AsyncDsssPool`'s exclusion zone is the code axis alone** (design
+    §12.14): a peak within one chip of a live row's code phase is that
+    emitter's own at any Doppler, no longer within one Doppler row of it.
+    At the pool's depth (D = 154, a 31.7 Hz row) a tracked emitter's data
+    blocks put smeared copies of it at its own phase hundreds of Hz away,
+    and the one-row zone seeded a fresh receiver onto the same emitter with
+    every one until the pool was full. The cost is pinned with the rule: a
+    second emitter within a chip of a live one is not seen until the first
+    leaves.
+
+- **The CI image digest has one home.** It used to be written both in
+    `.github/ci-images.env` and as six literal `container:` refs in `ci.yml`,
+    which `ci-image-check` required to agree while nothing could move both —
+    so the nightly's repin branch was born failing lint and that path had
+    never once completed. Workflows now name no digest: a `pin` job reads the
+    file and every containerised job consumes its output, and the gate
+    resolves those expressions instead of skipping them
+    ([#1215](https://github.com/doppler-dsp/doppler/issues/1215)).
+
+- **`make coverage` runs under a memory ceiling where the host can hold
+    one.** `scripts/mem-guard.sh` puts the instrumented build and all three
+    suites in a systemd user scope with `MemoryMax` at 3/4 of RAM, proved
+    enforced by a probe before it is trusted, so a runaway test is killed on
+    its own instead of taking the machine down (three WSL kills this year).
+    Elsewhere it runs unguarded and says so.
+
+- **`FrameDesc.add_field` takes the spelling the constructor does.**
+    `kind="pn"` and `lfsr="galois"` instead of the bare indices `1` and `0`,
+    from the same `[[enum]]` the C enum backs — so a caller stops re-declaring
+    the mapping by hand. The docstrings blamed
+    [jm#1021](https://github.com/just-buildit/just-makeit/issues/1021) for the
+    ints; that shipped in jm 0.64.0 and the note had been stale for eleven
+    releases. `add_stage`'s `kind` stays an int, deliberately — see
+    [#1223](https://github.com/doppler-dsp/doppler/issues/1223).
+
+- **just-makeit pin 0.75.4 → 0.75.5.** Ships doppler-driven
+    [jm#1277](https://github.com/just-buildit/just-makeit/issues/1277): a view
+    may now use `<obj>_create` when the parent's `create_fn` points elsewhere.
+    The check compared against the default-derived name while its message
+    claimed to name the parent's, which blocked making a general constructor
+    the base and the specialised one a view.
+
+- **`BurstCapture` refine picks the repetition with a coherent slide over a
+    Doppler search, not a non-coherent boxcar.** The gain widens with depth,
+    because coherent combining buys `10*log10(reps)` where non-coherent buys
+    `5*log10(reps)`: swept at 300 trials a point, the correct-repetition rate
+    at 39 dB-Hz went 0.59 -> 0.70 at `reps=5`, 0.60 -> 0.81 at 10 and
+    0.54 -> 0.80 at 16. The slow-time search covers acquisition's residual by
+    construction, so there is nothing to tune. See
+    [#1312](https://github.com/doppler-dsp/doppler/issues/1312).
+
+- **Re-vendored `standard.mk` again.** Upstream filed `gates-home-check`
+    under `make help`'s Aggregates section (it had fallen through to Local,
+    advertising a shared target as repo-specific) and `help-check` now fails
+    on any standard target filed as Local. Comment and help-menu only; the
+    vendored copy being behind failed `standard-check` on every branch,
+    which is why this is its own change.
+
+- **Re-vendored `standard.mk`.** Upstream made `install-deps`'s recipe an
+    overridable `INSTALL_DEPS_CMD` (default unchanged: bootstrap `jbx`, then
+    `jbx install-deps`), so the repo that owns the installer script can run
+    its source under development instead of the published copy. doppler sets
+    nothing and behaves as before; the vendored copy being behind failed
+    `standard-check` on every branch, which is why this is its own change.
+
+### Removed
+
+- **`HandoffAsyncDsssReceiver`** (C: `async_dsss_receiver_create_handoff`)
+    is retired: the same seed into the receiver's own refine chain, replaced
+    by `CellAsyncDsssReceiver` once the cell mode matched it on the
+    lifecycle soak and the pull-in curve (design §11.1, §12.27–12.28). The
+    base `AsyncDsssReceiver` keeps its refine for its own search; a seeded
+    refine is `AsyncDsssReceiver.seed()`. Receiver blob v7, pool blob v3.
+
+### Fixed
+
+- **The block-coherent searcher lost its depth under a dilated chip
+    clock.** At SPEC's 20 ppm the code drifts 3 chips across a D = 154
+    block, the coherent sum smeared 13 dB and the depth detected nothing at
+    34 dB-Hz. Every window tile now carries the code-rate hypothesis its own
+    frequency implies once the engine is told the carrier
+    (`Acquisition.set_carrier_freq_hz`), which also moves the hand-off's
+    half-dwell advance onto the engine; the block reads as a still one
+    (design §12.12).
+    [#1256](https://github.com/doppler-dsp/doppler/issues/1256).
+
+- **The searcher no longer hands off an emitter on a tile's edge a whole
+    tile away** (#1270, design §12.18). Both neighbouring tiles read such
+    an emitter at the same row within 0.03 dB, so the pick was the noise's
+    half the time on the edge; every listed peak is now asked at its row's
+    own frequency against the block's raw epochs, and none of 59 decided
+    blocks is a tile off where 27 of 57 were. The acq state blob carries
+    the raw block (version 4).
+
+- **`add_stage`'s docstring described a string enum that raises.** It said
+    `kind` *"names the transform — `crc16`, `rs`, …"*, left over from a
+    conversion that was measured and reverted; `add_stage("crc16", …)` is a
+    `TypeError`. It now names the constants above.
+    [#1223](https://github.com/doppler-dsp/doppler/issues/1223).
+
+- **`AsyncDsssReceiver`: the refine → track hand-over advances the code
+    phase by the clock dilation over the refine (#1249).** The live chain
+    was re-seeded with the hand-off's own code phase, valid only on an
+    undilated clock; at 20 ppm the code runs 100 chips/s ahead, and a Dll
+    seeded 1.5–5 chips off never locked: at 20 ppm with a 500 Hz/s ramp on
+    top, 2 of 3 hand-offs settled at 45 dB-Hz and none at the floor. Now
+    10 of 10 at 45 dB-Hz in 70 ms (design §12.9); what remains at the floor
+    is carrier loop SNR, measured there (#1252).
+
+- **The async-DSSS receiver's status reports the whole carrier estimate,
+    and the pool's table keys on locked loops only.** A hand-over past
+    loop 1's pull-in leaves the receiver code-locked with the carrier
+    unlocked and loop 1 free-running 800 Hz in a second; a row keyed on
+    that would let the searcher's next hit on the same emitter look new
+    at the pool's 31.7 Hz rows. `status().doppler_hz` is now loop 1 plus
+    loop 2's integrator; a row refreshes its Doppler under `locked` and
+    its chip phase under `code_locked`, holding the last locked value
+    otherwise (design §12.13).
+    [#1261](https://github.com/doppler-dsp/doppler/issues/1261).
+
+- **A departed emitter's receiver holds its loops instead of running them
+    on noise** (#1271, design §10, §12.19). Free-running, a code loop swept
+    its phase at up to 90 chips per second through every live emitter's,
+    captured one crossing slowly enough and flickered its code flag on it
+    sixteen times in fourteen seconds, so the release never came. Once
+    locked, both flags down now hold both loops at the state marked with
+    both flags up (one flag down is a degrade and the loops run); a
+    neighbour 2 kHz off crossing at 4 chips/s is followed on every seed
+    without the hold and on none with it. `dll_set_coast()` /
+    `dll_hold_here()`; the receiver blob is version 4, the Dll's 11.
+
+- **The async-DSSS receiver's C tests and harnesses ran the refine on a
+    retired look-back** (`refine_max_error_db` 100 dB: one dump per epoch,
+    which aliases the data lobe and keeps a third of the seed's Doppler
+    error). The new `validate_refine_bias` measures the estimate on both
+    streams (design §12.10); every caller is on the shipped 0.5 dB.
+    [#1252](https://github.com/doppler-dsp/doppler/issues/1252).
+
+- **At the floor from a 50 kHz seed the async-DSSS receiver's refine gave
+    up, and the carrier never locked.** The searcher's hit reports the code
+    phase at the middle of its non-coherent dwell, and under 20 ppm that is
+    0.9 chip behind the code by the time the seed is applied, past the
+    refine Dll's pull-in. `acq_build_handoff()` takes the carrier and
+    advances the phase by the drift over half the dwell; the floor now
+    settles 10 of 10 (design §12.11).
+    [#1254](https://github.com/doppler-dsp/doppler/issues/1254).
+
+- **`BurstDemod` reports a channel C/N0 that a link budget can use.**
+    Measured on the decoded symbols and lifted by the symbol rate, it is
+    within 0.3 dB of the truth from 5 to 30 dB Es/N0, where its predecessor
+    was 34 dB high and compressed. It is also flat across the receiver's own
+    timing: acquisition resolves a burst start to one SAMPLE, so the
+    demodulator now removes the whole-sample error, measures the rest into
+    the new `est_timing_chips`, and takes that loss back out — a realized
+    SNR fell 4.8 dB at half a chip
+    ([#1304](https://github.com/doppler-dsp/doppler/issues/1304)).
+
+- **`ffi/rust/Cargo.lock` stated doppler `0.46.0` against a `0.47.0` project** —
+    one full release behind, through a release that shipped. `bump-version`
+    re-synced uv's lockfile and had no cargo equivalent, and nothing reads the
+    file, so cargo silently rewrote it on the next build. It is regenerated at
+    bump time now, and `make lint` fails when it lags. Closes
+    [#1316](https://github.com/doppler-dsp/doppler/issues/1316).
+
+- **The `ccsds_tm` isolation gate now checks the rule the header states, not a
+    broader one.** It scanned every component and ratcheted the four that
+    include a `ccsds_tm` header toward zero — but `frame -> ccsds_tm ->   wfm_frame` is acyclic and deliberate, so three of those were the design
+    working. It now reads `wfm_frame.{h,c}` alone and fails on an include, a
+    call reached through a forward declaration, or reading nothing at all
+    ([#1218](https://github.com/doppler-dsp/doppler/issues/1218)).
+
+- **A pending CI-image repin is now a gate, not a PR nobody could open.** The
+    nightly rebuild asks whether upstream packages moved — the one drift
+    `ci-image-check` cannot see — and reported it by opening a PR the org
+    forbids Actions from creating, so it died on `gh pr create` and sat red
+    for three releases while gating nothing. It now pushes `ci/repin-image`
+    and stops; `make ci-image-repin-check` compares the package fingerprints
+    (never the digests) and fails as a required check until the repin lands
+    ([#1212](https://github.com/doppler-dsp/doppler/issues/1212)).
+
+- **Coverage counted the validator harnesses as library code.** `COV_IGNORE`
+    dropped `native/tests/` and `native/benchmarks/` but never named
+    `native/validation/`, so 9310 lines of harness — a quarter of the
+    denominator — were scored as first-party source. The reported total moves
+    from 84.36% to 86.05%, the number for doppler's own code.
+    [#1292](https://github.com/doppler-dsp/doppler/issues/1292).
+
+- **The coverage job re-ran the `sweep` validators under instrumentation and
+    was cancelled at its 90-minute cap**, blocking every open PR for a day.
+    They are 94.3% of the instrumented ctest CPU and one of them is the whole
+    critical path; the leg now excludes them and runs in 55.7 s, at a cost of
+    nine covered lines in 29738. `COV_SWEEP=1` restores them.
+    [#1292](https://github.com/doppler-dsp/doppler/issues/1292).
+
+- **`Dll`'s symbol-aided lock detector no longer re-locks on noise about
+    once a second** ([#1264](https://github.com/doppler-dsp/doppler/issues/1264)):
+    on noise its best timing hypothesis flipped between neighbours with
+    overlapping windows, so a decision read the same noise `n` times — 1.7e-2
+    exceedances per decision for a configured 1e-3, which restarted
+    `AsyncDsssReceiver`'s release clock and made the pool release one to
+    three intervals late. A window overlapping the last look's is no longer
+    a look: 2.1e-3, no false lock in twenty seconds, releases at 2.02 s in
+    the soak. Nothing changes with a signal present. `Dll` blob v10. Design
+    §12.15.
+
+- **A coasting `Dll` reads its discriminator, on both paths, and takes a
+    phase correction** (#1280, design §12.22): the header promised the hold
+    filters nothing and steers nothing, but `steer()` returned before the
+    discriminator was computed, so a coasting loop's `.e` probe read 0, and
+    the header's `dll_update()`, the `segments == 1` path, had no hold at
+    all and kept steering. Both hold after `last_error` now, pinned in
+    `test_dll_core`. `set_code_phase(chips)` is the other half of the coast:
+    a holder on another clock puts the loop back where that clock says.
+
+- **`Dll`: one discriminator and steer for both correlation paths** (#1280).
+    The full-epoch path's inline `dll_update()` and the partial-correlation
+    core's private `steer()` each carried the discriminator, the clamp, the
+    probe and the coast hold, and had drifted (design §12.22 fixed the
+    coast on one before finding the other). Both now call `dll_steer()`;
+    the two paths' separately pinned loop gains stay as a table the steer
+    reads. Also: a held loop now takes a new `set_rate_aid()` at once
+    instead of keeping the aid it was held with.
+
+- **The section-citation gate checked one spelling of three, over seven
+    directories.** A continuation (`§7.1, §8`) and a markdown link whose path
+    follows the number both went unexamined, and the scan set omitted
+    `native/benchmarks` — so nine citations pointed at nothing after
+    `async-dsss-receiver.md` moved its §12 to the measurements page, and
+    `CHANGELOG.md` still cited two pages folded into `mpsk.md`. All nine
+    retargeted, scan set is now `git ls-files`, 208 citations checked, and the
+    gate has a test that seeds each spelling and requires it to go red.
+
+- **The DSSS burst-receiver gallery plot is regenerated by a target again.**
+    `dsss_burst_receiver_demo.py` was in neither `GALLERY_SCRIPTS` nor the
+    recipe's PNG list, so its committed image was hand-made and nothing
+    refreshed it — the same gap `dsss_acq_characterization.png` was wired in
+    for. Both lists now name it. That those two lists are maintained
+    separately, and that a script in only the first orphans its PNG in the
+    repository root, is
+    [#1306](https://github.com/doppler-dsp/doppler/issues/1306).
+
+- **The retired hand-off flavour still named a live mode.** #1295 deleted
+    `HandoffAsyncDsssReceiver`, but the mode it named survives as the cell
+    receiver, and 120 sites still called it "hand-off mode" — 15 in the
+    receiver header, which the validation process treats as the spec, and
+    from there into the Python docstrings on both faces. Two validators named
+    the deleted constructor in a file header while their bodies called the
+    live one; the pool header's `@brief` contradicted itself eleven lines
+    later; a header cited `async_dsss_pool_create_cell()`, a symbol that does
+    not exist; and the docstring-coverage baseline still listed 35 methods of
+    the deleted class. [#1295](https://github.com/doppler-dsp/doppler/issues/1295).
+
+- **`AsyncDsssReceiver`'s refine dwell has a floor, `refine_min_blocks`
+    (default 7), on the receiver and the pool**
+    ([#1265](https://github.com/doppler-dsp/doppler/issues/1265)): the dwell
+    was sized for detection alone and shrank to two blocks at 45 dB-Hz, where
+    the estimate's 210 Hz noise put one hand-over in sixty outside the
+    tracking chain's pull-in — a receiver tracking the code with its carrier
+    never locked, then a second receiver on the same emitter. Seven blocks
+    (42 ms) hold the estimate to 77 Hz; a bigger detection margin is the wrong
+    lever (at 40 dB-Hz it sizes seconds, and the row's phase drifts out of the
+    zone meanwhile). Design §12.16.
+
+- **The pool guide said a slot is an emitter's "by both coordinates".** The pool
+    occupies a slot by **the code phase it was handed** and nothing else, which
+    is why the exclusion zone covers that phase at any Doppler. Both coordinates
+    are what an *observer* matches on to say whose slot it is, and that needs a
+    truth the pool does not have. The guide ran the two together and pointed at
+    `owner()` as if it were the pool's rule.
+
 ## [0.47.0] — 2026-09-03
 
 ### Added
@@ -13076,6 +13638,7 @@ ______________________________________________________________________
 [0.45.0]: https://github.com/doppler-dsp/doppler/compare/v0.44.0...v0.45.0
 [0.46.0]: https://github.com/doppler-dsp/doppler/compare/v0.45.0...v0.46.0
 [0.47.0]: https://github.com/doppler-dsp/doppler/compare/v0.46.0...v0.47.0
+[0.48.0]: https://github.com/doppler-dsp/doppler/compare/v0.47.0...v0.48.0
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.6...v0.5.0
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
@@ -13086,4 +13649,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.47.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.48.0...HEAD

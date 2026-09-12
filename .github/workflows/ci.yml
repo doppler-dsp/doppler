@@ -479,6 +479,61 @@ jobs:
       run: make gen-c-api-check
 
   # ------------------------------------------------------------------
+  # The `sweep` validators' spot checks, and their wall-clock budget.
+  #
+  # These used to run inside `make test`, which meant on all three platform
+  # builds. Measured 2026-09-12: they are 88.5% of the C suite (294.2s of
+  # 332.4s), so every push paid that three times for one set of numeric
+  # checks that do not vary by platform. TEST_EXCLUDE_SWEEP took them out of
+  # `make test`; this job is where they went, so nothing stopped running.
+  #
+  # It is also the only place their budget means anything. The gate is
+  # wall-clock, and doppler#543 removed a CI wall-clock gate whose verdicts
+  # reversed between CI and a dev box -- so SWEEP_STRICT=1 is set HERE, on
+  # the pinned image, and nowhere else. Locally `make test-sweep` reports.
+  # ------------------------------------------------------------------
+  sweep-validators:
+    needs: pin
+    name: sweep validators
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ${{ needs.pin.outputs.image_2404 }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/ccache
+      with:
+        key: sweep-validators
+
+    # The budget gate is a Python script the Makefile drives through uv, and
+    # the image does not carry uv -- the sanitizer jobs share this image and
+    # never need it, so the first run of this job died `uv: No such file or
+    # directory` AFTER all 34 checks had passed. A gate that cannot start is
+    # not a gate that passed.
+    - name: Install uv + Python + package deps
+      uses: ./.github/actions/setup-uv
+      with:
+        python-version: '3.13'
+        sync: --group dev
+
+    - name: Build
+      run: make build
+
+    # One run serves both purposes -- it executes the spot checks AND
+    # produces the timings the budget reads, so the gate cannot be judging a
+    # different run from the one that passed.
+    - name: Spot checks + wall-clock budget
+      run: make test-sweep SWEEP_STRICT=1
+
+    - name: Compiler-cache statistics
+      run: make ccache-stats
+
+  # ------------------------------------------------------------------
   # Specan demo frames staleness check
   # ------------------------------------------------------------------
   specan-demo:
@@ -871,6 +926,7 @@ jobs:
       - glibc-228
       - doxygen
       - specan-demo
+      - sweep-validators
       - docs
       - docker
       - pre-commit

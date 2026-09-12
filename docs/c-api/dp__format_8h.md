@@ -241,6 +241,9 @@ static inline double dp_format_full_scale (
 The divisor that puts an integer format on the same footing as a float one, so a number derived from samples (a power, an RMS, a headroom) means the same thing whatever the wire carried. 1.0 for the float formats, which are already full-scale, and 0 for a code this build does not know.
 
 
+2^(N-1), not 2^(N-1)-1: the code grid a converter has is 2^N equally spaced steps of 1/2^(N-1), so this is the scale that maps the normalised range onto that grid exactly and lets a dyadic value round-trip with no error. An input of exactly +1.0 lands one past the type's maximum by construction and the converters saturate it, which is what the mapping means rather than a failure of it. It is the same constant every cvt converter defaults to, in both directions — this function and f32\_to\_i16/i16\_to\_f32 and their int8/int32 siblings must not disagree, and doppler#1117 is what disagreeing cost.
+
+
 
 
 **Parameters:**

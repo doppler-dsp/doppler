@@ -24,9 +24,9 @@ ______________________________________________________________________
 
 | Class                         | In → Out         | Use                                         |
 | ----------------------------- | ---------------- | ------------------------------------------- |
+| `F32ToI8` / `I8ToF32`         | float32 ↔ int8   | 8-bit IQ round-trip (RTL-SDR, `ci8` wire)   |
 | `F32ToI16` / `I16ToF32`       | float32 ↔ int16  | signed Q15 / 16-bit PCM round-trip          |
-| `I32ToF32`                    | int32 → float32  | 24/32-bit ADC codes to float                |
-| `I8ToF32`                     | int8 → float32   | 8-bit codes to float                        |
+| `F32ToI32` / `I32ToF32`       | float32 ↔ int32  | 24/32-bit ADC codes round-trip              |
 | `F32ToUQ15` / `UQ15ToF32`     | float32 ↔ uint16 | **unsigned** Q15 (offset-binary) round-trip |
 | `F32ToI16U32` / `I16U32ToF32` | float32 ↔ uint32 | one Q15 in the low 16 bits (CIC integer in) |
 | `F32ToI16U64` / `I16U64ToF32` | float32 ↔ uint64 | one Q15 in the low 16 bits (CIC integer in) |
@@ -35,9 +35,39 @@ ______________________________________________________________________
 The `F32To*` directions expose a `clipped` flag that latches when an input
 exceeded full scale during the last `steps()`.
 
+Every converter's default scale is `2^(N-1)` — `128`, `32768`, `2147483648` —
+in both directions, which is the code grid the hardware actually has: one LSB
+is `1/2^(N-1)`, so a dyadic value round-trips exactly. The consequence worth
+knowing is at the top of the range: `+1.0` maps to `2^(N-1)`, one code past
+the type's maximum, and saturates to it (latching `clipped`), while `-1.0` is
+exact. That asymmetry belongs to two's complement, not to the scaling, and
+saturating is what makes it safe rather than wrapping to the opposite rail.
+
+`doppler.wfm`'s file and stream writers quantise through these converters, so
+a capture's bytes are exactly what `F32ToI16().steps()` would produce.
+
 ______________________________________________________________________
 
 ## Examples
+
+### float32 ↔ int8 and int32
+
+The 8- and 32-bit pairs work exactly like the int16 one; only the default
+scale differs.
+
+```python
+import numpy as np
+from doppler.cvt import F32ToI8, F32ToI32, I8ToF32
+
+x = np.array([0.5, -1.0, 1.0], dtype=np.float32)
+
+F32ToI8().steps(x)     # array([  64, -128,  127], dtype=int8)
+F32ToI32().steps(x)    # array([1073741824, -2147483648, 2147483647])
+I8ToF32().steps(np.array([64, -128], dtype=np.int8))   # [0.5, -1.0]
+```
+
+Note `+1.0` saturating to `127` / `2147483647` while `-1.0` reaches `-128` /
+`-2147483648` exactly — the asymmetry described above.
 
 ### float32 ↔ int16 round-trip
 

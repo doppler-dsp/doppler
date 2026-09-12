@@ -18,6 +18,7 @@
 
 #include <complex.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -291,18 +292,29 @@ test_mean_power (void)
   float _Complex cf32[4] = { 1, I, -1, -I };
   DP_CHECK (dp_near (dp_mean_power (CF32, cf32, 4), 1.0, 1e-6));
 
-  int8_t ci8[4] = { 127, 0, 0, -127 };
+  /* For an integer format the code whose magnitude IS full scale is the
+     NEGATIVE extreme: full scale is 2^(N-1) and the positive extreme is
+     2^(N-1)-1, one code short of it. That asymmetry belongs to two's
+     complement, not to this normalisation -- asserting 1.0 against the
+     positive extreme would be asserting it against a value a fraction of an
+     LSB below full scale, which is what the ci32 line here used to do and
+     get away with only because the shortfall (2^-31) hid under the
+     tolerance. */
+  int8_t ci8[4] = { INT8_MIN, 0, 0, INT8_MIN };
   DP_CHECK (dp_near (dp_mean_power (CI8, ci8, 2), 1.0, 1e-9));
 
-  int16_t ci16[4] = { 32767, 0, 0, -32767 };
+  int16_t ci16[4] = { INT16_MIN, 0, 0, INT16_MIN };
   DP_CHECK (dp_near (dp_mean_power (CI16, ci16, 2), 1.0, 1e-9));
 
-  int32_t ci32[4] = { 2147483647, 0, 0, -2147483647 };
+  int32_t ci32[4] = { INT32_MIN, 0, 0, INT32_MIN };
   DP_CHECK (dp_near (dp_mean_power (CI32, ci32, 2), 1.0, 1e-9));
 
-  /* Half scale is a quarter of the power, in the format that quantises. */
+  /* Half scale is a quarter of the power, in the format that quantises --
+     and EXACTLY a quarter, because full scale is a power of two. Under a
+     full scale of 32767 this is 0.2500153, so the tight tolerance is what
+     pins the convention rather than merely tolerating it. */
   int16_t half[2] = { 16384, 0 };
-  DP_CHECK (dp_near (dp_mean_power (CI16, half, 1), 0.25, 1e-3));
+  DP_CHECK (dp_near (dp_mean_power (CI16, half, 1), 0.25, 1e-12));
 
   /* Both components count: I and Q at full scale is 2.0, not 1.0. */
   double _Complex both[1] = { 1 + 1 * I };

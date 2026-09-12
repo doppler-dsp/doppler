@@ -434,9 +434,16 @@ class TestSNRModes:
 # Quantization round-trip (Writer -> Reader)
 # --------------------------------------------------------------------------- #
 class TestQuantization:
+    # Full scale is 2^(N-1), derived from the wire type rather than spelled
+    # out again -- the constant has one home (dp_format_full_scale) and the
+    # copies are what doppler#1117 was about.
     @pytest.mark.parametrize(
         "stype,scale",
-        [("ci8", 127.0), ("ci16", 32767.0), ("ci32", 2147483647.0)],
+        [
+            ("ci8", float(np.iinfo("<i1").max) + 1.0),
+            ("ci16", float(np.iinfo("<i2").max) + 1.0),
+            ("ci32", float(np.iinfo("<i4").max) + 1.0),
+        ],
     )
     def test_integer_roundtrip_within_1lsb(
         self, tmp_path, stype: str, scale: float

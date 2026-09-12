@@ -19,6 +19,9 @@
 
 #include "cJSON.h"
 #include "dp_format.h" /* the BLUE codes, shared with the wire */
+#include "f32_to_i16/f32_to_i16_core.h"
+#include "f32_to_i32/f32_to_i32_core.h"
+#include "f32_to_i8/f32_to_i8_core.h"
 
 /* per sample_type (wavegen order 0 cf32,1 cf64,2 ci32,3 ci16,4 ci8) */
 /* Element ENCODING per stype: what one component looks like on the wire.
@@ -37,11 +40,14 @@ enum
 static const int    KIND[10] = { EK_F32, EK_F64, EK_I32, EK_I16, EK_I8,
                                  EK_F32, EK_F64, EK_I32, EK_I16, EK_I8 };
 static const size_t ELEM[5]  = { 4, 8, 4, 2, 1 }; /* bytes per component */
-/* Full-scale per component, by KIND. Zero for the float encodings, which
-   are already full-scale -- and that zero is also how `track_sample` knows a
-   format can CLIP, replacing a `stype >= 2` index test that silently became
-   wrong the moment scalar types were appended after the complex ones. */
-static const double SCALE[5] = { 0, 0, 2147483647.0, 32767.0, 127.0 };
+/* There is no SCALE[] table here. Full scale per component is
+   dp_format_full_scale(), and the scale-round-saturate arithmetic is the cvt
+   converters' -- this file used to carry a private copy of both, which
+   truncated where the converters round and cost 6 dB on every integer wire
+   type (doppler#1117). Whether a format can CLIP is likewise asked of
+   dp_format_full_scale() rather than index-tested: a `stype >= 2` test was
+   right only while the five complex types were the only ones, and appending
+   the scalar five made f32 and f64 answer yes to it. */
 /* BLUE format char per wavegen-order stype. DERIVED from the stream
    layer's format codes rather than written out again: dp_sample_type_t's
    values ARE the two-character BLUE codes (stream/stream.h), so the file
@@ -104,6 +110,7 @@ struct wfm_writer_state
   size_t   cap;
   float    peak;  /* running max |I|/|Q| (pre-clip); always tracked */
   uint64_t nclip; /* saturated I/Q components (only when `track`) */
+  int      satd;  /* any component saturated (always on, no opt-in) */
   int      track; /* count clips (opt-in); peak is always on */
   float    gain;  /* output gain (headroom); 1.0 = no-op */
   uint8_t *kw;    /* encoded extended-header keywords, written at close */
@@ -130,33 +137,80 @@ struct wfm_writer_state
   char *path;
 };
 
-/* Update the running peak (always) and, when opted in for an integer wire
- * type, the saturated-component count. One fused max in the write loop. */
+/* Update the running peak. One fused max in the write loop.
+ *
+ * Clips are NOT counted here any more. At a full scale of 2^(N-1) the
+ * saturating inputs are those above (2^(N-1)-1)/2^(N-1), not those above
+ * 1.0, so a `|v| > 1.0` test here would silently under-report -- on ci8 it
+ * would miss everything in (0.9921875, 1.0]. The converter already decides
+ * exactly which samples saturate, so the count is taken from its sticky
+ * `clipped` flag at the point of conversion instead of predicted here. */
 static inline void
-track_sample (wfm_writer_state_t *w, float re, float im)
+track_peak (wfm_writer_state_t *w, float re, float im)
 {
   float ar = fabsf (re), ai = fabsf (im);
   float m = ar > ai ? ar : ai;
   if (m > w->peak)
     w->peak = m;
-  /* Only an INTEGER format can clip, and SCALE says which those are. A
-     `stype >= 2` test meant that while the five complex types were the only
-     ones; appending the scalar five made indices 5 and 6 -- f32 and f64 --
-     answer yes to it. And in scalar mode there is no Q to clip, because
-     none is written. */
-  if (w->track && SCALE[KIND[w->stype]] != 0.0)
-    w->nclip += (uint64_t)(ar > 1.0f)
-                + (stype_comps (w->stype) == 2u ? (uint64_t)(ai > 1.0f) : 0u);
 }
 
-static long
-qz (float v, double scale)
+/* Full scale for this writer's wire type: the divisor dp_format owns, which
+   is also what every cvt converter defaults to. 1.0 for a float format,
+   which needs no conversion and cannot clip. */
+static inline float
+wire_scale (const wfm_writer_state_t *w)
 {
-  if (v > 1.0f)
-    v = 1.0f;
-  if (v < -1.0f)
-    v = -1.0f;
-  return (long)(v * scale);
+  return (float)dp_format_full_scale (STYPE_FMT[w->stype]);
+}
+
+/* One component, float -> the wire's integer code.
+
+   The whole of the conversion -- the scale, the round-to-nearest and the
+   saturation -- belongs to the cvt converters; this picks the one matching
+   the element encoding and records what it did. The converter state is a
+   two-field POD held by value, so nothing is allocated on the write path,
+   and `clipped` starts cleared for every component so the sticky flag
+   answers "did THIS component saturate". That makes the clip count the
+   converter's own verdict rather than a threshold this file predicts. */
+static inline long
+quantise (wfm_writer_state_t *w, int kind, float fs, float v)
+{
+  long code = 0;
+  int  hit  = 0;
+  switch (kind)
+    {
+    case EK_I32:
+      {
+        f32_to_i32_state_t q = { .scale = fs, .clipped = 0 };
+        code                 = f32_to_i32_step (&q, v);
+        hit                  = q.clipped;
+        break;
+      }
+    case EK_I16:
+      {
+        f32_to_i16_state_t q = { .scale = fs, .clipped = 0 };
+        code                 = f32_to_i16_step (&q, v);
+        hit                  = q.clipped;
+        break;
+      }
+    default:
+      {
+        f32_to_i8_state_t q = { .scale = fs, .clipped = 0 };
+        code                = f32_to_i8_step (&q, v);
+        hit                 = q.clipped;
+        break;
+      }
+    }
+  /* `satd` is always on and `nclip` is opt-in, so the cheap question ("did
+     anything clip?") needs no setup while the expensive one (how much?)
+     still does. Both come from the same verdict, so they cannot disagree --
+     which a peak-magnitude proxy could not manage: peak is a magnitude, and
+     at a full scale of 2^(N-1) the extremes are asymmetric, so -1.0 and
+     +1.0 have the same peak and only one of them saturates. */
+  w->satd |= hit;
+  if (w->track && hit)
+    w->nclip++;
+  return code;
 }
 
 /* Copy sz host (LE) bytes of *src into *p, reversed when big-endian. */
@@ -373,11 +427,12 @@ write_csv (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
 {
   const int      k     = KIND[w->stype];
   const unsigned comps = stype_comps (w->stype);
+  const float    fs    = wire_scale (w);
   for (size_t i = 0; i < n; i++)
     {
       float re = crealf (iq[i]) * w->gain, im = cimagf (iq[i]) * w->gain;
       int   ok;
-      track_sample (w, re, im);
+      track_peak (w, re, im);
       if (k == EK_F32)
         ok = (comps == 2u)
                  ? fprintf (w->fp, "%0.9f,%0.9f\n", (double)re, (double)im) > 0
@@ -388,10 +443,15 @@ write_csv (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
                        > 0
                  : fprintf (w->fp, "%0.17g\n", (double)re) > 0;
       else
-        ok = (comps == 2u) ? fprintf (w->fp, "%ld,%ld\n", qz (re, SCALE[k]),
-                                      qz (im, SCALE[k]))
-                                 > 0
-                           : fprintf (w->fp, "%ld\n", qz (re, SCALE[k])) > 0;
+        {
+          /* CSV writes the same integer codes the binary path would, so it
+             quantises through the same converters -- a text capture and a
+             raw one of the same samples must not disagree. */
+          long qi = quantise (w, k, fs, re);
+          long qq = (comps == 2u) ? quantise (w, k, fs, im) : 0;
+          ok      = (comps == 2u) ? fprintf (w->fp, "%ld,%ld\n", qi, qq) > 0
+                                  : fprintf (w->fp, "%ld\n", qi) > 0;
+        }
       if (!ok)
         return i;
     }
@@ -425,6 +485,7 @@ write_binary (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
   const size_t   elem  = ELEM[k];
   const size_t   be    = w->be;
   const unsigned comps = stype_comps (w->stype);
+  const float    fs    = wire_scale (w);
   if (grow (w, n * comps * elem))
     return 0;
   uint8_t *p = w->buf;
@@ -432,7 +493,7 @@ write_binary (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
     {
       const float v[2]
           = { crealf (iq[i]) * w->gain, cimagf (iq[i]) * w->gain };
-      track_sample (w, v[0], v[1]);
+      track_peak (w, v[0], v[1]);
       for (unsigned c = 0; c < comps; c++)
         switch (k)
           {
@@ -450,19 +511,19 @@ write_binary (wfm_writer_state_t *w, const float _Complex *iq, size_t n)
             }
           case EK_I32:
             {
-              int32_t q = (int32_t)qz (v[c], SCALE[EK_I32]);
+              int32_t q = (int32_t)quantise (w, k, fs, v[c]);
               put (&p, &q, 4, be);
               break;
             }
           case EK_I16:
             {
-              int16_t q = (int16_t)qz (v[c], SCALE[EK_I16]);
+              int16_t q = (int16_t)quantise (w, k, fs, v[c]);
               put (&p, &q, 2, be);
               break;
             }
           default:
             {
-              int8_t q = (int8_t)qz (v[c], SCALE[EK_I8]);
+              int8_t q = (int8_t)quantise (w, k, fs, v[c]);
               put (&p, &q, 1, be);
               break;
             }
@@ -601,9 +662,15 @@ wfm_writer_get_peak_dbfs (const wfm_writer_state_t *w)
 bool
 wfm_writer_get_clipped (const wfm_writer_state_t *w)
 {
-  /* Only the integer wire types saturate; a float capture above full scale is
-     merely loud, not clipped. */
-  return wfm_writer_peak (w) > 1.0 && w->stype >= 2;
+  /* What actually saturated, not what a threshold predicts would have.
+     This used to be `peak > 1.0 && stype >= 2`, which was wrong twice: the
+     index test called SF32 and SF64 integers once the scalar types were
+     appended after the complex ones, and a peak is a MAGNITUDE, so it
+     cannot separate -1.0 (exact, -32768) from +1.0 (saturates, 32768 ->
+     32767) even though only one of them clips. A float format never reaches
+     the quantiser, so its flag is never set and it correctly reports
+     false -- a float capture above full scale is merely loud. */
+  return w && w->satd;
 }
 
 /* Emit the metadata sidecar for a path-opened writer.

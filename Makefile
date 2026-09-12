@@ -130,7 +130,7 @@ SYNC_CMD   = $(UV) sync
 LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
                retired-names ci-pipefail rust-abi header-example-arity \
-               wfm-enum-tables fmod-fold lgamma-reentrant
+               wfm-enum-tables fmod-fold lgamma-reentrant full-scale
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -242,6 +242,17 @@ LINT_phase-conversion = $(UV) run python scripts/check_phase_conversion_sites.py
 # hand-over phase) before #1249 gave it one. No allowlist -- every copy was
 # converted when the gate landed.
 LINT_fmod-fold = $(UV) run python scripts/check_fmod_fold_sites.py
+
+# A wire format's full scale has one home, dp_format_full_scale(). doppler
+# had FOUR private copies of the constant plus the arithmetic around it
+# (wfm_sink, wfm_writer, wfm_reader, pocketfft) and they had already drifted:
+# the three wfm ones truncated where every cvt converter rounds -- 6.0 dB of
+# extra quantisation noise on every integer wire type -- and all four used
+# 2^(N-1)-1 where cvt uses 2^(N-1), so wfm.Reader and cvt.I16ToF32 disagreed
+# on 2.3% of int16 codes (#1117). Fires on a file naming the full scale of
+# two or more WIDTHS, which is a table; one width's two clamp bounds stay
+# legal. No allowlist -- every copy was converted when the gate landed.
+LINT_full-scale = $(UV) run python scripts/check_full_scale_sites.py
 
 # lgamma() writes the global signgam, so two threads race on it -- found by
 # TSan the first time a pool of receivers rebuilt their chains across

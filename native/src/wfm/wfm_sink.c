@@ -13,6 +13,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "dp_format.h"
+#include "f32_to_i16/f32_to_i16_core.h"
+#include "f32_to_i32/f32_to_i32_core.h"
+#include "f32_to_i8/f32_to_i8_core.h"
 #include "stream/stream.h"
 
 /* wavegen wire-type index: 0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8. */
@@ -38,28 +42,63 @@ struct wfm_stream_sink
   float     gain;    /* output gain (headroom); 1.0 = no-op (direct cf32) */
 };
 
-static long
-qz (float v, double fs_val)
-{
-  if (v > 1.0f)
-    v = 1.0f;
-  if (v < -1.0f)
-    v = -1.0f;
-  return (long)(v * fs_val);
-}
-
-/* Track peak + opt-in clip on the integer convert paths (called per sample).
- */
+/* Track the peak on the integer convert paths (called per sample).
+ *
+ * Clips are NOT counted here. At a full scale of 2^(N-1) the saturating
+ * inputs are those above (2^(N-1)-1)/2^(N-1), not those above 1.0, so a
+ * `|v| > 1.0` test here would silently under-report -- on ci8 it would miss
+ * everything in (0.9921875, 1.0]. The converter decides exactly which
+ * samples saturate, so `quantise` takes the count from its sticky flag. */
 static inline void
-track_sample (wfm_stream_sink_t *s, float re, float im)
+track_peak (wfm_stream_sink_t *s, float re, float im)
 {
   float ar = fabsf (re), ai = fabsf (im);
   float m = ar > ai ? ar : ai;
   if (m > s->peak)
     s->peak = m;
-  s->ntot += 2;
-  if (s->track)
-    s->nclip += (uint64_t)(ar > 1.0f) + (uint64_t)(ai > 1.0f);
+}
+
+/* One component, float -> the wire's integer code.
+
+   The scale, the round-to-nearest and the saturation all belong to the cvt
+   converters; this picks the one matching the wire type and records what it
+   did. The state is a two-field POD held by value, so nothing is allocated
+   on the publish path, and `clipped` starts cleared for every component so
+   the sticky flag answers "did THIS component saturate" -- making the clip
+   count the converter's verdict rather than a threshold predicted here. */
+static inline long
+quantise (wfm_stream_sink_t *s, int wtype, float qscale, float v)
+{
+  long code = 0;
+  int  hit  = 0;
+  switch (wtype)
+    {
+    case WT_CI32:
+      {
+        f32_to_i32_state_t q = { .scale = qscale, .clipped = 0 };
+        code                 = f32_to_i32_step (&q, v);
+        hit                  = q.clipped;
+        break;
+      }
+    case WT_CI16:
+      {
+        f32_to_i16_state_t q = { .scale = qscale, .clipped = 0 };
+        code                 = f32_to_i16_step (&q, v);
+        hit                  = q.clipped;
+        break;
+      }
+    default:
+      {
+        f32_to_i8_state_t q = { .scale = qscale, .clipped = 0 };
+        code                = f32_to_i8_step (&q, v);
+        hit                 = q.clipped;
+        break;
+      }
+    }
+  s->ntot++;
+  if (s->track && hit)
+    s->nclip++;
+  return code;
 }
 
 /* Ensure scratch holds at least `need` bytes. */
@@ -164,14 +203,15 @@ wfm_stream_sink_send (wfm_stream_sink_t *sink, const float _Complex *iq,
       {
         if (grow (sink, n * 2 * sizeof (int32_t)))
           return -1;
-        int32_t *o = sink->scratch;
+        int32_t    *o      = sink->scratch;
+        const float qscale = (float)dp_format_full_scale (CI32);
         for (size_t i = 0; i < n; i++)
           {
             float re = crealf (iq[i]) * sink->gain,
                   im = cimagf (iq[i]) * sink->gain;
-            track_sample (sink, re, im);
-            o[2 * i]     = (int32_t)qz (re, 2147483647.0);
-            o[2 * i + 1] = (int32_t)qz (im, 2147483647.0);
+            track_peak (sink, re, im);
+            o[2 * i]     = (int32_t)quantise (sink, WT_CI32, qscale, re);
+            o[2 * i + 1] = (int32_t)quantise (sink, WT_CI32, qscale, im);
           }
         return dp_pub_send_ci32 (sink->pub, o, n, fs, fc);
       }
@@ -179,14 +219,15 @@ wfm_stream_sink_send (wfm_stream_sink_t *sink, const float _Complex *iq,
       {
         if (grow (sink, n * 2 * sizeof (int16_t)))
           return -1;
-        int16_t *o = sink->scratch;
+        int16_t    *o      = sink->scratch;
+        const float qscale = (float)dp_format_full_scale (CI16);
         for (size_t i = 0; i < n; i++)
           {
             float re = crealf (iq[i]) * sink->gain,
                   im = cimagf (iq[i]) * sink->gain;
-            track_sample (sink, re, im);
-            o[2 * i]     = (int16_t)qz (re, 32767.0);
-            o[2 * i + 1] = (int16_t)qz (im, 32767.0);
+            track_peak (sink, re, im);
+            o[2 * i]     = (int16_t)quantise (sink, WT_CI16, qscale, re);
+            o[2 * i + 1] = (int16_t)quantise (sink, WT_CI16, qscale, im);
           }
         return dp_pub_send_ci16 (sink->pub, o, n, fs, fc);
       }
@@ -194,14 +235,15 @@ wfm_stream_sink_send (wfm_stream_sink_t *sink, const float _Complex *iq,
       { /* WT_CI8 */
         if (grow (sink, n * 2 * sizeof (int8_t)))
           return -1;
-        int8_t *o = sink->scratch;
+        int8_t     *o      = sink->scratch;
+        const float qscale = (float)dp_format_full_scale (CI8);
         for (size_t i = 0; i < n; i++)
           {
             float re = crealf (iq[i]) * sink->gain,
                   im = cimagf (iq[i]) * sink->gain;
-            track_sample (sink, re, im);
-            o[2 * i]     = (int8_t)qz (re, 127.0);
-            o[2 * i + 1] = (int8_t)qz (im, 127.0);
+            track_peak (sink, re, im);
+            o[2 * i]     = (int8_t)quantise (sink, WT_CI8, qscale, re);
+            o[2 * i + 1] = (int8_t)quantise (sink, WT_CI8, qscale, im);
           }
         return dp_pub_send_ci8 (sink->pub, o, n, fs, fc);
       }

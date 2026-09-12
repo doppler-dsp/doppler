@@ -45,15 +45,23 @@ R = Report()
 
 FS = 1.0e6
 
+
 # The five complex wire types, with the numpy dtype each lands as and the
 # full-scale constant the writer maps +-1.0 onto. The dtype is how the file
-# is read back without asking doppler what it wrote.
+# is read back without asking doppler what it wrote -- and it is also where
+# the full scale comes from, rather than a fourth hand-written copy of it:
+# 2^(N-1) is np.iinfo().max + 1, which is the magnitude of the type's most
+# negative code, the one that IS full scale (doppler#1117).
+def _full_scale(dtype: str) -> float | None:
+    return None if "i" not in dtype else float(np.iinfo(dtype).max) + 1.0
+
+
 WIRE = [
     ("cf32", "<c8", None),
     ("cf64", "<c16", None),
-    ("ci32", "<i4", 2147483647.0),
-    ("ci16", "<i2", 32767.0),
-    ("ci8", "<i1", 127.0),
+    ("ci32", "<i4", _full_scale("<i4")),
+    ("ci16", "<i2", _full_scale("<i2")),
+    ("ci8", "<i1", _full_scale("<i1")),
 ]
 INTEGER = [(n, d, s) for n, d, s in WIRE if s is not None]
 
@@ -68,6 +76,17 @@ def _csv(path: Path, header: str, rows: list[list[float]]) -> None:
         fh.write(header + "\n")
         for r in rows:
             fh.write(",".join(f"{v:.10g}" for v in r) + "\n")
+
+
+def round_half_away(t: np.ndarray) -> np.ndarray:
+    """Round half away from zero -- what C's lround() does.
+
+    NOT np.round(), which rounds half to EVEN: the two disagree on every
+    exact .5, and v*scale hits one whenever v happens to carry a bit at
+    2^-(log2(scale)+1). Modelling the C with the wrong tie rule would make
+    this report's "matches rounding" column depend on the draw.
+    """
+    return np.sign(t) * np.floor(np.abs(t) + 0.5)
 
 
 def signal(n: int = N, seed: int = 7) -> np.ndarray:
@@ -125,6 +144,7 @@ class Data:
     trunc_rms: float = 0.0
     round_rms: float = 0.0
     penalty_db: float = 0.0
+    penalty_by_type: dict[str, float] = field(default_factory=dict)
     ci8_floor: float = 0.0
     ci8_floor_rounded: float = 0.0
     peak_rows: list[list[str]] = field(default_factory=list)
@@ -177,8 +197,12 @@ def measure_wire(d: Data, tmp: Path) -> None:
     R.md()
     R.md(
         "The writer's contract is that `+-1.0` maps to the type's full "
-        "scale. Read back with `np.fromfile` at the declared dtype -- not "
-        "through `Reader`, which shares the writer's own scale table."
+        "scale, `2^(N-1)`. That is a power of two and so one code past the "
+        "type's maximum on the POSITIVE side -- `+1.0` saturates to "
+        "`2^(N-1)-1` while `-1.0` is exact -- which is two's complement's "
+        "asymmetry, not the mapping's. Read back with `np.fromfile` at the "
+        "declared dtype, not through `Reader`, which shares the writer's "
+        "full-scale constant."
     )
     R.md()
     x = signal(256)
@@ -191,9 +215,9 @@ def measure_wire(d: Data, tmp: Path) -> None:
             exact = bool(np.allclose(got, want, atol=1e-6))
             note = "float, stored as-is"
         else:
-            want = np.trunc(v * scale)
+            want = round_half_away(v * scale)
             exact = bool(np.array_equal(got, want))
-            note = f"+-1.0 -> +-{scale:.0f}"
+            note = f"-1.0 -> -{scale:.0f}, +1.0 -> +{scale - 1:.0f}"
         ok_all = ok_all and exact
         d.wire_rows.append(
             [
@@ -218,15 +242,24 @@ def measure_wire(d: Data, tmp: Path) -> None:
 
 
 def measure_quantisation(d: Data, tmp: Path) -> None:
-    R.md("### 2.2 The quantiser truncates, and what that costs (F1)")
+    R.md("### 2.2 The quantiser rounds, and what that is worth")
     R.md()
     R.md(
         "The interesting question about an integer capture is not whether "
         "it round-trips but how much of the wire's dynamic range it "
-        "spends. doppler's canonical converter, `f32_to_i16`, says it "
-        '"rounds to the nearest integer". The writer does not call it: '
-        "`wfm_writer_core.c` has its own `(long)(v * scale)`, which "
-        "**truncates toward zero**."
+        "spends. doppler's canonical converters say they round to the "
+        "nearest integer; this report used to record that the writer did "
+        "not call them, and truncated toward zero instead, for a measured "
+        "6.22 dB (F1, filed as gh-1117 along with the sibling copies in "
+        "`wfm_sink` and `wfm_reader`)."
+    )
+    R.md()
+    R.md(
+        "gh-1117 is fixed: all three now call `f32_to_i8`/`f32_to_i16`/"
+        "`f32_to_i32`, and full scale is `dp_format_full_scale()` rather "
+        "than a per-file table. This section is kept, inverted, as the "
+        "evidence -- it is the same measurement, and it now has to come "
+        "out the other way for the report to pass."
     )
     R.md()
     R.md(
@@ -241,35 +274,40 @@ def measure_quantisation(d: Data, tmp: Path) -> None:
     for name, dtype, scale in INTEGER:
         got = read_components(write_capture(tmp, x, name), dtype)
         trunc = np.trunc(v * scale)
-        rnd = np.round(v * scale)
+        rnd = round_half_away(v * scale)
         is_t = bool(np.array_equal(got, trunc))
         is_r = bool(np.array_equal(got, rnd))
         all_trunc = all_trunc and is_t
         any_round = any_round or is_r
+        # `err` is what the writer ACTUALLY does; `terr` is the truncating
+        # model it used to be. The comparison is the 6 dB.
         err = got - v * scale
-        rerr = rnd - v * scale
-        t_rms = float(np.sqrt(np.mean(err**2)))
-        r_rms = float(np.sqrt(np.mean(rerr**2)))
-        floor = 20 * np.log10(t_rms / scale)
+        terr = trunc - v * scale
+        r_rms = float(np.sqrt(np.mean(err**2)))
+        t_rms = float(np.sqrt(np.mean(terr**2)))
         rfloor = 20 * np.log10(r_rms / scale)
+        floor = 20 * np.log10(t_rms / scale)
         d.quant_table.append(
             [
                 name,
                 "yes" if is_t else "no",
                 "yes" if is_r else "no",
                 f"{np.max(np.abs(err)):.3f}",
-                f"{t_rms:.4f}",
-                f"{floor:.1f}",
+                f"{r_rms:.4f}",
                 f"{rfloor:.1f}",
+                f"{floor:.1f}",
             ]
         )
         d.quant_rows.append([scale, t_rms, r_rms, floor, rfloor])
         d.worst_lsb = max(d.worst_lsb, float(np.max(np.abs(err))))
+        d.penalty_by_type[name] = float(20 * np.log10(t_rms / r_rms))
         if name == "ci8":
             d.ci8_floor, d.ci8_floor_rounded = float(floor), float(rfloor)
-        d.trunc_rms, d.round_rms = t_rms, r_rms
+            d.trunc_rms, d.round_rms = t_rms, r_rms
     d.all_truncate, d.any_round = all_trunc, any_round
-    d.penalty_db = float(20 * np.log10(d.trunc_rms / d.round_rms))
+    # Quoted for ci8 specifically, not "the last type the loop happened to
+    # see" -- and the per-type figures are kept because they are not equal.
+    d.penalty_db = d.penalty_by_type["ci8"]
     R.table(
         [
             "type",
@@ -278,26 +316,37 @@ def measure_quantisation(d: Data, tmp: Path) -> None:
             "max err (LSB)",
             "rms (LSB)",
             "noise floor dBFS",
-            "if rounded",
+            "if truncated",
         ],
         d.quant_table,
     )
     R.md(
-        f"Truncation on every integer type, and the cost is the same on "
-        f"each: **{d.penalty_db:.1f} dB**. That is not a coincidence of "
-        "this signal -- truncation toward zero spreads the error over a "
-        "whole LSB (rms `1/sqrt(3)` = 0.577) where round-to-nearest "
-        "spreads it over half (`1/sqrt(12)` = 0.289), and the ratio is "
-        f"exactly 2, which is 6.02 dB. Measured {d.trunc_rms:.4f} against "
-        f"{d.round_rms:.4f}."
+        f"Round-to-nearest on every integer type. Where the quantiser "
+        f"genuinely quantises the saving is the predicted one -- "
+        f"**{d.penalty_by_type['ci8']:.1f} dB** on ci8 and "
+        f"{d.penalty_by_type['ci16']:.1f} dB on ci16 -- and that is not a "
+        "coincidence of this signal: truncation toward zero spreads the "
+        "error over a whole LSB (rms `1/sqrt(3)` = 0.577) where "
+        "round-to-nearest spreads it over half (`1/sqrt(12)` = 0.289), and "
+        f"the ratio is exactly 2, which is 6.02 dB. Measured "
+        f"{d.trunc_rms:.4f} against {d.round_rms:.4f} on ci8."
     )
     R.md()
     R.md(
-        f"It bites hardest where there is least to spare: an 8-bit "
-        f"capture sits at **{d.ci8_floor:.1f} dBFS** where it could sit at "
-        f"{d.ci8_floor_rounded:.1f}. Recorded as F1 and filed as gh-1117, "
-        "which also names the two sibling copies in `wfm_sink` and "
-        "`wfm_reader`."
+        f"ci32 is the exception at {d.penalty_by_type['ci32']:.1f} dB, and "
+        "it is not a defect in either quantiser: the source is a float32, "
+        "which carries 24 significant bits, and full scale is now the "
+        "power of two `2^31`. A float32 scaled by a power of two is exact, "
+        "so most samples land ON a code with no error to round or truncate "
+        "-- there is simply less quantisation happening to improve. Its "
+        f"floor sits at {d.quant_table[0][5]} dBFS, far below anything the "
+        "24-bit input can actually express."
+    )
+    R.md()
+    R.md(
+        f"It mattered most where there was least to spare: an 8-bit "
+        f"capture now sits at **{d.ci8_floor_rounded:.1f} dBFS** where it "
+        f"used to sit at {d.ci8_floor:.1f}."
     )
     R.md()
     R.md("![What truncating costs, per wire type](quantisation.png)")
@@ -712,22 +761,27 @@ def review(d: Data) -> None:
     R.md()
     R.find(
         "F1",
-        "CONFIRMED",
-        "**The quantiser truncates where the library's own converter "
-        f"rounds, and it costs {d.penalty_db:.1f} dB** (gh-1117). "
+        "FIXED",
+        "**The quantiser truncated where the library's own converter "
+        f"rounds, and it cost {d.penalty_db:.1f} dB** (gh-1117, fixed). "
         '`f32_to_i16`\'s header says it "rounds to the nearest integer"; '
-        "`wfm_writer_core.c` has its own `(long)(v * scale)` and truncates "
-        "toward zero, as do `wfm_sink.c` and `wfm_reader_core.c` -- three "
+        "`wfm_writer_core.c` had its own `(long)(v * scale)` and truncated "
+        "toward zero, as did `wfm_sink.c` and `wfm_reader_core.c` -- three "
         "private copies of one conversion, which is the drift class "
-        "`CLAUDE.md` names by example. Measured against both models on the "
-        "file itself: truncation on every integer type, rms "
-        f"{d.trunc_rms:.4f} LSB against {d.round_rms:.4f} rounded, a "
-        "factor of exactly 2. An 8-bit capture sits at "
-        f"{d.ci8_floor:.1f} dBFS where it could sit at "
-        f"{d.ci8_floor_rounded:.1f}. Not fixed here: the round trip is "
-        "self-consistent today, so changing it changes bytes in every "
-        "committed capture fixture and needs a deliberate pass. Phase 8 "
-        "measures; it does not repair.",
+        "`CLAUDE.md` names by example. All three now call the converters, "
+        "the two missing widths (`f32_to_i8`, `f32_to_i32`) were added to "
+        "`cvt` so every wire type has one to call, and full scale is "
+        "`dp_format_full_scale()` in one place rather than a table per "
+        "file. Measured against both models on the file itself: "
+        f"round-to-nearest on every integer type, rms {d.round_rms:.4f} "
+        f"LSB against {d.trunc_rms:.4f} truncated, a factor of exactly 2. "
+        f"An 8-bit capture now sits at {d.ci8_floor_rounded:.1f} dBFS "
+        f"where it sat at {d.ci8_floor:.1f}. The wire bytes moved, which "
+        "is why this needed a deliberate pass rather than a drive-by: "
+        "`make lint-full-scale` now fails on a reintroduced private "
+        "full-scale table, and "
+        "`src/doppler/wfm/tests/test_wire_matches_cvt.py` asserts the "
+        "written codes ARE the converters' output.",
     )
     R.find(
         "F2",
@@ -814,19 +868,23 @@ def limits(d: Data) -> None:
         "back by numpy at the declared dtype",
     )
     R.limit(
-        d.all_truncate and not d.any_round,
-        "the integer quantiser truncates toward zero on every type -- "
-        "recorded so gh-1117 cannot be 'fixed' without this report moving",
+        d.any_round and not d.all_truncate,
+        "the integer quantiser rounds to nearest on every type, and "
+        "truncates on none -- gh-1117's fix, pinned so it cannot be "
+        "undone without this report moving",
     )
     R.limit(
-        abs(d.penalty_db - 6.02) < 0.2,
-        f"and that costs {d.penalty_db:.2f} dB against round-to-nearest, "
-        "the factor of 2 in quantiser rms the theory predicts",
+        all(abs(d.penalty_by_type[t] - 6.02) < 0.2 for t in ("ci8", "ci16")),
+        f"and that is worth {d.penalty_by_type['ci8']:.2f} dB (ci8) and "
+        f"{d.penalty_by_type['ci16']:.2f} dB (ci16) against truncation, "
+        "the factor of 2 in quantiser rms the theory predicts -- ci32 is "
+        "excluded because a float32 source barely quantises into 31 bits",
     )
     R.limit(
-        d.worst_lsb <= 1.0 + 1e-9,
-        f"the quantisation error never exceeds one LSB "
-        f"({d.worst_lsb:.3f} measured)",
+        d.worst_lsb <= 0.5 + 1e-9,
+        f"the quantisation error never exceeds HALF an LSB "
+        f"({d.worst_lsb:.3f} measured) -- truncation's bound was a whole "
+        "one, and that bound IS the 6 dB",
     )
     R.limit(
         d.peak_exact,
@@ -921,7 +979,7 @@ def plots(d: Data) -> None:
     ax.set_xticks(xs)
     ax.set_xticklabels(names)
     ax.set_ylabel("quantisation noise floor (dBFS)")
-    ax.set_title("Truncating costs 6 dB of the wire, on every integer type")
+    ax.set_title("Rounding recovers 6 dB of the wire, at 8 and 16 bits")
     ax.grid(True, axis="y", alpha=0.3)
     ax.legend(fontsize=8)
     fig.tight_layout()
@@ -951,13 +1009,13 @@ def build(write: bool = True) -> Report:
         R.executive(
             "Writer",
             [
-                "**An integer capture costs "
-                f"{d.penalty_db:.1f} dB more quantisation noise than it "
-                "needs to.** The writer truncates where doppler's own "
-                "`f32_to_i16` rounds -- three private copies of that "
-                "conversion exist. It bites hardest at 8 bits: "
-                f"{d.ci8_floor:.1f} dBFS against a possible "
-                f"{d.ci8_floor_rounded:.1f} (§2.2, F1, gh-1117).",
+                "**An integer capture spends its quantisation noise "
+                "where it should.** The writer rounds to nearest, through "
+                "doppler's own converters rather than a private copy, "
+                f"which is worth {d.penalty_db:.1f} dB over the truncating "
+                "quantiser it used to carry. It mattered most at 8 bits: "
+                f"{d.ci8_floor_rounded:.1f} dBFS where it was "
+                f"{d.ci8_floor:.1f} (§2.2, F1, gh-1117, fixed).",
                 "**Set headroom from the peak you measured, and the rule "
                 "is exact.** `ceil(20*log10(peak))` dB clears the clip at "
                 "every level measured, and one dB less does not -- so it "

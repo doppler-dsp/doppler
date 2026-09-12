@@ -126,6 +126,16 @@ repos:
         entry: make -s lint-lgamma-reentrant
         language: system
         pass_filenames: false
+
+      # A wire format's full scale is dp_format_full_scale() and the
+      # arithmetic around it is the cvt converters'; four private copies had
+      # already drifted into truncating at the wrong constant (#1117).
+      - id: full-scale
+        name: wire full scale has one home
+        entry: make -s lint-full-scale
+        language: system
+        pass_filenames: false
+        types_or: [c]
         types_or: [c]
 
       # A header's @code example is compiled by NOTHING -- doxygen renders it,

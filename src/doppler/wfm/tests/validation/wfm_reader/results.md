@@ -31,13 +31,13 @@ The header's claim: samples come out as `float _Complex` at unit scale, float ty
 |---|---|---|---|---|---|
 | cf32 | matches | 0.000e+00 | exact | 0 | 0 |
 | cf64 | matches | 0.000e+00 | exact | 0 | 0 |
-| ci32 | matches | 4.657e-10 | 4.657e-10 | 1.000 | 1.000 |
-| ci16 | matches | 3.052e-05 | 3.052e-05 | 1.000 | 1.387 |
-| ci8 | matches | 7.873e-03 | 7.874e-03 | 1.000 | 1.403 |
+| ci32 | matches | 2.328e-10 | 4.657e-10 | 0.500 | 0.500 |
+| ci16 | matches | 1.526e-05 | 3.052e-05 | 0.500 | 0.701 |
+| ci8 | matches | 3.906e-03 | 7.812e-03 | 0.500 | 0.687 |
 
-The reader agrees with an independent decode on every type. The residual against the ORIGINAL samples is the writer's quantisation, not the reader's, and it is exactly one LSB per component -- the bound truncation gives, reached rather than approached. The float types are exact.
+The reader agrees with an independent decode on every type. The residual against the ORIGINAL samples is the writer's quantisation, not the reader's, and it is **half** an LSB per component -- the bound round-to-nearest gives, reached rather than approached. It was a whole LSB until gh-1117 replaced three private truncating quantisers with calls to the `cvt` converters. The float types are exact.
 
-The last column is worth a caller's attention: the COMPLEX error reaches about **1.41 LSB**, because both axes truncate independently and `sqrt(2)` of one LSB is what that costs. An error budget written per component and then applied to `|z|` is 40% optimistic.
+The last column is worth a caller's attention: the COMPLEX error runs above the per-component one, because the two axes quantise independently and the worst case is `sqrt(2)` of a component's bound -- 0.707 LSB against 0.500. An error budget written per component and then applied to `|z|` is 40% optimistic, whichever way the quantiser rounds.
 
 ### 2.2 The metadata surface (C §accessors)
 
@@ -156,7 +156,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | verdict | claim |
 |---|---|
 | PASS | every wire type decodes to what numpy reads from the same bytes, independently of the writer |
-| PASS | and the residual against the original samples is the writer's quantisation: at most one LSB PER COMPONENT (1.000 measured), which is sqrt(2) of that on the complex magnitude |
+| PASS | and the residual against the original samples is the writer's quantisation: at most one LSB PER COMPONENT (0.500 measured), which is sqrt(2) of that on the complex magnitude |
 | PASS | file_type, sample_type and num_samples are recovered for blue, csv, sigmf and raw, and so is the rate -- the header-bearing types from their own header, the headerless two from the sidecar the writer leaves beside them. The raw row passes no hint at all, so it is the sidecar that named its wire type (doppler#1120) |
 | PASS | two captures that both report fc = 0.0 are told apart by their source tag -- the reason the tags exist |
 | PASS | an unset BLUE timecode reads as t0_source 'none' with t0 = 0.0, so no doppler-written capture can be dated to 1950 |

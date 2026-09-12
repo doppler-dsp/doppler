@@ -107,6 +107,8 @@
 * [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md)
 * [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md)
 * [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md)
+* [**f32\_to\_i32\_state\_t**](structf32__to__i32__state__t.md)
+* [**f32\_to\_i8\_state\_t**](structf32__to__i8__state__t.md)
 * [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md)
 * [**farrow\_state\_t**](structfarrow__state__t.md)
 * [**fft2d\_state\_t**](structfft2d__state__t.md)

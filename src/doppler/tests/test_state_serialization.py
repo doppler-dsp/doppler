@@ -43,7 +43,15 @@ from doppler.agc import AGC
 from doppler.analyzer import Specan
 from doppler.arith import AccQ8, AccQ15
 from doppler.coding import ConvEncoder, Viterbi
-from doppler.cvt import ADC, F32ToI16, F32ToI16U32, F32ToI16U64, F32ToUQ15
+from doppler.cvt import (
+    ADC,
+    F32ToI8,
+    F32ToI16,
+    F32ToI16U32,
+    F32ToI16U64,
+    F32ToI32,
+    F32ToUQ15,
+)
 from doppler.ddc import DDC, Ddcr, MatchedDDC
 from doppler.delay import DelayCf64
 from doppler.detection import LockDet
@@ -302,7 +310,9 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
         _acc_feed(lambda s: np.clip(s.real * 20, -127, 127).astype(np.int8)),
     ),
     # Float→int quantizers — sticky clip flag (and ADC's dither PRNG) resume.
+    "F32ToI8": (lambda: F32ToI8(128.0), _f32_to_int_feed),
     "F32ToI16": (lambda: F32ToI16(32768.0), _f32_to_int_feed),
+    "F32ToI32": (lambda: F32ToI32(2147483648.0), _f32_to_int_feed),
     "F32ToI16U32": (lambda: F32ToI16U32(32768.0), _f32_to_int_feed),
     "F32ToI16U64": (lambda: F32ToI16U64(32768.0), _f32_to_int_feed),
     "F32ToUQ15": (lambda: F32ToUQ15(32768.0), _f32_to_int_feed),

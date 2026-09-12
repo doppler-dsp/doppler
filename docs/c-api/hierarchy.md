@@ -92,6 +92,8 @@ This inheritance list is sorted roughly, but not completely, alphabetically:
 * **struct** [**f32\_to\_i16\_state\_t**](structf32__to__i16__state__t.md) _F32ToI16 state._ 
 * **struct** [**f32\_to\_i16u32\_state\_t**](structf32__to__i16u32__state__t.md) _F32ToI16U32 state._ 
 * **struct** [**f32\_to\_i16u64\_state\_t**](structf32__to__i16u64__state__t.md) _F32ToI16U64 state._ 
+* **struct** [**f32\_to\_i32\_state\_t**](structf32__to__i32__state__t.md) _F32ToI32 state._ 
+* **struct** [**f32\_to\_i8\_state\_t**](structf32__to__i8__state__t.md) _F32ToI8 state._ 
 * **struct** [**f32\_to\_uq15\_state\_t**](structf32__to__uq15__state__t.md) _F32ToUQ15 state._ 
 * **struct** [**farrow\_state\_t**](structfarrow__state__t.md) _Farrow interpolator state (4-tap delay line + order)._ 
 * **struct** [**fft2d\_state\_t**](structfft2d__state__t.md) 

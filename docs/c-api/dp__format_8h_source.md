@@ -82,20 +82,20 @@ extern "C"
     switch (type)
       {
       case CI8:
-        return 127.0;
+        return 128.0;
       case CI16:
-        return 32767.0;
+        return 32768.0;
       case CI32:
-        return 2147483647.0;
+        return 2147483648.0;
       case CF32:
       case CF64:
         return 1.0;
       case SI8:
-        return 127.0;
+        return 128.0;
       case SI16:
-        return 32767.0;
+        return 32768.0;
       case SI32:
-        return 2147483647.0;
+        return 2147483648.0;
       case SF32:
       case SF64:
         return 1.0;

@@ -88,9 +88,15 @@ def test_cf64_reads_back_faithfully(tmp_path):
     assert np.isclose(np.mean(np.abs(iq) ** 2), 1.0, atol=0.05)
 
 
+# One quantiser step is 1/2^(N-1); the tolerances are two of them, derived
+# from the wire type rather than restating the full-scale constant (#1117).
 @pytest.mark.parametrize(
     "sample_type,atol",
-    [("ci32", 1e-6), ("ci16", 2 / 32767), ("ci8", 2 / 127)],
+    [
+        ("ci32", 1e-6),
+        ("ci16", 2 / (float(np.iinfo("<i2").max) + 1.0)),
+        ("ci8", 2 / (float(np.iinfo("<i1").max) + 1.0)),
+    ],
 )
 def test_int_roundtrip_matches_cf32(tmp_path, sample_type, atol):
     truth = _read_all(_gen(tmp_path, "cf32"), "cf32")
@@ -102,7 +108,7 @@ def test_int_roundtrip_matches_cf32(tmp_path, sample_type, atol):
 def test_big_endian_roundtrip(tmp_path):
     truth = _read_all(_gen(tmp_path, "cf32"), "cf32")
     be = _read_all(_gen(tmp_path, "ci16", endian="be"), "ci16", "be")
-    assert np.allclose(be, truth, atol=2 / 32767)
+    assert np.allclose(be, truth, atol=2 / (float(np.iinfo("<i2").max) + 1.0))
 
 
 def test_unknown_sample_type_rejected(tmp_path):

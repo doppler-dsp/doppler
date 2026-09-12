@@ -1,9 +1,10 @@
 /*
  * cvt_ext.c — Python extension module cvt
  *
- * Objects: F32ToI16, I16ToF32, I32ToF32, I8ToF32, F32ToI16U32, F32ToI16U64,
- * I16U32ToF32, I16U64ToF32, F32ToUQ15, UQ15ToF32, ADC GENERATED — do not
- * hand-edit. Patches belong in the _ext_<obj>.c fragments.
+ * Objects: F32ToI8, F32ToI16, F32ToI32, I8ToF32, I16ToF32, I32ToF32,
+ * F32ToI16U32, F32ToI16U64, I16U32ToF32, I16U64ToF32, F32ToUQ15, UQ15ToF32,
+ * ADC GENERATED — do not hand-edit. Patches belong in the _ext_<obj>.c
+ * fragments.
  */
 
 #define PY_SSIZE_T_CLEAN
@@ -18,6 +19,8 @@
 #include "cvt_ext_f32_to_i16.c"
 #include "cvt_ext_f32_to_i16u32.c"
 #include "cvt_ext_f32_to_i16u64.c"
+#include "cvt_ext_f32_to_i32.c"
+#include "cvt_ext_f32_to_i8.c"
 #include "cvt_ext_f32_to_uq15.c"
 #include "cvt_ext_i16_to_f32.c"
 #include "cvt_ext_i16u32_to_f32.c"
@@ -523,13 +526,17 @@ PyMODINIT_FUNC
 PyInit_cvt (void)
 {
   import_array ();
+  if (PyType_Ready (&F32ToI8ObjType) < 0)
+    return NULL;
   if (PyType_Ready (&F32ToI16ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&F32ToI32ObjType) < 0)
+    return NULL;
+  if (PyType_Ready (&I8ToF32ObjType) < 0)
     return NULL;
   if (PyType_Ready (&I16ToF32ObjType) < 0)
     return NULL;
   if (PyType_Ready (&I32ToF32ObjType) < 0)
-    return NULL;
-  if (PyType_Ready (&I8ToF32ObjType) < 0)
     return NULL;
   if (PyType_Ready (&F32ToI16U32ObjType) < 0)
     return NULL;
@@ -548,10 +555,31 @@ PyInit_cvt (void)
   PyObject *m = PyModule_Create (&cvt_moduledef);
   if (!m)
     return NULL;
+  Py_INCREF (&F32ToI8ObjType);
+  if (PyModule_AddObject (m, "F32ToI8", (PyObject *)&F32ToI8ObjType) < 0)
+    {
+      Py_DECREF (&F32ToI8ObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
   Py_INCREF (&F32ToI16ObjType);
   if (PyModule_AddObject (m, "F32ToI16", (PyObject *)&F32ToI16ObjType) < 0)
     {
       Py_DECREF (&F32ToI16ObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&F32ToI32ObjType);
+  if (PyModule_AddObject (m, "F32ToI32", (PyObject *)&F32ToI32ObjType) < 0)
+    {
+      Py_DECREF (&F32ToI32ObjType);
+      Py_DECREF (m);
+      return NULL;
+    }
+  Py_INCREF (&I8ToF32ObjType);
+  if (PyModule_AddObject (m, "I8ToF32", (PyObject *)&I8ToF32ObjType) < 0)
+    {
+      Py_DECREF (&I8ToF32ObjType);
       Py_DECREF (m);
       return NULL;
     }
@@ -566,13 +594,6 @@ PyInit_cvt (void)
   if (PyModule_AddObject (m, "I32ToF32", (PyObject *)&I32ToF32ObjType) < 0)
     {
       Py_DECREF (&I32ToF32ObjType);
-      Py_DECREF (m);
-      return NULL;
-    }
-  Py_INCREF (&I8ToF32ObjType);
-  if (PyModule_AddObject (m, "I8ToF32", (PyObject *)&I8ToF32ObjType) < 0)
-    {
-      Py_DECREF (&I8ToF32ObjType);
       Py_DECREF (m);
       return NULL;
     }

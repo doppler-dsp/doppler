@@ -13,10 +13,14 @@ The same QPSK capture written to **raw**, **CSV**, **BLUE type-1000**, and
 original (they coincide — the codec is lossless for `cf32`) and annotates the
 on-disk size and the metadata the file type recovered:
 
-- **raw** — bare interleaved I/Q. Smallest and fastest, but **no metadata**: the
-    reader must be *told* the sample type, and `fs`/`fc` are not stored.
-- **CSV** — human-readable `I,Q` text. Self-describing shape, no metadata, ~3× the
-    bytes (and a tiny text-rounding error).
+- **raw** — bare interleaved I/Q. Smallest and fastest, and the container holds
+    **no metadata at all**; what it gets instead is a `<path>.sigmf-meta`
+    sidecar, written beside it and read back automatically, carrying the sample
+    type, `fs` and `fc`. So a doppler round trip needs no hint. The sidecar is
+    a *second file*, though: copy the capture without it and you are back to
+    bare bytes, read as `cf32` with no rate.
+- **CSV** — human-readable `I,Q` text. Self-describing shape, the same sidecar
+    for its metadata, ~3× the bytes (and a tiny text-rounding error).
 - **BLUE (type-1000)** — a 512-byte header recording the sample format, byte
     order, and `fs` (as `xdelta = 1/fs`); the reader recovers them with no hints.
     The `format` field is a `[mode][type]` pair: doppler writes `C` (complex,
@@ -29,7 +33,9 @@ on-disk size and the metadata the file type recovered:
     recovering **both** `fs` and `fc` (and one annotation per segment).
 
 `Reader` auto-detects the file type (BLUE magic / `.sigmf-meta` sidecar / `.csv`
-extension / else raw); raw is the one case that needs a `sample_type` hint.
+extension / else raw). Pass `sample_type=` only to override what a capture says
+about itself — for raw bytes that arrived without their sidecar, or from a tool
+that never wrote one.
 
 ## Building it
 

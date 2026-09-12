@@ -161,13 +161,29 @@ for file_type, y, _size, meta, err in results:
         # Binary cf32 file types are bit-exact.
         assert err == 0.0, f"{file_type} round-trip error {err:.1e}"
     metas[file_type] = meta
-# Self-describing file types recover the tagged sample rate with no hints;
-# SigMF's JSON sidecar also carries the centre frequency. Raw stores no
-# metadata at all — its fs must come back unset (the reader was told).
+# Every file type recovers the tagged sample rate with no hints, but not by
+# the same route: blue and sigmf carry it INSIDE the artifact, while raw and
+# csv have no room for it and get a `<path>.sigmf-meta` sidecar instead --
+# which the reader reads (doppler#1120). SigMF also carries fc.
 assert metas["blue"]["fs"] == FS and metas["sigmf"]["fs"] == FS
 assert metas["sigmf"]["fc"] == FC
-assert not metas["raw"]["fs"], "raw file type should carry no fs"
+assert metas["raw"]["fs"] == FS, "raw recovers fs from its sidecar"
+
+# The distinction the sidecar makes, shown rather than asserted about: the
+# same bytes with no sidecar beside them are genuinely undescribed, and the
+# reader falls back to cf32 and reports no rate. A sidecar is a SECOND FILE,
+# so this is what a capture that was copied without it looks like.
+bare = os.path.join(work, "cap_bare.cf32")
+with (
+    open(os.path.join(work, "cap.cf32"), "rb") as src,
+    open(bare, "wb") as dst,
+):
+    dst.write(src.read())
+with Reader(bare) as r:
+    assert r.fs == 0.0, "no sidecar, no rate"
+    assert r.sample_type == "cf32", "no sidecar, the cf32 fallback"
 print(
-    "validated: 4 file types round-trip losslessly, "
-    "blue/sigmf recover fs, sigmf recovers fc"
+    "validated: 4 file types round-trip losslessly, all four recover fs "
+    "(blue/sigmf from the header, raw/csv from the sidecar), sigmf recovers "
+    "fc, and the same raw bytes without a sidecar recover neither"
 )

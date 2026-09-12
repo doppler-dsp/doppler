@@ -565,11 +565,6 @@ tier = 1
 title = "StreamSink cannot be certified through its Python face: validate-check runs after nats-down, and a report must render identically either way"
 status = "open"
 
-[issue.1120]
-tier = 0
-title = "Writer writes a sidecar naming the sample type; Reader ignores it and silently returns garbage \u2014 and trailing_bytes cannot tell you"
-status = "open"
-
 [issue.1123]
 tier = 5
 title = "wfm_reader_header_tag neither bounds-checks nor documents that it must not be \u2014 the only one of four enumerators that does neither"
@@ -603,11 +598,6 @@ status = "open"
 [issue.1165]
 tier = 5
 title = "Four exported symbols carry no prefix: awgn, crc16, saturate, ciccompmf"
-status = "open"
-
-[issue.1171]
-tier = 1
-title = "`make lint` is green while CI is red: drift-check is a separate job, so a header edit has no local gate"
 status = "open"
 
 [issue.1173]

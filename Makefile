@@ -1252,12 +1252,37 @@ include standard.mk
 # guidance without a gate is the thing this repo keeps re-learning -- v0.44.0
 # assembled to 72,636 characters at a median of 24 lines per entry while a
 # README asked politely for less.
+# `drift-check` joined for the THIRD instance of the same lesson, from the
+# other direction. The two above were gates CI did not run; this one CI runs
+# in its own job (`ci.yml`'s "jm manifest drift gate") while `lint` did not,
+# so the local sweep was the half that lied. A header is an input to jm's
+# codegen, and CLAUDE.md points at `make lint` as "every gate CI runs" -- so
+# a doxygen `@param` edit could leave a `.pyi` stale, pass lint, pass
+# docs-check, pass test-fast, and fail CI on the one gate the local sweep
+# omitted. Measured on #1166: four local targets green, `drift-check` exit 2.
+# It costs ~35s warm, which is why it was left out and is the whole argument
+# against; a round trip through CI costs more (#1171).
+#
+# `doxygen-check` joins it, because a header feeds THREE generators and the
+# other two were already reachable from `lint` -- jm's codegen (drift-check,
+# above) and mkdoxy's docs/c-api (gen-c-api-check, via docs-invariants). A
+# sweep that covers two of three still sends the third to CI.
+#
+# It carries a dependency the others do not: it runs the CI image through
+# Docker whenever local doxygen is not exactly DOXYGEN_VERSION (1.9.8), which
+# is every box measured so far (this one ships 1.18.0). That is a deliberate,
+# recorded trade -- doppler development assumes Docker, and it is already
+# required by docker-examples, glibc-gate and ci-image-repin-check. It is the
+# reason to re-open this line if that ever stops being true: the failure mode
+# is `lint` refusing to report on a contributor's own change for a reason
+# that has nothing to do with it. Pinning local doxygen to 1.9.8 makes it
+# run natively and skip Docker entirely.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
       workflow-syntax-check release-notes-size-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
       ccsds-isolation-check cargo-lock-check instrumented-sweep-check \
-      design-pages-check
+      design-pages-check drift-check doxygen-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
 # no test file may end up with FEWER assertions than the base ref has. A

@@ -142,6 +142,15 @@ extern "C"
     WFM_FOLLOW_INTERRUPTED  /**< DP_ERR_INTERRUPTED -- a bounded grace did. */
   } wfm_follow_end_t;
 
+  /** @brief `sample_type` value meaning "the caller said nothing".
+   *
+   *  Distinct from cf32 deliberately. `Reader(p)` and
+   *  `Reader(p, sample_type="cf32")` have to mean different things for a
+   *  stale sidecar to be overridable, and they cannot if the default IS
+   *  cf32. -1 was free -- ::wfm_reader_create returned NULL for it -- so
+   *  giving it a meaning cannot change what any existing caller gets. */
+#define WFM_READER_STYPE_AUTO (-1)
+
   /** Resolved metadata for an open capture. Fields the file type does not
    *  carry are 0 (`fs`/`fc` for raw/CSV, `num_samples` for a stream). */
   typedef struct
@@ -197,9 +206,17 @@ extern "C"
    *                       `"i32"`, `"i16"`, `"i8"` from Python; the matching
    *                       0..9 from C. A real hint is the only way to say
    *                       that a headerless file carries one component per
-   *                       sample rather than interleaved I/Q. A wrong hint
-   *                       does not fail; see
-   *                       ::wfm_reader_get_trailing_bytes.
+   *                       sample rather than interleaved I/Q.
+   *                       `"auto"` (::WFM_READER_STYPE_AUTO from C) is the
+   *                       DEFAULT and says the caller has no opinion: a
+   *                       headerless capture takes its type, byte order and
+   *                       rate from the `<path>.sigmf-meta` sidecar this
+   *                       library's own writer leaves beside it, falling
+   *                       back to cf32/le when there is none. A NAMED type
+   *                       still wins over the sidecar, so a stale one can be
+   *                       overridden. A wrong hint does not fail, and
+   *                       ::wfm_reader_get_trailing_bytes is NOT the way to
+   *                       notice -- see what it says about itself.
    * @param endian         byte order, likewise a hint that only headerless
    *                       raw uses; `"le"` or `"be"` from Python, 0 or 1
    *                       from C.
@@ -439,10 +456,18 @@ int wfm_reader_get_t0_source(const wfm_reader_state_t *state);
    * - the capture is truncated — a recording that was cut mid-sample.
    *
    * Either way the leftover bytes are dropped: ::wfm_reader_read stops at the
-   * last complete sample. This exists because there is otherwise no signal at
-   * all. A wrong hint on a headerless file does not fail, it returns
-   * plausible garbage at the wrong stride, and nothing in the samples
-   * themselves says so.
+   * last complete sample.
+   *
+   * @warning **This is not a check for a wrong hint, and cannot be made into
+   * one.** It only fires when the byte count fails to divide, so it is 0 for
+   * every EVEN sample count -- which is most captures, and every
+   * power-of-two one. Worse, a `ci32` file read as `cf32` is 8 bytes per
+   * sample either way: the count divides at every length, `num_samples` is
+   * correct, this reads 0, and every sample is wrong. It is a truncation
+   * signal that a wrong hint sometimes also trips. Measured in doppler#1120;
+   * the answer to a wrong hint is not to detect it afterwards but to stop
+   * guessing -- pass `"auto"` (the default) and let the capture's own
+   * sidecar name its type.
    *
    * Always 0 for CSV, which is delimited rather than strided.
    */

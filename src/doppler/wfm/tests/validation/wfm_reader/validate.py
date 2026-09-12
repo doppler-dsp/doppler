@@ -241,7 +241,7 @@ def measure_metadata(d: Data, tmp: Path) -> None:
         ("blue", "cf32", ".blue", None),
         ("csv", "cf32", ".csv", None),
         ("sigmf", "ci16", ".sigmf-data", None),
-        ("raw", "ci16", ".raw", "ci16"),
+        ("raw", "ci16", ".raw", None),
     ]:
         p = tmp / f"m_{ft}_{stype}{suffix}"
         w = Writer(p, file_type=ft, sample_type=stype, fs=FS, fc=FC)
@@ -251,8 +251,11 @@ def measure_metadata(d: Data, tmp: Path) -> None:
         got_ft = r.file_type == ft
         got_st = r.sample_type == stype
         got_n = r.num_samples == len(x)
-        # raw and csv carry no rate of their own
-        rate = r.fs == FS if ft in ("blue", "sigmf") else r.fs == 0.0
+        # Every type recovers the rate now: blue and sigmf from their own
+        # header, raw and csv from the `<path>.sigmf-meta` sidecar the writer
+        # leaves beside them (doppler#1120). The raw row passes NO hint, so
+        # this row is also the proof that the sidecar is what named ci16.
+        rate = r.fs == FS
         row_ok = got_ft and got_st and got_n and rate
         ok = ok and row_ok
         d.meta_rows.append(
@@ -766,7 +769,10 @@ def limits(d: Data) -> None:
     R.limit(
         d.meta_all_ok,
         "file_type, sample_type and num_samples are recovered for blue, "
-        "csv, sigmf and raw; the self-describing types carry their own rate",
+        "csv, sigmf and raw, and so is the rate -- the header-bearing types "
+        "from their own header, the headerless two from the sidecar the "
+        "writer leaves beside them. The raw row passes no hint at all, so "
+        "it is the sidecar that named its wire type (doppler#1120)",
     )
     R.limit(
         d.prov_distinguishes,

@@ -358,12 +358,22 @@ def test_fs_source_attributes_the_rate(tmp_path):
         assert r.fs == pytest.approx(2.5e6)
         assert r.fs_source == "xdelta"
 
-    # Raw has nowhere to record a rate, so fs == 0.0 must read as "not
-    # found" rather than as a rate anyone captured at.
+    # Raw has no room for a rate IN THE CONTAINER, but the writer puts one
+    # in the sidecar beside it, and since doppler#1120 the reader reads it.
+    # So the rate is attributable here too, to the sidecar that carried it.
     q = tmp_path / "rate.raw"
     with Writer(q, file_type="raw", sample_type="cf32", fs=2.5e6) as w:
         w.write(np.zeros(8, dtype=np.complex64))
     with Reader(q) as r:
+        assert r.fs == pytest.approx(2.5e6)
+        assert r.fs_source == "core:sample_rate"
+
+    # Without that sidecar there is genuinely nothing, and THAT is the case
+    # this pair exists for: fs == 0.0 must read as "not found" rather than as
+    # a rate someone captured at.
+    b = tmp_path / "bare.raw"
+    b.write_bytes(np.zeros(8, dtype=np.complex64).tobytes())
+    with Reader(b) as r:
         assert r.fs == 0.0
         assert r.fs_source == "none"
 
@@ -681,3 +691,98 @@ def test_trailing_bytes_flags_a_capture_cut_mid_sample(tmp_path):
     with Reader(p) as r:
         assert r.trailing_bytes == 5  # 8 bytes/sample, 3 of them gone
         assert r.num_samples == 7
+
+
+# ── doppler#1120: the reader reads the sidecar its own writer wrote ──────────
+#
+# A round trip through this library's own two objects used to return garbage.
+# `Writer` records the wire type in `<path>.sigmf-meta`; `Reader`, opening the
+# same path, did not look at it, so a ci16 capture read back as the cf32
+# default gave half the samples at the wrong stride, silently. Nothing raised
+# and nothing warned -- and `trailing_bytes`, which the docstring offered as
+# the tell, is 0 whenever the byte count happens to divide.
+
+
+@pytest.mark.parametrize(
+    "stype,tol",
+    [
+        ("cf32", 0.0),
+        ("cf64", 0.0),
+        ("ci32", 1e-6),
+        ("ci16", 1e-3),
+        ("ci8", 2e-2),
+    ],
+)
+def test_raw_round_trips_without_a_hint(tmp_path, stype, tol):
+    """Every wire type survives Writer -> Reader with no sample_type given."""
+    x = (np.arange(512, dtype=np.float32) / 512.0 - 0.5).astype(np.float32)
+    x = (x + 1j * x[::-1]).astype(np.complex64)
+    p = tmp_path / f"rt_{stype}.raw"
+    with Writer(p, file_type="raw", sample_type=stype, fs=1e6) as w:
+        w.write(x)
+
+    r = Reader(p)
+    try:
+        assert r.sample_type == stype, "the sidecar names the wire type"
+        assert r.fs == 1e6, "and the rate the writer was told"
+        assert r.num_samples == len(x), "counted at the right stride"
+        got = r.read(len(x))
+        assert len(got) == len(x)
+        assert np.max(np.abs(got - x)) <= tol
+    finally:
+        r.close()
+
+
+def test_an_explicit_sample_type_still_beats_the_sidecar(tmp_path):
+    """The override a stale sidecar needs -- and why "auto" is its own value.
+
+    `Reader(p)` and `Reader(p, sample_type="cf32")` have to mean different
+    things, so the default cannot itself be cf32.
+    """
+    x = np.array([0.5 + 0.25j] * 8, np.complex64)
+    p = tmp_path / "c.raw"
+    with Writer(p, file_type="raw", sample_type="ci16", fs=1e6) as w:
+        w.write(x)
+
+    r = Reader(p, sample_type="cf32")
+    try:
+        assert r.sample_type == "cf32", "the caller's word wins"
+    finally:
+        r.close()
+
+    r = Reader(p)
+    try:
+        assert r.sample_type == "ci16", "and silence defers to the sidecar"
+    finally:
+        r.close()
+
+
+def test_no_sidecar_still_falls_back_to_cf32(tmp_path):
+    """A bare raw file is unchanged: cf32/le, no rate, exactly as before."""
+    x = np.array([0.5 + 0.25j] * 8, np.complex64)
+    p = tmp_path / "bare.raw"
+    p.write_bytes(x.tobytes())
+
+    r = Reader(p)
+    try:
+        assert r.sample_type == "cf32"
+        assert r.fs == 0.0, "nothing carried a rate"
+        assert np.array_equal(r.read(len(x)), x)
+    finally:
+        r.close()
+
+
+def test_a_sidecar_does_not_override_a_header_bearing_capture(tmp_path):
+    """BLUE and SigMF carry their own metadata; a sidecar gets no vote."""
+    x = np.array([0.5 + 0.25j] * 8, np.complex64)
+    p = tmp_path / "h.blue"
+    with Writer(p, file_type="blue", sample_type="ci16", fs=2.4e6) as w:
+        w.write(x)
+
+    r = Reader(p)
+    try:
+        assert r.file_type == "blue"
+        assert r.sample_type == "ci16"
+        assert r.fs == 2.4e6
+    finally:
+        r.close()

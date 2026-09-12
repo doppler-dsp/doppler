@@ -19,15 +19,21 @@ class Reader:
         Passing the `<base>.det` directly also works (its header sibling is
         resolved). A SigMF `.sigmf-data` file resolves its `.sigmf-meta`
         sidecar the same way.
-    sample_type : Literal["cf32", "cf64", "ci32", "ci16", "ci8"], default "cf32"
+    sample_type : Literal["auto", "cf32", "cf64", "ci32", "ci16", "ci8"], default "auto"
         the wire sample type, used only as a HINT for the headerless file types
         (raw, CSV) -- BLUE and SigMF carry their own and ignore it. The five
         complex names `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"`, `"ci8"` or the
         five real ones `"f32"`, `"f64"`, `"i32"`, `"i16"`, `"i8"` from Python;
         the matching 0..9 from C. A real hint is the only way to say that a
         headerless file carries one component per sample rather than
-        interleaved I/Q. A wrong hint does not fail; see
-        ::wfm_reader_get_trailing_bytes.
+        interleaved I/Q. `"auto"` (::WFM_READER_STYPE_AUTO from C) is the
+        DEFAULT and says the caller has no opinion: a headerless capture takes
+        its type, byte order and rate from the `<path>.sigmf-meta` sidecar this
+        library's own writer leaves beside it, falling back to cf32/le when
+        there is none. A NAMED type still wins over the sidecar, so a stale one
+        can be overridden. A wrong hint does not fail, and
+        ::wfm_reader_get_trailing_bytes is NOT the way to notice -- see what it
+        says about itself.
     endian : Literal["le", "be"], default "le"
         byte order, likewise a hint that only headerless raw uses; `"le"` or
         `"be"` from Python, 0 or 1 from C.
@@ -67,7 +73,7 @@ class Reader:
     def __init__(
         self,
         path: str | os.PathLike,
-        sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32",
+        sample_type: Literal["auto", "cf32", "cf64", "ci32", "ci16", "ci8"] = "auto",
         endian: Literal["le", "be"] = "le",
     ) -> None: ...
 

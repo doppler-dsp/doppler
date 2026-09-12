@@ -62,10 +62,16 @@ link = true
 name = "path"
 type = "path"
 
+# The fragment's parse chain is HAND-OWNED and wider than this list: it also
+# takes the five scalar names and "auto" (doppler#1120, jm#1273). Do not
+# delete the fragment and re-apply -- a regenerated one silently narrows it.
+# "auto" is not an enum index at all; it is WFM_READER_STYPE_AUTO (-1),
+# meaning the caller named no type, so a headerless capture reads its type
+# from the sidecar the writer left beside it.
 [[wfm_reader.init_params]]
 name = "sample_type"
-type = "string_enum:cf32,cf64,ci32,ci16,ci8"
-default = "cf32"
+type = "string_enum:auto,cf32,cf64,ci32,ci16,ci8"
+default = "auto"
 
 [[wfm_reader.init_params]]
 name = "endian"

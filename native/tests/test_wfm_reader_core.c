@@ -1904,6 +1904,72 @@ test_the_follow_knobs (void)
   return 0;
 }
 
+/* doppler#1120. A round trip through this library's own two objects used to
+   return garbage: the writer records the wire type in a `<path>.sigmf-meta`
+   sidecar, and the reader opened the same path and did not look at it. Reading
+   a ci16 capture as the cf32 default gave half the samples, at the wrong
+   stride, silently -- and `trailing_bytes` could not tell you, because 2048
+   bytes divides by 8 exactly.
+
+   Covers the three things that have to hold together: the default reads the
+   sidecar, a NAMED type still beats it (so a stale sidecar is overridable),
+   and a capture with no sidecar still falls back to cf32 as before. */
+static int
+test_sidecar_names_the_wire_type (void)
+{
+  const char *path = "dp_reader_sidecar.raw";
+  const char *meta = "dp_reader_sidecar.raw.sigmf-meta";
+  float _Complex x[N], y[N];
+  make_signal (x, N);
+
+  /* create() (by PATH) is what commits a raw writer to a sidecar. */
+  wfm_writer_state_t *w = wfm_writer_create (
+      path, 1e6, WFM_FT_RAW, 3 /* ci16 */, 0, 0.0, N, 0.0, 0.0, true);
+  DP_REQUIRE_MSG (w, "path writer open");
+  DP_REQUIRE_MSG (wfm_writer_write (w, x, N) == N, "writer wrote N");
+  wfm_writer_destroy (w);
+
+  FILE *mf = fopen (meta, "rb");
+  DP_REQUIRE_MSG (mf, "the writer left a sidecar");
+  fclose (mf);
+
+  /* AUTO: the sidecar decides, and the samples come back. */
+  wfm_reader_state_t *r = wfm_reader_create (path, WFM_READER_STYPE_AUTO, 0);
+  DP_REQUIRE_MSG (r, "reader opened");
+  DP_CHECK_MSG (wfm_reader_get_sample_type (r) == 3,
+                "auto took ci16 from the sidecar");
+  DP_CHECK_MSG (wfm_reader_get_fs (r) == 1e6, "auto took fs from the sidecar");
+  DP_CHECK_MSG (wfm_reader_get_num_samples (r) == N,
+                "counted at the right stride");
+  size_t got = wfm_reader_read (r, N, y, N);
+  DP_CHECK_MSG (got == N, "read N samples");
+  for (size_t i = 0; i < got; i++)
+    DP_CHECK_MSG (cabsf (y[i] - x[i]) < 1e-3, "sample survived the trip");
+  wfm_reader_destroy (r);
+
+  /* A NAMED type still wins -- this is the override a stale sidecar needs,
+     and it is why AUTO is its own value rather than a re-read cf32 default.
+     Reading ci16 as cf32 is the original defect, reproduced on purpose. */
+  r = wfm_reader_create (path, 0 /* cf32, explicitly */, 0);
+  DP_REQUIRE_MSG (r, "reader opened with an explicit hint");
+  DP_CHECK_MSG (wfm_reader_get_sample_type (r) == 0,
+                "an explicit cf32 beat the sidecar's ci16");
+  wfm_reader_destroy (r);
+
+  /* No sidecar: unchanged. The fallback is still cf32, so removing the
+     sidecar restores exactly the old reading. */
+  remove (meta);
+  r = wfm_reader_create (path, WFM_READER_STYPE_AUTO, 0);
+  DP_REQUIRE_MSG (r, "reader opened with no sidecar");
+  DP_CHECK_MSG (wfm_reader_get_sample_type (r) == 0,
+                "no sidecar falls back to cf32");
+  DP_CHECK_MSG (wfm_reader_get_fs (r) == 0.0, "and reports no rate");
+  wfm_reader_destroy (r);
+
+  remove (path);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1957,6 +2023,8 @@ main (void)
     return 1;
   if (test_fs_and_t0_provenance ())
     return 1;
+  if (test_sidecar_names_the_wire_type ())
+    return 1;
   if (test_follow_resumes_after_catching_up ())
     return 1;
   if (test_read_never_consumes_a_partial_sample ())
@@ -1977,6 +2045,11 @@ main (void)
     return 1;
   if (test_the_follow_knobs ())
     return 1;
-  printf ("test_wfm_reader: all passed\n");
-  return 0;
+  /* DP_TEST_END, not `printf("all passed"); return 0`. This file used only
+     DP_REQUIRE_MSG, which returns 1 itself, so the epilogue never had to
+     consult the counters -- and the moment a DP_CHECK_MSG was added (the
+     doppler#1120 case below), its failures printed FAIL and the process still
+     exited 0. A test that reports a failure and passes is worse than no test.
+     DP_TEST_END also refuses a run that asserted nothing. */
+  DP_TEST_END ("test_wfm_reader_core");
 }

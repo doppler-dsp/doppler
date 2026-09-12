@@ -386,6 +386,7 @@
 * **WFM\_KW\_MAX\_TAG** ([**wfm\_keywords.h**](wfm__keywords_8h.md))
 * **WFM\_J1950\_UNIX\_OFFSET\_SEC** ([**wfm\_time.h**](wfm__time_8h.md))
 * **WFM\_TIMECODE\_UNSET** ([**wfm\_time.h**](wfm__time_8h.md))
+* **WFM\_READER\_STYPE\_AUTO** ([**wfm\_reader\_core.h**](wfm__reader__core_8h.md))
 * **WFM\_SYNTH\_SNR\_CLEAN** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **WFM\_SYNTH\_STATE\_MAGIC** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))
 * **WFM\_SYNTH\_STATE\_VERSION** ([**wfm\_synth\_core.h**](wfm__synth__core_8h.md))

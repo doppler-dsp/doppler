@@ -132,6 +132,11 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 
 
 
+## Macros
+
+| Type | Name |
+| ---: | :--- |
+| define  | [**WFM\_READER\_STYPE\_AUTO**](wfm__reader__core_8h.md#define-wfm_reader_stype_auto)  `(-1)`<br>`sample_type` _value meaning "the caller said nothing"._ |
 
 ## Detailed Description
 
@@ -342,7 +347,7 @@ Nothing is refused for looking unfamiliar: an unrecognised file opens as raw at 
 
 
 * `path` file to read  a `str` or any `os.PathLike` from Python. For a DETACHED BLUE capture this is normally the HEADER file  `<base>.tmp` or `<base>.prm` per BLUE 3.1.1.4 (this library's own writer emits `<base>.hdr`)  whose HCB `detached` field points at the collocated `<base>.det` payload; the extension does not decide, `detached` does. Passing the `<base>.det` directly also works (its header sibling is resolved). A SigMF `.sigmf-data` file resolves its `.sigmf-meta` sidecar the same way. 
-* `sample_type` the wire sample type, used only as a HINT for the headerless file types (raw, CSV)  BLUE and SigMF carry their own and ignore it. The five complex names `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"`, `"ci8"` or the five real ones `"f32"`, `"f64"`, `"i32"`, `"i16"`, `"i8"` from Python; the matching 0..9 from C. A real hint is the only way to say that a headerless file carries one component per sample rather than interleaved I/Q. A wrong hint does not fail; see [**wfm\_reader\_get\_trailing\_bytes**](wfm__reader__core_8h.md#function-wfm_reader_get_trailing_bytes). 
+* `sample_type` the wire sample type, used only as a HINT for the headerless file types (raw, CSV)  BLUE and SigMF carry their own and ignore it. The five complex names `"cf32"`, `"cf64"`, `"ci32"`, `"ci16"`, `"ci8"` or the five real ones `"f32"`, `"f64"`, `"i32"`, `"i16"`, `"i8"` from Python; the matching 0..9 from C. A real hint is the only way to say that a headerless file carries one component per sample rather than interleaved I/Q. `"auto"` ([**WFM\_READER\_STYPE\_AUTO**](wfm__reader__core_8h.md#define-wfm_reader_stype_auto) from C) is the DEFAULT and says the caller has no opinion: a headerless capture takes its type, byte order and rate from the `<path>.sigmf-meta` sidecar this library's own writer leaves beside it, falling back to cf32/le when there is none. A NAMED type still wins over the sidecar, so a stale one can be overridden. A wrong hint does not fail, and [**wfm\_reader\_get\_trailing\_bytes**](wfm__reader__core_8h.md#function-wfm_reader_get_trailing_bytes) is NOT the way to notice  see what it says about itself. 
 * `endian` byte order, likewise a hint that only headerless raw uses; `"le"` or `"be"` from Python, 0 or 1 from C. 
 
 
@@ -688,7 +693,14 @@ A capture is a whole number of samples, so this is 0 for every file whose declar
 
 
 
-Either way the leftover bytes are dropped: [**wfm\_reader\_read**](wfm__reader__core_8h.md#function-wfm_reader_read) stops at the last complete sample. This exists because there is otherwise no signal at all. A wrong hint on a headerless file does not fail, it returns plausible garbage at the wrong stride, and nothing in the samples themselves says so.
+Either way the leftover bytes are dropped: [**wfm\_reader\_read**](wfm__reader__core_8h.md#function-wfm_reader_read) stops at the last complete sample.
+
+
+
+
+**Warning:**
+
+**This is not a check for a wrong hint, and cannot be made into one.** It only fires when the byte count fails to divide, so it is 0 for every EVEN sample count  which is most captures, and every power-of-two one. Worse, a `ci32` file read as `cf32` is 8 bytes per sample either way: the count divides at every length, `num_samples` is correct, this reads 0, and every sample is wrong. It is a truncation signal that a wrong hint sometimes also trips. Measured in doppler#1120; the answer to a wrong hint is not to detect it afterwards but to stop guessing  pass `"auto"` (the default) and let the capture's own sidecar name its type.
 
 
 Always 0 for CSV, which is delimited rather than strided. 
@@ -1056,6 +1068,27 @@ NULL (the default) means the follow read never stops early  only the capture's e
 wfm_reader_set_stop_fn (r, dp_interrupted);
 ```
  
+
+
+        
+
+<hr>
+## Macro Definition Documentation
+
+
+
+
+
+### define WFM\_READER\_STYPE\_AUTO 
+
+`sample_type` _value meaning "the caller said nothing"._
+```C++
+#define WFM_READER_STYPE_AUTO `(-1)`
+```
+
+
+
+Distinct from cf32 deliberately. `Reader(p)` and `Reader(p, sample_type="cf32")` have to mean different things for a stale sidecar to be overridable, and they cannot if the default IS cf32. -1 was free  [**wfm\_reader\_create**](wfm__reader__core_8h.md#function-wfm_reader_create) returned NULL for it  so giving it a meaning cannot change what any existing caller gets. 
 
 
         

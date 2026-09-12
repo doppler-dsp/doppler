@@ -107,10 +107,22 @@ def blue(tmp_path_factory, samples, headroom):
 
 @pytest.fixture(scope="module")
 def raw(tmp_path_factory, samples, headroom):
-    """A headerless ci16 capture: carries nothing but the samples."""
+    """A headerless ci16 capture: carries nothing but the samples.
+
+    `sidecar=False` is what makes that sentence true. A path-opened `Writer`
+    otherwise leaves a `<path>.sigmf-meta` beside the capture carrying the
+    type and the rate, and since doppler#1120 `Reader` reads it -- so the
+    file would no longer be headerless in any sense that matters, and the
+    two demonstrations below would be demonstrating nothing.
+    """
     path = tmp_path_factory.mktemp("cap") / "capture.raw"
     with Writer(
-        path, fs=1e6, file_type="raw", sample_type="ci16", headroom=headroom[0]
+        path,
+        fs=1e6,
+        file_type="raw",
+        sample_type="ci16",
+        headroom=headroom[0],
+        sidecar=False,
     ) as w:
         w.write(samples)
         assert w.peak_dbfs <= 0.0

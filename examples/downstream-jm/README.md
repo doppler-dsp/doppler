@@ -50,6 +50,14 @@ self-describing capture (BLUE, SigMF), and *impossible* for a headerless one.
 `raw` and `csv` carry no sample type, no sample rate and no centre frequency,
 so the reader has to fall back to defaults and cannot tell you it did.
 
+> **One qualification.** A raw capture written by doppler's own `Writer` is no
+> longer in that position: the writer leaves a `<path>.sigmf-meta` sidecar and
+> `Reader` reads it (doppler#1120), so the rate and type come back. The gap
+> this project is about is the file that genuinely carries nothing — a raw
+> capture from another tool, or one whose sidecar did not travel with it,
+> which is why the test fixture here writes with `sidecar=False`. A sidecar is
+> a second file; the view is what you need when it is absent.
+
 That asymmetry is a constructor problem, which is exactly what a view is for:
 
 | class        | constructor                                             | for                                                         |

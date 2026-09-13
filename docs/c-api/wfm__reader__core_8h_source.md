@@ -14,6 +14,7 @@
 
 #include <complex.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "wfm/wfm_keywords.h" /* wfm_keyword_t */
 #include "wfm_writer/wfm_writer_core.h"   /* wfm_filetype_t */
@@ -119,6 +120,10 @@ const char *wfm_reader_keyword_tag(const wfm_reader_state_t *state, size_t i);
 
 void wfm_reader_reset(wfm_reader_state_t *state);
 
+int wfm_reader_seek(wfm_reader_state_t *state, int64_t index);
+
+int wfm_reader_seek_time(wfm_reader_state_t *state, double seconds);
+
   void wfm_reader_set_stop_fn (wfm_reader_state_t *state, int (*fn) (void));
 
 
@@ -133,6 +138,8 @@ double wfm_reader_get_t0(const wfm_reader_state_t *state);
 int wfm_reader_get_t0_source(const wfm_reader_state_t *state);
 
 size_t wfm_reader_get_trailing_bytes(const wfm_reader_state_t *state);
+
+size_t wfm_reader_get_position(const wfm_reader_state_t *state);
 
 int wfm_reader_get_file_type(const wfm_reader_state_t *state);
 int wfm_reader_get_sample_type(const wfm_reader_state_t *state);

@@ -12,6 +12,7 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 
 * `#include <complex.h>`
 * `#include <stddef.h>`
+* `#include <stdint.h>`
 * `#include "wfm/wfm_keywords.h"`
 * `#include "wfm_writer/wfm_writer_core.h"`
 * `#include "dp_interrupt_guard/dp_interrupt_guard_core.h"`
@@ -86,6 +87,7 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 |  int | [**wfm\_reader\_get\_fs\_source**](#function-wfm_reader_get_fs_source) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_Which metadata_ [_**wfm\_reader\_get\_fs**_](wfm__reader__core_8h.md#function-wfm_reader_get_fs) _read the sample rate from._ |
 |  int | [**wfm\_reader\_get\_mode**](#function-wfm_reader_get_mode) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br> |
 |  size\_t | [**wfm\_reader\_get\_num\_samples**](#function-wfm_reader_get_num_samples) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br> |
+|  size\_t | [**wfm\_reader\_get\_position**](#function-wfm_reader_get_position) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_The read position, in samples from the first sample._  |
 |  int | [**wfm\_reader\_get\_sample\_type**](#function-wfm_reader_get_sample_type) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br> |
 |  double | [**wfm\_reader\_get\_t0**](#function-wfm_reader_get_t0) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_Capture start time in seconds since the UNIX epoch, or 0.0._  |
 |  int | [**wfm\_reader\_get\_t0\_source**](#function-wfm_reader_get_t0_source) (const [**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_Where_ [_**wfm\_reader\_get\_t0**_](wfm__reader__core_8h.md#function-wfm_reader_get_t0) _read the capture start time from._ |
@@ -102,6 +104,8 @@ _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#deta
 |  size\_t | [**wfm\_reader\_read\_follow\_max\_out**](#function-wfm_reader_read_follow_max_out) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n) <br> |
 |  size\_t | [**wfm\_reader\_read\_max\_out**](#function-wfm_reader_read_max_out) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, size\_t n) <br>_Maximum samples one read(n) yields: n (fewer at EOF)._  |
 |  void | [**wfm\_reader\_reset**](#function-wfm_reader_reset) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state) <br>_Rewind to the first sample of the capture._  |
+|  int | [**wfm\_reader\_seek**](#function-wfm_reader_seek) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, int64\_t index) <br>_Move the read position to sample_ `index` _._ |
+|  int | [**wfm\_reader\_seek\_time**](#function-wfm_reader_seek_time) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, double seconds) <br>_Move the read position to_ `seconds` _into the capture._ |
 |  void | [**wfm\_reader\_set\_follow\_grace\_ms**](#function-wfm_reader_set_follow_grace_ms) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, uint32\_t val) <br> |
 |  void | [**wfm\_reader\_set\_follow\_timeout\_ms**](#function-wfm_reader_set_follow_timeout_ms) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, uint32\_t val) <br> |
 |  void | [**wfm\_reader\_set\_stop\_fn**](#function-wfm_reader_set_stop_fn) ([**wfm\_reader\_state\_t**](wfm__reader__core_8h.md#typedef-wfm_reader_state_t) \* state, int(\*)(void) fn) <br>_Tell a following read how to learn that a stop was requested._  |
@@ -614,6 +618,26 @@ size_t wfm_reader_get_num_samples (
 
 
 
+### function wfm\_reader\_get\_position 
+
+_The read position, in samples from the first sample._ 
+```C++
+size_t wfm_reader_get_position (
+    const wfm_reader_state_t * state
+) 
+```
+
+
+
+The dual of [**wfm\_reader\_seek**](wfm__reader__core_8h.md#function-wfm_reader_seek), and what every read advances: 0 at open and after [**wfm\_reader\_reset**](wfm__reader__core_8h.md#function-wfm_reader_reset), `num_samples` once the capture is exhausted. Counted in samples rather than bytes so that it means the same thing on a CSV, which has no fixed stride to divide by. 
+
+
+        
+
+<hr>
+
+
+
 ### function wfm\_reader\_get\_sample\_type 
 
 ```C++
@@ -1004,7 +1028,162 @@ void wfm_reader_reset (
 
 
 
-Seeks back to where the payload starts — 512 bytes into an attached BLUE file, byte 0 of a `.det` or a raw/SigMF payload — and restores the remaining-sample count, so the capture reads again from the top. The file's metadata and decoded keywords are unaffected: they came from the header and do not change. 
+[**wfm\_reader\_seek**](wfm__reader__core_8h.md#function-wfm_reader_seek) at index 0, and nothing else — one implementation of "put the read position at sample k" rather than two that can drift. It lands where the payload starts (512 bytes into an attached BLUE file, byte 0 of a `.det` or a raw/SigMF payload), so the capture reads again from the top. The file's metadata and decoded keywords are unaffected: they came from the header and do not change. 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_reader\_seek 
+
+_Move the read position to sample_ `index` _._
+```C++
+int wfm_reader_seek (
+    wfm_reader_state_t * state,
+    int64_t index
+) 
+```
+
+
+
+Random access, in the timebase the data owns. The index is **absolute** — 0 is the first sample, there is no `whence` — and it is in SAMPLES, which is the only unit every container can answer: `fs` is 0.0 on a headerless capture, so a time would mean nothing there (see [**wfm\_reader\_seek\_time**](wfm__reader__core_8h.md#function-wfm_reader_seek_time), which refuses rather than pretend).
+
+
+Cost follows the container. Raw, BLUE and SigMF are strided, so this is one `fseek` to `data_start + index * bytes_per_sample`. **CSV is delimited rather than strided** and has no byte arithmetic at all, so it is a scan: forward from the current position when seeking forward, from the first sample when seeking back. A loop that seeks forward monotonically therefore walks the file once, not once per seek.
+
+
+Seeking to `num_samples` exactly is legal and lands at the end, where [**wfm\_reader\_read**](wfm__reader__core_8h.md#function-wfm_reader_read) returns 0. Past it is refused, as is a negative index: that is a caller's arithmetic gone wrong, and a silent empty read would hide it. **A refused seek does not move the read position** — the bound is checked before anything moves, and the CSV scan puts the position back if it runs out.
+
+
+On a capture still being written, the bound is what is on disk right now, measured at the call. A BLUE capture whose writer has not closed yet still carries the placeholder `data_size` it opened with, so its declared length is not used until the writer patches it in; [**wfm\_reader\_read\_follow**](wfm__reader__core_8h.md#function-wfm_reader_read_follow) is the read that works on such a capture, and seeking does not change that.
+
+
+
+
+**Parameters:**
+
+
+* `state` the reader. 
+* `index` sample to move to, in [0, `num_samples`]. 
+
+
+
+**Returns:**
+
+[**DP\_OK**](clib__common_8h.md#define-dp_ok), or [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) if `index` is negative or past the end of the capture.
+
+
+
+```C++
+>>> import pathlib, tempfile
+>>> import numpy as np
+>>> from doppler.wfm import Composer, Reader, Segment, Writer
+>>> tmp = tempfile.TemporaryDirectory()
+>>> p = pathlib.Path(tmp.name) / "capture.blue"
+>>> x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
+>>> with Writer(p, file_type="blue", sample_type="cf32", fs=2.4e6) as w:
+...     _ = w.write(x)
+>>> r = Reader(p)
+>>> r.seek(600)                     # straight there; no decode in front
+>>> np.array_equal(r.read(424), x[600:])
+True
+>>> r.position                      # the read left us at the end
+1024
+>>> try:                            # past the end is a refusal...
+...     r.seek(1025)
+... except ValueError:
+...     print("refused")
+refused
+>>> r.position                      # ...that did not move us
+1024
+>>> r.close()
+>>> tmp.cleanup()
+```
+ 
+
+
+        
+
+<hr>
+
+
+
+### function wfm\_reader\_seek\_time 
+
+_Move the read position to_ `seconds` _into the capture._
+```C++
+int wfm_reader_seek_time (
+    wfm_reader_state_t * state,
+    double seconds
+) 
+```
+
+
+
+[**wfm\_reader\_seek**](wfm__reader__core_8h.md#function-wfm_reader_seek) over `index = round(seconds * fs)`, and the rounding is to nearest. The conversion is the whole method; the REFUSAL is the point of having it.
+
+
+A capture that declares no sample rate reports `fs == 0.0`, and that is raw and CSV always — neither container has anywhere to record one. A caller computing `round(t * r.fs)` for itself gets sample 0 for every time, silently. So this refuses when [**wfm\_reader\_get\_fs\_source**](wfm__reader__core_8h.md#function-wfm_reader_get_fs_source) is WFM\_FS\_NONE rather than convert through a rate nothing declared, which is the same reason the provenance accessors exist at all.
+
+
+**Seconds are measured from the FIRST SAMPLE of the capture, never from the UNIX epoch.** A capture's absolute start is [**wfm\_reader\_get\_t0**](wfm__reader__core_8h.md#function-wfm_reader_get_t0), and it is WFM\_T0\_NONE on every capture doppler itself writes — so an absolute face would be unusable by default. Converting is the caller's, and it is `r.seek_time(t_unix - r.t0)` once `t0_source` says there is a `t0` to subtract.
+
+
+
+
+**Parameters:**
+
+
+* `state` the reader. 
+* `seconds` offset from the first sample, in [0, `num_samples / fs`]. 
+
+
+
+**Returns:**
+
+[**DP\_OK**](clib__common_8h.md#define-dp_ok), or [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) if the capture declares no sample rate, or `seconds` is negative, not finite, or past the end.
+
+
+
+```C++
+>>> import pathlib, tempfile
+>>> import numpy as np
+>>> from doppler.wfm import Composer, Reader, Segment, Writer
+>>> tmp = tempfile.TemporaryDirectory()
+>>> p = pathlib.Path(tmp.name) / "capture.blue"
+>>> x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
+>>> with Writer(p, file_type="blue", sample_type="cf32", fs=1e6) as w:
+...     _ = w.write(x)
+>>> r = Reader(p)
+>>> r.fs, r.fs_source               # the rate the seek converts through
+(1000000.0, 'xdelta')
+>>> r.seek_time(250e-6)             # 250 us at 1 MHz is sample 250
+>>> r.position
+250
+>>> np.array_equal(r.read(774), x[250:])
+True
+>>> r.close()
+>>> raw = pathlib.Path(tmp.name) / "capture.raw"
+>>> with Writer(raw, file_type="raw", sample_type="cf32") as w:
+...     _ = w.write(x)
+>>> h = Reader(raw, sample_type="cf32")
+>>> h.fs, h.fs_source               # headerless: nothing declared a rate
+(0.0, 'none')
+>>> try:                            # so a time cannot mean anything
+...     h.seek_time(250e-6)
+... except ValueError:
+...     print("refused")
+refused
+>>> h.seek(250)                     # ...but the sample index still does
+>>> h.position
+250
+>>> h.close()
+>>> tmp.cleanup()
+```
+ 
 
 
         

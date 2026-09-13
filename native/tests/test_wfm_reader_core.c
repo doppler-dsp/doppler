@@ -24,19 +24,18 @@ make_signal (float _Complex *x, size_t n)
     x[i] = (float)(0.9 * sin (0.1 * i)) + (float)(0.8 * cos (0.07 * i)) * I;
 }
 
-/* Write x through a writer of the given file type, then read it back and check
-   the samples match within tol and the metadata is recovered. */
+/* Write @p n samples of @p x to @p path through the shipped writer, including
+   the `.sigmf-meta` sidecar a SigMF capture is half of. Shared by roundtrip()
+   and the seek tests so every capture under test is produced one way. */
 static int
-roundtrip (const char *path, int ft, int stype, double fs, double tol)
+write_capture (const char *path, int ft, int stype, double fs,
+               const float _Complex *x, size_t n)
 {
-  float _Complex x[N], y[N];
-  make_signal (x, N);
-
   FILE *fp = fopen (path, "wb");
   DP_REQUIRE_MSG (fp, "open for write");
-  wfm_writer_state_t *w = wfm_writer_open (fp, ft, stype, 0, fs, 0.0, N, 0.0);
+  wfm_writer_state_t *w = wfm_writer_open (fp, ft, stype, 0, fs, 0.0, n, 0.0);
   DP_REQUIRE_MSG (w, "writer open");
-  DP_REQUIRE_MSG (wfm_writer_write (w, x, N) == N, "writer wrote N");
+  DP_REQUIRE_MSG (wfm_writer_write (w, x, n) == n, "writer wrote n");
   wfm_writer_close (w);
   fclose (fp);
 
@@ -54,6 +53,19 @@ roundtrip (const char *path, int ft, int stype, double fs, double tol)
       fclose (mf);
       free (meta);
     }
+  return 0;
+}
+
+/* Write x through a writer of the given file type, then read it back and check
+   the samples match within tol and the metadata is recovered. */
+static int
+roundtrip (const char *path, int ft, int stype, double fs, double tol)
+{
+  float _Complex x[N], y[N];
+  make_signal (x, N);
+
+  if (write_capture (path, ft, stype, fs, x, N))
+    return 1;
 
   wfm_reader_state_t *r = wfm_reader_create (path, stype, 0);
   DP_REQUIRE_MSG (r, "reader open");
@@ -547,6 +559,241 @@ test_reset_rewinds_to_the_first_sample (void)
   wfm_reader_destroy (r);
   for (size_t k = 0; k < N; k++)
     DP_REQUIRE_MSG (a[k] == b[k], "detached reset replays identically");
+  return 0;
+}
+
+/* The four payload origins seek() has to get right, and the one place they
+   are written down: an attached BLUE capture (payload 512 bytes in, length
+   declared by the header), raw and SigMF (byte 0, length measured off the
+   file) and CSV (delimited, no stride to multiply at all). */
+static const char *const SEEK_PATHS[]
+    = { "dp_seek.blue", "dp_seek.cf32", "dp_seek.sigmf-data", "dp_seek.csv" };
+static const int SEEK_FT[]
+    = { WFM_FT_BLUE, WFM_FT_RAW, WFM_FT_SIGMF, WFM_FT_CSV };
+#define SEEK_NFT (sizeof SEEK_FT / sizeof *SEEK_FT)
+
+/* seek(k) lands on sample k, on every container.
+
+   Asserted as SELF-CONSISTENCY rather than against the written signal: read
+   the whole capture once into `a`, then require that what follows a seek to k
+   is bit-identical to a[k:]. That cannot be mis-referenced -- a CSV rounds
+   through decimal text and an integer container rescales, so comparing
+   against x[] would be measuring the container's fidelity, which the
+   roundtrip tests above already own.
+
+   Sabotage: use data_off as the origin without the index term, or forget the
+   `remaining` update, and the k > 0 cases go red immediately. */
+static int
+test_seek_lands_on_the_sample_it_names (void)
+{
+  float _Complex x[N], a[N], b[N];
+  make_signal (x, N);
+  static const size_t K[] = { 0, 1, N / 2, N - 1, N };
+
+  for (size_t i = 0; i < SEEK_NFT; i++)
+    {
+      if (write_capture (SEEK_PATHS[i], SEEK_FT[i], 0, 2.4e6, x, N))
+        return 1;
+      wfm_reader_state_t *r = wfm_reader_create (SEEK_PATHS[i], 0, 0);
+      DP_REQUIRE_MSG (r != NULL, "open for seek");
+      DP_REQUIRE_MSG (wfm_reader_read (r, N, a, N) == N, "baseline pass");
+      DP_REQUIRE_MSG (wfm_reader_get_position (r) == N,
+                      "a full read leaves the position at the end");
+
+      for (size_t j = 0; j < sizeof K / sizeof *K; j++)
+        {
+          size_t k = K[j];
+          DP_REQUIRE_MSG (wfm_reader_seek (r, (int64_t)k) == DP_OK,
+                          "seek within the capture is accepted");
+          DP_REQUIRE_MSG (wfm_reader_get_position (r) == k,
+                          "position reports where the seek landed");
+          size_t got = wfm_reader_read (r, N, b, N);
+          DP_REQUIRE_MSG (got == N - k, "the rest of the capture follows");
+          for (size_t m = 0; m < got; m++)
+            DP_REQUIRE_MSG (a[k + m] == b[m],
+                            "seek(k) then read is bit-identical to a[k:]");
+        }
+
+      /* Backward, and from a position the forward scan cannot help with --
+         the CSV branch has to rewind and re-walk rather than run off the end.
+       */
+      DP_REQUIRE_MSG (wfm_reader_seek (r, N - 10) == DP_OK, "seek near end");
+      DP_REQUIRE_MSG (wfm_reader_seek (r, 3) == DP_OK, "seek backwards");
+      DP_REQUIRE_MSG (wfm_reader_read (r, 5, b, 5) == 5, "read after back");
+      for (size_t m = 0; m < 5; m++)
+        DP_REQUIRE_MSG (a[3 + m] == b[m], "a backward seek lands too");
+
+      /* seek(num_samples) is the end, not an error: read stops there. */
+      DP_REQUIRE_MSG (wfm_reader_seek (r, N) == DP_OK, "seek to the end");
+      DP_REQUIRE_MSG (wfm_reader_read (r, 1, b, 1) == 0, "and it IS the end");
+
+      /* reset() is seek(0) -- one implementation, so this cannot drift. */
+      wfm_reader_reset (r);
+      DP_REQUIRE_MSG (wfm_reader_get_position (r) == 0, "reset is seek(0)");
+      wfm_reader_destroy (r);
+    }
+
+  /* Detached: the payload really is byte 0 of another file. */
+  wfm_reader_state_t *r = wfm_reader_create ("dp_kw_det.hdr", 0, 0);
+  DP_REQUIRE_MSG (r != NULL, "open detached");
+  DP_REQUIRE_MSG (wfm_reader_read (r, N, a, N) == N, "detached baseline");
+  DP_REQUIRE_MSG (wfm_reader_seek (r, 7) == DP_OK, "seek detached");
+  DP_REQUIRE_MSG (wfm_reader_read (r, 4, b, 4) == 4, "read detached");
+  for (size_t m = 0; m < 4; m++)
+    DP_REQUIRE_MSG (a[7 + m] == b[m], "detached seek lands on sample 7");
+  wfm_reader_destroy (r);
+  return 0;
+}
+
+/* Out of range is a REFUSAL, and the refusal does not cost you your place.
+
+   Both halves matter. Clamping to the end would turn a caller's arithmetic
+   error into a silent empty read; moving the position on the way to failing
+   would make an error handler's retry read the wrong samples.
+
+   Sabotage: do the fseek before the bound check (the binary path), or drop
+   the restore in seek_csv, and the position assertions below go red while
+   the return-code ones still pass. */
+static int
+test_a_refused_seek_does_not_move_the_read_position (void)
+{
+  float _Complex x[N], a[N], b[N];
+  make_signal (x, N);
+
+  for (size_t i = 0; i < SEEK_NFT; i++)
+    {
+      wfm_reader_state_t *r = wfm_reader_create (SEEK_PATHS[i], 0, 0);
+      DP_REQUIRE_MSG (r != NULL, "open for refusal");
+      DP_REQUIRE_MSG (wfm_reader_read (r, N, a, N) == N, "baseline pass");
+
+      DP_REQUIRE_MSG (wfm_reader_seek (r, 100) == DP_OK, "park at 100");
+      DP_REQUIRE_MSG (wfm_reader_seek (r, N + 1) == DP_ERR_INVALID,
+                      "past the end is refused");
+      DP_REQUIRE_MSG (wfm_reader_seek (r, -1) == DP_ERR_INVALID,
+                      "a negative index is refused");
+      DP_REQUIRE_MSG (wfm_reader_get_position (r) == 100,
+                      "neither refusal moved the position");
+      DP_REQUIRE_MSG (wfm_reader_read (r, 6, b, 6) == 6, "read from 100");
+      for (size_t m = 0; m < 6; m++)
+        DP_REQUIRE_MSG (a[100 + m] == b[m],
+                        "and the samples are the ones at 100");
+      wfm_reader_destroy (r);
+    }
+  return 0;
+}
+
+/* seek_time() converts through the capture's DECLARED rate, or refuses.
+
+   The refusal is the reason the method exists: raw and CSV have nowhere to
+   record a rate, so a caller computing round(t * fs) for itself gets sample 0
+   for every time, silently. Sabotage: drop the fs_source guard and the raw /
+   CSV cases below start "succeeding" at sample 0. */
+static int
+test_seek_time_converts_or_refuses (void)
+{
+  float _Complex x[N], a[N], b[N];
+  make_signal (x, N);
+  const double FS = 1e6;
+
+  /* BLUE declares xdelta, so the rate is real and the arithmetic is honest. */
+  if (write_capture ("dp_seek_t.blue", WFM_FT_BLUE, 0, FS, x, N))
+    return 1;
+  wfm_reader_state_t *r = wfm_reader_create ("dp_seek_t.blue", 0, 0);
+  DP_REQUIRE_MSG (r != NULL, "open blue for seek_time");
+  DP_REQUIRE_MSG (wfm_reader_get_fs_source (r) == WFM_FS_BLUE_XDELTA,
+                  "blue declares its rate");
+  DP_REQUIRE_MSG (wfm_reader_read (r, N, a, N) == N, "baseline pass");
+
+  DP_REQUIRE_MSG (wfm_reader_seek_time (r, 250.0 / FS) == DP_OK,
+                  "a time inside the capture is accepted");
+  DP_REQUIRE_MSG (wfm_reader_get_position (r) == 250,
+                  "seek_time(k/fs) is seek(k)");
+  DP_REQUIRE_MSG (wfm_reader_read (r, 4, b, 4) == 4, "read after seek_time");
+  for (size_t m = 0; m < 4; m++)
+    DP_REQUIRE_MSG (a[250 + m] == b[m], "and it landed on sample 250");
+
+  /* Rounds to nearest, so half a sample either side of 250 is still 250. */
+  DP_REQUIRE_MSG (wfm_reader_seek_time (r, 250.4 / FS) == DP_OK, "250.4");
+  DP_REQUIRE_MSG (wfm_reader_get_position (r) == 250, "rounds down to 250");
+  DP_REQUIRE_MSG (wfm_reader_seek_time (r, 249.6 / FS) == DP_OK, "249.6");
+  DP_REQUIRE_MSG (wfm_reader_get_position (r) == 250, "rounds up to 250");
+
+  DP_REQUIRE_MSG (wfm_reader_seek_time (r, -1.0 / FS) == DP_ERR_INVALID,
+                  "a negative time is refused");
+  DP_REQUIRE_MSG (wfm_reader_seek_time (r, (double)(N + 1) / FS)
+                      == DP_ERR_INVALID,
+                  "a time past the end is refused");
+  DP_REQUIRE_MSG (wfm_reader_seek_time (r, (double)NAN) == DP_ERR_INVALID,
+                  "NaN is refused");
+  DP_REQUIRE_MSG (wfm_reader_seek_time (r, (double)INFINITY) == DP_ERR_INVALID,
+                  "infinity is refused");
+  DP_REQUIRE_MSG (wfm_reader_get_position (r) == 250,
+                  "and no refusal moved the position");
+  wfm_reader_destroy (r);
+
+  /* The headerless two carry no rate at all. */
+  static const char *const NORATE[] = { "dp_seek.cf32", "dp_seek.csv" };
+  for (size_t i = 0; i < sizeof NORATE / sizeof *NORATE; i++)
+    {
+      wfm_reader_state_t *h = wfm_reader_create (NORATE[i], 0, 0);
+      DP_REQUIRE_MSG (h != NULL, "open headerless");
+      DP_REQUIRE_MSG (wfm_reader_get_fs_source (h) == WFM_FS_NONE,
+                      "nothing declared a rate");
+      DP_REQUIRE_MSG (wfm_reader_seek_time (h, 250.0 / FS) == DP_ERR_INVALID,
+                      "so a time cannot mean anything and is refused");
+      DP_REQUIRE_MSG (wfm_reader_get_position (h) == 0, "nothing moved");
+      DP_REQUIRE_MSG (wfm_reader_seek (h, 250) == DP_OK,
+                      "but the sample index still works");
+      DP_REQUIRE_MSG (wfm_reader_get_position (h) == 250, "and lands");
+      wfm_reader_destroy (h);
+    }
+  return 0;
+}
+
+/* A capture still being written can be seeked into, bounded by what is on
+   disk rather than by the placeholder length its header opened with.
+
+   apply_hcb() marks every BLUE capture `bounded`, and an unbounded run
+   declares total 0 -- so reading the DECLARED length here gives 0 and would
+   refuse every seek into a live capture. Sabotage: make reader_length trust
+   `bounded` alone and the first seek below returns DP_ERR_INVALID. */
+static int
+test_seek_into_a_live_capture (void)
+{
+  const char *path = "dp_seek_live.blue";
+  FILE       *fp   = fopen (path, "wb+");
+  DP_REQUIRE_MSG (fp, "open for write");
+  /* total 0: an unbounded run, which is what wfmgen writes. */
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, WFM_FT_BLUE, 0, 0, 2.4e6, 0.0, 0, 0.0);
+  DP_REQUIRE_MSG (w, "writer open");
+  float _Complex x[16], y[16];
+  make_signal (x, 16);
+  DP_REQUIRE_MSG (wfm_writer_write (w, x, 10) == 10, "wrote 10");
+  DP_REQUIRE_MSG (wfm_writer_flush (w) == 0, "flush");
+
+  wfm_reader_state_t *r = wfm_reader_create (path, 0, 0);
+  DP_REQUIRE_MSG (r, "reader open");
+  DP_REQUIRE_MSG (wfm_reader_get_num_samples (r) == 0,
+                  "the header still carries its placeholder length");
+  DP_REQUIRE_MSG (wfm_reader_seek (r, 6) == DP_OK,
+                  "seek is bounded by what is on disk, not the placeholder");
+  DP_REQUIRE_MSG (wfm_reader_seek (r, 11) == DP_ERR_INVALID,
+                  "and only by what is on disk");
+  DP_REQUIRE_MSG (wfm_reader_get_position (r) == 6, "the refusal held");
+  wfm_reader_set_follow_timeout_ms (r, 200);
+  DP_REQUIRE_MSG (wfm_reader_read_follow (r, 16, y, 16) == 4,
+                  "the following read resumes from the seek");
+  for (size_t m = 0; m < 4; m++)
+    DP_REQUIRE_MSG (cabs ((double _Complex)x[6 + m] - (double _Complex)y[m])
+                        < 1e-6,
+                    "and returns the samples from 6 on");
+  DP_REQUIRE_MSG (wfm_reader_get_position (r) == 10,
+                  "a following read advances the position too");
+  wfm_reader_destroy (r);
+  wfm_writer_close (w);
+  fclose (fp);
+  remove (path);
   return 0;
 }
 
@@ -1998,6 +2245,14 @@ main (void)
   if (test_keyword_absent_and_corrupt ())
     return 1;
   if (test_reset_rewinds_to_the_first_sample ())
+    return 1;
+  if (test_seek_lands_on_the_sample_it_names ())
+    return 1;
+  if (test_a_refused_seek_does_not_move_the_read_position ())
+    return 1;
+  if (test_seek_time_converts_or_refuses ())
+    return 1;
+  if (test_seek_into_a_live_capture ())
     return 1;
   if (test_read_capacity ())
     return 1;

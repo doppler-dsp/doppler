@@ -10,6 +10,7 @@
 #include "dp_interrupt.h"
 #include "wfm/wfm_time.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,8 +63,14 @@ struct wfm_reader_state
      which for them is the same thing. */
   int    bounded;
   size_t remaining;
-  long   data_off;    /* byte offset of the first sample, for reset() */
-  size_t data_bytes;  /* declared payload length in BYTES; 0 = run to EOF */
+  long   data_off;   /* byte offset of the first sample; seek()'s origin */
+  size_t data_bytes; /* declared payload length in BYTES; 0 = run to EOF */
+  /* The read position, in SAMPLES from data_off -- what `position` reports
+     and what seek() sets. Carried rather than derived from ftell() because a
+     CSV has no stride to divide a byte offset by, and one counter every read
+     path advances is the only way the two file-type families can report the
+     same thing. */
+  size_t pos;
   int    fc_source;   /* wfm_fc_source_t: which tag `fc` came from */
   size_t trailing;    /* payload bytes past the last whole sample */
   int    csv_counted; /* CSV num_samples has been scanned for (lazy) */
@@ -750,20 +757,36 @@ parse_sigmf_meta (const char *meta_path, int *stype, int *mode, int *endian,
   return rc;
 }
 
+/* Byte offset of the end of the file, leaving the read position where it was
+   found; -1 if the stream cannot be positioned.
+
+   The one implementation of "how much is on disk right now". fill_nsamples,
+   follow_available and reader_length all need it, and three private copies of
+   a seek-to-END-and-come-back is exactly how they would come to disagree
+   about where a growing capture ends. Asking also clears stdio's latched
+   end-of-file indicator, which follow_available relies on. */
+static long
+payload_end (wfm_reader_state_t *r)
+{
+  long cur = ftell (r->fp);
+  if (cur < 0 || fseek (r->fp, 0, SEEK_END) != 0)
+    return -1;
+  long end = ftell (r->fp);
+  if (fseek (r->fp, cur, SEEK_SET) != 0)
+    return -1;
+  return end;
+}
+
 /* Fill nsamples from the bytes remaining between the current offset and EOF.
  */
 static void
 fill_nsamples (wfm_reader_state_t *r)
 {
   long cur = ftell (r->fp);
-  if (cur >= 0 && fseek (r->fp, 0, SEEK_END) == 0)
-    {
-      long end = ftell (r->fp);
-      fseek (r->fp, cur, SEEK_SET);
-      if (end >= cur)
-        r->num_samples
-            = (size_t)(end - cur) / (comps (r->mode) * ELEM[r->sample_type]);
-    }
+  long end = payload_end (r);
+  if (cur >= 0 && end >= cur)
+    r->num_samples
+        = (size_t)(end - cur) / (comps (r->mode) * ELEM[r->sample_type]);
 }
 
 /* Copy the parsed HCB fields the reader keeps. Split out so both BLUE entry
@@ -824,8 +847,29 @@ compute_trailing (wfm_reader_state_t *r)
   r->trailing = avail % stride;
 }
 
-/* Count the samples a CSV holds, parsing exactly the way read_csv does so the
-   count and the read can never disagree, then put the file position back.
+/* Consume up to @p n whole samples from the current CSV position, discarding
+   them, and return how many it managed.
+
+   Parses with exactly the format read_csv() converts with, which is what
+   keeps counting, reading and seeking from ever disagreeing about what a CSV
+   sample is: there is one scanf format for the container, not three. */
+static size_t
+csv_skip (wfm_reader_state_t *r, size_t n)
+{
+  const unsigned nc = comps (r->mode);
+  size_t         i  = 0;
+  double         a, b;
+  if (nc == 2u)
+    for (; i < n && fscanf (r->fp, " %lf , %lf", &a, &b) == 2; i++)
+      ;
+  else
+    for (; i < n && fscanf (r->fp, " %lf", &a) == 1; i++)
+      ;
+  clearerr (r->fp); /* the scan ends at EOF by design; that is not an error */
+  return i;
+}
+
+/* Count the samples a CSV holds, then put the file position back.
 
    Called lazily from the num_samples getter rather than at open: a CSV has no
    header to declare its length, the only way to know is to walk the whole
@@ -837,16 +881,7 @@ count_csv (wfm_reader_state_t *r)
   long cur = ftell (r->fp);
   if (cur < 0 || fseek (r->fp, r->data_off, SEEK_SET) != 0)
     return;
-  size_t         n  = 0;
-  const unsigned nc = comps (r->mode);
-  double         a, b;
-  if (nc == 2u)
-    while (fscanf (r->fp, " %lf , %lf", &a, &b) == 2)
-      n++;
-  else
-    while (fscanf (r->fp, " %lf", &a) == 1)
-      n++;
-  clearerr (r->fp); /* the scan ends at EOF by design; that is not an error */
+  size_t n = csv_skip (r, (size_t)-1);
   if (fseek (r->fp, cur, SEEK_SET) != 0)
     return;
   r->num_samples = n;
@@ -1228,7 +1263,11 @@ wfm_reader_read (wfm_reader_state_t *r, size_t max, float _Complex *out,
   if (max == 0)
     return 0;
   if (r->file_type == WFM_FT_CSV)
-    return read_csv (r, out, max);
+    {
+      size_t ncsv = read_csv (r, out, max);
+      r->pos += ncsv;
+      return ncsv;
+    }
 
   if (r->bounded)
     {
@@ -1240,6 +1279,7 @@ wfm_reader_read (wfm_reader_state_t *r, size_t max, float _Complex *out,
   size_t nsamp = read_block (r, max, out);
   if (r->bounded)
     r->remaining -= nsamp;
+  r->pos += nsamp;
   return nsamp;
 }
 
@@ -1264,12 +1304,8 @@ static size_t
 follow_available (wfm_reader_state_t *r)
 {
   long cur = ftell (r->fp);
-  if (cur < 0)
-    return 0;
-  if (fseek (r->fp, 0, SEEK_END) != 0)
-    return 0;
-  long end = ftell (r->fp);
-  if (fseek (r->fp, cur, SEEK_SET) != 0 || end < cur)
+  long end = payload_end (r);
+  if (cur < 0 || end < cur)
     return 0;
   size_t stride = comps (r->mode) * ELEM[r->sample_type];
   size_t avail  = (size_t)(end - cur) / stride;
@@ -1421,7 +1457,9 @@ wfm_reader_read_follow (wfm_reader_state_t *r, size_t n, float _Complex *out,
              that is already safely on disk. */
           if (avail < n)
             n = avail;
-          return read_block (r, n, out);
+          size_t nsamp = read_block (r, n, out);
+          r->pos += nsamp;
+          return nsamp;
         }
       if (follow_ended (r))
         {
@@ -1462,18 +1500,133 @@ wfm_reader_read_max_out (wfm_reader_state_t *r, size_t n)
   return n;
 }
 
+/* The capture's length in samples as it can be known RIGHT NOW, into *n.
+   Returns 1 when the file DECLARES that length and 0 when it had to be
+   measured off the disk.
+
+   The distinction is not cosmetic. apply_hcb() marks every BLUE capture
+   `bounded`, but one whose writer has not closed yet still carries the
+   placeholder data_size it opened with -- follow_ended() is what latches the
+   real one -- so its declared length is 0. Refusing every seek into a live
+   capture because its header has not been patched yet would be wrong, and
+   what is on disk is the honest bound until the writer says otherwise.
+
+   Not for CSV, which is delimited: its length comes from a scan, and so does
+   its seek. */
+static int
+reader_length (wfm_reader_state_t *r, size_t *n)
+{
+  if (r->bounded && r->data_bytes)
+    {
+      *n = r->num_samples;
+      return 1;
+    }
+  long end = payload_end (r);
+  *n = (end > r->data_off) ? (size_t)(end - r->data_off)
+                                 / (comps (r->mode) * ELEM[r->sample_type])
+                           : 0u;
+  return 0;
+}
+
+/* Seek a CSV by scanning, because it is delimited and has no stride to
+   multiply: forward from where we are, or from the first sample when going
+   back. So a loop that seeks forward monotonically walks the file once
+   rather than once per seek.
+
+   Running out is the only way this fails, and it must not also cost the
+   caller their place -- so the position is restored on the way out. */
+static int
+seek_csv (wfm_reader_state_t *r, size_t n)
+{
+  long   cur = ftell (r->fp);
+  size_t p0  = r->pos;
+  if (cur < 0)
+    return DP_ERR_INVALID;
+  if (n < p0)
+    {
+      if (fseek (r->fp, r->data_off, SEEK_SET) != 0)
+        return DP_ERR_INVALID;
+      r->pos = 0;
+    }
+  size_t want = n - r->pos;
+  size_t got  = csv_skip (r, want);
+  r->pos += got;
+  if (got < want)
+    {
+      (void)fseek (r->fp, cur, SEEK_SET);
+      r->pos = p0;
+      return DP_ERR_INVALID;
+    }
+  return DP_OK;
+}
+
+int
+wfm_reader_seek (wfm_reader_state_t *r, int64_t index)
+{
+  if (!r || !r->fp || index < 0)
+    return DP_ERR_INVALID;
+  size_t n = (size_t)index;
+  if (r->file_type == WFM_FT_CSV)
+    return seek_csv (r, n);
+
+  size_t len      = 0;
+  int    declared = reader_length (r, &len);
+  /* Checked BEFORE anything moves, so a refused seek leaves the read
+     position exactly where it was. n <= len also bounds the multiply below:
+     the product is at most the file's own length. */
+  if (n > len)
+    return DP_ERR_INVALID;
+  size_t stride = comps (r->mode) * ELEM[r->sample_type];
+  if (fseek (r->fp, r->data_off + (long)(n * stride), SEEK_SET) != 0)
+    return DP_ERR_INVALID;
+  r->pos = n;
+  /* `remaining` is the DECLARED payload still owed, so it only means anything
+     when the length was declared. On a live BLUE capture it keeps the 0 the
+     placeholder header gave it: read() correctly reports the payload spent,
+     and read_follow() -- which is the read for a growing capture -- never
+     consults it. */
+  if (declared)
+    r->remaining = len - n;
+  return DP_OK;
+}
+
+int
+wfm_reader_seek_time (wfm_reader_state_t *r, double seconds)
+{
+  if (!r)
+    return DP_ERR_INVALID;
+  /* The refusal this method exists for: raw and CSV have nowhere to record a
+     rate, so converting through their fs would put every time at sample 0. */
+  if (r->fs_source == WFM_FS_NONE || !(r->fs > 0.0))
+    return DP_ERR_INVALID;
+  /* Written as a negated >= so a NaN is refused by the same test. */
+  if (!(seconds >= 0.0) || !isfinite (seconds))
+    return DP_ERR_INVALID;
+  double idx = floor (seconds * r->fs + 0.5); /* round to nearest */
+  if (idx > (double)INT64_MAX)
+    return DP_ERR_INVALID;
+  return wfm_reader_seek (r, (int64_t)idx);
+}
+
 void
 wfm_reader_reset (wfm_reader_state_t *r)
 {
   if (!r || !r->fp)
     return;
-  fseek (r->fp, r->data_off, SEEK_SET);
-  r->remaining = r->num_samples; /* only consulted when `bounded` */
+  /* seek(0), not a second copy of it: one implementation of "put the read
+     position at sample k" cannot drift from itself. */
+  (void)wfm_reader_seek (r, 0);
 }
 
 /* Property accessors for the generated binding (the "computed" property kind).
    Keeping these instead of exposing the struct is what lets the layout above
    stay private -- jm only needs a pointer to an incomplete type. */
+size_t
+wfm_reader_get_position (const wfm_reader_state_t *r)
+{
+  return r->pos;
+}
+
 int
 wfm_reader_get_file_type (const wfm_reader_state_t *r)
 {

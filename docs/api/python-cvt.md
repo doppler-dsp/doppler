@@ -205,7 +205,7 @@ while looking perfectly locked.
 <!-- related-pages:start -->
 
 **Gallery** — [ADC Quantisation — 3–8 Bits](../gallery/adc.md), [cvt Quantization Noise](../gallery/cvt-quantization.md), [Gallery](../gallery/index.md), [Measurement Suite — two-tone IMD/TOI & notched-noise NPR](../gallery/measure-imd-npr.md), [Q15 vs UQ15 Quantization](../gallery/q15-uq15.md)
-**Guides** — [Getting Started with Fixed-Point Arithmetic](../guide/fixed-point.md), [Power Spectra & Measurements](../guide/spectral-psd.md)
-**Design** — [Quantization Design](../design/QUANTIZATION.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Spectral & Measurement API Map](../design/spectral-api-map.md)
+**Guides** — [Getting Started with Fixed-Point Arithmetic](../guide/fixed-point.md), [Power Spectra & Measurements](../guide/spectral-psd.md), [Waveforms — what you can generate](../guide/wfmgen/waveforms.md)
+**Design** — [Quantization Design](../design/QUANTIZATION.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [Capture files — one reader, one writer, four containers](../design/capture-files.md), [Spectral & Measurement API Map](../design/spectral-api-map.md)
 
 <!-- related-pages:end -->

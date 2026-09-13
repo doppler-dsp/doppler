@@ -159,11 +159,12 @@ it — which is why the sidecar is a `create()`-only guarantee.
 
 ______________________________________________________________________
 
-## 7. The quantiser, and a known defect
+## 7. The quantiser
 
-Full scale is ±1.0 per axis. Integer wire types scale to their maximum
-(`ci32` 2³¹−1, `ci16` 32767, `ci8` 127) and saturate there; float types
-never clip but are still tracked.
+Full scale is ±1.0 per axis, and the wire's full scale is `2^(N-1)` —
+`dp_format_full_scale()`, which is also what every `cvt` converter defaults
+to. Integer wire types scale by it, round to nearest and saturate to the
+type's range; float types never clip but are still tracked.
 
 - **Peak is always on** — a fused max in the write loop, free.
 - **The clip *fraction* is opt-in** (`track_clipping`), because a
@@ -175,12 +176,20 @@ never clip but are still tracked.
 Peak is also the remedy, not just the diagnosis: `ceil(peak_dbfs)` dB of
 headroom is exactly what makes the capture fit.
 
-**Defect, open:** `qz()` is `return (long)(v * scale)` — a C cast, which
-**truncates toward zero**. Every integer capture therefore reads back up
-to one LSB low, with a −0.5 LSB DC bias. Rounding is the same cost. This
-is the same defect class as the `norm_freq → phase_inc` conversion that
-was rounding in `lo_core.c` and truncating in `nco_core.c`; found while
-building a bit-exactness harness, and filed rather than fixed in passing.
+**Defect, fixed ([gh-1117](https://github.com/doppler-dsp/doppler/issues/1117)).**
+`qz()` was `return (long)(v * scale)` — a C cast, which **truncates toward
+zero** — at a full scale of `2^(N-1)-1`, in three private copies (this
+writer, `wfm_sink`, and the reader's inverse). Every integer capture read
+back up to a full LSB low, 6.1 dB of avoidable quantisation noise, and
+`wfm.Reader` disagreed with `doppler.cvt.I16ToF32` on 2.3% of int16 codes.
+It was the same defect class as the `norm_freq → phase_inc` conversion that
+was rounding in `lo_core.c` and truncating in `nco_core.c`.
+
+All three now call the `cvt` converters, so the rounding rule and the
+full-scale constant each have one home. Two gates hold it there:
+`make lint-full-scale` fails on a per-format table written by hand, and
+`src/doppler/wfm/tests/test_wire_matches_cvt.py` asserts the written codes
+*are* the converters' output rather than merely resembling them.
 
 ______________________________________________________________________
 

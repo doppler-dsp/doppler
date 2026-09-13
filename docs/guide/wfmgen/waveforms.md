@@ -356,19 +356,25 @@ ______________________________________________________________________
 ### Scaling to the wire, and headroom
 
 `cf32` / `cf64` carry samples verbatim and **never clip** — peaks past ±1.0 are
-preserved. The integer types map **±1.0 → ±max-code** by **saturating each axis
-to ±1.0, then truncating toward zero** (a plain cast, not round-to-nearest):
+preserved. The integer types scale by `2^(N-1)`, **round to nearest**, and
+saturate to the type's range — the `cvt` converters do it, so a capture's codes
+are exactly what `doppler.cvt.F32ToI16().steps()` produces:
 
-| `--sample-type` | Map                   | Full-scale code  |
-| --------------- | --------------------- | ---------------- |
-| `ci32`          | `clip(v, ±1)·(2³¹−1)` | `±2 147 483 647` |
-| `ci16`          | `clip(v, ±1)·32767`   | `±32 767`        |
-| `ci8`           | `clip(v, ±1)·127`     | `±127`           |
+| `--sample-type` | Map            | `-1.0` →      | `+1.0` →     |
+| --------------- | -------------- | ------------- | ------------ |
+| `ci32`          | `round(v·2³¹)` | `-2147483648` | `2147483647` |
+| `ci16`          | `round(v·2¹⁵)` | `-32768`      | `32767`      |
+| `ci8`           | `round(v·2⁷)`  | `-128`        | `127`        |
+
+`-1.0` lands exactly on the most negative code; `+1.0` scales to `2^(N-1)`,
+one past the maximum by construction, and saturates. That asymmetry belongs to
+two's complement, not to the scaling — and saturating is what makes it safe.
 
 So clipping is governed by **PAPR**, not by something being "signal" vs "noise":
 
 - A **constant-envelope, clean** signal (a tone/PSK/PN at `--snr 100`) fills the
-    integer range exactly, with no clipping.
+    integer range, and the only samples that saturate are the ones that reach
+    exactly `+1.0` — which lose half an LSB, not a peak.
 - **Any PAPR > 0 dB content clips** at the rails — added noise (at `--snr 0`,
     noise power = signal power, ~⅓ of integer I/Q components already saturate)
     and any pulse-shaped / QAM / OFDM mode. Such a signal needs **headroom**:
@@ -381,8 +387,9 @@ So clipping is governed by **PAPR**, not by something being "signal" vs "noise":
     which never clips.
 
 `Reader` (see [Output & file types](../wfm-io/writing.md)) inverts the same map, so a float
-round-trip is exact and an integer round-trip is exact only where it neither
-clipped nor truncated.
+round-trip is exact, and an integer round-trip is exact wherever the value
+lands on a code and did not clip — which, because full scale is a power of
+two, includes every dyadic value: `0.5` comes back as `0.5`.
 
 **Clipping is observable, not silent.** Two flags turn "the capture looks
 wrong" into a number, and they are what to reach for before anything else:

@@ -555,11 +555,6 @@ tier = 0
 title = "chirp: step() emits a flat CW tone, and an unpinned chirp's sweep depends on how the caller chunked its reads"
 status = "open"
 
-[issue.1117]
-tier = 0
-title = "wfm's three private float\u2192int copies truncate where the library's converter rounds, costing 6.0 dB on every integer wire type"
-status = "open"
-
 [issue.1118]
 tier = 1
 title = "StreamSink cannot be certified through its Python face: validate-check runs after nats-down, and a report must render identically either way"
@@ -768,4 +763,14 @@ status = "open"
 [issue.1322]
 tier = 1
 title = "Nothing gates that a published benchmark snapshot names a commit reachable from main"
+status = "open"
+
+[issue.1328]
+tier = 1
+title = "A spot check's budget is wall-clock; gate its WORK COUNT instead"
+status = "open"
+
+[issue.1330]
+tier = 5
+title = "jm's composer template emits a -Wcomment warning; fixed upstream, adopt on the next pin bump"
 status = "open"

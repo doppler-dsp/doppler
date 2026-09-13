@@ -48,7 +48,10 @@ digital full-scale (`±1.0` per I/Q axis).
     *average*. The composite peak depends on how the summed sources align.
 
 The wire mapping is unchanged: `cf32`/`cf64` verbatim (never clip); `ci32`/
-`ci16`/`ci8` saturate each axis to `±1.0` then scale to `±(2³¹−1 / 32767 / 127)`.
+`ci16`/`ci8` scale each axis by `2^(N-1)` (`2³¹ / 2¹⁵ / 2⁷`), round to nearest
+and saturate to the type's range — so `-1.0` lands exactly on the most
+negative code and `+1.0` saturates one short of it, which is two's
+complement's asymmetry rather than the mapping's.
 
 ## SNR lives on the source
 

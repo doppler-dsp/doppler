@@ -163,8 +163,10 @@ iq = np.fromfile("capture.iq", dtype="<c8")        # cf32 → complex64
 iq = np.memmap("huge.iq", dtype="<c8", mode="r")   # zero-copy view of a big capture
 ```
 
-`Reader` uses the writer's exact full-scale (`2³¹−1 / 32767 / 127`), so
-`generate → Reader.read` is bit-faithful.
+`Reader` uses the writer's exact full-scale (`2³¹ / 2¹⁵ / 2⁷`), so
+`generate → Reader.read` is bit-faithful. Both sides ask
+`dp_format_full_scale()` and quantise through the `cvt` converters, so a
+capture's codes are exactly what `doppler.cvt.F32ToI16().steps()` produces.
 
 ______________________________________________________________________
 

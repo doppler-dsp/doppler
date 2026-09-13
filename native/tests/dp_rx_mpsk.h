@@ -6,7 +6,7 @@
  * @ref dp_rx_iface_t — and this is that fork filled in for the two shipped
  * M-PSK flavors. It lives in a header rather than in a harness because the
  * SECOND harness is what proves goal 6 ("one harness, every receiver"): a
- * copy of these twelve entries in each `native/validation/*.c` that wants a
+ * copy of these twelve entries in each validation harness that wants a
  * receiver is how two harnesses come to construct the same object
  * differently and stop being comparable, which is the failure the instrument
  * exists to prevent one level up.

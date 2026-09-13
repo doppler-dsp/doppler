@@ -372,7 +372,7 @@ const char *wfm_reader_keyword_tag(const wfm_reader_state_t *state, size_t i);
   /**
    * @brief Rewind to the first sample of the capture.
    *
-   * ::wfm_reader_seek at index 0, and nothing else — one implementation of
+   * `seek()` at index 0, and nothing else — one implementation of
    * "put the read position at sample k" rather than two that can drift. It
    * lands where the payload starts (512 bytes into an attached BLUE file,
    * byte 0 of a `.det` or a raw/SigMF payload), so the capture reads again
@@ -387,8 +387,8 @@ void wfm_reader_reset(wfm_reader_state_t *state);
    * Random access, in the timebase the data owns. The index is **absolute**
    * — 0 is the first sample, there is no `whence` — and it is in SAMPLES,
    * which is the only unit every container can answer: `fs` is 0.0 on a
-   * headerless capture, so a time would mean nothing there (see
-   * ::wfm_reader_seek_time, which refuses rather than pretend).
+   * headerless capture, so a time would mean nothing there — see
+   * `seek_time()`, which refuses rather than pretend.
    *
    * Cost follows the container. Raw, BLUE and SigMF are strided, so this is
    * one `fseek` to `data_start + index * bytes_per_sample`. **CSV is
@@ -398,7 +398,7 @@ void wfm_reader_reset(wfm_reader_state_t *state);
    * monotonically therefore walks the file once, not once per seek.
    *
    * Seeking to `num_samples` exactly is legal and lands at the end, where
-   * ::wfm_reader_read returns 0. Past it is refused, as is a negative index:
+   * `read()` returns 0. Past it is refused, as is a negative index:
    * that is a caller's arithmetic gone wrong, and a silent empty read would
    * hide it. **A refused seek does not move the read position** — the bound
    * is checked before anything moves, and the CSV scan puts the position
@@ -408,8 +408,8 @@ void wfm_reader_reset(wfm_reader_state_t *state);
    * now, measured at the call. A BLUE capture whose writer has not closed
    * yet still carries the placeholder `data_size` it opened with, so its
    * declared length is not used until the writer patches it in;
-   * ::wfm_reader_read_follow is the read that works on such a capture, and
-   * seeking does not change that.
+   * `read_follow()` is the read that works on such a capture, and seeking
+   * does not change that.
    *
    * @param state  the reader.
    * @param index  sample to move to, in [0, `num_samples`].
@@ -423,10 +423,11 @@ void wfm_reader_reset(wfm_reader_state_t *state);
    * >>> tmp = tempfile.TemporaryDirectory()
    * >>> p = pathlib.Path(tmp.name) / "capture.blue"
    * >>> x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
-   * >>> with Writer(p, file_type="blue", sample_type="cf32", fs=2.4e6) as w:
-   * ...     _ = w.write(x)
+   * >>> w = Writer(p, file_type="blue", sample_type="cf32", fs=2.4e6)
+   * >>> _ = w.write(x)
+   * >>> w.close()
    * >>> r = Reader(p)
-   * >>> r.seek(600)                     # straight there; no decode in front
+   * >>> r.seek(600)                  # straight there, no decode first
    * >>> np.array_equal(r.read(424), x[600:])
    * True
    * >>> r.position                      # the read left us at the end
@@ -447,21 +448,21 @@ int wfm_reader_seek(wfm_reader_state_t *state, int64_t index);
   /**
    * @brief Move the read position to @p seconds into the capture.
    *
-   * ::wfm_reader_seek over `index = round(seconds * fs)`, and the rounding
-   * is to nearest. The conversion is the whole method; the REFUSAL is the
+   * `seek()` over `index = round(seconds * fs)`, and the rounding is to
+   * nearest. The conversion is the whole method; the REFUSAL is the
    * point of having it.
    *
    * A capture that declares no sample rate reports `fs == 0.0`, and that is
    * raw and CSV always — neither container has anywhere to record one. A
    * caller computing `round(t * r.fs)` for itself gets sample 0 for every
-   * time, silently. So this refuses when ::wfm_reader_get_fs_source is
-   * ::WFM_FS_NONE rather than convert through a rate nothing declared, which
-   * is the same reason the provenance accessors exist at all.
+   * time, silently. So this refuses when `fs_source` says nothing declared
+   * a rate, rather than convert through one — the same reason the
+   * provenance accessors exist at all.
    *
    * **Seconds are measured from the FIRST SAMPLE of the capture, never from
-   * the UNIX epoch.** A capture's absolute start is ::wfm_reader_get_t0, and
-   * it is ::WFM_T0_NONE on every capture doppler itself writes — so an
-   * absolute face would be unusable by default. Converting is the caller's,
+   * the UNIX epoch.** A capture's absolute start is `t0`, and `t0_source` is
+   * `none` on every capture doppler itself writes — so an absolute face would
+   * be unusable by default. Converting is the caller's,
    * and it is `r.seek_time(t_unix - r.t0)` once `t0_source` says there is a
    * `t0` to subtract.
    *
@@ -477,10 +478,11 @@ int wfm_reader_seek(wfm_reader_state_t *state, int64_t index);
    * >>> tmp = tempfile.TemporaryDirectory()
    * >>> p = pathlib.Path(tmp.name) / "capture.blue"
    * >>> x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
-   * >>> with Writer(p, file_type="blue", sample_type="cf32", fs=1e6) as w:
-   * ...     _ = w.write(x)
+   * >>> w = Writer(p, file_type="blue", sample_type="cf32", fs=1e6)
+   * >>> _ = w.write(x)
+   * >>> w.close()
    * >>> r = Reader(p)
-   * >>> r.fs, r.fs_source               # the rate the seek converts through
+   * >>> r.fs, r.fs_source            # the rate it converts through
    * (1000000.0, 'xdelta')
    * >>> r.seek_time(250e-6)             # 250 us at 1 MHz is sample 250
    * >>> r.position
@@ -489,17 +491,19 @@ int wfm_reader_seek(wfm_reader_state_t *state, int64_t index);
    * True
    * >>> r.close()
    * >>> raw = pathlib.Path(tmp.name) / "capture.raw"
-   * >>> with Writer(raw, file_type="raw", sample_type="cf32") as w:
-   * ...     _ = w.write(x)
+   * >>> w = Writer(raw, 0.0, file_type="raw", sample_type="cf32",
+   * ...            sidecar=False)   # no sidecar: nothing records a rate
+   * >>> _ = w.write(x)
+   * >>> w.close()
    * >>> h = Reader(raw, sample_type="cf32")
-   * >>> h.fs, h.fs_source               # headerless: nothing declared a rate
+   * >>> h.fs, h.fs_source            # headerless: no rate declared
    * (0.0, 'none')
    * >>> try:                            # so a time cannot mean anything
    * ...     h.seek_time(250e-6)
    * ... except ValueError:
    * ...     print("refused")
    * refused
-   * >>> h.seek(250)                     # ...but the sample index still does
+   * >>> h.seek(250)                  # ...the sample index still does
    * >>> h.position
    * 250
    * >>> h.close()
@@ -605,8 +609,8 @@ size_t wfm_reader_get_trailing_bytes(const wfm_reader_state_t *state);
   /**
    * @brief The read position, in samples from the first sample.
    *
-   * The dual of ::wfm_reader_seek, and what every read advances: 0 at open
-   * and after ::wfm_reader_reset, `num_samples` once the capture is
+   * The dual of `seek()`, and what every read advances: 0 at open and
+   * after `reset()`, `num_samples` once the capture is
    * exhausted. Counted in samples rather than bytes so that it means the
    * same thing on a CSV, which has no fixed stride to divide by.
    */

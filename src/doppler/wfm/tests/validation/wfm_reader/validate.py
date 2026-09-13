@@ -129,6 +129,11 @@ class Data:
     read_semantics_ok: bool = False
     reset_rewinds: bool = False
     maxout_identity: bool = False
+    seek_rows: list[list[str]] = field(default_factory=list)
+    seek_lands: bool = False
+    seek_refusal_holds: bool = False
+    seek_time_agrees: bool = False
+    seek_time_refuses_no_rate: bool = False
     hint_rows: list[list[str]] = field(default_factory=list)
     hint_silent: int = 0
     hint_total: int = 0
@@ -536,7 +541,8 @@ def measure_read(d: Data, tmp: Path) -> None:
     R.md(
         "A read is a stream position, not a slice: successive calls "
         "continue, a request larger than what remains returns what remains, "
-        "and past the end returns nothing rather than raising."
+        "and past the end returns nothing rather than raising. `reset()` "
+        "rewinds and `seek()` moves that position anywhere (2.6)."
     )
     R.md()
     r.reset()
@@ -569,6 +575,124 @@ def measure_read(d: Data, tmp: Path) -> None:
             else " **-- and it does not.**"
         )
         + " Both capacity accessors are the identity, including at 0."
+    )
+    R.md()
+
+
+def measure_seek(d: Data, tmp: Path) -> None:
+    R.md("### 2.6 seek(), seek_time() and the read position")
+    R.md()
+    R.md(
+        "Random access is by SAMPLE INDEX, on every container. The check is "
+        "self-consistency rather than a comparison against the written "
+        "signal: a CSV round-trips through decimal text and an integer "
+        "container rescales, so what is measured here is where the seek "
+        "landed, not how faithfully the container stored anything."
+    )
+    R.md()
+    x = signal(1024)
+    rows = []
+    lands = True
+    holds = True
+    for ft in ("blue", "raw", "sigmf", "csv"):
+        name = "sk.sigmf-data" if ft == "sigmf" else f"sk.{ft}"
+        p = tmp / name
+        w = Writer(p, file_type=ft, sample_type="cf32", fs=FS)
+        w.write(x)
+        w.close()
+        r = Reader(p)
+        base = np.asarray(r.read(len(x)))
+        exact = True
+        for k in (0, 1, 512, 1023, 1024):
+            r.seek(k)
+            exact = (
+                exact
+                and int(r.position) == k
+                and np.array_equal(np.asarray(r.read(len(x))), base[k:])
+            )
+        # the refusal, and that it costs nothing
+        r.seek(100)
+        refused = 0
+        for bad in (len(x) + 1, -1):
+            try:
+                r.seek(bad)
+            except ValueError:
+                refused += 1
+        kept = int(r.position) == 100 and np.array_equal(
+            np.asarray(r.read(6)), base[100:106]
+        )
+        r.close()
+        lands = lands and exact
+        holds = holds and refused == 2 and kept
+        rows.append(
+            [
+                ft,
+                "yes" if exact else "**no**",
+                f"{refused}/2",
+                "kept" if kept else "**moved**",
+            ]
+        )
+    d.seek_rows = rows
+    d.seek_lands = lands
+    d.seek_refusal_holds = holds
+    R.table(
+        ["container", "seek(k) lands on k", "refusals", "position after"],
+        rows,
+    )
+    R.md(
+        "`seek(num_samples)` is included above and is legal -- it lands at "
+        "the end, where `read()` returns nothing. Past it and below zero are "
+        "refused, and **a refused seek does not move the read position**: "
+        "clamping would turn a caller's arithmetic error into a silent empty "
+        "read, and moving on the way to failing would make a retry read the "
+        "wrong samples."
+    )
+    R.md()
+
+    # seek_time: the conversion, and the refusal it exists for.
+    p = tmp / "sk_t.blue"
+    w = Writer(p, file_type="blue", sample_type="cf32", fs=1e6)
+    w.write(x)
+    w.close()
+    r = Reader(p)
+    r.seek_time(250e-6)
+    agrees = int(r.position) == 250
+    r.seek_time(250.4e-6)
+    agrees = agrees and int(r.position) == 250  # rounds to nearest
+    r.seek_time(249.6e-6)
+    agrees = agrees and int(r.position) == 250
+    r.close()
+    d.seek_time_agrees = agrees
+
+    refused = 0
+    for ft in ("raw", "csv"):
+        p = tmp / f"sk_nr.{ft}"
+        w = Writer(p, file_type=ft, sample_type="cf32", fs=0.0, sidecar=False)
+        w.write(x[:256])
+        w.close()
+        r = Reader(p, sample_type="cf32")
+        no_rate = r.fs_source == "none"
+        try:
+            r.seek_time(1e-6)
+        except ValueError:
+            refused += no_rate
+        r.close()
+    d.seek_time_refuses_no_rate = refused == 2
+
+    R.md(
+        "`seek_time(t)` is `seek(round(t * fs))`"
+        + (
+            ", and it agrees: a time half a sample either side of 250 still "
+            "lands on 250."
+            if d.seek_time_agrees
+            else " **-- and it does not agree.**"
+        )
+        + " On a capture that declares no rate it "
+        + ("refuses" if d.seek_time_refuses_no_rate else "**does not refuse**")
+        + ", which is the reason the method exists: raw and CSV report "
+        "`fs == 0.0`, so a caller computing `round(t * r.fs)` for itself "
+        "lands on sample 0 for every time, silently. The sample index needs "
+        "no metadata and still works there."
     )
     R.md()
 
@@ -676,6 +800,7 @@ def characterise(tmp: Path) -> Data:
     measure_provenance(d, tmp)
     measure_maps(d, tmp)
     measure_read(d, tmp)
+    measure_seek(d, tmp)
     measure_hint(d, tmp)
     measure_reach(d)
     return d
@@ -824,6 +949,28 @@ def limits(d: Data) -> None:
         d.maxout_identity,
         "read_max_out and read_follow_max_out are the identity, including "
         "at 0",
+    )
+    R.limit(
+        d.seek_lands,
+        "seek(k) lands on sample k: the rest of the stream is bit-identical "
+        "to the tail of the same reader's own first pass, on raw, CSV, BLUE "
+        "and SigMF alike",
+    )
+    R.limit(
+        d.seek_refusal_holds,
+        "a seek past num_samples or below zero raises, and leaves the read "
+        "position exactly where it was",
+    )
+    R.limit(
+        d.seek_time_agrees,
+        "seek_time(t) is seek(round(t * fs)) on a capture that declares a "
+        "rate, rounding to nearest",
+    )
+    R.limit(
+        d.seek_time_refuses_no_rate,
+        "seek_time() refuses a capture whose fs_source is none -- raw and "
+        "CSV -- rather than converting through a rate nothing declared and "
+        "landing on sample 0",
     )
     R.limit(
         d.hint_silent >= 6,

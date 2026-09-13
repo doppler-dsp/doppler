@@ -1037,6 +1037,19 @@ Reader_getprop_header (ReaderObject *self, void *Py_UNUSED (closure))
   return _c;
 }
 
+static PyObject *
+Reader_getprop_position (ReaderObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)wfm_reader_get_position (self->handle));
+}
+
 static PyGetSetDef Reader_getset[] = {
   { "follow_timeout_ms", (getter)Reader_getprop_follow_timeout_ms,
     (setter)Reader_setprop_follow_timeout_ms,
@@ -1186,6 +1199,13 @@ static PyGetSetDef Reader_getset[] = {
     "non-BLUE file type. Nothing is renamed or omitted, so what you see is "
     "what the file holds; the decoded keywords are in `keywords`.\n",
     NULL },
+  { "position", (getter)Reader_getprop_position, NULL,
+    "How far into the capture the reader is, in samples from the first one: 0 "
+    "at open and after `reset()`, `num_samples` once the capture is "
+    "exhausted, and whatever `seek()` was last given. Every read advances it "
+    "-- `read()` and `read_follow()` alike -- so it is also how a following "
+    "reader reports where the stream it is draining has got to.\n",
+    NULL },
   { NULL }
 };
 
@@ -1215,6 +1235,56 @@ ReaderObj_exit (ReaderObject *self, PyObject *args)
     {
       wfm_reader_destroy (self->handle);
       self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+ReaderObj_seek (ReaderObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "index", NULL };
+  long long    index_raw = 0LL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "L", _kwlist, &index_raw))
+    return NULL;
+  int64_t index = (int64_t)index_raw;
+  int     _rc   = wfm_reader_seek (self->handle, index);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "seek: index is negative, or past the end of the capture "
+                    "(0 <= index <= num_samples)",
+                    (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+ReaderObj_seek_time (ReaderObject *self, PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char *_kwlist[] = { "seconds", NULL };
+  double       seconds   = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &seconds))
+    return NULL;
+  int _rc = wfm_reader_seek_time (self->handle, seconds);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "seek_time: the capture declares no sample rate "
+                    "(fs_source is 'none' -- raw and CSV always), or the "
+                    "time is negative, not finite, or past the end",
+                    (long long)_rc);
+      return NULL;
     }
   Py_RETURN_NONE;
 }
@@ -1420,6 +1490,153 @@ static PyMethodDef ReaderObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
+  { "seek", (PyCFunction)(void *)ReaderObj_seek, METH_VARARGS | METH_KEYWORDS,
+    "seek(index) -> None\n"
+    "\n"
+    "Move the read position to sample index.\n"
+    "\n"
+    "Random access, in the timebase the data owns. The index is **absolute**\n"
+    "— 0 is the first sample, there is no `whence` — and it is in SAMPLES,\n"
+    "which is the only unit every container can answer: `fs` is 0.0 on a\n"
+    "headerless capture, so a time would mean nothing there — see\n"
+    "`seek_time()`, which refuses rather than pretend.\n"
+    "\n"
+    "Cost follows the container. Raw, BLUE and SigMF are strided, so this is\n"
+    "one `fseek` to `data_start + index * bytes_per_sample`. **CSV is\n"
+    "delimited rather than strided** and has no byte arithmetic at all, so\n"
+    "it is a scan: forward from the current position when seeking forward,\n"
+    "from the first sample when seeking back. A loop that seeks forward\n"
+    "monotonically therefore walks the file once, not once per seek.\n"
+    "\n"
+    "Seeking to `num_samples` exactly is legal and lands at the end, where\n"
+    "`read()` returns 0. Past it is refused, as is a negative index: that is\n"
+    "a caller's arithmetic gone wrong, and a silent empty read would hide\n"
+    "it. **A refused seek does not move the read position** — the bound is\n"
+    "checked before anything moves, and the CSV scan puts the position back\n"
+    "if it runs out.\n"
+    "\n"
+    "On a capture still being written, the bound is what is on disk right\n"
+    "now, measured at the call. A BLUE capture whose writer has not closed\n"
+    "yet still carries the placeholder `data_size` it opened with, so its\n"
+    "declared length is not used until the writer patches it in;\n"
+    "`read_follow()` is the read that works on such a capture, and seeking\n"
+    "does not change that.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "index : int\n"
+    "    sample to move to, in [0, `num_samples`].\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``seek: index is negative, or past the end of the capture (0 <=\n"
+    "    index <= num_samples)``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import pathlib, tempfile\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import Composer, Reader, Segment, Writer\n"
+    ">>> tmp = tempfile.TemporaryDirectory()\n"
+    ">>> p = pathlib.Path(tmp.name) / \"capture.blue\"\n"
+    ">>> x = Composer([Segment(\"qpsk\", sps=8, "
+    "num_samples=1024)]).compose()\n"
+    ">>> w = Writer(p, file_type=\"blue\", sample_type=\"cf32\", fs=2.4e6)\n"
+    ">>> _ = w.write(x)\n"
+    ">>> w.close()\n"
+    ">>> r = Reader(p)\n"
+    ">>> r.seek(600)                  # straight there, no decode first\n"
+    ">>> np.array_equal(r.read(424), x[600:])\n"
+    "True\n"
+    ">>> r.position                      # the read left us at the end\n"
+    "1024\n"
+    ">>> try:                            # past the end is a refusal...\n"
+    "...     r.seek(1025)\n"
+    "... except ValueError:\n"
+    "...     print(\"refused\")\n"
+    "refused\n"
+    ">>> r.position                      # ...that did not move us\n"
+    "1024\n"
+    ">>> r.close()\n"
+    ">>> tmp.cleanup()\n" },
+  { "seek_time", (PyCFunction)(void *)ReaderObj_seek_time,
+    METH_VARARGS | METH_KEYWORDS,
+    "seek_time(seconds) -> None\n"
+    "\n"
+    "Move the read position to seconds into the capture.\n"
+    "\n"
+    "`seek()` over `index = round(seconds * fs)`, and the rounding is to\n"
+    "nearest. The conversion is the whole method; the REFUSAL is the point\n"
+    "of having it.\n"
+    "\n"
+    "A capture that declares no sample rate reports `fs == 0.0`, and that is\n"
+    "raw and CSV always — neither container has anywhere to record one. A\n"
+    "caller computing `round(t * r.fs)` for itself gets sample 0 for every\n"
+    "time, silently. So this refuses when `fs_source` says nothing declared\n"
+    "a rate, rather than convert through one — the same reason the\n"
+    "provenance accessors exist at all.\n"
+    "\n"
+    "**Seconds are measured from the FIRST SAMPLE of the capture, never from\n"
+    "the UNIX epoch.** A capture's absolute start is `t0`, and `t0_source`\n"
+    "is `none` on every capture doppler itself writes — so an absolute face\n"
+    "would be unusable by default. Converting is the caller's, and it is\n"
+    "`r.seek_time(t_unix - r.t0)` once `t0_source` says there is a `t0` to\n"
+    "subtract.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "seconds : float\n"
+    "    offset from the first sample, in [0, `num_samples / fs`].\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``seek_time: the capture declares no sample rate (fs_source is\n"
+    "    'none' -- raw and CSV always), or the time is negative, not finite,\n"
+    "    or past the end``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import pathlib, tempfile\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.wfm import Composer, Reader, Segment, Writer\n"
+    ">>> tmp = tempfile.TemporaryDirectory()\n"
+    ">>> p = pathlib.Path(tmp.name) / \"capture.blue\"\n"
+    ">>> x = Composer([Segment(\"qpsk\", sps=8, "
+    "num_samples=1024)]).compose()\n"
+    ">>> w = Writer(p, file_type=\"blue\", sample_type=\"cf32\", fs=1e6)\n"
+    ">>> _ = w.write(x)\n"
+    ">>> w.close()\n"
+    ">>> r = Reader(p)\n"
+    ">>> r.fs, r.fs_source            # the rate it converts through\n"
+    "(1000000.0, 'xdelta')\n"
+    ">>> r.seek_time(250e-6)             # 250 us at 1 MHz is sample 250\n"
+    ">>> r.position\n"
+    "250\n"
+    ">>> np.array_equal(r.read(774), x[250:])\n"
+    "True\n"
+    ">>> r.close()\n"
+    ">>> raw = pathlib.Path(tmp.name) / \"capture.raw\"\n"
+    ">>> w = Writer(raw, 0.0, file_type=\"raw\", sample_type=\"cf32\",\n"
+    "...            sidecar=False)   # no sidecar: nothing records a rate\n"
+    ">>> _ = w.write(x)\n"
+    ">>> w.close()\n"
+    ">>> h = Reader(raw, sample_type=\"cf32\")\n"
+    ">>> h.fs, h.fs_source            # headerless: no rate declared\n"
+    "(0.0, 'none')\n"
+    ">>> try:                            # so a time cannot mean anything\n"
+    "...     h.seek_time(250e-6)\n"
+    "... except ValueError:\n"
+    "...     print(\"refused\")\n"
+    "refused\n"
+    ">>> h.seek(250)                  # ...the sample index still does\n"
+    ">>> h.position\n"
+    "250\n"
+    ">>> h.close()\n"
+    ">>> tmp.cleanup()\n" },
   { NULL }
 };
 

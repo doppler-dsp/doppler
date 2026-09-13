@@ -156,6 +156,27 @@ assert total == len(x)
 
 Pass `out=` to read into a buffer you own instead of allocating per call.
 
+### Random access
+
+`seek(index)` moves the read position to a sample — absolute, no `whence` —
+and `position` reports where it is. `reset()` is `seek(0)`. One seek for the
+strided containers; a scan for CSV, which is delimited. Past the end and below
+zero raise, and a refused seek does not move the position:
+
+```python
+with Reader(tmp / "capture.blue") as r:
+    r.seek(4096)
+    assert r.position == 4096
+    assert len(r.read(1024)) == 1024
+    assert r.position == 5120
+```
+
+`seek_time(seconds)` is `seek(round(seconds * fs))`, seconds counted from the
+capture's first sample rather than the UNIX epoch. It **raises** on a capture
+whose `fs_source` is `"none"` — every `raw` and `csv` capture — which is the
+point of it: the same arithmetic written out by hand lands on sample 0 for
+every time, silently. See [Random access](../guide/wfm-io/reading.md#random-access).
+
 ### Two properties that exist because the obvious answer is ambiguous
 
 `fc == 0.0` does not mean baseband — it also means "nothing in this file

@@ -80,11 +80,12 @@ class Reader:
     def reset(self) -> None:
         """Rewind to the first sample of the capture.
 
-        Seeks back to where the payload starts — 512 bytes into an attached
-        BLUE file, byte 0 of a `.det` or a raw/SigMF payload — and restores the
-        remaining-sample count, so the capture reads again from the top. The
-        file's metadata and decoded keywords are unaffected: they came from the
-        header and do not change.
+        `seek()` at index 0, and nothing else — one implementation of "put the
+        read position at sample k" rather than two that can drift. It lands
+        where the payload starts (512 bytes into an attached BLUE file, byte 0
+        of a `.det` or a raw/SigMF payload), so the capture reads again from
+        the top. The file's metadata and decoded keywords are unaffected: they
+        came from the header and do not change.
         """
 
     def read(
@@ -239,6 +240,161 @@ class Reader:
         -------
         int
             Upper bound on the output length; the actual call may return fewer.
+        """
+
+    def seek(self, index: int) -> None:
+        """Move the read position to sample index.
+
+        Random access, in the timebase the data owns. The index is **absolute**
+        — 0 is the first sample, there is no `whence` — and it is in SAMPLES,
+        which is the only unit every container can answer: `fs` is 0.0 on a
+        headerless capture, so a time would mean nothing there — see
+        `seek_time()`, which refuses rather than pretend.
+
+        Cost follows the container. Raw, BLUE and SigMF are strided, so this is
+        one `fseek` to `data_start + index * bytes_per_sample`. **CSV is
+        delimited rather than strided** and has no byte arithmetic at all, so
+        it is a scan: forward from the current position when seeking forward,
+        from the first sample when seeking back. A loop that seeks forward
+        monotonically therefore walks the file once, not once per seek.
+
+        Seeking to `num_samples` exactly is legal and lands at the end, where
+        `read()` returns 0. Past it is refused, as is a negative index: that is
+        a caller's arithmetic gone wrong, and a silent empty read would hide
+        it. **A refused seek does not move the read position** — the bound is
+        checked before anything moves, and the CSV scan puts the position back
+        if it runs out.
+
+        On a capture still being written, the bound is what is on disk right
+        now, measured at the call. A BLUE capture whose writer has not closed
+        yet still carries the placeholder `data_size` it opened with, so its
+        declared length is not used until the writer patches it in;
+        `read_follow()` is the read that works on such a capture, and seeking
+        does not change that.
+
+        Parameters
+        ----------
+        index : int
+            sample to move to, in [0, `num_samples`].
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``seek: index is negative, or past the end of the capture (0 <=
+            index <= num_samples)``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import pathlib, tempfile
+        >>> import numpy as np
+        >>> from doppler.wfm import Composer, Reader, Segment, Writer
+        >>> tmp = tempfile.TemporaryDirectory()
+        >>> p = pathlib.Path(tmp.name) / "capture.blue"
+        >>> x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
+        >>> w = Writer(p, file_type="blue", sample_type="cf32", fs=2.4e6)
+        >>> _ = w.write(x)
+        >>> w.close()
+        >>> r = Reader(p)
+        >>> r.seek(600)                  # straight there, no decode first
+        >>> np.array_equal(r.read(424), x[600:])
+        True
+        >>> r.position                      # the read left us at the end
+        1024
+        >>> try:                            # past the end is a refusal...
+        ...     r.seek(1025)
+        ... except ValueError:
+        ...     print("refused")
+        refused
+        >>> r.position                      # ...that did not move us
+        1024
+        >>> r.close()
+        >>> tmp.cleanup()
+
+        """
+
+    def seek_time(self, seconds: float) -> None:
+        """Move the read position to seconds into the capture.
+
+        `seek()` over `index = round(seconds * fs)`, and the rounding is to
+        nearest. The conversion is the whole method; the REFUSAL is the point
+        of having it.
+
+        A capture that declares no sample rate reports `fs == 0.0`, and that is
+        raw and CSV always — neither container has anywhere to record one. A
+        caller computing `round(t * r.fs)` for itself gets sample 0 for every
+        time, silently. So this refuses when `fs_source` says nothing declared
+        a rate, rather than convert through one — the same reason the
+        provenance accessors exist at all.
+
+        **Seconds are measured from the FIRST SAMPLE of the capture, never from
+        the UNIX epoch.** A capture's absolute start is `t0`, and `t0_source`
+        is `none` on every capture doppler itself writes — so an absolute face
+        would be unusable by default. Converting is the caller's, and it is
+        `r.seek_time(t_unix - r.t0)` once `t0_source` says there is a `t0` to
+        subtract.
+
+        Parameters
+        ----------
+        seconds : float
+            offset from the first sample, in [0, `num_samples / fs`].
+
+        Raises
+        ------
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``seek_time: the capture declares no sample rate (fs_source is
+            'none' -- raw and CSV always), or the time is negative, not finite,
+            or past the end``, with the return code appended (gh-869).
+
+        Examples
+        --------
+        >>> import pathlib, tempfile
+        >>> import numpy as np
+        >>> from doppler.wfm import Composer, Reader, Segment, Writer
+        >>> tmp = tempfile.TemporaryDirectory()
+        >>> p = pathlib.Path(tmp.name) / "capture.blue"
+        >>> x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
+        >>> w = Writer(p, file_type="blue", sample_type="cf32", fs=1e6)
+        >>> _ = w.write(x)
+        >>> w.close()
+        >>> r = Reader(p)
+        >>> r.fs, r.fs_source            # the rate it converts through
+        (1000000.0, 'xdelta')
+        >>> r.seek_time(250e-6)             # 250 us at 1 MHz is sample 250
+        >>> r.position
+        250
+        >>> np.array_equal(r.read(774), x[250:])
+        True
+        >>> r.close()
+        >>> raw = pathlib.Path(tmp.name) / "capture.raw"
+        >>> w = Writer(raw, 0.0, file_type="raw", sample_type="cf32",
+        ...            sidecar=False)   # no sidecar: nothing records a rate
+        >>> _ = w.write(x)
+        >>> w.close()
+        >>> h = Reader(raw, sample_type="cf32")
+        >>> h.fs, h.fs_source            # headerless: no rate declared
+        (0.0, 'none')
+        >>> try:                            # so a time cannot mean anything
+        ...     h.seek_time(250e-6)
+        ... except ValueError:
+        ...     print("refused")
+        refused
+        >>> h.seek(250)                  # ...the sample index still does
+        >>> h.position
+        250
+        >>> h.close()
+        >>> tmp.cleanup()
+
+        """
+
+    @property
+    def position(self) -> int:
+        """How far into the capture the reader is, in samples from the first
+        one: 0 at open and after `reset()`, `num_samples` once the capture is
+        exhausted, and whatever `seek()` was last given. Every read advances it
+        -- `read()` and `read_follow()` alike -- so it is also how a following
+        reader reports where the stream it is draining has got to.
         """
 
     @property

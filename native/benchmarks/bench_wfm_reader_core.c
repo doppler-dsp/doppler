@@ -4,7 +4,8 @@
  * (page-cache-warm), then the timed loop opens + drains it, so the numbers
  * reflect the dequantise + byte-order + parse cost, not disk seeks. Covers the
  * cheap cf32 path, the integer rescale (ci16), BLUE (header parse + raw), and
- * the text path (CSV). Emits pytest-benchmark JSON. */
+ * the text path (CSV), then the random-access asymmetry: a strided seek is
+ * constant time, a CSV seek scans. Emits pytest-benchmark JSON. */
 #define _POSIX_C_SOURCE 200809L
 
 #include "jm_bench.h"
@@ -59,6 +60,47 @@ bench_cfg (const char *name, const char *path, int ft, int stype,
   remove (path);
 }
 
+/* Random access, and the asymmetry docs/design/capture-files.md section 6
+   claims: a strided container seeks in constant time, a CSV scans because it
+   is delimited and has no offset to compute.
+
+   Alternating between the midpoint and the start is what stops the CSV's
+   forward-only scan from amortising itself away -- each PAIR pays one full
+   walk to the midpoint, which is the cost a caller actually meets. `batch` is
+   per container for that reason: a scan is four orders slower, so timing the
+   same count of them would take minutes to say what ten already say. */
+static void
+bench_seek (const char *name, const char *path, int ft, int stype,
+            size_t batch, const float _Complex *x, jm_bench_t *bench)
+{
+  FILE               *fp = fopen (path, "wb");
+  wfm_writer_state_t *w
+      = wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N, 0.0);
+  wfm_writer_write (w, x, BENCH_N);
+  wfm_writer_close (w);
+  fclose (fp);
+
+  wfm_reader_state_t *rd = wfm_reader_create (path, stype, 0);
+  struct timespec     t0, t1;
+  double              times[ITERATIONS];
+  for (int r = 0; r < ITERATIONS; r++)
+    {
+      clock_gettime (CLOCK_MONOTONIC, &t0);
+      for (size_t i = 0; i < batch; i++)
+        {
+          wfm_reader_seek (rd, (int64_t)(BENCH_N / 2));
+          wfm_reader_seek (rd, 0);
+        }
+      clock_gettime (CLOCK_MONOTONIC, &t1);
+      times[r] = elapsed_sec (&t0, &t1);
+    }
+  wfm_reader_destroy (rd);
+  printf ("  %-26s %8.1f kseek/s\n", name,
+          (double)(2 * batch) / (times[0] > 0 ? times[0] : 1e-9) / 1e3);
+  jm_bench_add (bench, name, times, ITERATIONS, 2 * batch);
+  remove (path);
+}
+
 int
 main (void)
 {
@@ -83,6 +125,12 @@ main (void)
              out, &bench);
   bench_cfg ("csv cf32 (text parse)", "/tmp/dp_bench.csv", WFM_FT_CSV, 0, x,
              out, &bench);
+
+  printf ("\n");
+  bench_seek ("blue seek (strided)", "/tmp/dp_bench_sk.blue", WFM_FT_BLUE, 0,
+              1000, x, &bench);
+  bench_seek ("csv seek (scan)", "/tmp/dp_bench_sk.csv", WFM_FT_CSV, 0, 10, x,
+              &bench);
 
   jm_bench_write_json (&bench, "wfm_reader");
   free (x);

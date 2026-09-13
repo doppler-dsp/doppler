@@ -698,7 +698,7 @@ def measure_seek(d: Data, tmp: Path) -> None:
 
 
 def measure_hint(d: Data, tmp: Path) -> None:
-    R.md("### 2.6 The headerless hint, from the reader's side (F3)")
+    R.md("### 2.7 The headerless hint, from the reader's side (F3)")
     R.md()
     R.md(
         "A raw or CSV capture carries no type, so `Reader` takes one as a "
@@ -757,7 +757,7 @@ def measure_hint(d: Data, tmp: Path) -> None:
 
 
 def measure_reach(d: Data) -> None:
-    R.md("### 2.7 What the Python face does not reach")
+    R.md("### 2.8 What the Python face does not reach")
     R.md()
     d.unreachable = [
         (

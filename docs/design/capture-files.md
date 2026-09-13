@@ -76,7 +76,7 @@ ______________________________________________________________________
 field decides, not the extension — and either half can be opened by name,
 because the reader resolves the sibling.
 
-That shape has a property worth naming, because §8 turns out to depend on
+That shape has a property worth naming, because §9 turns out to depend on
 it: **the header is written last.** `wfmgen`'s detached path streams the
 payload and only then writes the header with the real count, so a killed
 run leaves a payload with no sibling — which is a *legible* failure. The
@@ -135,7 +135,51 @@ support.
 
 ______________________________________________________________________
 
-## 6. Metadata with nowhere to go
+## 6. Random access is by sample index
+
+A reader that can only stream forward makes reaching sample N cost a full
+decode of the N samples in front of it — through `fread`, deinterleave and
+rescale, to arrive at a position the container already records the byte
+offset of. `seek(index)` is that arithmetic made reachable.
+
+**The index is absolute and in SAMPLES**, and that unit is the decision.
+Samples are the timebase the data owns, and the only one every container
+can answer: `data_start` is in the header, the element width is in the
+format field, and the product is the offset. A time is not — `fs` is 0.0
+on raw and CSV (§4), so a time-addressed reader would mean nothing on
+exactly the two containers most likely to hold a large unlabelled capture.
+
+Cost follows the container, and the split is the same one that runs
+through the rest of this design:
+
+| container        | `seek(k)`                                                              |
+| ---------------- | ---------------------------------------------------------------------- |
+| raw, BLUE, SigMF | one `fseek` to `data_start + k * bytes_per_sample`                     |
+| CSV              | a scan — it is delimited, not strided, so there is no arithmetic to do |
+
+The CSV scan runs forward from the current position and only rewinds when
+seeking backwards, so a loop that seeks forward monotonically walks the
+file once rather than once per seek.
+
+`seek(num_samples)` is the end, not an error: it lands where `read()`
+returns nothing. Past it, and below zero, are **refused** — clamping would
+turn a caller's arithmetic error into a silent empty read, which is the
+same argument §5 makes about a wrong hint. And a refused seek does not
+move the read position, so an error handler's retry reads the samples it
+meant to.
+
+`seek_time(seconds)` exists, and it is `seek(round(seconds * fs))` rather
+than an index of any kind. Its value is the refusal: on a capture whose
+`fs_source` is `none` it raises, instead of converting through a rate
+nothing declared. A caller writing that multiplication out for itself gets
+sample 0 for every time, silently — this is §4's principle applied to
+arithmetic rather than to a report. Seconds run from the capture's first
+sample, never from the UNIX epoch; `t0` is what converts, and `t0_source`
+is what says whether there is one to convert with.
+
+______________________________________________________________________
+
+## 7. Metadata with nowhere to go
 
 Raw and CSV take `fs`, `fc` and `t0` at construction and have nowhere to
 put them — and until recently discarded them, handing back a capture not
@@ -159,7 +203,7 @@ it — which is why the sidecar is a `create()`-only guarantee.
 
 ______________________________________________________________________
 
-## 7. The quantiser
+## 8. The quantiser
 
 Full scale is ±1.0 per axis, and the wire's full scale is `2^(N-1)` —
 `dp_format_full_scale()`, which is also what every `cvt` converter defaults
@@ -193,7 +237,7 @@ full-scale constant each have one home. Two gates hold it there:
 
 ______________________________________________________________________
 
-## 8. The writer streams, and that decides everything about endings
+## 9. The writer streams, and that decides everything about endings
 
 `wfm_writer_write` may be called any number of times; the capture is the
 concatenation. Nothing buffers the whole thing, because a capture may be
@@ -217,11 +261,11 @@ That is where this subsystem meets the wait contract.
 while it is still being written, and stopping both halves cleanly — and
 it is a *behaviour of this design* rather than a separate one. The
 `0 → N` transition of `data_size` at close is the end-of-capture marker
-precisely because §8 puts it there.
+precisely because §9 puts it there.
 
 ______________________________________________________________________
 
-## 9. Layering
+## 10. Layering
 
 ```text
    wfm/wfm_keywords.h   the tag/value codec        ← both halves
@@ -243,15 +287,18 @@ keeping the round-trip honest.
 
 ______________________________________________________________________
 
-## 10. What this does not do
+## 11. What this does not do
 
 - **No format conversion.** The reader emits `complex64` at unit scale
     whatever the wire type was; converting a capture from one container to
     another is a caller composing a reader and a writer.
-- **No repair.** A truncated capture is *reported* (§5, §8), never
+- **No repair.** A truncated capture is *reported* (§5, §9), never
     reconstructed.
 - **No SigMF `core:datetime` parsing.** It is an ISO 8601 string and the
     reader has no parser, so such a capture reports `t0_source = none`
     rather than a guess.
-- **No indexing or seeking by time.** `reset()` rewinds to the first
-    sample; that is the whole of the random access on offer.
+- **No time INDEX.** Random access is by sample index (§6).
+    `seek_time()` is arithmetic over `fs`, not a lookup — there is no
+    time-to-byte map, no search by timestamp, and no use made of a SigMF
+    annotation's extent. On a capture that declares no rate it refuses
+    rather than estimate one.

@@ -69,6 +69,144 @@ def test_read_reset_read_is_repeatable(capture):
     assert np.array_equal(second, x)
 
 
+CONTAINERS = ("blue", "raw", "sigmf", "csv")
+
+
+@pytest.fixture(params=CONTAINERS)
+def seekable(request, tmp_path):
+    """A capture in each container, plus what the reader reads back from it.
+
+    The baseline is what the READER returns rather than what `Writer` was
+    handed: a CSV round-trips through decimal text, so comparing a seek
+    against the source array would be measuring the container's fidelity
+    instead of where the seek landed.
+    """
+    ft = request.param
+    name = "cap.sigmf-data" if ft == "sigmf" else f"cap.{ft}"
+    p = tmp_path / name
+    x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
+    with Writer(p, 2.4e6, file_type=ft, sample_type="cf32") as w:
+        w.write(x)
+    with Reader(p) as r:
+        baseline = np.array(r.read(len(x)))
+    assert len(baseline) == len(x)
+    return p, baseline
+
+
+@pytest.mark.parametrize("k", [0, 1, 512, 1023, 1024])
+def test_seek_lands_on_the_sample_it_names(seekable, k):
+    """seek(k) puts the next read at sample k, on every container.
+
+    Self-consistency, which cannot be mis-referenced: whatever follows the
+    seek must be bit-identical to the tail of the same reader's own first
+    pass.
+    """
+    p, baseline = seekable
+    with Reader(p) as r:
+        r.seek(k)
+        assert r.position == k
+        assert np.array_equal(r.read(len(baseline)), baseline[k:])
+
+
+def test_a_backward_seek_lands_too(seekable):
+    """Going back re-walks a CSV rather than running off the end of it."""
+    p, baseline = seekable
+    with Reader(p) as r:
+        r.seek(900)
+        r.seek(3)
+        assert np.array_equal(r.read(5), baseline[3:8])
+
+
+def test_a_refused_seek_raises_and_does_not_move(seekable):
+    """Out of range is a refusal, and the refusal keeps your place.
+
+    Both halves matter: clamping would turn a caller's arithmetic error into
+    a silent empty read, and moving on the way to failing would make a retry
+    read the wrong samples.
+    """
+    p, baseline = seekable
+    with Reader(p) as r:
+        r.seek(100)
+        with pytest.raises(ValueError, match="past the end of the capture"):
+            r.seek(len(baseline) + 1)
+        with pytest.raises(ValueError, match="negative"):
+            r.seek(-1)
+        assert r.position == 100
+        assert np.array_equal(r.read(6), baseline[100:106])
+
+
+def test_position_tracks_every_read(capture):
+    """`position` is the dual of seek(), and every read advances it."""
+    p, x = capture
+    with Reader(p) as r:
+        assert r.position == 0
+        r.read(300)
+        assert r.position == 300
+        r.read(100)
+        assert r.position == 400
+        r.reset()
+        assert r.position == 0  # reset() is seek(0)
+        r.seek(len(x))
+        assert len(r.read(1)) == 0  # seek(num_samples) IS the end
+        assert r.position == len(x)
+
+
+def test_seek_time_agrees_with_seek(tmp_path):
+    """seek_time(k/fs) is seek(k) on a capture that declares its rate."""
+    x = Composer([Segment("qpsk", sps=8, num_samples=1024)]).compose()
+    p = tmp_path / "cap.blue"
+    with Writer(p, 1e6, file_type="blue", sample_type="cf32") as w:
+        w.write(x)
+    with Reader(p) as r:
+        assert r.fs_source == "xdelta"
+        r.seek_time(250e-6)
+        assert r.position == 250
+        assert np.array_equal(r.read(len(x) - 250), x[250:])
+        # rounds to nearest, so half a sample either side is still 250
+        r.seek_time(250.4e-6)
+        assert r.position == 250
+        r.seek_time(249.6e-6)
+        assert r.position == 250
+
+
+@pytest.mark.parametrize("file_type", ["raw", "csv"])
+def test_seek_time_refuses_a_capture_that_declares_no_rate(
+    tmp_path, file_type
+):
+    """The refusal seek_time() exists for.
+
+    A caller computing `round(t * r.fs)` themselves gets sample 0 for every
+    time on a headerless capture, silently, because `fs` is 0.0 there. The
+    sample index still works -- it is the unit that needs no metadata.
+    """
+    x = Composer([Segment("qpsk", sps=8, num_samples=256)]).compose()
+    p = tmp_path / f"cap.{file_type}"
+    # sidecar=False: the sidecar this library leaves beside a headerless
+    # capture WOULD declare a rate, and then there is nothing to refuse.
+    with Writer(
+        p, 0.0, file_type=file_type, sample_type="cf32", sidecar=False
+    ) as w:
+        w.write(x)
+    with Reader(p, sample_type="cf32") as r:
+        assert (r.fs, r.fs_source) == (0.0, "none")
+        with pytest.raises(ValueError, match="declares no sample rate"):
+            r.seek_time(1e-6)
+        assert r.position == 0
+        r.seek(100)  # the sample index needs no metadata
+        assert r.position == 100
+
+
+@pytest.mark.parametrize("seconds", [-1e-6, float("nan"), float("inf"), 1.0])
+def test_seek_time_refuses_a_time_it_cannot_honour(capture, seconds):
+    """Negative, non-finite, or past the end -- none of them move you."""
+    p, _ = capture
+    with Reader(p) as r:
+        r.seek(7)
+        with pytest.raises(ValueError):
+            r.seek_time(seconds)
+        assert r.position == 7
+
+
 def test_keywords_is_empty_without_an_extended_header(capture):
     """No extended header yields {}, never None — so a caller can just
     iterate it without a guard."""

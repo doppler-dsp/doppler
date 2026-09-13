@@ -129,6 +129,79 @@ disagreeing.
 
 ______________________________________________________________________
 
+## Random access
+
+`seek(index)` moves the read position to a sample, so you can go straight to
+the part of a capture you care about instead of decoding everything in front
+of it. The index is **absolute and in samples** — 0 is the first sample, and
+there is no `whence`:
+
+```python
+with Reader(tmp / "capture.blue") as r:
+    r.seek(4096)                    # straight to sample 4096
+    burst = r.read(1024)
+    assert r.position == 5120       # every read advances the position
+    r.reset()                       # reset() is seek(0)
+    assert r.position == 0
+```
+
+Samples rather than seconds, because samples are the unit every container can
+answer. For `raw` and `blue`-style strided files this is one seek; **a CSV is
+delimited rather than strided**, so it has no byte arithmetic to do and the
+seek is a scan. The scan runs forward from where you already are, so a loop
+that walks forward in steps costs one pass over the file, not one per step.
+
+Seeking to `num_samples` is legal and lands at the end. Past it — or below
+zero — raises, rather than quietly leaving you at EOF, and **a refused seek
+does not move the read position**:
+
+```python
+with Reader(tmp / "capture.blue") as r:
+    r.seek(100)
+    try:
+        r.seek(r.num_samples + 1)
+    except ValueError as exc:
+        assert "past the end" in str(exc)
+    assert r.position == 100        # the refusal cost nothing
+```
+
+### Seeking by time, and when it refuses
+
+`seek_time(seconds)` is `seek(round(seconds * fs))`, with seconds measured
+from the **first sample of the capture** — not from the UNIX epoch. Its job is
+the refusal: a capture whose `fs_source` is `"none"` reports `fs == 0.0`, so
+writing that multiplication out yourself lands on sample 0 for *every* time,
+silently. That is `raw` and `csv`, always.
+
+```python
+with Writer(tmp / "timed.blue", 1e6, file_type="blue",
+            sample_type="cf32") as w:
+    w.write(x)
+
+with Reader(tmp / "timed.blue") as r:
+    r.seek_time(250e-6)             # 250 us at 1 MHz
+    assert r.position == 250
+
+with Writer(tmp / "untimed.raw", 0.0, file_type="raw",
+            sample_type="cf32", sidecar=False) as w:
+    w.write(x)
+
+with Reader(tmp / "untimed.raw", sample_type="cf32") as r:
+    assert (r.fs, r.fs_source) == (0.0, "none")
+    try:
+        r.seek_time(250e-6)         # nothing declared a rate
+    except ValueError as exc:
+        assert "declares no sample rate" in str(exc)
+    r.seek(250)                     # the sample index needs no metadata
+    assert r.position == 250
+```
+
+For an **absolute** time, subtract the capture's own start: \`r.seek_time(t_unix
+
+- r.t0)`, and check `t0_source`first — it is`"none"`on every capture doppler writes, so`t0\` is 0.0 there and the subtraction would be meaningless.
+
+______________________________________________________________________
+
 ## Wrong hints and truncation
 
 `trailing_bytes` is the payload bytes left over after the last whole sample.

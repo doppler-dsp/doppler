@@ -126,7 +126,7 @@ Random access is by SAMPLE INDEX, on every container. The check is self-consiste
 
 `seek_time(t)` is `seek(round(t * fs))`, and it agrees: a time half a sample either side of 250 still lands on 250. On a capture that declares no rate it refuses, which is the reason the method exists: raw and CSV report `fs == 0.0`, so a caller computing `round(t * r.fs)` for itself lands on sample 0 for every time, silently. The sample index needs no metadata and still works there.
 
-### 2.6 The headerless hint, from the reader's side (F3)
+### 2.7 The headerless hint, from the reader's side (F3)
 
 A raw or CSV capture carries no type, so `Reader` takes one as a hint (default `cf32`). `Writer` records the real type in a `.sigmf-meta` sidecar beside the file; `Reader` does not read it (gh-1120). What can be measured here is the safeguard the docstring offers for a wrong hint -- `trailing_bytes` -- and how often it fires.
 
@@ -144,7 +144,7 @@ A raw or CSV capture carries no type, so `Reader` takes one as a hint (default `
 
 Silent in 9 of 9. It can only fire when the byte count fails to divide by the assumed 8, so every even sample count is invisible -- and **ci32 is invisible at every length**, because it is 8 bytes per complex sample exactly like cf32. The count comes back correct and every value is wrong.
 
-### 2.7 What the Python face does not reach
+### 2.8 What the Python face does not reach
 
 - `wfm_reader_info` -- the bulk metadata struct. Python reads the same state through the individual properties, which is why §2.2 exists: those accessors have no other caller.
 - `wfm_reader_keyword` / `wfm_reader_header_field` -- the record accessors. Python gets decoded values in a dict instead, so the `wfm_keyword_t` never crosses the boundary.

@@ -182,8 +182,38 @@ with (
 with Reader(bare) as r:
     assert r.fs == 0.0, "no sidecar, no rate"
     assert r.sample_type == "cf32", "no sidecar, the cf32 fallback"
+
+# Random access. Reaching sample N used to mean decoding the N samples in
+# front of it; seek() goes straight there. The index is absolute and in
+# SAMPLES -- the unit every container can answer, since a headerless capture
+# has no rate to turn a time into one.
+with Reader(os.path.join(work, "cap.blue")) as r:
+    whole = np.asarray(r.read(r.num_samples))
+    r.seek(600)
+    assert r.position == 600, "seek reports where it landed"
+    assert np.array_equal(r.read(len(whole) - 600), whole[600:]), (
+        "and the stream continues from exactly there"
+    )
+    # seek_time() is the same move through fs -- and it REFUSES rather than
+    # convert through a rate nothing declared, which is what a headerless
+    # capture has. That refusal is the whole reason it exists.
+    r.seek_time(600 / FS)
+    assert r.position == 600, "seek_time(k/fs) is seek(k)"
+
+with Reader(bare) as r:
+    assert r.fs_source == "none", "the sidecar-less copy declares no rate"
+    try:
+        r.seek_time(600 / FS)
+        raise AssertionError("seek_time must refuse a capture with no rate")
+    except ValueError:
+        pass
+    r.seek(600)  # the sample index needs no metadata
+    assert r.position == 600, "seek still works without metadata"
+
 print(
     "validated: 4 file types round-trip losslessly, all four recover fs "
     "(blue/sigmf from the header, raw/csv from the sidecar), sigmf recovers "
-    "fc, and the same raw bytes without a sidecar recover neither"
+    "fc, the same raw bytes without a sidecar recover neither, and seek() "
+    "lands on the sample it names while seek_time() refuses a capture that "
+    "declares no rate"
 )

@@ -97,16 +97,39 @@ paths are relativized so they match the git diff.
 - **clang only.** The gcc OS matrix is untouched; coverage is a separate
     clang+Linux build. (`make coverage` sets `clang`/`clang++` — the latter for the
     vendored C++ in the optional stream component.)
+
 - **x86-64-v2 baseline, not `-march=native`.** Native would enable FMA, which
     breaks `wfm_synth`'s bit-exact `step()==steps()` parity test (FMA contraction).
     The coverage build stays at the shipped portable baseline. `awgn_core.c`'s weak
     libmvec `_ZGVdN8v_logf` declaration carries `__attribute__((target("avx2")))`
     so its AVX dispatcher still compiles under clang at that baseline (ABI-only;
     gcc codegen unchanged).
-- **"N functions have mismatched data"** from `llvm-cov` is benign: a few
-    functions' mappings differ between the `.so` and the C-test exes (inlining);
-    those drop from the report. The Python phase reads the same `.so` it loaded, so
-    its attribution is exact.
+
+- **"N functions have mismatched data"** from `llvm-cov` is benign, but it is
+    not "a few": the count scales with how many `-object` binaries the report
+    covers, because a `static` function in a header is instantiated per
+    translation unit and the copies' mappings differ. Measured 2026-09-12 on
+    one profile set, varying only the objects passed:
+
+    | objects                       | mismatched |
+    | ----------------------------- | ---------- |
+    | `libdoppler.so` alone         | 113        |
+    | + 10 C-test exes              | 367        |
+    | + the Python extension `.so`s | 730        |
+    | + all 157 test/validate exes  | 3504       |
+
+    So a four-figure count in CI is the shape of the report, not damage — the
+    recipe passes every test executable on purpose (see the `-object` block in
+    the Makefile), and that is what makes a directly-called static header copy
+    countable at all. The Python phase reads the same `.so` it loaded, so its
+    attribution is exact. What a real loss of data looks like is the totals
+    collapsing, which `coverage-gate`'s threshold is what catches.
+
+- **"invalid instrumentation profile data (file header is corrupt)"** is
+    expected, not damage, and `-failure-mode=all` is why the merge survives it:
+    two tests kill a child that had imported the instrumented extension, and a
+    killed process never runs the profile runtime's flush. The Makefile carries
+    the full reasoning beside the merge.
 
 ## Roadmap
 

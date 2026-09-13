@@ -275,7 +275,7 @@ class Reader:
         Parameters
         ----------
         index : int
-            sample to move to, in [0, `num_samples`].
+            sample to move to; 0 to `num_samples` inclusive.
 
         Raises
         ------
@@ -337,7 +337,7 @@ class Reader:
         Parameters
         ----------
         seconds : float
-            offset from the first sample, in [0, `num_samples / fs`].
+            offset from the first sample; 0 to `num_samples / fs` inclusive.
 
         Raises
         ------

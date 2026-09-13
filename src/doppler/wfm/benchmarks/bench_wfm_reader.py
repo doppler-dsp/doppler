@@ -33,3 +33,19 @@ def test_read_64k(benchmark, obj):
 
     out = benchmark(_read)
     assert len(out) == BLOCK_64K
+
+
+def test_seek_midpoint(benchmark, obj):
+    """seek() is the cost it replaces: one file seek, not a decode.
+
+    The read-and-discard this supersedes decodes every sample in front of
+    the target, so the two differ by the whole of `test_read_64k` at half
+    scale. Measured on BLUE, which is strided -- a CSV seek is a scan and
+    scales with the index instead.
+    """
+
+    def _seek():
+        obj.seek(BLOCK_64K // 2)
+        return obj.position
+
+    assert benchmark(_seek) == BLOCK_64K // 2

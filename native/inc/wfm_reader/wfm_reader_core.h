@@ -412,7 +412,7 @@ void wfm_reader_reset(wfm_reader_state_t *state);
    * does not change that.
    *
    * @param state  the reader.
-   * @param index  sample to move to, in [0, `num_samples`].
+   * @param index  sample to move to; 0 to `num_samples` inclusive.
    * @return ::DP_OK, or ::DP_ERR_INVALID if @p index is negative or past the
    *         end of the capture.
    *
@@ -467,7 +467,8 @@ int wfm_reader_seek(wfm_reader_state_t *state, int64_t index);
    * `t0` to subtract.
    *
    * @param state    the reader.
-   * @param seconds  offset from the first sample, in [0, `num_samples / fs`].
+   * @param seconds  offset from the first sample; 0 to
+   *                 `num_samples / fs` inclusive.
    * @return ::DP_OK, or ::DP_ERR_INVALID if the capture declares no sample
    *         rate, or @p seconds is negative, not finite, or past the end.
    *

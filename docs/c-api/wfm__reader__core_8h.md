@@ -1067,7 +1067,7 @@ On a capture still being written, the bound is what is on disk right now, measur
 
 
 * `state` the reader. 
-* `index` sample to move to, in [0, `num_samples`]. 
+* `index` sample to move to; 0 to `num_samples` inclusive. 
 
 
 
@@ -1139,7 +1139,7 @@ A capture that declares no sample rate reports `fs == 0.0`, and that is raw and 
 
 
 * `state` the reader. 
-* `seconds` offset from the first sample, in [0, `num_samples / fs`]. 
+* `seconds` offset from the first sample; 0 to `num_samples / fs` inclusive. 
 
 
 

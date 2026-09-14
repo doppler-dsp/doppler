@@ -370,9 +370,9 @@ class _SynthEngine:
     f_end : float, default 0.0
         Chirp end frequency in Hz (type=chirp only; ignored otherwise). With
         ``freq`` as the start, the instantaneous frequency sweeps linearly from
-        ``freq`` to ``f_end`` over the span (set by wfm_synth_set_chirp_span()
-        or the first wfm_synth_steps() call), then holds at ``f_end``. ``f_end
-        < freq`` is a down-chirp. Default 0.0.
+        ``freq`` to ``f_end`` over the span set by wfm_synth_set_chirp_span(),
+        then holds at ``f_end``. Until a span is pinned the slope is 0 (a CW
+        tone at ``freq``). ``f_end < freq`` is a down-chirp. Default 0.0.
 
     Examples
     --------
@@ -466,6 +466,30 @@ class _SynthEngine:
         >>> x.tolist()
         [(1+0j), (1+0j), (1+0j), (1+0j)]
 
+        """
+
+    def set_chirp_span(self, span: int) -> None:
+        """Pin a chirp's sweep to `span` samples (no-op for non-chirp). Only
+        the first non-zero pin takes effect; until then a chirp holds its start
+        frequency on step() and steps() alike.
+
+        A linear chirp's slope is `(f_end − f_start) / span`, so the span — the
+        number of samples the sweep occupies — must be known before generation.
+        The composer calls this with the source's declared span or the segment
+        length. A synth that is never pinned does not sweep: it holds the start
+        frequency on wfm_synth_step() and wfm_synth_steps() alike, so the
+        waveform never depends on how reads are chunked. Only the first pin
+        (while the span is still 0) takes effect, so it is safe to call
+        unconditionally after wfm_synth_create(); span 0 is a no-op.
+
+        The span is configuration, not running state: wfm_synth_get_state()
+        does not carry it, so pin a resumed instance exactly as the original
+        was pinned.
+
+        Parameters
+        ----------
+        span : int
+            Sweep length in samples (> 0).
         """
 
     def state_bytes(self) -> int:

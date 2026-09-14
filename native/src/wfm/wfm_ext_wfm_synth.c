@@ -657,6 +657,24 @@ _SynthEngine_set_state (_SynthEngineObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+_SynthEngine_set_chirp_span (_SynthEngineObject *self, PyObject *args,
+                             PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "span", NULL };
+  unsigned long long span_raw  = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &span_raw))
+    return NULL;
+  size_t span = (size_t)span_raw;
+  wfm_synth_set_chirp_span (self->handle, span);
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef _SynthEngine_methods[] = {
   { "reset", (PyCFunction)_SynthEngine_reset, METH_NOARGS,
     "Reset Synth to its post-create state. Resets the LO phase accumulator, "
@@ -882,6 +900,40 @@ static PyMethodDef _SynthEngine_methods[] = {
     "blob : bytes\n"
     "    A `get_state()` blob from this type, exactly `state_bytes()` "
     "long.\n" },
+  { "set_chirp_span", (PyCFunction)(void *)_SynthEngine_set_chirp_span,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_chirp_span(span) -> None\n"
+    "\n"
+    "Pin a chirp's sweep to `span` samples (no-op for non-chirp). Only\n"
+    "the first non-zero pin takes effect; until then a chirp holds its start\n"
+    "frequency on step() and steps() alike.\n"
+    "\n"
+    "A linear chirp's slope is `(f_end − f_start) / span`, so the span — the\n"
+    "number of samples the sweep occupies — must be known before generation.\n"
+    "The composer calls this with the source's declared span or the segment\n"
+    "length. A synth that is never pinned does not sweep: it holds the start\n"
+    "frequency on wfm_synth_step() and wfm_synth_steps() alike, so the\n"
+    "waveform never depends on how reads are chunked. Only the first pin\n"
+    "(while the span is still 0) takes effect, so it is safe to call\n"
+    "unconditionally after wfm_synth_create(); span 0 is a no-op.\n"
+    "\n"
+    "The span is configuration, not running state: wfm_synth_get_state()\n"
+    "does not carry it, so pin a resumed instance exactly as the original\n"
+    "was pinned.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "span : int\n"
+    "    Sweep length in samples (> 0).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "    >>> import numpy as np\n"
+    "    >>> from doppler.wfm import _SynthEngine\n"
+    "    >>> obj = _SynthEngine(type=\"tone\", fs=1000000.0, freq=0.0, "
+    "snr=100.0, snr_mode=\"auto\", seed=1, sps=8, pn_length=7, pn_poly=0, "
+    "lfsr=\"galois\", f_end=0.0)\n"
+    "    >>> obj.set_chirp_span(0)\n" },
   { NULL }
 };
 

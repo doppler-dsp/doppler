@@ -75,6 +75,7 @@ _One additive source within a segment: a_ `synth` _config + its level._[More...]
 |  double | [**snr**](#variable-snr)  <br> |
 |  double | [**snr\_hi**](#variable-snr_hi)  <br> |
 |  int | [**snr\_mode**](#variable-snr_mode)  <br> |
+|  size\_t | [**span**](#variable-span)  <br> |
 |  int | [**sps**](#variable-sps)  <br> |
 |  double | [**symbol\_rate**](#variable-symbol_rate)  <br> |
 |  float \_Complex \* | [**symbols**](#variable-symbols)  <br> |
@@ -637,6 +638,19 @@ double wfm_source_t::snr_hi;
 
 ```C++
 int wfm_source_t::snr_mode;
+```
+
+
+
+
+<hr>
+
+
+
+### variable span 
+
+```C++
+size_t wfm_source_t::span;
 ```
 
 

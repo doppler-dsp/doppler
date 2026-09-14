@@ -813,7 +813,7 @@
 
 ## s
 
-* **span** ([**RateConverter\_state\_t**](structRateConverter__state__t.md), [**ratesync\_state\_t**](structratesync__state__t.md), [**specan\_state\_t**](structspecan__state__t.md))
+* **span** ([**RateConverter\_state\_t**](structRateConverter__state__t.md), [**ratesync\_state\_t**](structratesync__state__t.md), [**specan\_state\_t**](structspecan__state__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **stage\_ptrs** ([**RateConverter\_state\_t**](structRateConverter__state__t.md))
 * **stage\_types** ([**RateConverter\_state\_t**](structRateConverter__state__t.md))
 * **samples\_consumed** ([**acq\_extra\_t**](structacq__extra__t.md), [**acq\_handoff\_t**](structacq__handoff__t.md), [**acq\_result\_t**](structacq__result__t.md), [**acq\_state\_t**](structacq__state__t.md), [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md))

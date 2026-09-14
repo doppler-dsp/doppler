@@ -236,8 +236,9 @@ wfm_compose_build_synth (const wfm_source_t *src, double fs, size_t on_len,
                           src->pn_length, src->pn_poly, src->lfsr, f_end);
   if (!syn)
     return NULL;
-  /* Pin a chirp's sweep to the on-time (no-op for non-chirp). */
-  wfm_synth_set_chirp_span (syn, on_len);
+  /* Pin a chirp's sweep to its declared span, else the on-time (no-op for
+     non-chirp). */
+  wfm_synth_set_chirp_span (syn, src->span ? src->span : on_len);
   /* Attach a bits pattern / symbols stream / dsss burst (no-op otherwise).
      The bits attach goes through the frame path so a framed source emits
      `[preamble x reps | sync | payload | crc]` here exactly as it does on the

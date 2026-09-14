@@ -1213,6 +1213,12 @@ type = "double"
 default = "0.0"
 doc = "Chirp end frequency in Hz; ignored by non-chirp types."
 
+[[module.wfm_compose.source.fields]]
+name = "span"
+type = "size_t"
+default = "0"
+doc = "Chirp sweep length in samples: the frequency ramps from freq to f_end over this many samples, then holds at f_end. 0 means the enclosing Segment's num_samples. A standalone chirp (f_end != freq) must declare it, so step(), steps(N) and any chunking of reads produce the same waveform; generating one without it raises. Ignored by non-chirp types."
+
 # Clock Doppler (gh-942) — per SOURCE, because it is a property of one
 # emitter's motion and two transmitters in a `sum` segment are on different
 # geometries.

@@ -56,6 +56,12 @@ class Synth:
         Synth.steps().
     f_end : float | tuple[float, float], default 0.0
         Chirp end frequency in Hz; ignored by non-chirp types.
+    span : int, default 0
+        Chirp sweep length in samples: the frequency ramps from freq to f_end
+        over this many samples, then holds at f_end. 0 means the enclosing
+        Segment's num_samples. A standalone chirp (f_end != freq) must declare
+        it, so step(), steps(N) and any chunking of reads produce the same
+        waveform; generating one without it raises. Ignored by non-chirp types.
     doppler : float | tuple[float, float], default 0.0
         Clock Doppler in ppm: the received time base is rescaled by 1 +
         doppler*1e-6, so the symbol and chip rates move with the carrier and a
@@ -186,6 +192,7 @@ class Synth:
         level: float | tuple[float, float] = ...,
         background: int = ...,
         f_end: float | tuple[float, float] = ...,
+        span: int = ...,
         doppler: float | tuple[float, float] = ...,
         doppler_rate: float | tuple[float, float] = ...,
         carrier_hz: float = ...,
@@ -221,6 +228,7 @@ class Synth:
     level: float | tuple[float, float]
     background: int
     f_end: float | tuple[float, float]
+    span: int
     doppler: float | tuple[float, float]
     doppler_rate: float | tuple[float, float]
     carrier_hz: float
@@ -301,6 +309,12 @@ class Segment:
         Synth.steps().
     f_end : float | tuple[float, float], default 0.0
         Chirp end frequency in Hz; ignored by non-chirp types.
+    span : int, default 0
+        Chirp sweep length in samples: the frequency ramps from freq to f_end
+        over this many samples, then holds at f_end. 0 means the enclosing
+        Segment's num_samples. A standalone chirp (f_end != freq) must declare
+        it, so step(), steps(N) and any chunking of reads produce the same
+        waveform; generating one without it raises. Ignored by non-chirp types.
     doppler : float | tuple[float, float], default 0.0
         Clock Doppler in ppm: the received time base is rescaled by 1 +
         doppler*1e-6, so the symbol and chip rates move with the carrier and a
@@ -456,6 +470,7 @@ class Segment:
     level: float
     background: int
     f_end: float
+    span: int
     doppler: float
     doppler_rate: float
     carrier_hz: float
@@ -491,6 +506,7 @@ class Segment:
         level: float | tuple[float, float] = ...,
         background: int = ...,
         f_end: float | tuple[float, float] = ...,
+        span: int = ...,
         doppler: float | tuple[float, float] = ...,
         doppler_rate: float | tuple[float, float] = ...,
         carrier_hz: float = ...,

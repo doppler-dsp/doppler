@@ -304,6 +304,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
                                     "level",
                                     "background",
                                     "f_end",
+                                    "span",
                                     "doppler",
                                     "doppler_rate",
                                     "carrier_hz",
@@ -339,6 +340,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
   PyObject    *level            = NULL;
   int          background       = 0;
   PyObject    *f_end            = NULL;
+  size_t       span             = 0;
   PyObject    *doppler          = NULL;
   PyObject    *doppler_rate     = NULL;
   double       carrier_hz       = 0.0;
@@ -448,13 +450,13 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
       }
     }
   if (!PyArg_ParseTupleAndKeywords (
-          args, _kw, "|sOOsIiiKsOiOOOdsOssdiOOnOOsiiiidid", kwlist, &type,
+          args, _kw, "|sOOsIiiKsOiOnOOdsOssdiOOnOOsiiiidid", kwlist, &type,
           &freq, &snr, &snr_mode, &seed, &sps, &pn_length, &pn_poly, &lfsr,
-          &level, &background, &f_end, &doppler, &doppler_rate, &carrier_hz,
-          &doppler_lifetime, &bits, &modulation, &pulse, &rrc_beta, &rrc_span,
-          &symbols, &acq_code, &acq_reps, &data_code, &sync, &crc, &rs_depth,
-          &randomise, &attach_asm, &convolutional, &symbol_rate,
-          &dsss_code_only, &fs))
+          &level, &background, &f_end, &span, &doppler, &doppler_rate,
+          &carrier_hz, &doppler_lifetime, &bits, &modulation, &pulse,
+          &rrc_beta, &rrc_span, &symbols, &acq_code, &acq_reps, &data_code,
+          &sync, &crc, &rs_depth, &randomise, &attach_asm, &convolutional,
+          &symbol_rate, &dsss_code_only, &fs))
     {
       if (_kw_owned)
         Py_DECREF (_kw);
@@ -590,6 +592,7 @@ Synth_init (SynthObject *self, PyObject *args, PyObject *kwds)
     {
       self->src.f_end = (double)0.0;
     }
+  self->src.span = span;
   if (doppler != NULL)
     {
       double _lo, _hi;
@@ -963,6 +966,21 @@ Synth_set_f_end (SynthObject *self, PyObject *value, void *closure)
     {
       self->src.ranged &= ~(unsigned)WFM_RANGE_FEND;
     }
+  return 0;
+}
+static PyObject *
+Synth_get_span (SynthObject *self, void *closure)
+{
+  (void)closure;
+  return PyLong_FromSize_t ((size_t)self->src.span);
+}
+static int
+Synth_set_span (SynthObject *self, PyObject *value, void *closure)
+{
+  (void)closure;
+  self->src.span = (size_t)PyLong_AsLong (value);
+  if (PyErr_Occurred ())
+    return -1;
   return 0;
 }
 static PyObject *
@@ -1394,6 +1412,7 @@ static PyGetSetDef Synth_getset[] = {
   { "background", (getter)Synth_get_background, (setter)Synth_set_background,
     NULL, NULL },
   { "f_end", (getter)Synth_get_f_end, (setter)Synth_set_f_end, NULL, NULL },
+  { "span", (getter)Synth_get_span, (setter)Synth_set_span, NULL, NULL },
   { "doppler", (getter)Synth_get_doppler, (setter)Synth_set_doppler, NULL,
     NULL },
   { "doppler_rate", (getter)Synth_get_doppler_rate,
@@ -2198,6 +2217,18 @@ Segment_flat_f_end (SegmentObject *self, void *closure)
   return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "f_end");
 }
 static PyObject *
+Segment_flat_span (SegmentObject *self, void *closure)
+{
+  (void)closure;
+  if (PyList_GET_SIZE (self->sources) != 1)
+    {
+      PyErr_SetString (PyExc_AttributeError,
+                       "span is only on a single-source Segment");
+      return NULL;
+    }
+  return PyObject_GetAttrString (PyList_GET_ITEM (self->sources, 0), "span");
+}
+static PyObject *
 Segment_flat_doppler (SegmentObject *self, void *closure)
 {
   (void)closure;
@@ -2513,6 +2544,7 @@ static PyGetSetDef Segment_getset[] = {
   { "level", (getter)Segment_flat_level, NULL, NULL, NULL },
   { "background", (getter)Segment_flat_background, NULL, NULL, NULL },
   { "f_end", (getter)Segment_flat_f_end, NULL, NULL, NULL },
+  { "span", (getter)Segment_flat_span, NULL, NULL, NULL },
   { "doppler", (getter)Segment_flat_doppler, NULL, NULL, NULL },
   { "doppler_rate", (getter)Segment_flat_doppler_rate, NULL, NULL, NULL },
   { "carrier_hz", (getter)Segment_flat_carrier_hz, NULL, NULL, NULL },
@@ -3398,6 +3430,7 @@ static const char *const _Composer_src_keys[] = { "type",
                                                   "level",
                                                   "background",
                                                   "f_end",
+                                                  "span",
                                                   "doppler",
                                                   "doppler_rate",
                                                   "carrier_hz",

@@ -179,6 +179,47 @@ test_the_two_faces_agree (void)
         wfm_synth_destroy (comp);
         wfm_synth_destroy (bridge);
       }
+  /* ── a chirp: the span is declared, never read off the first block ────
+   *
+   * #1115. The bridge used to leave the span to wfm_synth_steps()'s first
+   * block, so the standalone face swept over whatever the caller read first.
+   * A declared span must reach BOTH faces, and must beat the on-time. */
+  {
+    wfm_source_t s          = { 0 };
+    s.type                  = WFM_SYNTH_CHIRP;
+    s.freq                  = 1e5;
+    s.f_end                 = 3e5;
+    s.snr                   = 100.0;
+    s.span                  = n / 4; /* deliberately not the on-time */
+    wfm_synth_state_t *comp = wfm_compose_build_synth (
+        &s, 1e6, n, s.freq, s.snr, s.f_end, 0, 0, 0);
+    wfm_synth_state_t *bridge = wfm_source_to_synth (&s, 1e6);
+    DP_REQUIRE_MSG (comp && bridge, "both faces build a declared chirp");
+    DP_REQUIRE_MSG (comp->chirp_span == n / 4 && bridge->chirp_span == n / 4,
+                    "the declared span beats the on-time on both faces");
+    wfm_synth_steps (comp, a, n);
+    for (size_t off = 0; off < n; off += 16) /* chunked: must not matter */
+      wfm_synth_steps (bridge, b + off, 16);
+    DP_REQUIRE_MSG (memcmp (a, b, n * sizeof *a) == 0,
+                    "a declared chirp is byte-identical across faces and "
+                    "read chunkings");
+    wfm_synth_destroy (comp);
+    wfm_synth_destroy (bridge);
+
+    /* undeclared: the composer lends the on-time, the bridge has none */
+    s.span = 0;
+    comp   = wfm_compose_build_synth (&s, 1e6, n, s.freq, s.snr, s.f_end, 0, 0,
+                                      0);
+    DP_REQUIRE_MSG (comp && comp->chirp_span == n,
+                    "an undeclared span falls back to the on-time");
+    wfm_synth_destroy (comp);
+    DP_REQUIRE_MSG (!wfm_source_to_synth (&s, 1e6),
+                    "a standalone sweep with no span is refused, not guessed");
+    s.f_end = s.freq; /* flat: no slope to lose */
+    bridge  = wfm_source_to_synth (&s, 1e6);
+    DP_REQUIRE_MSG (bridge != NULL, "a flat chirp needs no span");
+    wfm_synth_destroy (bridge);
+  }
   /* ── and the case where the shared helper actually DOES work ─────────
    *
    * The loop above uses types for which wfm_source_create_snr is a

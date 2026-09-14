@@ -50,6 +50,49 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAP = ROOT / "docs" / "dev" / "issue-tiers.toml"
 PAGE = ROOT / "docs" / "dev" / "issues.md"
 
+
+def pr_closes(prs: list[dict], repo_slug: str) -> dict[int, int]:
+    """Map each issue an open PR will close to that PR's number.
+
+    "In review" means a pull request will close the issue, so the answer is
+    GitHub's own ``closingIssuesReferences`` -- the links its closing-keyword
+    parser and the sidebar produce -- rather than a scan of the PR body.
+
+    A body scan was what this used to do, and it read every ``#N`` token as
+    "closes N": a PR that merely *mentioned* an issue, or named one in
+    another repository (``just-buildit/just-makeit#1307``), marked this
+    repository's issue of the same number as in review. Filtering on the
+    issue URL keeps a cross-repository close out as well.
+
+    Parameters
+    ----------
+    prs : list of dict
+        ``gh pr list --json number,closingIssuesReferences`` rows.
+    repo_slug : str
+        ``owner/name`` whose issues the tracker covers.
+
+    Returns
+    -------
+    dict of int to int
+        Issue number -> the PR that closes it.
+
+    Examples
+    --------
+    >>> ref = {"number": 7, "url": "https://github.com/o/r/issues/7"}
+    >>> other = {"number": 9, "url": "https://github.com/x/y/issues/9"}
+    >>> prs = [{"number": 12, "closingIssuesReferences": [ref, other]}]
+    >>> pr_closes(prs, "o/r")
+    {7: 12}
+    """
+    prefix = f"https://github.com/{repo_slug}/issues/"
+    closes: dict[int, int] = {}
+    for pr in prs:
+        for ref in pr.get("closingIssuesReferences") or []:
+            if str(ref.get("url", "")).startswith(prefix):
+                closes[int(ref["number"])] = int(pr["number"])
+    return closes
+
+
 #: Tier -> (name, what belongs in it). The order here is the page's order and
 #: the priority order: tier 0 is done first.
 TIERS: dict[int, tuple[str, str]] = {
@@ -249,13 +292,9 @@ def do_write() -> int:
         "--limit",
         "100",
         "--json",
-        "number,body",
+        "number,closingIssuesReferences",
     )
-    closes: dict[int, int] = {}
-    for pr in prs:
-        for tok in (pr.get("body") or "").replace("#", " #").split():
-            if tok.startswith("#") and tok[1:].rstrip(".,").isdigit():
-                closes[int(tok[1:].rstrip(".,"))] = pr["number"]
+    closes = pr_closes(prs, REPO_SLUG)
 
     data = load_map()
     issues = data.get("issue", {})

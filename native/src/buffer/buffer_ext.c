@@ -238,7 +238,8 @@ static PyGetSetDef F32Buffer_getset[] = {
   { "dropped", (getter)F32Buffer_dropped, NULL,
     "Samples in REFUSED writes -- not samples lost. write() adds len(arr)\n"
     "on each rejection and copies nothing, so a producer that retries keeps\n"
-    "its data and still moves this counter.", NULL },
+    "its data and still moves this counter.",
+    NULL },
   { NULL },
 };
 
@@ -515,7 +516,8 @@ static PyGetSetDef F64Buffer_getset[] = {
   { "dropped", (getter)F64Buffer_dropped, NULL,
     "Samples in REFUSED writes -- not samples lost. write() adds len(arr)\n"
     "on each rejection and copies nothing, so a producer that retries keeps\n"
-    "its data and still moves this counter.", NULL },
+    "its data and still moves this counter.",
+    NULL },
   { NULL },
 };
 
@@ -803,7 +805,8 @@ static PyGetSetDef I16Buffer_getset[] = {
   { "dropped", (getter)I16Buffer_dropped, NULL,
     "Sample pairs in REFUSED writes -- not pairs lost. write() adds the\n"
     "pair count on each rejection and copies nothing, so a producer that\n"
-    "retries keeps its data and still moves this counter.", NULL },
+    "retries keeps its data and still moves this counter.",
+    NULL },
   { NULL },
 };
 

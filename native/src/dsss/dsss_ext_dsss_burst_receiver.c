@@ -811,19 +811,6 @@ DsssBurstReceiver_getprop_pending (DsssBurstReceiverObject *self,
       (unsigned long long)dsss_burst_receiver_get_pending (self->handle));
 }
 static PyObject *
-DsssBurstReceiver_getprop_dropped (DsssBurstReceiverObject *self,
-                                   void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)dsss_burst_receiver_get_dropped (self->handle));
-}
-static PyObject *
 DsssBurstReceiver_getprop_n_bursts (DsssBurstReceiverObject *self,
                                     void *Py_UNUSED (closure))
 {
@@ -835,6 +822,20 @@ DsssBurstReceiver_getprop_n_bursts (DsssBurstReceiverObject *self,
   /* <<IMPLEMENT: return the computed or stored value>> */
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)dsss_burst_receiver_get_n_bursts (self->handle));
+}
+
+static PyObject *
+DsssBurstReceiver_getprop_dropped (DsssBurstReceiverObject *self,
+                                   void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)dsss_burst_receiver_get_dropped (self->handle));
 }
 
 static PyGetSetDef DsssBurstReceiver_getset[] = {
@@ -947,12 +948,14 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "burst\n"
     "is neither.\n",
     NULL },
-  { "dropped", (getter)DsssBurstReceiver_getprop_dropped, NULL,
-    "Overrun ctr.\n", NULL },
   { "n_bursts", (getter)DsssBurstReceiver_getprop_n_bursts, NULL,
     "Bursts DEMODULATED, lifetime. Distinct from the capture's own count, "
     "which is windows EMITTED: they differ by any window the demodulator "
     "refused, and that difference is the thing worth seeing.\n",
+    NULL },
+  { "dropped", (getter)DsssBurstReceiver_getprop_dropped, NULL,
+    "Samples the ring refused. A LOST BURST each, not a statistic -- "
+    "lifetime, survives reset().\n",
     NULL },
   { NULL }
 };

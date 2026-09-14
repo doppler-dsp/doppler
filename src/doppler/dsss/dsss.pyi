@@ -7328,7 +7328,9 @@ class DsssBurstReceiver:
 
     @property
     def dropped(self) -> int:
-        """Overrun ctr."""
+        """Samples the ring refused. A LOST BURST each, not a statistic --
+        lifetime, survives reset().
+        """
 
     @property
     def n_bursts(self) -> int:

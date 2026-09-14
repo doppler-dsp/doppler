@@ -46,6 +46,69 @@ Start the consumer before the producer so `wait()` is already blocking when
 data arrives. Always `join()` both threads — the consumer holds a view into
 shared memory and must call `consume()` before the buffer can be reused.
 
+## The producer's block size is not the consumer's
+
+This is what the ring is *for*, and it works in both directions. The
+double-mapping is what makes it free: `wait(n)` returns a **contiguous** view
+of `n` samples even when those `n` straddle the physical end of the ring, so
+a consumer with a fixed block size hands the view straight to the next stage
+with no copy and no special case for the wrap.
+
+**Large in, fixed out.** A capture device gives you whatever its driver
+batched; an FFT of length `N` cannot take `N-1`. Write the irregular blocks,
+read exact frames:
+
+```python
+from doppler.buffer import F32Buffer
+import numpy as np
+
+FFT_N, ring = 1024, F32Buffer(8192)
+cap = ring.capacity
+
+for block in (3000, 5000, 1700, 4096):        # nothing is a multiple of N
+    while cap - ring.available < block:       # backpressure: make room first
+        ring.wait(FFT_N); ring.consume(FFT_N)
+    ring.write(np.zeros(block, dtype=np.complex64))
+    while ring.available >= FFT_N:            # take every whole frame
+        frame = ring.wait(FFT_N)
+        assert len(frame) == FFT_N and frame.flags["C_CONTIGUOUS"]
+        ring.consume(FFT_N)
+```
+
+**Small in, drain when full.** A chatty producer costs one wake-up per write
+unless something batches for it. Let the backlog build, then take it in one
+go:
+
+```python
+BATCH, drip = 2048, F32Buffer(4096)
+for _ in range(64):                            # a drip of small writes
+    drip.write(np.zeros(32, dtype=np.complex64))
+while drip.available >= BATCH:
+    view = drip.wait(BATCH)                    # one wake-up, not 64
+    drip.consume(BATCH)
+```
+
+Three things that bite, all of them measurable:
+
+- **`write` is all-or-nothing and never blocks.** A block that does not fit
+    is rejected whole — so check for room first, or check the return value.
+    There is no blocking write; backpressure is the caller's.
+- **`dropped` counts the length of every *rejected call*, not samples lost.**
+    A producer that spins on `write` until it succeeds inflates it without
+    losing anything: a 60,000-sample run written that way reported 5,960,438
+    "dropped". Wait for room if you want the counter to mean what it says.
+- **Never ask for more than `capacity`.** `wait(n)` with `n > capacity` can
+    never be satisfied — the ring cannot hold that many — and it currently
+    spins forever with no diagnostic
+    ([#1335](https://github.com/doppler-dsp/doppler/issues/1335)). Size a
+    threshold from `capacity`, which is *rounded up* from what you asked for,
+    never from the producer's chunk size.
+
+The runnable version of both directions, with the assertions that keep it
+honest, is `src/doppler/examples/ring_chunking_demo.py`.
+
+______________________________________________________________________
+
 ## Buffer types
 
 | Type        | Import           | NumPy dtype          | Min capacity | Notes                |

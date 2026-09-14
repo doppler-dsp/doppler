@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-09-12"
+generated = "2026-09-14"
 
 [issue.502]
 tier = 3
@@ -553,7 +553,7 @@ status = "open"
 [issue.1115]
 tier = 0
 title = "chirp: step() emits a flat CW tone, and an unpinned chirp's sweep depends on how the caller chunked its reads"
-status = "open"
+status = "in review ([#1337](https://github.com/doppler-dsp/doppler/pull/1337))"
 
 [issue.1118]
 tier = 1

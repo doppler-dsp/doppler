@@ -47,9 +47,11 @@ class F32Buffer:
 
         Copies the complex64 array into the ring buffer in a single
         ``memcpy``.  If there is not enough free space for all
-        ``len(arr)`` samples the write is rejected entirely — no partial
-        write occurs.  When rejected, the dropped counter is incremented
-        by ``len(arr)``.  The array must be 1-D and C-contiguous.
+        ``len(arr)`` samples the call is **refused entirely** — nothing is
+        copied and ``arr`` is untouched, so you still hold every sample and
+        may retry once the consumer has made room. Nothing is dropped unless
+        you discard it; the refusal is counted in :attr:`dropped`, which is
+        not a loss count. The array must be 1-D and C-contiguous.
 
         Parameters
         ----------
@@ -60,7 +62,7 @@ class F32Buffer:
         -------
         bool
             ``True`` if all samples were written; ``False`` if the
-            buffer did not have enough free space (samples were dropped).
+            ring had no room and the call was refused (``arr`` untouched).
 
         Examples
         --------
@@ -291,11 +293,21 @@ class F32Buffer:
 
     @property
     def dropped(self) -> int:
-        """Cumulative count of samples dropped due to buffer overrun.
+        """Cumulative samples in REFUSED writes -- not samples lost.
 
-        Incremented atomically (relaxed order) by :meth:`write` whenever
-        a write is rejected because the buffer is full.  The increment is
-        by the number of samples in the rejected batch, not by 1.
+        **Not a count of lost data.** :meth:`write` is all-or-nothing:
+        with no room it copies nothing, leaves the caller's array
+        untouched and refuses the call -- and this counter is then
+        incremented by the length of that refused call, not by 1 and not
+        by anything actually lost.
+
+        So a producer that spins on :meth:`write` until it succeeds, the
+        obvious way to apply backpressure, inflates this while losing
+        nothing: a 60,000-sample run written that way reported 5,960,438.
+        Samples are lost only when the caller *discards* them, which is
+        what ignoring the return value does. Wait for room if you want
+        this to mean what it sounds like.
+
         Resets to zero only when the object is recreated.
 
         Examples
@@ -352,7 +364,8 @@ class F64Buffer:
 
         Copies the entire array in a single ``memcpy``.  Rejects the
         write atomically if there is insufficient free space; the
-        dropped counter is incremented by ``len(arr)`` in that case.
+        call is refused whole -- nothing copied, ``arr`` untouched -- and
+        :attr:`dropped` grows by ``len(arr)``.
         The array must be 1-D and C-contiguous.
 
         Parameters
@@ -364,7 +377,7 @@ class F64Buffer:
         -------
         bool
             ``True`` if all samples were written; ``False`` if the
-            buffer was full (all samples dropped).
+            ring was full and the call was refused (``arr`` untouched).
 
         Examples
         --------
@@ -581,10 +594,20 @@ class F64Buffer:
 
     @property
     def dropped(self) -> int:
-        """Cumulative count of samples dropped due to buffer overrun.
+        """Cumulative samples in REFUSED writes -- not samples lost.
 
-        Incremented atomically by the number of samples in each
-        rejected :meth:`write` batch.
+        **Not a count of lost data.** :meth:`write` is all-or-nothing:
+        with no room it copies nothing, leaves the caller's array
+        untouched and refuses the call -- and this counter is then
+        incremented by the length of that refused call, not by 1 and not
+        by anything actually lost.
+
+        So a producer that spins on :meth:`write` until it succeeds, the
+        obvious way to apply backpressure, inflates this while losing
+        nothing: a 60,000-sample run written that way reported 5,960,438.
+        Samples are lost only when the caller *discards* them, which is
+        what ignoring the return value does. Wait for room if you want
+        this to mean what it sounds like.
 
         Examples
         --------
@@ -647,7 +670,8 @@ class I16Buffer:
         C-contiguous 2-D array of shape ``(n, 2)`` — either layout is
         accepted because the total byte count determines ``n``.  The
         write is rejected atomically if the buffer has fewer than ``n``
-        free slots; in that case ``dropped`` is incremented by ``n``.
+        free slots; the call is then refused whole -- nothing copied,
+        ``arr`` untouched -- and ``dropped`` grows by ``n``.
 
         Parameters
         ----------
@@ -659,7 +683,7 @@ class I16Buffer:
         -------
         bool
             ``True`` if all sample pairs were written; ``False`` if
-            the buffer was full (all pairs dropped).
+            ring was full and the call was refused (``arr`` untouched).
 
         Examples
         --------
@@ -879,10 +903,20 @@ class I16Buffer:
 
     @property
     def dropped(self) -> int:
-        """Cumulative IQ sample pairs dropped due to buffer overrun.
+        """Cumulative IQ sample pairs in REFUSED writes -- not pairs lost.
 
-        Incremented atomically by the number of pairs in each rejected
-        :meth:`write` batch (i.e. ``len(arr) // 2``).
+        **Not a count of lost data.** :meth:`write` is all-or-nothing:
+        with no room it copies nothing, leaves the caller's array
+        untouched and refuses the call -- and this counter is then
+        incremented by the length of that refused call, not by 1 and not
+        by anything actually lost.
+
+        So a producer that spins on :meth:`write` until it succeeds, the
+        obvious way to apply backpressure, inflates this while losing
+        nothing: a 60,000-pair run written that way reported 5,960,438.
+        Samples are lost only when the caller *discards* them, which is
+        what ignoring the return value does. Wait for room if you want
+        this to mean what it sounds like.
 
         Examples
         --------

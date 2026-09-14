@@ -122,6 +122,17 @@ F32Buffer_wait (F32BufferObject *self, PyObject *args)
       PyErr_SetString (PyExc_ValueError, "n must be positive");
       return NULL;
     }
+  /* Unsatisfiable by construction: the ring holds at most `capacity`, so no
+     producer can ever supply n. Raised here rather than left to the C
+     wait's NULL, which the block below would report as end-of-stream --
+     a lie, and the caller would go looking at the producer (doppler#1335). */
+  if ((size_t)n > self->buf->capacity)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "wait(%zd) can never be satisfied: the ring holds %zu",
+                    (Py_ssize_t)n, (size_t)self->buf->capacity);
+      return NULL;
+    }
 
   float *ptr;
   Py_BEGIN_ALLOW_THREADS
@@ -225,14 +236,18 @@ static PyGetSetDef F32Buffer_getset[] = {
     "will return for without spinning.",
     NULL },
   { "dropped", (getter)F32Buffer_dropped, NULL,
-    "Samples dropped due to buffer overrun.", NULL },
+    "Samples in REFUSED writes -- not samples lost. write() adds len(arr)\n"
+    "on each rejection and copies nothing, so a producer that retries keeps\n"
+    "its data and still moves this counter.", NULL },
   { NULL },
 };
 
 static PyMethodDef F32Buffer_methods[] = {
   { "write", (PyCFunction)F32Buffer_write, METH_VARARGS,
-    "write(arr) -> bool\n\nNon-blocking write (complex64). "
-    "Returns True on success, False if full." },
+    "write(arr) -> bool\n\nNon-blocking write (complex64). Returns True\n"
+    "if every sample was written, False if the ring had no room for all of\n"
+    "them and the call was REFUSED -- nothing is dropped and arr is\n"
+    "untouched, so you may retry once the consumer makes room." },
   { "close", (PyCFunction)F32Buffer_close, METH_NOARGS,
     "close() -> None\n"
     "\n"
@@ -385,6 +400,17 @@ F64Buffer_wait (F64BufferObject *self, PyObject *args)
       PyErr_SetString (PyExc_ValueError, "n must be positive");
       return NULL;
     }
+  /* Unsatisfiable by construction: the ring holds at most `capacity`, so no
+     producer can ever supply n. Raised here rather than left to the C
+     wait's NULL, which the block below would report as end-of-stream --
+     a lie, and the caller would go looking at the producer (doppler#1335). */
+  if ((size_t)n > self->buf->capacity)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "wait(%zd) can never be satisfied: the ring holds %zu",
+                    (Py_ssize_t)n, (size_t)self->buf->capacity);
+      return NULL;
+    }
 
   double *ptr;
   Py_BEGIN_ALLOW_THREADS
@@ -487,13 +513,17 @@ static PyGetSetDef F64Buffer_getset[] = {
     "will return for without spinning.",
     NULL },
   { "dropped", (getter)F64Buffer_dropped, NULL,
-    "Samples dropped due to buffer overrun.", NULL },
+    "Samples in REFUSED writes -- not samples lost. write() adds len(arr)\n"
+    "on each rejection and copies nothing, so a producer that retries keeps\n"
+    "its data and still moves this counter.", NULL },
   { NULL },
 };
 
 static PyMethodDef F64Buffer_methods[] = {
   { "write", (PyCFunction)F64Buffer_write, METH_VARARGS,
-    "write(arr) -> bool\n\nNon-blocking write (complex128)." },
+    "write(arr) -> bool\n\nNon-blocking write (complex128). Returns True\n"
+    "if every sample was written, False if the call was REFUSED for want of\n"
+    "room -- nothing is dropped and arr is untouched, so you may retry." },
   { "close", (PyCFunction)F64Buffer_close, METH_NOARGS,
     "close() -> None\n"
     "\n"
@@ -658,6 +688,17 @@ I16Buffer_wait (I16BufferObject *self, PyObject *args)
       PyErr_SetString (PyExc_ValueError, "n must be positive");
       return NULL;
     }
+  /* Unsatisfiable by construction: the ring holds at most `capacity`, so no
+     producer can ever supply n. Raised here rather than left to the C
+     wait's NULL, which the block below would report as end-of-stream --
+     a lie, and the caller would go looking at the producer (doppler#1335). */
+  if ((size_t)n > self->buf->capacity)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "wait(%zd) can never be satisfied: the ring holds %zu",
+                    (Py_ssize_t)n, (size_t)self->buf->capacity);
+      return NULL;
+    }
 
   int16_t *ptr;
   Py_BEGIN_ALLOW_THREADS
@@ -760,14 +801,17 @@ static PyGetSetDef I16Buffer_getset[] = {
     "will return for without spinning.",
     NULL },
   { "dropped", (getter)I16Buffer_dropped, NULL,
-    "Sample pairs dropped due to buffer overrun.", NULL },
+    "Sample pairs in REFUSED writes -- not pairs lost. write() adds the\n"
+    "pair count on each rejection and copies nothing, so a producer that\n"
+    "retries keeps its data and still moves this counter.", NULL },
   { NULL },
 };
 
 static PyMethodDef I16Buffer_methods[] = {
   { "write", (PyCFunction)I16Buffer_write, METH_VARARGS,
-    "write(arr) -> bool\n\nNon-blocking write (int16, shape (n,2) or "
-    "(2n,))." },
+    "write(arr) -> bool\n\nNon-blocking write (int16, shape (n,2) or\n"
+    "(2n,)). Returns True if every pair was written, False if the call was\n"
+    "REFUSED for want of room -- nothing is dropped and arr is untouched." },
   { "close", (PyCFunction)I16Buffer_close, METH_NOARGS,
     "close() -> None\n"
     "\n"

@@ -97,12 +97,11 @@ Three things that bite, all of them measurable:
     A producer that spins on `write` until it succeeds inflates it without
     losing anything: a 60,000-sample run written that way reported 5,960,438
     "dropped". Wait for room if you want the counter to mean what it says.
-- **Never ask for more than `capacity`.** `wait(n)` with `n > capacity` can
-    never be satisfied — the ring cannot hold that many — and it currently
-    spins forever with no diagnostic
-    ([#1335](https://github.com/doppler-dsp/doppler/issues/1335)). Size a
-    threshold from `capacity`, which is *rounded up* from what you asked for,
-    never from the producer's chunk size.
+- **Size a block from `capacity`, not from the producer's chunk.** `wait(n)`
+    with `n > capacity` can never be satisfied — the ring cannot hold that many
+    — so it raises `ValueError` naming both numbers rather than waiting for
+    something that cannot arrive. Read `capacity` back to compare against: it is
+    *rounded up* from what you asked the constructor for.
 
 The runnable version of both directions, with the assertions that keep it
 honest, is `src/doppler/examples/ring_chunking_demo.py`.

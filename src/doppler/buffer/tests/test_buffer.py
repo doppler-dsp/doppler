@@ -300,3 +300,91 @@ class TestPageRounding:
         view = buf.wait(4)
         np.testing.assert_array_equal(view, straddle)
         buf.consume(4)
+
+
+# ── the unsatisfiable wait (doppler#1335) ────────────────────────────────────
+
+
+class TestWaitBeyondCapacity:
+    """`wait(n)` with `n > capacity` can never be satisfied.
+
+    The ring holds at most `capacity`, so no producer can make
+    `head - tail >= n`. Before the guard this fell through to the spin loop
+    -- which has exits for end-of-stream and for an interrupt, and none for
+    this -- and hung forever at 100% CPU with no diagnostic.
+
+    Every test here runs the call on a THREAD with a join deadline rather
+    than calling it directly. That is the whole point: delete the guard and
+    these must go RED, and a direct call would hang the suite instead of
+    failing it.
+    """
+
+    @staticmethod
+    def _call_with_deadline(fn, timeout=5.0):
+        """Run `fn` on a thread; return its exception, or raise on a hang."""
+        box: list[BaseException | None] = [None]
+        done = threading.Event()
+
+        def run() -> None:
+            try:
+                fn()
+            except BaseException as exc:
+                box[0] = exc
+            finally:
+                done.set()
+
+        t = threading.Thread(target=run, daemon=True)
+        t.start()
+        if not done.wait(timeout):
+            raise AssertionError(
+                f"wait() did not return within {timeout}s -- the "
+                "unsatisfiable-n guard is gone and it is spinning (#1335)"
+            )
+        t.join(timeout)
+        return box[0]
+
+    @pytest.mark.parametrize(
+        "cls,dtype",
+        [
+            (F32Buffer, np.complex64),
+            (F64Buffer, np.complex128),
+            (I16Buffer, np.int16),
+        ],
+    )
+    def test_raises_rather_than_spinning(self, cls, dtype):
+        buf = cls(1024)
+        over = buf.capacity + 1
+        exc = self._call_with_deadline(lambda: buf.wait(over))
+        assert isinstance(exc, ValueError), f"expected ValueError, got {exc!r}"
+        # The message must name BOTH numbers: the bound is `capacity`, which
+        # is rounded UP from the constructor argument, so a caller reasoning
+        # about the number they passed cannot work it out from `n` alone.
+        assert str(over) in str(exc) and str(buf.capacity) in str(exc), (
+            f"message names neither n nor capacity: {exc}"
+        )
+
+    def test_is_not_reported_as_end_of_stream(self):
+        """The failure mode the guard replaces was a lie, not just a hang.
+
+        Falling through to the C wait's NULL would land in the branch that
+        reports EOFError -- sending the caller to look at a producer that is
+        fine. An open, un-closed ring must never raise EOFError.
+        """
+        buf = F32Buffer(1024)
+        assert not buf.closed
+        exc = self._call_with_deadline(lambda: buf.wait(buf.capacity + 1))
+        assert not isinstance(exc, EOFError), "an open ring is not at EOF"
+        assert isinstance(exc, ValueError)
+
+    def test_exactly_capacity_is_still_allowed(self):
+        """The bound is inclusive: n == capacity is satisfiable, and works.
+
+        Without this the guard could be off by one in the safe-looking
+        direction and nothing above would notice.
+        """
+        buf = F32Buffer(1024)
+        cap = buf.capacity
+        assert buf.write(np.ones(cap, dtype=np.complex64)) is True
+        view = buf.wait(cap)
+        assert len(view) == cap
+        buf.consume(cap)

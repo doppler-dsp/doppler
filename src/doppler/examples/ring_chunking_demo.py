@@ -27,10 +27,11 @@ nothing about it. The assertions are physical: every frame is exactly the
 length the consumer asked for, contiguous, and the concatenation of all
 frames is the input stream in order, sample for sample.
 
-**Do not ask for more than the ring holds.** `wait(n)` with `n > capacity`
-can never be satisfied and currently spins forever with no diagnostic
-(doppler#1335) — so a threshold is chosen from `capacity` below, never from
-the producer's chunk size.
+**Size a block from `capacity`, not from the producer's chunk.** `wait(n)`
+with `n > capacity` can never be satisfied — the ring holds at most that many
+— and raises `ValueError` rather than waiting for something that cannot
+arrive. `capacity` is also rounded UP from the constructor argument, so it is
+the number to read back and compare against, not the one you passed in.
 
 Run:
   python ring_chunking_demo.py
@@ -146,7 +147,7 @@ print(
 # ── B. a drip in, one big batch out whenever the backlog is worth it ────
 
 BATCH = 2048
-assert RING.capacity >= BATCH, "wait() above capacity never returns (#1335)"
+assert RING.capacity >= BATCH, "a larger ask raises: compare to capacity"
 
 drip = F32Buffer(4096)
 DRIP_BLOCKS = [16, 48, 32, 9, 64, 24, 100, 7]

@@ -30,9 +30,12 @@ ______________________________________________________________________
 ## Threading model
 
 One producer thread calls `write`; one consumer thread calls `wait` /
-`consume`. `write` is non-blocking and drops samples if the buffer is
-full. `wait` blocks the consumer and releases the GIL so the producer
-can run concurrently.
+`consume`. `write` is non-blocking and **refuses** the whole call if the
+ring has no room — it copies nothing and leaves your array untouched, so
+you still hold the data and can retry. Nothing is dropped unless you
+discard it; `dropped` counts refused calls, not lost samples. `wait`
+blocks the consumer and releases the GIL so the producer can run
+concurrently.
 
 ______________________________________________________________________
 
@@ -110,7 +113,7 @@ buf = F32Buffer(1024)
 print(buf.capacity)         # 1024 (or next power of two)
 
 ok = buf.write(np.ones(1024, dtype=np.complex64))
-print(ok)                   # True if written, False if dropped
+print(ok)                   # True if written, False if refused (retry)
 ```
 
 ______________________________________________________________________

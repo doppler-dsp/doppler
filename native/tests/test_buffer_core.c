@@ -72,6 +72,34 @@ main (void)
     DP_CHECK (dp_f32_create (96) == NULL); /* not a power of two */
   }
 
+  /* ── an unsatisfiable wait returns instead of spinning (#1335) ───── */
+  {
+    /* n > capacity can never be met: the ring holds at most `capacity`, so
+       head - tail cannot reach n whatever the producer does. The spin loop
+       has exits for end-of-stream and for an interrupt and none for this,
+       so without the guard this hangs forever at 100% CPU.
+
+       NOTE for anyone sabotaging the guard to check this test bites: it
+       will HANG rather than fail, because the failure being pinned is a
+       non-return. The Python half (TestWaitBeyondCapacity) runs the same
+       call on a thread with a join deadline and so fails fast instead. */
+    dp_f32_t *a = dp_f32_create (1024);
+    DP_CHECK (a != NULL);
+    DP_CHECK (dp_f32_wait (a, a->capacity + 1) == NULL);
+    DP_CHECK (!dp_f32_closed (a)); /* and NOT by pretending it is EOF */
+    dp_f32_destroy (a);
+
+    dp_f64_t *b = dp_f64_create (1024);
+    DP_CHECK (b != NULL);
+    DP_CHECK (dp_f64_wait (b, b->capacity + 1) == NULL);
+    dp_f64_destroy (b);
+
+    dp_i16_t *c = dp_i16_create (1024);
+    DP_CHECK (c != NULL);
+    DP_CHECK (dp_i16_wait (c, c->capacity + 1) == NULL);
+    dp_i16_destroy (c);
+  }
+
   /* ── sub-page request rounds up to a whole, power-of-two page ────── */
   {
     /* elem = bytes per complex sample: f32=8, f64=16, i16=4. */

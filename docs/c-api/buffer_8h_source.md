@@ -366,7 +366,8 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
        and a consumer reading them together reads one line. */          \
     volatile int closed;   \
     DP_ALIGN (DP_CACHELINE) volatile size_t tail;        \
-    DP_ALIGN (DP_CACHELINE) volatile size_t dropped;      \
+              \
+    DP_ALIGN (DP_CACHELINE) volatile size_t dropped;                          \
   } dp_##name##_t;                                                            \
                                                                               \
                                                                          \
@@ -471,6 +472,11 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
   static inline type *dp_##name##_wait (dp_##name##_t *ab, size_t n)          \
   {                                                                           \
     size_t h, t;                                                              \
+    /* Unsatisfiable by construction -- the ring holds at most `capacity`,  \
+       so head - tail can never reach n. Checked before the loop because    \
+       the loop has no exit for it. */                                      \
+    if (n > ab->capacity)                                                     \
+      return NULL;                                                            \
     while (((h = DP_LOAD_ACQ (&ab->head)) - (t = DP_LOAD_RLX (&ab->tail)))    \
            < n)                                                               \
       {                                                                       \

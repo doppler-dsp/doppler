@@ -133,9 +133,9 @@ obj->cur_im = 0.0f;
 obj->fir = NULL; /* RRC pulse-shaping FIR, attached via set_rrc() */
 
 /* Chirp: store the normalised start/end frequencies (freq is the start, i.e.
- * the instantaneous frequency at t=0). The per-sample slope chirp_k locks once
- * the sweep span is known — from wfm_synth_set_chirp_span() (composer/CLI, span
- * = the segment length) or the first wfm_synth_steps() call (standalone). */
+ * the instantaneous frequency at t=0). The per-sample slope chirp_k locks when
+ * wfm_synth_set_chirp_span() is called (the composer passes the declared span
+ * or the segment length); until then a chirp holds its start frequency. */
 obj->chirp_f0 = (fs != 0.0) ? freq / fs : 0.0;
 obj->chirp_fend = (fs != 0.0) ? f_end / fs : 0.0;
 obj->chirp_k = 0.0;

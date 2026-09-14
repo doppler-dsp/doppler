@@ -236,7 +236,9 @@ class TestQPSK:
 class TestChirp:
     def test_linear_instantaneous_frequency(self) -> None:
         fs, f0, f1, n = 1e6, -200_000.0, 200_000.0, 4096
-        x = w.Synth(type="chirp", fs=fs, freq=f0, f_end=f1, snr=100.0).steps(n)
+        x = w.Synth(
+            type="chirp", fs=fs, freq=f0, f_end=f1, snr=100.0, span=n
+        ).steps(n)
         # Unwrapped phase derivative -> instantaneous freq.
         phase = np.unwrap(np.angle(x.astype(np.complex128)))
         inst = np.diff(phase) / (2.0 * np.pi) * fs
@@ -248,7 +250,12 @@ class TestChirp:
 
     def test_phase_continuity(self) -> None:
         x = w.Synth(
-            type="chirp", fs=1e6, freq=0.0, f_end=300_000.0, snr=100.0
+            type="chirp",
+            fs=1e6,
+            freq=0.0,
+            f_end=300_000.0,
+            snr=100.0,
+            span=2048,
         ).steps(2048)
         dphi = np.angle(x[1:] * np.conj(x[:-1]))
         # No 2*pi jumps: per-step phase step stays well inside (-pi, pi).

@@ -160,6 +160,12 @@
             { "$ref": "#/$defs/number_range" }
           ]
         },
+        "span": {
+          "default": 0,
+          "description": "Chirp sweep length (samples): the frequency ramps from freq to f_end over this many samples, then holds at f_end. 0 means the segment's num_samples. Ignored by all types other than chirp.",
+          "type": "integer",
+          "minimum": 0
+        },
 
         "snr": {
           "default": 100.0,
@@ -472,6 +478,7 @@
         },
         "freq":       { "$ref": "#/$defs/source/properties/freq" },
         "f_end":      { "$ref": "#/$defs/source/properties/f_end" },
+        "span":       { "$ref": "#/$defs/source/properties/span" },
         "snr":        { "$ref": "#/$defs/source/properties/snr" },
         "snr_mode":   { "$ref": "#/$defs/snr_mode" },
         "seed":       { "$ref": "#/$defs/source/properties/seed" },

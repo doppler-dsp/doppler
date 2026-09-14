@@ -602,9 +602,13 @@ add_source_obj (cJSON *so, const wfm_source_t *src)
   cJSON_AddStringToObject (so, "type", TYPE_NAMES[t]);
   add_num_or_range (so, "freq", src->freq, src->freq_hi,
                     src->ranged & WFM_RANGE_FREQ);
-  if (src->type == WFM_SYNTH_CHIRP) /* chirp end frequency */
-    add_num_or_range (so, "f_end", src->f_end, src->f_end_hi,
-                      src->ranged & WFM_RANGE_FEND);
+  if (src->type == WFM_SYNTH_CHIRP) /* chirp end frequency + sweep span */
+    {
+      add_num_or_range (so, "f_end", src->f_end, src->f_end_hi,
+                        src->ranged & WFM_RANGE_FEND);
+      if (src->span)
+        cJSON_AddNumberToObject (so, "span", (double)src->span);
+    }
   add_num_or_range (so, "snr", src->snr, src->snr_hi,
                     src->ranged & WFM_RANGE_SNR);
   cJSON_AddStringToObject (so, "snr_mode", MODE_NAMES[m]);
@@ -938,6 +942,7 @@ parse_source_obj (const cJSON *so, wfm_source_t *out)
     = cJSON_IsTrue (cJSON_GetObjectItemCaseSensitive (so, "background")) ? 1
                                                                          : 0,
     .f_end = f_end,
+    .span  = (size_t)num (so, "span", 0),
     .ranged
     = (unsigned)((rf ? WFM_RANGE_FREQ : 0) | (rs ? WFM_RANGE_SNR : 0)
                  | (rl ? WFM_RANGE_LEVEL : 0) | (re ? WFM_RANGE_FEND : 0)),
@@ -1118,9 +1123,13 @@ wfm_spec_to_json (const wfm_segment_t *segs, size_t n_segs, int repeat,
           cJSON_AddNumberToObject (s, "fs", g->fs);
           add_num_or_range (s, "freq", src->freq, src->freq_hi,
                             src->ranged & WFM_RANGE_FREQ);
-          if (src->type == WFM_SYNTH_CHIRP) /* chirp end frequency */
-            add_num_or_range (s, "f_end", src->f_end, src->f_end_hi,
-                              src->ranged & WFM_RANGE_FEND);
+          if (src->type == WFM_SYNTH_CHIRP) /* end frequency + sweep span */
+            {
+              add_num_or_range (s, "f_end", src->f_end, src->f_end_hi,
+                                src->ranged & WFM_RANGE_FEND);
+              if (src->span)
+                cJSON_AddNumberToObject (s, "span", (double)src->span);
+            }
           add_num_or_range (s, "snr", src->snr, src->snr_hi,
                             src->ranged & WFM_RANGE_SNR);
           cJSON_AddStringToObject (s, "snr_mode", MODE_NAMES[m]);

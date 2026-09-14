@@ -96,13 +96,16 @@ def _csv(path: Path, header: str, rows: list[list[float]]) -> None:
             fh.write(",".join(f"{v:.10g}" for v in r) + "\n")
 
 
-def synth(wtype: str, **kw) -> _SynthEngine:
+def synth(wtype: str, span: int = 4096, **kw) -> _SynthEngine:
     """One engine, with the attachments its type needs.
 
     Parameters
     ----------
     wtype : str
         A member of `TYPES`.
+    span : int, default 4096
+        A chirp's sweep length, pinned through `set_chirp_span()` before
+        any read. 0 leaves it unpinned. Ignored by the other types.
     **kw
         Overrides for the create arguments.
 
@@ -124,7 +127,9 @@ def synth(wtype: str, **kw) -> _SynthEngine:
     if wtype == "chirp" and args["f_end"] == 0.0:
         args["f_end"] = 2.0e5
     s = _SynthEngine(type=wtype, **args)
-    if wtype == "bits":
+    if wtype == "chirp":
+        s.set_chirp_span(span)
+    elif wtype == "bits":
         s.set_bits(BIT_PATTERN, 1)
     elif wtype == "symbols":
         s.set_symbols(SYMBOL_STREAM)
@@ -190,6 +195,8 @@ class Data:
     chirp_steps_swept: float = 0.0
     chirp_step_gap: float = 0.0
     chirp_block_gap: float = 0.0
+    chirp_unpinned_swept: float = 0.0
+    chirp_unpinned_gap: float = 0.0
     face_rows: list[list[str]] = field(default_factory=list)
     face_identical: list[str] = field(default_factory=list)
     face_differs: list[str] = field(default_factory=list)
@@ -222,9 +229,9 @@ def section_object() -> None:
     R.md(
         "Measured through `doppler.wfm._SynthEngine`, the raw engine. The "
         "public `Synth` is a thin declarative wrapper over the same core, "
-        "so a property proven here holds for the ladder above it -- with "
-        "one exception, F2, where the wrapper's face is the one that "
-        "matters and is measured directly."
+        "so a property proven here holds for the ladder above it. The "
+        "wrapper adds one rule of its own: a standalone sweeping chirp must "
+        "declare its `span`, because it has no segment to lend one (F2)."
     )
     R.md()
 
@@ -577,7 +584,8 @@ def measure_chirp(d: Data) -> None:
     env = 0.0
     n = 4096
     for f0, f1 in [(0.0, 2.0e5), (2.0e5, -1.0e5), (-1.5e5, 1.5e5)]:
-        y = synth("chirp", freq=f0, f_end=f1).steps(n).astype(np.complex128)
+        y = synth("chirp", span=n, freq=f0, f_end=f1).steps(n)
+        y = y.astype(np.complex128)
         inst = ifreq(y)
         x = np.arange(len(inst))
         slope, icept = np.polyfit(x, inst, 1)
@@ -610,26 +618,34 @@ def measure_chirp(d: Data) -> None:
     )
     R.md()
 
-    R.md("#### And when it is not pinned, it is three different waveforms")
+    R.md("#### Read three ways, it is one waveform")
     R.md()
     R.md(
-        "The span above was pinned by the single `steps(n)` call that read "
-        "the whole sweep -- `steps()` self-pins on its first call. Nothing "
-        "else does. Read the SAME chirp another way and the result changes "
-        "completely (**F2**, gh-1115)."
+        "The span above is pinned by `set_chirp_span()` before the first "
+        "read. It used to be taken from the first `steps()` call instead, "
+        "and `step()` never took one at all, so the same chirp was three "
+        "different waveforms depending on how it was read (**F2**, "
+        "gh-1115, now fixed). Read the same pinned chirp three ways:"
     )
     R.md()
     kw = {"freq": 0.0, "f_end": 2.0e5}
-    one = synth("chirp", **kw).steps(n)
-    e = synth("chirp", **kw)
+    one = synth("chirp", span=n, **kw).steps(n)
+    e = synth("chirp", span=n, **kw)
     stepd = np.array([e.step() for _ in range(n)], np.complex64)
-    e = synth("chirp", **kw)
+    e = synth("chirp", span=n, **kw)
     blocks = np.concatenate([e.steps(64) for _ in range(n // 64)])
     sw = lambda y: float(ifreq(y).max() - ifreq(y).min())  # noqa: E731
     d.chirp_steps_swept = sw(one)
     d.chirp_step_swept = sw(stepd)
     d.chirp_step_gap = float(np.max(np.abs(one - stepd)))
     d.chirp_block_gap = float(np.max(np.abs(one - blocks)))
+    # and an engine nobody pins: it must not sweep on EITHER path, or the
+    # read pattern would be back in charge of the waveform
+    ua = synth("chirp", span=0, **kw).steps(n)
+    e = synth("chirp", span=0, **kw)
+    ub = np.array([e.step() for _ in range(n)], np.complex64)
+    d.chirp_unpinned_swept = max(sw(ua), sw(ub))
+    d.chirp_unpinned_gap = float(np.max(np.abs(ua - ub)))
     R.table(
         [
             "how the same chirp was read",
@@ -655,11 +671,15 @@ def measure_chirp(d: Data) -> None:
         ],
     )
     R.md(
-        f"`step()` sweeps {d.chirp_step_swept:.0f} Hz: with the span never "
-        "pinned the slope stays 0 and the output is a constant-frequency "
-        "tone at `f_start`. The difference from the correct waveform is "
-        f"{d.chirp_step_gap:.3f} -- the largest two unit-modulus signals "
-        "can differ by."
+        f"All three sweep {d.chirp_steps_swept / 1e3:.1f} kHz and differ "
+        f"by at most {max(d.chirp_step_gap, d.chirp_block_gap):.3g} -- bit "
+        "for bit. An engine nobody pins does not sweep at all: it holds "
+        f"`f_start` on `step()` and `steps()` alike "
+        f"({d.chirp_unpinned_swept:.3g} Hz swept, the two reads differing "
+        f"by {d.chirp_unpinned_gap:.3g}), so no read pattern can change "
+        "it. The public `Synth` refuses that case outright rather than "
+        "emit a tone nobody asked for: a sweeping standalone chirp must "
+        "declare `span`, and raises on first generation without one."
     )
     R.md()
     R.md("![One chirp, three read patterns](chirp.png)")
@@ -698,10 +718,8 @@ def measure_faces(d: Data) -> None:
     R.table(["type", "step() vs steps()", "steps(64) vs 4 x steps(16)"], rows)
     R.md(
         f"Bit-for-bit on {len(d.face_identical)} of {len(TYPES)} types, "
-        f"both ways. The exception is `chirp`, for the reason §2.6 "
-        "measured: the span is inferred from how the caller read, so the "
-        "two faces are answering different questions rather than "
-        "disagreeing about one (F2)."
+        f"both ways -- `chirp` included, now that its span is pinned "
+        "before the first read instead of taken from it (§2.6, F2)."
     )
     R.md()
 
@@ -736,8 +754,6 @@ def measure_state(d: Data) -> None:
     rows = []
     all_exact = True
     for t in TYPES:
-        if t == "chirp":
-            continue  # its span depends on the read pattern -- see F2
         kw = {"snr": 6.0, "snr_mode": "fs", "freq": 1.0e5}
         ref = synth(t, **kw).steps(600)
         a = synth(t, **kw)
@@ -800,10 +816,6 @@ def measure_accessors(d: Data) -> None:
     )
     R.md()
     d.unreachable = [
-        (
-            "`wfm_synth_set_chirp_span` -- the only way to pin a chirp's "
-            "sweep. Its absence is what makes F2 unfixable from Python."
-        ),
         (
             "`wfm_synth_set_dsss_chips` -- installs a pre-assembled burst; "
             "the four-field `set_dsss` is bound and routes through it."
@@ -878,25 +890,25 @@ def review(d: Data) -> None:
     )
     R.find(
         "F2",
-        "CONFIRMED",
-        "**`step()` on a chirp emits a flat CW tone, and an unpinned "
-        "chirp's sweep depends on how the caller chunked its reads** "
-        "(gh-1115). The slope needs a span; `wfm_synth_steps()` self-pins "
-        "to its first block length and `wfm_synth_step()` has no such "
-        "lock, so `chirp_k` stays 0.0 and the output is a constant tone at "
-        f"`f_start` -- {d.chirp_step_swept:.0f} Hz swept against "
-        f"{d.chirp_steps_swept / 1e3:.0f} kHz, a difference of "
-        f"{d.chirp_step_gap:.3f}, the largest two unit-modulus signals can "
-        "differ by. Reading in 64-sample blocks instead gives a third "
-        "waveform. This contradicts a documented invariant of the object "
-        "-- the chirp branch's own comment says step() and steps() 'stay "
-        "byte-identical' -- and the C test never caught it because all "
-        "three of its chirp cases pin the span first, including the one "
-        "asserting the two faces agree. Python cannot pin at all: "
-        "`set_chirp_span` is not bound on either face. Reproduced on the "
-        "public `doppler.wfm.chirp()`, not just the raw engine. Left "
-        "unfixed here on purpose -- phase 8 measures, it does not repair, "
-        "and the right repair is a design choice (§2.6).",
+        "FIXED",
+        "**`step()` on a chirp emitted a flat CW tone, and an unpinned "
+        "chirp's sweep depended on how the caller chunked its reads** "
+        "(gh-1115). `wfm_synth_steps()` self-pinned the span to its first "
+        "block and `wfm_synth_step()` never pinned, so one configuration "
+        "was three waveforms 2.0 apart -- the largest two unit-modulus "
+        "signals can differ by -- and a mid-sweep state resume re-pinned "
+        "to whatever the resumed instance read first, since the span is "
+        "configuration the blob does not carry. The C test missed it "
+        "because all three of its chirp cases pinned first. Fixed by "
+        "making the span DECLARED: the self-pin is gone, so an unpinned "
+        "engine holds `f_start` on both paths; `set_chirp_span` is bound "
+        "on `_SynthEngine`; the public `Synth`/`chirp()` take `span=` and "
+        "refuse a sweeping standalone chirp without one; a `Segment` "
+        "still defaults it to `num_samples`. Now: the three read patterns "
+        f"differ by {max(d.chirp_step_gap, d.chirp_block_gap):.3g} (§2.6), "
+        "chirp joins the step()/steps() and resume tables (§2.7, §2.8). "
+        "Sabotage: restoring the self-pin in `wfm_synth_steps()` turns the "
+        "C unpinned-parity case and the §2.6 limit red.",
     )
     R.find(
         "F3",
@@ -1029,20 +1041,22 @@ def limits(d: Data) -> None:
         "and it holds a constant envelope -- a pure FM tone",
     )
     R.limit(
-        d.chirp_step_gap > 1.0,
-        "an UNPINNED chirp read by step() is a different waveform from the "
-        "same chirp read by steps(): recorded so F2 cannot regress "
-        "silently into looking fixed",
+        d.chirp_step_gap == 0.0 and d.chirp_block_gap == 0.0,
+        "a pinned chirp read by one steps(), by step() and in 64-sample "
+        "blocks is one waveform, bit for bit (F2)",
     )
     R.limit(
-        set(d.face_differs) == {"chirp"},
-        "step() and steps() are bit-for-bit identical on every type except "
-        "chirp, whose span depends on the read (F2)",
+        d.chirp_unpinned_gap == 0.0 and d.chirp_unpinned_swept < 1.0,
+        "an unpinned chirp does not sweep on either read path, so the read "
+        "pattern cannot choose its span",
     )
     R.limit(
-        set(d.chunk_differs) == {"chirp"},
-        "and a block read is independent of the block size on those same "
-        "types",
+        not d.face_differs,
+        "step() and steps() are bit-for-bit identical on every type",
+    )
+    R.limit(
+        not d.chunk_differs,
+        "and a block read is independent of the block size on every type",
     )
     R.limit(
         d.reset_all,
@@ -1065,8 +1079,8 @@ def limits(d: Data) -> None:
         "the held symbol reads back, an injected value survives",
     )
     R.limit(
-        len(d.unreachable) == 5,
-        "five header entry points are not on the Python face and are "
+        len(d.unreachable) == 4,
+        "four header entry points are not on the Python face and are "
         "certified in C instead -- counted, so one quietly appearing or "
         "vanishing is a change",
     )
@@ -1144,20 +1158,21 @@ def plots(d: Data) -> None:
     fig, ax = plt.subplots(figsize=(7, 4))
     n = 4096
     kw = {"freq": 0.0, "f_end": 2.0e5}
-    one = synth("chirp", **kw).steps(n)
-    e = synth("chirp", **kw)
+    one = synth("chirp", span=n, **kw).steps(n)
+    e = synth("chirp", span=n, **kw)
     stepd = np.array([e.step() for _ in range(n)], np.complex64)
-    e = synth("chirp", **kw)
+    e = synth("chirp", span=n, **kw)
     blocks = np.concatenate([e.steps(64) for _ in range(n // 64)])
-    for y, lab in [
-        (one, f"steps({n}) -- one call"),
-        (blocks, f"steps(64) x {n // 64}"),
-        (stepd, f"step() x {n}"),
+    # identical curves, so each is drawn thinner than the last to stay visible
+    for y, lab, style in [
+        (one, f"steps({n}) -- one call", {"lw": 5, "alpha": 0.4}),
+        (blocks, f"steps(64) x {n // 64}", {"lw": 2.5}),
+        (stepd, f"step() x {n}", {"lw": 1, "ls": "--", "color": "k"}),
     ]:
-        ax.plot(ifreq(y) / 1e3, lw=1, label=lab)
+        ax.plot(ifreq(y) / 1e3, label=lab, **style)
     ax.set_xlabel("sample")
     ax.set_ylabel("instantaneous frequency (kHz)")
-    ax.set_title("One chirp, three read patterns, three waveforms (F2)")
+    ax.set_title("One pinned chirp, three read patterns, one waveform (F2)")
     ax.grid(True, alpha=0.3)
     ax.legend(fontsize=8)
     fig.tight_layout()
@@ -1184,13 +1199,11 @@ def build(write: bool = True) -> Report:
     R.executive(
         "Synth",
         [
-            "**Pin a chirp's span, or do not use `step()` on one.** An "
-            "unpinned chirp read sample-by-sample is a constant tone -- "
-            f"{d.chirp_step_swept:.0f} Hz swept against "
-            f"{d.chirp_steps_swept / 1e3:.0f} kHz -- and read in blocks it "
-            "is a third waveform again. From Python there is no way to "
-            "pin: use `Segment`/`Composer`, which pin to the segment "
-            "length (§2.6, F2, gh-1115).",
+            "**A chirp's span is declared, never read off the caller.** "
+            "Pinned, it is one waveform however it is read -- one call, "
+            "step() or 64-sample blocks, bit for bit. A standalone `Synth` "
+            "that sweeps must say `span=` and raises without it; a "
+            "`Segment` lends its `num_samples` (§2.6, F2, gh-1115).",
             "**The SNR you ask for is the SNR you get, in all three "
             "references.** Realized noise power tracks "
             "`snr [+10log10(bps)] -10log10(span)` to "
@@ -1209,11 +1222,11 @@ def build(write: bool = True) -> Report:
             f"filter confines all but {d.rrc_oob_worst * 100:.4f}% of the "
             f"power to (1+beta)*Rs, against {d.rect_oob * 100:.1f}% "
             "leaking past the same edge unshaped (§2.5).",
-            "**Everything except chirp is safe to chunk.** step() equals "
-            "steps() and a block read is independent of block size on "
-            "eight of nine types, and a mid-stream state hand-off resumes "
-            "bit-for-bit -- which is what lets a render be split across "
-            "calls, threads or processes (§2.7, §2.8).",
+            "**Every type is safe to chunk.** step() equals steps(), a "
+            "block read is independent of block size and a mid-stream "
+            "state hand-off resumes bit-for-bit on all nine -- which is "
+            "what lets a render be split across calls, threads or "
+            "processes (§2.7, §2.8).",
             "**The evidence is younger than the object.** The SNR "
             "conversion the header calls its single source of truth, four "
             "more public entry points and all ten accessors were tested by "

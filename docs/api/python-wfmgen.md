@@ -109,8 +109,8 @@ floor behind pi/4-QPSK's lower PAPR.
 ### Chirp (LFM sweep)
 
 A `chirp` is a **linear-FM sweep**: its instantaneous frequency ramps from
-`freq` (the start, also spellable `f_start=`) to `f_end` over the generated
-length, then holds at `f_end`. The phase is continuous, so multi-segment chirps
+`freq` (the start, also spellable `f_start=`) to `f_end` over `span` samples,
+then holds at `f_end`. The phase is continuous, so multi-segment chirps
 join seamlessly — pulse-compression, SAR, sonar, and frequency-response test
 signals all fall out of this one type. `f_end < freq` is a down-chirp; `snr`
 adds AWGN exactly as for a tone.
@@ -119,15 +119,18 @@ adds AWGN exactly as for a tone.
 from doppler.wfm import Synth, chirp
 
 # Up-chirp 100 kHz → 300 kHz over 10000 samples at 1 MS/s
-up = chirp(f_start=100e3, f_end=300e3, fs=1e6).steps(10000)
+up = chirp(f_start=100e3, f_end=300e3, fs=1e6, span=10000).steps(10000)
 
 # Down-chirp (equivalent direct construction; freq IS the start frequency)
-down = Synth(type="chirp", freq=1e6, f_end=500e3, fs=2e6).steps(50000)
+down = Synth(type="chirp", freq=1e6, f_end=500e3, fs=2e6, span=50000)
+x = down.steps(50000)
 ```
 
-The sweep **span is the length you ask for**: `steps(N)` sweeps over exactly
-`N` samples standalone, and in a `Segment` the sweep fills the segment's
-`num_samples` — so `f_end` is reached at the last sample either way.
+The **span is declared, never inferred from a read**: `step()`,
+`steps(N)` and any chunking of reads give the same waveform. A standalone
+sweeping chirp without `span` raises when it first generates. In a `Segment`
+the span defaults to the segment's `num_samples`, so `f_end` is reached at its
+last sample.
 
 ### Clean vs noisy, baseband vs offset
 
@@ -303,7 +306,7 @@ mls_poly(7)                               # 0x41 — the length-7 MLS polynomial
 ```
 
 The builders `tone()` / `bpsk()` / `qpsk()` / `pn()` / `noise()` /
-`chirp(f_start=…, f_end=…)` / `bits(pattern=…, modulation=…)` each return a `Synth` (a
+`chirp(f_start=…, f_end=…, span=…)` / `bits(pattern=…, modulation=…)` each return a `Synth` (a
 `noise(level=…)` is a bare AWGN floor at that level in dBFS; a `chirp` is an LFM
 sweep; a `bits(...)` plays a user pattern); or construct `Synth(...)` directly.
 In a `Segment.sum` the per-synth `snr` resolves

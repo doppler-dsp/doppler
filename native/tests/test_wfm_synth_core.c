@@ -401,11 +401,48 @@ main (void)
     DP_CHECK (dp_nearf (wd_lo, f1 / fs, 2e-3f)); /* starts high */
     DP_CHECK (dp_nearf (wd_hi, f0 / fs, 2e-3f)); /* ends low   */
 
+    /* #1115: the waveform may not depend on how reads are chunked. A pinned
+     * chirp read in 64-sample blocks is the one-block read, bit for bit. */
+    wfm_synth_state_t *cb = wfm_synth_create (WFM_SYNTH_CHIRP, fs, f0, 100.0,
+                                              0, 1, 8, 7, 0, 0, f1);
+    wfm_synth_set_chirp_span (cb, N);
+    float _Complex *b = malloc (N * sizeof *b);
+    DP_CHECK (b != NULL);
+    for (size_t off = 0; off < N; off += 64)
+      wfm_synth_steps (cb, b + off, 64);
+    int block_match = 1;
+    for (size_t i = 0; i < N; i++)
+      if (b[i] != y[i])
+        block_match = 0;
+    DP_CHECK (block_match);
+
+    /* An UNPINNED chirp does not sweep on either path. It used to lock its
+     * span to the first steps() block while step() never locked, so the two
+     * disagreed by the whole waveform. Now both hold f_start, byte-identical,
+     * however the reads are chunked. */
+    wfm_synth_state_t *un1 = wfm_synth_create (WFM_SYNTH_CHIRP, fs, f0, 100.0,
+                                               0, 1, 8, 7, 0, 0, f1);
+    wfm_synth_state_t *un2 = wfm_synth_create (WFM_SYNTH_CHIRP, fs, f0, 100.0,
+                                               0, 1, 8, 7, 0, 0, f1);
+    wfm_synth_steps (un1, b, N / 2);
+    wfm_synth_steps (un1, b + N / 2, N / 2);
+    int un_match = 1;
+    for (size_t i = 0; i < N; i++)
+      if (wfm_synth_step (un2) != b[i])
+        un_match = 0;
+    DP_CHECK (un_match);
+    double wu = carg (b[N - 1] * conjf (b[N - 2])) / 6.283185307179586;
+    DP_CHECK (dp_nearf (wu, f0 / fs, 2e-3f)); /* still at f_start */
+
+    free (b);
     free (d);
     free (y);
     wfm_synth_destroy (cu);
     wfm_synth_destroy (cs);
     wfm_synth_destroy (cd);
+    wfm_synth_destroy (cb);
+    wfm_synth_destroy (un1);
+    wfm_synth_destroy (un2);
   }
 
   wfm_synth_destroy (obj);

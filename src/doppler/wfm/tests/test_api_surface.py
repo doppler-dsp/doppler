@@ -258,7 +258,7 @@ class TestFactories:
             "pn": w.pn(pn_length=7),
             "bpsk": w.bpsk(sps=4),
             "qpsk": w.qpsk(sps=4),
-            "chirp": w.chirp(freq=0.0, f_end=1e5),
+            "chirp": w.chirp(freq=0.0, f_end=1e5, span=16),
             "bits": w.bits(bits=bytes([1, 0, 1])),
         }
         for name, syn in facs.items():

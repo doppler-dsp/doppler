@@ -587,6 +587,14 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
      unframed waveform and no way to find out. */
   if (wfm_source_frame_error (src) != NULL)
     return NULL;
+  /* A sweeping chirp needs its span, and standalone there is no segment to
+     lend one. It used to lock to the length of the first read, so step(),
+     steps(N) and steps(64) x 16 were three different waveforms from one
+     configuration (#1115). A flat chirp (f_end == freq) is a tone and has no
+     slope to lose. */
+  if (src->type == WFM_SYNTH_CHIRP && src->span == 0
+      && src->f_end != src->freq)
+    return NULL;
 
   /* Refer a dsss data-symbol Es/N0 to fs before create (the SSOT helper the
      composer also uses, so both faces agree to the bit). */
@@ -597,6 +605,7 @@ wfm_source_to_synth (const wfm_source_t *src, double fs)
       src->pn_length, src->pn_poly, src->lfsr, src->f_end);
   if (!eng)
     return NULL;
+  wfm_synth_set_chirp_span (eng, src->span); /* no-op for non-chirp */
 
   if (wfm_source_attach_frame (eng, src) != 0)
     {

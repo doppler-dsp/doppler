@@ -26,7 +26,7 @@ synth.reset()                            # restart the sequence (keeps config)
 ## The builders and the composer
 
 The composition layer mirrors the [concepts](index.md#the-ladder-the-whole-mental-model) ladder. Builders
-`tone()` / `bpsk()` / `qpsk()` / `pn()` / `noise()` / `chirp(f_start=…, f_end=…)`
+`tone()` / `bpsk()` / `qpsk()` / `pn()` / `noise()` / `chirp(f_start=…, f_end=…, span=…)`
 / `bits(pattern=…, modulation=…)` each return a `Synth`; `Segment.sum` mixes
 them, `.add` / `Timeline` sequences them, and `Composer` renders:
 

@@ -22,9 +22,9 @@ wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,
   obj->primed = 0;
 
   /* Chirp: store the normalised start/end frequencies (freq is the start, the
-   * instantaneous frequency at t=0). The per-sample slope chirp_k locks once
-   * the sweep span is known — from wfm_synth_set_chirp_span() (composer/CLI,
-   * span = the segment length) or the first wfm_synth_steps() call. */
+   * instantaneous frequency at t=0). The per-sample slope chirp_k locks when
+   * wfm_synth_set_chirp_span() is called; until then it is 0, a CW tone at the
+   * start frequency on step() and steps() alike. */
   obj->chirp_f0   = (fs != 0.0) ? freq / fs : 0.0;
   obj->chirp_fend = (fs != 0.0) ? f_end / fs : 0.0;
   obj->chirp_k    = 0.0;
@@ -567,13 +567,6 @@ wfm_synth_steps (wfm_synth_state_t *state, float _Complex *output, size_t n)
   size_t      bit_idx = state->bit_idx; /* bits read position (type=bits) */
   size_t      sidx    = state->sym_read_idx; /* symbols read pos (=symbols) */
   float       cre = state->cur_re, cim = state->cur_im;
-
-  /* A standalone chirp that was never pinned takes its sweep span from this
-   * first block (so chirp(...).steps(N) sweeps f_start→f_end over exactly N).
-   * The composer/CLI pin the span to the segment length beforehand, so this
-   * no-ops there. */
-  if (is_chirp && state->chirp_span == 0 && n > 0)
-    wfm_synth_set_chirp_span (state, n);
 
   for (size_t done = 0; done < n;)
     {

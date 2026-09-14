@@ -418,9 +418,10 @@ wfm_synth_shape(wfm_synth_state_t *s, float _Complex *out, size_t m,
  * @param lfsr  LFSR realization: PN_GALOIS (0) or PN_FIBONACCI (1).
  * @param f_end  Chirp end frequency in Hz (type=chirp only; ignored otherwise).
  *              With ``freq`` as the start, the instantaneous frequency sweeps
- *              linearly from ``freq`` to ``f_end`` over the span (set by
- *              wfm_synth_set_chirp_span() or the first wfm_synth_steps() call),
- *              then holds at ``f_end``.  ``f_end < freq`` is a down-chirp.
+ *              linearly from ``freq`` to ``f_end`` over the span set by
+ *              wfm_synth_set_chirp_span(), then holds at ``f_end``.  Until a
+ *              span is pinned the slope is 0 (a CW tone at ``freq``).
+ *              ``f_end < freq`` is a down-chirp.
  *              Default 0.0.
  * @return Heap-allocated state, or NULL on allocation failure.
  * @note Caller must call wfm_synth_destroy() when done.
@@ -442,10 +443,15 @@ wfm_synth_state_t *wfm_synth_create(int type, double fs, double freq, double snr
  *
  * A linear chirp's slope is `(f_end − f_start) / span`, so the span — the
  * number of samples the sweep occupies — must be known before generation. The
- * composer/CLI call this with the segment length; a standalone synth that is
- * never pinned locks its span to the first wfm_synth_steps() call instead.
- * Only the first pin (while the span is still 0) takes effect, so it is safe to
- * call unconditionally after wfm_synth_create().
+ * composer calls this with the source's declared span or the segment length.
+ * A synth that is never pinned does not sweep: it holds the start frequency on
+ * wfm_synth_step() and wfm_synth_steps() alike, so the waveform never depends
+ * on how reads are chunked.  Only the first pin (while the span is still 0)
+ * takes effect, so it is safe to call unconditionally after
+ * wfm_synth_create(); @p span 0 is a no-op.
+ *
+ * The span is configuration, not running state: wfm_synth_get_state() does not
+ * carry it, so pin a resumed instance exactly as the original was pinned.
  *
  * @param state  Must be non-NULL.
  * @param span   Sweep length in samples (> 0).

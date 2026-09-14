@@ -413,3 +413,10 @@ default = "galois"
 name = "f_end"
 type = "double"
 default = "0.0"
+
+[[wfm_synth.methods]]
+name = "set_chirp_span"
+doc = "Pin a chirp's sweep to `span` samples (no-op for non-chirp). Only the first non-zero pin takes effect; until then a chirp holds its start frequency on step() and steps() alike."
+arg_type = "void"
+return_type = "void"
+params = [{ name = "span", type = "size_t" }]

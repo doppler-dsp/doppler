@@ -74,6 +74,9 @@ typedef struct {
                           cache slot (scaled/rotated/dropped as a unit), instead
                           of caching each individually. Ignored by compose().  */
     double f_end;      /* chirp end frequency (Hz); ignored by other types */
+    size_t span;       /* chirp sweep length (samples); 0 = the segment's
+                          on-time. A standalone chirp must declare it: the
+                          sweep slope cannot depend on how reads are chunked */
     /* The payload, as a SEQUENCE like its three siblings below rather than
        a bare array. A literal keeps its bits at `payload.bits`/`payload.len`
        exactly as `bits`/`n_bits` did; a GENERATED payload (PN/Gold/Dotted)

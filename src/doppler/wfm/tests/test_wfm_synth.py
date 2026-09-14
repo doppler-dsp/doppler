@@ -656,14 +656,14 @@ def test_symbols_empty_rejected():
 
 def test_chirp_unit_envelope():
     """A pure FM sweep has constant (unit) magnitude everywhere."""
-    x = chirp(f_start=1e5, f_end=3e5, fs=1e6).steps(4096)
+    x = chirp(f_start=1e5, f_end=3e5, fs=1e6, span=4096).steps(4096)
     assert np.allclose(np.abs(x), 1.0, atol=1e-4)
 
 
 def test_chirp_up_sweep_linear():
     """Instantaneous frequency rises linearly from f_start to f_end."""
     fs, f0, f1, n = 1e6, 1e5, 3e5, 8192
-    x = chirp(f_start=f0, f_end=f1, fs=fs).steps(n)
+    x = chirp(f_start=f0, f_end=f1, fs=fs, span=n).steps(n)
     f = _inst_freq(x, fs)
     assert np.isclose(f[0], f0, atol=2e3)  # starts at f_start
     assert np.isclose(f[-1], f1, atol=2e3)  # ends at f_end
@@ -676,25 +676,89 @@ def test_chirp_up_sweep_linear():
 def test_chirp_down_sweep():
     """f_end < f_start sweeps high → low."""
     fs, f0, f1, n = 1e6, 3e5, 1e5, 8192
-    f = _inst_freq(chirp(f_start=f0, f_end=f1, fs=fs).steps(n), fs)
+    f = _inst_freq(chirp(f_start=f0, f_end=f1, fs=fs, span=n).steps(n), fs)
     assert np.isclose(f[0], f0, atol=2e3)
     assert np.isclose(f[-1], f1, atol=2e3)
 
 
-def test_chirp_span_is_generation_length():
-    """The sweep fills exactly the requested length: f_end is hit at sample
-    N."""
+def test_chirp_sweeps_over_its_declared_span():
+    """f_end is reached at sample `span`, and held after it."""
     fs, f0, f1 = 1e6, 1e5, 4e5
-    short = _inst_freq(chirp(f_start=f0, f_end=f1, fs=fs).steps(2000), fs)
-    long = _inst_freq(chirp(f_start=f0, f_end=f1, fs=fs).steps(8000), fs)
-    # both reach f_end at their own end, so the short sweep ramps ~4x faster
-    assert np.isclose(short[-1], f1, atol=3e3)
+    short = _inst_freq(
+        chirp(f_start=f0, f_end=f1, fs=fs, span=2000).steps(8000), fs
+    )
+    long = _inst_freq(
+        chirp(f_start=f0, f_end=f1, fs=fs, span=8000).steps(8000), fs
+    )
+    assert np.isclose(short[1998], f1, atol=3e3)
+    assert np.allclose(short[2000:], f1, atol=3e3)  # holds past the span
     assert np.isclose(long[-1], f1, atol=3e3)
     assert (short[1] - short[0]) > 3 * (long[1] - long[0])
 
 
+def test_chirp_is_independent_of_read_chunking():
+    """#1115: one block, per-sample step() and 64-sample blocks are one
+    waveform. They used to be three: the span locked to the first read."""
+    kw = {"fs": 1e6, "freq": 0.0, "f_end": 2e5, "span": 1024}
+    one = chirp(**kw).steps(1024)
+    c = chirp(**kw)
+    stepped = np.array([c.step() for _ in range(1024)], np.complex64)
+    c = chirp(**kw)
+    blocks = np.concatenate([c.steps(64) for _ in range(16)])
+    assert np.array_equal(one, stepped)
+    assert np.array_equal(one, blocks)
+
+
+def test_chirp_without_span_refuses_to_guess():
+    """A standalone sweep with no span raises on first generation, on both
+    read paths, rather than inventing one from the read size."""
+    with pytest.raises(RuntimeError):
+        chirp(fs=1e6, freq=0.0, f_end=2e5).steps(1024)
+    with pytest.raises(RuntimeError):
+        chirp(fs=1e6, freq=0.0, f_end=2e5).step()
+
+
+def test_flat_chirp_needs_no_span():
+    """f_end == freq has no slope to lose: it generates, as a tone."""
+    x = chirp(fs=1e6, freq=1e5, f_end=1e5).steps(256)
+    assert np.allclose(_inst_freq(x, 1e6), 1e5, atol=1.0)
+
+
+def test_segment_span_defaults_to_num_samples_and_can_be_declared():
+    """In a Segment the sweep fills num_samples unless span says otherwise."""
+    from doppler.wfm import Composer, Segment
+
+    fs, f0, f1, n = 1e6, 1e5, 3e5, 4096
+    fill = Composer(
+        Segment("chirp", freq=f0, f_end=f1, fs=fs, num_samples=n), repeat=False
+    ).compose()
+    half = Composer(
+        Segment("chirp", freq=f0, f_end=f1, fs=fs, num_samples=n, span=n // 2),
+        repeat=False,
+    ).compose()
+    assert np.array_equal(
+        fill, chirp(freq=f0, f_end=f1, fs=fs, span=n).steps(n)
+    )
+    assert np.allclose(_inst_freq(half, fs)[n // 2 :], f1, atol=3e3)
+
+
+def test_chirp_span_survives_json():
+    """A declared span is part of the record, not dropped by to_json()."""
+    from doppler.wfm import Composer, Segment
+
+    a = Composer(
+        Segment(
+            "chirp", freq=1e5, f_end=3e5, fs=1e6, num_samples=2048, span=512
+        ),
+        repeat=False,
+    )
+    b = Composer.from_json(a.to_json())
+    assert np.array_equal(a.compose(), b.compose())
+    assert '"span"' in a.to_json()
+
+
 def test_chirp_reset_reproduces():
-    s = chirp(f_start=1e5, f_end=3e5, fs=1e6)
+    s = chirp(f_start=1e5, f_end=3e5, fs=1e6, span=4096)
     a = s.steps(4096)
     s.reset()
     assert np.array_equal(a, s.steps(4096))
@@ -703,10 +767,11 @@ def test_chirp_reset_reproduces():
 def test_chirp_respects_snr():
     """A noisy chirp adds AWGN over fs like a tone (clean chirp is unit
     power)."""
-    clean = chirp(f_start=1e5, f_end=3e5, fs=1e6, snr=100).steps(1 << 16)
-    noisy = chirp(f_start=1e5, f_end=3e5, fs=1e6, snr=10, seed=3).steps(
-        1 << 16
-    )
+    n = 1 << 16
+    clean = chirp(f_start=1e5, f_end=3e5, fs=1e6, snr=100, span=n).steps(n)
+    noisy = chirp(
+        f_start=1e5, f_end=3e5, fs=1e6, snr=10, seed=3, span=n
+    ).steps(n)
     assert np.isclose(_power(clean), 1.0, atol=0.02)
     # signal (1) + noise (1/10) over the band
     assert np.isclose(_power(noisy), 1 + 1 / 10, atol=0.05)
@@ -714,8 +779,10 @@ def test_chirp_respects_snr():
 
 def test_chirp_freq_is_f_start_alias():
     """``freq`` and ``f_start`` are the same knob for a chirp."""
-    a = Synth(type="chirp", freq=1e5, f_end=2e5, fs=1e6).steps(1024)
-    b = Synth(type="chirp", f_start=1e5, f_end=2e5, fs=1e6).steps(1024)
+    a = Synth(type="chirp", freq=1e5, f_end=2e5, fs=1e6, span=1024).steps(1024)
+    b = Synth(type="chirp", f_start=1e5, f_end=2e5, fs=1e6, span=1024).steps(
+        1024
+    )
     assert np.array_equal(a, b)
 
 

@@ -13,6 +13,169 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.49.0] — 2026-09-15
+
+### Breaking
+
+- **A standalone sweeping chirp must declare `span=`**
+    ([#1115](https://github.com/doppler-dsp/doppler/issues/1115)).
+    `chirp(f_start=…, f_end=…).steps(N)` used to take its sweep length from
+    `N`; it now raises on first generation, because the length of a read is not
+    a property of the waveform. Write `chirp(f_start=…, f_end=…, span=N)`. A
+    chirp inside a `Segment`, the CLI, and a flat chirp (`f_end == freq`) are
+    unaffected. At the C level, `wfm_synth_steps()` no longer pins the span:
+    call `wfm_synth_set_chirp_span()` before generating, or the engine holds
+    the start frequency.
+
+### Added
+
+- **`cvt.F32ToI8` and `cvt.F32ToI32`** complete the converter family — the
+    write-direction duals of the existing `I8ToF32`/`I32ToF32`, so every
+    integer wire width has a canonical converter to call rather than a private
+    quantiser ([#1117](https://github.com/doppler-dsp/doppler/issues/1117)).
+    Both saturate, round to nearest and carry the sticky `clipped` flag and the
+    serializable-state triplet their siblings have.
+
+- **`wfm.Reader.seek(index)`, `seek_time(seconds)` and `position`** give a
+    capture random access. Reaching sample N used to cost a full decode of the
+    N samples in front of it; `seek()` is one file seek for raw, BLUE and
+    SigMF, and a forward scan for CSV, which is delimited rather than strided
+    ([#1333](https://github.com/doppler-dsp/doppler/issues/1333)). Out of range
+    raises rather than landing quietly at EOF, and a refused seek does not move
+    the read position. `seek_time()` converts through `fs` and **refuses** when
+    `fs_source` is `"none"` — every raw and CSV capture — because the same
+    arithmetic by hand lands on sample 0 for every time, silently.
+
+- **`ring_chunking_demo.py`** shows what `doppler.buffer` is actually for —
+    decoupling the producer's block size from the consumer's, in both
+    directions: irregular multi-thousand-sample blocks re-blocked into exact
+    1024-sample FFT frames, and a drip of 7–100-sample writes batched into
+    2048-sample drains. Both run over many wraps, which is the case the
+    double-mapping exists for. The ring guide gains the same two patterns and
+    the three things that bite — `write` is all-or-nothing and never blocks,
+    `dropped` counts rejected *calls* rather than lost samples, and `wait(n)`
+    above `capacity` hangs
+    ([#1335](https://github.com/doppler-dsp/doppler/issues/1335)).
+
+- **A validator spot check's cost is now recorded and ratcheted**
+    ([#1328](https://github.com/doppler-dsp/doppler/issues/1328)). The
+    spot-check/full-sweep split had no gate, so three validators landed in six
+    days at 87.0 s, 58.7 s and 53.5 s — the largest longer than the full sweep
+    that motivated the split. An unrecorded, outgrown or stale entry now fails
+    `make test-sweep`. Budget is in CI seconds and enforced only there: a
+    workstation runs the same 34 checks **2.35x** faster.
+
+### Changed
+
+- **`make lint` now checks that every CI job gates a merge.** The
+    `protect-main` ruleset requires a single status check, `CI passed`, so a
+    job in `ci.yml` that is missing from the `ci-passed` job's `needs` could
+    fail on every pull request and block nothing. `ci-aggregator-check` fails
+    on a missing or unknown need, a renamed aggregator, or one that would be
+    skipped instead of failing. `CONTRIBUTING.md`, `docs/dev/ci.md` and
+    `docs/dev/release.md` now describe the ruleset as it is.
+
+- **A wire format's full scale is `2^(N-1)`, from `dp_format_full_scale()`
+    alone.** It was `2^(N-1)-1`, restated in four files. The power of two is
+    the grid a converter actually has, so dyadic values round-trip exactly and
+    `dp_mean_power()` reports true dBFS; `+1.0` now saturates to the type's
+    maximum by construction, which the writer's `clipped` reports honestly
+    ([#1117](https://github.com/doppler-dsp/doppler/issues/1117)).
+    `make lint-full-scale` fails on a reintroduced private table.
+
+- **The `sweep` validators' spot checks moved out of `make test` into their
+    own CI job, cutting the C suite from 332 s to 38 s.** They were 88.5% of
+    it (294.2 s of 332.4 s) and `make test` runs on every platform build, so
+    that cost was paid three times per push for numeric checks that do not
+    vary by platform. Nothing stopped running — `make test-sweep` runs them
+    once, on the pinned image. `make test TEST_SWEEP=1` restores the full
+    battery, as `SAN_SWEEP=1` and `COV_SWEEP=1` do for their suites.
+
+### Fixed
+
+- **A standalone chirp was three different waveforms from one configuration**
+    ([#1115](https://github.com/doppler-dsp/doppler/issues/1115)) — its sweep
+    span locked to the length of the first `steps()` call, `step()` never
+    locked and emitted a flat tone, and a mid-sweep state resume re-locked to
+    whatever the resumed instance read first. `Synth`/`chirp()` now take a
+    declared `span=` (samples); a sweeping standalone chirp without one raises
+    on first generation instead of guessing. In a `Segment` the span still
+    defaults to `num_samples`, and a declared `span` overrides it and survives
+    `to_json()`. `wfm_synth_steps()` no longer self-pins: an unpinned engine
+    holds the start frequency on both read paths.
+
+- **Four docs still described the old wire quantiser** after #1117 changed it —
+    `types.md`, `design/capture-files.md`, `design/wfmgen-composition.md` and
+    `guide/wfmgen/waveforms.md` gave full scale as `2^(N-1)-1` and one of them
+    documented "truncating toward zero (a plain cast, not round-to-nearest)" as
+    the contract. They are prose and tables, so no fence gate could catch them.
+
+- **`make lint` now runs `drift-check` and `doxygen-check`, so a header edit
+    is gated locally.** A header feeds three generators and only one of the
+    three was reachable from `lint`, so a doxygen `@param` fix could leave a
+    `.pyi` stale, pass every local target, and fail CI on the one gate the
+    sweep omitted ([#1171](https://github.com/doppler-dsp/doppler/issues/1171)).
+    Lint goes 32 s to ~77 s; `doxygen-check` runs the CI image under Docker
+    unless local doxygen is exactly 1.9.8.
+
+- **A `Pull` worker started before any `Push` died on a fresh broker**
+    ([#956](https://github.com/doppler-dsp/doppler/issues/956)). Only the
+    producer created the JetStream work-queue stream, so `dp_pull_create`
+    failed against a broker that had never carried it, and the start order
+    of a sender and its workers mattered. The worker now provisions the stream
+    through the same idempotent helper the producer uses, so either side may
+    start first and a pre-provisioned stream is still adopted as-is.
+
+- **A round trip through `Writer` and `Reader` no longer returns garbage.**
+    The writer records a raw or CSV capture's wire type and rate in a
+    `<path>.sigmf-meta` sidecar; the reader opened the same path and did not
+    read it, so an untold `ci16` capture came back as `cf32` -- half the
+    samples, at the wrong stride, silently
+    ([#1120](https://github.com/doppler-dsp/doppler/issues/1120)).
+    `sample_type` now defaults to `"auto"`, which takes the type, byte order
+    and rate from that sidecar; naming a type still overrides it, and a
+    capture with no sidecar still reads as `cf32`.
+
+- **`dropped` on a ring buffer documented as what it is: samples in REFUSED
+    writes, not samples lost.** `write` is all-or-nothing — with no room it
+    copies nothing and leaves the caller's array untouched — so a producer
+    that spins on it until it succeeds inflates the counter while losing
+    nothing (measured: 5,960,438 over a 60,000-sample run). The header, the
+    binding, the stubs and both guide pages said "dropped due to buffer
+    overrun"; all four now say the call was refused and the data is still
+    yours to retry.
+
+- **`wait(n)` on a ring buffer no longer hangs when `n` exceeds the ring's
+    capacity.** It could never be satisfied — the ring holds at most
+    `capacity`, so no producer can supply `n` — and the spin loop, which has
+    exits for end-of-stream and for an interrupt, had none for this: it span
+    forever at 100% CPU with no diagnostic
+    ([#1335](https://github.com/doppler-dsp/doppler/issues/1335)). It now
+    raises `ValueError` naming both `n` and `capacity`, which matters because
+    `capacity` is rounded **up** from the constructor argument.
+
+- **The issue tracker marked issues "in review" that no PR closes.**
+    `make issues` read every `#N` in an open PR's body as a close, so a PR
+    that only mentioned an issue, or named one in another repository
+    (`just-buildit/just-makeit#1307`), marked this repository's issue of the
+    same number as under review. It now reads GitHub's own
+    `closingIssuesReferences`, filtered to this repository.
+
+- **`-Wcomment` on every build of the validation harnesses.**
+    `dp_rx_mpsk.h`'s prose contained `native/validation/*.c`, and the `/*` in
+    that glob opens a nested comment as far as the compiler is concerned. The
+    sibling instance in `wfm_compose_ext.c` is jm-generated and is fixed
+    upstream instead — `jm apply` reverts an edit there.
+
+- **`wfm`'s wire quantisers now call doppler's own converters, recovering
+    6.1 dB on every integer capture.** The NATS sink, the file writer and the
+    reader each carried a private float↔int copy that truncated toward zero
+    where every `cvt` converter rounds, and used 2^(N-1)-1 as full scale where
+    `cvt` uses 2^(N-1) — so an 8-bit capture sat at −46.9 dBFS instead of
+    −53.0, and `wfm.Reader` disagreed with `cvt.I16ToF32` on 2.3% of int16
+    codes ([#1117](https://github.com/doppler-dsp/doppler/issues/1117)).
+    **Integer wire bytes change**; `cf32`/`cf64` are untouched.
+
 ## [0.48.0] — 2026-09-12
 
 ### Breaking
@@ -13639,6 +13802,7 @@ ______________________________________________________________________
 [0.46.0]: https://github.com/doppler-dsp/doppler/compare/v0.45.0...v0.46.0
 [0.47.0]: https://github.com/doppler-dsp/doppler/compare/v0.46.0...v0.47.0
 [0.48.0]: https://github.com/doppler-dsp/doppler/compare/v0.47.0...v0.48.0
+[0.49.0]: https://github.com/doppler-dsp/doppler/compare/v0.48.0...v0.49.0
 [0.5.0]: https://github.com/doppler-dsp/doppler/compare/v0.4.6...v0.5.0
 [0.5.1]: https://github.com/doppler-dsp/doppler/compare/v0.5.0...v0.5.1
 [0.5.2]: https://github.com/doppler-dsp/doppler/compare/v0.5.1...v0.5.2
@@ -13649,4 +13813,4 @@ ______________________________________________________________________
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.48.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.49.0...HEAD

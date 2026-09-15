@@ -395,11 +395,6 @@ tier = 4
 title = "DopplerChannel per-sample Doppler profile \u2014 deferred; the carrier needs the warping step, not a chord"
 status = "open"
 
-[issue.956]
-tier = 0
-title = "Pull cannot create the JetStream work-queue stream, so a worker started first dies on a fresh broker"
-status = "in review ([#1339](https://github.com/doppler-dsp/doppler/pull/1339))"
-
 [issue.959]
 tier = 4
 title = "Streaming API shape: role typing, ack ergonomics, control-plane parity, and an undocumented size ceiling"
@@ -544,11 +539,6 @@ status = "open"
 tier = 5
 title = "noise_steps matches steps()'s AWGN chunking to defend against a path that no longer exists, and nothing would catch its return"
 status = "open"
-
-[issue.1115]
-tier = 0
-title = "chirp: step() emits a flat CW tone, and an unpinned chirp's sweep depends on how the caller chunked its reads"
-status = "in review ([#1337](https://github.com/doppler-dsp/doppler/pull/1337))"
 
 [issue.1118]
 tier = 1

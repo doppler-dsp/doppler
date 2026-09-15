@@ -43,8 +43,6 @@ import pathlib
 import subprocess
 import sys
 
-import tomllib
-
 REPO_SLUG = "doppler-dsp/doppler"
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAP = ROOT / "docs" / "dev" / "issue-tiers.toml"
@@ -143,6 +141,11 @@ def _gh(*args: str) -> list[dict]:
 
 
 def load_map() -> dict:
+    # Imported here, not at the top: tomllib is 3.11+ and the project floor is
+    # 3.9, so a module-level import made pr_closes() unimportable -- and its
+    # test red -- on every CI Python below 3.11. Only `make issues` needs it.
+    import tomllib
+
     if not MAP.is_file():
         return {"meta": {}, "issue": {}}
     return tomllib.loads(MAP.read_text(encoding="utf-8"))

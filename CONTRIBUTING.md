@@ -21,8 +21,9 @@ ______________________________________________________________________
 
 ## Git workflow
 
-All non-trivial changes go through a branch and a PR. Direct pushes to
-`main` are reserved for the release version-bump commit only.
+Every change to `main` goes through a branch and a PR — the release
+version bump included. The `protect-main` ruleset refuses direct pushes,
+force-pushes and deletion of `main`.
 
 ### Branch naming
 
@@ -37,19 +38,33 @@ All non-trivial changes go through a branch and a PR. Direct pushes to
 git checkout -b feat/cic-compensator
 # ... implement, test ...
 gh pr create --fill
-# squash-merge once CI is green, then delete the branch
+gh pr merge --rebase   # or --squash, once `CI passed` is green; the branch is deleted for you
 ```
 
 ### PR rules
 
-- CI must be green before merging.
+The `protect-main` ruleset decides what a merge needs:
+
+- **`CI passed` must be green.** It is the only required status check. It
+    succeeds only when every job in its `needs` did, so a job missing from
+    that list gates nothing — `make ci-aggregator-check` fails when one is.
+- **No approving review is required**, but every review thread must be
+    resolved before the PR can merge.
+- **Rebase or squash.** Both keep `main` linear, which the ruleset requires;
+    merge commits are disabled. Rebase keeps a branch's commits (and their
+    changelog-worthy messages); squash lands the PR as one commit.
+- **The branch does not have to be up to date with `main`.** To update it
+    anyway, rebase: `git rebase origin/main && git push --force-with-lease`.
+    Never use GitHub's *Update branch* button — it adds a merge commit, which
+    linear history then refuses.
 - Keep PRs focused — one logical change per PR.
 - The PR title becomes the CHANGELOG entry; write it accordingly.
 
 ### What goes directly on `main`
 
-Only the release bump (`chore: release vX.Y.Z`) skips the PR process —
-see [release.md](docs/dev/release.md).
+Nothing. The release bump (`chore: release vX.Y.Z`) is a PR like any other,
+and `protect-main` refuses a direct push — see
+[release.md](docs/dev/release.md).
 
 ______________________________________________________________________
 

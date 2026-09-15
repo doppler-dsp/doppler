@@ -1223,6 +1223,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 print-jm-version nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
+                ci-aggregator-check \
                 jm-pin \
                 issue-link-check \
                 validate validate-c validate-check \
@@ -1313,7 +1314,7 @@ include standard.mk
 # that has nothing to do with it. Pinning local doxygen to 1.9.8 makes it
 # run natively and skip Docker entirely.
 lint: tests-ssot characterization-check validation-report-check changelog-check \
-      workflow-syntax-check release-notes-size-check \
+      workflow-syntax-check ci-aggregator-check release-notes-size-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
       ccsds-isolation-check cargo-lock-check instrumented-sweep-check \
@@ -1351,6 +1352,13 @@ bench-coverage-check: ## Verify every tested component has a benchmark that runs
 # COMMENT closed the container's script early and the rest ran on the runner.
 workflow-syntax-check: ## Verify every workflow `run:` block is valid shell
 	@uv run python scripts/check_workflow_syntax.py
+
+# protect-main requires ONE status check, `CI passed`, so ci.yml's `ci-passed`
+# `needs` list is the whole merge gate: a job left out of it can fail on every
+# PR and block nothing. Relaxing the ruleset from four named checks to that one
+# aggregator (2026-09-14) moved the gate into a hand-kept YAML list; this reads it.
+ci-aggregator-check: ## Verify every ci.yml job feeds the required `CI passed` check
+	@uv run python scripts/check_ci_aggregator.py
 
 kwarg-parity-check: ## Verify each binding accepts the keywords its stub publishes
 	@uv run python scripts/check_kwarg_parity.py

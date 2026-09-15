@@ -21,8 +21,9 @@ jobs:
   # ------------------------------------------------------------------
   # Split from the macOS leg because `container:` is Linux-only and a
   # job-level container cannot be switched off for one matrix leg. The STEPS
-  # are not split -- both jobs run .github/actions/build-test-suite -- and
-  # neither are the check NAMES, which branch protection requires by string.
+  # are not split -- both jobs run .github/actions/build-test-suite. Neither
+  # job name is required by protect-main: only `CI passed` is, and these jobs
+  # gate a merge through its `needs` (make ci-aggregator-check).
   # The ONE place a CI image digest enters this file. Every containerised job
   # below consumes `needs.pin.outputs.*`; none of them names a digest.
   #

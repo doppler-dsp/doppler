@@ -269,5 +269,9 @@ ______________________________________________________________________
 | `doxygen`, `docs`, `pre-commit`, `manifest-drift`, `specan-demo` | pinned image or plain runner          | no system deps beyond the image                                                                   |
 | `docker`                                                         | hosted runner                         | builds the shipped images, so it needs a daemon                                                   |
 
-The check names are load-bearing: branch protection requires them by string,
-so a refactor that renames one silently stops requiring it.
+**One check name is load-bearing: `CI passed`.** It is the only status check
+the `protect-main` ruleset requires, and it is green only when every job in
+its `needs` succeeded. So the other jobs can be renamed freely, and a job
+left out of that list **gates nothing**, however red it goes.
+`make ci-aggregator-check` fails when a job in `ci.yml` is missing from
+`ci-passed`'s `needs`.

@@ -99,7 +99,7 @@ ______________________________________________________________________
 !!! danger "`main` is protected — everything goes through a PR"
 
     All changes to `main`, **including the release bump**, land via a pull
-    request that the required status checks must pass before merge. Never push
+    request whose required `CI passed` check must be green. Never push
     to `main` directly, and never tag a commit that is not already on a green
     `main`. The release workflow (step 7) runs independently of CI and is *not*
     gated on it — so **the PR merge in step 5 is the real gate**. The tag only
@@ -206,7 +206,7 @@ make docs-relink           # regenerates the comparison links from the headings
 git commit -am "chore: release vX.Y.Z"
 git push -u origin HEAD
 gh pr create --fill
-# merge ONLY once every required check is green — do not bypass them
+gh pr merge --rebase   # (or --squash) ONLY once `CI passed` is green — never bypass it
 ```
 
 The release tag will point at this merged commit, so CI passing here is what
@@ -227,7 +227,7 @@ unassembled — step 4 is not optional, and the tag is the irreversible step.
 
     Pushing the tag starts the release workflow and PyPI uploads begin. Because
     PyPI is independent of CI, the safety comes entirely from step 5 — only ever
-    tag a commit that already passed the required checks on `main`.
+    tag a commit whose `CI passed` check is already green on `main`.
 
 ______________________________________________________________________
 

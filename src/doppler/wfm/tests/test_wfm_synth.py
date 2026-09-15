@@ -998,3 +998,42 @@ def test_dsss_window_opens_each_frame_with_the_pure_code():
         np.ceil(np.arange(data_syms.size) * cps).astype(np.int64)
     ]
     assert np.array_equal(got, want), "the payload runs on across frames"
+
+
+def test_chirp_span_survives_json_in_a_summed_segment():
+    """A declared span on a SUMMED source is part of the record too.
+
+    A one-source Segment serializes its fields inline, but a Segment.sum
+    writes each source through a separate path (add_source_obj in
+    wfm_json.c). The single-source round-trip above never reaches it, so a
+    span dropped there would pass that test and silently re-pin a summed
+    chirp to num_samples on the way back in.
+    """
+    from doppler.wfm import Composer, Segment, tone
+
+    n, span = 2048, 512
+    a = Composer(
+        Segment.sum(
+            chirp(f_start=1e5, f_end=3e5, fs=1e6, span=span),
+            tone(freq=-2e5, fs=1e6, level=-6),
+            fs=1e6,
+            num_samples=n,
+        ),
+        repeat=False,
+    )
+    js = a.to_json()
+    assert '"span"' in js
+    b = Composer.from_json(js)
+    assert np.array_equal(a.compose(), b.compose())
+    # and the span is the declared one, not the segment length: the sweep
+    # holds f_end from sample `span` onward
+    solo = Composer(
+        Segment.sum(
+            chirp(f_start=1e5, f_end=3e5, fs=1e6, span=span),
+            fs=1e6,
+            num_samples=n,
+        ),
+        repeat=False,
+    )
+    solo_back = Composer.from_json(solo.to_json()).compose()
+    assert np.allclose(_inst_freq(solo_back, 1e6)[span:], 3e5, atol=3e3)

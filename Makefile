@@ -2500,7 +2500,10 @@ CHANGELOG_BASE ?= origin/main
 
 # A branch that changes code must SAY what it closes, or say it closes
 # nothing. GitHub only closes an issue when a closing keyword reaches the
-# default branch; doppler rebase-merges, so a commit message carries it. This
+# default branch, and a commit message carries it there either way doppler
+# merges: a rebase keeps each commit, and a squash commit's body is the
+# branch's commit messages (repo setting squash_merge_commit_message:
+# COMMIT_MESSAGES, measured 2026-09-14). This
 # asks whether any branch used one, because nothing did: c0e0e615 gated the
 # generated C API tree, which IS #714, and left it open for a day. The same
 # triage found #663/#664/#665 fixed-and-open on PR #717. An open count that

@@ -250,6 +250,13 @@ nats_wire_role (struct dp_ctx *ctx, natsConnection *conn)
         if (natsConnection_JetStream (&js, conn, NULL) != NATS_OK)
           return -1;
         ctx->nats.js = js;
+        /* A worker may start before any producer, so it provisions the
+           work queue too: through the same idempotent helper Push uses, so
+           there is one stream configuration and a pre-provisioned stream is
+           adopted as-is by either side. Binding alone failed on a broker
+           that had never carried the stream (#956). */
+        if (nats_ensure_stream (js, ctx->nats.base) != DP_OK)
+          return -1;
         if (nats_pull_subscribe (ctx, js, &sub) != 0)
           return -1;
         break;

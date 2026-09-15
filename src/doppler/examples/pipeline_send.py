@@ -10,11 +10,9 @@ Usage:
   python pipeline_send.py                  # nats://127.0.0.1:4222/work
   python pipeline_send.py nats://127.0.0.1:4222/work2
 
-Start this FIRST, then one or more pipeline_recv.py workers on the same
-endpoint.  The Push side is what creates the JetStream work-queue stream:
-against a broker that has never carried it, a worker started first dies
-immediately with `dp_pull_create failed`.  Once the stream exists either
-order works, which is how the opposite instruction survived here.
+Run one or more pipeline_recv.py workers on the same endpoint, in either
+order: the sender and the workers each create the JetStream work-queue
+stream if it does not exist yet.
 Press Ctrl+C to stop.
 """
 

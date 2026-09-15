@@ -9,18 +9,18 @@
 # a second Popen. Skipping them meant the demos a reader is most likely
 # to copy (the whole streaming story) were the ones nothing executed.
 #
-# Order is start order, and it is load-bearing for the JetStream pair --
-# see the note there. The regex is matched against the pair's COMBINED
+# Order is start order. The regex is matched against the pair's COMBINED
 # stdout, so it can name whichever side proves the wire actually moved;
 # a pair that exits 0 having exchanged nothing must not pass.
 transmitter.py + receiver.py: Packets: +[1-9]
 # The RTT line is printed only after the reply comes back, so it is the
 # round trip itself; `Done.` would have matched either half's shutdown.
 replier.py + requester.py: RTT +[0-9]
-# pipeline_send.py runs FIRST, though both docstrings used to say workers
-# first: the Push side is what creates the JetStream work-queue stream,
-# and against a broker that has never carried it `dp_pull_create failed`
-# is immediate and deterministic (measured on a fresh -sd store; once any
-# sender has created the stream, either order works, which is why the
-# wrong order survived in the docs).
-pipeline_send.py + pipeline_recv.py: Packets: +[1-9]
+# The WORKER starts first: it is the order that used to fail. Only the Push
+# side created the JetStream work-queue stream, so against a broker that had
+# never carried it `dp_pull_create failed` was immediate (#956). Both sides
+# provision it now. This pair only EXERCISES that order -- the worker prints
+# its banner before it connects, so the sender can race it, and the default
+# subject may already exist on a reused broker. The deterministic proof is
+# test_pull_first_provisions_the_work_queue in test_stream_nats_core.c.
+pipeline_recv.py + pipeline_send.py: Packets: +[1-9]

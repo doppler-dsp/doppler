@@ -679,6 +679,12 @@ extern "C"
 
   /**
    * @brief Create a Pull consumer and connect to @p endpoint.
+   *
+   * On the NATS work-queue tier a worker may start before any producer: it
+   * provisions the JetStream work-queue stream itself, with the same
+   * configuration dp_push_create() would, and adopts a stream that already
+   * exists (including a pre-provisioned one) as-is.
+   *
    * @param endpoint NATS endpoint, e.g. `"nats://127.0.0.1:4222/work"`.
    * @return Non-NULL context on success, NULL on failure.
    */

@@ -644,6 +644,73 @@ test_work_queue_is_age_bounded (void)
   printf ("  work queue is age-bounded and deletable\n");
 }
 
+/* A worker started BEFORE any producer, on a subject no stream has ever
+ * existed for. Pull used to only bind to the work-queue stream Push
+ * creates, so dp_pull_create returned NULL here -- the first thing a reader
+ * following the demos in worker-first order saw (#956). Now either side
+ * provisions it. Asserted against the broker, not our struct: the stream
+ * must exist after a Pull-only create, and the frame sent afterwards must
+ * reach the worker that was waiting for it. */
+static void
+test_pull_first_provisions_the_work_queue (void)
+{
+  printf ("\n-- a worker started first provisions the work queue --\n");
+  char ep[128];
+  (void)snprintf (ep, sizeof (ep), "nats://127.0.0.1:4222/pullfirst%d-%d",
+                  (int)getpid (), rand ());
+
+  dp_sub_t *pull = dp_pull_create (ep);
+  DP_CHECK_MSG (pull != NULL,
+                "a Pull worker created before any Push must not fail on a "
+                "subject whose work-queue stream does not exist yet");
+  if (!pull)
+    return;
+
+  natsConnection *conn = NULL;
+  jsCtx          *js   = NULL;
+  DP_CHECK (natsConnection_ConnectTo (&conn, "nats://127.0.0.1:4222")
+            == NATS_OK);
+  DP_CHECK (natsConnection_JetStream (&js, conn, NULL) == NATS_OK);
+  char name[256];
+  (void)snprintf (name, sizeof (name), "DP_WORK_%s", strrchr (ep, '/') + 1);
+  jsStreamInfo *si = NULL;
+  DP_CHECK_MSG (js_GetStreamInfo (&si, js, name, NULL, NULL) == NATS_OK,
+                "the Pull side created no stream");
+  if (si)
+    {
+      /* the SAME configuration Push would have created */
+      DP_CHECK (si->Config->Retention == js_WorkQueuePolicy);
+      DP_CHECK (si->Config->MaxAge == DP_WORK_QUEUE_MAX_AGE_NS);
+      jsStreamInfo_Destroy (si);
+    }
+
+  /* and the producer that arrives afterwards adopts it, reaching the
+     worker that was already waiting */
+  dp_pub_t *push = dp_push_create (ep, CF32);
+  DP_CHECK (push != NULL);
+  if (push)
+    {
+      float _Complex tx[4] = { 1 + 1 * I, 2 + 2 * I, 3 + 3 * I, 4 + 4 * I };
+      DP_CHECK (dp_pub_send_cf32 (push, tx, 4, 48000.0, 915e6) == DP_OK);
+      dp_sub_set_timeout (pull, 3000);
+      dp_msg_t   *msg = NULL;
+      dp_header_t hdr;
+      DP_CHECK (dp_sub_recv (pull, &msg, &hdr) == DP_OK);
+      DP_CHECK (msg != NULL && hdr.num_samples == 4);
+      if (msg)
+        {
+          DP_CHECK (dp_msg_ack (msg) == DP_OK);
+          dp_msg_free (msg);
+        }
+      DP_CHECK (dp_ctx_delete_stream (push) == DP_OK); /* leave no residue */
+      dp_pub_destroy (push);
+    }
+
+  jsCtx_Destroy (js);
+  natsConnection_Destroy (conn);
+  dp_sub_destroy (pull);
+}
+
 int
 main (void)
 {
@@ -657,6 +724,7 @@ main (void)
   test_pub_sub_roundtrip ();
   test_eos_ends_the_stream ();
   test_eos_is_acked_on_the_work_queue ();
+  test_pull_first_provisions_the_work_queue ();
   test_unparseable_frame_does_not_wedge_the_queue ();
   test_req_rep_roundtrip ();
   test_chunked_pub_sub ();

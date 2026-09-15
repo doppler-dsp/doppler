@@ -113,6 +113,9 @@ dp_pull_t * dp_pull_create (
 
 
 
+On the NATS work-queue tier a worker may start before any producer: it provisions the JetStream work-queue stream itself, with the same configuration [**dp\_push\_create()**](group__pipeline.md#function-dp_push_create) would, and adopts a stream that already exists (including a pre-provisioned one) as-is.
+
+
 
 
 **Parameters:**

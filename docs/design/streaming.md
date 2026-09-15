@@ -266,9 +266,11 @@ the stream with `R=3` before any doppler process connects, and
 `nats_ensure_stream` then adopts the existing stream as-is rather than
 reconfiguring it.
 
-**The Push side creates the stream; the Pull side only binds it.** So on
-a broker that has never carried `DP_WORK_<base>`, starting a worker first
-fails immediately — see gap 2 in §10.
+**Either side creates the stream.** Push and Pull both call
+`nats_ensure_stream`, so a worker may start before any producer on a broker
+that has never carried `DP_WORK_<base>`, and start order does not matter.
+Until [#956](https://github.com/doppler-dsp/doppler/issues/956) only Push
+created it, and a worker started first failed immediately.
 
 ______________________________________________________________________
 
@@ -479,15 +481,15 @@ ordinal type check went with the CF128 retirement, and the public header
 now documents the flags and the chunk block, because v2 made them real
 fields instead of a `reserved[]` the format secretly used.
 
-| #   | Gap                                                                                           | Issue                                                     |
-| --- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| 1   | Six handle types are one type; no entry point validates its role                              | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
-| 2   | `Pull` cannot create the work-queue stream, so a worker started first fails on a fresh broker | [#956](https://github.com/doppler-dsp/doppler/issues/956) |
-| 3   | The raw-bytes control plane has no Python face                                                | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
-| 4   | `Pull.ack(samples)` makes the caller hold a message lifetime                                  | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
-| 5   | `CI8` and `CI16` have no round-trip test                                                      | [#962](https://github.com/doppler-dsp/doppler/issues/962) |
-| 6   | Format names are unprefixed in a public header (`CF32`, `CI16`, …)                            | [#962](https://github.com/doppler-dsp/doppler/issues/962) |
-| 7   | `Push.send`'s size ceiling is undocumented on the Python face                                 | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
+| #   | Gap                                                                                                                               | Issue                                                     |
+| --- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| 1   | Six handle types are one type; no entry point validates its role                                                                  | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
+| 2   | ~~`Pull` cannot create the work-queue stream, so a worker started first fails on a fresh broker~~ closed: both sides provision it | [#956](https://github.com/doppler-dsp/doppler/issues/956) |
+| 3   | The raw-bytes control plane has no Python face                                                                                    | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
+| 4   | `Pull.ack(samples)` makes the caller hold a message lifetime                                                                      | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
+| 5   | `CI8` and `CI16` have no round-trip test                                                                                          | [#962](https://github.com/doppler-dsp/doppler/issues/962) |
+| 6   | Format names are unprefixed in a public header (`CF32`, `CI16`, …)                                                                | [#962](https://github.com/doppler-dsp/doppler/issues/962) |
+| 7   | `Push.send`'s size ceiling is undocumented on the Python face                                                                     | [#959](https://github.com/doppler-dsp/doppler/issues/959) |
 
 ______________________________________________________________________
 

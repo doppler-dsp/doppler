@@ -398,7 +398,7 @@ status = "open"
 [issue.956]
 tier = 0
 title = "Pull cannot create the JetStream work-queue stream, so a worker started first dies on a fresh broker"
-status = "open"
+status = "in review ([#1339](https://github.com/doppler-dsp/doppler/pull/1339))"
 
 [issue.959]
 tier = 4
@@ -411,7 +411,7 @@ title = "Streaming: CI8/CI16 have no round-trip test, and the format names are u
 status = "open"
 
 [issue.966]
-tier = 0
+tier = 4
 title = "Pull workers have no subscription drain, so leaving a queue group drops in-flight work"
 status = "open"
 
@@ -498,11 +498,6 @@ status = "open"
 [issue.1028]
 tier = 1
 title = "Nothing enforces the UBSan alignment ratchet \u2014 it grew 821 \u2192 853 unnoticed"
-status = "open"
-
-[issue.1034]
-tier = 0
-title = "TestComposeUpLive::test_three_block_chain_spawns_and_moves_data fails locally: recv failed: Invalid argument"
 status = "open"
 
 [issue.1035]

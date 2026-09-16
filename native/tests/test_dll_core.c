@@ -18,6 +18,8 @@
  *   7. Always-on lock detector: locks on signal, not on noise
  *   8. Long-run false-lock regression (segments=1, ~4188 periods, several
  *      noise seeds, zero Doppler/carrier)
+ *   8b. A put across the period wrap dumps nothing and skips nothing, on
+ *       both correlation paths (#1287)
  */
 #include "detection/detection_core.h"
 #include "dll/dll_core.h"
@@ -941,6 +943,110 @@ main (void)
     dll_destroy (run);
     dll_destroy (held);
     free (sym);
+    free (rx);
+    free (code);
+  }
+
+  /* ---------------------------------------------------------------- *
+   * 8b. A put across the period wrap: nothing dumped, nothing        *
+   *     skipped, on both correlation paths (#1287)                    *
+   * ---------------------------------------------------------------- */
+  /* dll_set_code_phase() used to move only the NCO. The epoch in progress
+     is keyed to the wrap, so a put back across it read every partial of the
+     next period ready at once (slivers, and a garbage epoch at the wrap),
+     and a put forward across it skipped the wrap and folded a second period
+     into one epoch. Both puts below are a 1-chip correction that lands
+     EXACTLY on the signal, so every epoch after the put is a clean
+     full-period read and the counts are exact over the next 10 periods:
+       back    -- 2 samples of tail, then 9 whole epochs (the bug: 10, the
+                  first a garbage epoch at the wrap);
+       forward -- the owed epoch closes at once, then 10 whole epochs (the
+                  bug: 10, two periods folded into the first).
+     Coasting, so only the put moves the phase. The blob taken right after
+     the put resumes to the same epochs, so the arming is state.
+     Sabotaged: drop the arming in dll_set_code_phase (both counts read 10);
+     drop the tail discard at the awaited wrap (the first epoch after a back
+     put reads the tail's energy). */
+  {
+    const size_t sf = 63, sps = 4, nper = 30;
+    const size_t te = sf * sps, cap = te * nper;
+    uint8_t     *code = malloc (sf);
+    make_code (code, sf, 29u);
+    float _Complex *rx   = malloc (cap * sizeof (*rx));
+    float _Complex *out  = malloc (cap * sizeof (*out));
+    float _Complex *oute = malloc (cap * sizeof (*oute));
+    (void)make_signal (rx, code, sf, sps, 0.0, nper, 5u, 1);
+    const size_t segs[2] = { 1, 4 };
+    for (size_t si = 0; si < 2; si++)
+      for (int dir = -1; dir <= 1; dir += 2)
+        {
+          const size_t K = segs[si];
+          /* back: the loop runs 1 chip AHEAD and is put back onto the
+             signal just after its own wrap; forward: 1 chip BEHIND, put
+             forward just before it. */
+          const double init = dir < 0 ? 1.0 : (double)sf - 1.0;
+          const size_t m    = dir < 0 ? 10 * te - 2 : 10 * te + 2;
+          dll_state_t *d
+              = dll_create (code, sf, sps, init, 0.005, 0.707, 0.5, K);
+          dll_state_t *e
+              = dll_create (code, sf, sps, init, 0.005, 0.707, 0.5, K);
+          DP_REQUIRE (d && e);
+          dll_hold_here (d);
+          dll_set_coast (d, 1);
+          size_t na = dll_steps (d, rx, m, out, cap);
+          DP_CHECK_MSG (na == 10 * K, "before the put: ten epochs");
+          /* put onto the signal's own phase at sample m */
+          dll_set_code_phase (d, fmod ((double)m / (double)sps, (double)sf));
+          void *blob = malloc (dll_state_bytes (d));
+          DP_REQUIRE (blob);
+          dll_get_state (d, blob);
+          DP_CHECK (dll_set_state (e, blob) == DP_OK);
+
+          size_t nb   = dll_steps (d, rx + m, 10 * te, out, cap);
+          size_t want = dir < 0 ? 9 * K : 11 * K;
+          DP_CHECK_MSG (nb == want, dir < 0
+                                        ? "back across the wrap: an epoch "
+                                          "closes only on a whole period"
+                                        : "forward across the wrap: the "
+                                          "owed epoch closes, none folded");
+          /* Every read past the owed one spans a whole partial: no sliver.
+             Compared PERIOD OVER PERIOD (out[i] against out[i + K]), not
+             against the run's own min/max. At segments > 1 the partials of
+             a PN code legitimately differ -- each spans a different quarter
+             of the code, ~7% peak-to-peak here -- so "every read is the
+             same size" is a property correct output does NOT have, and
+             asserting it failed on a working put. One period later is the
+             same quarter of the same code, so the comparison is exact; a
+             sliver (a one-sample partial, ~1/63 of a full one at this
+             geometry) cannot survive it. */
+          /* Back: from the first read, which is what pins the TAIL
+             DISCARD -- the 2-sample tail leaks only ~1.4% into that epoch,
+             so a loose bound cannot see it and the steady state repeats
+             EXACTLY, which is why the tolerance is 1% and not 10%.
+             Forward: skip the owed epoch AND the one after it; that one is
+             a legitimate ~2.8% transient as the loop settles onto the new
+             phase, and tightening the bound over it would fail correct
+             output. */
+          size_t first = dir < 0 ? 0 : 2 * K;
+          DP_CHECK_MSG (nb > first + K, "enough reads to compare periods");
+          for (size_t i = first; i + K < nb; i++)
+            {
+              float a = cabsf (out[i]), b = cabsf (out[i + K]);
+              DP_CHECK_MSG (a > 0.99f * b && b > 0.99f * a,
+                            "after the put every read spans its whole "
+                            "partial");
+            }
+          size_t ne = dll_steps (e, rx + m, 10 * te, oute, cap);
+          DP_CHECK_MSG (ne == nb
+                            && memcmp (oute, out, nb * sizeof (*out)) == 0,
+                        "resumed from the blob taken after the put, the same "
+                        "epochs");
+          free (blob);
+          dll_destroy (e);
+          dll_destroy (d);
+        }
+    free (oute);
+    free (out);
     free (rx);
     free (code);
   }

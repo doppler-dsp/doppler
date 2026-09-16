@@ -162,6 +162,18 @@ typedef struct {
     double seg_chips;        /**< code phase per partial segment = sf/segments.*/
     double seg_norm;         /**< nominal samples per segment (prompt scale). */
     size_t seg_idx;          /**< samples integrated into the current chunk.*/
+    int wrap_pending;        /**< 1: a dll_set_code_phase() moved the phase
+                                  FORWARD across the period wrap, so the wrap
+                                  the epoch in progress was waiting for has in
+                                  effect happened -- the kernel closes that
+                                  epoch on the next sample instead of folding
+                                  a second period into it (#1287).         */
+    int wrap_await;          /**< 1: a put moved the phase BACKWARD across the
+                                  wrap, so the samples up to the next wrap are
+                                  the tail of an epoch already closed -- the
+                                  kernel dumps nothing until that wrap,
+                                  discards the tail there and starts the
+                                  epoch clean (#1287).                     */
     /* ── segments>1 chunked output + one-epoch-deep lookback (heap-owned,
      *    length `segments`; NULL when segments==1 -- dll_init()'s embedded/
      *    borrowed path is always segments==1, so this never needs a
@@ -898,10 +910,17 @@ double dll_get_code_phase(const dll_state_t *state);
  * @brief Set the prompt code phase, in chips: the correction a holder
  *        applies to a coasting loop.
  *
- * Moves the code NCO to @p chips (modulo the code length) and nothing
- * else: the loop filter, the rate aid, the lock detector and the
- * symbol-period aid keep their state, and the accumulators of the period
- * in progress are left to finish on the new phase. This is the other half
+ * Moves the code NCO to @p chips (modulo the code length): the loop
+ * filter, the rate aid, the lock detector and the symbol-period aid keep
+ * their state. Within a period the accumulators of the period in progress
+ * finish on the new phase. Across the period wrap -- where a holder fed
+ * whole periods sits -- the move is taken the short way round and the epoch
+ * follows it: a put forward across the wrap closes the epoch in progress on
+ * the next sample (the wrap it was waiting for has happened), and a put
+ * back across it closes nothing until the next wrap (those samples are the
+ * tail of an epoch already closed) and starts the epoch there. Either way a
+ * put never emits a burst of short partials and never folds a second
+ * period into one epoch. This is the other half
  * of dll_set_coast(): a coasting loop advances at its held rate, which its
  * 32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per 31 ms
  * block at 5 Mcps (design §12.22) -- so whoever holds it on another clock
@@ -1189,7 +1208,7 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 12u /* v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 13u /* v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

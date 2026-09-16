@@ -104,6 +104,8 @@ _DLL state._ [More...](#detailed-description)
 |  float \_Complex \* | [**sums**](#variable-sums)  <br> |
 |  double | [**sym\_period**](#variable-sym_period)  <br> |
 |  [**dll\_tlm\_t**](structdll__tlm__t.md) | [**tlm**](#variable-tlm)  <br> |
+|  int | [**wrap\_await**](#variable-wrap_await)  <br> |
+|  int | [**wrap\_pending**](#variable-wrap_pending)  <br> |
 |  double | [**zeta**](#variable-zeta)  <br> |
 
 
@@ -1358,6 +1360,42 @@ dll_tlm_t dll_state_t::tlm;
 
 
 live telemetry attachment; zeroed in blobs 
+
+
+        
+
+<hr>
+
+
+
+### variable wrap\_await 
+
+```C++
+int dll_state_t::wrap_await;
+```
+
+
+
+1: a put moved the phase BACKWARD across the wrap, so the samples up to the next wrap are the tail of an epoch already closed  the kernel dumps nothing until that wrap, discards the tail there and starts the epoch clean (#1287). 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable wrap\_pending 
+
+```C++
+int dll_state_t::wrap_pending;
+```
+
+
+
+1: a [**dll\_set\_code\_phase()**](dll__core_8h.md#function-dll_set_code_phase) moved the phase FORWARD across the period wrap, so the wrap the epoch in progress was waiting for has in effect happened  the kernel closes that epoch on the next sample instead of folding a second period into it (#1287). 
+ 
 
 
         

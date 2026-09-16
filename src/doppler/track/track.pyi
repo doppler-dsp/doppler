@@ -1000,10 +1000,17 @@ class Dll:
         """Set the prompt code phase, in chips: the correction a holder applies
         to a coasting loop.
 
-        Moves the code NCO to chips (modulo the code length) and nothing else:
-        the loop filter, the rate aid, the lock detector and the symbol-period
-        aid keep their state, and the accumulators of the period in progress
-        are left to finish on the new phase. This is the other half of
+        Moves the code NCO to chips (modulo the code length): the loop filter,
+        the rate aid, the lock detector and the symbol-period aid keep their
+        state. Within a period the accumulators of the period in progress
+        finish on the new phase. Across the period wrap -- where a holder fed
+        whole periods sits -- the move is taken the short way round and the
+        epoch follows it: a put forward across the wrap closes the epoch in
+        progress on the next sample (the wrap it was waiting for has happened),
+        and a put back across it closes nothing until the next wrap (those
+        samples are the tail of an epoch already closed) and starts the epoch
+        there. Either way a put never emits a burst of short partials and never
+        folds a second period into one epoch. This is the other half of
         dll_set_coast(): a coasting loop advances at its held rate, which its
         32-bit NCO quantises to a few parts in 10^7 -- about 0.06 chip per 31
         ms block at 5 Mcps (design §12.22) -- so whoever holds it on another

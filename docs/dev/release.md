@@ -107,6 +107,20 @@ ______________________________________________________________________
 
 ## 3. Cut the release branch + bump the version
 
+**One command does steps 3, 4 and 5's mechanics:**
+
+```sh
+make release-pr VERSION=X.Y.Z
+```
+
+It branches off `origin/main`, bumps the five version sites, promotes the
+changelog fragments and cuts the section, regenerates the comparison links,
+re-checks the versions and the notes size, commits, pushes and opens the PR.
+Read the sections below for what each part is doing and why — then review the
+changelog prose it assembled, which is the one part no command can judge.
+
+To drive it by hand instead (or to stop after the bump):
+
 ```sh
 make release-branch VERSION=X.Y.Z   # branches chore/release-X.Y.Z, then bumps
 ```
@@ -172,20 +186,24 @@ floor.
 On the release branch:
 
 ```sh
-make changelog-assemble    # promotes changelog.d/ into [Unreleased], and
-                           # STAGES the promotion (the fragments are deleted
-                           # but still tracked, so an unstaged assemble makes
-                           # the next `make lint` fail on paths that are gone)
+make changelog-assemble VERSION=X.Y.Z   # promote, then cut the section
+make docs-relink                        # comparison links from the headings
 ```
 
-Then, by hand — this is the one part that is prose and stays prose:
+`changelog-assemble` promotes `changelog.d/` into `[Unreleased]` and **STAGES
+the promotion** (the fragments are deleted but still tracked, so an unstaged
+assemble makes the next `make lint` fail on paths that are gone). With
+`VERSION=` it then renames `## [Unreleased]` → `## [X.Y.Z] — YYYY-MM-DD` and
+opens a fresh empty `## [Unreleased]` above it.
 
-1. Rename `## [Unreleased]` → `## [X.Y.Z] — YYYY-MM-DD`
-1. Add a fresh empty `## [Unreleased]` section above it
+That rename was a hand step until 2026-09-16, sitting immediately after a
+command that had already edited the same file — and a hand step beside an
+automated one is the half that rots. It refuses to cut a version that already
+has a section, so a second run cannot open a duplicate.
 
-```sh
-make docs-relink           # regenerates the comparison links from the headings
-```
+**Writing the fragments is prose and stays prose.** Renaming a heading was
+never prose; reviewing what the fragments *say* still is, and that review is
+the reason the release is a PR.
 
 !!! tip "You no longer write the comparison links"
 

@@ -1220,6 +1220,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 gen-c-api-check \
                 gen-c-api-run \
                 package-c package-c-tarball sdist release-notes \
+                release-pr \
                 print-jm-version nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
@@ -2556,8 +2557,9 @@ issue-link-check: ## A branch changing code must declare Closes #N or No-issue:
 # must NOT exist yet, which is what stops it becoming permanent. It applies to
 # question 2 only; a release PR still touches CHANGELOG.md, so question 1 needs
 # no exemption at all.
-changelog-assemble: ## Promote changelog.d/ fragments into [Unreleased]
-	@$(UV) run python scripts/changelog-assemble.py
+changelog-assemble: ## Promote changelog.d/ fragments ([Unreleased], or VERSION=x.y.z)
+	@$(UV) run python scripts/changelog-assemble.py \
+	    $(if $(VERSION),--version $(VERSION))
 # Stage what it just did. The fragments are DELETED in the worktree but still
 # tracked, so the next `make lint` hands mdformat a list of paths that no
 # longer exist and fails on a step that succeeded. Cutting v0.44.0 that cost a
@@ -2592,6 +2594,36 @@ tag-release: changelog-assembled-check
 # of step with this one. It runs here rather than at tag time because
 # `github-release` needs `publish-python`: at tag time the version is already
 # on PyPI and PyPI refuses a re-upload.
+# The bump PR in ONE command. `release-branch` (vendored) branches off
+# origin/main and bumps the five version sites; everything after it used to be
+# six hand steps in the runbook, and the hand steps are the ones that rot --
+# the comparison links were hand-written until 0.43.0, 0.43.1 and 0.43.2 all
+# shipped without them and nothing checked (#996).
+#
+# `release-notes-size-check` runs HERE, before the PR, because this is the
+# last place its answer can still be acted on: after the tag, publish-python
+# has already written to PyPI and that version can never be re-uploaded.
+#
+# Deliberately NOT lifted into the vendored standard.mk: it chains
+# `changelog-assemble`, which is doppler's own. If a second repo grows the
+# same shape, that is the moment to promote it to canonical -- not before,
+# and never as a private copy of something that already lives there.
+release-pr: ## VERSION=x.y.z — branch, bump, assemble, open the release PR
+ifndef VERSION
+	@echo "usage: make release-pr VERSION=<x.y.z>"; exit 1
+endif
+	@$(MAKE) release-branch VERSION=$(VERSION)
+	@$(MAKE) changelog-assemble VERSION=$(VERSION)
+	@$(MAKE) docs-relink
+	@$(MAKE) version-check VERSION=$(VERSION)
+	@$(MAKE) release-notes-size-check
+	git commit -am "chore: release v$(VERSION)"
+	git push -u origin HEAD
+	gh pr create --fill
+	@echo ""
+	@echo "Merge once \`CI passed\` is green, then:"
+	@echo "  git checkout main && git pull && make ship VERSION=$(VERSION)"
+
 release-notes-size-check: ## Fail if the release notes would exceed GitHub's cap
 	@uv run python scripts/check_release_notes_size.py
 

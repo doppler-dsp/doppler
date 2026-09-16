@@ -1,0 +1,59 @@
+[f32_buffer]
+arg_type = "void"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "false"
+no_step = "true"
+opaque_state = "true"
+header_only = "true"
+class_name = "F32Buffer"
+create_fn = "dp_f32_create"
+
+[[f32_buffer.state]]
+name = "gain"
+type = "double"
+default = "0.0"
+
+[[f32_buffer.init_params]]
+name = "n_samples"
+type = "size_t"
+default = "0"
+
+[[f32_buffer.methods]]
+name = "wait"
+arg_type = "void"
+return_type = "float _Complex"
+fn = "dp_f32_wait"
+borrow = true
+
+[[f32_buffer.methods.params]]
+name = "n"
+type = "size_t"
+
+[[f32_buffer.methods]]
+name = "consume"
+arg_type = "void"
+return_type = "void"
+fn = "dp_f32_consume"
+
+[[f32_buffer.methods.params]]
+name = "n"
+type = "size_t"
+
+[[f32_buffer.methods]]
+name = "available"
+arg_type = "void"
+return_type = "size_t"
+fn = "dp_f32_available"
+
+[[f32_buffer.methods]]
+name = "closed"
+arg_type = "void"
+return_type = "int"
+fn = "dp_f32_closed"
+
+[[f32_buffer.methods]]
+name = "close"
+arg_type = "void"
+return_type = "void"
+fn = "dp_f32_close"

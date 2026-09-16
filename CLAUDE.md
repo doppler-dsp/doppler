@@ -658,9 +658,10 @@ one class would have to name the dtype in a method.
 `Ddcr` was a `kind = "handle"` module (`ddc_fn`) until Layer 3; **handles
 cannot have views**, so it moved to a module object and its core split out to
 `native/{inc,src}/ddcr/`. Two behaviours changed with the kind: `execute()`'s
-`out=` buffer is optional now, and a wrong-dtype `out=` buffer is silently not
-written (jm's object `out=` casts into a temp — library-wide, pinned by an
-xfail in `test_ddcr.py`). See the gallery walkthrough
+`out=` buffer is optional now, and a wrong-dtype `out=` buffer is **refused**
+rather than silently cast into a temp — fixed in jm 0.33.13, pinned by
+`test_ddcr.py::test_rejects_wrong_out_dtype` and the library-wide
+`src/doppler/tests/test_out_param_dtype.py`. See the gallery walkthrough
 (`docs/gallery/ddc-fn.md`) for the streaming/threading model.
 
 **Diagnostics are declarative too.** `create_error`/`create_error_message`

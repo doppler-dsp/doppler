@@ -388,3 +388,71 @@ class TestWaitBeyondCapacity:
         view = buf.wait(cap)
         assert len(view) == cap
         buf.consume(cap)
+
+
+# ── the shape invariant the three instantiations share (doppler#1346) ────────
+# `wait(n)` hands back one element per SAMPLE on f32/f64 and an I/Q pair ROW
+# on i16, so `len()` agrees across the three while the ELEMENT does not.
+# Anything generic over them -- a helper, a benchmark, a consumer written
+# against one width and pointed at another -- then means something different
+# without saying so. The fix is upstream: the ring becomes a jm-generated
+# template (just-makeit#1310) returning `[('i','<i2'),('q','<i2')]` for i16,
+# which is what buffer_ext.c's own header comment has claimed all along.
+
+
+class TestTheThreeInstantiationsAgree:
+    """The macro generates a type per instantiation, so f32 passing says
+    nothing about f64 and i16 -- the same reason the EOS vocabulary test is
+    parametrized. These pin the SHAPE contract across all three."""
+
+    @staticmethod
+    def _make(cls, n):
+        if cls is F32Buffer:
+            return np.zeros(n, dtype=np.complex64)
+        if cls is F64Buffer:
+            return np.zeros(n, dtype=np.complex128)
+        return np.zeros((n, 2), dtype=np.int16)
+
+    @pytest.mark.parametrize("cls", [F32Buffer, F64Buffer, I16Buffer])
+    def test_len_is_the_sample_count(self, cls):
+        """`len(wait(n)) == n` on every width.
+
+        This half already holds, and it is exactly why the divergence below
+        went unnoticed: the count agrees, so a caller checking only `len()`
+        sees three types that look identical.
+        """
+        buf = cls(1024)
+        buf.write(self._make(cls, 64))
+        view = buf.wait(64)
+        assert len(view) == 64
+        buf.consume(64)
+
+    @pytest.mark.xfail(
+        strict=True,
+        reason=(
+            "doppler#1346: I16Buffer.wait() returns 2-D (n, 2) while f32/f64 "
+            "return 1-D, and buffer_ext.c's header comment already promises a "
+            "structured array. The fix is just-buildit/just-makeit#1310, "
+            "which makes the ring a generated template returning "
+            "[('i','<i2'),('q','<i2')] -- 1-D, one element per sample. STRICT "
+            "on purpose: xfail_strict is not set repo-wide, so a bare marker "
+            "would XPASS in silence. Strict makes the adoption announce "
+            "itself -- CI goes red until this marker is removed."
+        ),
+    )
+    def test_rank_agrees_across_widths(self):
+        """Rank is the invariant that silently broke.
+
+        numpy has no complex-integer dtype, so i16 cannot take the f32/f64
+        route literally -- but a structured dtype gets one element per sample
+        AND refuses arithmetic loudly, where a packed int32 would carry across
+        the I/Q boundary and corrupt silently (measured on #1346).
+        """
+        ranks = {}
+        for cls in (F32Buffer, F64Buffer, I16Buffer):
+            buf = cls(1024)
+            buf.write(self._make(cls, 64))
+            view = buf.wait(64)
+            ranks[cls.__name__] = view.ndim
+            buf.consume(64)
+        assert len(set(ranks.values())) == 1, ranks

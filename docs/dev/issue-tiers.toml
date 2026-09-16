@@ -761,7 +761,7 @@ title = "wfm_writer integer writes are ~3x slower since #1117: every component g
 status = "open"
 
 [issue.1346]
-tier = 2
+tier = 5
 title = "I16Buffer.wait() returns 2-D (n,2) while its docstring promises a structured array and its siblings return 1-D"
 status = "open"
 

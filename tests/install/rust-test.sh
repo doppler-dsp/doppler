@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # --8<-- [start:test]
-make rust-test
+make test-rust
 # --8<-- [end:test]
 
 # --8<-- [start:examples]

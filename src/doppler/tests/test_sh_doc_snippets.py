@@ -9,7 +9,7 @@ noticed until a human ran them).
 
 This gate walks every ```` ```sh/```bash/```console ```` fence under
 docs/ (includes resolved, same plumbing as the other gates) and applies
-two independent checks:
+three independent checks:
 
 **Parse-validation** (every fence): each ``doppler ...`` and
 ``doppler-specan ...`` command line is parsed through the CLI's real
@@ -19,6 +19,16 @@ positionals, and bad choices, with no side effects. Each
 in the repo. Lines belonging to heredoc bodies, comments, and (in
 ``console`` fences) output lines are ignored; ``$``-prefixed prompts are
 stripped; backslash continuations are joined.
+
+**Make goals** (every fence, #1348): each ``make <goal>`` names a target
+that exists. This is the DUAL of ``standard.mk``'s ``help-check``, which
+asserts *target ⇒ documented*; this asserts *documented ⇒ target*, and
+neither implies the other. The goal set is read from ``make -s help`` —
+the same ``$(ALL_TARGETS)`` help-check walks — rather than from a second
+list that could disagree with it. Without it a renamed target leaves a
+runbook confidently wrong at the one moment it is being followed, and
+the failure is ``No rule to make target`` in front of a human
+mid-release.
 
 **Execution** (fences that qualify): a fence whose every command is in a
 safe allowlist (``wfmgen``, ``cat``, ``echo``, ``printf``, ``ls``,
@@ -39,6 +49,7 @@ Run locally
 from __future__ import annotations
 
 import contextlib
+import functools
 import io
 import os
 import re
@@ -73,6 +84,62 @@ _EXEC_ALLOWED = frozenset(
 )
 
 _HEREDOC_RE = re.compile(r"<<-?\s*'?(?P<tag>\w+)'?")
+
+#: A target line in ``make help``: two-space indent, the name, then the
+#: description column. Section headers (``Core:``, ``Lint:``) sit at column
+#: zero, so anchoring the indent is what keeps them out of the set.
+_HELP_TARGET = re.compile(r"^  (\S+)\s{2,}\S")
+
+#: ``make`` flags that consume the NEXT token, so it is not a goal.
+_MAKE_FLAG_WITH_VALUE = frozenset({"-C", "-f", "-j", "-o", "-W"})
+
+
+@functools.lru_cache(maxsize=1)
+def _make_targets() -> frozenset[str]:
+    """Every goal ``make help`` lists, asked of make itself.
+
+    Deliberately NOT a second list. ``help-check`` walks ``$(ALL_TARGETS)``
+    and ``make help`` prints exactly that, so reading the printed form keeps
+    one declaration answering both directions — a read-list and a write-list
+    for the same thing can be jointly impossible.
+
+    Computed lazily rather than at import: most CI jobs deselect this gate
+    with ``-m 'not docs_snippets'``, and an import-time subprocess would
+    cost every one of them for nothing.
+    """
+    out = subprocess.run(
+        ["make", "-s", "help"],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    ).stdout
+    return frozenset(
+        m.group(1) for m in map(_HELP_TARGET.match, out.splitlines()) if m
+    )
+
+
+def _make_goals(argv: list[str]) -> list[str]:
+    """The goals in a ``make`` argv — flags and ``VAR=value`` removed.
+
+    ``make ci-run TARGET='build test-rust'`` is ONE shlex token carrying an
+    ``=``, so the assignment is skipped whole. Splitting on whitespace first
+    would read ``test-rust'`` as a goal — measured while inventorying #1348,
+    and the reason this reuses the caller's shlex tokens.
+    """
+    goals: list[str] = []
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if tok in _MAKE_FLAG_WITH_VALUE:
+            i += 2
+            continue
+        if tok.startswith("-") or "=" in tok:
+            i += 1
+            continue
+        goals.append(tok)
+        i += 1
+    return goals
 
 
 def _wfmgen_works() -> bool:
@@ -192,6 +259,22 @@ def _validate_cli_line(line: str, blockid: str) -> None:
                 assert (REPO / script).exists(), (
                     f"{blockid}: documented run-line references a "
                     f"missing script: {script}"
+                )
+            continue
+        if cmd == "make":
+            targets = _make_targets()
+            # An empty set would make every assertion below pass for the
+            # wrong reason -- absent output is not a pass.
+            assert targets, (
+                f"{blockid}: `make -s help` listed no targets, so this "
+                f"check would report clean without looking"
+            )
+            for goal in _make_goals(argv):
+                assert goal in targets, (
+                    f"{blockid}: documented `make {goal}` names no target.\n"
+                    f"  {line}\n"
+                    f"  Fix the doc, or add the target -- `make help` is "
+                    f"the list this reads."
                 )
             continue
         if cmd == "doppler":

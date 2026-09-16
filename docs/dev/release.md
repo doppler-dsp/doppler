@@ -315,19 +315,34 @@ ______________________________________________________________________
 
 ## 8. Verify the release
 
-Once the workflow goes green:
+**`make ship` already did this** — there is nothing to type here, which is the
+point. This step used to be a hand-run `pip install` in a scratch venv, and a
+runbook step reports nothing when it is skipped.
+
+Two gates cover it now:
+
+- **`smoke-pypi`** (`release.yml`, after `publish-python`) installs
+    `doppler-dsp==X.Y.Z` **from PyPI** on x86_64 and aarch64 and runs the full
+    `wfm_e2e.py` against it. `smoke-wheel` installs a *local file* before the
+    upload, so this is the only thing in the release that exercises the index —
+    the C library had `smoke-c` doing exactly this and the wheel did not
+    ([#1347](https://github.com/doppler-dsp/doppler/issues/1347)).
+- **`release-watch.sh`** (the watch half of `make ship`) confirms PyPI serves
+    the version and that `latest` has caught up, and that the GitHub Release is
+    published, non-draft, with notes and its assets attached.
+
+Neither is a substitute for a look at the
+[GitHub Release page](https://github.com/doppler-dsp/doppler/releases): the
+asset check counts tarballs, so confirming that **every** platform wheel (Linux
+x86_64, Linux aarch64, macOS arm64) plus the three C library tarballs are
+present is still worth ten seconds of your eyes.
+
+To re-run the published-wheel check by hand — against any released version,
+which is what makes it rehearsable before touching the script:
 
 ```sh
-# Fresh venv — confirm the package installs and imports
-python -m venv /tmp/doppler-verify && source /tmp/doppler-verify/bin/activate
-pip install doppler-dsp==X.Y.Z
-
-python -c "import doppler; print(doppler.__version__)"
+make release-smoke-pypi VERSION=X.Y.Z
 ```
-
-Check the [GitHub Release page](https://github.com/doppler-dsp/doppler/releases)
-to confirm wheels for all platforms (Linux x86_64, Linux aarch64, macOS
-arm64) — plus the three C library tarballs — are attached.
 
 ______________________________________________________________________
 

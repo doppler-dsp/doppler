@@ -676,3 +676,44 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: make release-smoke VERSION="${{ needs.verify-version.outputs.version }}"
+
+  # ------------------------------------------------------------------
+  # Post-release Python smoke: install doppler-dsp FROM PyPI and run the
+  # same end-to-end that smoke-wheel runs before the upload.
+  #
+  # smoke-wheel installs a LOCAL FILE, so without this nothing in a release
+  # ever exercised the index — the C tarball had a post-publish smoke and
+  # the wheel did not (#1347). This is what catches a partial or yanked
+  # upload, index metadata the resolver rejects, or platform tags that
+  # resolve wrongly on one arch; both manylinux wheels are exercised.
+  #
+  # It cannot gate the publish (PyPI is immutable and already written by
+  # now) — it gates the RELEASE, failing the run so a human sees that what
+  # users can install is not what was tested.
+  # ------------------------------------------------------------------
+  smoke-pypi:
+    name: Post-release PyPI smoke (${{ matrix.arch.tag }})
+    needs:
+      - verify-version
+      - publish-python
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - { tag: x86_64, runner: ubuntu-latest }
+          - { tag: aarch64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.arch.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # `make release-smoke-pypi` builds the throwaway venv with uv, so uv
+      # must be on PATH — setup-python alone is not enough.
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Install from PyPI and run the e2e
+        run: make release-smoke-pypi VERSION="${{ needs.verify-version.outputs.version }}"

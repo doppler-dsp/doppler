@@ -1253,7 +1253,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 cargo-lock-check design-pages-check \
                 ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats pr-watch \
-                wheel-check wheel-smoke release-smoke \
+                wheel-check wheel-smoke release-smoke release-smoke-pypi \
                 bench-python \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report \
@@ -2796,27 +2796,16 @@ wheel-check: ## Verify built wheels carry no -march/-mcpu=native SIMD leak
 	 fi; \
 	 echo "wheel-check: portable — $$isa only in runtime-dispatched *$$ok* functions"
 
-# Installs the built wheel into a THROWAWAY venv and runs the end-to-end from a
-# clean cwd, so `import doppler` can only resolve to the wheel and never to
-# ./src. CI installed into the job environment instead; a temp venv is what
-# makes the same check safe to run on a dev machine.
+# The PRE-publish face of tests/install/wheel-smoke.sh: install the wheel this
+# build produced into a throwaway venv and run the e2e from a clean cwd.
+# `release-smoke-pypi` below is the post-publish face — the SAME script, because
+# the only thing that differs is where the wheel comes from, and a second copy
+# would drift from this one the first time either side is fixed.
 #
-# The venv's bin/ must be on PATH, not just its python: two of the e2e's ten
-# checks shell out to the `wfmgen` CONSOLE SCRIPT, and calling
-# venv/bin/python directly leaves that off PATH. Running the target before
-# wiring it is what caught that -- it read as "the wheel is broken" (8/10)
-# when it was the harness.
+# The venv/PATH and clean-cwd reasoning that used to live here is now in the
+# script's header, next to the code it constrains.
 wheel-smoke: ## Install the built wheel in a temp venv and run the e2e
-	@ls $(WHEEL_DIR)/*.whl > /dev/null 2>&1 \
-	   || { echo "wheel-smoke: no wheel in $(WHEEL_DIR)/ — run 'make wheel'"; exit 1; }; \
-	 tmp="$$(mktemp -d)"; \
-	 $(UV) venv --quiet "$$tmp/venv"; \
-	 VIRTUAL_ENV="$$tmp/venv" $(UV) pip install --quiet $(WHEEL_DIR)/*.whl; \
-	 ( cd "$$tmp" && PATH="$$tmp/venv/bin:$$PATH" \
-	     "$$tmp/venv/bin/python" $(CURDIR)/deploy/validation/wfm_e2e.py ) \
-	   && "$$tmp/venv/bin/python" -c 'import doppler; print("doppler", doppler.__version__)' \
-	   && { rm -rf "$$tmp"; echo "wheel-smoke: OK"; } \
-	   || { rm -rf "$$tmp"; echo "wheel-smoke: FAILED"; exit 1; }
+	bash tests/install/wheel-smoke.sh --wheel-dir "$(WHEEL_DIR)"
 
 # The published C tarball, fetched and exercised the way a consumer would.
 # Runnable against any released version, which is what makes it rehearsable:
@@ -2827,6 +2816,19 @@ ifndef VERSION
 	@echo "usage: make release-smoke VERSION=<x.y.z>"; exit 1
 endif
 	bash tests/install/release-smoke.sh "$(VERSION)"
+
+# The published WHEEL, installed from PyPI the way a user gets it — the
+# post-publish twin of `release-smoke` above, and the one thing `wheel-smoke`
+# cannot do: that installs a local file, so until this nothing in a release
+# ever exercised the index (#1347). `release-watch.sh` queries the PyPI
+# metadata endpoint, which says a version is LISTED, not that it installs.
+# Rehearsable against any released version, which is what makes it testable
+# before a tag exists: `make release-smoke-pypi VERSION=0.49.0`.
+release-smoke-pypi: ## Smoke-test the PUBLISHED wheel from PyPI (VERSION=x.y.z)
+ifndef VERSION
+	@echo "usage: make release-smoke-pypi VERSION=<x.y.z>"; exit 1
+endif
+	bash tests/install/wheel-smoke.sh --pypi "$(VERSION)"
 
 # ── The binary-hygiene gates ─────────────────────────────────────────────────
 # These inspect what the build actually produced, and each one exists because

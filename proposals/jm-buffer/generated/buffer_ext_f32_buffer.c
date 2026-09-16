@@ -17,7 +17,7 @@ typedef struct
 } F32BufferObject;
 
 static void
-F32Buffer_dealloc (F32BufferObject *self)
+F32BufferObj_dealloc (F32BufferObject *self)
 {
   if (self->handle)
     f32_buffer_destroy (self->handle);
@@ -25,7 +25,7 @@ F32Buffer_dealloc (F32BufferObject *self)
 }
 
 static PyObject *
-F32Buffer_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+F32BufferObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   F32BufferObject *self = (F32BufferObject *)type->tp_alloc (type, 0);
   if (self)
@@ -34,7 +34,7 @@ F32Buffer_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 }
 
 static int
-F32Buffer_init (F32BufferObject *self, PyObject *args, PyObject *kwds)
+F32BufferObj_init (F32BufferObject *self, PyObject *args, PyObject *kwds)
 {
   static char       *kwlist[]      = { "n_samples", NULL };
   unsigned long long n_samples_raw = 0;
@@ -52,44 +52,32 @@ F32Buffer_init (F32BufferObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-F32Buffer_reset (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
+F32BufferObj_write (F32BufferObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  f32_buffer_reset (self->handle);
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-F32Buffer_get_gain (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (f32_buffer_get_gain (self->handle));
-}
-
-static PyObject *
-F32Buffer_set_gain (F32BufferObject *self, PyObject *args)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  double v = 0.0;
-  if (!PyArg_ParseTuple (args, "d", &v))
+  static char *_kwlist[] = { "x", NULL };
+  PyObject    *x_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
-  f32_buffer_set_gain (self->handle, v);
-  Py_RETURN_NONE;
+  PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      x_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  if (!x_arr)
+    {
+      return NULL;
+    }
+  const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
+  size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  int                   y     = dp_f32_write_cf (self->handle, x, x_len);
+  Py_DECREF (x_arr);
+  return PyLong_FromLong ((long)y);
 }
+
 static PyObject *
-F32Buffer_wait (F32BufferObject *self, PyObject *args, PyObject *kwds)
+F32BufferObj_wait (F32BufferObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -101,7 +89,7 @@ F32Buffer_wait (F32BufferObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
     return NULL;
   size_t          n  = (size_t)n_raw;
-  float _Complex *_p = dp_f32_wait (self->handle, n);
+  float _Complex *_p = dp_f32_wait_cf (self->handle, n);
   if (!_p)
     {
       PyErr_SetString (PyExc_ValueError, "wait failed");
@@ -124,7 +112,7 @@ F32Buffer_wait (F32BufferObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-F32Buffer_consume (F32BufferObject *self, PyObject *args, PyObject *kwds)
+F32BufferObj_consume (F32BufferObject *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
@@ -141,31 +129,7 @@ F32Buffer_consume (F32BufferObject *self, PyObject *args, PyObject *kwds)
 }
 
 static PyObject *
-F32Buffer_available (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  size_t y = dp_f32_available (self->handle);
-  return PyLong_FromUnsignedLongLong ((unsigned long long)y);
-}
-
-static PyObject *
-F32Buffer_closed (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  int y = dp_f32_closed (self->handle);
-  return PyLong_FromLong ((long)y);
-}
-
-static PyObject *
-F32Buffer_close (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
+F32BufferObj_close (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (!self->handle)
     {
@@ -175,9 +139,62 @@ F32Buffer_close (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
   dp_f32_close (self->handle);
   Py_RETURN_NONE;
 }
+static PyObject *
+F32Buffer_getprop_capacity (F32BufferObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->capacity));
+}
+static PyObject *
+F32Buffer_getprop_available (F32BufferObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(dp_f32_available (self->handle)));
+}
+static PyObject *
+F32Buffer_getprop_dropped (F32BufferObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->dropped));
+}
+static PyObject *
+F32Buffer_getprop_closed (F32BufferObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong ((long)((dp_f32_closed (self->handle))));
+}
+
+static PyGetSetDef F32Buffer_getset[] = {
+  { "capacity", (getter)F32Buffer_getprop_capacity, NULL, "Capacity.\n",
+    NULL },
+  { "available", (getter)F32Buffer_getprop_available, NULL, "Available.\n",
+    NULL },
+  { "dropped", (getter)F32Buffer_getprop_dropped, NULL, "Dropped.\n", NULL },
+  { "closed", (getter)F32Buffer_getprop_closed, NULL, "Closed.\n", NULL },
+  { NULL }
+};
 
 static PyObject *
-F32Buffer_destroy (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
+F32BufferObj_destroy (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
 {
   if (self->handle)
     {
@@ -188,14 +205,14 @@ F32Buffer_destroy (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-F32Buffer_enter (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
+F32BufferObj_enter (F32BufferObject *self, PyObject *Py_UNUSED (ignored))
 {
   Py_INCREF (self);
   return (PyObject *)self;
 }
 
 static PyObject *
-F32Buffer_exit (F32BufferObject *self, PyObject *args)
+F32BufferObj_exit (F32BufferObject *self, PyObject *args)
 {
   (void)args;
   if (self->handle)
@@ -206,13 +223,33 @@ F32Buffer_exit (F32BufferObject *self, PyObject *args)
   Py_RETURN_NONE;
 }
 
-static PyMethodDef F32Buffer_methods[] = {
-  { "reset", (PyCFunction)F32Buffer_reset, METH_NOARGS,
-    "Reset state to post-create defaults.\n" },
+static PyMethodDef F32BufferObj_methods[] = {
 
-  { "get_gain", (PyCFunction)F32Buffer_get_gain, METH_NOARGS, "Get gain.\n" },
-  { "set_gain", (PyCFunction)F32Buffer_set_gain, METH_VARARGS, "Set gain.\n" },
-  { "wait", (PyCFunction)(void *)F32Buffer_wait, METH_VARARGS | METH_KEYWORDS,
+  { "write", (PyCFunction)(void *)F32BufferObj_write,
+    METH_VARARGS | METH_KEYWORDS,
+    "write(x) -> int\n"
+    "\n"
+    "write.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.complex64]\n"
+    "    Input.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "    >>> import numpy as np\n"
+    "    >>> from dpring.buffer import F32Buffer\n"
+    "    >>> obj = F32Buffer(n_samples=0)\n"
+    "    >>> obj.write(np.zeros(4, dtype=np.complex64))\n"
+    "    0\n" },
+  { "wait", (PyCFunction)(void *)F32BufferObj_wait,
+    METH_VARARGS | METH_KEYWORDS,
     "wait(n) -> ndarray\n"
     "\n"
     "wait.\n"
@@ -235,7 +272,7 @@ static PyMethodDef F32Buffer_methods[] = {
     "    >>> y = obj.wait(0)\n"
     "    >>> y.ndim\n"
     "    1\n" },
-  { "consume", (PyCFunction)(void *)F32Buffer_consume,
+  { "consume", (PyCFunction)(void *)F32BufferObj_consume,
     METH_VARARGS | METH_KEYWORDS,
     "consume(n) -> None\n"
     "\n"
@@ -252,39 +289,7 @@ static PyMethodDef F32Buffer_methods[] = {
     "    >>> from dpring.buffer import F32Buffer\n"
     "    >>> obj = F32Buffer(n_samples=0)\n"
     "    >>> obj.consume(0)\n" },
-  { "available", (PyCFunction)F32Buffer_available, METH_NOARGS,
-    "available() -> int\n"
-    "\n"
-    "available.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    Output.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "    >>> from dpring.buffer import F32Buffer\n"
-    "    >>> obj = F32Buffer(n_samples=0)\n"
-    "    >>> obj.available()\n"
-    "    0\n" },
-  { "closed", (PyCFunction)F32Buffer_closed, METH_NOARGS,
-    "closed() -> int\n"
-    "\n"
-    "closed.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "int\n"
-    "    Output.\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    "    >>> from dpring.buffer import F32Buffer\n"
-    "    >>> obj = F32Buffer(n_samples=0)\n"
-    "    >>> obj.closed()\n"
-    "    0\n" },
-  { "close", (PyCFunction)F32Buffer_close, METH_NOARGS,
+  { "close", (PyCFunction)F32BufferObj_close, METH_NOARGS,
     "close() -> None\n"
     "\n"
     "close.\n"
@@ -294,7 +299,7 @@ static PyMethodDef F32Buffer_methods[] = {
     "    >>> from dpring.buffer import F32Buffer\n"
     "    >>> obj = F32Buffer(n_samples=0)\n"
     "    >>> obj.close()\n" },
-  { "destroy", (PyCFunction)F32Buffer_destroy, METH_NOARGS,
+  { "destroy", (PyCFunction)F32BufferObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
@@ -304,7 +309,7 @@ static PyMethodDef F32Buffer_methods[] = {
     "\n"
     "Idempotent: calling it again on an already-released object does\n"
     "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)F32Buffer_enter, METH_NOARGS,
+  { "__enter__", (PyCFunction)F32BufferObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
     "Lets a F32Buffer be used in a `with` statement so its C resources are\n"
@@ -314,7 +319,7 @@ static PyMethodDef F32Buffer_methods[] = {
     "-------\n"
     "F32Buffer\n"
     "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)F32Buffer_exit, METH_VARARGS,
+  { "__exit__", (PyCFunction)F32BufferObj_exit, METH_VARARGS,
     "Exit a context manager, releasing the F32Buffer.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
@@ -332,13 +337,14 @@ static PyMethodDef F32Buffer_methods[] = {
   { NULL }
 };
 
-static PyTypeObject F32BufferType = {
+static PyTypeObject F32BufferObjType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "buffer.F32Buffer",
   .tp_basicsize                           = sizeof (F32BufferObject),
-  .tp_dealloc                             = (destructor)F32Buffer_dealloc,
+  .tp_dealloc                             = (destructor)F32BufferObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc                                 = "F32Buffer type.\n",
-  .tp_methods                             = F32Buffer_methods,
-  .tp_new                                 = F32Buffer_new,
-  .tp_init                                = (initproc)F32Buffer_init,
+  .tp_methods                             = F32BufferObj_methods,
+  .tp_getset                              = F32Buffer_getset,
+  .tp_new                                 = F32BufferObj_new,
+  .tp_init                                = (initproc)F32BufferObj_init,
 };

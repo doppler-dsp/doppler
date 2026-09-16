@@ -18,14 +18,12 @@ class F32Buffer:
 
     >>> from dpring.buffer import F32Buffer
     >>> obj = F32Buffer(n_samples=0)
-    >>> obj.get_gain()
-    0.0
 
     """
     def __init__(self, n_samples: int = 0) -> None: ...
 
-    def reset(self) -> None:
-        """Reset state to post-create defaults."""
+    def write(self, x: NDArray[np.complex64]) -> int:
+        """Write."""
 
     def wait(self, n: int) -> NDArray[np.complex64]:
         """Wait."""
@@ -33,19 +31,24 @@ class F32Buffer:
     def consume(self, n: int) -> None:
         """Consume."""
 
+    def close(self) -> None:
+        """Close."""
+
+    @property
+    def capacity(self) -> int:
+        """Capacity."""
+
+    @property
     def available(self) -> int:
         """Available."""
 
-    def closed(self) -> int:
+    @property
+    def dropped(self) -> int:
+        """Dropped."""
+
+    @property
+    def closed(self) -> bool:
         """Closed."""
-
-    def close(self) -> None:
-        """Close."""
-    def get_gain(self) -> float:
-        """Return current gain."""
-
-    def set_gain(self, value: float) -> None:
-        """Set gain."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

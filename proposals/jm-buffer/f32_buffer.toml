@@ -2,17 +2,13 @@
 arg_type = "void"
 return_type = "float _Complex"
 mutable = "false"
-no_state = "false"
+no_state = "true"
 no_step = "true"
+no_reset = "true"
 opaque_state = "true"
 header_only = "true"
 class_name = "F32Buffer"
 create_fn = "dp_f32_create"
-
-[[f32_buffer.state]]
-name = "gain"
-type = "double"
-default = "0.0"
 
 [[f32_buffer.init_params]]
 name = "n_samples"
@@ -20,10 +16,16 @@ type = "size_t"
 default = "0"
 
 [[f32_buffer.methods]]
+name = "write"
+arg_type = "float _Complex[]"
+return_type = "int"
+fn = "dp_f32_write_cf"
+
+[[f32_buffer.methods]]
 name = "wait"
 arg_type = "void"
 return_type = "float _Complex"
-fn = "dp_f32_wait"
+fn = "dp_f32_wait_cf"
 borrow = true
 
 [[f32_buffer.methods.params]]
@@ -41,19 +43,27 @@ name = "n"
 type = "size_t"
 
 [[f32_buffer.methods]]
-name = "available"
-arg_type = "void"
-return_type = "size_t"
-fn = "dp_f32_available"
-
-[[f32_buffer.methods]]
-name = "closed"
-arg_type = "void"
-return_type = "int"
-fn = "dp_f32_closed"
-
-[[f32_buffer.methods]]
 name = "close"
 arg_type = "void"
 return_type = "void"
 fn = "dp_f32_close"
+
+[[f32_buffer.properties]]
+name = "capacity"
+type = "size_t"
+expr = "self->handle->capacity"
+
+[[f32_buffer.properties]]
+name = "available"
+type = "size_t"
+expr = "dp_f32_available(self->handle)"
+
+[[f32_buffer.properties]]
+name = "dropped"
+type = "size_t"
+expr = "self->handle->dropped"
+
+[[f32_buffer.properties]]
+name = "closed"
+type = "bool"
+expr = "dp_f32_closed(self->handle)"

@@ -38,65 +38,109 @@ symbols the macro already emits, via `fn = "dp_f32_wait"` and friends:
 | `dp_f32_available/closed/close`   | ordinary methods                            |
 | the header-only C, no `.c` file   | `header_only = "true"` → INTERFACE core lib |
 
-`f32_buffer.toml` beside this file is the whole declaration — **58 lines**,
-generating **347** lines of binding and **95** of `.pyi`. For the three
-instances that is roughly **174 declared lines against 1,866 maintained ones**,
-and the generated side is regenerated rather than maintained.
-
-Verified: the generated binding calls the real symbols —
+`f32_buffer.toml` beside this file is the whole declaration. It **compiles**
+against this repo's real `buffer.h` — see the section below — and calls the
+real symbols:
 
 ```c
-self->handle = dp_f32_create(n_samples);
-float _Complex *_p = dp_f32_wait(self->handle, n);
+self->handle    = dp_f32_create(n_samples);
+int y           = dp_f32_write_cf(self->handle, x, x_len);
+float _Complex *_p = dp_f32_wait_cf(self->handle, n);
 dp_f32_consume(self->handle, n);
+return PyLong_FromUnsignedLongLong(...(self->handle->capacity));
 ```
 
-## What needs a decision — the i16 instance
+## It compiles — and that is what found the rest
 
-This is the part worth arguing about before adopting.
+The first version of this proposal said *"verified — the generated binding
+calls the real functions"*. It did call them, and that was verified by
+**reading**. Compiling it found four defects reading could not, so
+`compile-probe.c` is now part of the proposal:
 
-`dp_i16_wait` returns `int16_t *`, but a complex q15 sample is a **pair**.
-numpy has no complex-integer dtype, so
-[just-makeit#1310](https://github.com/just-buildit/just-makeit/issues/1310)
-measured the four zero-copy spellings of those bytes and chose a **structured
-array**, `[('i','<i2'),('q','<i2')]` — 1-D, one element per sample, byte order
-stated. That is the shape `buffer_ext.c`'s own header comment already claims,
-and the shape the code does not produce.
+```sh
+cc -std=c11 -c compile-probe.c -o /dev/null \
+   -I. -I../../native/inc -I"$(python -c 'import sysconfig;print(sysconfig.get_paths()["include"])')" \
+   -I"$(python -c 'import numpy;print(numpy.get_include())')"
+# clean: no errors, no warnings
+```
 
-The measurement that settled it: the tempting packed-`int32` alternative is
-also 1-D and one element per sample, and
+What it caught:
+
+|                                         |                                                                                    |
+| --------------------------------------- | ---------------------------------------------------------------------------------- |
+| `float _Complex *_p = dp_f32_wait(...)` | `wait` returns `type *` = `float *`. Hard error.                                   |
+| `dp_f32_write(ab, x, n)`                | same mismatch on argument 2 — **`write` needs the sibling too**                    |
+| `f32_buffer_reset()`                    | jm generated a `reset()` for a symbol the ring has no equivalent of → `--no-reset` |
+| `state->capacity` in a property         | jm splices `expr` into a getter whose variable is `self->handle`, not `state`      |
+
+The last two were mine; the first two are the real finding.
+
+## The siblings: ONE decision, all three instances
+
+The ring stores **scalars** (`type *data`) while a jm borrow declares the
+**element** the Python view has. So the mismatch is not about integer IQ at
+all — `f32` and `f64` need the identical pair for the identical reason, and
+`i16` is only the instance whose element type is unfamiliar.
+
+`proposed-siblings.h` holds them. Both are **pure casts with no factor
+change**: `n` is already in complex samples, because `wait` returns
+`&data[(t & ab->mask) * 2]` — the `* 2` is already inside the ring.
+
+```c
+static inline float _Complex *
+dp_f32_wait_cf (dp_f32_t *ab, size_t n)
+{ return (float _Complex *) dp_f32_wait (ab, n); }
+
+static inline int
+dp_f32_write_cf (dp_f32_t *ab, const float _Complex *src, size_t n)
+{ return dp_f32_write (ab, (const float *) src, n); }
+```
+
+*(An earlier draft of this file claimed the i16 sibling needed `2 * n`. It does
+not — that factor was invented, and the compile is what settled it.)*
+
+That reframing is the point: the sibling stops looking like a workaround for
+integer IQ and becomes **the ring's actual borrow surface**, declared once per
+instance in the same shape.
+
+## What is still a decision — the i16 element type
+
+With the siblings in place, `dp_i16_wait_iq` can return either shape, and this
+is the substantive choice:
+
+- **a structured array** `[('i','<i2'),('q','<i2')]` — 1-D, one element per
+    sample, byte order stated. What `buffer_ext.c`'s own header comment already
+    claims, and what
+    [just-makeit#1310](https://github.com/just-buildit/just-makeit/issues/1310)
+    chose after measuring all four zero-copy spellings.
+- **today's 2-D `(n, 2)` int16** — also zero-copy, also one row per sample, but
+    not what the comment promises and a different API from `F32Buffer`'s.
+
+The measurement that rejected the third candidate is worth keeping either way:
+packed `int32` is *also* 1-D and one element per sample, and
 
 ```
 d + 1   ->   [1, 1, 3, 3, 5, 5, 7, 7]
 ```
 
 increments **I only**, silently, because int32 addition carries across the I/Q
-boundary. `arr * 2` and `arr - dc` corrupt the same way. The structured form
-raises `ufunc 'add' did not contain a loop` instead — a loud failure where the
-packed form gives a quiet wrong answer.
+boundary. The structured form raises instead.
 
-To generate that, jm wants the kernel to return the record type. The smallest
-change on doppler's side is a one-line sibling beside the macro:
+## The surface is now like-for-like
 
-```c
-typedef struct { int16_t i; int16_t q; } dp_iq16_t;
+An earlier draft declared five methods and compared them to a strictly larger
+hand-written API, which made the headline ratio dishonest. Declared now:
 
-static inline dp_iq16_t *
-dp_i16_wait_iq (dp_i16_t *ab, size_t n)
-{
-  return (dp_iq16_t *) dp_i16_wait (ab, 2 * n);   /* n SAMPLES */
-}
-```
+|            |                                              |
+| ---------- | -------------------------------------------- |
+| methods    | `write`, `wait`, `consume`, `close`          |
+| properties | `capacity`, `available`, `dropped`, `closed` |
 
-Note `2 * n`: the existing `wait` counts `int16` slots, the record view counts
-samples. That factor is exactly the kind of thing three hand-written faces get
-to disagree about, which is the argument for declaring it once.
+`available` and `closed` stay **properties**, so `buf.available` does not
+silently become `buf.available()` for existing callers. `destroy` is jm's own
+lifecycle (`tp_dealloc` plus an explicit `destroy()`), so it is not declared.
 
-**The alternative is to keep the 2-D `(n, 2)` shape** the code produces today.
-It is defensible — it is also zero-copy and one row per sample — but it is not
-what the header comment promises, and per-component arithmetic on it is a
-different API from what `F32Buffer` offers. Either way, picking one and
-declaring it is the point.
+**69 declared lines** produce **341** of binding and **98** of `.pyi`.
 
 ## Blocked on a just-makeit release
 

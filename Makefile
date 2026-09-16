@@ -1221,6 +1221,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 gen-c-api-run \
                 package-c package-c-tarball sdist release-notes \
                 release-pr \
+                release-freshness-check \
                 print-jm-version nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
                 release-notes-size-check workflow-syntax-check \
@@ -2585,6 +2586,29 @@ changelog-assembled-check: ## Fail if any fragment is still unassembled
 # A prerequisite rather than an edit to standard.mk: tag-release is vendored,
 # and a private copy of an upstream target is how the two drift.
 tag-release: changelog-assembled-check
+
+# The other two "regenerate it if it changed since the last release" steps --
+# release.md §2 (gallery plots) and §2b (published benchmarks) -- which
+# nothing checked. Same home and the same argument as the line above: a
+# feature branch legitimately changes a gallery script without re-rendering
+# its plot, so `lint` would be red on every PR and get deleted. The tag is
+# the one moment the question means anything, and the one that cannot be
+# taken back.
+#
+# DIFF-based, never regenerate-and-compare. A gallery PNG is not guaranteed
+# byte-stable across a re-render, so a gate that re-rendered and diffed would
+# flap -- and a flapping gate gets disabled, taking the real signal with it.
+#
+# GALLERY_SCRIPTS is passed IN rather than restated in the script: a second
+# list is one that can disagree with the first.
+release-freshness-check: ## VERSION=x.y.z — refuse a tag with stale plots or benchmarks
+ifndef VERSION
+	@echo "usage: make release-freshness-check VERSION=<x.y.z>"; exit 1
+endif
+	@$(UV) run python scripts/check_release_freshness.py \
+	    --version $(VERSION) $(GALLERY_SCRIPTS)
+
+tag-release: release-freshness-check
 
 # Sized against what would actually be PUBLISHED, not what CHANGELOG.md holds:
 # a version section may carry a `### Highlights` block, and release-notes.sh

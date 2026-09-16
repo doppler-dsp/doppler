@@ -50,19 +50,31 @@ dp_f32_consume(self->handle, n);
 return PyLong_FromUnsignedLongLong(...(self->handle->capacity));
 ```
 
-## It compiles — and that is what found the rest
+## It compiles, links, and the check runs itself
 
 The first version of this proposal said *"verified — the generated binding
 calls the real functions"*. It did call them, and that was verified by
-**reading**. Compiling it found four defects reading could not, so
-`compile-probe.c` is now part of the proposal:
+**reading**. Compiling it found four defects reading could not.
+
+The probe that found them then had the same problem one level down: it lived
+in this README as a command naming `shim.h` and `frag.c`, **neither of which
+is in the tree**, so it could not be run — and `regenerate.sh` could not
+reproduce `generated/` either (`jm new` does not create `objects/`, and the
+object was never registered with the module, so `apply` generated nothing and
+said nothing about why). A claim nothing runs is prose, which is this repo's
+own tier-1 shape.
+
+So the probe now runs as part of regeneration, against the files as they
+actually exist:
 
 ```sh
-cc -std=c11 -c compile-probe.c -o /dev/null \
-   -I. -I../../native/inc -I"$(python -c 'import sysconfig;print(sysconfig.get_paths()["include"])')" \
-   -I"$(python -c 'import numpy;print(numpy.get_include())')"
-# clean: no errors, no warnings
+./regenerate.sh          # regenerate, then compile AND link the result
+# probe: compiles and links clean
 ```
+
+Compile catches a signature mismatch or an undeclared callee; link catches a
+symbol that is declared and never defined. Both run, because they see
+different defects.
 
 What it caught:
 
@@ -72,8 +84,40 @@ What it caught:
 | `dp_f32_write(ab, x, n)`                | same mismatch on argument 2 — **`write` needs the sibling too**                    |
 | `f32_buffer_reset()`                    | jm generated a `reset()` for a symbol the ring has no equivalent of → `--no-reset` |
 | `state->capacity` in a property         | jm splices `expr` into a getter whose variable is `self->handle`, not `state`      |
+| `f32_buffer_destroy()`                  | **an undeclared destroyer** — see below; it was being `#define`d away              |
 
-The last two were mine; the first two are the real finding.
+## create_fn has no counterpart, and the probe was hiding it
+
+`create_fn = "dp_f32_create"` names the C jm calls to construct. There is no
+`destroy_fn` on an object — it is a capsule-module key, and jm warns if you
+put one there — so jm emits `<comp>_destroy` for the dealloc path regardless:
+
+```c
+self->handle = dp_f32_create (n_samples);   /* mmaps a mirrored region */
+...
+f32_buffer_destroy (self->handle);          /* nothing defines this */
+```
+
+The compiler says so plainly:
+
+```
+error: implicit declaration of function 'f32_buffer_destroy'
+```
+
+An earlier probe carried `#define f32_buffer_destroy dp_f32_destroy`, which
+silenced exactly that diagnostic. That is the hazard worth naming: the
+workaround lived in the **harness**, so the probe passed while the
+*declaration* stayed asymmetric — and had jm's scaffolded `<comp>_destroy`
+existed under that name, it is a plain `free(state)` that never unmaps the
+mirrored region.
+
+`proposed-siblings.h` now forwards it like the other two, so create and
+destroy are symmetric by construction. Verified by sabotage: rename the
+forwarder and the build fails on the implicit declaration again.
+
+Filed upstream as the asymmetry it is — an object honouring `create_fn` with
+no way to say who destroys. If jm closes it, the forwarder collapses into a
+manifest key.
 
 ## The siblings: ONE decision, all three instances
 

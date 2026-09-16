@@ -8,7 +8,7 @@
 # tier 2 a claim nothing measures   5 convergence and hygiene
 
 [meta]
-generated = "2026-09-14"
+generated = "2026-09-16"
 
 [issue.502]
 tier = 3
@@ -680,11 +680,6 @@ tier = 0
 title = "dll: the full-epoch and partial-correlation loops apply the loop filter with different gains behind the one steer"
 status = "open"
 
-[issue.1287]
-tier = 0
-title = "dll: dll_set_code_phase() across a segment boundary or the wrap emits or skips a period's partials"
-status = "open"
-
 [issue.1289]
 tier = 0
 title = "async_dsss_receiver: the carrier slips cycles at 40 dB-Hz in both flavours, and decodes at 1% between them"
@@ -758,4 +753,19 @@ status = "open"
 [issue.1330]
 tier = 5
 title = "jm's composer template emits a -Wcomment warning; fixed upstream, adopt on the next pin bump"
+status = "open"
+
+[issue.1342]
+tier = 3
+title = "wfm_writer integer writes are ~3x slower since #1117: every component goes through the single-sample converter step"
+status = "open"
+
+[issue.1346]
+tier = 2
+title = "I16Buffer.wait() returns 2-D (n,2) while its docstring promises a structured array and its siblings return 1-D"
+status = "open"
+
+[issue.1350]
+tier = 1
+title = "tests/install/rust-test.sh has no execution home \u2014 nothing runs it, which is why its broken make goal survived"
 status = "open"

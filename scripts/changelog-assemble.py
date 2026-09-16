@@ -20,11 +20,18 @@ Usage
 the SSOT for how tools run). ``--check`` reports what would move and exits 1 if
 anything would, which is what lets a release gate ask "is anything still
 sitting unassembled?" without mutating the tree.
+
+``--version X.Y.Z`` additionally does the release's step 4: renames
+``[Unreleased]`` to ``[X.Y.Z] - <today>`` and opens a fresh empty
+``[Unreleased]`` above it. Writing a fragment is prose and stays prose;
+renaming a heading is not, and doing it by hand is how 0.43.0, 0.43.1 and
+0.43.2 shipped without comparison links (doppler#996).
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime
 import pathlib
 import re
 import sys
@@ -49,6 +56,56 @@ SECTIONS = [
 
 UNRELEASED = re.compile(r"^## \[Unreleased\]\s*$", re.M)
 NEXT_RELEASE = re.compile(r"^## \[", re.M)
+
+#: A release version as `bump-version` accepts it: no pre-release suffix,
+#: because CMake and Cargo reject one and `version-check` would then be
+#: comparing strings that can never agree.
+VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
+
+
+def retitle(text: str, version: str, today: str) -> str:
+    """Rename ``[Unreleased]`` to ``[version] - today``, open a fresh one.
+
+    ONE line is replaced, so every entry under the old heading keeps its
+    position and becomes that release's body -- no entry is moved, copied or
+    re-sorted.
+
+    >>> retitle("## [Unreleased]\\n\\n- a thing\\n", "1.2.3", "2026-01-01")
+    '## [Unreleased]\\n\\n## [1.2.3] - 2026-01-01\\n\\n- a thing\\n'
+    """
+    if re.search(rf"^## \[{re.escape(version)}\]", text, re.M):
+        sys.exit(
+            f"changelog-assemble: CHANGELOG.md already has a "
+            f"## [{version}] section.\n"
+            "  Re-running would open a second one. Nothing was written."
+        )
+    m = UNRELEASED.search(text)
+    if not m:
+        sys.exit(
+            "changelog-assemble: no '## [Unreleased]' heading in CHANGELOG.md"
+        )
+    # Splice at the end of the heading LINE, not at the end of the match:
+    # the pattern ends `\s*$`, and that `\s*` greedily eats the newline
+    # after the heading, so `m.end()` is already inside the blank line that
+    # separates it from its entries. Cutting there silently ate that blank
+    # line -- caught by this function's own doctest before it ever ran on a
+    # real CHANGELOG.
+    nl = text.find("\n", m.start())
+    return (
+        text[: m.start()]
+        + f"## [Unreleased]\n\n## [{version}] - {today}"
+        + (text[nl:] if nl != -1 else "\n")
+    )
+
+
+def _retitle_if_asked(version: str) -> int:
+    """Apply ``--version`` if given; the process exit code either way."""
+    if not version:
+        return 0
+    today = datetime.date.today().isoformat()
+    CHANGELOG.write_text(retitle(CHANGELOG.read_text(), version, today))
+    print(f"changelog-assemble: [Unreleased] -> [{version}] - {today}")
+    return 0
 
 
 def fragments() -> dict[str, list[pathlib.Path]]:
@@ -123,12 +180,36 @@ def main() -> int:
         action="store_true",
         help="report what would move; exit 1 if anything would",
     )
+    ap.add_argument(
+        "--version",
+        metavar="X.Y.Z",
+        default="",
+        help=(
+            "also rename [Unreleased] to [X.Y.Z] - <today> and open a fresh "
+            "empty [Unreleased] above it (the release runbook's step 4)"
+        ),
+    )
     args = ap.parse_args()
+
+    # Opposites: --check reports without mutating, --version rewrites the
+    # heading. Accepting both would make --check write to the tree.
+    if args.check and args.version:
+        sys.exit(
+            "changelog-assemble: --check and --version are opposites.\n"
+            "  --check reports what would move and mutates nothing; "
+            "--version rewrites the heading."
+        )
+    if args.version and not VERSION_RE.match(args.version):
+        sys.exit(
+            f"changelog-assemble: --version {args.version!r} is not X.Y.Z.\n"
+            "  Pre-releases are refused here for the reason bump-version "
+            "refuses them: CMake and Cargo reject the suffix."
+        )
 
     found = fragments()
     if not found:
         print("changelog-assemble: no fragments — nothing to promote")
-        return 0
+        return _retitle_if_asked(args.version)
 
     total = sum(len(v) for v in found.values())
     if args.check:
@@ -189,7 +270,7 @@ def main() -> int:
     )
     for section, files in found.items():
         print(f"  ### {section.capitalize()}: {len(files)}")
-    return 0
+    return _retitle_if_asked(args.version)
 
 
 if __name__ == "__main__":

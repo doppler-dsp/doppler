@@ -15,7 +15,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 # unreleased. A bare `just-makeit` from PATH silently produces something else:
 # CLAUDE.md records `make bench` resolving to 0.19.28 while the pin said
 # 0.33.12, which made the local benchmark path unrunnable for weeks.
-JM_REF="${1:-${JM_REF:-git+https://github.com/just-buildit/just-makeit@d9a1cb2}}"
+JM_REF="${1:-${JM_REF:-git+https://github.com/just-buildit/just-makeit@v0.76.0}}"
 JM=(uvx --from "$JM_REF" just-makeit)
 
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

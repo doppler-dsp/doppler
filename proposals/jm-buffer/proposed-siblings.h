@@ -95,23 +95,4 @@ DECLARE_DP_BUFFER_VIEW (i16, int16_t, dp_iq16_t)
 
 typedef dp_f32_t f32_buffer_state_t;
 
-/* The destroy half of the lifetime pair.
- *
- * `create_fn` names the C jm CALLS to construct, but an object has no
- * `destroy_fn` -- it is a capsule-module key -- so jm emits `<comp>_destroy`
- * for the dealloc path regardless. Naming `dp_f32_create` as the creator
- * therefore pairs it with a destroyer nothing defines, and if one did exist
- * under that name it would be jm's scaffolded `free(state)`, which never
- * unmaps the mirrored region.
- *
- * An earlier probe hid this behind `#define f32_buffer_destroy
- * dp_f32_destroy`. A `#define` in the harness is not the proposal: it makes
- * the compile pass while leaving the declaration asymmetric. Forwarding it
- * here keeps create and destroy symmetric by construction, which is the
- * property that has to hold at adoption. Filed as just-makeit#1323. */
-static inline void
-f32_buffer_destroy (dp_f32_t *ab)
-{
-  dp_f32_destroy (ab);
-}
 #endif

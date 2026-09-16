@@ -86,11 +86,10 @@ What it caught:
 | `state->capacity` in a property         | jm splices `expr` into a getter whose variable is `self->handle`, not `state`      |
 | `f32_buffer_destroy()`                  | **an undeclared destroyer** — see below; it was being `#define`d away              |
 
-## create_fn has no counterpart, and the probe was hiding it
+## The destructor: a manifest key now, not a hand-written forwarder
 
-`create_fn = "dp_f32_create"` names the C jm calls to construct. There is no
-`destroy_fn` on an object — it is a capsule-module key, and jm warns if you
-put one there — so jm emits `<comp>_destroy` for the dealloc path regardless:
+The first version of this proposal named the ring's constructor
+(`create_fn = "dp_f32_create"`) and got a destructor jm chose on its own:
 
 ```c
 self->handle = dp_f32_create (n_samples);   /* mmaps a mirrored region */
@@ -98,26 +97,35 @@ self->handle = dp_f32_create (n_samples);   /* mmaps a mirrored region */
 f32_buffer_destroy (self->handle);          /* nothing defines this */
 ```
 
-The compiler says so plainly:
+`create_fn` named the C jm calls to construct, and nothing named its
+counterpart. An earlier probe hid it behind `#define f32_buffer_destroy dp_f32_destroy` — a workaround in the **harness**, so the compile passed
+while the declaration stayed asymmetric. Filed as
+just-buildit/just-makeit#1323, fixed in **v0.76.0**, and the forwarder that
+replaced the `#define` is now gone too:
 
+```toml
+[f32_buffer.destroy]
+fn = "dp_f32_destroy"
 ```
-error: implicit declaration of function 'f32_buffer_destroy'
-```
 
-An earlier probe carried `#define f32_buffer_destroy dp_f32_destroy`, which
-silenced exactly that diagnostic. That is the hazard worth naming: the
-workaround lived in the **harness**, so the probe passed while the
-*declaration* stayed asymmetric — and had jm's scaffolded `<comp>_destroy`
-existed under that name, it is a plain `free(state)` that never unmaps the
-mirrored region.
+All three teardown paths — `tp_dealloc`, `.destroy()`/`.close()` and
+`__exit__` — call the ring's own destructor, verified in the committed
+artifact. The hand-owned header is back to the view macro and nothing else.
 
-`proposed-siblings.h` now forwards it like the other two, so create and
-destroy are symmetric by construction. Verified by sabotage: rename the
-forwarder and the build fails on the implicit declaration again.
+**It should not need even that.** gh-1323 makes `create_fn` *derive* its
+counterpart, so `dp_f32_create` implies `dp_f32_destroy` with no table at
+all. Measured on v0.76.0 from two clean projects, one `jm apply` each: the
+derivation does not fire through `apply` — the resolver is correct in
+isolation (`c_fn("f32_buffer", {}, "dp_f32_create")` → `dp_f32_destroy`) but
+something upstream of it drops `create_fn`. Filed as
+just-buildit/just-makeit#1326; delete the table when it lands.
 
-Filed upstream as the asymmetry it is — an object honouring `create_fn` with
-no way to say who destroys. If jm closes it, the forwarder collapses into a
-manifest key.
+*(Worth recording how that was nearly mis-diagnosed: applying once with the
+explicit key, then removing it and re-applying, leaves the old name in the
+fragment — `jm apply` reconciles a sacred fragment member by member and never
+re-renders a wrapper body. Reading that stale text suggested a split between
+`tp_dealloc` and the other paths that does not exist. Measure a codegen
+change on a FRESH project, not one mutated in place.)*
 
 ## The siblings: ONE decision, all three instances
 
@@ -211,18 +219,32 @@ lifecycle (`tp_dealloc` plus an explicit `destroy()`), so it is not declared.
 
 **69 declared lines** produce **341** of binding and **98** of `.pyi`.
 
-## Blocked on a just-makeit release
+## Where just-makeit stands
 
-`pyproject.toml` pins `just-makeit==0.75.5`. The three features this needs all
-landed **after** that release and are unreleased:
+`pyproject.toml` pins `just-makeit==0.75.5`. Everything this needs landed
+after it, and **v0.76.0 is tagged** — so the blocker is a pin bump, not a
+missing feature:
 
-- `header_only` — just-buildit/just-makeit#1311
-- `borrow` — #1312
-- a borrowed `record_dtype` — #1310 decision B, implemented in #1317
-- and the fix that makes them compose at all — #1321 / #1322
+|                                            |                                                |
+| ------------------------------------------ | ---------------------------------------------- |
+| `header_only`                              | gh-1311, released in v0.76.0                   |
+| `borrow`                                   | gh-1312, released                              |
+| borrowed `record_dtype`                    | gh-1310 decision B, via gh-1317, released      |
+| a method on a `header_only` component      | gh-1321 / PR #1322 — **the blocker**, released |
+| destructor pairs with the declared creator | gh-1323, released                              |
 
-So this cannot be adopted until jm ships them. Treat this directory as
-reviewable intent, not a change to apply today.
+`generated/` is built from **v0.76.0** (see `generated/JM-REF`).
+
+Two open, neither blocking:
+
+- **gh-1326** — `create_fn`'s derived destructor does not fire through
+    `apply`. Worked around by the explicit `[f32_buffer.destroy]` table above.
+- **gh-1319** — a `record_dtype` scaffold does not build, because jm names a
+    struct it never defines or mentions. Hand-write the typedef; it is the i16
+    instance's problem, and i16 is not declared yet.
+
+So adoption is now: bump doppler's pin to 0.76.0, move `f32_buffer.toml` into
+`objects/`, add the f64 and i16 siblings, delete the hand-written binding.
 
 ## Suggested order
 

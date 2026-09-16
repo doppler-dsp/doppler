@@ -1000,6 +1000,8 @@
 * **work\_fft** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**corr\_state\_t**](structcorr__state__t.md))
 * **work\_pad** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**corr\_state\_t**](structcorr__state__t.md))
 * **work\_trunc** ([**corr2d\_state\_t**](structcorr2d__state__t.md), [**corr\_state\_t**](structcorr__state__t.md), [**fft2d\_state\_t**](structfft2d__state__t.md), [**fft\_state\_t**](structfft__state__t.md))
+* **wrap\_await** ([**dll\_state\_t**](structdll__state__t.md))
+* **wrap\_pending** ([**dll\_state\_t**](structdll__state__t.md))
 * **wake** ([**dp\_pool\_t**](structdp__pool__t.md))
 * **work** ([**dp\_pool\_t**](structdp__pool__t.md))
 * **w** ([**psd\_state\_t**](structpsd__state__t.md))

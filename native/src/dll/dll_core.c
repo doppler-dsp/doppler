@@ -87,6 +87,8 @@ seed (dll_state_t *s)
   s->acc_o              = 0.0f;
   s->last_error         = 0.0;
   s->seg_idx            = 0;
+  s->wrap_pending       = 0;
+  s->wrap_await         = 0;
   s->have_prev_epoch    = 0;
   s->rng = 0x2545F491u ^ (uint32_t)s->sf; /* deterministic seed */
   draw_offset (s);
@@ -698,6 +700,28 @@ dll_steps_impl (dll_state_t *state, const float _Complex *x, size_t x_len,
              prompt; accumulates over the same epoch. */
           dll_lock_accumulate (state, x[n]);
           int wrapped = dll_accumulate (state, x[n]);
+          if (state->wrap_await)
+            {
+              /* A put moved the phase back across the wrap: until the NCO
+                 wraps again these samples are the tail of the epoch already
+                 closed, so they close nothing and are discarded there. */
+              if (wrapped)
+                {
+                  state->wrap_await = 0;
+                  state->acc_e      = 0.0f;
+                  state->acc_p      = 0.0f;
+                  state->acc_l      = 0.0f;
+                  state->acc_o      = 0.0f;
+                }
+              continue;
+            }
+          if (state->wrap_pending)
+            {
+              /* A put moved the phase forward across the wrap: the epoch in
+                 progress closes now, not a period late. */
+              state->wrap_pending = 0;
+              wrapped             = 1;
+            }
           if (!wrapped)
             continue;
           float _Complex prompt = state->acc_p / (float)tsamps;
@@ -745,12 +769,32 @@ dll_steps_impl (dll_state_t *state, const float _Complex *x, size_t x_len,
     {
       dll_lock_accumulate (state, x[n]);
       int wrapped = dll_accumulate (state, x[n]);
+      if (state->wrap_await)
+        {
+          /* Back across the wrap (see the segments == 1 path): nothing is
+             ready until the NCO wraps again, and the tail integrated until
+             then belongs to the epoch already closed -- discarded, and the
+             epoch restarts at its first partial. */
+          if (wrapped)
+            {
+              state->wrap_await = 0;
+              state->seg_idx    = 0;
+              state->acc_e      = 0.0f;
+              state->acc_p      = 0.0f;
+              state->acc_l      = 0.0f;
+              state->acc_o      = 0.0f;
+            }
+          continue;
+        }
       for (;;)
         {
           if (state->seg_idx >= w)
             break;
           int last_chunk = (state->seg_idx + 1 == w);
-          int ready = last_chunk
+          /* Forward across the wrap: every partial the epoch still owes
+             closes now (wrap_pending clears where the epoch does). */
+          int ready = state->wrap_pending ? 1
+                      : last_chunk
                           ? wrapped
                           : (state->chip_pos >= (double)(state->seg_idx + 1)
                                                     * state->seg_chips);
@@ -906,7 +950,8 @@ dll_steps_impl (dll_state_t *state, const float _Complex *x, size_t x_len,
                       w * sizeof (*state->last_l));
               state->have_prev_epoch = 1;
 
-              state->seg_idx = 0;
+              state->seg_idx      = 0;
+              state->wrap_pending = 0;
               draw_offset (state); /* fresh noise phase for the next epoch */
               if (tlm_on)
                 dll_tlm_flush (state);
@@ -1016,8 +1061,34 @@ dll_take_error_mean (dll_state_t *state)
 void
 dll_set_code_phase (dll_state_t *state, double chips)
 {
-  const double folded   = dp_fmod_pos (chips, (double)state->sf);
-  state->code_nco.phase = nco_norm_phase_to_word (folded / (double)state->sf);
+  const double sfd    = (double)state->sf;
+  const double folded = dp_fmod_pos (chips, sfd);
+  /* The move the short way round, and whether it crossed the period wrap.
+     The epoch in progress is keyed to the wrap -- the last partial (or, at
+     segments == 1, the whole epoch) closes when the NCO wraps -- so a put
+     across it has to say which way it went, or the kernel reads the new
+     phase against the old epoch: back across, every partial of the next
+     period reads ready at once and dumps a sliver; forward across, the wrap
+     the epoch waits for never comes and it swallows a second period
+     (#1287). A later put back across cancels the earlier one. */
+  const double move
+      = dp_fmod_pos (folded - state->chip_pos + 0.5 * sfd, sfd) - 0.5 * sfd;
+  const double landed = state->chip_pos + move;
+  if (landed >= sfd)
+    {
+      if (state->wrap_await)
+        state->wrap_await = 0;
+      else
+        state->wrap_pending = 1;
+    }
+  else if (landed < 0.0)
+    {
+      if (state->wrap_pending)
+        state->wrap_pending = 0;
+      else
+        state->wrap_await = 1;
+    }
+  state->code_nco.phase = nco_norm_phase_to_word (folded / sfd);
   state->chip_pos       = folded;
 }
 

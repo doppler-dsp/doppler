@@ -95,6 +95,8 @@ typedef struct {
     double seg_chips;        
     double seg_norm;         
     size_t seg_idx;          
+    int wrap_pending;        
+    int wrap_await;          
     /* ── segments>1 chunked output + one-epoch-deep lookback (heap-owned,
      *    length `segments`; NULL when segments==1 -- dll_init()'s embedded/
      *    borrowed path is always segments==1, so this never needs a
@@ -324,7 +326,7 @@ int dll_set_telemetry(dll_state_t *state, dp_tlm_t * tlm, const char * prefix, u
  * pointers, NOT part of the whole-struct snapshot) are packed/restored
  * field-wise when segments > 1. */
 #define DLL_STATE_MAGIC DP_FOURCC ('D','L','L',' ')
-#define DLL_STATE_VERSION 12u /* v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
+#define DLL_STATE_VERSION 13u /* v13: wrap_pending/wrap_await (#1287); v12: the gain table and err_sum/err_n (#1280); v11: coast (#1271); v10: aid_last_end (#1264); v9: the aid's early/late rings + inv_upd
                                 (the loop steers once per symbol on the
                                 aided window).
                                 v8: symbol-period aid fields + rings;

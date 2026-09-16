@@ -10,10 +10,10 @@ Derived 2026-09-16 by `make issues`, which reads the live issue list. Nothing re
 | -------------------------------------- | ------------------------- | ---- |
 | [0](#tier-0-breaks-for-a-user)         | Breaks for a user         | 9    |
 | [1](#tier-1-a-gate-that-does-not-gate) | A gate that does not gate | 26   |
-| [2](#tier-2-a-claim-nothing-measures)  | A claim nothing measures  | 30   |
+| [2](#tier-2-a-claim-nothing-measures)  | A claim nothing measures  | 29   |
 | [3](#tier-3-measured-cost)             | Measured cost             | 16   |
 | [4](#tier-4-cannot-be-reached)         | Cannot be reached         | 26   |
-| [5](#tier-5-convergence-and-hygiene)   | Convergence and hygiene   | 45   |
+| [5](#tier-5-convergence-and-hygiene)   | Convergence and hygiene   | 46   |
 
 ## Tier 0 — Breaks for a user
 
@@ -99,7 +99,6 @@ A header, report or design doc asserts a number or a behaviour that no test and 
 | [#1275](https://github.com/doppler-dsp/doppler/issues/1275) | async_dsss_pool: a neighbour within a kilohertz crossing a departed receiver's code phase at a chip or two a second is, to that receiver, a return — the pool's zone is where it can be told apart | open   |
 | [#1307](https://github.com/doppler-dsp/doppler/issues/1307) | The burst-demod test codes have 0.78 autocorrelation sidelobes, so the tests tolerate timing error no real waveform would                                                                          | open   |
 | [#1311](https://github.com/doppler-dsp/doppler/issues/1311) | burst_capture k_lo is 3\*reps+2 by assertion, not derivation, and it inflates the merge radius and min_gap by 1.7x                                                                                 | open   |
-| [#1346](https://github.com/doppler-dsp/doppler/issues/1346) | I16Buffer.wait() returns 2-D (n,2) while its docstring promises a structured array and its siblings return 1-D                                                                                     | open   |
 
 ## Tier 3 — Measured cost
 
@@ -208,6 +207,7 @@ Duplication, stale pins, harness drift, and the long tail. Real, none of it urge
 | [#1299](https://github.com/doppler-dsp/doppler/issues/1299) | The "slot by both coordinates" phrasing repeats in six more places, including a generated results.md                                                      | open   |
 | [#1302](https://github.com/doppler-dsp/doppler/issues/1302) | Burn down docs/.design-page-baseline: 24 design-page record sections across 15 pages                                                                      | open   |
 | [#1330](https://github.com/doppler-dsp/doppler/issues/1330) | jm's composer template emits a -Wcomment warning; fixed upstream, adopt on the next pin bump                                                              | open   |
+| [#1346](https://github.com/doppler-dsp/doppler/issues/1346) | I16Buffer.wait() returns 2-D (n,2) while its docstring promises a structured array and its siblings return 1-D                                            | open   |
 
 ## How an issue gets its tier
 

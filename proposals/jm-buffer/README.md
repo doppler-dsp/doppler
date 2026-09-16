@@ -126,26 +126,51 @@ The ring stores **scalars** (`type *data`) while a jm borrow declares the
 all — `f32` and `f64` need the identical pair for the identical reason, and
 `i16` is only the instance whose element type is unfamiliar.
 
-`proposed-siblings.h` holds them. Both are **pure casts with no factor
-change**: `n` is already in complex samples, because `wait` returns
-`&data[(t & ab->mask) * 2]` — the `* 2` is already inside the ring.
+Because it is the same decision three times, it is a **macro beside
+`DECLARE_DP_BUFFER`**, not three hand-written pairs:
 
 ```c
-static inline float _Complex *
-dp_f32_wait_cf (dp_f32_t *ab, size_t n)
-{ return (float _Complex *) dp_f32_wait (ab, n); }
+#define DECLARE_DP_BUFFER_VIEW(name, type, elem)                            \
+  DP_ASSERT_2X (name, elem, type);                                          \
+  static inline elem *dp_##name##_wait_view (dp_##name##_t *ab, size_t n)   \
+  { return (elem *)dp_##name##_wait (ab, n); }                              \
+  static inline bool dp_##name##_write_view (dp_##name##_t *ab,             \
+                                             const elem *src, size_t n)     \
+  { return dp_##name##_write (ab, (const type *)src, n); }
 
-static inline int
-dp_f32_write_cf (dp_f32_t *ab, const float _Complex *src, size_t n)
-{ return dp_f32_write (ab, (const float *) src, n); }
+DECLARE_DP_BUFFER_VIEW (f32, float,   float _Complex)
+DECLARE_DP_BUFFER_VIEW (f64, double,  double _Complex)
+DECLARE_DP_BUFFER_VIEW (i16, int16_t, dp_iq16_t)
 ```
 
-*(An earlier draft of this file claimed the i16 sibling needed `2 * n`. It does
-not — that factor was invented, and the compile is what settled it.)*
+Three copies of a cast would be three places for the element type, the count
+convention or the constness to drift — and **drift between instances of one
+ring is the defect this proposal exists to end**. doppler#1346 is exactly
+that, and it was caught late because nothing compared the three.
+
+Both are **pure casts with no factor change**: `n` is already in complex
+samples, because `wait` returns `&data[(t & ab->mask) * 2]` — the `* 2` is
+already inside the ring. *(An earlier draft claimed the i16 sibling needed
+`2 * n`. It does not; that factor was invented, and compiling settled it.)*
+
+`DP_ASSERT_2X` pins `sizeof(elem) == 2 * sizeof(type)` at compile time, per
+instance, guarded exactly like `buffer.h`'s own `DP_ASSERT_PWR2` — doppler is
+`CMAKE_C_STANDARD 99`, so the typedef fallback rather than `_Static_assert`
+is the branch the real build takes. Proven by sabotage: declare `f64`'s
+element as `double` and the build stops with *"view element must span two
+stored scalars"*.
+
+The suffix is `_view`, not `_cf`: f32 and f64 hand back complex float and
+complex double, but the i16 element is a two-field **record**, so a name
+saying "complex float" would be wrong on the instance that needs it most.
+
+The probe names all six functions. They are `static inline`, so an unused one
+is never type-checked — without that, "all three instances" would be a claim
+compiled on `f32` alone.
 
 That reframing is the point: the sibling stops looking like a workaround for
-integer IQ and becomes **the ring's actual borrow surface**, declared once per
-instance in the same shape.
+integer IQ and becomes **the ring's actual borrow surface**, stamped once per
+instance from one body.
 
 ## What is still a decision — the i16 element type
 

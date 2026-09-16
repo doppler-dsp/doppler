@@ -31,3 +31,23 @@ dp_interrupted (void)
    "clean except for one warning", and an expected warning is how an
    unexpected one goes unread. */
 const void *dp_probe_keep = &F32BufferObjType;
+
+/* All THREE instances, not just the one the manifest declares.
+ *
+ * The siblings are `static inline`, so an unused one is never type-checked
+ * and the "one decision, all three instances" claim would be compiled on
+ * f32 alone -- exactly the shape of doppler#1346, where the three drifted
+ * because nothing looked at them together. Naming each here forces the
+ * bodies, and the width assert fires per instance at the declaration. */
+void
+dp_probe_all_three (dp_f32_t *a, dp_f64_t *b, dp_i16_t *c,
+                    const float _Complex *xa, const double _Complex *xb,
+                    const dp_iq16_t *xc)
+{
+  (void)dp_f32_wait_view (a, 1);
+  (void)dp_f64_wait_view (b, 1);
+  (void)dp_i16_wait_view (c, 1);
+  (void)dp_f32_write_view (a, xa, 1);
+  (void)dp_f64_write_view (b, xb, 1);
+  (void)dp_i16_write_view (c, xc, 1);
+}

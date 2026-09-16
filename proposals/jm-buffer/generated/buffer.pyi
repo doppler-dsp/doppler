@@ -23,7 +23,7 @@ class F32Buffer:
     """
     def __init__(self, n_samples: int = 0) -> None: ...
 
-    def write(self, x: NDArray[np.complex64]) -> int:
+    def write(self, x: NDArray[np.complex64]) -> bool:
         """Write."""
 
     def wait(self, n: int) -> NDArray[np.complex64]:

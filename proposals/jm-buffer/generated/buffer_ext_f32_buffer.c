@@ -74,9 +74,9 @@ F32BufferObj_write (F32BufferObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
-  int                   y     = dp_f32_write_cf (self->handle, x, x_len);
+  bool                  y     = dp_f32_write_view (self->handle, x, x_len);
   Py_DECREF (x_arr);
-  return PyLong_FromLong ((long)y);
+  return PyBool_FromLong ((long)(y));
 }
 
 static PyObject *
@@ -92,7 +92,7 @@ F32BufferObj_wait (F32BufferObject *self, PyObject *args, PyObject *kwds)
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
     return NULL;
   size_t          n  = (size_t)n_raw;
-  float _Complex *_p = dp_f32_wait_cf (self->handle, n);
+  float _Complex *_p = dp_f32_wait_view (self->handle, n);
   if (!_p)
     {
       PyErr_SetString (PyExc_ValueError, "wait failed");
@@ -230,7 +230,7 @@ static PyMethodDef F32BufferObj_methods[] = {
 
   { "write", (PyCFunction)(void *)F32BufferObj_write,
     METH_VARARGS | METH_KEYWORDS,
-    "write(x) -> int\n"
+    "write(x) -> bool\n"
     "\n"
     "write.\n"
     "\n"
@@ -241,7 +241,7 @@ static PyMethodDef F32BufferObj_methods[] = {
     "\n"
     "Returns\n"
     "-------\n"
-    "int\n"
+    "bool\n"
     "    Output.\n"
     "\n"
     "Examples\n"
@@ -250,7 +250,7 @@ static PyMethodDef F32BufferObj_methods[] = {
     "    >>> from dpring.buffer import F32Buffer\n"
     "    >>> obj = F32Buffer(n_samples=0)\n"
     "    >>> obj.write(np.zeros(4, dtype=np.complex64))\n"
-    "    0\n" },
+    "    False\n" },
   { "wait", (PyCFunction)(void *)F32BufferObj_wait,
     METH_VARARGS | METH_KEYWORDS,
     "wait(n) -> ndarray\n"

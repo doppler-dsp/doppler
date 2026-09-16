@@ -18,14 +18,14 @@ default = "0"
 [[f32_buffer.methods]]
 name = "write"
 arg_type = "float _Complex[]"
-return_type = "int"
-fn = "dp_f32_write_cf"
+return_type = "bool"
+fn = "dp_f32_write_view"
 
 [[f32_buffer.methods]]
 name = "wait"
 arg_type = "void"
 return_type = "float _Complex"
-fn = "dp_f32_wait_cf"
+fn = "dp_f32_wait_view"
 borrow = true
 
 [[f32_buffer.methods.params]]

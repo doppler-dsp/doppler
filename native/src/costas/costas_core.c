@@ -1,5 +1,6 @@
 #include "costas/costas_core.h"
 
+#include <stdio.h>
 #include <string.h>
 
 /* Default carrier lock-detector rule (see costas_configure_lock's header

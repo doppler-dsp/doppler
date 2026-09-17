@@ -1,5 +1,6 @@
 #include "carrier_nda/carrier_nda_core.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 

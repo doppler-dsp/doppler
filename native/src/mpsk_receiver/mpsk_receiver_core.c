@@ -21,6 +21,7 @@
 #include "mpsk_receiver/mpsk_receiver_core.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 

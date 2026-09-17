@@ -2,6 +2,7 @@
 #include "dp_simd.h"
 #include "util/util_core.h"
 #include <float.h>
+#include <stdio.h>
 
 agc_state_t *
 agc_create (double ref_db, double loop_bw, double alpha)

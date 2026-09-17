@@ -37,16 +37,27 @@ endif()
 # The wire format itself: layout, magic, BLUE codes, flag mask. No broker,
 # so unlike the round-trip tests below it runs everywhere -- which is the
 # point, since the layout is what a third party implements from stream.h.
-add_executable(test_stream_wire
-    ${CMAKE_SOURCE_DIR}/native/tests/test_stream_wire.c)
-target_link_libraries(test_stream_wire PRIVATE
-    $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
-    dp_tlm_core
-    nats_vendor_static
-    m pthread)
-target_include_directories(test_stream_wire PRIVATE
-    ${CMAKE_SOURCE_DIR}/native/inc)
-add_test(NAME test_stream_wire COMMAND test_stream_wire)
+#
+# "Everywhere" has never included Windows, and the guard below is what makes
+# that visible rather than fatal. The test needs no broker, but it LINKS
+# stream_core_obj, nats_vendor_static and pthread, all defined only inside
+# the `if(NOT WIN32)` block -- so on Windows CMake's generate step died on
+# the dangling $<TARGET_OBJECTS:>. Guarding the reference is the honest
+# minimum; making the wire-format test genuinely portable is separate work,
+# filed as #1361 rather than faked. `if(TARGET)` keeps the platform rule in
+# one place -- the definition above owns which platforms get it.
+if(TARGET stream_core_obj)
+  add_executable(test_stream_wire
+      ${CMAKE_SOURCE_DIR}/native/tests/test_stream_wire.c)
+  target_link_libraries(test_stream_wire PRIVATE
+      $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
+      dp_tlm_core
+      nats_vendor_static
+      m pthread)
+  target_include_directories(test_stream_wire PRIVATE
+      ${CMAKE_SOURCE_DIR}/native/inc)
+  add_test(NAME test_stream_wire COMMAND test_stream_wire)
+endif()
 
 if(NOT WIN32)
     add_executable(test_stream_nats_core

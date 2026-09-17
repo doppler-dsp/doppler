@@ -357,8 +357,16 @@ add_subdirectory(native/src/dp_event_log)
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:dp_event_log_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:dp_event_log_core>)
 add_subdirectory(native/src/dp_tlm_capture)
-target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:timing_core>)
-target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:timing_core>)
+# timing_core is defined under `if(NOT WIN32)` in native/src/wfmcompose
+# (POSIX clock_*), so the REFERENCE needs the same condition or CMake's
+# GENERATE step fails outright on Windows -- which is how it failed, before
+# compiling a line. `if(TARGET)` rather than a second `if(NOT WIN32)`: the
+# definition owns which platforms get this, and restating that here would be
+# a second source of truth for one fact.
+if(TARGET timing_core)
+  target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:timing_core>)
+  target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:timing_core>)
+endif()
 target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:dp_tlm_capture_core>)
 target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:dp_tlm_capture_core>)
 add_subdirectory(native/src/dp_tlm)

@@ -188,6 +188,29 @@ int dp_interrupt_on_signal (
 Uses `sigaction` and **chains** to whatever handler was already installed, so adding this to a program does not silently disable the one it had.
 
 
+On **Windows** the same property comes from the platform: `SetConsoleCtrlHandler` registers into a list rather than replacing, and this handler always returns FALSE, so every handler registered before it still runs  including the CRT's, which is what raises SIGINT for an embedded interpreter. Three signals map:
+
+
+
+|`sig`   |Windows event(s)    |
+|-----|-----|
+|`SIGINT`   |`CTRL_C_EVENT`    |
+|`SIGBREAK`   |`CTRL_BREAK_EVENT`    |
+|`SIGTERM`   |`CTRL_CLOSE` \| `CTRL_LOGOFF` \| `CTRL_SHUTDOWN`   |
+
+
+
+
+
+
+
+
+**Warning:**
+
+`SIGTERM` is **not** parity: Windows never raises it (only `raise()` does), so mapping it onto the close/logoff/shutdown family is this library's choice about what "a supervisor is
+         asking us to stop" means. Any other signal is refused with [**DP\_ERR\_INVALID**](clib__common_8h.md#define-dp_err_invalid) rather than accepted and never fired, and delivery is console-scoped  a process with no console attached receives none of these.
+
+
 Install it EARLY — before opening transports, not after. A signal arriving before this call is not ignored, it terminates the process, and that window is real: measured at ~5 ms for a dynamically linked binary, which is long enough for a supervisor's stop signal to land inside it.
 
 

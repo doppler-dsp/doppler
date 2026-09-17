@@ -122,6 +122,127 @@ dp_interrupt_latency_ms (void)
   return dp_interrupt_latency;
 }
 
+#ifdef _WIN32
+
+/* Windows: one console handler, one armed mask, and ONE table read both
+ * ways.
+ *
+ * Chaining is not the problem here that it is on POSIX -- it is the
+ * platform's default. `SetConsoleCtrlHandler` REGISTERS into a list rather
+ * than replacing: handlers run in reverse registration order and returning
+ * FALSE passes the event to the next one. So "do not silently disable the
+ * handler this program already had" is the API's contract rather than
+ * something to hand-roll, and the slot table the POSIX path needs for
+ * save-and-restore has no counterpart -- removal is the same call with
+ * FALSE.
+ *
+ * That is also why this does NOT use `signal(SIGINT, ...)`. The CRT
+ * implements SIGINT on top of its own console handler, so installing over
+ * it displaces whatever the CRT was about to tell -- CPython's SIGINT
+ * handler, in an extension build. Registering alongside and returning FALSE
+ * lets the chain run through the CRT to the interpreter, which is exactly
+ * the property `dp_sig_forward` hand-builds on POSIX.
+ */
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
+#ifndef SIGBREAK
+#define SIGBREAK 21
+#endif
+
+/* The mapping, and the only place it lives. Install reads sig -> events;
+ * the handler reads event -> "is any armed signal interested". One table,
+ * both directions, so the two cannot disagree.
+ *
+ * SIGINT and SIGBREAK are exact: Windows raises CTRL_C_EVENT and
+ * CTRL_BREAK_EVENT and they mean what the signals mean.
+ *
+ * **SIGTERM is doppler's choice, not a platform fact.** The Windows CRT
+ * accepts SIGTERM in signal() but the OS never raises it -- only
+ * raise(SIGTERM) does. Mapping it onto the close/logoff/shutdown family is
+ * this library deciding that "a supervisor is politely asking us to stop"
+ * means those events, because that is what wfmgen installs SIGTERM FOR. The
+ * alternative -- refusing SIGTERM on Windows -- makes a paced run
+ * uninterruptible by anything except Ctrl+C, which is worse and quieter.
+ * Stated here and in dp_interrupt.h so a reader does not assume parity.
+ *
+ * A signal with no entry is refused (DP_ERR_INVALID) rather than silently
+ * accepted: an install that reports success and can never fire is the
+ * failure this whole file exists to avoid.
+ */
+static const struct
+{
+  int   sig;
+  DWORD events;
+} dp_win_sig_map[] = {
+  { SIGINT, 1u << CTRL_C_EVENT },
+  { SIGBREAK, 1u << CTRL_BREAK_EVENT },
+  { SIGTERM, (1u << CTRL_CLOSE_EVENT) | (1u << CTRL_LOGOFF_EVENT)
+                 | (1u << CTRL_SHUTDOWN_EVENT) },
+};
+
+static DWORD dp_win_armed;     /* CTRL_* events we currently answer to */
+static int   dp_win_installed; /* our handler is in the chain */
+
+static DWORD
+dp_win_events_for (int sig)
+{
+  for (size_t i = 0; i < sizeof dp_win_sig_map / sizeof *dp_win_sig_map; i++)
+    if (dp_win_sig_map[i].sig == sig)
+      return dp_win_sig_map[i].events;
+  return 0;
+}
+
+static BOOL WINAPI
+dp_win_ctrl_handler (DWORD type)
+{
+  if (type < 32 && (dp_win_armed & (1u << type)))
+    dp_interrupt ();
+
+  /* ALWAYS FALSE. We observe the event, we never consume it: returning TRUE
+     would stop the chain and strand every handler registered before ours,
+     including the CRT's. The flag is the whole payload. */
+  return FALSE;
+}
+
+int
+dp_interrupt_on_signal (int sig)
+{
+  DWORD ev = dp_win_events_for (sig);
+  if (!ev)
+    return DP_ERR_INVALID;
+
+  if (!dp_win_installed)
+    {
+      if (!SetConsoleCtrlHandler (dp_win_ctrl_handler, TRUE))
+        return DP_ERR_INVALID;
+      dp_win_installed = 1;
+    }
+  dp_win_armed |= ev;
+  return DP_OK;
+}
+
+int
+dp_restore_signal (int sig)
+{
+  DWORD ev = dp_win_events_for (sig);
+  if (!ev || !(dp_win_armed & ev))
+    return DP_ERR_INVALID;
+
+  dp_win_armed &= ~ev;
+  if (!dp_win_armed && dp_win_installed)
+    {
+      SetConsoleCtrlHandler (dp_win_ctrl_handler, FALSE);
+      dp_win_installed = 0;
+    }
+  return DP_OK;
+}
+
+#else /* POSIX */
+
 /* Eight is not a budget anyone reasoned about, it is "more signals than a
    program sensibly interrupts on". Installing on a ninth fails loudly
    rather than silently forgetting the handler it replaced. */
@@ -196,3 +317,5 @@ dp_restore_signal (int sig)
     }
   return DP_ERR_INVALID;
 }
+
+#endif /* _WIN32 */

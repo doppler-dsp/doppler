@@ -15,6 +15,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+/* For Sleep() in the follow-mode poll below. This is a .c, not a public
+   header, so pulling windows.h in here costs no downstream consumer. */
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 #include <time.h>
 
 #include "cJSON.h"
@@ -1378,9 +1388,17 @@ follow_nap (uint32_t remaining_ms)
   uint32_t slice = DP_INTERRUPT_LATENCY_DEFAULT_MS;
   if (remaining_ms && slice > remaining_ms)
     slice = remaining_ms;
+#ifdef _WIN32
+  /* Sleep() takes milliseconds, which is exactly the unit `slice` is in --
+     and unlike the pacing path in timing_core.c this is a follow-mode POLL
+     interval, so the ~15.6 ms scheduler granularity is well inside the
+     tolerance rather than something to defeat with a waitable timer. */
+  Sleep ((DWORD)slice);
+#else
   struct timespec ts
       = { (time_t)(slice / 1000u), (long)(slice % 1000u) * 1000000L };
   nanosleep (&ts, NULL);
+#endif
   return slice;
 }
 

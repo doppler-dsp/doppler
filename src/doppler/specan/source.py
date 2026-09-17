@@ -119,6 +119,34 @@ class DemoSource(Source):
         Primary tone power in dBm.
     noise_floor : float
         AWGN floor in dBm.
+    seed : int or None, optional
+        Seed for the AWGN generator. ``None`` (the default) draws fresh
+        entropy, which is what a LIVE analyzer wants -- a demo whose noise
+        never changes does not look like a spectrum analyzer.
+
+        Pass an int to make the source reproducible. That is for a
+        RECORDING, where the bytes are committed and diffed:
+        ``record_demo`` seeds it so that re-recording an unchanged pipeline
+        produces an identical file, and `specan-check` can therefore mean
+        "the frames no longer match the code" instead of merely "somebody
+        ran the command" (doppler#1367).
+
+    Examples
+    --------
+    Two seeded sources agree sample for sample:
+
+    >>> import numpy as np
+    >>> a = DemoSource(seed=7).read(1024)[0]
+    >>> b = DemoSource(seed=7).read(1024)[0]
+    >>> bool(np.array_equal(a, b))
+    True
+
+    Unseeded, they do not:
+
+    >>> c = DemoSource().read(1024)[0]
+    >>> d = DemoSource().read(1024)[0]
+    >>> bool(np.array_equal(c, d))
+    False
     """
 
     def __init__(
@@ -129,6 +157,7 @@ class DemoSource(Source):
         chirp_rate: float = 0.0,
         tone_power: float = -20.0,
         noise_floor: float = -90.0,
+        seed: int | None = None,
     ) -> None:
         self._fs = float(sample_rate)
         self._cf = float(center_freq)
@@ -143,7 +172,7 @@ class DemoSource(Source):
         self._tones: list[dict] = [
             self._make_tone(float(tone_freq) / self._fs, tone_power)
         ]
-        self._rng = np.random.default_rng()
+        self._rng = np.random.default_rng(seed)
 
     # ------------------------------------------------------------------
     # Internal helpers

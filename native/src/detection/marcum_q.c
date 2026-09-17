@@ -71,12 +71,32 @@ gser (double a, double x)
 #if defined(__APPLE__)
 double lgamma_r (double, int *);
 #endif
+
+#if defined(_WIN32)
+/* The UCRT has no lgamma_r -- and no `signgam` either. The race that
+   motivated the reentrant form (doppler#1260, caught by TSan) is two threads
+   clobbering that shared global; where the platform never publishes it, the
+   object of the race does not exist and the UCRT's lgamma is thread-safe.
+   doppler also discards the sign -- only log|Gamma(x)| is ever used -- so
+   this returns the identical value.
+
+   This is the one place a bare lgamma is allowed, which is what
+   `scripts/check_lgamma_sites.py` enforces: every call in library C goes
+   through dp_lgamma, and dp_lgamma uses the best spelling each platform
+   offers. */
+double
+dp_lgamma (double x)
+{
+  return lgamma (x);
+}
+#else
 double
 dp_lgamma (double x)
 {
   int sign;
   return lgamma_r (x, &sign);
 }
+#endif
 
 static double
 gammaq (double a, double x)

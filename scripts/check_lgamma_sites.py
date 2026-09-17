@@ -9,7 +9,11 @@ through `marcum_q()`, and ThreadSanitizer stopped the test on `lgamma`.
 `lgamma_r()` takes the sign by pointer and touches no global;
 `dp_lgamma()` (declared in `native/inc/clib_common.h`, defined in
 `native/src/detection/marcum_q.c`) wraps it once, and a private `lgamma`
-anywhere else is where the next race lives. Library C only
+anywhere else is where the next race lives. That one home is exempt and
+picks per platform -- `lgamma_r` where it exists, a bare `lgamma` on the
+UCRT, which ships neither `lgamma_r` nor the `signgam` the race needs.
+
+Library C only
 (`native/inc`, `native/src`); tests and harnesses are single-threaded
 oracles and may call what they like. No allowlist: every call was
 converted when the gate landed, so the first bare one fails.
@@ -44,9 +48,15 @@ def bare_calls() -> list[tuple[str, int, str]]:
             for i, line in enumerate(lines):
                 if line.lstrip().startswith(("*", "/*", "//")):
                     continue  # prose about lgamma is not a call
-                if BARE.search(line) or (
-                    REENTRANT.search(line) and rel != SANCTIONED
-                ):
+                # The ONE home may call whatever its platform provides:
+                # lgamma_r where it exists, a bare lgamma on the UCRT, which
+                # has neither lgamma_r nor the `signgam` the race needs. The
+                # invariant is "every call in library C goes through
+                # dp_lgamma", not "the string lgamma appears nowhere" -- and
+                # the docstring above already says `anywhere else`.
+                if rel == SANCTIONED:
+                    continue
+                if BARE.search(line) or REENTRANT.search(line):
                     found.append((rel, i + 1, line.strip()))
     return found
 

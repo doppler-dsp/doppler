@@ -11,7 +11,15 @@
  */
 #include "ccsds_tm/ccsds_tm_rs.h"
 
+#ifdef _WIN32
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
 #include <pthread.h>
+#endif
 
 /* 4.3.3: F(x) = x^8 + x^7 + x^2 + x + 1, held as the low eight bits, the x^8
  * term being implicit in the reduction. 4.3.4: the roots are a^(11j) with j
@@ -54,9 +62,10 @@ static const uint8_t T_DUAL_TO_CONV[8]
  * transcribed, and the derivation is what `test_ccsds_tm_rs` holds to Annex
  * G. Thread safety should not cost the evidence.
  *
- * POSIX-only, which matches `[project] platforms = ["linux", "macos"]`. */
-static rs_t           ccsds;
-static pthread_once_t ccsds_once = PTHREAD_ONCE_INIT;
+ * Windows has the exact analogue, `InitOnceExecuteOnce`, so the property is
+ * kept rather than approximated: one-time, thread-safe, no teardown. The
+ * `ready`-flag version rejected above would have been just as racy there. */
+static rs_t ccsds;
 
 static void
 ccsds_build (void)
@@ -64,10 +73,30 @@ ccsds_build (void)
   rs_init (&ccsds, &CCSDS_TM_RS);
 }
 
+#ifdef _WIN32
+static INIT_ONCE ccsds_once = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK
+ccsds_build_once (PINIT_ONCE once, PVOID param, PVOID *ctx)
+{
+  (void)once;
+  (void)param;
+  (void)ctx;
+  ccsds_build ();
+  return TRUE;
+}
+#else
+static pthread_once_t ccsds_once = PTHREAD_ONCE_INIT;
+#endif
+
 static const rs_t *
 ensure (void)
 {
+#ifdef _WIN32
+  InitOnceExecuteOnce (&ccsds_once, ccsds_build_once, NULL, NULL);
+#else
   pthread_once (&ccsds_once, ccsds_build);
+#endif
   return &ccsds;
 }
 

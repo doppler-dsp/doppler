@@ -4,7 +4,7 @@
 #include "clib_common.h"             /* dp_xnn — abort-on-OOM, see below    */
 #include "mpsk/mpsk_core.h"          /* mpsk_soft_demap — the ONE LLR rule  */
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

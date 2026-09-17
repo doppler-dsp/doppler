@@ -23,7 +23,7 @@
 #include "mpsk/mpsk_core.h"
 #include "ratesync/ratesync_core.h" /* ratesync_loop_t — the timing half */
 #include "dp_tlm/dp_tlm_core.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 
 #ifdef __cplusplus

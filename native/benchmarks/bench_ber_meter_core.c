@@ -16,9 +16,9 @@
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
 #include "ber_meter/ber_meter_core.h"
+#include "dp_complex.h"
 #include "jm_bench.h"
 #include "mpsk/mpsk_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

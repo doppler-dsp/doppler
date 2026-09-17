@@ -1,7 +1,7 @@
 #define DP_TEST_VERBOSE 1
 #include "awgn/awgn_core.h"
+#include "dp_complex.h"
 #include "dp_test.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

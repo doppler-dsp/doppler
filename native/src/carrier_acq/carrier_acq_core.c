@@ -1,5 +1,5 @@
 #include "carrier_acq/carrier_acq_core.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

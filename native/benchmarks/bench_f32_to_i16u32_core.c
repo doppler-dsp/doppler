@@ -1,6 +1,6 @@
+#include "dp_complex.h"
 #include "f32_to_i16u32/f32_to_i16u32_core.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

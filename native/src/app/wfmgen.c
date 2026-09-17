@@ -15,7 +15,7 @@
  * `wavegen --type qpsk --count 4096 …` agree sample-for-sample.
  */
 #include "cvt/cvt_core.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <signal.h>
 #include <stddef.h> /* offsetof — the option table names fields by offset */

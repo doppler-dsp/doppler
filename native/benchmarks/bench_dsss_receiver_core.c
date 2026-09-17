@@ -9,9 +9,9 @@
  * These have very different per-sample costs; reporting both separately
  * (rather than one blended number) is the point.
  */
+#include "dp_complex.h"
 #include "dsss_receiver/dsss_receiver_core.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

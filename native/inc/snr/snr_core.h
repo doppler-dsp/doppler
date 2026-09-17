@@ -30,7 +30,7 @@
 #define SNR_CORE_H
 
 #include "clib_common.h"
-#include <complex.h>
+#include "dp_complex.h"
 
 #ifdef __cplusplus
 extern "C"

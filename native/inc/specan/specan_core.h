@@ -46,7 +46,7 @@
 #include "ddc/ddc_core.h"
 #include "psd/psd_core.h"
 #include "dp_state.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <stddef.h>
 #include "lo/lo_core.h"
 #include "RateConverter/RateConverter_core.h"

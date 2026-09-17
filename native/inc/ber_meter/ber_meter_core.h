@@ -34,7 +34,7 @@
 #include "detection/detection_core.h"
 #include "dp_state.h"
 #include "jm_perf.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <stdint.h>
 
 #ifdef __cplusplus

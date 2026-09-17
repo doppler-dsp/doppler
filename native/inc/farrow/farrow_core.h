@@ -37,7 +37,7 @@
 #include "clib_common.h"
 #include "jm_perf.h"
 #include "dp_state.h"
-#include <complex.h>
+#include "dp_complex.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

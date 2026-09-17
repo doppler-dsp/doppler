@@ -55,7 +55,7 @@
 #include <conv/conv_core.h>
 #include <mpsk/mpsk_core.h>
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>

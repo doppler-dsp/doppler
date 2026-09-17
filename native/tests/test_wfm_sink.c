@@ -13,8 +13,8 @@
 #include "dp_test.h"
 #include "wfm/wfm_sink.h"
 
+#include "dp_complex.h"
 #include <arpa/inet.h>
-#include <complex.h>
 #include <math.h>
 #include <netinet/in.h>
 #include <stdio.h>

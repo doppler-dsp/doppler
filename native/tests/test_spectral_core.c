@@ -16,9 +16,9 @@
  * threshold"; a symmetric synthetic spectrum makes the difference
  * checkable.
  */
+#include "dp_complex.h"
 #include "dp_test.h"
 #include "spectral/spectral_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

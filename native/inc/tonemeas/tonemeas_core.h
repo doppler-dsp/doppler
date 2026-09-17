@@ -25,7 +25,7 @@
 #include "jm_perf.h"
 #include "measure/measure_core.h"
 #include "psd/psd_core.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include "fft/fft_core.h"
 #include "spectral/spectral_core.h"
 #include "acc_trace/acc_trace_core.h"

@@ -40,8 +40,8 @@
 #include "dp_test.h"
 #include "gold/gold_core.h" /* SPEC Gold-1023 for the Es/N0-floor sweep   */
 
+#include "dp_complex.h"
 #include "wfm/wfm_dsp.h" /* wfm_cont_dsss_chips: the wfmgen C API       */
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

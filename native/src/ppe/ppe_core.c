@@ -1,7 +1,7 @@
 #include "ppe/ppe_core.h"
 #include "util/util_core.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 

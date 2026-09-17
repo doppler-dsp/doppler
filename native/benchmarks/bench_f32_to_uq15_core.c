@@ -1,6 +1,6 @@
+#include "dp_complex.h"
 #include "f32_to_uq15/f32_to_uq15_core.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

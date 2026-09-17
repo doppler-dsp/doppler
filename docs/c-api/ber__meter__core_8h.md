@@ -15,7 +15,7 @@ _BerMeter — the error-rate accumulator._ [More...](#detailed-description)
 * `#include "detection/detection_core.h"`
 * `#include "dp_state.h"`
 * `#include "jm_perf.h"`
-* `#include <complex.h>`
+* `#include "dp_complex.h"`
 * `#include <stdint.h>`
 
 

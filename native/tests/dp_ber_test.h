@@ -90,9 +90,9 @@
 
 #include "ber/ber_core.h"             /* the measurement primitives, once  */
 #include "ber_meter/ber_meter_core.h" /* the accumulator + the detector    */
-#include "dp_sym_test.h"              /* EVM / M2M4 / the settling budget    */
-#include "mpsk/mpsk_core.h"           /* mpsk_bps, mpsk_phi0, gray encode    */
-#include <complex.h>
+#include "dp_complex.h"
+#include "dp_sym_test.h"    /* EVM / M2M4 / the settling budget    */
+#include "mpsk/mpsk_core.h" /* mpsk_bps, mpsk_phi0, gray encode    */
 #include <limits.h>
 #include <math.h>
 #include <stddef.h>

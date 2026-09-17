@@ -31,8 +31,8 @@
  * the absolute boundary cost is the same and its share is smaller.
  */
 #include "dp_bench.h"
+#include "dp_complex.h"
 #include "wfm/wfm_compose.h"
-#include <complex.h>
 #include <stdio.h>
 #include <stdlib.h>
 

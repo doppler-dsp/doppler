@@ -46,7 +46,7 @@
  *   ./build/native/examples/wfmgen_frame_demo
  */
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

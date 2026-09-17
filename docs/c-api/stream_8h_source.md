@@ -12,7 +12,7 @@
 #ifndef DP_STREAM_H
 #define DP_STREAM_H
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stddef.h>
 #include <stdint.h>
 

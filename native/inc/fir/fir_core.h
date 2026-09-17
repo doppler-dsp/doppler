@@ -27,7 +27,7 @@
 #include "dp_state.h"
 #include "jm_perf.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stddef.h>
 
 #ifdef __cplusplus

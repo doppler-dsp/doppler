@@ -55,7 +55,7 @@
 #include "dp_sym_test.h"
 
 #include "costas/costas_core.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

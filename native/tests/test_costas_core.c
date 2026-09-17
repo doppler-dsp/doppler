@@ -12,9 +12,9 @@
  *   6. Reset reproducibility
  */
 #include "costas/costas_core.h"
+#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

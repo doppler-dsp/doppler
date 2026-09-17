@@ -44,7 +44,7 @@
 #include <pn/pn_core.h>
 #include <wfm/wfm_compose.h>
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

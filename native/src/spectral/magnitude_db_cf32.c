@@ -1,8 +1,8 @@
 /*
  * magnitude_db_cf32.c — spectral module-level function.
  */
+#include "dp_complex.h"
 #include "spectral/spectral_core.h"
-#include <complex.h>
 #include <math.h>
 
 void

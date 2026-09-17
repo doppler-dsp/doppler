@@ -1,8 +1,8 @@
 #include "doppler_channel/doppler_channel_core.h"
+#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -26,7 +26,7 @@
 #include <corr2d/corr2d_core.h>
 #include <detector/detector_core.h>
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -12,7 +12,7 @@
 #ifndef DP_WFM_READER_H
 #define DP_WFM_READER_H
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stddef.h>
 #include <stdint.h>
 

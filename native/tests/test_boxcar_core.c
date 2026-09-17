@@ -9,8 +9,8 @@
  *   4. Serialization: mid-stream split resumes bit-for-bit; envelope reject
  */
 #include "boxcar/boxcar_core.h"
+#include "dp_complex.h"
 #include "dp_test.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

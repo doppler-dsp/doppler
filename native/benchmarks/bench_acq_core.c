@@ -30,8 +30,8 @@
  * 256, replacing the old caller-supplied max_noncoh cap) comfortably covers
  * the n_noncoh~96-123 this waveform actually lands on. */
 #include "acq/acq_core.h"
+#include "dp_complex.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

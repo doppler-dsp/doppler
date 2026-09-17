@@ -13,7 +13,7 @@
 #define BER_CORE_H
 
 #include "dp_state.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <stddef.h>
 #include <stdint.h>
 

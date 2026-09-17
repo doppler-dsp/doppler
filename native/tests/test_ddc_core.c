@@ -6,9 +6,9 @@
  * real-input twin has its own suite in test_ddcr_core.c.
  */
 #include "ddc/ddc_core.h"
+#include "dp_complex.h"
 #include "dp_mf_test.h"
 #include "dp_test.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

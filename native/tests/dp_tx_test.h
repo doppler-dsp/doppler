@@ -111,7 +111,7 @@
 #include "wfm/wfm_dsp.h"              /* wfm_rrc_h / wfm_rc_h — inline    */
 #include "wfm_synth/wfm_synth_core.h" /* wfm_synth_mls_poly — inline      */
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>

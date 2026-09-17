@@ -17,8 +17,8 @@
  *   ./build/native/examples/rate_converter_demo
  */
 
+#include "dp_complex.h"
 #include <RateConverter/RateConverter_core.h>
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

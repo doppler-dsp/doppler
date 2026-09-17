@@ -9,9 +9,9 @@
  * cexpf baseline (usually much faster — a LUT load vs a transcendental)
  * AND has bounded, predictable phase; this bench captures the throughput.
  */
+#include "dp_complex.h"
 #include "jm_bench.h"
 #include "lo/lo_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

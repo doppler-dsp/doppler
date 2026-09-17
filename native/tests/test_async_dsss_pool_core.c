@@ -18,10 +18,10 @@
  * about the EMITTER's slot, never an exact count of slots.
  */
 #include "async_dsss_pool/async_dsss_pool_core.h"
+#include "dp_complex.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

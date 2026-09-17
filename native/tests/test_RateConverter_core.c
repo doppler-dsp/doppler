@@ -21,7 +21,7 @@
 #include "resamp/resamp_core.h"
 #include "wfm/wfm_dsp.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

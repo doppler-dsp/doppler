@@ -1,5 +1,5 @@
 #include "burst_despreader/burst_despreader_core.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 

@@ -34,9 +34,9 @@
  *
  * Usage: symsync_lock [--check]
  */
+#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "symsync/symsync_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

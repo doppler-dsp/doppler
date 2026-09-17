@@ -26,8 +26,8 @@
  * each other and to the FFT row in `bench_fft_core.c`.
  */
 #include "dp_bench.h"
+#include "dp_complex.h"
 #include "spectral/spectral_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 

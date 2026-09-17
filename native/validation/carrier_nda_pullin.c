@@ -19,8 +19,8 @@
 #include "dp_rng_test.h"
 
 #include "carrier_nda/carrier_nda_core.h"
+#include "dp_complex.h"
 #include "mpsk/mpsk_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

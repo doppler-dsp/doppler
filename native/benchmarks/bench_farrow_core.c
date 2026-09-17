@@ -3,9 +3,9 @@
  *   delay[order] — throughput (MSa/s) of push + eval at a constant fractional
  *                  delay over a 64k block, per interpolator order.
  */
+#include "dp_complex.h"
 #include "farrow/farrow_core.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>

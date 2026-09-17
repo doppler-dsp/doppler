@@ -23,7 +23,7 @@
 #include "dp_test.h"
 #include "snr/snr_core.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

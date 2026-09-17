@@ -11,7 +11,7 @@
 _Error-rate measurement: settled windows, detected alignment, and an exact confidence interval._ [More...](#detailed-description)
 
 * `#include "dp_state.h"`
-* `#include <complex.h>`
+* `#include "dp_complex.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 

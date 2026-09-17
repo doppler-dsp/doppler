@@ -15,9 +15,9 @@
  * Python test (test_carrier_mpsk.py), where both types live in track.so.
  */
 #include "carrier_mpsk/carrier_mpsk_core.h"
+#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

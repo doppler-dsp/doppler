@@ -29,11 +29,11 @@
 #include "awgn/awgn_core.h"
 #include "clib_common.h"
 #include "doppler_channel/doppler_channel_core.h"
+#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include "gold/gold_core.h"
 #include "wfm_synth/wfm_synth_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

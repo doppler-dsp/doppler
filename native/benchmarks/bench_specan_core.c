@@ -15,9 +15,9 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
+#include "dp_complex.h"
 #include "jm_bench.h"
 #include "specan/specan_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

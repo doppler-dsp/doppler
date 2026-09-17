@@ -17,11 +17,11 @@
  */
 #include "acq/acq_core.h"
 #include "detector/det_private.h"
+#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include "dp_tlm/dp_tlm_core.h"
-#include <complex.h>
 #include <float.h>
 #include <math.h>
 #include <stdio.h>

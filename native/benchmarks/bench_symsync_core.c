@@ -4,9 +4,9 @@
  *           strobe + Farrow interpolate + per-symbol Gardner/PI update over a
  *           64k oversampled block.
  */
+#include "dp_complex.h"
 #include "jm_bench.h"
 #include "symsync/symsync_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdlib.h>
 #include <time.h>

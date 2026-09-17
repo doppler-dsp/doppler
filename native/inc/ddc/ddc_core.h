@@ -73,7 +73,7 @@
 #ifndef DDC_CORE_H
 #define DDC_CORE_H
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include "lo/lo_core.h"

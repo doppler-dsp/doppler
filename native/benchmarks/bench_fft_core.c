@@ -27,8 +27,8 @@
  * otherwise is a finding about the copy, not about the FFT.
  */
 #include "dp_bench.h"
+#include "dp_complex.h"
 #include "fft/fft_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

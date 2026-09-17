@@ -121,7 +121,7 @@
 #include "mpsk_receiver/mpsk_receiver_core.h"
 #include "resamp/resamp_core.h"
 #include "resample/resample_core.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include "psd/psd_core.h"

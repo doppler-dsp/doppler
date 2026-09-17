@@ -7,7 +7,7 @@
 #include "dp_test.h"
 #include "wfm_writer/wfm_writer_core.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>

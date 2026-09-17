@@ -24,8 +24,8 @@
  * the two effects.
  */
 #include "dp_bench.h"
+#include "dp_complex.h"
 #include "fir/fir_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

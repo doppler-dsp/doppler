@@ -16,13 +16,6 @@
 #define BENCH_N 65536
 #define ITERATIONS 200
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 /* Bench wfm_synth_steps for one configuration; print MSa/s and record JSON.
  * snr >= 100 ⇒ clean (no AWGN); freq == 0 ⇒ baseband (no LO). */
 static void
@@ -38,14 +31,14 @@ bench_cfg (const char *name, int type, int sps, int pnlen, int lfsr,
     }
   wfm_synth_steps (obj, out, BENCH_N); /* warm up */
 
-  struct timespec t0, t1;
-  double          times[ITERATIONS];
+  uint64_t t0, t1;
+  double   times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       wfm_synth_steps (obj, out, BENCH_N);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   double mean = 0.0;
   for (int r = 0; r < ITERATIONS; r++)
@@ -79,14 +72,14 @@ bench_cfg_rrc (const char *name, int type, int sps, int pnlen, double snr,
   free (taps);
   wfm_synth_steps (obj, out, BENCH_N); /* warm up (also primes the shaper) */
 
-  struct timespec t0, t1;
-  double          times[ITERATIONS];
+  uint64_t t0, t1;
+  double   times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       wfm_synth_steps (obj, out, BENCH_N);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   double mean = 0.0;
   for (int r = 0; r < ITERATIONS; r++)

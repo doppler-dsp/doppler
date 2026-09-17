@@ -60,7 +60,7 @@ int
 main (void)
 {
   jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   static double   t[N_CFG][ITERATIONS];
   corr_state_t   *corr[N_LEN] = { 0 };
   const size_t    n_max       = frame_n[N_LEN - 1];
@@ -110,15 +110,15 @@ main (void)
         for (size_t f = 0; f + 2 < DWELL; f++)
           (void)corr_execute (corr[l], in, n, out, n);
 
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         (void)corr_execute (corr[l], in, n, out, n);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t[l * N_KIND + CFG_ACC][r] = dp_bench_elapsed (&t0, &t1);
+        t1                         = jm_bench_now_ns ();
+        t[l * N_KIND + CFG_ACC][r] = jm_bench_elapsed_sec (t0, t1);
 
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         (void)corr_execute (corr[l], in, n, out, n);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t[l * N_KIND + CFG_DUMP][r] = dp_bench_elapsed (&t0, &t1);
+        t1                          = jm_bench_now_ns ();
+        t[l * N_KIND + CFG_DUMP][r] = jm_bench_elapsed_sec (t0, t1);
       }
 
   for (int l = 0; l < N_LEN; l++)

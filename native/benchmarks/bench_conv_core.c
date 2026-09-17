@@ -40,13 +40,6 @@ static const conv_code_t CODE
     = { .k = 7, .n = 2, .poly = { 0171u, 0133u }, .invert = 0u };
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -69,8 +62,8 @@ report (const char *name, const double *t, size_t bits)
 int
 main (void)
 {
-  struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
+  uint64_t   t0, t1;
+  jm_bench_t _bench = { 0 };
 
   const size_t n_in  = BENCH_N;
   const size_t n_cod = n_in * CODE.n;
@@ -100,25 +93,25 @@ main (void)
 
   /* One settle before any timing, then min over rounds. */
   {
-    struct timespec w0, w1;
-    clock_gettime (CLOCK_MONOTONIC, &w0);
+    uint64_t w0, w1;
+    w0 = jm_bench_now_ns ();
     do
       {
         conv_enc_init (&enc);
         conv_encode (&enc, &CODE, in, n_in, cod, n_cod);
-        clock_gettime (CLOCK_MONOTONIC, &w1);
+        w1 = jm_bench_now_ns ();
       }
-    while (elapsed_sec (&w0, &w1) < 0.25);
+    while (jm_bench_elapsed_sec (w0, w1) < 0.25);
   }
 
   static double t_enc[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
       conv_enc_init (&enc);
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       conv_encode (&enc, &CODE, in, n_in, cod, n_cod);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_enc[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_enc[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "encode", t_enc, ITERATIONS, (int)n_in);
   report ("encode", t_enc, n_in);

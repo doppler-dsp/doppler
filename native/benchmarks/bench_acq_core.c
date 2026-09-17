@@ -112,13 +112,6 @@ static const acq_bench_cfg_t CFGS[] = {
   { 5.0e6, 5000.0, "op5M_U5k_D154_t4", 3, 1, 813, 4 },
 };
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 static uint32_t
 _xorshift32 (uint32_t *s)
 {
@@ -244,11 +237,11 @@ main (void)
           double times[ITERATIONS];
           for (int r = 0; r < ITERATIONS; r++)
             {
-              struct timespec t0, t1;
-              clock_gettime (CLOCK_MONOTONIC, &t0);
-              nh = acq_push (a, buf, n_in, hits, 4);
-              clock_gettime (CLOCK_MONOTONIC, &t1);
-              times[r] = elapsed_sec (&t0, &t1);
+              uint64_t t0, t1;
+              t0       = jm_bench_now_ns ();
+              nh       = acq_push (a, buf, n_in, hits, 4);
+              t1       = jm_bench_now_ns ();
+              times[r] = jm_bench_elapsed_sec (t0, t1);
               if (nh != 1)
                 fprintf (stderr, "  iter %d: unexpected nh=%zu\n", r, nh);
             }

@@ -51,13 +51,6 @@
 #define SEARCH_BITS 262144
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -78,7 +71,7 @@ report_frame (const char *name, const double *t)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
@@ -133,12 +126,12 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           conv_enc_init (&conv);
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           for (int f = 0; f < FRAMES; f++)
             sink += ccsds_tm_frame_encode (&cfgs[c], &conv, frame, FRAME_LEN,
                                            out, max_out);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_enc[c][r] = elapsed_sec (&t0, &t1);
+          t1          = jm_bench_now_ns ();
+          t_enc[c][r] = jm_bench_elapsed_sec (t0, t1);
         }
       jm_bench_add (&_bench, names[c], t_enc[c], ITERATIONS, FRAMES);
       report_frame (names[c], t_enc[c]);
@@ -154,11 +147,11 @@ main (void)
     bits[i] = (uint8_t)((frame[i / 8] >> (7 - (i % 8))) & 1u);
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int f = 0; f < FRAMES; f++)
         ccsds_tm_randomise (bits, FRAME_LEN * 8);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_rand[r] = elapsed_sec (&t0, &t1);
+      t1        = jm_bench_now_ns ();
+      t_rand[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "randomise", t_rand, ITERATIONS, FRAMES);
   report_frame ("randomise", t_rand);
@@ -173,25 +166,25 @@ main (void)
   ccsds_tm_rs_encode_block (frame, DEPTH, block);
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int f = 0; f < FRAMES; f++)
         sink += ccsds_tm_rs_encode_block (frame, DEPTH, block);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_rse[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_rse[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "rs_encode_block", t_rse, ITERATIONS, FRAMES);
   report_frame ("rs_encode_block", t_rse);
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int f = 0; f < FRAMES; f++)
         {
           memcpy (rxblk, block, BLOCK_LEN);
           sink += ccsds_tm_rs_decode_block (rxblk, DEPTH, NULL);
         }
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_rsd[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_rsd[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "rs_decode_block", t_rsd, ITERATIONS, FRAMES);
   report_frame ("rs_decode_block", t_rsd);
@@ -214,10 +207,10 @@ main (void)
   ccsds_tm_asm_hit_t hit;
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       sink += (size_t)ccsds_tm_asm_find (stream, SEARCH_BITS, 2u, &hit);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_asm[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_asm[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "asm_find", t_asm, ITERATIONS, SEARCH_BITS);
   printf ("  %-24s %8.2f ns/bit   %8.2f Mbit/s scanned\n", "asm_find",

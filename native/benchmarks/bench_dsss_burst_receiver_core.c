@@ -182,13 +182,6 @@ fill_noise (float _Complex *x, size_t n, double sigma, uint32_t seed)
     }
 }
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 static dsss_burst_receiver_state_t *
 make_rx (void)
 {
@@ -211,9 +204,9 @@ make_rx (void)
 static size_t
 time_push (const float _Complex *x, const char *name, jm_bench_t *bench)
 {
-  double          times[ITERATIONS];
-  size_t          decoded = 0;
-  struct timespec t0, t1;
+  double   times[ITERATIONS];
+  size_t   decoded = 0;
+  uint64_t t0, t1;
 
   dsss_burst_receiver_state_t *probe = make_rx ();
   size_t cap = dsss_burst_receiver_push_max_out (probe, BENCH_N);
@@ -225,10 +218,10 @@ time_push (const float _Complex *x, const char *name, jm_bench_t *bench)
   for (int r = 0; r < ITERATIONS; r++)
     {
       dsss_burst_receiver_state_t *rx = make_rx ();
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0                              = jm_bench_now_ns ();
       size_t n = dsss_burst_receiver_push (rx, x, BENCH_N, out, cap);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
       decoded += n / PAYLOAD;
       dsss_burst_receiver_destroy (rx);
     }

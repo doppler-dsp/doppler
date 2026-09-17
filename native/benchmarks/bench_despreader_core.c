@@ -16,13 +16,6 @@
 #define SF 127
 #define SPS 8
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 int
 main (void)
 {
@@ -49,8 +42,8 @@ main (void)
       phase += w;
     }
 
-  struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
+  uint64_t   t0, t1;
+  jm_bench_t _bench = { 0 };
 
   printf ("=== despreader benchmark ===\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
@@ -63,10 +56,10 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       despreader_reset (ch);
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       despreader_steps (ch, rx, BENCH_N, out, BENCH_N);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "steps", times, ITERATIONS, BENCH_N);
   double sum = 0.0;

@@ -51,7 +51,7 @@ int
 main (void)
 {
   jm_bench_t           _bench = { 0 };
-  struct timespec      t0, t1;
+  uint64_t             t0, t1;
   static double        t[N_CFG][ITERATIONS];
   wfm_compose_state_t *comp[N_CFG] = { 0 };
   wfm_source_t         src[N_CFG];
@@ -104,11 +104,11 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     for (int c = 0; c < N_CFG; c++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (size_t done = 0; done < TOTAL; done += PULL)
           (void)wfm_compose_execute (comp[c], out, PULL);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t[c][r] = dp_bench_elapsed (&t0, &t1);
+        t1      = jm_bench_now_ns ();
+        t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
 
   for (int c = 0; c < N_CFG; c++)

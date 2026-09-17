@@ -110,9 +110,9 @@ run (int op)
 int
 main (void)
 {
-  jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
-  static double   t[N_OPS][ITERATIONS];
+  jm_bench_t    _bench = { 0 };
+  uint64_t      t0, t1;
+  static double t[N_OPS][ITERATIONS];
 
   /* A quarter of the inputs saturate. The clamp is a branch on most
      targets, so an input that never trips it would measure the
@@ -138,11 +138,11 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     for (int op = 0; op < N_OPS; op++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int k = 0; k < REPS; k++)
           run (op);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t[op][r] = dp_bench_elapsed (&t0, &t1);
+        t1       = jm_bench_now_ns ();
+        t[op][r] = jm_bench_elapsed_sec (t0, t1);
       }
 
   for (int op = 0; op < N_OPS; op++)

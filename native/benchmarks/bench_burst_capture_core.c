@@ -33,13 +33,6 @@
 #define BENCH_N 65536
 #define ITERATIONS 30
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 static float
 csign (uint8_t c)
 {
@@ -107,7 +100,7 @@ static void
 time_push (jm_bench_t *b, const char *name, const char *path,
            const float _Complex *x, double *times)
 {
-  struct timespec t0, t1;
+  uint64_t t0, t1;
   for (int r = 0; r < ITERATIONS; r++)
     {
       burst_capture_state_t *c
@@ -118,10 +111,10 @@ time_push (jm_bench_t *b, const char *name, const char *path,
                                          1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
       if (!c)
         return;
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       (void)burst_capture_push (c, x, BENCH_N, out, sizeof out / sizeof *out);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
       burst_capture_destroy (c);
     }
   jm_bench_add (b, name, times, ITERATIONS, BENCH_N);

@@ -36,13 +36,6 @@
 #define POLY_23 0x020u /* x^23 + x^5 + 1  */
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -55,7 +48,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
@@ -88,10 +81,10 @@ main (void)
         for (int r = 0; r < ITERATIONS; r++)
           {
             pn_reset (p);
-            clock_gettime (CLOCK_MONOTONIC, &t0);
+            t0 = jm_bench_now_ns ();
             sink += pn_generate (p, BENCH_N, out, BENCH_N);
-            clock_gettime (CLOCK_MONOTONIC, &t1);
-            times[k][i][r] = elapsed_sec (&t0, &t1);
+            t1             = jm_bench_now_ns ();
+            times[k][i][r] = jm_bench_elapsed_sec (t0, t1);
           }
         char name[64];
         (void)snprintf (name, sizeof name, "generate[%s,len=%u]", kname[k],
@@ -111,11 +104,11 @@ main (void)
   static double t_floor[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         out[i] = (uint8_t)(i & 1);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_floor[r] = elapsed_sec (&t0, &t1);
+      t1         = jm_bench_now_ns ();
+      t_floor[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "store_floor", t_floor, ITERATIONS, BENCH_N);
   {

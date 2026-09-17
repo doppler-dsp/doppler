@@ -24,13 +24,6 @@ static const size_t N_BLOCKS = sizeof BLOCKS / sizeof BLOCKS[0];
 static const double RATES[] = { 1.0001, 0.9999, 0.5, 2.0 };
 static const size_t N_RATES = sizeof RATES / sizeof RATES[0];
 
-static double
-elapsed_sec (struct timespec a, struct timespec b)
-{
-  return (double)(b.tv_sec - a.tv_sec)
-         + (double)(b.tv_nsec - a.tv_nsec) * 1e-9;
-}
-
 int
 main (void)
 {
@@ -77,8 +70,8 @@ main (void)
           if (!obj)
             continue;
 
-          double          times[ITERATIONS];
-          struct timespec t0, t1;
+          double   times[ITERATIONS];
+          uint64_t t0, t1;
 
           /* warmup */
           for (int i = 0; i < 4; i++)
@@ -86,11 +79,11 @@ main (void)
 
           for (int rep = 0; rep < ITERATIONS; rep++)
             {
-              clock_gettime (CLOCK_MONOTONIC, &t0);
+              t0 = jm_bench_now_ns ();
               for (int i = 0; i < iters; i++)
                 resamp_execute (obj, in, block, out, max_out);
-              clock_gettime (CLOCK_MONOTONIC, &t1);
-              times[rep] = elapsed_sec (t0, t1);
+              t1         = jm_bench_now_ns ();
+              times[rep] = jm_bench_elapsed_sec (t0, t1);
             }
 
           char name[64];

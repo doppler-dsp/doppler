@@ -79,15 +79,15 @@ static const char *kind_name[N_KIND] = { "f32", "f64" };
 int
 main (void)
 {
-  jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
-  static double   t[N_CFG][ITERATIONS];
-  dp_f32_t       *b32   = dp_f32_create (CAPACITY);
-  dp_f64_t       *b64   = dp_f64_create (CAPACITY);
-  float          *src32 = NULL;
-  double         *src64 = NULL;
-  double          acc   = 0.0;
-  char            name[72];
+  jm_bench_t    _bench = { 0 };
+  uint64_t      t0, t1;
+  static double t[N_CFG][ITERATIONS];
+  dp_f32_t     *b32   = dp_f32_create (CAPACITY);
+  dp_f64_t     *b64   = dp_f64_create (CAPACITY);
+  float        *src32 = NULL;
+  double       *src64 = NULL;
+  double        acc   = 0.0;
+  char          name[72];
 
   if (!b32 || !b64)
     {
@@ -123,23 +123,23 @@ main (void)
       {
         const size_t chunk = chunks[c];
 
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (size_t done = 0; done < TOTAL; done += chunk)
           {
             (void)dp_f32_write (b32, src32, chunk);
             DRAIN (f32, float, b32, chunk, acc);
           }
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t[c * N_KIND + KIND_F32][r] = dp_bench_elapsed (&t0, &t1);
+        t1                          = jm_bench_now_ns ();
+        t[c * N_KIND + KIND_F32][r] = jm_bench_elapsed_sec (t0, t1);
 
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (size_t done = 0; done < TOTAL; done += chunk)
           {
             (void)dp_f64_write (b64, src64, chunk);
             DRAIN (f64, double, b64, chunk, acc);
           }
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t[c * N_KIND + KIND_F64][r] = dp_bench_elapsed (&t0, &t1);
+        t1                          = jm_bench_now_ns ();
+        t[c * N_KIND + KIND_F64][r] = jm_bench_elapsed_sec (t0, t1);
       }
 
   for (int c = 0; c < N_CHUNK; c++)

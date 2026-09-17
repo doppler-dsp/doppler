@@ -29,13 +29,6 @@
 #define SPAN 2.0e6
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -48,7 +41,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
@@ -97,10 +90,10 @@ main (void)
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           sink += specan_execute (s, x, BLOCK, out, cap);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_ex[k][r] = elapsed_sec (&t0, &t1);
+          t1         = jm_bench_now_ns ();
+          t_ex[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
       char name[64];
       (void)snprintf (name, sizeof name, "execute[rbw=%.0fk]", rbws[k] / 1e3);
@@ -114,10 +107,10 @@ main (void)
           static double t_rt[ITERATIONS];
           for (int r = 0; r < ITERATIONS; r++)
             {
-              clock_gettime (CLOCK_MONOTONIC, &t0);
+              t0 = jm_bench_now_ns ();
               specan_retune (s, (r & 1) ? 1.0e5 : -1.0e5);
-              clock_gettime (CLOCK_MONOTONIC, &t1);
-              t_rt[r] = elapsed_sec (&t0, &t1);
+              t1      = jm_bench_now_ns ();
+              t_rt[r] = jm_bench_elapsed_sec (t0, t1);
             }
           jm_bench_add (&_bench, "retune", t_rt, ITERATIONS, 1);
           printf ("  %-24s %7.3f us/call   (between blocks, not per "

@@ -8,13 +8,6 @@
 #define BENCH_N 65536
 #define ITERATIONS 200
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 int
 main (void)
 {
@@ -42,8 +35,8 @@ main (void)
   for (int i = 0; i < 16; i++)
     _sink = f32_to_i16u64_step (obj, in[i]);
 
-  struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
+  uint64_t   t0, t1;
+  jm_bench_t _bench = { 0 };
 
   printf ("=== f32_to_i16u64 benchmark ===\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
@@ -51,11 +44,11 @@ main (void)
   double _times_step[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         _sink = f32_to_i16u64_step (obj, in[i]);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      _times_step[r] = elapsed_sec (&t0, &t1);
+      t1             = jm_bench_now_ns ();
+      _times_step[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "step", _times_step, ITERATIONS, BENCH_N);
   {
@@ -68,10 +61,10 @@ main (void)
   double _times_steps[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       f32_to_i16u64_steps (obj, in, out, BENCH_N);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      _times_steps[r] = elapsed_sec (&t0, &t1);
+      t1              = jm_bench_now_ns ();
+      _times_steps[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "steps", _times_steps, ITERATIONS, BENCH_N);
   {

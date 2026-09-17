@@ -37,13 +37,6 @@
 #define SERIES_ISSUE 890
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -56,7 +49,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile double sink   = 0.0;
 
@@ -92,10 +85,10 @@ main (void)
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       sink += snr_data_aided_db (soft, BENCH_N, bits, BENCH_N);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_one[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_one[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "data_aided_db", t_one, ITERATIONS, BENCH_N);
   printf ("  %-24s %7.2f ns/sym   %8.3f us/block\n", "data_aided_db",
@@ -104,10 +97,10 @@ main (void)
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       snr_data_aided_db_series (soft, BENCH_N, bits, BENCH_N, WINDOW, out);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_ser[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_ser[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "series[window=1024]", t_ser, ITERATIONS, BENCH_N);
   printf ("  %-24s %7.2f ns/sym   %8.3f us/block  (one per sample)\n",

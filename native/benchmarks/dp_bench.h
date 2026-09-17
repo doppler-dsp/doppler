@@ -37,14 +37,6 @@
 /** @brief Seconds of untimed work before the first measurement. */
 #define DP_BENCH_WARMUP_S 0.25
 
-/** @brief Monotonic seconds between two samples. */
-static inline double
-dp_bench_elapsed (const struct timespec *t0, const struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 /** @brief The fastest of @p rounds timings -- see the note above. */
 static inline double
 dp_bench_min (const double *t, int rounds)
@@ -66,14 +58,14 @@ dp_bench_min (const double *t, int rounds)
 #define DP_BENCH_SETTLE(stmt)                                                 \
   do                                                                          \
     {                                                                         \
-      struct timespec _w0, _w1;                                               \
-      clock_gettime (CLOCK_MONOTONIC, &_w0);                                  \
+      uint64_t _w0, _w1;                                                      \
+      _w0 = jm_bench_now_ns ();                                               \
       do                                                                      \
         {                                                                     \
           stmt;                                                               \
-          clock_gettime (CLOCK_MONOTONIC, &_w1);                              \
+          _w1 = jm_bench_now_ns ();                                           \
         }                                                                     \
-      while (dp_bench_elapsed (&_w0, &_w1) < DP_BENCH_WARMUP_S);              \
+      while (jm_bench_elapsed_sec (_w0, _w1) < DP_BENCH_WARMUP_S);            \
     }                                                                         \
   while (0)
 

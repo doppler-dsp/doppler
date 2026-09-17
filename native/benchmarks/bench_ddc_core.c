@@ -69,7 +69,7 @@ int
 main (void)
 {
   jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   static double   t[N_CFG][ITERATIONS];
   ddc_state_t    *ddc[N_RATE] = { 0 };
   float _Complex *in = NULL, *out = NULL;
@@ -110,24 +110,24 @@ main (void)
     {
       for (int s = 0; s < N_RATE; s++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0         = jm_bench_now_ns ();
           emitted[s] = ddc_execute (ddc[s], in, BLOCK, out, cap);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t[s][r] = dp_bench_elapsed (&t0, &t1);
+          t1         = jm_bench_now_ns ();
+          t[s][r]    = jm_bench_elapsed_sec (t0, t1);
         }
 
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       (void)ddc_execute_ctrl (ddc[REF_RATE_IDX], in, BLOCK, 0.0, 0.0, out,
                               cap);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t[N_RATE][r] = dp_bench_elapsed (&t0, &t1);
+      t1           = jm_bench_now_ns ();
+      t[N_RATE][r] = jm_bench_elapsed_sec (t0, t1);
 
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (size_t i = 0; i < BLOCK; i++)
         (void)ddc_execute_ctrl_push (ddc[REF_RATE_IDX], in[i], 0.0, 0.0, out,
                                      cap);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t[N_RATE + 1][r] = dp_bench_elapsed (&t0, &t1);
+      t1               = jm_bench_now_ns ();
+      t[N_RATE + 1][r] = jm_bench_elapsed_sec (t0, t1);
     }
 
   for (int s = 0; s < N_RATE; s++)

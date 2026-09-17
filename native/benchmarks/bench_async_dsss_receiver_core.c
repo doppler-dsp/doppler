@@ -58,13 +58,6 @@ typedef struct
 static const uint8_t CODE7[7] = { 1, 1, 1, 0, 1, 0, 0 };
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -128,7 +121,7 @@ make_rx (const wf_t *w)
 static int
 run_waveform (jm_bench_t *bench, const wf_t *w)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   volatile size_t sink = 0;
   char            name[JM_BENCH_NAME_LEN];
 
@@ -174,24 +167,24 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
   /* Cold: a fresh receiver each round, over the whole capture. */
   static double t_cold[ITERATIONS];
   {
-    struct timespec w0, w1;
-    clock_gettime (CLOCK_MONOTONIC, &w0);
+    uint64_t w0, w1;
+    w0 = jm_bench_now_ns ();
     do
       {
         async_dsss_receiver_state_t *rx = make_rx (w);
         sink += async_dsss_receiver_steps (rx, x, n, out, cap);
         async_dsss_receiver_destroy (rx);
-        clock_gettime (CLOCK_MONOTONIC, &w1);
+        w1 = jm_bench_now_ns ();
       }
-    while (elapsed_sec (&w0, &w1) < WARMUP_S);
+    while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
 
     for (int r = 0; r < ITERATIONS; r++)
       {
         async_dsss_receiver_state_t *rx = make_rx (w);
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0                              = jm_bench_now_ns ();
         sink += async_dsss_receiver_steps (rx, x, n, out, cap);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_cold[r] = elapsed_sec (&t0, &t1);
+        t1        = jm_bench_now_ns ();
+        t_cold[r] = jm_bench_elapsed_sec (t0, t1);
         async_dsss_receiver_destroy (rx);
       }
     (void)snprintf (name, sizeof name, "steps[cold%s]", w->tag);
@@ -215,22 +208,22 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
                        w->tag);
         return 1;
       }
-    const size_t    half = n / 2;
-    struct timespec w0, w1;
-    clock_gettime (CLOCK_MONOTONIC, &w0);
+    const size_t half = n / 2;
+    uint64_t     w0, w1;
+    w0 = jm_bench_now_ns ();
     do
       {
         sink += async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
-        clock_gettime (CLOCK_MONOTONIC, &w1);
+        w1 = jm_bench_now_ns ();
       }
-    while (elapsed_sec (&w0, &w1) < WARMUP_S);
+    while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
 
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         sink += async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_warm[r] = elapsed_sec (&t0, &t1);
+        t1        = jm_bench_now_ns ();
+        t_warm[r] = jm_bench_elapsed_sec (t0, t1);
       }
     (void)snprintf (name, sizeof name, "steps[warm%s]", w->tag);
     jm_bench_add (bench, name, t_warm, ITERATIONS, (int)(n - half));
@@ -272,21 +265,21 @@ run_waveform (jm_bench_t *bench, const wf_t *w)
                        w->tag);
         return 1;
       }
-    const size_t    half = n / 2;
-    struct timespec w0, w1;
-    clock_gettime (CLOCK_MONOTONIC, &w0);
+    const size_t half = n / 2;
+    uint64_t     w0, w1;
+    w0 = jm_bench_now_ns ();
     do
       {
         sink += async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
-        clock_gettime (CLOCK_MONOTONIC, &w1);
+        w1 = jm_bench_now_ns ();
       }
-    while (elapsed_sec (&w0, &w1) < WARMUP_S);
+    while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         sink += async_dsss_receiver_steps (rx, x + half, n - half, out, cap);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_cell[r] = elapsed_sec (&t0, &t1);
+        t1        = jm_bench_now_ns ();
+        t_cell[r] = jm_bench_elapsed_sec (t0, t1);
       }
     (void)snprintf (name, sizeof name, "steps[cell%s]", w->tag);
     jm_bench_add (bench, name, t_cell, ITERATIONS, (int)(n - half));

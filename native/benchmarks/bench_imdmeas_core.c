@@ -20,13 +20,6 @@
 #define ITERATIONS 50
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -39,7 +32,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile double sink   = 0.0;
 
@@ -88,10 +81,10 @@ main (void)
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           sink += imdmeas_analyze (m, x, n).imd3_dbc;
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_an[k][r] = elapsed_sec (&t0, &t1);
+          t1         = jm_bench_now_ns ();
+          t_an[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
       char name[64];
       (void)snprintf (name, sizeof name, "analyze[n=%zu]", n);

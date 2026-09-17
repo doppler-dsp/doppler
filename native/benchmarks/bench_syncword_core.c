@@ -53,13 +53,6 @@ static const size_t MARKER_LENS[] = { 32u, 64u, 128u, 256u };
 #define N_LENS ((int)(sizeof MARKER_LENS / sizeof MARKER_LENS[0]))
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -72,9 +65,9 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
-  volatile int    sink   = 0;
+  uint64_t     t0, t1;
+  jm_bench_t   _bench = { 0 };
+  volatile int sink   = 0;
 
   uint8_t *bits = malloc (SEARCH_BITS);
   if (!bits)
@@ -128,12 +121,12 @@ main (void)
       static double t_find[ITERATIONS];
       for (int r = 0; r < ITERATIONS; r++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           /* max_errors = 0: nothing in the stream can match, so the whole
              window is walked and the row is the honest worst case. */
           sink += syncword_find (f, bits, SEARCH_BITS, 0u).found;
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_find[r] = elapsed_sec (&t0, &t1);
+          t1        = jm_bench_now_ns ();
+          t_find[r] = jm_bench_elapsed_sec (t0, t1);
         }
 
       char name[32];
@@ -162,11 +155,11 @@ main (void)
     static double t_thr[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int k = 0; k < THRESH_CALLS; k++)
           sink += syncword_max_errors_for (f, 4096u + (size_t)k, 1e-3);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_thr[r] = elapsed_sec (&t0, &t1);
+        t1       = jm_bench_now_ns ();
+        t_thr[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "max_errors_for[n=32]", t_thr, ITERATIONS,
                   THRESH_CALLS);

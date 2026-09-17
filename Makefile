@@ -130,7 +130,8 @@ SYNC_CMD   = $(UV) sync
 LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
                retired-names ci-pipefail rust-abi header-example-arity \
-               wfm-enum-tables fmod-fold lgamma-reentrant full-scale
+               wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
+               bench-timer
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -253,6 +254,20 @@ LINT_fmod-fold = $(UV) run python scripts/check_fmod_fold_sites.py
 # two or more WIDTHS, which is a table; one width's two clamp bounds stay
 # legal. No allowlist -- every copy was converted when the gate landed.
 LINT_full-scale = $(UV) run python scripts/check_full_scale_sites.py
+
+# The monotonic clock a benchmark times with has one home, jm_bench_now_ns()
+# in the vendored native/benchmarks/jm_bench.h. All 106 benchmarks used to
+# open `clock_gettime(CLOCK_MONOTONIC)` themselves and carry their own
+# four-line `elapsed_sec()` -- 85 copies of one primitive, the same shape as
+# fmod-fold and full-scale above, and undrifted only because nobody had yet
+# needed to touch it. The UCRT has no clock_gettime, so it was also why every
+# benchmark failed to compile on Windows; jm 0.76.4 (gh-1341) put the clock
+# in jm_bench.h over QPC/clock_gettime and doppler re-vendored it. No
+# allowlist -- every copy was converted when the gate landed. CLOCK_REALTIME
+# and struct timespec stay legal: bench_stream.c wall-clock-stamps NATS
+# messages and sleeps intervals, which is a different clock for a different
+# job, and it is POSIX-only by its own CMake guard.
+LINT_bench-timer = $(UV) run python scripts/check_bench_timer.py
 
 # lgamma() writes the global signgam, so two threads race on it -- found by
 # TSan the first time a pool of receivers rebuilt their chains across

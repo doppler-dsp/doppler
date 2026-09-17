@@ -43,12 +43,12 @@ taps_for (double fp, double fs)
 int
 main (void)
 {
-  jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
-  static double   t[N_CFG][ITERATIONS];
-  size_t          n[N_CFG], n_max = 0;
-  float          *out;
-  char            name[64];
+  jm_bench_t    _bench = { 0 };
+  uint64_t      t0, t1;
+  static double t[N_CFG][ITERATIONS];
+  size_t        n[N_CFG], n_max = 0;
+  float        *out;
+  char          name[64];
 
   for (int c = 0; c < N_CFG; c++)
     {
@@ -72,10 +72,10 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     for (int c = 0; c < N_CFG; c++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         design_lowpass (FPASS, fstop[c], ATTEN_DB, out);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t[c][r] = dp_bench_elapsed (&t0, &t1);
+        t1      = jm_bench_now_ns ();
+        t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
 
   for (int c = 0; c < N_CFG; c++)

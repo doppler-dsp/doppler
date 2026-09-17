@@ -51,7 +51,7 @@ int
 main (void)
 {
   jm_bench_t        _bench = { 0 };
-  struct timespec   t0, t1;
+  uint64_t          t0, t1;
   static double     t[N_CFG][ITERATIONS];
   detector_state_t *det[N_CFG] = { 0 };
   float _Complex   *ref = NULL, *in = NULL;
@@ -98,11 +98,11 @@ main (void)
     for (int c = 0; c < N_CFG; c++)
       {
         detector_reset (det[c]);
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (size_t off = 0; off < TOTAL; off += chunk[c])
           (void)detector_push (det[c], in + off, chunk[c], res, MAX_RESULTS);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t[c][r] = dp_bench_elapsed (&t0, &t1);
+        t1      = jm_bench_now_ns ();
+        t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
 
   for (int c = 0; c < N_CFG; c++)

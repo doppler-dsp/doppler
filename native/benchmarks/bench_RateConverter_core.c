@@ -8,13 +8,6 @@
 #define BENCH_N 65536
 #define ITERATIONS 100
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 typedef struct
 {
   const char *label;
@@ -74,11 +67,11 @@ main (void)
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          struct timespec t0, t1;
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          uint64_t t0, t1;
+          t0 = jm_bench_now_ns ();
           RateConverter_execute (rc, in, BENCH_N, out, max_out);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          _times[r] = elapsed_sec (&t0, &t1);
+          t1        = jm_bench_now_ns ();
+          _times[r] = jm_bench_elapsed_sec (t0, t1);
         }
       jm_bench_add (&_bench, label, _times, ITERATIONS, BENCH_N);
 

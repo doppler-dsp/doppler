@@ -38,20 +38,13 @@
 #define ITERATIONS 50
 #define BENCH_PATH "bench_dp_evlog.events"
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 int
 main (void)
 {
-  struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
-  double          times[ITERATIONS];
-  double          _s;
+  uint64_t   t0, t1;
+  jm_bench_t _bench = { 0 };
+  double     times[ITERATIONS];
+  double     _s;
 
   printf ("=== dp_event_log benchmark ===\n");
   printf ("%d events per iteration, %d iterations\n\n", EVENTS, ITERATIONS);
@@ -67,15 +60,15 @@ main (void)
               fprintf (stderr, "open failed\n");                              \
               return 1;                                                       \
             }                                                                 \
-          clock_gettime (CLOCK_MONOTONIC, &t0);                               \
+          t0 = jm_bench_now_ns ();                                            \
           for (int e = 0; e < EVENTS; e++)                                    \
             {                                                                 \
               per_event;                                                      \
               dp_event_log_append (log, (uint64_t)e * 4096u, "tracking", 0,   \
                                    1.0e4, 4.0e6);                             \
             }                                                                 \
-          clock_gettime (CLOCK_MONOTONIC, &t1);                               \
-          times[r] = elapsed_sec (&t0, &t1);                                  \
+          t1       = jm_bench_now_ns ();                                      \
+          times[r] = jm_bench_elapsed_sec (t0, t1);                           \
           dp_event_log_destroy (log);                                         \
         }                                                                     \
       jm_bench_add (&_bench, label, times, ITERATIONS, EVENTS);               \

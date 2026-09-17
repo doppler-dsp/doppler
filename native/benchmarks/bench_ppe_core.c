@@ -12,13 +12,6 @@
 
 #define ITERATIONS 200
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 static void
 synth (float _Complex *y, size_t L, double f, double r)
 {
@@ -40,14 +33,14 @@ bench_one (jm_bench_t *b, const char *name, size_t L, double max_rate)
   synth (y, L, 0.05, max_rate > 0.0 ? 1e-5 : 0.0);
   ppe_result_t e = ppe_estimate (p, y, L); /* warm */
 
-  struct timespec t0, t1;
-  double          times[ITERATIONS];
+  uint64_t t0, t1;
+  double   times[ITERATIONS];
   for (int i = 0; i < ITERATIONS; i++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
-      e = ppe_estimate (p, y, L);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[i] = elapsed_sec (&t0, &t1);
+      t0       = jm_bench_now_ns ();
+      e        = ppe_estimate (p, y, L);
+      t1       = jm_bench_now_ns ();
+      times[i] = jm_bench_elapsed_sec (t0, t1);
     }
   printf ("  %-8s L=%5zu n_rate=%5zu  f=%.4f r=%.2e snr=%.0f\n", name, L,
           p->n_rate, e.freq_norm, e.rate_norm, e.snr_db);

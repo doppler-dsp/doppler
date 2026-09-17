@@ -21,10 +21,10 @@
  */
 #include "awgn/awgn_core.h"
 #include "ber/ber_core.h"
+#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "pn/pn_core.h"
 #include "wfm_synth/wfm_synth_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

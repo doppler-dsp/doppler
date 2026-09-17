@@ -7,7 +7,7 @@
  */
 #include "wfm/wfm_compose.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stddef.h> /* offsetof — the frame key tables name members once */
 #include <stdio.h>
 #include <stdlib.h>

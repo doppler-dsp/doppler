@@ -28,7 +28,7 @@
 #include "pffft/pffft.h"
 #include "pocketfft/pocketfft_c99.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

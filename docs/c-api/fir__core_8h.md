@@ -13,7 +13,7 @@ _Direct-form FIR filter — real-tap and complex-tap variants._ [More...](#detai
 * `#include "clib_common.h"`
 * `#include "dp_state.h"`
 * `#include "jm_perf.h"`
-* `#include <complex.h>`
+* `#include "dp_complex.h"`
 * `#include <stddef.h>`
 
 

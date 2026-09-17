@@ -9,8 +9,8 @@
  * a loop); the pair captures any block-call overhead vs the inlined path.
  */
 #include "carrier_nda/carrier_nda_core.h"
+#include "dp_complex.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

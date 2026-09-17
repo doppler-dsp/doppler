@@ -154,7 +154,7 @@
 #ifndef DP_RNG_TEST_H
 #define DP_RNG_TEST_H
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 

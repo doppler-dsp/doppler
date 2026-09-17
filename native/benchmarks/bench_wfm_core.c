@@ -21,8 +21,8 @@
  * to its OWN output element, so `ops` in the JSON means what it says.
  */
 #include "dp_bench.h"
+#include "dp_complex.h"
 #include "wfm/wfm_core.h"
-#include <complex.h>
 #include <stdint.h>
 #include <stdio.h>
 

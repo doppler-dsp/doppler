@@ -95,7 +95,7 @@
 #include "dp_tlm_capture/dp_tlm_capture_core.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

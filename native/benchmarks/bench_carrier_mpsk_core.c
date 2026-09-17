@@ -17,8 +17,8 @@
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
 #include "carrier_mpsk/carrier_mpsk_core.h"
+#include "dp_complex.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

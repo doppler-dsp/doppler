@@ -9,8 +9,8 @@
  * the embedded engine, and the state triplet round-trips.
  */
 #include "burst_acq/burst_acq_core.h"
+#include "dp_complex.h"
 #include "dp_test.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

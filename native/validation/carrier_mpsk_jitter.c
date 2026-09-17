@@ -28,7 +28,7 @@
 
 #include "awgn/awgn_core.h"
 #include "carrier_mpsk/carrier_mpsk_core.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

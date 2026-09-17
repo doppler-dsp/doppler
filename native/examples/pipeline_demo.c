@@ -24,7 +24,7 @@
 #include <doppler.h>
 #include <stream/stream.h>
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>

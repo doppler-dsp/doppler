@@ -16,7 +16,7 @@
 /* dp_frame_parse: the receive-side rules, reachable without a broker. */
 #include "../src/stream/stream_internal.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>

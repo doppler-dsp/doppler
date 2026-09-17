@@ -7,7 +7,7 @@
 
 #include "dp_crc16.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 

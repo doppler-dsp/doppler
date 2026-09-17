@@ -20,7 +20,7 @@
 #include <lo/lo_core.h>
 #include <nco/nco_core.h>
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 

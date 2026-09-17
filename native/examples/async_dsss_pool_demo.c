@@ -35,9 +35,9 @@
  *   cmake --build build
  *   ./build/native/examples/async_dsss_pool_demo
  */
+#include "dp_complex.h"
 #include <async_dsss_pool/async_dsss_pool_core.h>
 #include <awgn/awgn_core.h>
-#include <complex.h>
 #include <dp_event_log/dp_event_log_core.h>
 #include <gold/gold_core.h>
 #include <math.h>

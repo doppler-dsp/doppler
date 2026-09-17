@@ -1,6 +1,6 @@
 #include "acc_cf64/acc_cf64_core.h"
+#include "dp_complex.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

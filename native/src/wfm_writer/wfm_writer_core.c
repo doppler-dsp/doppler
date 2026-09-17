@@ -11,7 +11,7 @@
 #include "wfm/wfm_path.h"
 #include "wfm/wfm_time.h" /* J1950 <-> UNIX, WFM_TIMECODE_UNSET */
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>

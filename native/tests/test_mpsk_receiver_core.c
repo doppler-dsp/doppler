@@ -32,12 +32,12 @@
  * lock metric reveals; a unit-amplitude constellation plus noise sits right on
  * that edge. See mpsk_receiver_get_clipped().
  */
+#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

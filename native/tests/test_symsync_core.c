@@ -9,11 +9,11 @@
  *   4. All three interpolator orders lock
  *   5. Both TEDs (Gardner, DTTL) lock on a BPSK stream
  */
+#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include "symsync/symsync_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

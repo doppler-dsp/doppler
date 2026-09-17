@@ -49,7 +49,7 @@
 #include "clib_common.h"
 #include "dp_state.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include "resamp/resamp_core.h"

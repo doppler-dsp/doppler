@@ -30,7 +30,7 @@
 #include "awgn/awgn_core.h"
 #include "carrier_nda/carrier_nda_core.h"
 #include "detection/detection_core.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

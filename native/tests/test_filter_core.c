@@ -15,10 +15,10 @@
  * would pin the current coefficients and say nothing about whether they
  * are a filter.
  */
+#include "dp_complex.h"
 #include "dp_test.h"
 #include "filter/filter_core.h"
 #include "resample/resample_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 

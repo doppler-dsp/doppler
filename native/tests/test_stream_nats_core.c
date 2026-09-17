@@ -17,8 +17,8 @@
    LIBRARY includes it. */
 #include <nats.h>
 
+#include "dp_complex.h"
 #include <arpa/inet.h>
-#include <complex.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdio.h>

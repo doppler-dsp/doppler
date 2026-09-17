@@ -85,8 +85,8 @@
 #define DP_DSSS_TEST_H
 
 #include "doppler_channel/doppler_channel_core.h"
+#include "dp_complex.h"
 #include "dp_rng_test.h"
-#include <complex.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>

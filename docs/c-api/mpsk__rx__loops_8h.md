@@ -21,7 +21,7 @@ _The two loops an M-PSK receiver closes, independent of its front end._ [More...
 * `#include "mpsk/mpsk_core.h"`
 * `#include "ratesync/ratesync_core.h"`
 * `#include "dp_tlm/dp_tlm_core.h"`
-* `#include <complex.h>`
+* `#include "dp_complex.h"`
 * `#include <math.h>`
 
 

@@ -10,7 +10,7 @@
 
 _Real-input Digital Down-Converter — halfband R2C + LO + cascade._ [More...](#detailed-description)
 
-* `#include <complex.h>`
+* `#include "dp_complex.h"`
 * `#include <stdbool.h>`
 * `#include <stddef.h>`
 * `#include "lo/lo_core.h"`

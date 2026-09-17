@@ -44,8 +44,8 @@
  */
 #include "awgn/awgn_core.h"
 #include "detection/detection_core.h"
+#include "dp_complex.h"
 #include "mpsk/mpsk_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

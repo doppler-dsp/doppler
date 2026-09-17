@@ -24,7 +24,7 @@
 #include "dp_sym_test.h" /* EVM / M2M4 / settling — the shared primitives */
 #include "dp_tx_test.h"  /* the shaped symbol stream — the shared stimulus */
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -73,7 +73,7 @@
 #ifndef WFM_PLAN_H
 #define WFM_PLAN_H
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stddef.h>
 #include <stdint.h>
 

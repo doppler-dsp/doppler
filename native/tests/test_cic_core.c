@@ -13,8 +13,8 @@
  *   - Alias rejection: stopband tone ≥ 20 dB below passband reference
  */
 #include "cic/cic_core.h"
+#include "dp_complex.h"
 #include "dp_test.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

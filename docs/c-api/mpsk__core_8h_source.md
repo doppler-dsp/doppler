@@ -14,7 +14,7 @@
 
 #include "clib_common.h"
 #include "jm_perf.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #ifdef __cplusplus
 extern "C" {

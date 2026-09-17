@@ -5,8 +5,8 @@
  * core at the operating point, the working target half of that; the
  * number reported here is the whole population's, per input sample. */
 #include "async_dsss_pool/async_dsss_pool_core.h"
+#include "dp_complex.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

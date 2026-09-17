@@ -5,10 +5,10 @@
  * benched clean vs +noise, and the LFSR types are benched at baseband (the raw
  * bit-manipulation path). Emits pytest-benchmark-compatible JSON via make
  * bench. */
+#include "dp_complex.h"
 #include "jm_bench.h"
 #include "wfm/wfm_dsp.h" /* wfm_rrc_taps — RRC pulse-shaping bench */
 #include "wfm_synth/wfm_synth_core.h"
-#include <complex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

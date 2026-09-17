@@ -23,8 +23,8 @@
  * caller whose shape is fixed by the physics at least knows what it costs.
  */
 #include "dp_bench.h"
+#include "dp_complex.h"
 #include "fft2d/fft2d_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

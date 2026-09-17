@@ -21,7 +21,7 @@
 #include "RateConverter/RateConverter_core.h"
 #include "lo/lo_core.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stdlib.h>
 #include <string.h>
 

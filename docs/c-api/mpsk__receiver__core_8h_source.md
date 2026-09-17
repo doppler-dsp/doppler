@@ -18,7 +18,7 @@
 #include "dp_state.h"
 #include "jm_perf.h"
 #include "mpsk_receiver/mpsk_rx_loops.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include "ratesync/ratesync_core.h"
 #include "RateConverter/RateConverter_core.h"
 #include "resamp/resamp_core.h"

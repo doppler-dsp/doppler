@@ -15,7 +15,7 @@ _Feedforward BPSK DSSS frame demodulator._ [More...](#detailed-description)
 * `#include "ppe/ppe_core.h"`
 * `#include "fft/fft_core.h"`
 * `#include "spectral/spectral_core.h"`
-* `#include <complex.h>`
+* `#include "dp_complex.h"`
 * `#include "conv/conv_core.h"`
 * `#include "rs/rs_core.h"`
 * `#include "pn/pn_core.h"`

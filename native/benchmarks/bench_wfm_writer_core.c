@@ -9,7 +9,7 @@
 #include "jm_bench.h"
 #include "wfm_writer/wfm_writer_core.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

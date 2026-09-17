@@ -9,7 +9,7 @@
 
 #include "spectral/spectral_core.h" /* kaiser_beta_for_sidelobe */
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

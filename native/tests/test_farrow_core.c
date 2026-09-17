@@ -9,10 +9,10 @@
  *   4. Fractional delay of a sinusoid matches the expected phase shift
  *   5. Reset clears the delay line
  */
+#include "dp_complex.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include "farrow/farrow_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

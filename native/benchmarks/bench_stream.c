@@ -37,7 +37,7 @@
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <pthread.h>
 #include <semaphore.h>

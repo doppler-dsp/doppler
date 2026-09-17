@@ -18,7 +18,7 @@
 
 #include <agc/agc_core.h>
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 

@@ -64,9 +64,9 @@
 #define MPSK_BER_COMMON_H
 
 #include "dp_ber_test.h"
+#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "mpsk_receiver/mpsk_receiver_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

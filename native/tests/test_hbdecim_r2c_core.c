@@ -13,7 +13,7 @@
 #include "dp_test.h"
 #include "hbdecim/hbdecim_r2c_core.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

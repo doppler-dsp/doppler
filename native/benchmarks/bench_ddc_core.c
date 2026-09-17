@@ -33,7 +33,7 @@
  */
 #include "ddc/ddc_core.h"
 #include "dp_bench.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

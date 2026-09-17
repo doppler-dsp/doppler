@@ -4,8 +4,8 @@
  *           + per-period discriminator + loop update over a 64k burst.
  */
 #include "dll/dll_core.h"
+#include "dp_complex.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <stdlib.h>
 #include <time.h>
 

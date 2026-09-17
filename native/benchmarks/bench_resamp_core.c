@@ -10,7 +10,7 @@
 #include "jm_bench.h"
 #include "resamp/resamp_core.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

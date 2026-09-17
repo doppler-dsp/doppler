@@ -43,7 +43,7 @@
 #include "loop_filter/loop_filter_core.h"
 #include "nco/nco_core.h"
 #include "dp_tlm/dp_tlm_core.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include "detection/detection_core.h"
 #include "telemetry/telemetry_core.h"

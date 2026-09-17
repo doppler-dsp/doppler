@@ -7,8 +7,8 @@
  *             0.9 from a cold start on a fixed carrier residual.
  */
 #include "costas/costas_core.h"
+#include "dp_complex.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

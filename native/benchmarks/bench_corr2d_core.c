@@ -7,8 +7,8 @@
  * fast-path optimization (see docs/design/corr2d-interpolated-inverse.md).
  */
 #include "corr2d/corr2d_core.h"
+#include "dp_complex.h"
 #include "jm_bench.h"
-#include <complex.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

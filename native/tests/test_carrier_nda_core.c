@@ -24,10 +24,10 @@
  * the file's own index is a claim like any other.
  */
 #include "carrier_nda/carrier_nda_core.h"
+#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include "mpsk/mpsk_core.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

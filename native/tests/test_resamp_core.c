@@ -39,9 +39,9 @@
  * the interpolator's structure.
  */
 
+#include "dp_complex.h"
 #include "dp_test.h"
 #include "resamp/resamp_impl.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

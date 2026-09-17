@@ -10,7 +10,7 @@
 
 _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#detailed-description)
 
-* `#include <complex.h>`
+* `#include "dp_complex.h"`
 * `#include <stdbool.h>`
 * `#include <stddef.h>`
 * `#include "lo/lo_core.h"`

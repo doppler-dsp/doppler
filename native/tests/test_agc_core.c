@@ -46,9 +46,9 @@
  * CMakeLists is jm-generated. Filed rather than worked around here.
  */
 #include "agc/agc_core.h"
+#include "dp_complex.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
-#include <complex.h>
 #include <float.h>
 #include <math.h>
 #include <stdio.h>

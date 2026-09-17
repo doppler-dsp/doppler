@@ -93,7 +93,7 @@
 #include "wfm/wfm_frame.h"
 #include "wfm_synth/wfm_synth_core.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

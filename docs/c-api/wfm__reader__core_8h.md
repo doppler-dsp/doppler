@@ -10,7 +10,7 @@
 
 _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#detailed-description)
 
-* `#include <complex.h>`
+* `#include "dp_complex.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 * `#include "wfm/wfm_keywords.h"`

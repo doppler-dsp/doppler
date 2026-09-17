@@ -25,7 +25,7 @@
 #include "dp_test.h"
 #include "dp_tlm_capture/dp_tlm_capture_core.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

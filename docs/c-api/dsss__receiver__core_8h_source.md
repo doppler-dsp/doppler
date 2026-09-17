@@ -21,7 +21,7 @@
 #include "mpsk_receiver/mpsk_receiver_core.h"
 #include "resamp/resamp_core.h"
 #include "resample/resample_core.h"
-#include <complex.h>
+#include "dp_complex.h"
 #include <stddef.h>
 #include "costas/costas_core.h"
 #include "snr/snr_core.h"

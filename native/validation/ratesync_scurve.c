@@ -88,11 +88,11 @@
  *
  * Usage:  ratesync_scurve [--check]
  */
+#include "dp_complex.h"
 #include "dp_tx_test.h"
 #include "ratesync/ratesync_core.h"
 #include "symsync/symsync_core.h"
 #include "wfm/wfm_dsp.h"
-#include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -946,7 +946,8 @@ add_executable(test_dp_test native/tests/test_dp_test.c)
 # omission was invisible to `make test` and red only in `make coverage`.
 target_link_libraries(test_dp_test PRIVATE m)
 target_include_directories(test_dp_test
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                           ${CMAKE_SOURCE_DIR}/native/tests)
 target_compile_options(test_dp_test PRIVATE -O2)
 add_test(NAME test_dp_test COMMAND test_dp_test)
 
@@ -957,7 +958,8 @@ add_test(NAME test_dp_test COMMAND test_dp_test)
 # run a zero-assertion program to check that the floor fires.
 add_executable(test_dp_test_end native/tests/test_dp_test_end.c)
 target_include_directories(test_dp_test_end
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                           ${CMAKE_SOURCE_DIR}/native/tests)
 target_compile_options(test_dp_test_end PRIVATE -O2)
 add_test(NAME test_dp_test_end_nothing COMMAND test_dp_test_end nothing)
 add_test(NAME test_dp_test_end_fail COMMAND test_dp_test_end fail)
@@ -992,7 +994,8 @@ add_test(NAME test_dp_ber COMMAND test_dp_ber)
 add_executable(test_dp_rng native/tests/test_dp_rng.c)
 target_link_libraries(test_dp_rng PRIVATE m)
 target_include_directories(test_dp_rng
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                           ${CMAKE_SOURCE_DIR}/native/tests)
 target_compile_options(test_dp_rng PRIVATE -O2)
 add_test(NAME test_dp_rng COMMAND test_dp_rng)
 

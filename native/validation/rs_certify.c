@@ -50,7 +50,7 @@
 #include "rs/rs_core.h"
 #include "wfm_synth/wfm_synth_core.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

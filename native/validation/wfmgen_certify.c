@@ -32,7 +32,7 @@
  */
 #include "wfm/wfm_compose.h"
 
-#include <complex.h>
+#include "dp_complex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

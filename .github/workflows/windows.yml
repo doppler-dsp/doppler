@@ -1,0 +1,116 @@
+name: Windows (clang-cl)
+
+# EXPLORATORY. This workflow is deliberately NOT part of the merge gate and
+# deliberately publishes nothing.
+#
+# Not required to pass
+# --------------------
+# `protect-main` requires exactly one status check, `CI passed` -- the
+# `ci-passed` job at the bottom of ci.yml, which is green only when every job
+# in its `needs` succeeded. This workflow lives in its own file, so it is not
+# in that list and cannot be: `scripts/check_ci_aggregator.py` requires every
+# job *in ci.yml* to feed the aggregator, with no exemption, so a Windows job
+# added there would become binding, which is the opposite of the intent.
+#
+# A separate file is therefore the mechanism, not a workaround -- and it is
+# preferable to `continue-on-error: true`, which would paint a failing build
+# green. Red here is informative and blocks nothing. That is the point: this
+# runner exists to SHOW what Windows does, and a gate that cannot report bad
+# news is worth nothing.
+#
+# Publishes nothing
+# -----------------
+# No wheel, no tarball, no container, no GitHub release, no PyPI upload, and
+# nothing is uploaded that another workflow consumes. Releases are cut by
+# release.yml, which triggers only on a `v[0-9]*` tag push; nothing here can
+# reach it. doppler's published artifacts remain Linux and macOS only.
+#
+# What it actually tests
+# ----------------------
+# That doppler's C builds and its C suite passes against the MSVC ABI and the
+# MSVC runtime, using clang-cl (clang on Windows targets MSVC by default).
+# MSVC's own `cl.exe` has no `_Complex` at all and cannot build this tree --
+# `native/inc/dp_complex.h` says so with an `#error`.
+#
+# The complex-math surface is what made this plausible: measured on clang 22
+# against `x86_64-pc-windows-msvc` with doppler's own flags, a complex kernel
+# routed through `dp_complex.h` leaves only `_fltused atan2f cosf expf hypotf
+# sinf` undefined -- all plain-float UCRT exports, no `_Fcomplex` across the
+# ABI, and `__mulsc3` inlined away by `-ffast-math`. So there is no
+# compiler-rt dependency and no complex-typed CRT call.
+#
+# Python is OFF here (`BUILD_PYTHON` already defaults OFF). The C library is
+# the part with a plausible Windows story; the extension modules are jm's
+# territory and `just-makeit.toml` declares `platforms = ["linux", "macos"]`.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    # Only when something that could plausibly break it moves -- this is an
+    # exploratory signal, not a reason to burn a runner on every docs PR.
+    paths:
+      - 'native/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/windows.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test-windows:
+    name: C build + ctest (clang-cl)
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record the toolchain
+        shell: bash
+        run: |
+          clang --version
+          cmake --version
+          ninja --version || echo "ninja not on PATH; the configure step names a generator"
+
+      # clang on Windows defaults to the MSVC target, so doppler's GCC-style
+      # flags (-march=x86-64-v2 -ffast-math) are accepted as written. Using
+      # the `clang` driver rather than `clang-cl` is what keeps CMakeLists.txt
+      # unchanged -- clang-cl takes MSVC-style flags and would need every
+      # add_compile_options() line rewritten behind a /clang: prefix.
+      - name: Configure
+        shell: bash
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DBUILD_PYTHON=OFF
+
+      - name: Build
+        shell: bash
+        run: cmake --build build --parallel
+
+      # Which symbols the objects actually need is the claim this runner is
+      # here to check, so print it rather than infer it from a green build.
+      - name: What the link actually required
+        if: always()
+        shell: bash
+        run: |
+          echo "--- any _Fcomplex or compiler-rt complex helper should be ABSENT ---"
+          if command -v llvm-nm >/dev/null 2>&1; then
+            find build -name '*.obj' -print0 \
+              | xargs -0 -r llvm-nm --undefined-only 2>/dev/null \
+              | grep -iE '_Fcomplex|__mulsc3|__divsc3|__muldc3|__divdc3' \
+              | sort -u | head -20 || echo "  none — as designed"
+          else
+            echo "  llvm-nm unavailable; skipped"
+          fi
+
+      - name: C suite
+        shell: bash
+        run: ctest --test-dir build --output-on-failure

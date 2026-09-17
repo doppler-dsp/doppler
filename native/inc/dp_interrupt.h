@@ -131,6 +131,26 @@ extern "C"
    * installed, so adding this to a program does not silently disable the
    * one it had.
    *
+   * On **Windows** the same property comes from the platform:
+   * `SetConsoleCtrlHandler` registers into a list rather than replacing,
+   * and this handler always returns FALSE, so every handler registered
+   * before it still runs -- including the CRT's, which is what raises
+   * SIGINT for an embedded interpreter. Three signals map:
+   *
+   * | @p sig     | Windows event(s)                                   |
+   * |------------|----------------------------------------------------|
+   * | `SIGINT`   | `CTRL_C_EVENT`                                     |
+   * | `SIGBREAK` | `CTRL_BREAK_EVENT`                                 |
+   * | `SIGTERM`  | `CTRL_CLOSE` \| `CTRL_LOGOFF` \| `CTRL_SHUTDOWN`   |
+   *
+   * @warning `SIGTERM` is **not** parity: Windows never raises it (only
+   *          `raise()` does), so mapping it onto the close/logoff/shutdown
+   *          family is this library's choice about what "a supervisor is
+   *          asking us to stop" means. Any other signal is refused with
+   *          @ref DP_ERR_INVALID rather than accepted and never fired, and
+   *          delivery is console-scoped -- a process with no console
+   *          attached receives none of these.
+   *
    * Install it EARLY — before opening transports, not after. A signal
    * arriving before this call is not ignored, it terminates the process,
    * and that window is real: measured at ~5 ms for a dynamically linked

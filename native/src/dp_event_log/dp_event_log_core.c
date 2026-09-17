@@ -15,6 +15,14 @@
 #include <string.h>
 #include <sys/stat.h> /* fstat: a device is not an event log */
 
+/* MSVC's <sys/stat.h> carries the `_S_IF*` mode bits but none of POSIX's
+   `S_IS*` test macros, so the same question has to be spelled out. Guarded
+   on the macro rather than on `_WIN32`: any platform that already provides
+   it keeps its own, and the definition here cannot shadow one. */
+#ifndef S_ISREG
+#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
+#endif
+
 #include "cJSON.h"
 #include "dp_event_log/dp_event_log_core.h"
 #include "dp_tlm/dp_tlm_core.h" /* DP_TLM_REC_DTYPE_JSON -- one dtype */

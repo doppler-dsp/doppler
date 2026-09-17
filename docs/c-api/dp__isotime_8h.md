@@ -60,8 +60,10 @@ _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for nam
 |  int | [**dp\_isotime\_digits\_**](#function-dp_isotime_digits_) (const char \*\* p, int n, int \* out) <br>_Reads_ `n` _decimal digits, advancing_`p` _. 0 on success._ |
 |  int | [**dp\_isotime\_format**](#function-dp_isotime_format) (char \* buf, size\_t cap, int64\_t sec, uint32\_t nsec, unsigned frac) <br> |
 |  int | [**dp\_isotime\_format\_as**](#function-dp_isotime_format_as) (char \* buf, size\_t cap, int64\_t sec, uint32\_t nsec, unsigned frac, int style) <br> |
+|  struct tm \* | [**dp\_isotime\_gmtime**](#function-dp_isotime_gmtime) (const time\_t \* t, struct tm \* out) <br> |
 |  int | [**dp\_isotime\_now**](#function-dp_isotime_now) (char \* buf, size\_t cap, unsigned frac) <br> |
 |  int | [**dp\_isotime\_parse**](#function-dp_isotime_parse) (const char \* s, int64\_t \* sec, uint32\_t \* nsec) <br>_Parses an ISO 8601 UTC timestamp into UNIX seconds + nanoseconds._  |
+|  int | [**dp\_isotime\_wall**](#function-dp_isotime_wall) (struct timespec \* ts) <br> |
 
 
 
@@ -263,6 +265,22 @@ Characters written (excluding the NUL), or -1 if `frac` is not one of the four, 
 
 
 
+### function dp\_isotime\_gmtime 
+
+```C++
+static inline struct tm * dp_isotime_gmtime (
+    const time_t * t,
+    struct tm * out
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function dp\_isotime\_now 
 
 ```C++
@@ -351,6 +369,21 @@ dp_isotime_parse ("1970-01-01T00:00:01Z", &sec, &nsec);  // sec == 1
 
 
         
+
+<hr>
+
+
+
+### function dp\_isotime\_wall 
+
+```C++
+static inline int dp_isotime_wall (
+    struct timespec * ts
+) 
+```
+
+
+
 
 <hr>
 ## Macro Definition Documentation

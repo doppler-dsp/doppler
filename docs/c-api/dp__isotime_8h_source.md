@@ -24,6 +24,41 @@
 #include <stdio.h>
 #include <time.h>
 
+/* Windows has neither `gmtime_r` nor `clock_gettime`, and both replacements
+   live in <time.h> -- so this header does NOT pull in <windows.h>. That
+   matters for a public header: windows.h is enormous and drags macros
+   (min/max, near/far) into every downstream translation unit that includes
+   doppler.
+ *
+ * `gmtime_s` reverses gmtime_r's arguments and returns errno_t; C11's
+ * `timespec_get(&ts, TIME_UTC)` is the standard spelling of "wall clock with
+ * nanoseconds" and the UCRT provides it. POSIX keeps clock_gettime, which is
+ * the one with a documented clock ID rather than an implementation-defined
+ * base. */
+#ifdef _WIN32
+static inline struct tm *
+dp_isotime_gmtime (const time_t *t, struct tm *out)
+{
+  return gmtime_s (out, t) == 0 ? out : NULL;
+}
+static inline int
+dp_isotime_wall (struct timespec *ts)
+{
+  return timespec_get (ts, TIME_UTC) == TIME_UTC ? 0 : -1;
+}
+#else
+static inline struct tm *
+dp_isotime_gmtime (const time_t *t, struct tm *out)
+{
+  return gmtime_r (t, out);
+}
+static inline int
+dp_isotime_wall (struct timespec *ts)
+{
+  return clock_gettime (CLOCK_REALTIME, ts);
+}
+#endif
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -53,7 +88,7 @@ extern "C"
 
     time_t    t = (time_t) sec;
     struct tm tm_utc;
-    if (!gmtime_r (&t, &tm_utc))
+    if (!dp_isotime_gmtime (&t, &tm_utc))
       return -1;
 
     /* Basic "YYYYMMDDThhmmss" is 15 chars and carries no colons; extended
@@ -97,7 +132,7 @@ extern "C"
   dp_isotime_now (char *buf, size_t cap, unsigned frac)
   {
     struct timespec ts;
-    if (clock_gettime (CLOCK_REALTIME, &ts) != 0)
+    if (dp_isotime_wall (&ts) != 0)
       return -1;
     return dp_isotime_format (buf, cap, (int64_t) ts.tv_sec,
                               (uint32_t) ts.tv_nsec, frac);

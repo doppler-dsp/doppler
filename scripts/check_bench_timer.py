@@ -35,6 +35,7 @@ Exit 0 when every benchmark times through jm_bench.h.
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -53,12 +54,12 @@ MONOTONIC = re.compile(r"(?<![\w])CLOCK_MONOTONIC(?![\w])")
 HELPER = re.compile(r"(?<![\w])elapsed_sec(?![\w])")
 
 
-def offenders() -> list[tuple[str, int, str]]:
+def offenders(root: Path = ROOT) -> list[tuple[str, int, str]]:
     found: list[tuple[str, int, str]] = []
-    for path in sorted((ROOT / SCAN_DIR).rglob("*")):
+    for path in sorted((root / SCAN_DIR).rglob("*")):
         if path.suffix not in (".c", ".h"):
             continue
-        rel = path.relative_to(ROOT).as_posix()
+        rel = path.relative_to(root).as_posix()
         if rel == SANCTIONED:
             continue
         for i, line in enumerate(
@@ -72,7 +73,14 @@ def offenders() -> list[tuple[str, int, str]]:
 
 
 def main() -> int:
-    found = offenders()
+    # --root exists for this gate's OWN test. A gate that can only run
+    # against the real tree cannot be sabotaged -- you would have to break
+    # doppler's 106 benchmarks to check it, and nobody does that twice --
+    # so the test seeds a tree shaped like native/benchmarks and points the
+    # scan at that instead.
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--root", type=Path, default=ROOT)
+    found = offenders(ap.parse_args().root)
     if not found:
         print("bench-timer: every benchmark times through jm_bench_now_ns()")
         return 0

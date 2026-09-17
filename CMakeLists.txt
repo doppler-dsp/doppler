@@ -194,6 +194,23 @@ foreach(_t doppler_lib doppler_lib_static)
         $<$<PLATFORM_ID:Darwin>:_DARWIN_C_SOURCE>)
     set_target_properties(${_t} PROPERTIES OUTPUT_NAME doppler)
 endforeach()
+# One OUTPUT_NAME for both is unambiguous everywhere doppler ships and
+# ambiguous on Windows. A SHARED library there produces `doppler.dll` PLUS an
+# import library `doppler.lib`, and the STATIC library is `doppler.lib` too --
+# two rules generating one path, which ninja refuses outright:
+#
+#     ninja: error: build.ninja:154: multiple rules generate doppler.lib
+#
+# On Linux and macOS the suffixes differ (`libdoppler.so` vs `libdoppler.a`),
+# so the collision cannot arise and the shared name reads as deliberate. It is
+# renamed only where it has to be: nothing that ships is affected, since
+# Windows publishes no artifacts (.github/workflows/windows.yml is
+# exploratory), and EXPORT_NAME below is untouched, so `doppler::doppler` and
+# `doppler::doppler-static` are the same on every platform.
+if(WIN32)
+    set_target_properties(doppler_lib_static PROPERTIES
+                          OUTPUT_NAME doppler_static)
+endif()
 # Export both libs under obvious target names: `doppler::doppler` (shared) and
 # `doppler::doppler-static`. Both go through install(EXPORT) below, so CMake
 # generates fully relocatable imported targets (no hand-rolled paths in the

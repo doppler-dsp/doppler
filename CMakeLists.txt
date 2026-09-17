@@ -251,8 +251,19 @@ set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # `undefined reference to pthread_once` in CI's Debian 10 job while every
 # glibc >= 2.34 box linked it clean, pthread being folded into libc there.
 find_package(Threads REQUIRED)
-target_link_libraries(doppler_lib        PRIVATE m Threads::Threads)
-target_link_libraries(doppler_lib_static PUBLIC  m Threads::Threads)
+
+# libm is a separate library on POSIX and part of the UCRT on Windows, where
+# a bare `m` resolves to nothing and the link dies on `could not open
+# 'm.lib'`. `find_library` answers the question instead of assuming it, and
+# an empty result links nothing -- the same shape jm adopted for its
+# generated per-component link lines in gh-1305.
+find_library(DP_MATH_LIBRARY m)
+if(NOT DP_MATH_LIBRARY)
+    set(DP_MATH_LIBRARY "")
+endif()
+
+target_link_libraries(doppler_lib        PRIVATE ${DP_MATH_LIBRARY} Threads::Threads)
+target_link_libraries(doppler_lib_static PUBLIC  ${DP_MATH_LIBRARY} Threads::Threads)
 
 # The core ships weak no-op stubs for the wfm_stream_sink_* symbols wfmgen
 # uses (native/src/wfm/wfm_sink_stub.c, folded in via the wfmcompose subdir),

@@ -47,6 +47,23 @@
 
 #include <math.h>
 
+/* The UCRT's <math.h> hijacks the identifier `complex`.
+ *
+ * `corecrt_math.h` carries `#define complex _complex` -- a legacy alias for
+ * its `struct _complex`, the argument type of the old `_cabs`. C99 spells a
+ * complex type `float complex`, which doppler writes in 196 places, and under
+ * that macro each one becomes `float _complex`: a struct, not a complex
+ * number, reported as `error: redefinition of '_complex'` a line later.
+ *
+ * On POSIX `<complex.h>` is what defines `complex` as `_Complex`, and this
+ * header does not include it here -- so the C99 meaning has to be restored
+ * explicitly, after <math.h> has had its say. Found by the Windows runner;
+ * no amount of Linux CI can see it, because no POSIX libc does this. */
+#ifdef complex
+#undef complex
+#endif
+#define complex _Complex
+
 /* Deliberately NOT <complex.h>: see the file comment. These are clang
    builtins, so they lower to register moves rather than calls. */
 #define crealf __builtin_crealf
@@ -58,7 +75,12 @@
 
 /** @brief The imaginary unit, as C99 spells it. */
 #define I (__extension__ 1.0fi)
+/* `_Complex_I` is reserved to the implementation, and on this path that is
+   exactly what this header is standing in for: it replaces the platform's
+   <complex.h>, so defining the name C99 requires that header to define is the
+   correct thing rather than an intrusion. Two benchmarks spell it. */
 #ifndef _Complex_I
+/* NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c) */
 #define _Complex_I I
 #endif
 

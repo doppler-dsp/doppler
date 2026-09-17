@@ -122,6 +122,20 @@ if(ENABLE_SIMD AND NOT MSVC)
     add_compile_options(-ffast-math -fno-finite-math-only)
 endif()
 
+# M_PI and friends are NOT in standard C, and the UCRT is the platform that
+# says so: <math.h> defines them only when _USE_MATH_DEFINES was set BEFORE it
+# was first included. glibc and Apple libc expose them under their default
+# feature sets, which is why this never came up until a Windows build reached
+# `error: use of undeclared identifier 'M_PI'`.
+#
+# A compile definition rather than a #define in a shared header, because the
+# requirement is about ORDER: the macro has to be set before the FIRST
+# inclusion of <math.h> in a translation unit, and a header can only promise
+# that for the files that happen to include it first. -D has no such gap.
+if(WIN32)
+    add_compile_definitions(_USE_MATH_DEFINES)
+endif()
+
 # Source-based code coverage (clang only) — driven by `make coverage`; see
 # docs/dev/coverage.md. Instruments every first-party C object exactly once.
 # Because the same <obj>_core OBJECT libraries are linked into the C tests, the

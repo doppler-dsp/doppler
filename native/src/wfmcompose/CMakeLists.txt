@@ -198,33 +198,42 @@ add_test(NAME test_wfm_keywords COMMAND test_wfm_keywords)
 # ── NATS PUB sink — POSIX only (vendored nats.c + pthreads don't build on
 #    MinGW; mirrors native/examples's streaming guard). The sink is independent of
 #    the composer, so it links the stream layer, not synth. ─────────────────
+# ── sample-clock pacing + timestamping (timing_core) — EVERY platform.
+#
+# Defined outside the POSIX guard below, and deliberately so. jm emits
+# `target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:timing_core>)` into the
+# root CMakeLists unconditionally (two modules declare `depends_on timing,
+# link = true`), and a dangling $<TARGET_OBJECTS:> is a CMake GENERATE error,
+# not a link error — so a conditional definition took the whole configure down
+# on Windows before anything compiled. That reference cannot be guarded by
+# hand: jm owns the region and re-emits it (just-makeit#1338). Making the
+# target always exist is the half doppler controls.
+#
+# `timing_core.c` carries the platform split itself: QueryPerformanceCounter
+# and a HIGH_RESOLUTION waitable timer on Windows, clock_gettime and
+# clock_nanosleep on POSIX.
+#
+# The hand-written `target_sources(doppler_lib ...)` pair that used to live
+# here is GONE: jm's root emission does the same job on every platform now, so
+# keeping both added the same objects twice. One declaration, one direction.
+add_library(timing_core OBJECT
+    ${CMAKE_SOURCE_DIR}/native/src/timing/timing_core.c)
+target_include_directories(timing_core PUBLIC
+    ${CMAKE_SOURCE_DIR}/native/inc)
+# pace()'s sleep gives up when the process is interrupted, so timing_core
+# references dp_interrupted(). The objects have to be named at each consumer:
+# CMake does not propagate one OBJECT library's objects through another, so a
+# PUBLIC link here compiles and still leaves the symbol undefined at link
+# time. Measured, not assumed -- it was written that way first. Targets that
+# link libdoppler instead get it from the archive.
+
 if(NOT WIN32)
     find_package(Threads REQUIRED)
 
-    # ── sample-clock pacing + timestamping (timing_core) — POSIX (clock_*),
-    #    so it sits under the same guard as the sink. Generic (no wfmgen deps);
-    #    consumed by both wfmgen_cli (--realtime) and _wfmcompose. ────────────
-    add_library(timing_core OBJECT
-        ${CMAKE_SOURCE_DIR}/native/src/timing/timing_core.c)
-    target_include_directories(timing_core PUBLIC
-        ${CMAKE_SOURCE_DIR}/native/inc)
-    # pace()'s sleep gives up when the process is interrupted, so timing_core
-    # now references dp_interrupted(). The objects have to be named at each
-    # consumer: CMake does not propagate one OBJECT library's objects through
-    # another, so a PUBLIC link here compiles and still leaves the symbol
-    # undefined at link time. Measured, not assumed -- it was written that way
-    # first. Targets that link libdoppler instead get it from the archive.
-
-    # Expose the sample clock in libdoppler (.so + .a) for downstream C — the
-    # header already ships via the native/inc install. doppler_lib /
-    # doppler_lib_static are defined in the root CMakeLists before this
-    # add_subdirectory, so referencing their object sets here is safe and keeps
-    # the change out of the jm-managed Components block. (The other wfmcompose
-    # cores stay app/binding-only by design; timing_core is the one general-
-    # purpose primitive worth shipping.) POSIX-only, like timing_core itself.
-    target_sources(doppler_lib PRIVATE $<TARGET_OBJECTS:timing_core>)
-    target_sources(doppler_lib_static PRIVATE $<TARGET_OBJECTS:timing_core>)
-
+    # The test and bench stay POSIX-only: both link dp_interrupt_obj, whose
+    # implementation is sigaction with handler chaining and does not build on
+    # Windows (doppler#1362). Moving them out would add a second known Windows
+    # failure for no signal the runner does not already give.
     add_executable(test_timing_core
         ${CMAKE_SOURCE_DIR}/native/tests/test_timing_core.c)
     target_link_libraries(test_timing_core PRIVATE timing_core

@@ -1,5 +1,10 @@
 /*
- * timing_core.c — sample-clock pacing + timestamping (POSIX).
+ * timing_core.c — sample-clock pacing + timestamping.
+ *
+ * The three platform touchpoints -- the monotonic clock, the wall clock and
+ * the nap -- are split at the top of this file; everything below them is
+ * shared. POSIX uses clock_gettime and clock_nanosleep, Windows uses
+ * QueryPerformanceCounter and a high-resolution waitable timer.
  *
  * See timing_core.h for the model. The schedule is anchored at init: each
  * block's deadline is recomputed as ``epoch_mono + n/fs`` from the cumulative
@@ -16,7 +21,9 @@
  * detections spanning different offsets within one buffered input) off that
  * same drift-free timeline.
  */
+#ifndef _WIN32
 #define _POSIX_C_SOURCE 200809L
+#endif
 
 #include "timing/timing_core.h"
 #include "dp_interrupt.h"
@@ -25,6 +32,42 @@
 #include <stdlib.h>
 #include <time.h>
 
+#ifdef _WIN32
+/* Windows 10, for CREATE_WAITABLE_TIMER_HIGH_RESOLUTION — the same floor
+   buffer.h already sets for VirtualAlloc2. */
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0A00
+#endif
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
+#ifdef _WIN32
+uint64_t
+dp_mono_ns (void)
+{
+  LARGE_INTEGER c, f;
+  QueryPerformanceFrequency (&f);
+  QueryPerformanceCounter (&c);
+  /* Split rather than `c * 1e9 / f`: that product overflows 64 bits after
+     about nine seconds at a 1 GHz QPC frequency, which is precisely the
+     regime a paced stream lives in. Quotient and remainder scaled apart
+     keeps it exact for any uptime. */
+  uint64_t cc = (uint64_t)c.QuadPart, ff = (uint64_t)f.QuadPart;
+  return (cc / ff) * 1000000000ULL + ((cc % ff) * 1000000000ULL) / ff;
+}
+
+uint64_t
+dp_real_ns (void)
+{
+  FILETIME ft;
+  GetSystemTimePreciseAsFileTime (&ft);
+  uint64_t t = ((uint64_t)ft.dwHighDateTime << 32) | ft.dwLowDateTime;
+  /* FILETIME counts 100 ns ticks from 1601-01-01; the Unix epoch is
+     11644473600 s later. */
+  return (t - 116444736000000000ULL) * 100ULL;
+}
+#else
 uint64_t
 dp_mono_ns (void)
 {
@@ -40,6 +83,7 @@ dp_real_ns (void)
   clock_gettime (CLOCK_REALTIME, &t);
   return (uint64_t)t.tv_sec * 1000000000ULL + (uint64_t)t.tv_nsec;
 }
+#endif
 
 /* ns offset of sample index n from the epoch: round(n / fs * 1e9). */
 static uint64_t
@@ -105,7 +149,33 @@ sleep_until_mono_ns (uint64_t target)
       ts.tv_sec  = (time_t)(wake / 1000000000ULL);
       ts.tv_nsec = (long)(wake % 1000000000ULL);
 
-#if defined(__linux__)
+#if defined(_WIN32)
+      (void)ts;
+      /* A HIGH_RESOLUTION waitable timer, not Sleep(): Sleep's granularity
+         is the ~15.6 ms scheduler tick unless a process-wide timeBeginPeriod
+         is in force, and a pacing primitive that quietly rounds every nap up
+         to 15 ms is not pacing. The timer takes a RELATIVE deadline in
+         negative 100 ns units. The slice loop above still owns correctness;
+         this only decides how precisely one slice lands.
+
+         Created per nap rather than cached: a handle costs microseconds
+         against naps measured in milliseconds, and caching it would need a
+         lifetime story (thread-local, or an init/teardown pair) for no gain
+         a paced stream can measure. Sleep() is the fallback if the flag is
+         unsupported, which is the pre-Windows-10 case. */
+      HANDLE tmr = CreateWaitableTimerExW (
+          NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+      if (tmr)
+        {
+          LARGE_INTEGER due;
+          due.QuadPart = -(LONGLONG)(nap / 100ULL);
+          if (SetWaitableTimer (tmr, &due, 0, NULL, NULL, FALSE))
+            WaitForSingleObject (tmr, INFINITE);
+          CloseHandle (tmr);
+        }
+      else
+        Sleep ((DWORD)(nap / 1000000ULL));
+#elif defined(__linux__)
       while (clock_nanosleep (CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL)
              == EINTR)
         if (dp_interrupted ())

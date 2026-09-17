@@ -30,6 +30,42 @@ ______________________________________________________________________
     [What each place already gives you](#what-each-place-already-gives-you);
     read it before the first line of any test, validator or bench.
 
+<a id="no-full-validation-or-characterization-in-ci"></a>
+
+!!! danger "NO FULL VALIDATION OR CHARACTERIZATION IN CI"
+
+    A full sweep and a characterization are **one-time** work: you run them
+    when the algorithm is created, and again when it is refreshed. They do
+    not belong on a push.
+
+    Their output is not a gate — it is the **design input for one**. Read the
+    envelope the sweep measured, find the point that would move first if the
+    algorithm regressed, and write a **fast** test that pins *that*. A
+    hundred Monte-Carlo trials establishing a threshold is a finding; the
+    gate is one seeded case a few milliseconds long asserting the threshold
+    still holds.
+
+    Phases 7 and 8 name the two homes that keep this true —
+    `make validate-c` and `make characterize` are run **on purpose**, by a
+    person, never by a job — and the `--check` subset is what CI sees.
+
+    **Why this is a `danger` and not a preference.** It has gone wrong twice,
+    in both directions:
+
+    - the 34 `sweep` validators were **94.3%** of the instrumented ctest CPU
+        (4615.7 s of 4893.6 s) and one of them alone was 1261.7 s of a 1266.0 s
+        leg, so no amount of `-j` helped; excluding them cost **nine lines of
+        29738** in the coverage report ([#1292](https://github.com/doppler-dsp/doppler/issues/1292));
+    - and the same work then came back through the other door, because the
+        per-module limits tests re-run each validator's `build(write=False)`
+        from Python — **28 minutes** of a 42-minute coverage job, the single
+        longest pole in the whole of CI
+        ([#1370](https://github.com/doppler-dsp/doppler/issues/1370)).
+
+    If a limit is worth gating, it is worth a fast test that names it. If it
+    can only be shown by a sweep, it is a **finding for the report**, not a
+    gate — say so in the report and move on.
+
 ## Start with why
 
 Before any code, write `docs/design/<algo>.md`:
@@ -180,6 +216,12 @@ Two homes, and which one depends on the language of the answer:
     Monte-Carlo sweep over an object that *does* have a binding. Run by
     `make characterize` and by nothing else, deliberately.
 
+"Deliberately" is the whole point of both rows: neither runs on a push. What
+CI gets from this phase is the `--check` subset and the fast tests you write
+*from* what the sweep measured — see
+[NO FULL VALIDATION OR CHARACTERIZATION IN CI](#no-full-validation-or-characterization-in-ci)
+before you wire anything here into a job.
+
 ### 8 — Certify
 
 Now, and only now, the evidence a caller is handed: header claims enumerated,
@@ -209,6 +251,21 @@ the gate cannot disagree. The population sweep is `make validate-c`'s and
 the record page's, refreshed on purpose. This is a cost decision, measured:
 20 s of ten emitters was 3.3 min on twenty cores, against CI Python jobs of
 4–7 min each; a validator runs twice on every push.
+
+!!! warning "A limits test must be fast, and that is a design constraint"
+
+    "A validator runs twice on every push" is the budget that sentence is
+    spending — so what runs there is the **subset**, never the sweep. The
+    per-module `test_validation_limits.py` calls each object's
+    `build(write=False)`, which executes every measurement that run records:
+    keep those measurements at the `--check` scale, or the limits test
+    becomes the sweep wearing a gate's name. It already did —
+    [#1370](https://github.com/doppler-dsp/doppler/issues/1370) is 28 minutes
+    of a 42-minute job, entered exactly this way, after
+    [#1292](https://github.com/doppler-dsp/doppler/issues/1292) had removed
+    the same cost from the C side.
+
+    Certify with the full envelope. **Gate on the point it identified.**
 
 ### 9 — Document it, and carry it back
 

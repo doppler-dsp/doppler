@@ -30,13 +30,6 @@
 #define CARRIER 2.2e9
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -49,7 +42,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
@@ -126,10 +119,10 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           doppler_channel_reset (c);
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           sink += doppler_channel_execute (c, x, BENCH_N, out, BENCH_N);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_ex[k][r] = elapsed_sec (&t0, &t1);
+          t1         = jm_bench_now_ns ();
+          t_ex[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
       jm_bench_add (&_bench, rname[k], t_ex[k], ITERATIONS, BENCH_N);
       printf ("  %-20s %7.2f ns/sample  %8.1f MSa/s\n", rname[k],

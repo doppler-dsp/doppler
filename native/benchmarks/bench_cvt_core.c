@@ -25,18 +25,11 @@
 #define BENCH_N 65536
 #define ITERATIONS 200
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 int
 main (void)
 {
   jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   double          times[ITERATIONS];
   volatile size_t sink = 0;
 
@@ -50,24 +43,24 @@ main (void)
   /* A 32-bit literal, expanded from a value. The unit is one marker. */
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         sink += int_to_bin (0x1ACFFC1DULL, 32u, marker, sizeof marker,
                             DP_BITORDER_BIG);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "int_to_bin", times, ITERATIONS, BENCH_N);
 
   /* The same 32 bits, from text. The difference IS the parsing. */
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         sink
             += hex_to_bin ("1ACFFC1D", marker, sizeof marker, DP_BITORDER_BIG);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "hex_to_bin", times, ITERATIONS, BENCH_N);
 
@@ -76,10 +69,10 @@ main (void)
     bits[i] = (uint8_t)(i & 1u);
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       sink += bin_to_nrz (bits, BENCH_N, nrz, BENCH_N);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "bin_to_nrz", times, ITERATIONS, BENCH_N);
 

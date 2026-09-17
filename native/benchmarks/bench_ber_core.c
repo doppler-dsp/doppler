@@ -40,13 +40,6 @@
 #define SCALAR_N 100000
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -59,7 +52,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile double sink   = 0.0;
 
@@ -88,10 +81,10 @@ main (void)
   static double t_evm[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       sink += ber_evm_db (rx, BENCH_N, 0, BENCH_N, 4);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_evm[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_evm[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "evm_db", t_evm, ITERATIONS, BENCH_N);
   {
@@ -104,31 +97,31 @@ main (void)
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < SCALAR_N; i++)
         sink += ber_theory_ser (4, 1.0 + (double)(i & 15) * 0.5);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_ser[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_ser[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "theory_ser", t_ser, ITERATIONS, SCALAR_N);
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < SCALAR_N; i++)
         sink += ber_theory_ber (4, 1.0 + (double)(i & 15) * 0.5);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_ber[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_ber[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "theory_ber", t_ber, ITERATIONS, SCALAR_N);
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < SCALAR_N; i++)
         sink += ber_qfunc (0.5 + (double)(i & 31) * 0.1);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_q[r] = elapsed_sec (&t0, &t1);
+      t1     = jm_bench_now_ns ();
+      t_q[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "qfunc", t_q, ITERATIONS, SCALAR_N);
 

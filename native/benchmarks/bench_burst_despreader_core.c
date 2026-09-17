@@ -28,13 +28,6 @@
 #define SPS 4
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -47,7 +40,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
@@ -99,21 +92,21 @@ main (void)
           return 1;
         }
 
-      struct timespec w0, w1;
-      clock_gettime (CLOCK_MONOTONIC, &w0);
+      uint64_t w0, w1;
+      w0 = jm_bench_now_ns ();
       do
         {
           sink += burst_despreader_steps (d, x, BENCH_N, out, cap);
-          clock_gettime (CLOCK_MONOTONIC, &w1);
+          w1 = jm_bench_now_ns ();
         }
-      while (elapsed_sec (&w0, &w1) < WARMUP_S);
+      while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           sink += burst_despreader_steps (d, x, BENCH_N, out, cap);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_st[k][r] = elapsed_sec (&t0, &t1);
+          t1         = jm_bench_now_ns ();
+          t_st[k][r] = jm_bench_elapsed_sec (t0, t1);
         }
       char name[64];
       (void)snprintf (name, sizeof name, "steps[sf=%zu]", sf);

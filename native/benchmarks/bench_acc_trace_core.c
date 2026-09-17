@@ -32,13 +32,6 @@
 #define ITERATIONS 100
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -51,7 +44,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile double sink   = 0.0;
 
@@ -102,11 +95,11 @@ main (void)
       for (int r = 0; r < ITERATIONS; r++)
         {
           acc_trace_reset (a);
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           for (int f = 0; f < FRAMES; f++)
             acc_trace_accumulate (a, frames + (size_t)f * NBINS, NBINS);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_acc[m][r] = elapsed_sec (&t0, &t1);
+          t1          = jm_bench_now_ns ();
+          t_acc[m][r] = jm_bench_elapsed_sec (t0, t1);
         }
       jm_bench_add (&_bench, mname[m], t_acc[m], ITERATIONS, NBINS * FRAMES);
       double s = min_sec (t_acc[m], ITERATIONS) / (FRAMES * (double)NBINS);
@@ -123,10 +116,10 @@ main (void)
   static double t_val[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       sink += (double)acc_trace_value (a, NBINS, out, NBINS);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_val[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_val[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "value", t_val, ITERATIONS, NBINS);
   printf ("  %-22s %7.3f ns/bin  (read-out, once per display refresh)\n",

@@ -7,13 +7,6 @@
 
 #define ITERATIONS 200
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 static void
 bench_n (int n, int iters, jm_bench_t *bench)
 {
@@ -23,13 +16,13 @@ bench_n (int n, int iters, jm_bench_t *bench)
 
   awgn_generate (g, (size_t)n, buf, (size_t)n); /* warm up */
 
-  struct timespec t0, t1;
+  uint64_t t0, t1;
   for (int i = 0; i < iters; i++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       awgn_generate (g, (size_t)n, buf, (size_t)n);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[i] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[i] = jm_bench_elapsed_sec (t0, t1);
     }
 
   double mean = 0;

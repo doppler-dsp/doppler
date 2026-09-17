@@ -53,7 +53,7 @@ int
 main (void)
 {
   jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   static double   t[N_CFG][ITERATIONS];
   ddcr_state_t   *ddcr = ddcr_create (NORM_FREQ, RATE);
   float          *in   = NULL;
@@ -87,21 +87,21 @@ main (void)
      the execute row, so both must see the same machine. */
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
-      emitted = ddcr_execute (ddcr, in, BLOCK, out, cap);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t[CFG_EXECUTE][r] = dp_bench_elapsed (&t0, &t1);
+      t0                = jm_bench_now_ns ();
+      emitted           = ddcr_execute (ddcr, in, BLOCK, out, cap);
+      t1                = jm_bench_now_ns ();
+      t[CFG_EXECUTE][r] = jm_bench_elapsed_sec (t0, t1);
 
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       (void)ddcr_execute_ctrl (ddcr, in, BLOCK, 0.0, 0.0, out, cap);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t[CFG_CTRL][r] = dp_bench_elapsed (&t0, &t1);
+      t1             = jm_bench_now_ns ();
+      t[CFG_CTRL][r] = jm_bench_elapsed_sec (t0, t1);
 
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (size_t i = 0; i < BLOCK; i++)
         (void)ddcr_execute_ctrl_push (ddcr, in[i], 0.0, 0.0, out, cap);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t[CFG_PUSH][r] = dp_bench_elapsed (&t0, &t1);
+      t1             = jm_bench_now_ns ();
+      t[CFG_PUSH][r] = jm_bench_elapsed_sec (t0, t1);
     }
 
   for (int c = 0; c < N_CFG; c++)

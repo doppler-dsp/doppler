@@ -127,6 +127,17 @@ repos:
         language: system
         pass_filenames: false
 
+      # A benchmark's monotonic clock is jm_bench_now_ns(), in the vendored
+      # jm_bench.h. 85 benchmarks carried a private elapsed_sec() and opened
+      # CLOCK_MONOTONIC themselves -- which the UCRT does not have, so none of
+      # them built on Windows (gh-1341).
+      - id: bench-timer
+        name: benchmarks time through jm_bench.h
+        entry: make -s lint-bench-timer
+        language: system
+        pass_filenames: false
+        types_or: [c]
+
       # A wire format's full scale is dp_format_full_scale() and the
       # arithmetic around it is the cvt converters'; four private copies had
       # already drifted into truncating at the wrong constant (#1117).
@@ -135,7 +146,6 @@ repos:
         entry: make -s lint-full-scale
         language: system
         pass_filenames: false
-        types_or: [c]
         types_or: [c]
 
       # A header's @code example is compiled by NOTHING -- doxygen renders it,

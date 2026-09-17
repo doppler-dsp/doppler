@@ -53,13 +53,13 @@ static const char *cfg_name[N_CFG] = {
 int
 main (void)
 {
-  jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
-  static double   t[N_CFG][ITERATIONS];
-  nco_state_t    *nco  = nco_create (NORM_FREQ, NMAX);
-  uint32_t       *out  = NULL;
-  uint8_t        *ovf  = NULL;
-  double         *ctrl = NULL;
+  jm_bench_t    _bench = { 0 };
+  uint64_t      t0, t1;
+  static double t[N_CFG][ITERATIONS];
+  nco_state_t  *nco  = nco_create (NORM_FREQ, NMAX);
+  uint32_t     *out  = NULL;
+  uint8_t      *ovf  = NULL;
+  double       *ctrl = NULL;
 
   if (!nco)
     return 1;
@@ -87,7 +87,7 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     for (int c = 0; c < N_CFG; c++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         switch (c)
           {
           case CFG_PLAIN:
@@ -111,8 +111,8 @@ main (void)
           default:
             break;
           }
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t[c][r] = dp_bench_elapsed (&t0, &t1);
+        t1      = jm_bench_now_ns ();
+        t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
 
   for (int c = 0; c < N_CFG; c++)

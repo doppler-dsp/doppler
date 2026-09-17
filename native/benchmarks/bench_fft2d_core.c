@@ -56,7 +56,7 @@ int
 main (void)
 {
   jm_bench_t       _bench = { 0 };
-  struct timespec  t0, t1;
+  uint64_t         t0, t1;
   static double    t[N_CFG][ITERATIONS];
   fft2d_state_t   *plan[N_SHAPE] = { 0 };
   float _Complex  *in32 = NULL, *out32 = NULL;
@@ -99,7 +99,7 @@ main (void)
     for (int s = 0; s < N_SHAPE; s++)
       for (int k = 0; k < N_KIND; k++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           switch (k)
             {
             case CFG_CF32:
@@ -114,8 +114,8 @@ main (void)
             default:
               break;
             }
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t[s * N_KIND + k][r] = dp_bench_elapsed (&t0, &t1);
+          t1                   = jm_bench_now_ns ();
+          t[s * N_KIND + k][r] = jm_bench_elapsed_sec (t0, t1);
         }
 
   for (int s = 0; s < N_SHAPE; s++)

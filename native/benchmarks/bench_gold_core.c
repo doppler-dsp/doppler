@@ -28,13 +28,6 @@
 #define SEED_B 73u
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -47,7 +40,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
@@ -70,10 +63,10 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       gold_reset (g);
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       sink += gold_generate (g, BENCH_N, out, BENCH_N);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_gen[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_gen[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "generate", t_gen, ITERATIONS, BENCH_N);
   {

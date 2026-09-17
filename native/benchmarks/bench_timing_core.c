@@ -16,19 +16,12 @@
 #define BENCH_N 65536
 #define ITERATIONS 200
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 int
 main (void)
 {
-  jm_bench_t      bench = { 0 };
-  struct timespec t0, t1;
-  double          times[ITERATIONS];
+  jm_bench_t bench = { 0 };
+  uint64_t   t0, t1;
+  double     times[ITERATIONS];
 
   printf ("=== timing benchmark ===\n");
   printf ("block = %d calls, %d iterations\n\n", BENCH_N, ITERATIONS);
@@ -39,14 +32,14 @@ main (void)
   volatile uint64_t sink = 0;
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         {
           c.n = (uint64_t)i;
           sink += dp_sample_clock_stamp (&c);
         }
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   printf ("  %-26s %8.1f M/s\n", "stamp",
           BENCH_N / (times[0] > 0 ? times[0] : 1e-9) / 1e6);
@@ -57,11 +50,11 @@ main (void)
   dp_sample_clock_init (&c, 1e15, 1); /* resync: don't accumulate backlog */
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         dp_sample_clock_pace (&c, 1);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&bench, "pace (no-wait overhead)", times, ITERATIONS, BENCH_N);
 

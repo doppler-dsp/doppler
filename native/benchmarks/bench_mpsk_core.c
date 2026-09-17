@@ -38,13 +38,6 @@
 #define ITERATIONS 100
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -67,8 +60,8 @@ report (const char *name, const double *t, int m)
 int
 main (void)
 {
-  struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
+  uint64_t   t0, t1;
+  jm_bench_t _bench = { 0 };
 
   uint8_t        *sym = malloc (BENCH_N);
   uint8_t        *out = malloc (BENCH_N);
@@ -105,10 +98,10 @@ main (void)
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           mpsk_map (sym, BENCH_N, iq, m);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_map[mi][r] = elapsed_sec (&t0, &t1);
+          t1           = jm_bench_now_ns ();
+          t_map[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "map[m=%d]", m);
       jm_bench_add (&_bench, name, t_map[mi], ITERATIONS, BENCH_N);
@@ -116,10 +109,10 @@ main (void)
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           mpsk_demap (iq, BENCH_N, out, m);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_dem[mi][r] = elapsed_sec (&t0, &t1);
+          t1           = jm_bench_now_ns ();
+          t_dem[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "demap[m=%d]", m);
       jm_bench_add (&_bench, name, t_dem[mi], ITERATIONS, BENCH_N);
@@ -127,10 +120,10 @@ main (void)
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           mpsk_diff_map (sym, BENCH_N, iq, m);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_dmap[mi][r] = elapsed_sec (&t0, &t1);
+          t1            = jm_bench_now_ns ();
+          t_dmap[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "diff_map[m=%d]", m);
       jm_bench_add (&_bench, name, t_dmap[mi], ITERATIONS, BENCH_N);
@@ -138,10 +131,10 @@ main (void)
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           mpsk_diff_demap (iq, BENCH_N, out, m);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_ddem[mi][r] = elapsed_sec (&t0, &t1);
+          t1            = jm_bench_now_ns ();
+          t_ddem[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "diff_demap[m=%d]", m);
       jm_bench_add (&_bench, name, t_ddem[mi], ITERATIONS, BENCH_N);
@@ -151,10 +144,10 @@ main (void)
       const size_t n_llr = (size_t)BENCH_N * (size_t)bps;
       for (int r = 0; r < ITERATIONS; r++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           mpsk_soft_demap (iq, BENCH_N, llr, n_llr, m, 0.1f);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_soft[mi][r] = elapsed_sec (&t0, &t1);
+          t1            = jm_bench_now_ns ();
+          t_soft[mi][r] = jm_bench_elapsed_sec (t0, t1);
         }
       (void)snprintf (name, sizeof name, "soft_demap[m=%d]", m);
       jm_bench_add (&_bench, name, t_soft[mi], ITERATIONS, BENCH_N);

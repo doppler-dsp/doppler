@@ -58,7 +58,7 @@ int
 main (void)
 {
   jm_bench_t       _bench = { 0 };
-  struct timespec  t0, t1;
+  uint64_t         t0, t1;
   static double    t[N_CFG][ITERATIONS];
   fft_state_t     *plan[N_SIZE] = { 0 };
   const size_t     n_max        = sizes[N_SIZE - 1];
@@ -115,7 +115,7 @@ main (void)
       for (int k = 0; k < N_KIND; k++)
         {
           const size_t n = sizes[s];
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0             = jm_bench_now_ns ();
           switch (k)
             {
             case CFG_CF32:
@@ -136,8 +136,8 @@ main (void)
             default:
               break;
             }
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t[s * N_KIND + k][r] = dp_bench_elapsed (&t0, &t1);
+          t1                   = jm_bench_now_ns ();
+          t[s * N_KIND + k][r] = jm_bench_elapsed_sec (t0, t1);
         }
 
   for (int s = 0; s < N_SIZE; s++)

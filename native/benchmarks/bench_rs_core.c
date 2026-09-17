@@ -48,13 +48,6 @@ static const rs_code_t CODE = { .symbol_bits = 8,
                                 .root_stride = 11u };
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -75,9 +68,9 @@ report (const char *name, const double *t, unsigned k)
 int
 main (void)
 {
-  struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
-  rs_t            rs;
+  uint64_t   t0, t1;
+  jm_bench_t _bench = { 0 };
+  rs_t       rs;
 
   if (!rs_init (&rs, &CODE))
     return 1;
@@ -106,11 +99,11 @@ main (void)
   static double t_enc[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         rs_encode (&rs, info, work + k);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_enc[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_enc[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "encode", t_enc, ITERATIONS, BENCH_N);
   report ("encode", t_enc, k);
@@ -119,11 +112,11 @@ main (void)
   volatile int  sink = 0;
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         sink += rs_codeword_ok (&rs, clean);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_ok[r] = elapsed_sec (&t0, &t1);
+      t1      = jm_bench_now_ns ();
+      t_ok[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "verify", t_ok, ITERATIONS, BENCH_N);
   report ("verify", t_ok, k);
@@ -170,14 +163,14 @@ main (void)
 
       for (int r = 0; r < ITERATIONS; r++)
         {
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           for (int i = 0; i < BENCH_N; i++)
             {
               memcpy (work, corrupt, n);
               sink += rs_decode (&rs, work);
             }
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          t_dec[c][r] = elapsed_sec (&t0, &t1);
+          t1          = jm_bench_now_ns ();
+          t_dec[c][r] = jm_bench_elapsed_sec (t0, t1);
         }
       jm_bench_add (&_bench, names[c], t_dec[c], ITERATIONS, BENCH_N);
       report (names[c], t_dec[c], k);

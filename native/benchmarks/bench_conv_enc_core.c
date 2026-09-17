@@ -45,13 +45,6 @@ static const struct
 #define N_CODES (sizeof CODES / sizeof CODES[0])
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -64,7 +57,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
@@ -109,24 +102,24 @@ main (void)
     }
 
   /* One settle for the process, before any configuration is timed. */
-  struct timespec w0, w1;
-  clock_gettime (CLOCK_MONOTONIC, &w0);
+  uint64_t w0, w1;
+  w0 = jm_bench_now_ns ();
   do
     {
       sink += conv_enc_encode (enc[0], in, n_in, out, n_sym);
-      clock_gettime (CLOCK_MONOTONIC, &w1);
+      w1 = jm_bench_now_ns ();
     }
-  while (elapsed_sec (&w0, &w1) < WARMUP_S);
+  while (jm_bench_elapsed_sec (w0, w1) < WARMUP_S);
 
   /* Rounds OUTSIDE, configurations inside: the rows are compared to each
      other, so any drift the settle missed must land on all of them. */
   for (int r = 0; r < ITERATIONS; r++)
     for (size_t c = 0; c < N_CODES; c++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         sink += conv_enc_encode (enc[c], in, n_in, out, n_sym);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_enc[c][r] = elapsed_sec (&t0, &t1);
+        t1          = jm_bench_now_ns ();
+        t_enc[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
 
   printf ("  %-14s %14s %14s\n", "", "ns/info-bit", "Mbit/s");
@@ -151,15 +144,15 @@ main (void)
     static double t_raw[ITERATIONS], t_obj[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         sink += conv_encode (&raw, &c, in, n_in, out, n_sym);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_raw[r] = elapsed_sec (&t0, &t1);
+        t1       = jm_bench_now_ns ();
+        t_raw[r] = jm_bench_elapsed_sec (t0, t1);
 
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         sink += conv_enc_encode (obj, in, n_in, out, n_sym);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_obj[r] = elapsed_sec (&t0, &t1);
+        t1       = jm_bench_now_ns ();
+        t_obj[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "encode[raw kernel]", t_raw, ITERATIONS, (int)n_in);
     jm_bench_add (&_bench, "encode[through the object]", t_obj, ITERATIONS,

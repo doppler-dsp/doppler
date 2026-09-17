@@ -41,13 +41,6 @@
 #define STAT_N 10000
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -60,7 +53,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile double sink   = 0.0;
 
@@ -77,11 +70,11 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       frame_meter_reset (m);
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         frame_meter_add (m, 1, (i % 97) != 0);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_add[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_add[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "add", t_add, ITERATIONS, BENCH_N);
   printf ("  %-14s %8.2f ns/frame\n", "add",
@@ -91,11 +84,11 @@ main (void)
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < STAT_N; i++)
         sink += (double)frame_meter_get_frames (m);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_get[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_get[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "get_frames", t_get, ITERATIONS, STAT_N);
   printf ("  %-14s %8.2f ns/call\n", "get_frames",
@@ -103,11 +96,11 @@ main (void)
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < STAT_N; i++)
         sink += frame_meter_fer (m).lo;
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_fer[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_fer[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "fer", t_fer, ITERATIONS, STAT_N);
   printf ("  %-14s %8.2f ns/call\n", "fer",
@@ -115,11 +108,11 @@ main (void)
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < STAT_N; i++)
         sink += frame_meter_sync_miss (m).lo;
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_sync[r] = elapsed_sec (&t0, &t1);
+      t1        = jm_bench_now_ns ();
+      t_sync[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "sync_miss", t_sync, ITERATIONS, STAT_N);
   printf ("  %-14s %8.2f ns/call\n", "sync_miss",

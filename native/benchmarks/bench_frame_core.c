@@ -38,13 +38,6 @@
 #define ITERATIONS 200
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -57,7 +50,7 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile size_t sink   = 0;
 
@@ -98,10 +91,10 @@ main (void)
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       sink += frame_bits (f, 1, out, nb1);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_one[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_one[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "bits[1]", t_one, ITERATIONS, 1);
   printf ("  %-14s %9.3f us/frame  %8.2f Mbit/s\n", "bits[1]",
@@ -110,10 +103,10 @@ main (void)
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       sink += frame_bits (f, BATCH, out, nbB);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_bat[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_bat[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "bits[16]", t_bat, ITERATIONS, BATCH);
   printf ("  %-14s %9.3f us/frame  %8.2f Mbit/s\n", "bits[16]",
@@ -123,10 +116,10 @@ main (void)
   frame_bits (f, 1, out, nb1);
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       sink += (size_t)frame_crc_ok (f, out, nb1);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_crc[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_crc[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "crc_ok", t_crc, ITERATIONS, 1);
   printf ("  %-14s %9.3f us/frame\n", "crc_ok",

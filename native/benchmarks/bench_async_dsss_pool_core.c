@@ -29,13 +29,6 @@
 #define CODE_ONLY_EPOCHS 31u
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -116,17 +109,17 @@ main (void)
       size_t pos = 0;
       for (; pos + TE <= n / 2; pos += TE)
         (void)async_dsss_pool_push (p, x + pos, TE);
-      double          times[ITERATIONS];
-      struct timespec t0, t1;
-      size_t          sink = 0;
+      double   times[ITERATIONS];
+      uint64_t t0, t1;
+      size_t   sink = 0;
       for (int r = 0; r < ITERATIONS; r++)
         {
           if (pos + TE > n)
             pos = n / 2;
-          clock_gettime (CLOCK_MONOTONIC, &t0);
+          t0 = jm_bench_now_ns ();
           sink += async_dsss_pool_push (p, x + pos, TE);
-          clock_gettime (CLOCK_MONOTONIC, &t1);
-          times[r] = elapsed_sec (&t0, &t1);
+          t1       = jm_bench_now_ns ();
+          times[r] = jm_bench_elapsed_sec (t0, t1);
           pos += TE;
         }
       char name[64];

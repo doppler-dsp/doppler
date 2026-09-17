@@ -57,7 +57,7 @@ int
 main (void)
 {
   jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   static double   t[N_CFG][ITERATIONS];
   fir_state_t    *fir[N_CFG] = { 0 };
   float          *rtaps      = NULL;
@@ -110,10 +110,10 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     for (int c = 0; c < N_CFG; c++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         fir_execute (fir[c], in, BLOCK, out);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t[c][r] = dp_bench_elapsed (&t0, &t1);
+        t1      = jm_bench_now_ns ();
+        t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
 
   for (int l = 0; l < N_LEN; l++)

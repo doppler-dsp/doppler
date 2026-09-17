@@ -20,13 +20,6 @@
 #define BENCH_N 65536
 #define ITERATIONS 100
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 static void
 bench_cfg (const char *name, const char *path, int ft, int stype,
            const float _Complex *x, float _Complex *out, jm_bench_t *bench)
@@ -39,11 +32,11 @@ bench_cfg (const char *name, const char *path, int ft, int stype,
   wfm_writer_close (w);
   fclose (fp);
 
-  struct timespec t0, t1;
-  double          times[ITERATIONS];
+  uint64_t t0, t1;
+  double   times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0                        = jm_bench_now_ns ();
       wfm_reader_state_t *rd    = wfm_reader_create (path, stype, 0);
       size_t              total = 0, n;
       while ((n = wfm_reader_read (rd, BENCH_N - total, out + total,
@@ -51,8 +44,8 @@ bench_cfg (const char *name, const char *path, int ft, int stype,
              > 0)
         total += n;
       wfm_reader_destroy (rd);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   printf ("  %-26s %8.1f MSa/s\n", name,
           BENCH_N / (times[0] > 0 ? times[0] : 1e-9) / 1e6);
@@ -81,18 +74,18 @@ bench_seek (const char *name, const char *path, int ft, int stype,
   fclose (fp);
 
   wfm_reader_state_t *rd = wfm_reader_create (path, stype, 0);
-  struct timespec     t0, t1;
+  uint64_t            t0, t1;
   double              times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (size_t i = 0; i < batch; i++)
         {
           wfm_reader_seek (rd, (int64_t)(BENCH_N / 2));
           wfm_reader_seek (rd, 0);
         }
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   wfm_reader_destroy (rd);
   printf ("  %-26s %8.1f kseek/s\n", name,

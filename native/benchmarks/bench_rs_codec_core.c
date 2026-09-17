@@ -48,13 +48,6 @@
 #define CREATES 200
 
 static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
-static double
 min_sec (const double *t, int n)
 {
   double m = t[0];
@@ -67,9 +60,9 @@ min_sec (const double *t, int n)
 int
 main (void)
 {
-  struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
-  volatile long   sink   = 0;
+  uint64_t      t0, t1;
+  jm_bench_t    _bench = { 0 };
+  volatile long sink   = 0;
 
   rs_codec_state_t *rs = rs_codec_create (NROOTS, 8u, POLY, J0, STRIDE);
   if (!rs)
@@ -101,7 +94,7 @@ main (void)
     static double t_c8[ITERATIONS], t_c4[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int i = 0; i < CREATES; i++)
           {
             rs_codec_state_t *s
@@ -109,18 +102,18 @@ main (void)
             sink += (s != NULL);
             rs_codec_destroy (s);
           }
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_c8[r] = elapsed_sec (&t0, &t1);
+        t1      = jm_bench_now_ns ();
+        t_c8[r] = jm_bench_elapsed_sec (t0, t1);
 
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int i = 0; i < CREATES; i++)
           {
             rs_codec_state_t *s = rs_codec_create (4u, 4u, 0x3u, 1u, 1u);
             sink += (s != NULL);
             rs_codec_destroy (s);
           }
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_c4[r] = elapsed_sec (&t0, &t1);
+        t1      = jm_bench_now_ns ();
+        t_c4[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "create[J=8]", t_c8, ITERATIONS, CREATES);
     jm_bench_add (&_bench, "create[J=4]", t_c4, ITERATIONS, CREATES);
@@ -135,20 +128,20 @@ main (void)
     static double t_obj[ITERATIONS], t_ker[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int i = 0; i < CODEWORDS; i++)
           sink += (long)rs_codec_encode (rs, info, k, work, n);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_obj[r] = elapsed_sec (&t0, &t1);
+        t1       = jm_bench_now_ns ();
+        t_obj[r] = jm_bench_elapsed_sec (t0, t1);
 
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int i = 0; i < CODEWORDS; i++)
           {
             rs_encode (&rs->rs, info, par);
             sink += par[0];
           }
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_ker[r] = elapsed_sec (&t0, &t1);
+        t1       = jm_bench_now_ns ();
+        t_ker[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "encode", t_obj, ITERATIONS, CODEWORDS);
     jm_bench_add (&_bench, "encode_kernel", t_ker, ITERATIONS, CODEWORDS);
@@ -165,16 +158,16 @@ main (void)
     static double t_d0[ITERATIONS], t_de[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int i = 0; i < CODEWORDS; i++)
           {
             memcpy (work, clean, n);
             sink += rs_codec_decode (rs, work, n);
           }
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_d0[r] = elapsed_sec (&t0, &t1);
+        t1      = jm_bench_now_ns ();
+        t_d0[r] = jm_bench_elapsed_sec (t0, t1);
 
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int i = 0; i < CODEWORDS; i++)
           {
             memcpy (work, clean, n);
@@ -182,8 +175,8 @@ main (void)
               work[j * 7u] ^= 0xA5u;
             sink += rs_codec_decode (rs, work, n);
           }
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t_de[r] = elapsed_sec (&t0, &t1);
+        t1      = jm_bench_now_ns ();
+        t_de[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "decode[e=0]", t_d0, ITERATIONS, CODEWORDS);
     jm_bench_add (&_bench, "decode[e=E]", t_de, ITERATIONS, CODEWORDS);

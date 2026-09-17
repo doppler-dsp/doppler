@@ -29,13 +29,6 @@
 #define BENCH_N 65536
 #define ITERATIONS 200
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 /* The pre-migration bodies, kept here verbatim so the comparison is
    against what the tree actually had rather than an approximation. */
 static inline double
@@ -88,7 +81,7 @@ report (jm_bench_t *b, const char *name, double *t, double base)
 int
 main (void)
 {
-  struct timespec t0, t1;
+  uint64_t        t0, t1;
   jm_bench_t      _bench = { 0 };
   volatile double sink   = 0.0;
   const double    alpha  = 0.05;
@@ -102,12 +95,12 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       double s = 0.0;
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0       = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         s = raw_incremental (s, (double)(i & 7), alpha);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
+      t1       = jm_bench_now_ns ();
       sink     = s;
-      t_raw[r] = elapsed_sec (&t0, &t1);
+      t_raw[r] = jm_bench_elapsed_sec (t0, t1);
     }
   double base = min_per_op (t_raw);
   report (&_bench, "raw_incremental", t_raw, 0.0);
@@ -115,24 +108,24 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       double s = 0.0;
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0       = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         s = two_product (s, (double)(i & 7), alpha);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
+      t1       = jm_bench_now_ns ();
       sink     = s;
-      t_two[r] = elapsed_sec (&t0, &t1);
+      t_two[r] = jm_bench_elapsed_sec (t0, t1);
     }
   report (&_bench, "two_product", t_two, base);
 
   for (int r = 0; r < ITERATIONS; r++)
     {
       double s = 0.0;
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0       = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         s = ema_step (s, (double)(i & 7), alpha);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
+      t1       = jm_bench_now_ns ();
       sink     = s;
-      t_ema[r] = elapsed_sec (&t0, &t1);
+      t_ema[r] = jm_bench_elapsed_sec (t0, t1);
     }
   report (&_bench, "ema_step", t_ema, base);
 
@@ -142,12 +135,12 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       double acc = 0.0;
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0         = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         acc += repeated_multiply (alpha + (double)(i & 3) * 1e-9, 8);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
+      t1       = jm_bench_now_ns ();
       sink     = acc;
-      t_rep[r] = elapsed_sec (&t0, &t1);
+      t_rep[r] = jm_bench_elapsed_sec (t0, t1);
     }
   double base2 = min_per_op (t_rep);
   report (&_bench, "repeated_multiply", t_rep, 0.0);
@@ -155,12 +148,12 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     {
       double acc = 0.0;
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0         = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         acc += ema_alpha_decim (alpha + (double)(i & 3) * 1e-9, 8);
-      clock_gettime (CLOCK_MONOTONIC, &t1);
+      t1       = jm_bench_now_ns ();
       sink     = acc;
-      t_dec[r] = elapsed_sec (&t0, &t1);
+      t_dec[r] = jm_bench_elapsed_sec (t0, t1);
     }
   report (&_bench, "ema_alpha_decim", t_dec, base2);
 

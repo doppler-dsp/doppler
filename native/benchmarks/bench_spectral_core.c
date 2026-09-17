@@ -110,9 +110,9 @@ run (int cfg)
 int
 main (void)
 {
-  jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
-  static double   t[N_CFG][ITERATIONS];
+  jm_bench_t    _bench = { 0 };
+  uint64_t      t0, t1;
+  static double t[N_CFG][ITERATIONS];
 
   /* A noise floor with a few real tones on it. A flat spectrum would
      give find_peaks_f32 nothing to interpolate or sort, and a sort with
@@ -142,11 +142,11 @@ main (void)
   for (int r = 0; r < ITERATIONS; r++)
     for (int c = 0; c < N_CFG; c++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int k = 0; k < REPS; k++)
           run (c);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        t[c][r] = dp_bench_elapsed (&t0, &t1);
+        t1      = jm_bench_now_ns ();
+        t[c][r] = jm_bench_elapsed_sec (t0, t1);
       }
 
   for (int c = 0; c < N_CFG; c++)

@@ -22,13 +22,6 @@
 #define BENCH_N 65536
 #define ITERATIONS 200
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 int
 main (void)
 {
@@ -37,8 +30,8 @@ main (void)
   printf ("=== dsss benchmark ===\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
-  struct timespec t0, t1;
-  double          times[ITERATIONS];
+  uint64_t t0, t1;
+  double   times[ITERATIONS];
   /* A grid size that is not a compile-time constant, so neither call can be
    * folded away; the accumulator is volatile for the same reason. */
   volatile long sink  = 0;
@@ -46,26 +39,26 @@ main (void)
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0       = jm_bench_now_ns ();
       long acc = 0;
       for (int i = 0; i < BENCH_N; i++)
         acc += dp_fftfreq_index ((size_t)i % nbins, nbins);
-      sink = acc;
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      sink     = acc;
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "dp_fftfreq_index (inlined)", times, ITERATIONS,
                 BENCH_N);
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0       = jm_bench_now_ns ();
       long acc = 0;
       for (int i = 0; i < BENCH_N; i++)
         acc += bin_to_signed ((size_t)i % nbins, nbins);
-      sink = acc;
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      times[r] = elapsed_sec (&t0, &t1);
+      sink     = acc;
+      t1       = jm_bench_now_ns ();
+      times[r] = jm_bench_elapsed_sec (t0, t1);
     }
   jm_bench_add (&_bench, "bin_to_signed (wrapper, not inlinable)", times,
                 ITERATIONS, BENCH_N);

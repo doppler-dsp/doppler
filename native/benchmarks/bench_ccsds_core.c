@@ -27,43 +27,36 @@
 
 static volatile uint32_t sink;
 
-static double
-elapsed_sec (const struct timespec *t0, const struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 int
 main (void)
 {
-  jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
-  static double   t_face[ITERATIONS], t_raw[ITERATIONS];
-  uint8_t         bits[CCSDS_TM_ASM_BITS];
+  jm_bench_t    _bench = { 0 };
+  uint64_t      t0, t1;
+  static double t_face[ITERATIONS], t_raw[ITERATIONS];
+  uint8_t       bits[CCSDS_TM_ASM_BITS];
 
   printf ("=== ccsds benchmark ===\n");
   printf ("block = %d expansions,  %d iterations\n\n", BENCH_N, ITERATIONS);
 
   for (int r = 0; r < ITERATIONS; r++)
     {
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         {
           asm_bits (bits);
           sink += bits[i & 31];
         }
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_face[r] = elapsed_sec (&t0, &t1);
+      t1        = jm_bench_now_ns ();
+      t_face[r] = jm_bench_elapsed_sec (t0, t1);
 
-      clock_gettime (CLOCK_MONOTONIC, &t0);
+      t0 = jm_bench_now_ns ();
       for (int i = 0; i < BENCH_N; i++)
         {
           ccsds_tm_asm_bits (bits);
           sink += bits[i & 31];
         }
-      clock_gettime (CLOCK_MONOTONIC, &t1);
-      t_raw[r] = elapsed_sec (&t0, &t1);
+      t1       = jm_bench_now_ns ();
+      t_raw[r] = jm_bench_elapsed_sec (t0, t1);
     }
 
   jm_bench_add (&_bench, "asm_bits", t_face, ITERATIONS, BENCH_N);

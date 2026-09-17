@@ -8,19 +8,12 @@
 #define BENCH_N 65536
 #define ITERATIONS 200
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 int
 main (void)
 {
-  delay_state_t  *obj = delay_create (1);
-  struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
+  delay_state_t *obj = delay_create (1);
+  uint64_t       t0, t1;
+  jm_bench_t     _bench = { 0 };
 
   printf ("=== delay benchmark ===\n");
   printf ("  (no step(); methods below)\n");
@@ -33,11 +26,11 @@ main (void)
       delay_push (obj, 0.0 + 0.0 * I);
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
           delay_push (obj, 0.0 + 0.0 * I);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        _times_push[r] = elapsed_sec (&t0, &t1);
+        t1             = jm_bench_now_ns ();
+        _times_push[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "push", _times_push, ITERATIONS, BENCH_N);
     {
@@ -56,11 +49,11 @@ main (void)
       delay_write (obj, 0.0 + 0.0 * I);
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
           delay_write (obj, 0.0 + 0.0 * I);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        _times_write[r] = elapsed_sec (&t0, &t1);
+        t1              = jm_bench_now_ns ();
+        _times_write[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "write", _times_write, ITERATIONS, BENCH_N);
     {

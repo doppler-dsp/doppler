@@ -8,18 +8,11 @@
 #define BENCH_N 65536
 #define ITERATIONS 200
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 int
 main (void)
 {
   Resampler_state_t *obj = Resampler_create (0.0);
-  struct timespec    t0, t1;
+  uint64_t           t0, t1;
   jm_bench_t         _bench = { 0 };
 
   printf ("=== Resampler benchmark ===\n");
@@ -33,11 +26,11 @@ main (void)
       Resampler_reset (obj);
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
           Resampler_reset (obj);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        _times_reset[r] = elapsed_sec (&t0, &t1);
+        t1              = jm_bench_now_ns ();
+        _times_reset[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "reset", _times_reset, ITERATIONS, BENCH_N);
     {

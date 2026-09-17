@@ -20,13 +20,6 @@
 #define ITERATIONS 200
 #define TWOPI 6.283185307179586
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 static void
 report (const char *name, const double *times)
 {
@@ -51,8 +44,8 @@ main (void)
   for (int i = 0; i < BENCH_N; i++)
     in[i] = (float _Complex)cexp (I * TWOPI * 0.002 * (double)i);
 
-  struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
+  uint64_t   t0, t1;
+  jm_bench_t _bench = { 0 };
 
   printf ("=== carrier_nda benchmark ===\n");
   printf ("block = %d samples,  %d iterations\n\n", BENCH_N, ITERATIONS);
@@ -73,7 +66,7 @@ main (void)
     double times[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         for (int i = 0; i < BENCH_N; i++)
           {
             float _Complex d = carrier_nda_wipeoff (c, in[i]);
@@ -82,9 +75,9 @@ main (void)
               carrier_nda_steer (c, pe);
             out[i] = d;
           }
-        clock_gettime (CLOCK_MONOTONIC, &t1);
+        t1 = jm_bench_now_ns ();
         sink += crealf (out[BENCH_N - 1]);
-        times[r] = elapsed_sec (&t0, &t1);
+        times[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "step", times, ITERATIONS, BENCH_N);
     report ("step", times);
@@ -99,10 +92,10 @@ main (void)
     double times[ITERATIONS];
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         carrier_nda_steps (c, in, BENCH_N, out, BENCH_N);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        times[r] = elapsed_sec (&t0, &t1);
+        t1       = jm_bench_now_ns ();
+        times[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "steps", times, ITERATIONS, BENCH_N);
     report ("steps", times);

@@ -16,13 +16,6 @@
 
 #define ITERATIONS 50
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 static uint32_t
 _xorshift32 (uint32_t *s)
 {
@@ -41,9 +34,9 @@ _rand_uniform (uint32_t *s)
 int
 main (void)
 {
-  jm_bench_t      _bench = { 0 };
-  struct timespec t0, t1;
-  double          times[ITERATIONS];
+  jm_bench_t _bench = { 0 };
+  uint64_t   t0, t1;
+  double     times[ITERATIONS];
 
   /* ny=16, nx=2046 mirrors docs/design/dsss-acquisition.md §7's worked
    * case (L=1023, spc=2 -> code_bins=2046; doppler_bins=16). */
@@ -69,10 +62,10 @@ main (void)
     corr2d_execute (obj, in, n, out, n); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         corr2d_execute (obj, in, n, out, n);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        times[r] = elapsed_sec (&t0, &t1);
+        t1       = jm_bench_now_ns ();
+        times[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "single_row_fast_path", times, ITERATIONS, n);
     double sum = 0.0;
@@ -95,10 +88,10 @@ main (void)
     corr2d_execute (obj, in, n, out, n); /* warmup */
     for (int r = 0; r < ITERATIONS; r++)
       {
-        clock_gettime (CLOCK_MONOTONIC, &t0);
+        t0 = jm_bench_now_ns ();
         corr2d_execute (obj, in, n, out, n);
-        clock_gettime (CLOCK_MONOTONIC, &t1);
-        times[r] = elapsed_sec (&t0, &t1);
+        t1       = jm_bench_now_ns ();
+        times[r] = jm_bench_elapsed_sec (t0, t1);
       }
     jm_bench_add (&_bench, "multi_row_general_path", times, ITERATIONS, n);
     double sum = 0.0;

@@ -42,20 +42,13 @@
 #define BLOCKS 4096
 #define ITERATIONS 50
 
-static double
-elapsed_sec (struct timespec *t0, struct timespec *t1)
-{
-  return (double)(t1->tv_sec - t0->tv_sec)
-         + (double)(t1->tv_nsec - t0->tv_nsec) * 1e-9;
-}
-
 int
 main (void)
 {
-  struct timespec t0, t1;
-  jm_bench_t      _bench = { 0 };
-  double          times[ITERATIONS];
-  double          _s;
+  uint64_t   t0, t1;
+  jm_bench_t _bench = { 0 };
+  double     times[ITERATIONS];
+  double     _s;
 
   printf ("=== dp_tlm_capture benchmark ===\n");
   printf ("block = %d samples,  %d blocks,  %d iterations\n\n", BLOCK, BLOCKS,
@@ -75,14 +68,14 @@ main (void)
           int id = dp_tlm_probe (t, "bench.x", 1);                            \
           (void)id;                                                           \
           setup;                                                              \
-          clock_gettime (CLOCK_MONOTONIC, &t0);                               \
+          t0 = jm_bench_now_ns ();                                            \
           for (int b = 0; b < BLOCKS; b++)                                    \
             {                                                                 \
               per_block;                                                      \
               dp_tlm_set_now (t, (uint64_t)b * BLOCK);                        \
             }                                                                 \
-          clock_gettime (CLOCK_MONOTONIC, &t1);                               \
-          times[r] = elapsed_sec (&t0, &t1);                                  \
+          t1       = jm_bench_now_ns ();                                      \
+          times[r] = jm_bench_elapsed_sec (t0, t1);                           \
           teardown;                                                           \
           dp_tlm_destroy (t);                                                 \
         }                                                                     \

@@ -33,9 +33,9 @@ class LoopFilter:
     """
     def __init__(
         self,
-        bn: float = ...,
-        zeta: float = ...,
-        t: float = ...,
+        bn: float = 0.01,
+        zeta: float = 0.707,
+        t: float = 1.0,
     ) -> None: ...
 
     def step(self, x: float) -> float:
@@ -327,11 +327,11 @@ class Costas:
     """
     def __init__(
         self,
-        bn: float = ...,
-        zeta: float = ...,
-        init_norm_freq: float = ...,
-        tsamps: int = ...,
-        bn_fll: float = ...,
+        bn: float = 0.05,
+        zeta: float = 0.707,
+        init_norm_freq: float = 0.0,
+        tsamps: int = 64,
+        bn_fll: float = 0.0,
     ) -> None: ...
 
     def steps(
@@ -742,12 +742,12 @@ class Dll:
     def __init__(
         self,
         code: NDArray[np.uint8],
-        sps: int = ...,
-        init_chip: float = ...,
-        bn: float = ...,
-        zeta: float = ...,
-        spacing: float = ...,
-        segments: int = ...,
+        sps: int = 2,
+        init_chip: float = 0.0,
+        bn: float = 0.01,
+        zeta: float = 0.707,
+        spacing: float = 0.5,
+        segments: int = 1,
     ) -> None: ...
 
     def steps(
@@ -1549,9 +1549,9 @@ class SymbolSync:
     """
     def __init__(
         self,
-        sps: int = ...,
-        bn: float = ...,
-        zeta: float = ...,
+        sps: int = 4,
+        bn: float = 0.01,
+        zeta: float = 0.707,
         order: Literal["linear", "parabolic", "cubic"] = "cubic",
         ted: Literal["gardner", "dttl"] = "gardner",
     ) -> None: ...
@@ -2051,14 +2051,14 @@ class RateSync:
     """
     def __init__(
         self,
-        sps: float = ...,
+        sps: float = 4.0,
         pulse: Literal["iandd", "rrc"] = "rrc",
-        beta: float = ...,
-        span: int = ...,
-        m: int = ...,
-        num_phases: int = ...,
-        bn: float = ...,
-        zeta: float = ...,
+        beta: float = 0.35,
+        span: int = 8,
+        m: int = 2,
+        num_phases: int = 1024,
+        bn: float = 0.01,
+        zeta: float = 0.707,
         ted: Literal["gardner", "dttl"] = "gardner",
     ) -> None: ...
 
@@ -2471,12 +2471,12 @@ class CarrierMpsk:
     """
     def __init__(
         self,
-        bn: float = ...,
-        zeta: float = ...,
-        init_norm_freq: float = ...,
-        tsamps: int = ...,
-        bn_fll: float = ...,
-        m: int = ...,
+        bn: float = 0.05,
+        zeta: float = 0.707,
+        init_norm_freq: float = 0.0,
+        tsamps: int = 64,
+        bn_fll: float = 0.0,
+        m: int = 4,
     ) -> None: ...
 
     def steps(
@@ -2792,12 +2792,12 @@ class CarrierNda:
     """
     def __init__(
         self,
-        bn: float = ...,
-        zeta: float = ...,
-        init_norm_freq: float = ...,
-        sps: int = ...,
-        n: int = ...,
-        m: int = ...,
+        bn: float = 0.01,
+        zeta: float = 0.707,
+        init_norm_freq: float = 0.0,
+        sps: int = 8,
+        n: int = 4,
+        m: int = 4,
     ) -> None: ...
 
     def steps(
@@ -3291,21 +3291,21 @@ class MpskReceiver:
     """
     def __init__(
         self,
-        m: int = ...,
-        sps: float = ...,
-        m_out: int = ...,
+        m: int = 4,
+        sps: float = 8.0,
+        m_out: int = 0,
         pulse: Literal["iandd", "rrc"] = "iandd",
-        rrc_beta: float = ...,
-        rrc_span: int = ...,
-        bn_carrier: float = ...,
-        zeta: float = ...,
-        bn_timing: float = ...,
-        lock_thresh: float = ...,
-        init_norm_freq: float = ...,
-        differential: int = ...,
-        num_phases: int = ...,
-        agc: int = ...,
-        bn_agc_ratio: float = ...,
+        rrc_beta: float = 0.35,
+        rrc_span: int = 8,
+        bn_carrier: float = 0.01,
+        zeta: float = 0.0,
+        bn_timing: float = 0.01,
+        lock_thresh: float = 0.0,
+        init_norm_freq: float = 0.0,
+        differential: int = 0,
+        num_phases: int = 0,
+        agc: int = 1,
+        bn_agc_ratio: float = 0.0,
     ) -> None: ...
 
     def set_telemetry(
@@ -3869,14 +3869,14 @@ class BpskReceiver:
         self,
         sample_rate_hz: float,
         symbol_rate_hz: float,
-        carrier_freq_hz: float = ...,
+        carrier_freq_hz: float = 0.0,
         pulse: Literal["iandd", "rrc"] = "iandd",
-        rrc_beta: float = ...,
-        rrc_span: int = ...,
-        bn_carrier: float = ...,
-        bn_timing: float = ...,
-        differential: int = ...,
-        agc: int = ...,
+        rrc_beta: float = 0.35,
+        rrc_span: int = 8,
+        bn_carrier: float = 0.01,
+        bn_timing: float = 0.01,
+        differential: int = 0,
+        agc: int = 1,
     ) -> None: ...
 
     def set_telemetry(
@@ -4522,21 +4522,21 @@ class MpskReceiverR:
     """
     def __init__(
         self,
-        m: int = ...,
-        sps: float = ...,
-        m_out: int = ...,
+        m: int = 4,
+        sps: float = 32.0,
+        m_out: int = 0,
         pulse: Literal["iandd", "rrc"] = "iandd",
-        rrc_beta: float = ...,
-        rrc_span: int = ...,
-        bn_carrier: float = ...,
-        zeta: float = ...,
-        bn_timing: float = ...,
-        lock_thresh: float = ...,
-        init_norm_freq: float = ...,
-        differential: int = ...,
-        num_phases: int = ...,
-        agc: int = ...,
-        bn_agc_ratio: float = ...,
+        rrc_beta: float = 0.35,
+        rrc_span: int = 8,
+        bn_carrier: float = 0.01,
+        zeta: float = 0.0,
+        bn_timing: float = 0.01,
+        lock_thresh: float = 0.0,
+        init_norm_freq: float = 0.0,
+        differential: int = 0,
+        num_phases: int = 0,
+        agc: int = 1,
+        bn_agc_ratio: float = 0.0,
     ) -> None: ...
 
     def set_telemetry(

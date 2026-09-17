@@ -319,20 +319,29 @@ CICObj_exit (CICObject *self, PyObject *args)
 
 static PyMethodDef CICObj_methods[] = {
   { "reset", (PyCFunction)CICObj_reset, METH_NOARGS,
-    "Zero all integrator and comb accumulators; preserve R and shift. The "
-    "first output sample after reset arrives after R more input samples, "
-    "matching post-create behaviour. Use between signal bursts to eliminate "
-    "transient artefacts caused by residual pipeline state." },
+    "Zero all integrator and comb accumulators; preserve R and shift. The\n"
+    "first output sample after reset arrives after R more input samples,\n"
+    "matching post-create behaviour. Use between signal bursts to eliminate\n"
+    "transient artefacts caused by residual pipeline state.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.resample import CIC\n"
+    ">>> cic = CIC(R=16)\n"
+    ">>> cic.reset()\n"
+    ">>> cic.R\n"
+    "16\n" },
 
   { "reconfigure", (PyCFunction)(void *)CICObj_reconfigure,
     METH_VARARGS | METH_KEYWORDS,
     "reconfigure(R) -> None\n"
     "\n"
-    "Change the decimation ratio in place and reset all filter state. "
-    "Recomputes the normalisation shift (CIC_N * log2(R)) and zeros all "
-    "accumulators so the filter behaves exactly like a freshly created one "
-    "with the new R. Silently ignores R values that are not a power-of-two in "
-    "`[2, 4096]` — the state is left unchanged in that case.\n"
+    "Change the decimation ratio in place and reset all filter state.\n"
+    "Recomputes the normalisation shift (CIC_N * log2(R)) and zeros all\n"
+    "accumulators so the filter behaves exactly like a freshly created one\n"
+    "with the new R. Silently ignores R values that are not a power-of-two\n"
+    "in `[2, 2048]` (`CIC_R_MAX`) — the state is left unchanged in that\n"
+    "case.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -348,20 +357,22 @@ static PyMethodDef CICObj_methods[] = {
     "(8, 12)\n" },
   { "decimate", (PyCFunction)(void *)CICObj_decimate,
     METH_VARARGS | METH_KEYWORDS,
-    "decimate(x) -> ndarray\n"
+    "decimate(x, out) -> ndarray\n"
     "\n"
-    "Decimate a block of CF32 samples through the CIC pipeline. Each sample "
-    "is converted to offset-binary UQ16, pushed through CIC_N integrators "
-    "(unsigned wrapping), and when the phase counter reaches R the integrated "
-    "value is passed through CIC_N M=1 comb stages and converted back to "
-    "CF32.  State persists between calls. Feeding blocks that are multiples "
-    "of R gives predictable output counts (exactly n_in/R samples per "
-    "block).\n"
+    "Decimate a block of CF32 samples through the CIC pipeline. Each\n"
+    "sample is converted to offset-binary UQ16, pushed through CIC_N\n"
+    "integrators (unsigned wrapping), and when the phase counter reaches R\n"
+    "the integrated value is passed through CIC_N M=1 comb stages and\n"
+    "converted back to CF32. State persists between calls. Feeding blocks\n"
+    "that are multiples of R gives predictable output counts (exactly n_in/R\n"
+    "samples per block).\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
     "    Input.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output buffer; must hold at least max_out elements.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -371,11 +382,10 @@ static PyMethodDef CICObj_methods[] = {
     "\n"
     "Notes\n"
     "-----\n"
-    "**Input amplitude is bounded: |Re| and |Im| <= 1.0.** A component "
-    "beyond\n"
-    "+-1.0 is clipped at the boundary before filtering; the sample stream\n"
-    "gives no sign of it, so check the sticky clipped flag. Scale the input\n"
-    "into range first; see the file header.\n"
+    "**Input amplitude is bounded: |Re| and |Im| <= 1.0.** A component\n"
+    "beyond +-1.0 is clipped at the boundary before filtering; the sample\n"
+    "stream gives no sign of it, so check the sticky clipped flag. Scale the\n"
+    "input into range first; see the file header.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -388,8 +398,18 @@ static PyMethodDef CICObj_methods[] = {
     ">>> y.tolist(), y.dtype\n"
     "([0j], dtype('complex64'))\n" },
   { "decimate_max_out", (PyCFunction)CICObj_decimate_max_out, METH_NOARGS,
-    "decimate_max_out() -> int\n\nMax output length decimate() can produce "
-    "for the current state.\nUse to size the ``out=`` buffer." },
+    "decimate_max_out() -> int\n"
+    "\n"
+    "Upper bound on decimate output — returns 0 (lazy-alloc signal).\n"
+    "\n"
+    "The Python extension allocates n_in elements on the first call. Since\n"
+    "n_in >= ceil(n_in/R) = n_out for all R >= 1, the buffer is always large\n"
+    "enough as long as block size stays consistent.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "state_bytes", (PyCFunction)CICObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -483,15 +503,33 @@ static PyTypeObject CICObjType = {
   .tp_dealloc                             = (destructor)CICObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct "
+  = "Create a 4-stage, M=1 CIC decimation filter. Allocates the state struct\n"
     "on the heap and pre-computes the normalisation right-shift (CIC_N * "
-    "log2(R) bits). All integrator and comb accumulators are zeroed; the "
-    "first output arrives after R input samples. Returns NULL for invalid R "
-    "or OOM. Input amplitude is bounded: |Re| and |Im| <= 1.0. A component "
-    "beyond +-1.0 is clipped at the boundary before any filtering; the sample "
-    "stream gives no sign of it, so check the sticky clipped flag. Unlike "
-    "doppler's floating-point blocks this one is not scale-free -- scale the "
-    "input into range first.\n",
+    "log2(R)\n"
+    "bits). All integrator and comb accumulators are zeroed; the first "
+    "output\n"
+    "arrives after R input samples. Returns NULL for invalid R or OOM. Input\n"
+    "amplitude is bounded: |Re| and |Im| <= 1.0. A component beyond +-1.0 is\n"
+    "clipped at the boundary before any filtering; the sample stream gives "
+    "no\n"
+    "sign of it, so check the sticky clipped flag. Unlike doppler's\n"
+    "floating-point blocks this one is not scale-free -- scale the input "
+    "into\n"
+    "range first.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "R : int, default 16\n"
+    "    Decimation ratio. Must be a power of two in `[2, 2048]` "
+    "(`CIC_R_MAX`).\n"
+    "    Returns NULL for R=0, non-power-of-two, or a ratio above that cap.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.resample import CIC\n"
+    ">>> cic = CIC(R=16)\n"
+    ">>> cic.R, cic.shift\n"
+    "(16, 16)\n",
   .tp_methods = CICObj_methods,
   .tp_getset  = CIC_getset,
   .tp_new     = CICObj_new,

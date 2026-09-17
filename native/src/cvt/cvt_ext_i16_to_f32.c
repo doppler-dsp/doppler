@@ -183,7 +183,19 @@ I16ToF32Obj_exit (I16ToF32Object *self, PyObject *args)
 
 static PyMethodDef I16ToF32Obj_methods[] = {
   { "reset", (PyCFunction)I16ToF32Obj_reset, METH_NOARGS,
-    "No-op reset, provided only for lifecycle symmetry." },
+    "No-op reset, provided only for lifecycle symmetry.\n"
+    "\n"
+    "This converter carries no running state beyond the immutable iscale, so\n"
+    "there is nothing to clear; the method exists so every converter in the\n"
+    "module presents the same create / step / reset / destroy lifecycle.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import I16ToF32\n"
+    ">>> c = I16ToF32()\n"
+    ">>> c.reset()           # stateless converter -> reset is a no-op\n"
+    ">>> round(c.step(-32768), 4)\n"
+    "-1.0\n" },
   { "step", (PyCFunction)I16ToF32_step, METH_VARARGS,
     "step(x) -> float\n"
     "\n"
@@ -285,8 +297,24 @@ static PyTypeObject I16ToF32ObjType = {
   .tp_basicsize                           = sizeof (I16ToF32Object),
   .tp_dealloc                             = (destructor)I16ToF32Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create a i16_to_f32 instance.\n",
-  .tp_methods                             = I16ToF32Obj_methods,
-  .tp_new                                 = I16ToF32Obj_new,
-  .tp_init                                = (initproc)I16ToF32Obj_init,
+  .tp_doc
+  = "Create a i16_to_f32 instance.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "scale : float, default 32768.0\n"
+    "    Denominator scale; 1/scale is applied to each sample (default:\n"
+    "    32768.0f). Use 32768.0 to recover normalised `[-1, +1]` floats from "
+    "a\n"
+    "    Q15 int16 stream.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.cvt import I16ToF32\n"
+    ">>> obj = I16ToF32(scale=32768.0)\n",
+  .tp_methods = I16ToF32Obj_methods,
+  .tp_new     = I16ToF32Obj_new,
+  .tp_init    = (initproc)I16ToF32Obj_init,
 };

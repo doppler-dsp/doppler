@@ -293,7 +293,7 @@ static PyMethodDef ConvEncoderObj_methods[] = {
 
   { "encode", (PyCFunction)(void *)ConvEncoderObj_encode,
     METH_VARARGS | METH_KEYWORDS,
-    "encode(x) -> ndarray\n"
+    "encode(x, out) -> ndarray\n"
     "\n"
     "Encode information bits into channel symbols.\n"
     "\n"
@@ -308,6 +308,8 @@ static PyMethodDef ConvEncoderObj_methods[] = {
     "----------\n"
     "x : int\n"
     "    Input.\n"
+    "out : NDArray[np.uint8] | None\n"
+    "    Receives `n_in * n` unpacked symbols, one per byte.\n"
     "\n"
     "Returns\n"
     "-------\n"

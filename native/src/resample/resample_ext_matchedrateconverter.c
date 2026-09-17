@@ -921,7 +921,7 @@ static PyTypeObject MatchedRateConverterObjType = {
     "--------\n"
     "Create with defaults:\n"
     "\n"
-    ">>> from doppler import MatchedRateConverter\n"
+    ">>> from doppler.resample import MatchedRateConverter\n"
     ">>> obj = MatchedRateConverter(\n"
     "...     rate=1.0,\n"
     "...     compensate=1,\n"

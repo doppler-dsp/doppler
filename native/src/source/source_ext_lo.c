@@ -501,7 +501,7 @@ static PyMethodDef LOObj_methods[] = {
     "    Output.\n" },
   { "steps_ctrl", (PyCFunction)(void *)LOObj_steps_ctrl,
     METH_VARARGS | METH_KEYWORDS,
-    "steps_ctrl(ctrl) -> ndarray\n"
+    "steps_ctrl(ctrl, out) -> ndarray\n"
     "\n"
     "Generate CF32 phasors with per-sample FM deviation. For each sample\n"
     "i, `ctrl[i]`'s fractional part is converted to a delta phase-increment\n"
@@ -517,6 +517,8 @@ static PyMethodDef LOObj_methods[] = {
     "    Per-sample normalised-frequency deviations in `double`. Only the\n"
     "    fractional part of each element contributes. See\n"
     "    nco_steps_u32_ctrl() on why the port is `double` and not float32.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output buffer; must hold at least ctrl_len float _Complex values.\n"
     "\n"
     "Returns\n"
     "-------\n"

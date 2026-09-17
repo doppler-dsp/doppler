@@ -272,9 +272,18 @@ AccQ15_set_state (AccQ15Object *self, PyObject *arg)
 
 static PyMethodDef AccQ15_methods[] = {
   { "reset", (PyCFunction)AccQ15_reset, METH_NOARGS,
-    "Reset the accumulator to zero, mirroring the post-create state. Does not "
-    "re-initialise to the constructor's acc value — always resets to zero, "
-    "matching the default initial state for a clean sweep." },
+    "Reset the accumulator to zero, mirroring the post-create state. Does\n"
+    "not re-initialise to the constructor's acc value — always resets to\n"
+    "zero, matching the default initial state for a clean sweep.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.arith import AccQ15\n"
+    ">>> obj = AccQ15(0)\n"
+    ">>> obj.step(42)\n"
+    ">>> obj.reset()\n"
+    ">>> obj.get()\n"
+    "0\n" },
   { "step", (PyCFunction)AccQ15_step, METH_VARARGS,
     "step(x) -> None\n"
     "\n"
@@ -481,11 +490,26 @@ static PyTypeObject AccQ15Type = {
   .tp_dealloc                             = (destructor)AccQ15_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Allocate and initialise an AccQ15 accumulator. The accumulator starts at "
-    "the supplied initial value and may be driven sample-by-sample (step), in "
+  = "Allocate and initialise an AccQ15 accumulator. The accumulator starts "
+    "at\n"
+    "the supplied initial value and may be driven sample-by-sample (step), "
+    "in\n"
     "bulk (steps), or via multiply-accumulate (madd). The internal register "
-    "is a 64-bit signed integer so it will not overflow in any realistic DSP "
-    "workload.\n",
+    "is a\n"
+    "64-bit signed integer so it will not overflow in any realistic DSP\n"
+    "workload.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "acc : int, default 0\n"
+    "    acc state variable.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.arith import AccQ15\n"
+    ">>> obj = AccQ15(100)\n"
+    ">>> obj.get_acc()\n"
+    "100\n",
   .tp_methods = AccQ15_methods,
   .tp_new     = AccQ15_new,
   .tp_init    = (initproc)AccQ15_init,

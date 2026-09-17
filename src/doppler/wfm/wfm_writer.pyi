@@ -118,11 +118,11 @@ class Writer:
         file_type: Literal["raw", "csv", "blue", "sigmf"] = "raw",
         sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "cf32",
         endian: Literal["le", "be"] = "le",
-        fc: float = ...,
-        total: int = ...,
-        headroom: float = ...,
-        t0: float = ...,
-        sidecar: bool = ...,
+        fc: float = 0.0,
+        total: int = 0,
+        headroom: float = 0.0,
+        t0: float = 0.0,
+        sidecar: bool = True,
     ) -> None: ...
 
     def write(self, x: NDArray[np.complex64]) -> int:

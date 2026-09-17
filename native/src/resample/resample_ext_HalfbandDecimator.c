@@ -225,24 +225,56 @@ HalfbandDecimatorObj_execute_max_out (HalfbandDecimatorObject *self,
 static PyMethodDef HalfbandDecimatorObj_methods[] = {
 
   { "execute", (PyCFunction)HalfbandDecimatorObj_execute, METH_VARARGS,
-    "execute(x) -> ndarray\n"
+    "execute(x, out) -> ndarray\n"
     "\n"
-    "Decimate x(0..x_len-1) by 2 into out(0..n_out-1).\n"
+    "Decimate x by 2 using the polyphase halfband FIR filter. Processes\n"
+    "every second input sample through the FIR branch and passes the other\n"
+    "branch through the all-pass (zero-delay) path. State persists between\n"
+    "calls — contiguous blocks give identical output to one large block.\n"
+    "Output length is floor(x_len / 2).\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import HalfbandDecimator\n"
-    "    >>> obj = HalfbandDecimator(np.zeros(1, dtype=np.float32))\n"
-    "    >>> y = obj.execute(np.zeros(4))\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.complex64]\n"
+    "    CF32 input array. Length must be even for exact half-rate output;\n"
+    "    odd lengths write floor(x_len/2).\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output buffer; must hold at least floor(x_len/2) samples.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    CF32 decimated output; length is min(floor(x_len / 2), max_out).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.resample import HalfbandDecimator\n"
+    ">>> import numpy as np\n"
+    ">>> h = np.array([0.0625, 0.25, 0.375, 0.25, 0.0625],\n"
+    "...              dtype=np.float32)\n"
+    ">>> hb = HalfbandDecimator(h=h)\n"
+    ">>> y = hb.execute(np.zeros(100, dtype=np.complex64))\n"
+    ">>> y.shape, y.dtype\n"
+    "((50,), dtype('complex64'))\n" },
   { "reset", (PyCFunction)HalfbandDecimatorObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Zero delay lines.  Coefficients preserved.\n"
+    "Zero all delay lines. Coefficients and num_taps preserved. Call\n"
+    "between signal bursts to suppress transient ringing from prior filter\n"
+    "state. The next execute() after reset produces the same output as a\n"
+    "freshly created decimator fed the same input.\n"
     "\n"
-    "    >>> from doppler import HalfbandDecimator\n"
-    "    >>> obj = HalfbandDecimator(np.zeros(1, dtype=np.float32))\n"
-    "    >>> obj.reset()\n" },
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.resample import HalfbandDecimator\n"
+    ">>> import numpy as np\n"
+    ">>> h = np.array([0.0625, 0.25, 0.375, 0.25, 0.0625],\n"
+    "...              dtype=np.float32)\n"
+    ">>> hb = HalfbandDecimator(h=h)\n"
+    ">>> _ = hb.execute(np.ones(64, dtype=np.complex64))\n"
+    ">>> hb.reset()\n"
+    ">>> hb.num_taps\n"
+    "5\n" },
   { "state_bytes", (PyCFunction)HalfbandDecimatorObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -333,8 +365,14 @@ static PyMethodDef HalfbandDecimatorObj_methods[] = {
     "    Traceback object, or None. Ignored.\n" },
   { "execute_max_out", (PyCFunction)HalfbandDecimatorObj_execute_max_out,
     METH_NOARGS,
-    "execute_max_out() -> int\n\nMax output length execute() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
+    "execute_max_out() -> int\n"
+    "\n"
+    "Always returns HBDECIM_MAX_OUT.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { NULL }
 };
 
@@ -343,7 +381,32 @@ static PyTypeObject HalfbandDecimatorObjType = {
   .tp_basicsize                           = sizeof (HalfbandDecimatorObject),
   .tp_dealloc = (destructor)HalfbandDecimatorObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a HalfbandDecimator.\n",
+  .tp_doc
+  = "Create a HalfbandDecimator with caller-supplied FIR taps. Implements a\n"
+    "2:1 polyphase halfband decimator over CF32 IQ. The caller provides the "
+    "FIR\n"
+    "branch coefficient array h; use ``doppler.resample.kaiser_num_taps(2,\n"
+    "atten, pb, sb)`` to size it and scipy or the built-in bank helper to "
+    "design\n"
+    "the prototype. Output length is approximately x_len / 2 per execute() "
+    "call.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "h : NDArray[np.float32]\n"
+    "    Float32 FIR branch coefficients. Must be a symmetric halfband "
+    "prototype\n"
+    "    (antisymmetric even-indexed taps zeroed).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.resample import HalfbandDecimator\n"
+    ">>> import numpy as np\n"
+    ">>> h = np.array([0.0625, 0.25, 0.375, 0.25, 0.0625],\n"
+    "...              dtype=np.float32)\n"
+    ">>> hb = HalfbandDecimator(h=h)\n"
+    ">>> hb.num_taps, hb.rate\n"
+    "(5, 0.5)\n",
   .tp_methods = HalfbandDecimatorObj_methods,
   .tp_getset  = HalfbandDecimator_getset,
   .tp_new     = HalfbandDecimatorObj_new,

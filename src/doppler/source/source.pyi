@@ -29,7 +29,7 @@ class NCO:
     1073741824
 
     """
-    def __init__(self, norm_freq: float = ..., nmax: int = ...) -> None: ...
+    def __init__(self, norm_freq: float = 0.0, nmax: int = 0) -> None: ...
 
     def reset(self) -> None:
         """Zero the phase accumulator. Sets phase to 0 so the next
@@ -548,7 +548,7 @@ class LO:
     1073741824
 
     """
-    def __init__(self, norm_freq: float = ...) -> None: ...
+    def __init__(self, norm_freq: float = 0.0) -> None: ...
 
     def reset(self) -> None:
         """Zero the phase accumulator. Sets phase to 0 so the next lo_steps
@@ -824,7 +824,7 @@ class AWGN:
     1.0
 
     """
-    def __init__(self, seed: int = ..., amplitude: float = ...) -> None: ...
+    def __init__(self, seed: int = 0, amplitude: float = 1.0) -> None: ...
 
     def reset(self) -> None:
         """Reset RNG to the seed supplied at create time. Re-runs the

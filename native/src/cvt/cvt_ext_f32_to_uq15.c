@@ -251,7 +251,22 @@ F32ToUQ15Obj_exit (F32ToUQ15Object *self, PyObject *args)
 
 static PyMethodDef F32ToUQ15Obj_methods[] = {
   { "reset", (PyCFunction)F32ToUQ15Obj_reset, METH_NOARGS,
-    "Clear the sticky clip flag, starting a fresh saturation history." },
+    "Clear the sticky clip flag, starting a fresh saturation history.\n"
+    "\n"
+    "Zeroes clipped so a subsequent clipped query reflects only samples seen\n"
+    "after this call; the immutable scale is preserved. Call it at a buffer\n"
+    "or segment boundary so a saturation on one block does not leak into the\n"
+    "next.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import F32ToUQ15\n"
+    ">>> c = F32ToUQ15()\n"
+    ">>> c.step(2.0)       # out of range -> saturates 0xFFFF, latches\n"
+    "65535\n"
+    ">>> c.reset()            # forget the clip history\n"
+    ">>> c.clipped\n"
+    "False\n" },
   { "step", (PyCFunction)F32ToUQ15_step, METH_VARARGS,
     "step(x) -> uint16_t\n"
     "\n"
@@ -404,9 +419,26 @@ static PyTypeObject F32ToUQ15ObjType = {
   .tp_basicsize                           = sizeof (F32ToUQ15Object),
   .tp_dealloc                             = (destructor)F32ToUQ15Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create a f32_to_uq15 instance.\n",
-  .tp_methods                             = F32ToUQ15Obj_methods,
-  .tp_getset                              = F32ToUQ15_getset,
-  .tp_new                                 = F32ToUQ15Obj_new,
-  .tp_init                                = (initproc)F32ToUQ15Obj_init,
+  .tp_doc
+  = "Create a f32_to_uq15 instance.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "scale : float, default 32768.0\n"
+    "    Multiply factor applied before quantisation and saturation "
+    "(default:\n"
+    "    32768.0f). Use 32768.0 to convert normalised `[-1, +1]` floats to "
+    "the\n"
+    "    full UQ15 range `[0, 65535]`. Must be > 0; returns NULL otherwise.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.cvt import F32ToUQ15\n"
+    ">>> obj = F32ToUQ15(scale=32768.0)\n",
+  .tp_methods = F32ToUQ15Obj_methods,
+  .tp_getset  = F32ToUQ15_getset,
+  .tp_new     = F32ToUQ15Obj_new,
+  .tp_init    = (initproc)F32ToUQ15Obj_init,
 };

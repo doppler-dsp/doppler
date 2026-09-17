@@ -43,9 +43,9 @@ class AGC:
     """
     def __init__(
         self,
-        ref_db: float = ...,
-        loop_bw: float = ...,
-        alpha: float = ...,
+        ref_db: float = 0.0,
+        loop_bw: float = 0.0025,
+        alpha: float = 0.05,
     ) -> None: ...
 
     def reset(self) -> None:

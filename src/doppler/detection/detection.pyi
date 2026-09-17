@@ -67,10 +67,10 @@ class LockDet:
     """
     def __init__(
         self,
-        up_thresh: float = ...,
-        down_thresh: float = ...,
-        n_up: int = ...,
-        n_down: int = ...,
+        up_thresh: float = 1.0,
+        down_thresh: float = 1.0,
+        n_up: int = 1,
+        n_down: int = 1,
     ) -> None: ...
 
     def step(self, x: float) -> int:

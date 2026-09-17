@@ -504,7 +504,20 @@ static PyTypeObject FarrowObjType = {
   .tp_basicsize                           = sizeof (FarrowObject),
   .tp_dealloc                             = (destructor)FarrowObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create a Farrow interpolator.\n",
+  .tp_doc                                 = "Create a Farrow interpolator.\n"
+                                            "\n"
+                                            "Parameters\n"
+                                            "----------\n"
+                                            "order : Literal[\"linear\", \"parabolic\", \"cubic\"], default "
+                                            "\"cubic\"\n"
+                                            "    0 = linear, 1 = parabolic, 2 = cubic.\n"
+                                            "\n"
+                                            "Examples\n"
+                                            "--------\n"
+                                            "Create with defaults:\n"
+                                            "\n"
+                                            ">>> from doppler.resample import Farrow\n"
+                                            ">>> obj = Farrow(order=\"cubic\")\n",
   .tp_methods                             = FarrowObj_methods,
   .tp_getset                              = Farrow_getset,
   .tp_new                                 = FarrowObj_new,

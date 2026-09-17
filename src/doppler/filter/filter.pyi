@@ -244,7 +244,7 @@ class MovingAverage:
     >>> obj = MovingAverage(len=4, gain=1.0)
 
     """
-    def __init__(self, len: int = ..., gain: float = ...) -> None: ...
+    def __init__(self, len: int = 4, gain: float = 1.0) -> None: ...
 
     def step(self, x: complex) -> complex:
         """Slide the window by one sample; return the gained moving average.

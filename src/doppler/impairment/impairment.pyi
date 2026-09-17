@@ -33,10 +33,10 @@ class DopplerChannel:
     """
     def __init__(
         self,
-        fs: float = ...,
-        carrier_hz: float = ...,
-        doppler_ppm: float = ...,
-        doppler_rate_ppm_s: float = ...,
+        fs: float = 1000000.0,
+        carrier_hz: float = 0.0,
+        doppler_ppm: float = 0.0,
+        doppler_rate_ppm_s: float = 0.0,
     ) -> None: ...
 
     def execute(

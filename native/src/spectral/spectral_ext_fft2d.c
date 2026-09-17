@@ -593,17 +593,19 @@ static PyMethodDef FFT2DObj_methods[] = {
 
   { "execute_cf64", (PyCFunction)(void *)FFT2DObj_execute_cf64,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_cf64(x) -> ndarray\n"
+    "execute_cf64(x, out) -> ndarray\n"
     "\n"
-    "Compute an out-of-place 2-D DFT on a double-precision complex grid. in "
-    "is a flat row-major CF64 array of length ny*nx.  The output is written "
-    "to the caller-supplied out buffer (also ny*nx); the two must not alias.  "
-    "The transform is unnormalised.\n"
+    "Compute an out-of-place 2-D DFT on a double-precision complex grid.\n"
+    "in is a flat row-major CF64 array of length ny*nx. The output is\n"
+    "written to the caller-supplied out buffer (also ny*nx); the two must\n"
+    "not alias. The transform is unnormalised.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
     "    Input.\n"
+    "out : NDArray[np.complex128] | None\n"
+    "    Flat row-major CF64 output, length >= ny*nx (caller-allocated).\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -623,21 +625,29 @@ static PyMethodDef FFT2DObj_methods[] = {
     "True\n" },
   { "execute_cf64_max_out", (PyCFunction)FFT2DObj_execute_cf64_max_out,
     METH_NOARGS,
-    "execute_cf64_max_out() -> int\n\nMax output length execute_cf64() can "
-    "produce for the current state.\nUse to size the ``out=`` buffer." },
+    "execute_cf64_max_out() -> int\n"
+    "\n"
+    "Maximum output samples per execute call (ny * nx).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "execute_cf32", (PyCFunction)(void *)FFT2DObj_execute_cf32,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_cf32(x) -> ndarray\n"
+    "execute_cf32(x, out) -> ndarray\n"
     "\n"
-    "Compute an out-of-place 2-D DFT on a single-precision complex grid. "
-    "Single-precision variant of fft2d_execute_cf64().  Accepts and returns "
-    "flat row-major CF32 arrays of length ny*nx.  Output is unnormalised; in "
+    "Compute an out-of-place 2-D DFT on a single-precision complex grid.\n"
+    "Single-precision variant of fft2d_execute_cf64(). Accepts and returns\n"
+    "flat row-major CF32 arrays of length ny*nx. Output is unnormalised; in\n"
     "and out must not alias.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
     "    Input.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Flat row-major CF32 output, length >= ny*nx (caller-allocated).\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -657,21 +667,29 @@ static PyMethodDef FFT2DObj_methods[] = {
     "True\n" },
   { "execute_cf32_max_out", (PyCFunction)FFT2DObj_execute_cf32_max_out,
     METH_NOARGS,
-    "execute_cf32_max_out() -> int\n\nMax output length execute_cf32() can "
-    "produce for the current state.\nUse to size the ``out=`` buffer." },
+    "execute_cf32_max_out() -> int\n"
+    "\n"
+    "Maximum output samples for CF32 execute (ny * nx).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "execute_inplace_cf64", (PyCFunction)(void *)FFT2DObj_execute_inplace_cf64,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_inplace_cf64(x) -> ndarray\n"
+    "execute_inplace_cf64(x, out) -> ndarray\n"
     "\n"
-    "Copy in into out, then transform out in-place (CF64 2-D). The ny*nx CF64 "
-    "samples from in are first memcpy'd to out; the 2-D DFT is then applied "
-    "to out in-place.  in is left unmodified. Useful when the caller owns out "
-    "and wants to preserve in.\n"
+    "Copy in into out, then transform out in-place (CF64 2-D). The ny*nx\n"
+    "CF64 samples from in are first memcpy'd to out; the 2-D DFT is then\n"
+    "applied to out in-place. in is left unmodified. Useful when the caller\n"
+    "owns out and wants to preserve in.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
     "    Input.\n"
+    "out : NDArray[np.complex128] | None\n"
+    "    Destination, length >= ny*nx; must not alias in.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -689,21 +707,28 @@ static PyMethodDef FFT2DObj_methods[] = {
     "True\n" },
   { "execute_inplace_cf64_max_out",
     (PyCFunction)FFT2DObj_execute_inplace_cf64_max_out, METH_NOARGS,
-    "execute_inplace_cf64_max_out() -> int\n\nMax output length "
-    "execute_inplace_cf64() can produce for the current state.\nUse to size "
-    "the ``out=`` buffer." },
+    "execute_inplace_cf64_max_out() -> int\n"
+    "\n"
+    "Maximum output samples for inplace CF64 execute (ny * nx).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "execute_inplace_cf32", (PyCFunction)(void *)FFT2DObj_execute_inplace_cf32,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_inplace_cf32(x) -> ndarray\n"
+    "execute_inplace_cf32(x, out) -> ndarray\n"
     "\n"
-    "Copy in into out, then transform out in-place (CF32 2-D). "
-    "Single-precision variant of fft2d_execute_inplace_cf64().  Copies ny*nx "
+    "Copy in into out, then transform out in-place (CF32 2-D).\n"
+    "Single-precision variant of fft2d_execute_inplace_cf64(). Copies ny*nx\n"
     "CF32 samples then applies the CF32 2-D pocketfft plan to out.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
     "    Input.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Destination, length >= ny*nx; must not alias in.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -721,9 +746,14 @@ static PyMethodDef FFT2DObj_methods[] = {
     "True\n" },
   { "execute_inplace_cf32_max_out",
     (PyCFunction)FFT2DObj_execute_inplace_cf32_max_out, METH_NOARGS,
-    "execute_inplace_cf32_max_out() -> int\n\nMax output length "
-    "execute_inplace_cf32() can produce for the current state.\nUse to size "
-    "the ``out=`` buffer." },
+    "execute_inplace_cf32_max_out() -> int\n"
+    "\n"
+    "Maximum output samples for inplace CF32 execute (ny * nx).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "destroy", (PyCFunction)FFT2DObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
@@ -768,12 +798,40 @@ static PyTypeObject FFT2DObjType = {
   .tp_basicsize                           = sizeof (FFT2DObject),
   .tp_dealloc                             = (destructor)FFT2DObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc
-  = "Allocate a reusable 2-D FFT engine for a fixed ny×nx grid. Two pocketfft "
-    "2-D plans are built at construction time — one CF64, one CF32.  All "
-    "execute calls accept and return flat row-major arrays of length ny*nx; "
-    "the Python layer may reshape them with .reshape(ny, nx). nthreads is "
-    "accepted for API parity but ignored.\n",
+  .tp_doc = "Allocate a reusable 2-D FFT engine for a fixed ny×nx grid. Two "
+            "pocketfft\n"
+            "2-D plans are built at construction time — one CF64, one CF32. "
+            "All execute\n"
+            "calls accept and return flat row-major arrays of length ny*nx; "
+            "the Python\n"
+            "layer may reshape them with .reshape(ny, nx). nthreads is "
+            "accepted for API\n"
+            "parity but ignored.\n"
+            "\n"
+            "Parameters\n"
+            "----------\n"
+            "ny : int, default 64\n"
+            "    Number of rows (outer dimension).\n"
+            "nx : int, default 64\n"
+            "    Number of columns (inner dimension).\n"
+            "sign : int, default -1\n"
+            "    -1 for the forward DFT, +1 for the inverse DFT.\n"
+            "nthreads : int, default 1\n"
+            "    Accepted for API compatibility; ignored.\n"
+            "\n"
+            "Examples\n"
+            "--------\n"
+            ">>> from doppler.spectral import FFT2D\n"
+            ">>> import numpy as np\n"
+            ">>> fft2d = FFT2D(ny=4, nx=4, sign=-1, nthreads=1)\n"
+            ">>> fft2d.ny, fft2d.nx, fft2d.sign\n"
+            "(4, 4, -1)\n"
+            ">>> x = np.zeros(16, dtype=np.complex64); x[0] = 1.0\n"
+            ">>> out = fft2d.execute_cf32(x)\n"
+            ">>> out.shape, out.dtype\n"
+            "((16,), dtype('complex64'))\n"
+            ">>> bool(np.allclose(out, 1.0))\n"
+            "True\n",
   .tp_methods = FFT2DObj_methods,
   .tp_getset  = FFT2D_getset,
   .tp_new     = FFT2DObj_new,

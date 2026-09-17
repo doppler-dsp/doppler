@@ -406,7 +406,7 @@ static PyMethodDef DopplerChannelObj_methods[] = {
 
   { "execute", (PyCFunction)(void *)DopplerChannelObj_execute,
     METH_VARARGS | METH_KEYWORDS,
-    "execute(x) -> ndarray\n"
+    "execute(x, out) -> ndarray\n"
     "\n"
     "Apply clock Doppler to a block of complex baseband.\n"
     "\n"
@@ -423,6 +423,8 @@ static PyMethodDef DopplerChannelObj_methods[] = {
     "----------\n"
     "x : NDArray[np.complex64]\n"
     "    Input block.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output buffer.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -441,8 +443,17 @@ static PyMethodDef DopplerChannelObj_methods[] = {
     "50000.0\n" },
   { "execute_max_out", (PyCFunction)DopplerChannelObj_execute_max_out,
     METH_NOARGS,
-    "execute_max_out() -> int\n\nMax output length execute() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
+    "execute_max_out() -> int\n"
+    "\n"
+    "Upper bound on the output of one execute() call.\n"
+    "\n"
+    "Assumes an input of at most `DOPPLER_CHANNEL_MAX_BLOCK` samples — see\n"
+    "that macro for why the bound cannot depend on the actual input length.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "reset", (PyCFunction)DopplerChannelObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"

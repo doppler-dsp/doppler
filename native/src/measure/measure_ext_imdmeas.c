@@ -330,7 +330,21 @@ IMDMeasureObj_exit (IMDMeasureObject *self, PyObject *args)
 
 static PyMethodDef IMDMeasureObj_methods[] = {
   { "reset", (PyCFunction)IMDMeasureObj_reset, METH_NOARGS,
-    "Reset the analyser (a no-op: each analyze() call is independent)." },
+    "Reset the analyser (a no-op: each analyze() call is independent).\n"
+    "\n"
+    "Every analyze() / spectrum_dbfs() call re-windows and re-transforms its\n"
+    "own capture from scratch, so nothing is carried between calls to clear.\n"
+    "The method exists only so IMDMeasure honours the same reset() contract\n"
+    "as every other doppler object, letting a generic pipeline reset each\n"
+    "stage uniformly.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.measure import IMDMeasure\n"
+    ">>> m = IMDMeasure(n=4096, fs=1.0)\n"
+    ">>> m.reset()            # stateless: provided only for API uniformity\n"
+    ">>> m.reset() is None    # returns nothing; safe to call anytime\n"
+    "True\n" },
 
   { "analyze", (PyCFunction)IMDMeasureObj_analyze, METH_VARARGS,
     "analyze(x) -> IMDMetrics record (f1, f2, p1_dbfs, p2_dbfs, imd2_dbc, "
@@ -400,8 +414,14 @@ static PyMethodDef IMDMeasureObj_methods[] = {
     "-12.0\n" },
   { "spectrum_dbfs_max_out", (PyCFunction)IMDMeasureObj_spectrum_dbfs_max_out,
     METH_NOARGS,
-    "spectrum_dbfs_max_out() -> int\n\nMax output length spectrum_dbfs() can "
-    "produce for the current state.\nUse to size the ``out=`` buffer." },
+    "spectrum_dbfs_max_out() -> int\n"
+    "\n"
+    "Capacity (== nfft) of the spectrum_dbfs output buffer.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "destroy", (PyCFunction)IMDMeasureObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
@@ -446,7 +466,37 @@ static PyTypeObject IMDMeasureObjType = {
   .tp_basicsize                           = sizeof (IMDMeasureObject),
   .tp_dealloc                             = (destructor)IMDMeasureObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create an IMDMeasure analyser (auto Kaiser window).\n",
+  .tp_doc
+  = "Create an IMDMeasure analyser (auto Kaiser window).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, default 8192\n"
+    "    Capture/frame length (>= 2).\n"
+    "fs : float, default 1.0\n"
+    "    Sample rate (Hz, > 0).\n"
+    "full_scale : float, default 1.0\n"
+    "    Amplitude that equals 0 dBFS (> 0). Ignored if bits > 0.\n"
+    "bits : int, default 0\n"
+    "    ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) and, "
+    "unless\n"
+    "    overridden, the dynamic-range target.\n"
+    "dynamic_range_db : float, default 0.0\n"
+    "    Explicit sidelobe/dynamic-range target (dB); used when > 0, else\n"
+    "    derived from bits.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.measure import IMDMeasure\n"
+    ">>> obj = IMDMeasure(\n"
+    "...     n=8192,\n"
+    "...     fs=1.0,\n"
+    "...     full_scale=1.0,\n"
+    "...     bits=0,\n"
+    "...     dynamic_range_db=0.0,\n"
+    "... )\n",
   .tp_methods = IMDMeasureObj_methods,
   .tp_getset  = IMDMeasure_getset,
   .tp_new     = IMDMeasureObj_new,

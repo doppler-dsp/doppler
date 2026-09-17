@@ -256,7 +256,22 @@ F32ToI16U64Obj_exit (F32ToI16U64Object *self, PyObject *args)
 
 static PyMethodDef F32ToI16U64Obj_methods[] = {
   { "reset", (PyCFunction)F32ToI16U64Obj_reset, METH_NOARGS,
-    "Clear the sticky clip flag, starting a fresh saturation history." },
+    "Clear the sticky clip flag, starting a fresh saturation history.\n"
+    "\n"
+    "Zeroes clipped so a subsequent clipped query reflects only samples seen\n"
+    "after this call; the immutable scale is preserved. Call it at a buffer\n"
+    "or segment boundary so a saturation on one block does not leak into the\n"
+    "next.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import F32ToI16U64\n"
+    ">>> c = F32ToI16U64()\n"
+    ">>> c.step(5.0)          # out of range -> saturates, latches clipped\n"
+    "32767\n"
+    ">>> c.reset()            # forget the clip history\n"
+    ">>> c.clipped\n"
+    "False\n" },
   { "step", (PyCFunction)F32ToI16U64_step, METH_VARARGS,
     "step(x) -> uint64_t\n"
     "\n"
@@ -407,7 +422,23 @@ static PyTypeObject F32ToI16U64ObjType = {
   .tp_basicsize                           = sizeof (F32ToI16U64Object),
   .tp_dealloc                             = (destructor)F32ToI16U64Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a f32_to_i16u64 instance.\n",
+  .tp_doc     = "Create a f32_to_i16u64 instance.\n"
+                "\n"
+                "Parameters\n"
+                "----------\n"
+                "scale : float, default 32768.0\n"
+                "    Multiply factor applied before quantisation and saturation "
+                "(default:\n"
+                "    32768.0f). Use 32768.0 to convert normalised `[-1, +1]` "
+                "samples to Q15\n"
+                "    packed into the low 16 bits of a uint64.\n"
+                "\n"
+                "Examples\n"
+                "--------\n"
+                "Create with defaults:\n"
+                "\n"
+                ">>> from doppler.cvt import F32ToI16U64\n"
+                ">>> obj = F32ToI16U64(scale=32768.0)\n",
   .tp_methods = F32ToI16U64Obj_methods,
   .tp_getset  = F32ToI16U64_getset,
   .tp_new     = F32ToI16U64Obj_new,

@@ -478,8 +478,14 @@ static PyMethodDef SpecanObj_methods[] = {
     ">>> frame.shape, frame.dtype\n"
     "((801,), dtype('float32'))\n" },
   { "execute_max_out", (PyCFunction)SpecanObj_execute_max_out, METH_NOARGS,
-    "execute_max_out() -> int\n\nMax output length execute() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
+    "execute_max_out() -> int\n"
+    "\n"
+    "Output capacity hint for specan_execute(); equals disp_n.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "retune", (PyCFunction)(void *)SpecanObj_retune,
     METH_VARARGS | METH_KEYWORDS,
     "retune(center) -> None\n"
@@ -610,7 +616,46 @@ static PyTypeObject SpecanObjType = {
   .tp_basicsize                           = sizeof (SpecanObject),
   .tp_dealloc                             = (destructor)SpecanObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a natural-parameter spectrum analyzer.\n",
+  .tp_doc
+  = "Create a natural-parameter spectrum analyzer.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "fs : float\n"
+    "    Input sample rate (Hz). Must be > 0.\n"
+    "span : float\n"
+    "    Display span (Hz). Must be > 0.\n"
+    "rbw : float\n"
+    "    Resolution bandwidth (Hz). Must be > 0.\n"
+    "src_center : float, default 0.0\n"
+    "    Source center frequency (Hz); the input band is centred here, so "
+    "the\n"
+    "    analyzer mixes (center − src_center) to DC.\n"
+    "center : float, default 0.0\n"
+    "    Desired display center frequency (Hz).\n"
+    "offset_db : float, default 0.0\n"
+    "    Additive dB offset on the display spectrum, applied on top of dBFS\n"
+    "    (e.g. a dBm calibration the application computes from a reference\n"
+    "    level).\n"
+    "full_scale : float, default 1.0\n"
+    "    Amplitude that reads 0 dBFS (> 0). Ignored if bits > 0.\n"
+    "bits : int, default 0\n"
+    "    ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) in the "
+    "shared\n"
+    "    PSD core (the single source of truth for the dBFS reference).\n"
+    "window : Literal[\"hann\", \"kaiser\"], default \"kaiser\"\n"
+    "    Window index: 0 = Hann, 1 = Kaiser (RBW-trimmable).\n"
+    "navg : int, default 1\n"
+    "    Segments averaged per emitted frame (>= 1).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.analyzer import Specan\n"
+    ">>> sa = Specan(fs=2.048e6, span=200e3, rbw=500.0)\n"
+    ">>> sa.fs_out\n"
+    "256000.0\n"
+    ">>> sa.nfft == 2 * sa.n\n"
+    "True\n",
   .tp_methods = SpecanObj_methods,
   .tp_getset  = Specan_getset,
   .tp_new     = SpecanObj_new,

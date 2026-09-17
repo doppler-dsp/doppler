@@ -357,10 +357,22 @@ CorrDetectorObj_exit (CorrDetectorObject *self, PyObject *args)
 
 static PyMethodDef CorrDetectorObj_methods[] = {
   { "reset", (PyCFunction)CorrDetectorObj_reset, METH_NOARGS,
-    "Reset the correlator, ring buffer, and last-corr flag. Discards "
-    "any partial frame buffered in the ring and zeroes the coherent "
-    "accumulator.  Equivalent to starting fresh from the same reference "
-    "without rebuilding any internal object." },
+    "Reset the correlator, ring buffer, and last-corr flag. Discards any\n"
+    "partial frame buffered in the ring and zeroes the coherent accumulator.\n"
+    "Equivalent to starting fresh from the same reference without rebuilding\n"
+    "any internal object.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.spectral import CorrDetector\n"
+    ">>> import numpy as np\n"
+    ">>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0\n"
+    ">>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,\n"
+    "...                noise_mode=\"mean\", threshold=0.0)\n"
+    ">>> _ = det.push(np.ones(8, dtype=np.complex64))\n"
+    ">>> det.reset()\n"
+    ">>> det.count\n"
+    "0\n" },
 
   { "push", (PyCFunction)CorrDetectorObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"
@@ -488,13 +500,46 @@ static PyTypeObject CorrDetectorObjType = {
   .tp_basicsize                           = sizeof (CorrDetectorObject),
   .tp_dealloc = (destructor)CorrDetectorObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Allocate a 1-D streaming signal detector backed by an FFT "
-                "correlator. Combines a corr_state_t with a double-mapped ring "
-                "buffer so that arbitrary chunk sizes can be pushed.  After every "
-                "int-dump the peak-to-noise test statistic is compared against "
-                "threshold; a det_result_t is emitted when it passes.  Setting "
-                "threshold to 0.0 unconditionally fires on every dump. The ring "
-                "capacity is next_pow_two(max(n, 512)) complex samples.\n",
+  .tp_doc
+  = "Allocate a 1-D streaming signal detector backed by an FFT correlator.\n"
+    "Combines a corr_state_t with a double-mapped ring buffer so that "
+    "arbitrary\n"
+    "chunk sizes can be pushed. After every int-dump the peak-to-noise test\n"
+    "statistic is compared against threshold; a det_result_t is emitted when "
+    "it\n"
+    "passes. Setting threshold to 0.0 unconditionally fires on every dump. "
+    "The\n"
+    "ring capacity is next_pow_two(max(n, 512)) complex samples.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "ref : NDArray[np.complex64]\n"
+    "    Reference signal, CF32 ndarray of length ref_len.\n"
+    "dwell : int, default 1\n"
+    "    Int-dump depth; must be >= 1.\n"
+    "noise_lo : int, default 0\n"
+    "    Lower noise bin index (inclusive, 0-based).\n"
+    "noise_hi : int\n"
+    "    Upper noise bin index (inclusive, < n). A value at or beyond the "
+    "window\n"
+    "    clamps to n - 1, so the default sentinel selects the full window.\n"
+    "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
+    "\"mean\"\n"
+    "    Noise aggregation: \"mean\", \"median\", \"min\", or \"max\".\n"
+    "threshold : float, default 0.0\n"
+    "    Test-stat gate; 0.0 = always emit.\n"
+    "nthreads : int, default 1\n"
+    "    Accepted for API compatibility; ignored.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.spectral import CorrDetector\n"
+    ">>> import numpy as np\n"
+    ">>> ref = np.zeros(8, dtype=np.complex64); ref[0] = 1.0\n"
+    ">>> det = CorrDetector(ref=ref, dwell=1, noise_lo=1, noise_hi=7,\n"
+    "...                noise_mode=\"mean\", threshold=0.0)\n"
+    ">>> det.n, det.dwell, det.ring_cap\n"
+    "(8, 1, 512)\n",
   .tp_methods = CorrDetectorObj_methods,
   .tp_getset  = CorrDetector_getset,
   .tp_new     = CorrDetectorObj_new,

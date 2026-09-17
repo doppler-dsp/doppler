@@ -502,7 +502,7 @@ static PyMethodDef ReedSolomonObj_methods[] = {
 
   { "encode", (PyCFunction)(void *)ReedSolomonObj_encode,
     METH_VARARGS | METH_KEYWORDS,
-    "encode(x) -> ndarray\n"
+    "encode(x, out) -> ndarray\n"
     "\n"
     "Encode `k` information symbols into a whole `n`-symbol codeword.\n"
     "\n"
@@ -525,6 +525,8 @@ static PyMethodDef ReedSolomonObj_methods[] = {
     "----------\n"
     "x : int\n"
     "    Input.\n"
+    "out : NDArray[np.uint8] | None\n"
+    "    Receives `n` symbols; may be in.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -608,7 +610,7 @@ static PyMethodDef ReedSolomonObj_methods[] = {
     "True\n" },
   { "syndromes", (PyCFunction)(void *)ReedSolomonObj_syndromes,
     METH_VARARGS | METH_KEYWORDS,
-    "syndromes(x) -> ndarray\n"
+    "syndromes(x, out) -> ndarray\n"
     "\n"
     "The `nroots` syndromes of an `n`-symbol word.\n"
     "\n"
@@ -621,6 +623,8 @@ static PyMethodDef ReedSolomonObj_methods[] = {
     "----------\n"
     "x : int\n"
     "    Input.\n"
+    "out : NDArray[np.uint8] | None\n"
+    "    Receives `nroots` syndromes.\n"
     "\n"
     "Returns\n"
     "-------\n"

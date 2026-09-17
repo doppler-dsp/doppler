@@ -185,7 +185,19 @@ I16U32ToF32Obj_exit (I16U32ToF32Object *self, PyObject *args)
 
 static PyMethodDef I16U32ToF32Obj_methods[] = {
   { "reset", (PyCFunction)I16U32ToF32Obj_reset, METH_NOARGS,
-    "No-op reset, provided only for lifecycle symmetry." },
+    "No-op reset, provided only for lifecycle symmetry.\n"
+    "\n"
+    "No mutable state exists beyond the immutable iscale, so there is\n"
+    "nothing to clear; the method exists so every converter in the module\n"
+    "presents the same create / step / reset / destroy lifecycle.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import I16U32ToF32\n"
+    ">>> c = I16U32ToF32()\n"
+    ">>> c.reset()           # stateless converter -> reset is a no-op\n"
+    ">>> round(c.step(16384), 4)\n"
+    "0.5\n" },
   { "step", (PyCFunction)I16U32ToF32_step, METH_VARARGS,
     "step(x) -> float\n"
     "\n"
@@ -286,7 +298,22 @@ static PyTypeObject I16U32ToF32ObjType = {
   .tp_basicsize                           = sizeof (I16U32ToF32Object),
   .tp_dealloc                             = (destructor)I16U32ToF32Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a i16u32_to_f32 instance.\n",
+  .tp_doc
+  = "Create a i16u32_to_f32 instance.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "scale : float, default 32768.0\n"
+    "    Denominator scale; 1/scale is applied after sign-extension "
+    "(default:\n"
+    "    32768.0f). Use 32768.0 to match F32ToI16U32 at its default scale.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.cvt import I16U32ToF32\n"
+    ">>> obj = I16U32ToF32(scale=32768.0)\n",
   .tp_methods = I16U32ToF32Obj_methods,
   .tp_new     = I16U32ToF32Obj_new,
   .tp_init    = (initproc)I16U32ToF32Obj_init,

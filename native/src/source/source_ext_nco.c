@@ -942,7 +942,7 @@ static PyMethodDef NCOObj_methods[] = {
     "dtype('uint8')\n" },
   { "steps_u32_ctrl", (PyCFunction)(void *)NCOObj_steps_u32_ctrl,
     METH_VARARGS | METH_KEYWORDS,
-    "steps_u32_ctrl(ctrl) -> ndarray\n"
+    "steps_u32_ctrl(ctrl, out) -> ndarray\n"
     "\n"
     "Advance ctrl_len samples; raw phase, with a per-sample control\n"
     "offset added on top of the fixed phase_inc (not persisted).\n"
@@ -985,6 +985,8 @@ static PyMethodDef NCOObj_methods[] = {
     "    request before the fold ever saw it, so the same commanded rate\n"
     "    landed on a different phase word depending on which face it entered\n"
     "    by.\n"
+    "out : NDArray[np.uint32] | None\n"
+    "    Output buffer; must hold at least ctrl_len uint32_t values.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -1021,7 +1023,7 @@ static PyMethodDef NCOObj_methods[] = {
     "fewer.\n" },
   { "steps_u32_scaled_ctrl", (PyCFunction)(void *)NCOObj_steps_u32_scaled_ctrl,
     METH_VARARGS | METH_KEYWORDS,
-    "steps_u32_scaled_ctrl(ctrl) -> ndarray\n"
+    "steps_u32_scaled_ctrl(ctrl, out) -> ndarray\n"
     "\n"
     "Advance ctrl_len samples; values scaled to `[0, nmax)`, with a\n"
     "per-sample control offset added on top of phase_inc.\n"
@@ -1044,6 +1046,8 @@ static PyMethodDef NCOObj_methods[] = {
     "    request before the fold ever saw it, so the same commanded rate\n"
     "    landed on a different phase word depending on which face it entered\n"
     "    by.\n"
+    "out : NDArray[np.uint32] | None\n"
+    "    Output buffer; must hold at least ctrl_len uint32_t values.\n"
     "\n"
     "Returns\n"
     "-------\n"

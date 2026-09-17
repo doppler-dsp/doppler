@@ -292,7 +292,7 @@ CaptureObj_exit (CaptureObject *self, PyObject *args)
 static PyMethodDef CaptureObj_methods[] = {
 
   { "block", (PyCFunction)CaptureObj_block, METH_NOARGS,
-    "block() -> int\n"
+    "block() -> None\n"
     "\n"
     "Block boundary: drains the ring to empty.\n"
     "\n"
@@ -307,6 +307,12 @@ static PyMethodDef CaptureObj_methods[] = {
     "happens at the boundary, never inside the DSP loop.\n"
     "\n"
     "Usually reached through dp_tlm_set_now() rather than called directly.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``block failed``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"

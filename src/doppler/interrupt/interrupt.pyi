@@ -31,7 +31,7 @@ class Interrupt:
     def __init__(
         self,
         signals: NDArray[np.int32],
-        latency_ms: int = ...,
+        latency_ms: int = 0,
     ) -> None: ...
 
     def interrupt(self) -> None:

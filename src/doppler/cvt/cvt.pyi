@@ -22,7 +22,7 @@ class F32ToI8:
     >>> obj = F32ToI8(scale=128.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 128.0) -> None: ...
 
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
@@ -230,7 +230,7 @@ class F32ToI16:
     >>> obj = F32ToI16(scale=32768.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 32768.0) -> None: ...
 
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
@@ -438,7 +438,7 @@ class F32ToI32:
     >>> obj = F32ToI32(scale=2147483648.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 2147483648.0) -> None: ...
 
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
@@ -653,7 +653,7 @@ class I8ToF32:
     >>> obj = I8ToF32(scale=128.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 128.0) -> None: ...
 
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
@@ -796,7 +796,7 @@ class I16ToF32:
     >>> obj = I16ToF32(scale=32768.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 32768.0) -> None: ...
 
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
@@ -940,7 +940,7 @@ class I32ToF32:
     >>> obj = I32ToF32(scale=2147483648.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 2147483648.0) -> None: ...
 
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
@@ -1084,7 +1084,7 @@ class F32ToI16U32:
     >>> obj = F32ToI16U32(scale=32768.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 32768.0) -> None: ...
 
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
@@ -1289,7 +1289,7 @@ class F32ToI16U64:
     >>> obj = F32ToI16U64(scale=32768.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 32768.0) -> None: ...
 
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
@@ -1493,7 +1493,7 @@ class I16U32ToF32:
     >>> obj = I16U32ToF32(scale=32768.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 32768.0) -> None: ...
 
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
@@ -1635,7 +1635,7 @@ class I16U64ToF32:
     >>> obj = I16U64ToF32(scale=32768.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 32768.0) -> None: ...
 
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
@@ -1778,7 +1778,7 @@ class F32ToUQ15:
     >>> obj = F32ToUQ15(scale=32768.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 32768.0) -> None: ...
 
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
@@ -1985,7 +1985,7 @@ class UQ15ToF32:
     >>> obj = UQ15ToF32(scale=32768.0)
 
     """
-    def __init__(self, scale: float = ...) -> None: ...
+    def __init__(self, scale: float = 32768.0) -> None: ...
 
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
@@ -2136,9 +2136,9 @@ class ADC:
     """
     def __init__(
         self,
-        bits: int = ...,
-        dbfs: float = ...,
-        dithering: int = ...,
+        bits: int = 16,
+        dbfs: float = -10.0,
+        dithering: int = 0,
     ) -> None: ...
 
     def reset(self) -> None:

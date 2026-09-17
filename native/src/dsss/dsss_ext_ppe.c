@@ -226,7 +226,19 @@ PolynomialPhaseEstimatorObj_exit (PolynomialPhaseEstimatorObject *self,
 
 static PyMethodDef PolynomialPhaseEstimatorObj_methods[] = {
   { "reset", (PyCFunction)PolynomialPhaseEstimatorObj_reset, METH_NOARGS,
-    "Do nothing — the estimator keeps no running state between calls." },
+    "Do nothing — the estimator keeps no running state between calls.\n"
+    "\n"
+    "A feedforward analyzer computes each estimate purely from the segment\n"
+    "it is handed, so there is nothing to clear. The method exists only to\n"
+    "satisfy the common object protocol; calling it is always safe and has\n"
+    "no effect.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.dsss import PolynomialPhaseEstimator\n"
+    ">>> p = PolynomialPhaseEstimator(max_len=512, max_rate=0.0)\n"
+    ">>> p.reset()   # no-op: an estimate depends only on the next\n"
+    ">>> #           segment\n" },
 
   { "estimate", (PyCFunction)PolynomialPhaseEstimatorObj_estimate,
     METH_VARARGS,
@@ -314,9 +326,25 @@ static PyTypeObject PolynomialPhaseEstimatorObjType = {
   .tp_basicsize = sizeof (PolynomialPhaseEstimatorObject),
   .tp_dealloc   = (destructor)PolynomialPhaseEstimatorObj_dealloc,
   .tp_flags     = Py_TPFLAGS_DEFAULT,
-  .tp_doc       = "Create a polynomial-phase estimator.\n",
-  .tp_methods   = PolynomialPhaseEstimatorObj_methods,
-  .tp_getset    = PolynomialPhaseEstimator_getset,
-  .tp_new       = PolynomialPhaseEstimatorObj_new,
-  .tp_init      = (initproc)PolynomialPhaseEstimatorObj_init,
+  .tp_doc
+  = "Create a polynomial-phase estimator.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "max_len : int, default 4096\n"
+    "    Maximum input sequence length (>= 4).\n"
+    "max_rate : float, default 0.0\n"
+    "    Chirp-rate search half-span (cycles/sample^2); 0 searches frequency\n"
+    "    only (a single FFT — near-static Doppler).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.dsss import PolynomialPhaseEstimator\n"
+    ">>> obj = PolynomialPhaseEstimator(max_len=4096, max_rate=0.0)\n",
+  .tp_methods = PolynomialPhaseEstimatorObj_methods,
+  .tp_getset  = PolynomialPhaseEstimator_getset,
+  .tp_new     = PolynomialPhaseEstimatorObj_new,
+  .tp_init    = (initproc)PolynomialPhaseEstimatorObj_init,
 };

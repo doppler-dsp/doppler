@@ -20,6 +20,7 @@ Here is a list of all files with brief descriptions:
         * **file** [**dp\_state.h**](dp__state_8h.md)     
         * **file** [**dp\_state\_pyhelp.h**](dp__state__pyhelp_8h.md)     
         * **file** [**dp\_syncword.h**](dp__syncword_8h.md) _Finding a known bit pattern in an unpacked bit stream — the sync word search, and the arithmetic for choosing its threshold._     
+        * **file** [**dp\_thread.h**](dp__thread_8h.md) _The threading primitives doppler uses, with one platform split._     
         * **file** [**jm\_perf.h**](jm__perf_8h.md)     
         * **file** [**jm\_simd.h**](jm__simd_8h.md)     
         * **dir** [**HalfbandDecimator**](dir_6ac3f68ee82e011454c15c865a37e192.md)     

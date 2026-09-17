@@ -37,13 +37,13 @@
 | Type | Name |
 | ---: | :--- |
 |  int | [**busy**](#variable-busy)  <br> |
-|  pthread\_cond\_t | [**done**](#variable-done)  <br> |
+|  [**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) | [**done**](#variable-done)  <br> |
 |  unsigned long | [**gen**](#variable-gen)  <br> |
 |  int | [**helpers**](#variable-helpers)  <br> |
-|  pthread\_mutex\_t | [**mu**](#variable-mu)  <br> |
+|  [**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) | [**mu**](#variable-mu)  <br> |
 |  int | [**stop**](#variable-stop)  <br> |
-|  pthread\_t \* | [**th**](#variable-th)  <br> |
-|  pthread\_cond\_t | [**wake**](#variable-wake)  <br> |
+|  [**dp\_thread\_t**](dp__thread_8h.md#typedef-dp_thread_t) \* | [**th**](#variable-th)  <br> |
+|  [**dp\_cond\_t**](dp__thread_8h.md#typedef-dp_cond_t) | [**wake**](#variable-wake)  <br> |
 |  [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md) | [**work**](#variable-work)  <br> |
 
 
@@ -110,7 +110,7 @@ int dp_pool_t::busy;
 ### variable done 
 
 ```C++
-pthread_cond_t dp_pool_t::done;
+dp_cond_t dp_pool_t::done;
 ```
 
 
@@ -149,7 +149,7 @@ int dp_pool_t::helpers;
 ### variable mu 
 
 ```C++
-pthread_mutex_t dp_pool_t::mu;
+dp_mutex_t dp_pool_t::mu;
 ```
 
 
@@ -175,7 +175,7 @@ int dp_pool_t::stop;
 ### variable th 
 
 ```C++
-pthread_t* dp_pool_t::th;
+dp_thread_t* dp_pool_t::th;
 ```
 
 
@@ -188,7 +188,7 @@ pthread_t* dp_pool_t::th;
 ### variable wake 
 
 ```C++
-pthread_cond_t dp_pool_t::wake;
+dp_cond_t dp_pool_t::wake;
 ```
 
 

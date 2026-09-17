@@ -658,7 +658,29 @@ BurstAcquisitionObj_set_max_peaks (BurstAcquisitionObject *self,
 
 static PyMethodDef BurstAcquisitionObj_methods[] = {
   { "reset", (PyCFunction)BurstAcquisitionObj_reset, METH_NOARGS,
-    "Drain the input ring and reset the coherent accumulator." },
+    "Drain the input ring and reset the coherent accumulator.\n"
+    "\n"
+    "Forwards to acq_reset() on the embedded engine: discards any buffered\n"
+    "samples that have not yet completed a frame and clears the non-coherent\n"
+    "power accumulator and dwell bookkeeping, so the next push() begins a\n"
+    "fresh search from an empty ring. Construction parameters are untouched.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import BurstAcquisition\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1,\n"
+    "...                      length=5).generate(31)).astype(np.uint8)\n"
+    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
+    "...     np.complex64)\n"
+    ">>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)\n"
+    ">>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,\n"
+    "...                      cn0_dbhz=50.0)\n"
+    ">>> _ = b.push(burst[:100])   # a partial frame, buffered mid-stream\n"
+    ">>> b.reset()                 # drop it before it can bias a detection\n"
+    ">>> b.push(burst)[0][:2]      # (Doppler bin, code phase)\n"
+    "(0, 17)\n" },
 
   { "push", (PyCFunction)BurstAcquisitionObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"
@@ -891,8 +913,45 @@ static PyTypeObject BurstAcquisitionObjType = {
   .tp_dealloc = (destructor)BurstAcquisitionObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a burst-mode acquisition engine (forwards to acq_create_burst() "
-    "-- see its doc comment in acq_core.h for the full physics).\n",
+  = "Create a burst-mode acquisition engine (forwards to acq_create_burst()\n"
+    "-- see its doc comment in acq_core.h for the full physics).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "code : NDArray[np.uint8]\n"
+    "    PN chips (0/1), length code_len.\n"
+    "reps : int, default 1\n"
+    "    Max coherent code repetitions (>= 1).\n"
+    "spc : int, default 4\n"
+    "    Samples per chip (>= 1).\n"
+    "chip_rate : float, default 1000000.0\n"
+    "    Chip rate in Hz (> 0).\n"
+    "cn0_dbhz : float, default 0.0\n"
+    "    Carrier-to-noise density in dB-Hz (> 0).\n"
+    "doppler_uncertainty : float, default 0.0\n"
+    "    One-sided Doppler search half-range in Hz.\n"
+    "pfa : float, default 1e-3\n"
+    "    Target system false-alarm probability (0,1).\n"
+    "pd : float, default 0.9\n"
+    "    Target detection probability (0,1).\n"
+    "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
+    "\"mean\"\n"
+    "    CFAR mode index: 0=mean, 1=median, 2=min, 3=max.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import BurstAcquisition\n"
+    ">>> from doppler.wfm import PN, mls_poly\n"
+    ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1,\n"
+    "...                      length=5).generate(31)).astype(np.uint8)\n"
+    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
+    "...     np.complex64)\n"
+    ">>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)\n"
+    ">>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,\n"
+    "...                      cn0_dbhz=50.0)\n"
+    ">>> b.push(burst)[0][:2]      # detects (Doppler bin, code phase)\n"
+    "(0, 17)\n",
   .tp_methods = BurstAcquisitionObj_methods,
   .tp_getset  = BurstAcquisition_getset,
   .tp_new     = BurstAcquisitionObj_new,

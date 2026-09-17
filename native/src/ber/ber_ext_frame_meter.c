@@ -342,7 +342,23 @@ FrameMeterObj_exit (FrameMeterObject *self, PyObject *args)
 
 static PyMethodDef FrameMeterObj_methods[] = {
   { "reset", (PyCFunction)FrameMeterObj_reset, METH_NOARGS,
-    "Clear every counter; the configuration is untouched.\n" },
+    "Clear every counter; the configuration is untouched.\n"
+    "\n"
+    "The target and the confidence level are what the caller asked for, so\n"
+    "resetting the accumulation must not silently re-negotiate them. Use it\n"
+    "between records, or to discard a run that turned out to be measuring\n"
+    "the wrong thing.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.ber import FrameMeter\n"
+    ">>> met = FrameMeter(target_errors=10)\n"
+    ">>> met.add(1, 0)\n"
+    ">>> met.frames, met.errors\n"
+    "(1, 1)\n"
+    ">>> met.reset()\n"
+    ">>> met.frames, met.errors\n"
+    "(0, 0)\n" },
 
   { "add", (PyCFunction)(void *)FrameMeterObj_add,
     METH_VARARGS | METH_KEYWORDS,
@@ -555,7 +571,7 @@ static PyTypeObject FrameMeterObjType = {
                                             "--------\n"
                                             "Create with defaults:\n"
                                             "\n"
-                                            ">>> from doppler import FrameMeter\n"
+                                            ">>> from doppler.ber import FrameMeter\n"
                                             ">>> obj = FrameMeter(target_errors=200, conf=0.99)\n",
   .tp_methods                             = FrameMeterObj_methods,
   .tp_getset                              = FrameMeter_getset,

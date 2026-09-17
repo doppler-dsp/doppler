@@ -327,27 +327,42 @@ FIRObj_exit (FIRObject *self, PyObject *args)
 
 static PyMethodDef FIRObj_methods[] = {
   { "reset", (PyCFunction)FIRObj_reset, METH_NOARGS,
-    "Zero the delay line; preserve taps and scratch capacity. After a reset "
-    "the filter behaves identically to a freshly constructed instance of the "
-    "same length, without paying the allocation cost again. Call this between "
-    "unrelated signal segments to prevent inter-segment leakage through the "
-    "delay line." },
+    "Zero the delay line; preserve taps and scratch capacity. After a\n"
+    "reset the filter behaves identically to a freshly constructed instance\n"
+    "of the same length, without paying the allocation cost again. Call this\n"
+    "between unrelated signal segments to prevent inter-segment leakage\n"
+    "through the delay line.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.filter import FIR\n"
+    ">>> taps = np.array([0.25+0j, 0.5+0j, 0.25+0j], dtype=np.complex64)\n"
+    ">>> fir = FIR(taps)\n"
+    ">>> x = np.array([1+0j, 0+0j, 0+0j], dtype=np.complex64)\n"
+    ">>> _ = fir.execute(x)\n"
+    ">>> fir.reset()\n"
+    ">>> y = fir.execute(x)\n"
+    ">>> [round(float(v.real), 4) for v in y]\n"
+    "[0.25, 0.5, 0.25]\n" },
 
   { "execute", (PyCFunction)(void *)FIRObj_execute,
     METH_VARARGS | METH_KEYWORDS,
-    "execute(x) -> ndarray\n"
+    "execute(x, out) -> ndarray\n"
     "\n"
-    "Filter n_in CF32 samples and write the results to out. Each output "
-    "sample is the inner product of the tap vector with the current delay "
-    "line.  The delay line is updated with each input sample so state carries "
-    "over across successive calls — process frames of any size without gaps "
-    "or overlap.  The scratch buffer is grown lazily on the first call and "
+    "Filter n_in CF32 samples and write the results to out. Each output\n"
+    "sample is the inner product of the tap vector with the current delay\n"
+    "line. The delay line is updated with each input sample so state carries\n"
+    "over across successive calls — process frames of any size without gaps\n"
+    "or overlap. The scratch buffer is grown lazily on the first call and\n"
     "reused on subsequent calls of the same size.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
     "    Input.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output buffer; caller must provide space for n_in CF32 values.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -369,8 +384,19 @@ static PyMethodDef FIRObj_methods[] = {
     ">>> [round(float(v.real), 4) for v in y]\n"
     "[0.25, 0.5, 0.25]\n" },
   { "execute_max_out", (PyCFunction)FIRObj_execute_max_out, METH_NOARGS,
-    "execute_max_out() -> int\n\nMax output length execute() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
+    "execute_max_out() -> int\n"
+    "\n"
+    "Always 0 -- FIR is a 1:1 transform, not a bounded-capacity one.\n"
+    "\n"
+    "fir_execute() always writes exactly n_in samples; there is no\n"
+    "call-independent upper bound smaller than the input length for this\n"
+    "function to report. An `out=` buffer must be sized to exactly `len(x)`,\n"
+    "not to this function's return value.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "state_bytes", (PyCFunction)FIRObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -464,11 +490,28 @@ static PyTypeObject FIRObjType = {
   .tp_dealloc                             = (destructor)FIRObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a FIR filter from complex CF32 tap coefficients. Implements a "
+  = "Create a FIR filter from complex CF32 tap coefficients. Implements a\n"
     "direct-form FIR convolution: `y[n]` = sum_k `h[k]`*`x[n-k]`. The tap "
-    "array is copied at creation; the caller may free it afterward. Use "
-    "fir_create_real() instead when all imaginary parts are zero — that path "
-    "costs 1 FMA/tap versus 2 FMA + permute + mul here.\n",
+    "array\n"
+    "is copied at creation; the caller may free it afterward. Use\n"
+    "fir_create_real() instead when all imaginary parts are zero — that path\n"
+    "costs 1 FMA/tap versus 2 FMA + permute + mul here.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "taps : NDArray[np.complex64]\n"
+    "    Array of taps_len CF32 coefficients (I+jQ each), copied.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.filter import FIR\n"
+    ">>> taps = np.array([0.25+0j, 0.5+0j, 0.25+0j], dtype=np.complex64)\n"
+    ">>> fir = FIR(taps)\n"
+    ">>> fir.num_taps\n"
+    "3\n"
+    ">>> fir.is_real\n"
+    "False\n",
   .tp_methods = FIRObj_methods,
   .tp_getset  = FIR_getset,
   .tp_new     = FIRObj_new,

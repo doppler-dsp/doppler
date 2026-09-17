@@ -199,8 +199,8 @@ class RawCapture:
         path: str | os.PathLike,
         sample_type: Literal["cf32", "cf64", "ci32", "ci16", "ci8"] = "ci16",
         endian: Literal["le", "be"] = "le",
-        fs: float = ...,
-        fc: float = ...,
+        fs: float = 1.0,
+        fc: float = 0.0,
     ) -> None: ...
 
     def reset(self) -> None:

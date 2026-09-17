@@ -183,7 +183,19 @@ I8ToF32Obj_exit (I8ToF32Object *self, PyObject *args)
 
 static PyMethodDef I8ToF32Obj_methods[] = {
   { "reset", (PyCFunction)I8ToF32Obj_reset, METH_NOARGS,
-    "No-op reset, provided only for lifecycle symmetry." },
+    "No-op reset, provided only for lifecycle symmetry.\n"
+    "\n"
+    "No mutable state exists beyond the immutable iscale, so there is\n"
+    "nothing to clear; the method exists so every converter in the module\n"
+    "presents the same create / step / reset / destroy lifecycle.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import I8ToF32\n"
+    ">>> c = I8ToF32()\n"
+    ">>> c.reset()           # stateless converter -> reset is a no-op\n"
+    ">>> round(c.step(-128), 4)\n"
+    "-1.0\n" },
   { "step", (PyCFunction)I8ToF32_step, METH_VARARGS,
     "step(x) -> float\n"
     "\n"
@@ -284,8 +296,23 @@ static PyTypeObject I8ToF32ObjType = {
   .tp_basicsize                           = sizeof (I8ToF32Object),
   .tp_dealloc                             = (destructor)I8ToF32Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create a i8_to_f32 instance.\n",
-  .tp_methods                             = I8ToF32Obj_methods,
-  .tp_new                                 = I8ToF32Obj_new,
-  .tp_init                                = (initproc)I8ToF32Obj_init,
+  .tp_doc
+  = "Create a i8_to_f32 instance.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "scale : float, default 128.0\n"
+    "    Denominator scale; 1/scale is applied to each sample (default: "
+    "128.0f).\n"
+    "    Use 128.0 to recover normalised floats from a signed 8-bit stream.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.cvt import I8ToF32\n"
+    ">>> obj = I8ToF32(scale=128.0)\n",
+  .tp_methods = I8ToF32Obj_methods,
+  .tp_new     = I8ToF32Obj_new,
+  .tp_init    = (initproc)I8ToF32Obj_init,
 };

@@ -647,17 +647,20 @@ static PyMethodDef FFTObj_methods[] = {
 
   { "execute_cf64", (PyCFunction)(void *)FFTObj_execute_cf64,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_cf64(x) -> ndarray\n"
+    "execute_cf64(x, out) -> ndarray\n"
     "\n"
-    "Compute an out-of-place 1-D DFT on a double-precision complex input. The "
-    "output is written to a fresh caller-supplied buffer; in and out must not "
-    "alias.  The transform is unnormalised: the inverse DFT (sign=+1) does "
-    "NOT divide by n.  Both buffers must be exactly state->n elements long.\n"
+    "Compute an out-of-place 1-D DFT on a double-precision complex input.\n"
+    "The output is written to a fresh caller-supplied buffer; in and out\n"
+    "must not alias. The transform is unnormalised: the inverse DFT\n"
+    "(sign=+1) does NOT divide by n. Both buffers must be exactly state->n\n"
+    "elements long.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
     "    Input.\n"
+    "out : NDArray[np.complex128] | None\n"
+    "    Output buffer of length >= state->n (CF64, caller-allocated).\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -674,21 +677,29 @@ static PyMethodDef FFTObj_methods[] = {
     "[(1+0j), (1+0j), (1+0j), (1+0j)]\n" },
   { "execute_cf64_max_out", (PyCFunction)FFTObj_execute_cf64_max_out,
     METH_NOARGS,
-    "execute_cf64_max_out() -> int\n\nMax output length execute_cf64() can "
-    "produce for the current state.\nUse to size the ``out=`` buffer." },
+    "execute_cf64_max_out() -> int\n"
+    "\n"
+    "Maximum output samples per execute call (always == n).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "execute_cf32", (PyCFunction)(void *)FFTObj_execute_cf32,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_cf32(x) -> ndarray\n"
+    "execute_cf32(x, out) -> ndarray\n"
     "\n"
-    "Compute an out-of-place 1-D DFT on a single-precision complex input. "
-    "Identical to fft_execute_cf64() but operates on float _Complex (CF32) "
-    "buffers, halving memory bandwidth relative to the double-precision "
+    "Compute an out-of-place 1-D DFT on a single-precision complex input.\n"
+    "Identical to fft_execute_cf64() but operates on float _Complex (CF32)\n"
+    "buffers, halving memory bandwidth relative to the double-precision\n"
     "variant. Output is unnormalised; in and out must not alias.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
     "    Input.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output buffer of length >= state->n (CF32, caller-allocated).\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -705,8 +716,14 @@ static PyMethodDef FFTObj_methods[] = {
     "[(4+0j), 0j, 0j, 0j]\n" },
   { "execute_cf32_max_out", (PyCFunction)FFTObj_execute_cf32_max_out,
     METH_NOARGS,
-    "execute_cf32_max_out() -> int\n\nMax output length execute_cf32() can "
-    "produce for the current state.\nUse to size the ``out=`` buffer." },
+    "execute_cf32_max_out() -> int\n"
+    "\n"
+    "Maximum output samples for CF32 execute (always == n).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "execute_ci16", (PyCFunction)FFTObj_execute_ci16, METH_VARARGS,
     "execute_ci16(iq) -> ndarray\n"
     "\n"
@@ -734,18 +751,20 @@ static PyMethodDef FFTObj_methods[] = {
     "    dtype('complex64')\n" },
   { "execute_inplace_cf64", (PyCFunction)(void *)FFTObj_execute_inplace_cf64,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_inplace_cf64(x) -> ndarray\n"
+    "execute_inplace_cf64(x, out) -> ndarray\n"
     "\n"
-    "Copy in into out, then transform out in-place (CF64). The copy step lets "
-    "callers preserve their input while keeping the output buffer hot in "
-    "cache.  Semantically identical to fft_execute_cf64() for separate in / "
-    "out pointers; use this variant when the caller already owns out and "
+    "Copy in into out, then transform out in-place (CF64). The copy step\n"
+    "lets callers preserve their input while keeping the output buffer hot\n"
+    "in cache. Semantically identical to fft_execute_cf64() for separate in\n"
+    "/ out pointers; use this variant when the caller already owns out and\n"
     "wants the result there without a second allocation.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
     "    Input.\n"
+    "out : NDArray[np.complex128] | None\n"
+    "    Destination buffer, length >= state->n; must not alias in.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -762,22 +781,29 @@ static PyMethodDef FFTObj_methods[] = {
     "[(1+0j), (1+0j), (1+0j), (1+0j)]\n" },
   { "execute_inplace_cf64_max_out",
     (PyCFunction)FFTObj_execute_inplace_cf64_max_out, METH_NOARGS,
-    "execute_inplace_cf64_max_out() -> int\n\nMax output length "
-    "execute_inplace_cf64() can produce for the current state.\nUse to size "
-    "the ``out=`` buffer." },
+    "execute_inplace_cf64_max_out() -> int\n"
+    "\n"
+    "Maximum output samples for inplace CF64 (always == n).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "execute_inplace_cf32", (PyCFunction)(void *)FFTObj_execute_inplace_cf32,
     METH_VARARGS | METH_KEYWORDS,
-    "execute_inplace_cf32(x) -> ndarray\n"
+    "execute_inplace_cf32(x, out) -> ndarray\n"
     "\n"
-    "Copy in into out, then transform out in-place (CF32). Single-precision "
-    "variant of fft_execute_inplace_cf64().  Copies state->n CF32 samples "
-    "from in to out, then transforms out with the CF32 pocketfft plan.  in is "
-    "left unmodified.\n"
+    "Copy in into out, then transform out in-place (CF32).\n"
+    "Single-precision variant of fft_execute_inplace_cf64(). Copies state->n\n"
+    "CF32 samples from in to out, then transforms out with the CF32\n"
+    "pocketfft plan. in is left unmodified.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "x : complex\n"
     "    Input.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Destination buffer, length >= state->n; must not alias in.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -794,9 +820,14 @@ static PyMethodDef FFTObj_methods[] = {
     "[(1+0j), (1+0j), (1+0j), (1+0j)]\n" },
   { "execute_inplace_cf32_max_out",
     (PyCFunction)FFTObj_execute_inplace_cf32_max_out, METH_NOARGS,
-    "execute_inplace_cf32_max_out() -> int\n\nMax output length "
-    "execute_inplace_cf32() can produce for the current state.\nUse to size "
-    "the ``out=`` buffer." },
+    "execute_inplace_cf32_max_out() -> int\n"
+    "\n"
+    "Maximum output samples for inplace CF32 (always == n).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "destroy", (PyCFunction)FFTObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
@@ -842,12 +873,34 @@ static PyTypeObject FFTObjType = {
   .tp_dealloc                             = (destructor)FFTObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Allocate a reusable 1-D FFT engine for a fixed length and sign. Two "
+  = "Allocate a reusable 1-D FFT engine for a fixed length and sign. Two\n"
     "pocketfft plans are created at construction time — one for CF64 and one "
-    "for CF32 — so execute calls carry no plan-setup overhead.  The same "
-    "instance may be called repeatedly for independent input vectors of the "
-    "same length.  nthreads is accepted for API parity but is ignored; "
-    "pocketfft plans are single-threaded.\n",
+    "for\n"
+    "CF32 — so execute calls carry no plan-setup overhead. The same instance "
+    "may\n"
+    "be called repeatedly for independent input vectors of the same length.\n"
+    "nthreads is accepted for API parity but is ignored; pocketfft plans are\n"
+    "single-threaded.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, default 1024\n"
+    "    Transform length in samples (power of two recommended).\n"
+    "sign : int, default -1\n"
+    "    -1 for the forward DFT, +1 for the inverse DFT.\n"
+    "nthreads : int, default 1\n"
+    "    Accepted for API compatibility; ignored.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.spectral import FFT\n"
+    ">>> import numpy as np\n"
+    ">>> fft = FFT(n=4, sign=-1, nthreads=1)\n"
+    ">>> fft.n, fft.sign\n"
+    "(4, -1)\n"
+    ">>> x = np.array([1, 0, 0, 0], dtype=np.complex64)\n"
+    ">>> fft.execute_cf32(x).tolist()\n"
+    "[(1+0j), (1+0j), (1+0j), (1+0j)]\n",
   .tp_methods = FFTObj_methods,
   .tp_getset  = FFT_getset,
   .tp_new     = FFTObj_new,

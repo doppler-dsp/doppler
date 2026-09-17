@@ -295,7 +295,7 @@ static PyMethodDef ViterbiObj_methods[] = {
 
   { "decode", (PyCFunction)(void *)ViterbiObj_decode,
     METH_VARARGS | METH_KEYWORDS,
-    "decode(x) -> ndarray\n"
+    "decode(x, out) -> ndarray\n"
     "\n"
     "Decode soft channel symbols into information bits.\n"
     "\n"
@@ -324,6 +324,8 @@ static PyMethodDef ViterbiObj_methods[] = {
     "----------\n"
     "x : float\n"
     "    Input.\n"
+    "out : NDArray[np.uint8] | None\n"
+    "    Receives the decoded information bits, one per byte.\n"
     "\n"
     "Returns\n"
     "-------\n"

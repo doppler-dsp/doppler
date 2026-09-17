@@ -220,16 +220,8 @@ static PyMethodDef SyncFinderObj_methods[] = {
 
   { "find", (PyCFunction)(void *)SyncFinderObj_find,
     METH_VARARGS | METH_KEYWORDS,
-    /* Hand-written, and it should not have to be: jm renders the line
-       above for EVERY `single = true` method and reads neither the header
-       docblock nor the manifest `doc` for the runtime face -- so the stub
-       says one thing and `help()` says another. `pfa` below is the same
-       object, same header, and gets the full transplant; the only
-       difference is the record return. Filed as just-makeit gh-1039;
-       `Frame.check`, `Frame.layout` and the three `measure` analyzers have
-       the same gap and are waiting on the same fix. Delete this block when
-       it ships. */
-    "find(bits, max_errors) -> SyncHit\n"
+    "find(bits, max_errors) -> SyncHit record (found, offset, inverted, "
+    "errors)\n"
     "\n"
     "Find the first marker in bits, either polarity.\n"
     "\n"
@@ -238,9 +230,8 @@ static PyMethodDef SyncFinderObj_methods[] = {
     "best-match search has to see the whole stream before it can answer and\n"
     "a synchroniser reading a live capture cannot wait for that.\n"
     "\n"
-    "Choose max_errors with `max_errors_for`, against the window this\n"
-    "caller actually searches -- the marker length is the wrong thing to\n"
-    "halve.\n"
+    "Choose max_errors with `max_errors_for`, against the window this caller\n"
+    "actually searches — the marker length is the wrong thing to halve.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -400,8 +391,8 @@ static PyTypeObject SyncFinderObjType = {
     "--------\n"
     ">>> import numpy as np\n"
     ">>> from doppler.detection import SyncFinder\n"
-    ">>> from doppler.wfm import ccsds_asm_bits\n"
-    ">>> asm = ccsds_asm_bits()          # 0x1ACFFC1D, no transcription\n"
+    ">>> from doppler.ccsds import asm_bits\n"
+    ">>> asm = asm_bits()          # 0x1ACFFC1D, no transcription\n"
     ">>> f = SyncFinder(asm)\n"
     ">>> f.nbits\n"
     "32\n"

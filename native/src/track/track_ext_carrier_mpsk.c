@@ -500,8 +500,20 @@ static PyMethodDef CarrierMpskObj_methods[] = {
     ">>> round(c.lock_metric, 2)        # decision-aligned lock metric -> 1\n"
     "1.0\n" },
   { "steps_max_out", (PyCFunction)CarrierMpskObj_steps_max_out, METH_NOARGS,
-    "steps_max_out() -> int\n\nMax output length steps() can produce for the "
-    "current state.\nUse to size the ``out=`` buffer." },
+    "steps_max_out() -> int\n"
+    "\n"
+    "Largest number of samples steps() can return in the current state.\n"
+    "\n"
+    "Size an `out=` buffer with this before calling steps(), or use it to\n"
+    "allocate one up front. The bound is this object's own: what it depends\n"
+    "on is a property of the algorithm, so a header block on steps_max_out()\n"
+    "replaces this text.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Upper bound on the output length; the actual call may return "
+    "fewer.\n" },
   { "configure", (PyCFunction)(void *)CarrierMpskObj_configure,
     METH_VARARGS | METH_KEYWORDS,
     "configure(bn, zeta) -> None\n"
@@ -661,7 +673,36 @@ static PyTypeObject CarrierMpskObjType = {
   .tp_basicsize                           = sizeof (CarrierMpskObject),
   .tp_dealloc                             = (destructor)CarrierMpskObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create an M-PSK carrier loop instance.\n",
+  .tp_doc     = "Create an M-PSK carrier loop instance.\n"
+                "\n"
+                "Parameters\n"
+                "----------\n"
+                "bn : float, default 0.05\n"
+                "    Loop noise bandwidth (default 0.05).\n"
+                "zeta : float, default 0.707\n"
+                "    Damping factor (default 0.707).\n"
+                "init_norm_freq : float, default 0.0\n"
+                "    Seed carrier frequency, cycles/sample (default 0.0).\n"
+                "tsamps : int, default 64\n"
+                "    Samples per symbol (default 64).\n"
+                "bn_fll : float, default 0.0\n"
+                "    FLL-assist bandwidth (default 0.0 = pure PLL).\n"
+                "m : int, default 4\n"
+                "    Constellation order M, 2/4/8 (default 4 = QPSK).\n"
+                "\n"
+                "Examples\n"
+                "--------\n"
+                "Create with defaults:\n"
+                "\n"
+                ">>> from doppler.track import CarrierMpsk\n"
+                ">>> obj = CarrierMpsk(\n"
+                "...     bn=0.05,\n"
+                "...     zeta=0.707,\n"
+                "...     init_norm_freq=0.0,\n"
+                "...     tsamps=64,\n"
+                "...     bn_fll=0.0,\n"
+                "...     m=4,\n"
+                "... )\n",
   .tp_methods = CarrierMpskObj_methods,
   .tp_getset  = CarrierMpsk_getset,
   .tp_new     = CarrierMpskObj_new,

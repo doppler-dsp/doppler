@@ -36,7 +36,7 @@ class DDC:
     0.25
 
     """
-    def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
+    def __init__(self, norm_freq: float = 0.0, rate: float = 0.25) -> None: ...
 
     def execute(
         self,
@@ -396,13 +396,13 @@ class MatchedDDC:
     """
     def __init__(
         self,
-        norm_freq: float = ...,
-        rate: float = ...,
+        norm_freq: float = 0.0,
+        rate: float = 0.25,
         pulse: Literal["iandd", "rrc"] = "rrc",
-        beta: float = ...,
-        span: int = ...,
-        pulse_sps: float = ...,
-        num_phases: int = ...,
+        beta: float = 0.35,
+        span: int = 8,
+        pulse_sps: float = 2.0,
+        num_phases: int = 1024,
     ) -> None: ...
 
     def execute(
@@ -757,7 +757,7 @@ class Ddcr:
     0.25
 
     """
-    def __init__(self, norm_freq: float = ..., rate: float = ...) -> None: ...
+    def __init__(self, norm_freq: float = 0.0, rate: float = 0.25) -> None: ...
 
     def execute(
         self,
@@ -1098,13 +1098,13 @@ class MatchedDdcr:
     """
     def __init__(
         self,
-        norm_freq: float = ...,
-        rate: float = ...,
+        norm_freq: float = 0.0,
+        rate: float = 0.25,
         pulse: Literal["iandd", "rrc"] = "rrc",
-        beta: float = ...,
-        span: int = ...,
-        pulse_sps: float = ...,
-        num_phases: int = ...,
+        beta: float = 0.35,
+        span: int = 8,
+        pulse_sps: float = 2.0,
+        num_phases: int = 1024,
     ) -> None: ...
 
     def execute(

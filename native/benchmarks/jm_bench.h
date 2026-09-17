@@ -13,6 +13,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 
@@ -20,6 +21,57 @@
 #  include <windows.h>
 #else
 #  include <sys/utsname.h>
+#endif
+
+/* gh-1341: the monotonic clock, in ONE place.
+ *
+ * Every generated benchmark used to call `clock_gettime(CLOCK_MONOTONIC)` in
+ * its own main(). Both are POSIX and the UCRT has neither, so on Windows all
+ * of them failed to compile -- 106 of them in doppler. This header is
+ * included by all of them, so this is the one place that fixes all of them,
+ * and it is not patchable downstream: `jm_bench.h` is vendored and
+ * create-only, so a local edit is a private copy that does not survive a
+ * re-vendor (doppler has lost two that way).
+ *
+ * Nanoseconds as `uint64_t` rather than a `struct timespec`, which also drops
+ * that type from the generated code -- it is C11 on MSVC and was optional
+ * before that.
+ */
+static inline uint64_t
+jm_bench_now_ns(void)
+{
+#if defined(_WIN32)
+    LARGE_INTEGER c, f;
+    QueryPerformanceCounter(&c);
+    QueryPerformanceFrequency(&f);
+    /* Quotient plus remainder, NOT `c * 1000000000 / f`. That product
+     * overflows 64 bits after about nine seconds at a 1 GHz QPC frequency,
+     * which is well inside a benchmark's runtime -- doppler hit exactly this
+     * porting its own timing core. Splitting the division keeps both terms
+     * small and loses nothing: the remainder term is exact. */
+    return (uint64_t)(c.QuadPart / f.QuadPart) * 1000000000ULL
+           + (uint64_t)(c.QuadPart % f.QuadPart) * 1000000000ULL
+                 / (uint64_t)f.QuadPart;
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ULL + (uint64_t)ts.tv_nsec;
+#endif
+}
+
+/* Seconds between two `jm_bench_now_ns()` reads. */
+static inline double
+jm_bench_elapsed_sec(uint64_t t0, uint64_t t1)
+{
+    return (double)(t1 - t0) * 1e-9;
+}
+
+/* The timer's name, for the JSON `options.timer` field -- derived from the
+ * same #if that chose it, so the two cannot disagree about what ran. */
+#if defined(_WIN32)
+#  define JM_BENCH_TIMER_NAME "QueryPerformanceCounter"
+#else
+#  define JM_BENCH_TIMER_NAME "clock_gettime"
 #endif
 
 #define JM_BENCH_MAX_ENTRIES 32
@@ -178,7 +230,8 @@ jm_bench_write_json(const jm_bench_t *b, const char *component)
         fprintf(fp, "      \"extra_info\": {},\n");
         fprintf(fp, "      \"options\": {\n");
         fprintf(fp, "        \"disable_gc\": false,\n");
-        fprintf(fp, "        \"timer\": \"clock_gettime\",\n");
+        fprintf(fp, "        \"timer\": \"%s\",\n",
+                JM_BENCH_TIMER_NAME);
         fprintf(fp, "        \"min_rounds\": %d,\n", n);
         fprintf(fp, "        \"max_time\": null,\n");
         fprintf(fp, "        \"min_time\": null,\n");

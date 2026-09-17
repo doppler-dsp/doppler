@@ -398,9 +398,21 @@ CorrDetector2DObj_set_state (CorrDetector2DObject *self, PyObject *arg)
 
 static PyMethodDef CorrDetector2DObj_methods[] = {
   { "reset", (PyCFunction)CorrDetector2DObj_reset, METH_NOARGS,
-    "Reset the 2-D correlator, ring buffer, and last-corr flag. Discards any "
-    "partial frame buffered in the ring and zeroes the coherent accumulator.  "
-    "The reference spectrum and FFT plans are preserved." },
+    "Reset the 2-D correlator, ring buffer, and last-corr flag. Discards\n"
+    "any partial frame buffered in the ring and zeroes the coherent\n"
+    "accumulator. The reference spectrum and FFT plans are preserved.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.spectral import CorrDetector2D\n"
+    ">>> import numpy as np\n"
+    ">>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0\n"
+    ">>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,\n"
+    "...                  noise_mode=\"mean\", threshold=0.0)\n"
+    ">>> _ = det.push(np.ones((4, 4), dtype=np.complex64))\n"
+    ">>> det.reset()\n"
+    ">>> det.count\n"
+    "0\n" },
 
   { "push", (PyCFunction)CorrDetector2DObj_push, METH_VARARGS,
     "push(x) -> list[tuple]\n"
@@ -528,7 +540,46 @@ static PyTypeObject CorrDetector2DObjType = {
   .tp_basicsize                           = sizeof (CorrDetector2DObject),
   .tp_dealloc = (destructor)CorrDetector2DObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a 2-D signal detector.\n",
+  .tp_doc
+  = "Allocate a 2-D streaming signal detector backed by a 2-D correlator.\n"
+    "Two-dimensional extension of detector_create(). Input frames are flat\n"
+    "row-major CF32 arrays of length ny*nx streamed through a ring buffer. "
+    "On\n"
+    "every int-dump the peak flat index is decomposed into (row, col) and a\n"
+    "det_result2d_t is emitted when test_stat > threshold. The Python "
+    "wrapper\n"
+    "accepts a (ny, nx) CF32 ndarray for both ref and the push input.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "ref : NDArray[np.complex64]\n"
+    "    2-D reference image, (ny, nx) CF32 ndarray in Python.\n"
+    "dwell : int, default 1\n"
+    "    Int-dump depth; must be >= 1.\n"
+    "noise_lo : int, default 0\n"
+    "    Lower flat-index noise bin (inclusive, 0-based).\n"
+    "noise_hi : int\n"
+    "    Upper flat-index noise bin (inclusive, < ny*nx). A value at or "
+    "beyond\n"
+    "    the window clamps to ny*nx - 1, so the default sentinel selects the\n"
+    "    full window.\n"
+    "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
+    "\"mean\"\n"
+    "    Noise aggregation: \"mean\", \"median\", \"min\", or \"max\".\n"
+    "threshold : float, default 0.0\n"
+    "    Test-stat gate; 0.0 = always emit.\n"
+    "nthreads : int, default 1\n"
+    "    Accepted for API compatibility; ignored.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.spectral import CorrDetector2D\n"
+    ">>> import numpy as np\n"
+    ">>> ref = np.zeros((4, 4), dtype=np.complex64); ref[0, 0] = 1.0\n"
+    ">>> det = CorrDetector2D(ref=ref, dwell=1, noise_lo=1, noise_hi=15,\n"
+    "...                  noise_mode=\"mean\", threshold=0.0)\n"
+    ">>> det.ny, det.nx, det.n, det.dwell\n"
+    "(4, 4, 16, 1)\n",
   .tp_methods = CorrDetector2DObj_methods,
   .tp_getset  = CorrDetector2D_getset,
   .tp_new     = CorrDetector2DObj_new,

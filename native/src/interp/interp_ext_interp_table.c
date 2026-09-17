@@ -255,14 +255,29 @@ InterpolatedTableObj_exit (InterpolatedTableObject *self, PyObject *args)
 
 static PyMethodDef InterpolatedTableObj_methods[] = {
   { "reset", (PyCFunction)InterpolatedTableObj_reset, METH_NOARGS,
-    "No-op: InterpolatedTable is purely a function of (table, method, point) "
-    "with no running state to reset." },
+    "No-op: InterpolatedTable is purely a function of (table, method,\n"
+    "point) with no running state to reset.\n"
+    "\n"
+    "Present only to satisfy the common object interface; each execute()\n"
+    "depends solely on its inputs, so a call before or after reset() returns\n"
+    "identical samples.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.interp import InterpolatedTable\n"
+    ">>> table = InterpolatedTable(\n"
+    "...     np.array([0.0, 1.0, 2.0], dtype=np.complex128))\n"
+    ">>> table.reset()                     # no running state to clear\n"
+    ">>> table.execute(np.array([1.5]))   # unchanged: (table, point)\n"
+    "array([1.5+0.j])\n" },
 
   { "execute", (PyCFunction)(void *)InterpolatedTableObj_execute,
     METH_VARARGS | METH_KEYWORDS,
-    "execute(x) -> ndarray\n"
+    "execute(x, out) -> ndarray\n"
     "\n"
-    "Evaluate the table at each of n_in points via periodic interpolation.\n"
+    "Evaluate the table at each of n_in points via periodic\n"
+    "interpolation.\n"
     "\n"
     "Each point is wrapped mod the table length (any real value, any sign)\n"
     "and evaluated per the configured method:\n"
@@ -275,6 +290,8 @@ static PyMethodDef InterpolatedTableObj_methods[] = {
     "----------\n"
     "x : float\n"
     "    Input.\n"
+    "out : NDArray[np.complex128] | None\n"
+    "    Output buffer; must hold at least n_in values.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -291,8 +308,16 @@ static PyMethodDef InterpolatedTableObj_methods[] = {
     "array([0.5+0.j, 1.1+0.j])\n" },
   { "execute_max_out", (PyCFunction)InterpolatedTableObj_execute_max_out,
     METH_NOARGS,
-    "execute_max_out() -> int\n\nMax output length execute() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
+    "execute_max_out() -> int\n"
+    "\n"
+    "No fixed cap -- execute()'s output is always sized to exactly match\n"
+    "its own input length, so an `out=` buffer only ever needs to be at\n"
+    "least that many elements (never a larger, unrelated minimum).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "destroy", (PyCFunction)InterpolatedTableObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
@@ -338,7 +363,25 @@ static PyTypeObject InterpolatedTableObjType = {
   .tp_basicsize                           = sizeof (InterpolatedTableObject),
   .tp_dealloc = (destructor)InterpolatedTableObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create an InterpolatedTable instance.\n",
+  .tp_doc     = "Create an InterpolatedTable instance.\n"
+                "\n"
+                "Parameters\n"
+                "----------\n"
+                "table : NDArray[np.complex128]\n"
+                "    Complex table, one period, length table_len.\n"
+                "method : Literal[\"floor\", \"nearest\", \"linear\"], default "
+                "\"linear\"\n"
+                "    0 = floor, 1 = nearest, 2 = linear.\n"
+                "\n"
+                "Examples\n"
+                "--------\n"
+                ">>> from doppler.interp import InterpolatedTable\n"
+                ">>> import numpy as np\n"
+                ">>> t = InterpolatedTable(\n"
+                "...     np.array([0.0, 1.0, 2.0], dtype=np.complex128),\n"
+                "...     method=\"linear\")\n"
+                ">>> t.n\n"
+                "3\n",
   .tp_methods = InterpolatedTableObj_methods,
   .tp_getset  = InterpolatedTable_getset,
   .tp_new     = InterpolatedTableObj_new,

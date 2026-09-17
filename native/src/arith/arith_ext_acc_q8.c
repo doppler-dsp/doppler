@@ -272,9 +272,18 @@ AccQ8_set_state (AccQ8Object *self, PyObject *arg)
 
 static PyMethodDef AccQ8_methods[] = {
   { "reset", (PyCFunction)AccQ8_reset, METH_NOARGS,
-    "Reset the accumulator to zero, mirroring the post-create state. Always "
-    "resets to zero regardless of the original constructor value, so it is "
-    "safe to call at the start of any new accumulation window." },
+    "Reset the accumulator to zero, mirroring the post-create state.\n"
+    "Always resets to zero regardless of the original constructor value, so\n"
+    "it is safe to call at the start of any new accumulation window.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.arith import AccQ8\n"
+    ">>> obj = AccQ8(0)\n"
+    ">>> obj.step(42)\n"
+    ">>> obj.reset()\n"
+    ">>> obj.get()\n"
+    "0\n" },
   { "step", (PyCFunction)AccQ8_step, METH_VARARGS,
     "step(x) -> None\n"
     "\n"
@@ -478,11 +487,26 @@ static PyTypeObject AccQ8Type = {
   .tp_basicsize                           = sizeof (AccQ8Object),
   .tp_dealloc                             = (destructor)AccQ8_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Allocate and initialise an AccQ8 accumulator. The accumulator "
-            "starts at the supplied initial value and accepts Q8 (int8_t) "
-            "samples via step(), steps(), or madd(). The 32-bit internal "
-            "register handles up to roughly 16 million max-magnitude samples "
-            "before wrap — sufficient for all standard DSP block sizes.\n",
+  .tp_doc
+  = "Allocate and initialise an AccQ8 accumulator. The accumulator starts at\n"
+    "the supplied initial value and accepts Q8 (int8_t) samples via step(),\n"
+    "steps(), or madd(). The 32-bit internal register handles up to roughly "
+    "16\n"
+    "million max-magnitude samples before wrap — sufficient for all standard "
+    "DSP\n"
+    "block sizes.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "acc : int, default 0\n"
+    "    acc state variable.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.arith import AccQ8\n"
+    ">>> obj = AccQ8(10)\n"
+    ">>> obj.get_acc()\n"
+    "10\n",
   .tp_methods = AccQ8_methods,
   .tp_new     = AccQ8_new,
   .tp_init    = (initproc)AccQ8_init,

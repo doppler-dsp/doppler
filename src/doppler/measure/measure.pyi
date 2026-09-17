@@ -360,13 +360,13 @@ class ToneMeasure:
     """
     def __init__(
         self,
-        n: int = ...,
-        fs: float = ...,
-        n_harmonics: int = ...,
-        full_scale: float = ...,
-        bits: int = ...,
-        dynamic_range_db: float = ...,
-        dc_guard: int = ...,
+        n: int = 8192,
+        fs: float = 1.0,
+        n_harmonics: int = 8,
+        full_scale: float = 1.0,
+        bits: int = 0,
+        dynamic_range_db: float = 0.0,
+        dc_guard: int = 0,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -637,11 +637,11 @@ class NPRMeasure:
     """
     def __init__(
         self,
-        n: int = ...,
-        fs: float = ...,
-        full_scale: float = ...,
-        bits: int = ...,
-        dynamic_range_db: float = ...,
+        n: int = 8192,
+        fs: float = 1.0,
+        full_scale: float = 1.0,
+        bits: int = 0,
+        dynamic_range_db: float = 0.0,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -860,11 +860,11 @@ class IMDMeasure:
     """
     def __init__(
         self,
-        n: int = ...,
-        fs: float = ...,
-        full_scale: float = ...,
-        bits: int = ...,
-        dynamic_range_db: float = ...,
+        n: int = 8192,
+        fs: float = 1.0,
+        full_scale: float = 1.0,
+        bits: int = 0,
+        dynamic_range_db: float = 0.0,
     ) -> None: ...
 
     def reset(self) -> None:

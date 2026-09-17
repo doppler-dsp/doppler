@@ -1335,7 +1335,7 @@ static PyTypeObject MpskReceiverObjType = {
     "--------\n"
     "Create with defaults:\n"
     "\n"
-    ">>> from doppler import MpskReceiver\n"
+    ">>> from doppler.track import MpskReceiver\n"
     ">>> obj = MpskReceiver(\n"
     "...     m=4,\n"
     "...     sps=8.0,\n"

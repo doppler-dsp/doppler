@@ -740,9 +740,9 @@ class AccTrace:
     """
     def __init__(
         self,
-        n: int = ...,
+        n: int = 1024,
         mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean",
-        alpha: float = ...,
+        alpha: float = 0.1,
     ) -> None: ...
 
     def accumulate(self, p: NDArray[np.float32]) -> None:

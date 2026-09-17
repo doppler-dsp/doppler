@@ -49,13 +49,13 @@ class Specan:
         fs: float,
         span: float,
         rbw: float,
-        src_center: float = ...,
-        center: float = ...,
-        offset_db: float = ...,
-        full_scale: float = ...,
-        bits: int = ...,
+        src_center: float = 0.0,
+        center: float = 0.0,
+        offset_db: float = 0.0,
+        full_scale: float = 1.0,
+        bits: int = 0,
         window: Literal["hann", "kaiser"] = "kaiser",
-        navg: int = ...,
+        navg: int = 1,
     ) -> None: ...
 
     def execute(

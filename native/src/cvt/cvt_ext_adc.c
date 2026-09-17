@@ -273,8 +273,23 @@ ADCObj_exit (ADCObject *self, PyObject *args)
 
 static PyMethodDef ADCObj_methods[] = {
   { "reset", (PyCFunction)ADCObj_reset, METH_NOARGS,
-    "Clear the clip flag and re-seed the dither PRNG for a reproducible "
-    "run." },
+    "Clear the clip flag and re-seed the dither PRNG for a reproducible\n"
+    "run.\n"
+    "\n"
+    "Zeroes the sticky clipped flag and re-seeds the xorshift32 dither PRNG\n"
+    "to its fixed initial value, so a dithered capture restarted after\n"
+    "reset() is bit-for-bit reproducible. The immutable configuration (bits,\n"
+    "scale, clip bounds) is preserved.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.cvt import ADC\n"
+    ">>> adc = ADC(bits=8, dbfs=0.0, dithering=0)\n"
+    ">>> adc.step(9.0)          # beyond full scale -> saturates, clips\n"
+    "127\n"
+    ">>> adc.reset()           # clear clips, re-seed the dither PRNG\n"
+    ">>> adc.clipped\n"
+    "False\n" },
   { "step", (PyCFunction)ADC_step, METH_VARARGS,
     "step(x) -> int64_t\n"
     "\n"
@@ -432,7 +447,27 @@ static PyTypeObject ADCObjType = {
   .tp_basicsize                           = sizeof (ADCObject),
   .tp_dealloc                             = (destructor)ADCObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc                                 = "Create an ADC instance.\n",
+  .tp_doc                                 = "Create an ADC instance.\n"
+                                            "\n"
+                                            "Parameters\n"
+                                            "----------\n"
+                                            "bits : int, default 16\n"
+                                            "    ADC resolution in bits (1..64).\n"
+                                            "dbfs : float, default -10.0\n"
+                                            "    Full-scale reference level in dBFS (typically negative, e.g. "
+                                            "-10.0). A\n"
+                                            "    signal with amplitude 10^(dbfs/20) fills the converter's "
+                                            "integer range\n"
+                                            "    exactly.\n"
+                                            "dithering : int, default 0\n"
+                                            "    0 = no dither; non-zero = TPDF dither before rounding.\n"
+                                            "\n"
+                                            "Examples\n"
+                                            "--------\n"
+                                            "Create with defaults:\n"
+                                            "\n"
+                                            ">>> from doppler.cvt import ADC\n"
+                                            ">>> obj = ADC(bits=16, dbfs=-10.0, dithering=0)\n",
   .tp_methods                             = ADCObj_methods,
   .tp_getset                              = ADC_getset,
   .tp_new                                 = ADCObj_new,

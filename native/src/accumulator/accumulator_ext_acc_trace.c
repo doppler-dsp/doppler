@@ -430,8 +430,14 @@ static PyMethodDef AccTraceObj_methods[] = {
     ">>> acc.value().tolist()           # per-bin running maximum\n"
     "[4.0, 5.0, 6.0]\n" },
   { "value_max_out", (PyCFunction)AccTraceObj_value_max_out, METH_NOARGS,
-    "value_max_out() -> int\n\nMax output length value() can produce for the "
-    "current state.\nUse to size the ``out=`` buffer." },
+    "value_max_out() -> int\n"
+    "\n"
+    "Output capacity hint for value(); equals the trace length n.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "state_bytes", (PyCFunction)AccTraceObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -525,7 +531,25 @@ static PyTypeObject AccTraceObjType = {
   .tp_basicsize                           = sizeof (AccTraceObject),
   .tp_dealloc                             = (destructor)AccTraceObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a length-n trace accumulator.\n",
+  .tp_doc
+  = "Create a length-n trace accumulator.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, default 1024\n"
+    "    Trace length in bins. Must be > 0; returns NULL otherwise.\n"
+    "mode : Literal[\"mean\", \"exp\", \"maxhold\", \"minhold\"], default "
+    "\"mean\"\n"
+    "    Reduction mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).\n"
+    "alpha : float, default 0.1\n"
+    "    EMA smoothing factor used only by exp mode (0 < alpha <= 1).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.accumulator import AccTrace\n"
+    ">>> acc = AccTrace(n=8, mode=\"mean\")\n"
+    ">>> acc.n, acc.count\n"
+    "(8, 0)\n",
   .tp_methods = AccTraceObj_methods,
   .tp_getset  = AccTrace_getset,
   .tp_new     = AccTraceObj_new,

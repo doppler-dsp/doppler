@@ -608,7 +608,21 @@ ToneMeasureObj_exit (ToneMeasureObject *self, PyObject *args)
 
 static PyMethodDef ToneMeasureObj_methods[] = {
   { "reset", (PyCFunction)ToneMeasureObj_reset, METH_NOARGS,
-    "Reset the analyser (a no-op: it holds no state between calls)." },
+    "Reset the analyser (a no-op: it holds no state between calls).\n"
+    "\n"
+    "Every analyze() / analyze_complex() / time_stats() / spectrum_dbfs()\n"
+    "call re-windows and re-transforms its own capture from scratch, so\n"
+    "there is nothing carried between calls to clear. The method exists only\n"
+    "so ToneMeasure honours the same reset() contract as every other doppler\n"
+    "object, letting a generic pipeline reset each stage uniformly.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.measure import ToneMeasure\n"
+    ">>> m = ToneMeasure(n=4096, fs=1.0)\n"
+    ">>> m.reset()            # stateless: provided only for API uniformity\n"
+    ">>> m.reset() is None    # returns nothing; safe to call anytime\n"
+    "True\n" },
 
   { "analyze", (PyCFunction)ToneMeasureObj_analyze, METH_VARARGS,
     "analyze(x) -> ToneMetrics record (snr, sinad, thd, thd_pct, thd_n, "
@@ -733,8 +747,14 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     "-6.0\n" },
   { "spectrum_dbfs_max_out", (PyCFunction)ToneMeasureObj_spectrum_dbfs_max_out,
     METH_NOARGS,
-    "spectrum_dbfs_max_out() -> int\n\nMax output length spectrum_dbfs() can "
-    "produce for the current state.\nUse to size the ``out=`` buffer." },
+    "spectrum_dbfs_max_out() -> int\n"
+    "\n"
+    "Capacity (== nfft) of the spectrum_dbfs output buffer.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "destroy", (PyCFunction)ToneMeasureObj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
@@ -779,7 +799,43 @@ static PyTypeObject ToneMeasureObjType = {
   .tp_basicsize                           = sizeof (ToneMeasureObject),
   .tp_dealloc                             = (destructor)ToneMeasureObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a ToneMeasure analyser (auto Kaiser window).\n",
+  .tp_doc
+  = "Create a ToneMeasure analyser (auto Kaiser window).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, default 8192\n"
+    "    Capture/frame length (>= 2).\n"
+    "fs : float, default 1.0\n"
+    "    Sample rate (Hz, > 0).\n"
+    "n_harmonics : int, default 8\n"
+    "    Harmonics to track (k = 2..n_harmonics).\n"
+    "full_scale : float, default 1.0\n"
+    "    Amplitude that equals 0 dBFS (> 0). Ignored if bits > 0.\n"
+    "bits : int, default 0\n"
+    "    ADC depth: bits>0 sets the 0-dBFS reference to 2^(bits-1) and, "
+    "unless\n"
+    "    overridden, the dynamic-range target (6.02*bits + 1.76 + headroom).\n"
+    "dynamic_range_db : float, default 0.0\n"
+    "    Explicit sidelobe/dynamic-range target (dB); used when > 0, else\n"
+    "    derived from bits (or a deep default when both are 0).\n"
+    "dc_guard : int, default 0\n"
+    "    Extra bins excluded beyond L around DC.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    "Create with defaults:\n"
+    "\n"
+    ">>> from doppler.measure import ToneMeasure\n"
+    ">>> obj = ToneMeasure(\n"
+    "...     n=8192,\n"
+    "...     fs=1.0,\n"
+    "...     n_harmonics=8,\n"
+    "...     full_scale=1.0,\n"
+    "...     bits=0,\n"
+    "...     dynamic_range_db=0.0,\n"
+    "...     dc_guard=0,\n"
+    "... )\n",
   .tp_methods = ToneMeasureObj_methods,
   .tp_getset  = ToneMeasure_getset,
   .tp_new     = ToneMeasureObj_new,

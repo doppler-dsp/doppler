@@ -27,7 +27,7 @@ class DelayCf64:
     4
 
     """
-    def __init__(self, num_taps: int = ...) -> None: ...
+    def __init__(self, num_taps: int = 1) -> None: ...
 
     def reset(self) -> None:
         """Reset the delay line to its post-create state. Zeroes the entire

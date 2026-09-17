@@ -27,7 +27,7 @@ class Resampler:
     2.0
 
     """
-    def __init__(self, rate: float = ...) -> None: ...
+    def __init__(self, rate: float = 0.0) -> None: ...
 
     def execute(
         self,
@@ -516,7 +516,7 @@ class CIC:
     (16, 16)
 
     """
-    def __init__(self, R: int = ...) -> None: ...
+    def __init__(self, R: int = 16) -> None: ...
 
     def reset(self) -> None:
         """Zero all integrator and comb accumulators; preserve R and shift. The
@@ -768,7 +768,7 @@ class RateConverter:
     0.5
 
     """
-    def __init__(self, rate: float = ..., compensate: int = ...) -> None: ...
+    def __init__(self, rate: float = 1.0, compensate: int = 0) -> None: ...
 
     def execute(
         self,
@@ -1147,13 +1147,13 @@ class MatchedRateConverter:
     """
     def __init__(
         self,
-        rate: float = ...,
-        compensate: int = ...,
+        rate: float = 1.0,
+        compensate: int = 1,
         pulse: Literal["iandd", "rrc"] = "rrc",
-        beta: float = ...,
-        span: int = ...,
-        pulse_sps: float = ...,
-        num_phases: int = ...,
+        beta: float = 0.35,
+        span: int = 8,
+        pulse_sps: float = 2.0,
+        num_phases: int = 1024,
     ) -> None: ...
 
     def execute(

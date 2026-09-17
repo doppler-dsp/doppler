@@ -35,9 +35,9 @@ class FFT:
     """
     def __init__(
         self,
-        n: int = ...,
-        sign: int = ...,
-        nthreads: int = ...,
+        n: int = 1024,
+        sign: int = -1,
+        nthreads: int = 1,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -333,10 +333,10 @@ class FFT2D:
     """
     def __init__(
         self,
-        ny: int = ...,
-        nx: int = ...,
-        sign: int = ...,
-        nthreads: int = ...,
+        ny: int = 64,
+        nx: int = 64,
+        sign: int = -1,
+        nthreads: int = 1,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -614,9 +614,9 @@ class Corr:
     def __init__(
         self,
         ref: NDArray[np.complex64],
-        dwell: int = ...,
-        nthreads: int = ...,
-        n_out: int = ...,
+        dwell: int = 1,
+        nthreads: int = 1,
+        n_out: int = 0,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -860,11 +860,11 @@ class Corr2D:
     def __init__(
         self,
         ref: NDArray[np.complex64],
-        dwell: int = ...,
-        nthreads: int = ...,
-        ny_out: int = ...,
-        nx_out: int = ...,
-        col_out: int = ...,
+        dwell: int = 1,
+        nthreads: int = 1,
+        ny_out: int = 0,
+        nx_out: int = 0,
+        col_out: int = -1,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -1114,12 +1114,12 @@ class CorrDetector:
     def __init__(
         self,
         ref: NDArray[np.complex64],
-        dwell: int = ...,
-        noise_lo: int = ...,
+        dwell: int = 1,
+        noise_lo: int = 0,
         noise_hi: int = ...,
         noise_mode: Literal["mean", "median", "min", "max"] = "mean",
-        threshold: float = ...,
-        nthreads: int = ...,
+        threshold: float = 0.0,
+        nthreads: int = 1,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -1356,12 +1356,12 @@ class CorrDetector2D:
     def __init__(
         self,
         ref: NDArray[np.complex64],
-        dwell: int = ...,
-        noise_lo: int = ...,
+        dwell: int = 1,
+        noise_lo: int = 0,
         noise_hi: int = ...,
         noise_mode: Literal["mean", "median", "min", "max"] = "mean",
-        threshold: float = ...,
-        nthreads: int = ...,
+        threshold: float = 0.0,
+        nthreads: int = 1,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -1602,15 +1602,15 @@ class PSD:
     """
     def __init__(
         self,
-        n: int = ...,
-        fs: float = ...,
+        n: int = 1024,
+        fs: float = 1.0,
         window: Literal["hann", "kaiser", "blackman-harris"] = "hann",
-        beta: float = ...,
-        pad: int = ...,
-        full_scale: float = ...,
-        bits: int = ...,
+        beta: float = 0.0,
+        pad: int = 1,
+        full_scale: float = 1.0,
+        bits: int = 0,
         mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean",
-        alpha: float = ...,
+        alpha: float = 0.1,
     ) -> None: ...
 
     def accumulate(self, x: NDArray[np.complex64]) -> None:

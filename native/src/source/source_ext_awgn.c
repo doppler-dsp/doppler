@@ -296,30 +296,72 @@ AWGNObj_exit (AWGNObject *self, PyObject *args)
 
 static PyMethodDef AWGNObj_methods[] = {
   { "reset", (PyCFunction)AWGNObj_reset, METH_NOARGS,
-    "Reset RNG to the seed supplied at create time. Re-runs the "
-    "SplitMix64 seeding procedure with the original seed so the next "
-    "awgn_generate() call produces exactly the same samples as the "
-    "first call after awgn_create().  amplitude is not changed." },
+    "Reset RNG to the seed supplied at create time. Re-runs the\n"
+    "SplitMix64 seeding procedure with the original seed so the next\n"
+    "awgn_generate() call produces exactly the same samples as the first\n"
+    "call after awgn_create(). amplitude is not changed.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.source import AWGN\n"
+    ">>> gen = AWGN(seed=0, amplitude=1.0)\n"
+    ">>> first = gen.generate(4)\n"
+    ">>> gen.reset()\n"
+    ">>> second = gen.generate(4)\n"
+    ">>> bool(np.all(first == second))\n"
+    "True\n" },
 
   { "generate", (PyCFunction)(void *)AWGNObj_generate,
     METH_VARARGS | METH_KEYWORDS,
-    "generate(n=1) -> ndarray\n"
+    "generate(count=1) -> ndarray\n"
     "\n"
-    "Generate n complex CF32 AWGN samples. Uses Box-Muller with "
-    "xoshiro256++ to fill `out` with independent complex Gaussians: Re "
-    "and Im each have zero mean and standard deviation `amplitude`.  "
-    "Total complex power = 2 × amplitude². The AVX2 path processes 8 "
-    "samples in parallel when available.\n"
+    "Generate n complex CF32 AWGN samples. Uses Box-Muller with\n"
+    "xoshiro256++ to fill `out` with independent complex Gaussians: Re and\n"
+    "Im each have zero mean and standard deviation `amplitude`. Total\n"
+    "complex power = 2 × amplitude². The AVX2 path processes 8 samples in\n"
+    "parallel when available.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import AWGN\n"
-    "    >>> obj = AWGN(0, 1.0)\n"
-    "    >>> y = obj.generate(4)\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex64')\n" },
+    "Parameters\n"
+    "----------\n"
+    "count : int\n"
+    "    How many output samples to ask for. The call may return fewer; size\n"
+    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
+    "    worst case.\n"
+    "out : NDArray[np.complex64] | None\n"
+    "    Output buffer; must hold at least n float _Complex values.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    min(n, max_out) samples.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.source import AWGN\n"
+    ">>> gen = AWGN(seed=0, amplitude=1.0)\n"
+    ">>> out = gen.generate(1024)\n"
+    ">>> out.dtype\n"
+    "dtype('complex64')\n"
+    ">>> out.shape\n"
+    "(1024,)\n"
+    ">>> round(float(np.var(out.real)), 1)\n"
+    "1.0\n"
+    ">>> round(float(np.var(out.imag)), 1)\n"
+    "1.0\n" },
   { "generate_max_out", (PyCFunction)AWGNObj_generate_max_out, METH_NOARGS,
-    "generate_max_out() -> int\n\nMax output length generate() can "
-    "produce for the current state.\nUse to size the ``out=`` buffer." },
+    "generate_max_out() -> int\n"
+    "\n"
+    "Conservative upper bound on generate() output size.\n"
+    "\n"
+    "Returns 65536. The Python extension uses this for the initial buffer\n"
+    "allocation; the buffer grows on demand if n > 65536.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "reseed", (PyCFunction)(void *)AWGNObj_reseed,
     METH_VARARGS | METH_KEYWORDS,
     "reseed(seed) -> None\n"
@@ -436,10 +478,29 @@ static PyTypeObject AWGNObjType = {
   .tp_basicsize                           = sizeof (AWGNObject),
   .tp_dealloc                             = (destructor)AWGNObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create an AWGN generator. Allocates state, seeds the "
-                "xoshiro256++ RNG via SplitMix64, and sets up both the scalar and "
-                "the AVX2 parallel streams.  The initial seed is stored so "
-                "awgn_reset() can reproduce the exact same stream.\n",
+  .tp_doc
+  = "Create an AWGN generator. Allocates state, seeds the xoshiro256++ RNG\n"
+    "via SplitMix64, and sets up both the scalar and the AVX2 parallel "
+    "streams.\n"
+    "The initial seed is stored so awgn_reset() can reproduce the exact same\n"
+    "stream.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "seed : int, default 0\n"
+    "    64-bit RNG seed. Two generators with different seeds produce\n"
+    "    statistically independent noise streams.\n"
+    "amplitude : float, default 1.0\n"
+    "    Per-component (Re, Im) standard deviation. Must be ≥ 0; total "
+    "complex\n"
+    "    power = 2 × amplitude².\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.source import AWGN\n"
+    ">>> gen = AWGN(seed=0, amplitude=1.0)\n"
+    ">>> gen.amplitude\n"
+    "1.0\n",
   .tp_methods = AWGNObj_methods,
   .tp_getset  = AWGN_getset,
   .tp_new     = AWGNObj_new,

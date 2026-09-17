@@ -36,8 +36,8 @@ class ConvEncoder:
     def __init__(
         self,
         poly: NDArray[np.uint32],
-        k: int = ...,
-        invert: int = ...,
+        k: int = 7,
+        invert: int = 0,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -251,9 +251,9 @@ class Viterbi:
     def __init__(
         self,
         poly: NDArray[np.uint32],
-        k: int = ...,
-        invert: int = ...,
-        depth: int = ...,
+        k: int = 7,
+        invert: int = 0,
+        depth: int = 35,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -493,10 +493,10 @@ class ReedSolomon:
     def __init__(
         self,
         nroots: int,
-        symbol_bits: int = ...,
-        field_poly: int = ...,
-        first_root: int = ...,
-        root_stride: int = ...,
+        symbol_bits: int = 8,
+        field_poly: int = 29,
+        first_root: int = 1,
+        root_stride: int = 1,
     ) -> None: ...
 
     def encode(
@@ -830,7 +830,7 @@ class Interleaver:
         self,
         rows: int = ...,
         cols: int = ...,
-        unit_bits: int = ...,
+        unit_bits: int = 1,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -1156,7 +1156,7 @@ class Deinterleaver:
         self,
         rows: int = ...,
         cols: int = ...,
-        unit_bits: int = ...,
+        unit_bits: int = 1,
     ) -> None: ...
 
     def reset(self) -> None:

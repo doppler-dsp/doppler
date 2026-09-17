@@ -292,24 +292,64 @@ HalfbandDecimatorQ15Obj_execute_max_out (HalfbandDecimatorQ15Object *self,
 static PyMethodDef HalfbandDecimatorQ15Obj_methods[] = {
 
   { "execute", (PyCFunction)HalfbandDecimatorQ15Obj_execute, METH_VARARGS,
-    "execute(x) -> ndarray\n"
+    "execute(x, out) -> ndarray\n"
     "\n"
-    "Decimate a block of interleaved IQ int16 samples by 2.\n"
+    "Decimate a block of interleaved IQ int16 samples by 2. Input must be\n"
+    "interleaved int16_t IQ pairs (I₀ Q₀ I₁ Q₁ …); pass a 1-D array of\n"
+    "2*n_complex elements. Each pair of complex input samples produces one\n"
+    "complex output sample, so an array of length 2N yields at most N output\n"
+    "pairs (2N int16 output values). If n_in is odd the trailing IQ pair is\n"
+    "buffered and consumed on the next call.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import HalfbandDecimatorQ15\n"
-    "    >>> obj = HalfbandDecimatorQ15(np.zeros(1, dtype=np.float32))\n"
-    "    >>> y = obj.execute(np.zeros(4))\n"
-    "    >>> y.dtype\n"
-    "    dtype('int16')\n" },
+    "Parameters\n"
+    "----------\n"
+    "x : NDArray[np.int16]\n"
+    "    Input.\n"
+    "out : NDArray[np.int16] | None\n"
+    "    Output buffer; caller must provide space for 2*max_out int16_t\n"
+    "    values (one interleaved I/Q pair per output).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.int16]\n"
+    "    min(available, max_out) COMPLEX samples -- twice that many int16_t\n"
+    "    values.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.resample import HalfbandDecimatorQ15\n"
+    ">>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)\n"
+    ">>> dec = HalfbandDecimatorQ15(h)\n"
+    ">>> x = np.array([1000, 0, 1000, 0, 1000, 0, 1000, 0], dtype=np.int16)\n"
+    ">>> y = dec.execute(x)\n"
+    ">>> y.dtype\n"
+    "dtype('int16')\n"
+    ">>> y.shape\n"
+    "(4,)\n"
+    ">>> y.tolist()\n"
+    "[0, 0, 625, 0]\n" },
   { "reset", (PyCFunction)HalfbandDecimatorQ15Obj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Zero all delay rings and clear the pending-sample flag.\n"
+    "Zero all delay rings and clear the pending-sample flag. After a\n"
+    "reset the decimator behaves identically to a freshly constructed\n"
+    "instance: the four dual-write delay rings are zeroed and has_pending is\n"
+    "cleared, so no partial IQ pair carries over. Call this between\n"
+    "unrelated signal segments to prevent inter-segment leakage.\n"
     "\n"
-    "    >>> from doppler import HalfbandDecimatorQ15\n"
-    "    >>> obj = HalfbandDecimatorQ15(np.zeros(1, dtype=np.float32))\n"
-    "    >>> obj.reset()\n" },
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.resample import HalfbandDecimatorQ15\n"
+    ">>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)\n"
+    ">>> dec = HalfbandDecimatorQ15(h)\n"
+    ">>> x = np.array([1000, 0, 1000, 0, 1000, 0, 1000, 0], dtype=np.int16)\n"
+    ">>> _ = dec.execute(x)\n"
+    ">>> dec.reset()\n"
+    ">>> y = dec.execute(x)\n"
+    ">>> y.tolist()\n"
+    "[0, 0, 625, 0]\n" },
   { "destroy", (PyCFunction)HalfbandDecimatorQ15Obj_destroy, METH_NOARGS,
     "Release the underlying C resources immediately.\n"
     "\n"
@@ -401,8 +441,17 @@ static PyMethodDef HalfbandDecimatorQ15Obj_methods[] = {
     "long.\n" },
   { "execute_max_out", (PyCFunction)HalfbandDecimatorQ15Obj_execute_max_out,
     METH_NOARGS,
-    "execute_max_out() -> int\n\nMax output length execute() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
+    "execute_max_out() -> int\n"
+    "\n"
+    "Maximum output samples for a given input length.\n"
+    "\n"
+    "Returns 0 to trigger the lazy-alloc path in the Python glue: the output\n"
+    "buffer is sized to n_in on first call (always sufficient for 2:1).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { NULL }
 };
 
@@ -411,7 +460,32 @@ static PyTypeObject HalfbandDecimatorQ15ObjType = {
   .tp_basicsize = sizeof (HalfbandDecimatorQ15Object),
   .tp_dealloc   = (destructor)HalfbandDecimatorQ15Obj_dealloc,
   .tp_flags     = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Allocate and initialise a fixed-point halfband 2:1 decimator.\n",
+  .tp_doc
+  = "Allocate and initialise a fixed-point halfband 2:1 decimator. The FIR\n"
+    "branch coefficients are supplied as float and converted internally to "
+    "Q15\n"
+    "with a x0.5 polyphase rate scaling. The full halfband prototype is "
+    "sparse\n"
+    "(every other tap is zero); supply only the non-zero FIR branch taps, "
+    "not\n"
+    "the full sparse prototype.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "h : NDArray[np.float32]\n"
+    "    Float FIR branch coefficients of length num_taps. Must be symmetric\n"
+    "    (`h[k]` == `h[num_taps-1-k]`).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.resample import HalfbandDecimatorQ15\n"
+    ">>> h = np.array([0.25, 0.5, 0.25], dtype=np.float32)\n"
+    ">>> dec = HalfbandDecimatorQ15(h)\n"
+    ">>> dec.num_taps\n"
+    "3\n"
+    ">>> dec.rate\n"
+    "0.5\n",
   .tp_methods = HalfbandDecimatorQ15Obj_methods,
   .tp_getset  = HalfbandDecimatorQ15_getset,
   .tp_new     = HalfbandDecimatorQ15Obj_new,

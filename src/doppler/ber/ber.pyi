@@ -83,9 +83,9 @@ class BerMeter:
     """
     def __init__(
         self,
-        m: int = ...,
-        target_errors: int = ...,
-        conf: float = ...,
+        m: int = 4,
+        target_errors: int = 200,
+        conf: float = 0.99,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -626,8 +626,8 @@ class FrameMeter:
     """
     def __init__(
         self,
-        target_errors: int = ...,
-        conf: float = ...,
+        target_errors: int = 200,
+        conf: float = 0.99,
     ) -> None: ...
 
     def reset(self) -> None:

@@ -1060,8 +1060,14 @@ static PyMethodDef PSDObj_methods[] = {
     "    >>> y.dtype\n"
     "    dtype('float32')\n" },
   { "psd_db_max_out", (PyCFunction)PSDObj_psd_db_max_out, METH_NOARGS,
-    "psd_db_max_out() -> int\n\nMax output length psd_db() can produce for "
-    "the current state.\nUse to size the ``out=`` buffer." },
+    "psd_db_max_out() -> int\n"
+    "\n"
+    "Output capacity hint for psd_db(); equals nfft.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "psd_dbhz", (PyCFunction)(void *)PSDObj_psd_dbhz,
     METH_VARARGS | METH_KEYWORDS,
     "psd_dbhz(count=1) -> ndarray\n"
@@ -1095,8 +1101,14 @@ static PyMethodDef PSDObj_methods[] = {
     ">>> bool(np.allclose(a - b, (a - b)[0]))   # offset is a constant\n"
     "True\n" },
   { "psd_dbhz_max_out", (PyCFunction)PSDObj_psd_dbhz_max_out, METH_NOARGS,
-    "psd_dbhz_max_out() -> int\n\nMax output length psd_dbhz() can produce "
-    "for the current state.\nUse to size the ``out=`` buffer." },
+    "psd_dbhz_max_out() -> int\n"
+    "\n"
+    "Output capacity hint for psd_dbhz(); equals n.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "power_twosided", (PyCFunction)(void *)PSDObj_power_twosided,
     METH_VARARGS | METH_KEYWORDS,
     "power_twosided(count=1) -> ndarray\n"
@@ -1129,8 +1141,14 @@ static PyMethodDef PSDObj_methods[] = {
     "    dtype('float32')\n" },
   { "power_twosided_max_out", (PyCFunction)PSDObj_power_twosided_max_out,
     METH_NOARGS,
-    "power_twosided_max_out() -> int\n\nMax output length power_twosided() "
-    "can produce for the current state.\nUse to size the ``out=`` buffer." },
+    "power_twosided_max_out() -> int\n"
+    "\n"
+    "Output capacity hint for psd_power_twosided(); equals nfft.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "power_onesided", (PyCFunction)(void *)PSDObj_power_onesided,
     METH_VARARGS | METH_KEYWORDS,
     "power_onesided(count=1) -> ndarray\n"
@@ -1163,8 +1181,14 @@ static PyMethodDef PSDObj_methods[] = {
     "    dtype('float32')\n" },
   { "power_onesided_max_out", (PyCFunction)PSDObj_power_onesided_max_out,
     METH_NOARGS,
-    "power_onesided_max_out() -> int\n\nMax output length power_onesided() "
-    "can produce for the current state.\nUse to size the ``out=`` buffer." },
+    "power_onesided_max_out() -> int\n"
+    "\n"
+    "Output capacity hint for psd_power_onesided(); equals nfft/2+1.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "band_power", (PyCFunction)(void *)PSDObj_band_power,
     METH_VARARGS | METH_KEYWORDS,
     "band_power(bands, out) -> ndarray\n"
@@ -1193,8 +1217,14 @@ static PyMethodDef PSDObj_methods[] = {
     ">>> pb.shape\n"
     "(2,)\n" },
   { "band_power_max_out", (PyCFunction)PSDObj_band_power_max_out, METH_NOARGS,
-    "band_power_max_out() -> int\n\nMax output length band_power() can "
-    "produce for the current state.\nUse to size the ``out=`` buffer." },
+    "band_power_max_out() -> int\n"
+    "\n"
+    "Output capacity hint for band_power(); 0 (binding sizes from bands).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "total_band_power", (PyCFunction)(void *)PSDObj_total_band_power,
     METH_VARARGS | METH_KEYWORDS,
     "total_band_power(bands) -> float\n"
@@ -1400,7 +1430,44 @@ static PyTypeObject PSDObjType = {
   .tp_basicsize                           = sizeof (PSDObject),
   .tp_dealloc                             = (destructor)PSDObj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create an averaging PSD estimator.\n",
+  .tp_doc
+  = "Create an averaging PSD estimator.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int, default 1024\n"
+    "    Window / frame length in samples. Must be >= 2.\n"
+    "fs : float, default 1.0\n"
+    "    Sample rate in Hz (used for dB/Hz and band frequencies).\n"
+    "window : Literal[\"hann\", \"kaiser\", \"blackman-harris\"], default "
+    "\"hann\"\n"
+    "    Window index: 0 = Hann, 1 = Kaiser, 2 = Blackman-Harris.\n"
+    "beta : float, default 0.0\n"
+    "    Kaiser beta (ignored for Hann/Blackman-Harris).\n"
+    "pad : int, default 1\n"
+    "    Zero-pad factor (>= 1); nfft = next_pow_two(n * pad).\n"
+    "full_scale : float, default 1.0\n"
+    "    Amplitude that reads 0 dBFS in the dB getters (> 0). Ignored when "
+    "bits\n"
+    "    > 0.\n"
+    "bits : int, default 0\n"
+    "    ADC depth: when > 0, sets full_scale = 2^(bits-1) (the single\n"
+    "    definition of the dBFS reference); 0 = use full_scale directly.\n"
+    "mode : Literal[\"mean\", \"exp\", \"maxhold\", \"minhold\"], default "
+    "\"mean\"\n"
+    "    Averaging mode index (0=mean, 1=exp, 2=maxhold, 3=minhold).\n"
+    "alpha : float, default 0.1\n"
+    "    EMA smoothing factor (exp mode only).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.spectral import PSD\n"
+    ">>> w = PSD(n=1024, fs=1.0e6, window=\"kaiser\", beta=8.0, "
+    "mode=\"mean\")\n"
+    ">>> w.n, w.fs\n"
+    "(1024, 1000000.0)\n"
+    ">>> round(w.rbw / (w.fs / w.n), 3) == round(w.enbw, 3)\n"
+    "True\n",
   .tp_methods = PSDObj_methods,
   .tp_getset  = PSD_getset,
   .tp_new     = PSDObj_new,

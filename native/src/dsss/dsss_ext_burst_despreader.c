@@ -695,8 +695,16 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     "0.0\n" },
   { "steps_max_out", (PyCFunction)BurstDespreaderObj_steps_max_out,
     METH_NOARGS,
-    "steps_max_out() -> int\n\nMax output length steps() can produce for the "
-    "current state.\nUse to size the ``out=`` buffer." },
+    "steps_max_out() -> int\n"
+    "\n"
+    "Upper bound on symbols `burst_despreader_steps` can emit (0; the\n"
+    "caller sizes the output buffer to the input length, which always\n"
+    "suffices).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "bits", (PyCFunction)(void *)BurstDespreaderObj_bits,
     METH_VARARGS | METH_KEYWORDS,
     "bits(x, out) -> ndarray\n"
@@ -739,8 +747,15 @@ static PyMethodDef BurstDespreaderObj_methods[] = {
     ">>> round(d.lock_metric, 3)\n"
     "1.0\n" },
   { "bits_max_out", (PyCFunction)BurstDespreaderObj_bits_max_out, METH_NOARGS,
-    "bits_max_out() -> int\n\nMax output length bits() can produce for the "
-    "current state.\nUse to size the ``out=`` buffer." },
+    "bits_max_out() -> int\n"
+    "\n"
+    "Upper bound on bits `burst_despreader_bits` can emit (0; see\n"
+    "burst_despreader_steps_max_out).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    Output.\n" },
   { "set_acq", (PyCFunction)(void *)BurstDespreaderObj_set_acq,
     METH_VARARGS | METH_KEYWORDS,
     "set_acq(acq_code, acq_reps) -> None\n"
@@ -914,7 +929,48 @@ static PyTypeObject BurstDespreaderObjType = {
   .tp_basicsize                           = sizeof (BurstDespreaderObject),
   .tp_dealloc = (destructor)BurstDespreaderObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
-  .tp_doc     = "Create a burst despreader instance.\n",
+  .tp_doc
+  = "Create a burst despreader instance.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "code : NDArray[np.uint8]\n"
+    "    Data spreading code (0/1 chips), length code_len; copied.\n"
+    "sf : int, default 1\n"
+    "    Spreading factor: chips integrated per prompt symbol (default: 1).\n"
+    "sps : int, default 2\n"
+    "    Samples per chip (default: 2).\n"
+    "init_norm_freq : float, default 0.0\n"
+    "    Seed carrier frequency, cycles/sample — the acquisition estimate\n"
+    "    (default: 0.0).\n"
+    "init_chip_phase : float, default 0.0\n"
+    "    Seed code phase, chips (default: 0.0).\n"
+    "bn_carrier : float, default 0.05\n"
+    "    Carrier (Costas) loop noise bandwidth, normalized to the symbol "
+    "rate\n"
+    "    (default: 0.05).\n"
+    "bn_code : float, default 0.01\n"
+    "    Code (DLL) loop noise bandwidth, normalized to the symbol rate\n"
+    "    (default: 0.01).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import BurstDespreader\n"
+    ">>> rng = np.random.default_rng(1)\n"
+    ">>> code = rng.integers(0, 2, 31).astype(np.uint8)  # length-31 code\n"
+    ">>> chips = np.where(code & 1, -1.0, 1.0)    # 0 -> +1, 1 -> -1\n"
+    ">>> bits = rng.integers(0, 2, 30).astype(np.uint8)    # payload bits\n"
+    ">>> syms = np.where(bits == 1, -1.0, 1.0)             # BPSK symbols\n"
+    ">>> tx = np.concatenate(\n"
+    "...     [np.repeat(s * chips, 4) for s in syms]).astype(np.complex64)\n"
+    ">>> b = BurstDespreader(code, sf=31, sps=4)           # 31 chips/symbol\n"
+    ">>> sym = b.steps(tx)                        # one prompt/symbol\n"
+    ">>> sym.shape\n"
+    "(30,)\n"
+    ">>> hard = (sym.real < 0).astype(np.uint8)            # BPSK decision\n"
+    ">>> float(np.mean(hard != bits))             # payload recovered\n"
+    "0.0\n",
   .tp_methods = BurstDespreaderObj_methods,
   .tp_getset  = BurstDespreader_getset,
   .tp_new     = BurstDespreaderObj_new,

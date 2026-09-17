@@ -65,7 +65,7 @@ class Telemetry:
     >>> obj = Telemetry(ring_records=16384)
 
     """
-    def __init__(self, ring_records: int = ...) -> None: ...
+    def __init__(self, ring_records: int = 16384) -> None: ...
 
     def read(
         self,
@@ -1082,7 +1082,7 @@ class EventLog:
     >>> log.close()
 
     """
-    def __init__(self, path: str | os.PathLike, fc: float = ...) -> None: ...
+    def __init__(self, path: str | os.PathLike, fc: float = 0.0) -> None: ...
 
     def field(self, name: str, value: float) -> None:
         """Stages a numeric field for the next event.

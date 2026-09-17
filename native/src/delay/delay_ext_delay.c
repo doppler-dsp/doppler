@@ -495,10 +495,22 @@ DelayCf64Obj_exit (DelayCf64Object *self, PyObject *args)
 
 static PyMethodDef DelayCf64Obj_methods[] = {
   { "reset", (PyCFunction)DelayCf64Obj_reset, METH_NOARGS,
-    "Reset the delay line to its post-create state. Zeroes the entire dual "
-    "buffer and resets the write pointer to 0, discarding all previously "
-    "pushed samples.  The num_taps and capacity are preserved; only the "
-    "sample history is cleared." },
+    "Reset the delay line to its post-create state. Zeroes the entire\n"
+    "dual buffer and resets the write pointer to 0, discarding all\n"
+    "previously pushed samples. The num_taps and capacity are preserved;\n"
+    "only the sample history is cleared.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.delay import DelayCf64\n"
+    ">>> d = DelayCf64(num_taps=3)\n"
+    ">>> d.push(1+2j)\n"
+    ">>> d.push(3+4j)\n"
+    ">>> d.ptr().tolist()\n"
+    "[(3+4j), (1+2j), 0j]\n"
+    ">>> d.reset()\n"
+    ">>> d.ptr().tolist()\n"
+    "[0j, 0j, 0j]\n" },
 
   { "push", (PyCFunction)(void *)DelayCf64Obj_push,
     METH_VARARGS | METH_KEYWORDS,
@@ -525,23 +537,42 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     ">>> d.ptr().tolist()\n"
     "[(3+4j), (1+2j), 0j]\n" },
   { "ptr", (PyCFunction)(void *)DelayCf64Obj_ptr, METH_VARARGS | METH_KEYWORDS,
-    "ptr(n=num_taps, out=None) -> ndarray\n"
+    "ptr(count=...) -> ndarray\n"
     "\n"
-    "Return a zero-copy view of the n most recent samples. Copies at most "
-    "min(n, num_taps) samples starting from `buf[head]` into out.  Because "
-    "the dual-buffer layout guarantees contiguity, this is a single memcpy of "
-    "up to num_taps elements; no wrap-around logic is needed.  Without out=, "
-    "the Python binding returns a NumPy array backed directly by the "
-    "pre-allocated output buffer (base object is the DelayCf64 itself); "
-    "with out= (must have at least max(ptr_max_out(), n) elements), writes "
-    "directly into the caller's array and returns a view of it.\n"
+    "Return a zero-copy view of the n most recent samples. Copies at most\n"
+    "min(n, num_taps) samples starting from `buf[head]` into out. Because\n"
+    "the dual-buffer layout guarantees contiguity, this is a single memcpy\n"
+    "of up to num_taps elements; no wrap-around logic is needed. The Python\n"
+    "binding returns a NumPy array backed directly by the pre-allocated\n"
+    "output buffer (base object is the DelayCf64 itself).\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import DelayCf64\n"
-    "    >>> obj = DelayCf64(1)\n"
-    "    >>> y = obj.ptr(4)\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex128')\n" },
+    "Parameters\n"
+    "----------\n"
+    "count : int\n"
+    "    How many output samples to ask for. The call may return fewer; size\n"
+    "    an `out=` buffer with the matching `_max_out()` when you need the\n"
+    "    worst case.\n"
+    "out : NDArray[np.complex128] | None\n"
+    "    Output buffer; must hold at least max_out elements.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex128]\n"
+    "    min(n, num_taps, max_out) samples.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.delay import DelayCf64\n"
+    ">>> d = DelayCf64(num_taps=3)\n"
+    ">>> d.push(1+0j)\n"
+    ">>> d.push(2+0j)\n"
+    ">>> y = d.ptr()\n"
+    ">>> y.tolist()\n"
+    "[(2+0j), (1+0j), 0j]\n"
+    ">>> y.dtype\n"
+    "dtype('complex128')\n"
+    ">>> y.shape\n"
+    "(3,)\n" },
   { "ptr_max_out", (PyCFunction)DelayCf64Obj_ptr_max_out, METH_VARARGS,
     "ptr_max_out(n) -> int\n"
     "\n"
@@ -559,27 +590,46 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     "    min(n, num_taps).\n" },
   { "push_ptr", (PyCFunction)(void *)DelayCf64Obj_push_ptr,
     METH_VARARGS | METH_KEYWORDS,
-    "push_ptr(x, out=None) -> ndarray\n"
+    "push_ptr(x, out) -> ndarray\n"
     "\n"
-    "Atomically push a sample and snapshot the current window. Equivalent to "
-    "calling push(x) then ptr(num_taps), but avoids the overhead of a "
-    "second function call.  Always writes exactly num_taps samples.  "
-    "Without out=, the Python binding returns a NumPy array backed by the "
-    "pre-allocated push_ptr output buffer; with out= (must have exactly "
-    "num_taps elements), writes directly into the caller's array and "
-    "returns it.\n"
+    "Atomically push a sample and snapshot the current window. Equivalent\n"
+    "to calling delay_push() then delay_ptr(num_taps), but avoids the\n"
+    "overhead of a second function call. Always writes exactly num_taps\n"
+    "samples to out. The Python binding returns a NumPy array backed by the\n"
+    "pre-allocated push_ptr output buffer.\n"
     "\n"
-    "    >>> import numpy as np\n"
-    "    >>> from doppler import DelayCf64\n"
-    "    >>> obj = DelayCf64(1)\n"
-    "    >>> y = obj.push_ptr(1.0 + 0.0j)\n"
-    "    >>> y.dtype\n"
-    "    dtype('complex128')\n" },
+    "Parameters\n"
+    "----------\n"
+    "x : complex\n"
+    "    New complex sample to insert.\n"
+    "out : NDArray[np.complex128] | None\n"
+    "    Output buffer; must hold at least max_out elements.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex128]\n"
+    "    min(num_taps, max_out) samples.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.delay import DelayCf64\n"
+    ">>> d = DelayCf64(num_taps=3)\n"
+    ">>> d.push_ptr(1+0j).tolist()\n"
+    "[(1+0j), 0j, 0j]\n"
+    ">>> d.push_ptr(2+0j).tolist()\n"
+    "[(2+0j), (1+0j), 0j]\n" },
   { "push_ptr_max_out", (PyCFunction)DelayCf64Obj_push_ptr_max_out,
     METH_NOARGS,
-    "push_ptr_max_out() -> int\n\nMax output length push_ptr() can produce "
-    "for the current state (always exactly num_taps).\nUse to size the "
-    "``out=`` buffer." },
+    "push_ptr_max_out() -> int\n"
+    "\n"
+    "Return the maximum output capacity for delay_push_ptr(). Returns\n"
+    "num_taps; the Python binding uses this to pre-allocate the output\n"
+    "buffer before calling delay_push_ptr().\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "int\n"
+    "    num_taps (number of samples delay_push_ptr() will write).\n" },
   { "write", (PyCFunction)DelayCf64Obj_write, METH_VARARGS,
     "write(x) -> None\n"
     "\n"
@@ -692,11 +742,29 @@ static PyTypeObject DelayCf64ObjType = {
   .tp_basicsize                           = sizeof (DelayCf64Object),
   .tp_dealloc                             = (destructor)DelayCf64Obj_dealloc,
   .tp_flags                               = Py_TPFLAGS_DEFAULT,
-  .tp_doc = "Create a dual-buffer circular delay line of length num_taps. The "
-            "internal capacity is rounded up to the next power of two so that "
-            "modular indexing reduces to a single bitwise AND.  Any window of "
-            "num_taps consecutive samples is always contiguous in the backing "
-            "store; no wrap-around copy is ever needed.\n",
+  .tp_doc
+  = "Create a dual-buffer circular delay line of length num_taps. The\n"
+    "internal capacity is rounded up to the next power of two so that "
+    "modular\n"
+    "indexing reduces to a single bitwise AND. Any window of num_taps\n"
+    "consecutive samples is always contiguous in the backing store; no\n"
+    "wrap-around copy is ever needed.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "num_taps : int, default 1\n"
+    "    Number of delay taps (window length, >= 1). Internally rounded up "
+    "to\n"
+    "    the next power of two.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.delay import DelayCf64\n"
+    ">>> d = DelayCf64(num_taps=3)\n"
+    ">>> d.num_taps\n"
+    "3\n"
+    ">>> d.capacity   # next power-of-two >= 3\n"
+    "4\n",
   .tp_methods = DelayCf64Obj_methods,
   .tp_getset  = DelayCf64_getset,
   .tp_new     = DelayCf64Obj_new,

@@ -174,9 +174,9 @@ _attach_symbols (wfm_source_t *src, PyObject *obj)
   return 1;
 }
 
-/* Coerce a 0/1 pattern (bytes | binary/hex str | int sequence) into an owned
- * *dst/*n_dst (one shared coercer; each bytes field passes its own struct
- * destination). */
+/* Coerce a 0/1 pattern (bytes | binary/hex str | int sequence)
+ * into an owned *dst and *n_dst (one shared coercer; each bytes field
+ * passes its own struct destination). */
 static int
 _attach_bytes (uint8_t **dst, size_t *n_dst, PyObject *obj)
 {

@@ -1074,11 +1074,18 @@ static PyTypeObject BerMeterObjType = {
             "conf : float, default 0.99\n"
             "    Two-sided confidence level; 0 selects 0.99.\n"
             "\n"
+            "Raises\n"
+            "------\n"
+            "ValueError\n"
+            "    If construction fails. The exception message is ``m must be "
+            "2, 4 or 8\n"
+            "    and conf must lie in (0, 1)``.\n"
+            "\n"
             "Examples\n"
             "--------\n"
             "Create with defaults:\n"
             "\n"
-            ">>> from doppler import BerMeter\n"
+            ">>> from doppler.ber import BerMeter\n"
             ">>> obj = BerMeter(m=4, target_errors=200, conf=0.99)\n",
   .tp_methods = BerMeterObj_methods,
   .tp_getset  = BerMeter_getset,

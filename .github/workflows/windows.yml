@@ -91,7 +91,21 @@ jobs:
             -DCMAKE_C_COMPILER=clang \
             -DBUILD_PYTHON=OFF
 
-      - name: Build
+      # Split into three steps so the result says WHICH claim holds, rather
+      # than one opaque red. The library is the substantive one: it is every
+      # component core, and it is what a Windows consumer would link.
+      - name: Build the C library
+        shell: bash
+        run: cmake --build build --parallel --target doppler_lib doppler_lib_static
+
+      # Benchmarks are expected to fail until just-buildit/just-makeit#1341:
+      # `jm_bench.h` has no portable monotonic timer, so each of the 106
+      # generated benchmarks calls clock_gettime(CLOCK_MONOTONIC) in its own
+      # main(). That is one fix upstream, and patching the vendored header
+      # here would be a private copy of it -- the shape doppler has already
+      # lost edits to twice on re-vendor.
+      - name: Build everything else (tests, benchmarks)
+        if: always()
         shell: bash
         run: cmake --build build --parallel
 
@@ -112,5 +126,6 @@ jobs:
           fi
 
       - name: C suite
+        if: always()
         shell: bash
         run: ctest --test-dir build --output-on-failure

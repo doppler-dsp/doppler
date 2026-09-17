@@ -68,14 +68,10 @@ name = "closed"
 type = "bool"
 expr = "dp_f32_closed(self->handle)"
 
-# The destructor, named rather than derived.
+# The destructor is DERIVED, not named.
 #
-# just-makeit#1323 made `create_fn` derive its counterpart, so
-# `dp_f32_create` should imply `dp_f32_destroy` with nothing written here.
-# Measured on v0.76.0: the derivation does not fire through `jm apply` (the
-# resolver is correct in isolation; something upstream of it drops
-# `create_fn`) -- just-makeit#1326. The EXPLICIT key does work, on all three
-# teardown paths, so it is what retires the hand-written forwarder that used
-# to live in the shim. Delete this table when #1326 lands.
-[f32_buffer.destroy]
-fn = "dp_f32_destroy"
+# just-makeit#1323 makes `create_fn` imply its counterpart, so
+# `dp_f32_create` gives `dp_f32_destroy` with nothing written here. The
+# explicit `[f32_buffer.destroy] fn` table that stood here on v0.76.0 is gone:
+# #1326 (the derivation not reaching the render through `jm apply`) landed in
+# v0.76.1, which is what this pins.

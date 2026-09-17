@@ -36,6 +36,7 @@ def record(
     tone_power: float = -20.0,
     noise_floor: float = -90.0,
     warmup: int = 5,
+    seed: int = 0,
 ) -> list[dict]:
     """
     Run the DSP pipeline and return *n_frames* spectrum frames.
@@ -58,6 +59,17 @@ def record(
         Noise floor in dBm.
     warmup : int
         Frames to discard before recording (default: 5).
+    seed : int
+        Seed for the source's AWGN (default: 0). The recorded frames are
+        committed and diffed, so the recording must be REPRODUCIBLE: with a
+        fixed seed, re-recording an unchanged pipeline writes an identical
+        file, and `specan-check` going red therefore means the frames no
+        longer match the code rather than merely that somebody re-ran the
+        command. Unseeded, every run differed in all 120 frames and the gate
+        could not tell those two cases apart (doppler#1367). The LIVE
+        analyzer still runs `DemoSource` unseeded -- fresh noise is what
+        makes it look like an analyzer.
+
     Returns
     -------
     list of dict
@@ -93,6 +105,7 @@ def record(
         tone_freq=tone_freq,
         tone_power=tone_power,
         noise_floor=noise_floor,
+        seed=seed,
     )
     engine = SpecanEngine(cfg)
 
@@ -159,6 +172,12 @@ def main() -> None:
         default=5,
         help="frames to discard before recording (default: 5)",
     )
+    ap.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="AWGN seed; fixed so the recording is reproducible (default: 0)",
+    )
     args = ap.parse_args()
 
     print("Recording demo frames...", file=sys.stderr)
@@ -171,6 +190,7 @@ def main() -> None:
         tone_power=args.tone_power,
         noise_floor=args.noise_floor,
         warmup=args.warmup,
+        seed=args.seed,
     )
     print(
         f"Captured {len(frames)} frames, "
@@ -179,7 +199,11 @@ def main() -> None:
         file=sys.stderr,
     )
 
-    blob = json.dumps(frames, separators=(",", ":"))
+    # Trailing newline: without it `end-of-file-fixer` rewrites the file and
+    # BLOCKS the first commit after every re-record. The committed file has
+    # always had the newline -- the hook was the one putting it there, so the
+    # generator and the repo disagreed by one byte permanently (doppler#1367).
+    blob = json.dumps(frames, separators=(",", ":")) + "\n"
 
     if args.output:
         Path(args.output).write_text(blob)

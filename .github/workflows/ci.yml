@@ -535,24 +535,6 @@ jobs:
       run: make ccache-stats
 
   # ------------------------------------------------------------------
-  # Specan demo frames staleness check
-  # ------------------------------------------------------------------
-  specan-demo:
-    name: Specan demo frames
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-
-    steps:
-    - uses: actions/checkout@v7
-      with:
-        fetch-depth: 0
-
-    - name: Check frames kept in sync with specan source
-      run: |
-        make specan-check \
-          SPECAN_BASE="${{ github.event.pull_request.base.sha || 'HEAD^' }}"
-
-  # ------------------------------------------------------------------
   # Documentation build (zensical)
   # ------------------------------------------------------------------
   docs:
@@ -926,7 +908,6 @@ jobs:
       - python
       - glibc-228
       - doxygen
-      - specan-demo
       - sweep-validators
       - docs
       - docker

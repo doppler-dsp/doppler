@@ -569,7 +569,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 abi-check link-check installed-headers-check \
                 test-asan test-ubsan test-tsan \
                 consumer-faces-check burst-pipeline-check glibc-gate \
-                specan-check check-isotime-parity coverage coverage-gate \
+                check-isotime-parity coverage coverage-gate \
                 docker-examples ci-image-repin-check
 
 # ── Build ────────────────────────────────────────────────────────────────────
@@ -1240,7 +1240,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 check-docstring-coverage \
                 abi-check link-check consumer-faces-check \
                 burst-pipeline-check \
-                glibc-check glibc-gate glibc-image specan-check \
+                glibc-check glibc-gate glibc-image \
                 check-isotime-parity \
                 tests-ssot validation-report-check \
                 lint-alloc-helpers-baseline \
@@ -3369,28 +3369,25 @@ instrumented-sweep-check: ## Fail when an instrumented ctest leg runs the sweep 
 design-pages-check: ## Fail when a design page narrates its own construction
 	@$(UV) run python scripts/check_design_pages.py
 
-# The recorded specan demo frames are a projection of the specan source, so a
-# change to one without the other ships a demo that no longer matches the code.
-SPECAN_BASE ?= HEAD^
-# The frames are a projection of the C core as much as of the Python app, and
-# this watched only the Python. So `native/src/specan/` could change the very
-# numbers in frames.json with the gate reporting `specan=0` — which is exactly
-# what happened: the committed frames were recorded at 1601 display bins and
-# the code now produces 801, a drift nothing reported because the divergence
-# arrived through the C side. A gate that watches half its input is a gate you
-# believe when it says OK.
-SPECAN_SRC_PATHS = src/specan/doppler_specan/ native/src/specan/ \
-                   native/inc/specan/
-specan-check: ## Fail if specan changed without re-recording its demo frames
-	@s=$$(git diff --name-only "$(SPECAN_BASE)"...HEAD -- $(SPECAN_SRC_PATHS) | wc -l); \
-	 f=$$(git diff --name-only "$(SPECAN_BASE)"...HEAD -- docs/specan/frames.json | wc -l); \
-	 if [ "$$s" -gt 0 ] && [ "$$f" -eq 0 ]; then \
-	     echo "specan-check: specan source changed but"; \
-	     echo "  docs/specan/frames.json was not — run 'make record-demo'"; \
-	     echo "  watched: $(SPECAN_SRC_PATHS)"; \
-	     exit 1; \
-	 fi; \
-	 echo "specan-check: OK (specan=$$s frames=$$f)"
+# The recorded specan demo frames used to be gated by `specan-check`, which
+# asked whether `docs/specan/frames.json` moved whenever anything under the
+# specan source did. That question is a proxy for the one that matters -- are
+# the committed frames what the analyzer produces? -- and it could not answer
+# it, because the recorder was unseeded: any re-record satisfied the gate, so
+# a behaviour-neutral edit passed only by committing a noise diff (#1195).
+#
+# `record_demo` is seeded now, which also made the old gate UNSATISFIABLE: a
+# faithful re-record of an inert change produces identical bytes, so there is
+# no diff for it to find and no action that clears it
+# ([[feedback-a-check-that-cannot-succeed]]).
+#
+# The real check lives where a build already exists --
+# `src/doppler/specan/tests/test_recorded_demo_frames.py` re-records 120
+# frames in 0.25 s and compares them to the committed file: geometry exactly,
+# levels within 0.2 dB (the C FFT's SIMD tier varies by arch and the frames
+# round to 0.1 dB). No watched-path list to keep in sync, which is what the
+# old gate got wrong once already -- it watched only the Python while the
+# 1601-vs-801 bin drift arrived through the C side.
 
 # dp_isotime.h follows just-bashit's `iso-8601-basic`; it does not define it.
 # test_dp_isotime.c pins a snapshot of that helper's output, and a snapshot

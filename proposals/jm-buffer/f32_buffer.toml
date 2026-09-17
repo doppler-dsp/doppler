@@ -1,0 +1,77 @@
+[f32_buffer]
+arg_type = "void"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+no_reset = "true"
+opaque_state = "true"
+header_only = "true"
+class_name = "F32Buffer"
+create_fn = "dp_f32_create"
+
+[[f32_buffer.init_params]]
+name = "n_samples"
+type = "size_t"
+default = "0"
+
+[[f32_buffer.methods]]
+name = "write"
+arg_type = "float _Complex[]"
+return_type = "bool"
+fn = "dp_f32_write_view"
+
+[[f32_buffer.methods]]
+name = "wait"
+arg_type = "void"
+return_type = "float _Complex"
+fn = "dp_f32_wait_view"
+borrow = true
+
+[[f32_buffer.methods.params]]
+name = "n"
+type = "size_t"
+
+[[f32_buffer.methods]]
+name = "consume"
+arg_type = "void"
+return_type = "void"
+fn = "dp_f32_consume"
+
+[[f32_buffer.methods.params]]
+name = "n"
+type = "size_t"
+
+[[f32_buffer.methods]]
+name = "close"
+arg_type = "void"
+return_type = "void"
+fn = "dp_f32_close"
+
+[[f32_buffer.properties]]
+name = "capacity"
+type = "size_t"
+expr = "self->handle->capacity"
+
+[[f32_buffer.properties]]
+name = "available"
+type = "size_t"
+expr = "dp_f32_available(self->handle)"
+
+[[f32_buffer.properties]]
+name = "dropped"
+type = "size_t"
+expr = "self->handle->dropped"
+
+[[f32_buffer.properties]]
+name = "closed"
+type = "bool"
+expr = "dp_f32_closed(self->handle)"
+
+# The destructor is DERIVED, not named.
+#
+# just-makeit#1323 makes `create_fn` imply its counterpart, so
+# `dp_f32_create` gives `dp_f32_destroy` with nothing written here. The
+# explicit `[f32_buffer.destroy] fn` table that stood here on v0.76.0 is gone:
+# #1326 (the derivation not reaching the render through `jm apply`) landed in
+# v0.76.1, which is what this pins.

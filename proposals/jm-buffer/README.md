@@ -1,0 +1,278 @@
+# Proposal: make the ring buffer jm-owned
+
+**Nothing here is wired into the build.** This directory is a declaration, the
+glue jm generates from it, and a script that reproduces that glue — so the
+binding can be diffed against the hand-written one before anything is deleted.
+
+## Why
+
+`native/src/buffer/buffer_ext.c` (930 lines) and
+`src/doppler/buffer/buffer.pyi` (936 lines) are hand-written because the ring
+could not be declared: jm had no way to express a component whose C is
+header-only, nor a method that lends a pointer into memory the component owns.
+It now does.
+
+The cost of hand-writing shows up as **three faces disagreeing about one
+method**, live on `main` today:
+
+| face                                             | says `I16Buffer.wait` returns           |
+| ------------------------------------------------ | --------------------------------------- |
+| `buffer_ext.c:730`                               | 2-D `(n, 2)` `NPY_INT16`                |
+| `buffer_ext.c:7` (the file's own header comment) | "int16 IQ pairs (**structured array**)" |
+| `buffer.pyi:704`                                 | `NDArray[np.int16]`                     |
+
+Nothing reconciles them, and `jm status --check` cannot see it because the
+module is outside the manifest. Generated glue makes that state unreachable
+rather than merely detectable.
+
+## What maps cleanly
+
+`DECLARE_DP_BUFFER` is a good fit, and the C **does not change**. jm binds the
+symbols the macro already emits, via `fn = "dp_f32_wait"` and friends:
+
+| ring op                           | manifest                                    |
+| --------------------------------- | ------------------------------------------- |
+| `dp_f32_create(size_t n_samples)` | `create_fn` + an `init_param`               |
+| `type *dp_f32_wait(ab, n)`        | a method with `borrow = true`               |
+| `dp_f32_consume(ab, n)`           | an ordinary method                          |
+| `dp_f32_available/closed/close`   | ordinary methods                            |
+| the header-only C, no `.c` file   | `header_only = "true"` → INTERFACE core lib |
+
+`f32_buffer.toml` beside this file is the whole declaration. It **compiles**
+against this repo's real `buffer.h` — see the section below — and calls the
+real symbols:
+
+```c
+self->handle    = dp_f32_create(n_samples);
+int y           = dp_f32_write_cf(self->handle, x, x_len);
+float _Complex *_p = dp_f32_wait_cf(self->handle, n);
+dp_f32_consume(self->handle, n);
+return PyLong_FromUnsignedLongLong(...(self->handle->capacity));
+```
+
+## It compiles, links, and the check runs itself
+
+The first version of this proposal said *"verified — the generated binding
+calls the real functions"*. It did call them, and that was verified by
+**reading**. Compiling it found four defects reading could not.
+
+The probe that found them then had the same problem one level down: it lived
+in this README as a command naming `shim.h` and `frag.c`, **neither of which
+is in the tree**, so it could not be run — and `regenerate.sh` could not
+reproduce `generated/` either (`jm new` does not create `objects/`, and the
+object was never registered with the module, so `apply` generated nothing and
+said nothing about why). A claim nothing runs is prose, which is this repo's
+own tier-1 shape.
+
+So the probe now runs as part of regeneration, against the files as they
+actually exist:
+
+```sh
+./regenerate.sh          # regenerate, then compile AND link the result
+# probe: compiles and links clean
+```
+
+Compile catches a signature mismatch or an undeclared callee; link catches a
+symbol that is declared and never defined. Both run, because they see
+different defects.
+
+What it caught:
+
+|                                         |                                                                                    |
+| --------------------------------------- | ---------------------------------------------------------------------------------- |
+| `float _Complex *_p = dp_f32_wait(...)` | `wait` returns `type *` = `float *`. Hard error.                                   |
+| `dp_f32_write(ab, x, n)`                | same mismatch on argument 2 — **`write` needs the sibling too**                    |
+| `f32_buffer_reset()`                    | jm generated a `reset()` for a symbol the ring has no equivalent of → `--no-reset` |
+| `state->capacity` in a property         | jm splices `expr` into a getter whose variable is `self->handle`, not `state`      |
+| `f32_buffer_destroy()`                  | **an undeclared destroyer** — see below; it was being `#define`d away              |
+
+## The destructor: a manifest key now, not a hand-written forwarder
+
+The first version of this proposal named the ring's constructor
+(`create_fn = "dp_f32_create"`) and got a destructor jm chose on its own:
+
+```c
+self->handle = dp_f32_create (n_samples);   /* mmaps a mirrored region */
+...
+f32_buffer_destroy (self->handle);          /* nothing defines this */
+```
+
+`create_fn` named the C jm calls to construct, and nothing named its
+counterpart. An earlier probe hid it behind `#define f32_buffer_destroy dp_f32_destroy` — a workaround in the **harness**, so the compile passed
+while the declaration stayed asymmetric. Filed as
+just-buildit/just-makeit#1323, fixed in **v0.76.0**, and the forwarder that
+replaced the `#define` is now gone too:
+
+```toml
+[f32_buffer.destroy]
+fn = "dp_f32_destroy"
+```
+
+All three teardown paths — `tp_dealloc`, `.destroy()`/`.close()` and
+`__exit__` — call the ring's own destructor, verified in the committed
+artifact. The hand-owned header is back to the view macro and nothing else.
+
+**It should not need even that.** gh-1323 makes `create_fn` *derive* its
+counterpart, so `dp_f32_create` implies `dp_f32_destroy` with no table at
+all. Measured on v0.76.0 from two clean projects, one `jm apply` each: the
+derivation does not fire through `apply` — the resolver is correct in
+isolation (`c_fn("f32_buffer", {}, "dp_f32_create")` → `dp_f32_destroy`) but
+something upstream of it drops `create_fn`. Filed as
+just-buildit/just-makeit#1326; delete the table when it lands.
+
+*(Worth recording how that was nearly mis-diagnosed: applying once with the
+explicit key, then removing it and re-applying, leaves the old name in the
+fragment — `jm apply` reconciles a sacred fragment member by member and never
+re-renders a wrapper body. Reading that stale text suggested a split between
+`tp_dealloc` and the other paths that does not exist. Measure a codegen
+change on a FRESH project, not one mutated in place.)*
+
+## The siblings: ONE decision, all three instances
+
+The ring stores **scalars** (`type *data`) while a jm borrow declares the
+**element** the Python view has. So the mismatch is not about integer IQ at
+all — `f32` and `f64` need the identical pair for the identical reason, and
+`i16` is only the instance whose element type is unfamiliar.
+
+Because it is the same decision three times, it is a **macro beside
+`DECLARE_DP_BUFFER`**, not three hand-written pairs:
+
+```c
+#define DECLARE_DP_BUFFER_VIEW(name, type, elem)                            \
+  DP_ASSERT_2X (name, elem, type);                                          \
+  static inline elem *dp_##name##_wait_view (dp_##name##_t *ab, size_t n)   \
+  { return (elem *)dp_##name##_wait (ab, n); }                              \
+  static inline bool dp_##name##_write_view (dp_##name##_t *ab,             \
+                                             const elem *src, size_t n)     \
+  { return dp_##name##_write (ab, (const type *)src, n); }
+
+DECLARE_DP_BUFFER_VIEW (f32, float,   float _Complex)
+DECLARE_DP_BUFFER_VIEW (f64, double,  double _Complex)
+DECLARE_DP_BUFFER_VIEW (i16, int16_t, dp_iq16_t)
+```
+
+Three copies of a cast would be three places for the element type, the count
+convention or the constness to drift — and **drift between instances of one
+ring is the defect this proposal exists to end**. doppler#1346 is exactly
+that, and it was caught late because nothing compared the three.
+
+Both are **pure casts with no factor change**: `n` is already in complex
+samples, because `wait` returns `&data[(t & ab->mask) * 2]` — the `* 2` is
+already inside the ring. *(An earlier draft claimed the i16 sibling needed
+`2 * n`. It does not; that factor was invented, and compiling settled it.)*
+
+`DP_ASSERT_2X` pins `sizeof(elem) == 2 * sizeof(type)` at compile time, per
+instance, guarded exactly like `buffer.h`'s own `DP_ASSERT_PWR2` — doppler is
+`CMAKE_C_STANDARD 99`, so the typedef fallback rather than `_Static_assert`
+is the branch the real build takes. Proven by sabotage: declare `f64`'s
+element as `double` and the build stops with *"view element must span two
+stored scalars"*.
+
+The suffix is `_view`, not `_cf`: f32 and f64 hand back complex float and
+complex double, but the i16 element is a two-field **record**, so a name
+saying "complex float" would be wrong on the instance that needs it most.
+
+The probe names all six functions. They are `static inline`, so an unused one
+is never type-checked — without that, "all three instances" would be a claim
+compiled on `f32` alone.
+
+That reframing is the point: the sibling stops looking like a workaround for
+integer IQ and becomes **the ring's actual borrow surface**, stamped once per
+instance from one body.
+
+## What is still a decision — the i16 element type
+
+With the siblings in place, `dp_i16_wait_iq` can return either shape, and this
+is the substantive choice:
+
+- **a structured array** `[('i','<i2'),('q','<i2')]` — 1-D, one element per
+    sample, byte order stated. What `buffer_ext.c`'s own header comment already
+    claims, and what
+    [just-makeit#1310](https://github.com/just-buildit/just-makeit/issues/1310)
+    chose after measuring all four zero-copy spellings.
+- **today's 2-D `(n, 2)` int16** — also zero-copy, also one row per sample, but
+    not what the comment promises and a different API from `F32Buffer`'s.
+
+The measurement that rejected the third candidate is worth keeping either way:
+packed `int32` is *also* 1-D and one element per sample, and
+
+```
+d + 1   ->   [1, 1, 3, 3, 5, 5, 7, 7]
+```
+
+increments **I only**, silently, because int32 addition carries across the I/Q
+boundary. The structured form raises instead.
+
+## The surface is now like-for-like
+
+An earlier draft declared five methods and compared them to a strictly larger
+hand-written API, which made the headline ratio dishonest. Declared now:
+
+|            |                                              |
+| ---------- | -------------------------------------------- |
+| methods    | `write`, `wait`, `consume`, `close`          |
+| properties | `capacity`, `available`, `dropped`, `closed` |
+
+`available` and `closed` stay **properties**, so `buf.available` does not
+silently become `buf.available()` for existing callers. `destroy` is jm's own
+lifecycle (`tp_dealloc` plus an explicit `destroy()`), so it is not declared.
+
+**69 declared lines** produce **341** of binding and **98** of `.pyi`.
+
+## Where just-makeit stands
+
+`pyproject.toml` pins `just-makeit==0.75.5`. Everything this needs landed
+after it, and **v0.76.0 is tagged** — so the blocker is a pin bump, not a
+missing feature:
+
+|                                            |                                                |
+| ------------------------------------------ | ---------------------------------------------- |
+| `header_only`                              | gh-1311, released in v0.76.0                   |
+| `borrow`                                   | gh-1312, released                              |
+| borrowed `record_dtype`                    | gh-1310 decision B, via gh-1317, released      |
+| a method on a `header_only` component      | gh-1321 / PR #1322 — **the blocker**, released |
+| destructor pairs with the declared creator | gh-1323, released                              |
+
+`generated/` is built from **v0.76.0** (see `generated/JM-REF`).
+
+Two open, neither blocking:
+
+- **gh-1326** — `create_fn`'s derived destructor does not fire through
+    `apply`. Worked around by the explicit `[f32_buffer.destroy]` table above.
+- **gh-1319** — a `record_dtype` scaffold does not build, because jm names a
+    struct it never defines or mentions. Hand-write the typedef; it is the i16
+    instance's problem, and i16 is not declared yet.
+
+So adoption is now: bump doppler's pin to 0.76.0, move `f32_buffer.toml` into
+`objects/`, add the f64 and i16 siblings, delete the hand-written binding.
+
+## Suggested order
+
+1. Review the declaration and the generated glue here against
+    `native/src/buffer/buffer_ext.c`.
+1. Decide the i16 question above.
+1. When jm ships, bump the pin, move `f32_buffer.toml` into `objects/`, add the
+    f64 and i16 siblings, and run `just-makeit apply`.
+1. Delete the hand-written binding and `.pyi` only once the generated faces are
+    confirmed equivalent — `jm status --check` then guards them.
+
+## Reproducing
+
+```sh
+./regenerate.sh
+diff -u ../../native/src/buffer/buffer_ext.c generated/buffer_ext_f32_buffer.c
+```
+
+The committed copy is in **this repo's GNU style**, not jm's. The script does
+not run a formatter itself — the Makefile is the SSOT for how tools run here,
+and the style already has two homes that agree: jm's `c_format_command` on
+`apply`, and this repo's pre-commit hook on commit. So regenerate, then commit,
+and the hook normalises it:
+
+```sh
+./regenerate.sh && git add -A && git commit
+```
+
+Skip that and the fresh output differs from the committed copy by ~500 lines of
+pure style, because jm emits its own brace and spacing conventions — which is
+itself worth seeing once, and is why adoption should set `c_format_command`.

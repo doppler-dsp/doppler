@@ -11,11 +11,10 @@
 
 
 * `#include "clib_common.h"`
-* `#include <pthread.h>`
+* `#include "dp_thread.h"`
 * `#include <stdatomic.h>`
 * `#include <stddef.h>`
 * `#include <stdlib.h>`
-* `#include <unistd.h>`
 
 
 
@@ -59,6 +58,12 @@
 
 
 
+## Public Functions
+
+| Type | Name |
+| ---: | :--- |
+|   | [**DP\_THREAD\_FN**](#function-dp_thread_fn) (dp\_pf\_worker, arg) <br> |
+|   | [**DP\_THREAD\_FN**](#function-dp_thread_fn) (dp\_pool\_worker, arg) <br> |
 
 
 ## Public Static Functions
@@ -66,12 +71,10 @@
 | Type | Name |
 | ---: | :--- |
 |  void | [**dp\_parallel\_for**](#function-dp_parallel_for) (size\_t n, void(\*)(size\_t, void \*) body, void \* ctx, int max\_threads) <br> |
-|  void \* | [**dp\_pf\_worker**](#function-dp_pf_worker) (void \* arg) <br> |
 |  [**dp\_pool\_t**](structdp__pool__t.md) \* | [**dp\_pool\_create**](#function-dp_pool_create) (int max\_threads) <br> |
 |  void | [**dp\_pool\_destroy**](#function-dp_pool_destroy) ([**dp\_pool\_t**](structdp__pool__t.md) \* p) <br> |
 |  void | [**dp\_pool\_run**](#function-dp_pool_run) ([**dp\_pool\_t**](structdp__pool__t.md) \* p, size\_t n, void(\*)(size\_t, void \*) body, void \* ctx) <br> |
 |  int | [**dp\_pool\_threads**](#function-dp_pool_threads) (const [**dp\_pool\_t**](structdp__pool__t.md) \* p) <br> |
-|  void \* | [**dp\_pool\_worker**](#function-dp_pool_worker) (void \* arg) <br> |
 
 
 
@@ -98,6 +101,40 @@
 
 
 
+## Public Functions Documentation
+
+
+
+
+### function DP\_THREAD\_FN 
+
+```C++
+DP_THREAD_FN (
+    dp_pf_worker,
+    arg
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function DP\_THREAD\_FN 
+
+```C++
+DP_THREAD_FN (
+    dp_pool_worker,
+    arg
+) 
+```
+
+
+
+
+<hr>
 ## Public Static Functions Documentation
 
 
@@ -111,21 +148,6 @@ static inline void dp_parallel_for (
     void(*)(size_t, void *) body,
     void * ctx,
     int max_threads
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dp\_pf\_worker 
-
-```C++
-static void * dp_pf_worker (
-    void * arg
 ) 
 ```
 
@@ -189,21 +211,6 @@ static inline void dp_pool_run (
 ```C++
 static inline int dp_pool_threads (
     const dp_pool_t * p
-) 
-```
-
-
-
-
-<hr>
-
-
-
-### function dp\_pool\_worker 
-
-```C++
-static void * dp_pool_worker (
-    void * arg
 ) 
 ```
 

@@ -22,7 +22,7 @@
  *
  * Portability: POSIX threads on the two supported platforms (linux, macos).
  * Every path to *not* running parallel — a single online core, n <= 1, a
- * forced-serial caller, or a malloc/pthread_create failure — degrades to
+ * forced-serial caller, or a malloc/thread-create failure — degrades to
  * running the whole range on the calling thread, so the function always does
  * all the work. Header-only (static) so the sole caller pulls it in with no
  * separate translation unit; link Threads::Threads on that target.
@@ -31,11 +31,10 @@
 #define DP_PARALLEL_H
 
 #include "clib_common.h" /* dp_xmalloc / dp_xcalloc */
-#include <pthread.h>
+#include "dp_thread.h"
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <unistd.h>
 
 typedef struct
 {
@@ -48,14 +47,13 @@ typedef struct
 /* A worker drains indices off the shared cursor until the range is exhausted.
  * fetch-add is the whole synchronization story: each index is handed to
  * exactly one worker, so there is no contention on the outputs. */
-static void *
-dp_pf_worker (void *arg)
+DP_THREAD_FN (dp_pf_worker, arg)
 {
   dp_pf_shared_t *s = (dp_pf_shared_t *)arg;
   size_t          i;
   while ((i = atomic_fetch_add (&s->next, (size_t)1)) < s->n)
     s->body (i, s->ctx);
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 /* Run body(i, ctx) for every i in [0, n) across up to max_threads workers.
@@ -74,7 +72,7 @@ dp_parallel_for (size_t n, void (*body) (size_t, void *), void *ctx,
   int nt = max_threads;
   if (nt <= 0)
     {
-      long online = sysconf (_SC_NPROCESSORS_ONLN);
+      long online = dp_cpu_count ();
       nt          = (online > 1) ? (int)online : 1;
     }
   if ((size_t)nt > n)
@@ -94,14 +92,14 @@ dp_parallel_for (size_t n, void (*body) (size_t, void *), void *ctx,
   atomic_init (&s.next, (size_t)0);
 
   /* Spawn nt-1 helpers; the caller is the nt-th worker. A malloc or
-   * pthread_create failure just leaves fewer (or zero) helpers — the caller's
+   * A thread-create failure just leaves fewer (or zero) helpers — the caller's
    * own dp_pf_worker() below still drains everything left on the cursor. */
-  pthread_t *th      = (pthread_t *)malloc ((size_t)(nt - 1) * sizeof *th);
+  dp_thread_t *th      = (dp_thread_t *)malloc ((size_t)(nt - 1) * sizeof *th);
   int        spawned = 0;
   if (th)
     for (int t = 0; t < nt - 1; t++)
       {
-        if (pthread_create (&th[t], NULL, dp_pf_worker, &s) != 0)
+        if (dp_thread_create (&th[t], dp_pf_worker, &s) != 0)
           break;
         spawned++;
       }
@@ -109,7 +107,7 @@ dp_parallel_for (size_t n, void (*body) (size_t, void *), void *ctx,
   dp_pf_worker (&s); /* the caller drains alongside the helpers */
 
   for (int t = 0; t < spawned; t++)
-    pthread_join (th[t], NULL);
+    dp_thread_join (th[t]);
   free (th);
 }
 
@@ -134,10 +132,10 @@ dp_parallel_for (size_t n, void (*body) (size_t, void *), void *ctx,
  * pool (dp_pool_threads() says how big), never a broken one. */
 typedef struct
 {
-  pthread_mutex_t mu;
-  pthread_cond_t  wake; /* helpers wait here between runs           */
-  pthread_cond_t  done; /* the caller waits here for the run's end  */
-  pthread_t      *th;
+  dp_mutex_t mu;
+  dp_cond_t  wake; /* helpers wait here between runs           */
+  dp_cond_t  done; /* the caller waits here for the run's end  */
+  dp_thread_t      *th;
   int             helpers; /* helper threads actually running        */
   int             stop;
   unsigned long   gen;  /* bumped per run; helpers wake on a change */
@@ -145,28 +143,27 @@ typedef struct
   dp_pf_shared_t  work;
 } dp_pool_t;
 
-static void *
-dp_pool_worker (void *arg)
+DP_THREAD_FN (dp_pool_worker, arg)
 {
   dp_pool_t    *p   = (dp_pool_t *)arg;
   unsigned long seen = 0;
   for (;;)
     {
-      pthread_mutex_lock (&p->mu);
+      dp_mutex_lock (&p->mu);
       while (!p->stop && p->gen == seen)
-        pthread_cond_wait (&p->wake, &p->mu);
+        dp_cond_wait (&p->wake, &p->mu);
       if (p->stop)
         {
-          pthread_mutex_unlock (&p->mu);
-          return NULL;
+          dp_mutex_unlock (&p->mu);
+          DP_THREAD_RETURN;
         }
       seen = p->gen;
-      pthread_mutex_unlock (&p->mu);
+      dp_mutex_unlock (&p->mu);
       dp_pf_worker (&p->work); /* drain the cursor alongside the caller */
-      pthread_mutex_lock (&p->mu);
+      dp_mutex_lock (&p->mu);
       if (--p->busy == 0)
-        pthread_cond_signal (&p->done);
-      pthread_mutex_unlock (&p->mu);
+        dp_cond_signal (&p->done);
+      dp_mutex_unlock (&p->mu);
     }
 }
 
@@ -179,21 +176,21 @@ dp_pool_create (int max_threads)
   int nt = max_threads;
   if (nt <= 0)
     {
-      long online = sysconf (_SC_NPROCESSORS_ONLN);
+      long online = dp_cpu_count ();
       nt          = (online > 1) ? (int)online : 1;
     }
   /* Fixed sizes from a validated count: abort-on-OOM, no unwind path. */
   dp_pool_t *p = (dp_pool_t *)dp_xcalloc (1, sizeof *p);
-  pthread_mutex_init (&p->mu, NULL);
-  pthread_cond_init (&p->wake, NULL);
-  pthread_cond_init (&p->done, NULL);
+  dp_mutex_init (&p->mu);
+  dp_cond_init (&p->wake);
+  dp_cond_init (&p->done);
   atomic_init (&p->work.next, (size_t)0);
   if (nt > 1)
     {
-      p->th = (pthread_t *)dp_xmalloc ((size_t)(nt - 1) * sizeof *p->th);
+      p->th = (dp_thread_t *)dp_xmalloc ((size_t)(nt - 1) * sizeof *p->th);
       for (int t = 0; t < nt - 1; t++)
         {
-          if (pthread_create (&p->th[t], NULL, dp_pool_worker, p) != 0)
+          if (dp_thread_create (&p->th[t], dp_pool_worker, p) != 0)
             break;
           p->helpers++;
         }
@@ -222,20 +219,20 @@ dp_pool_run (dp_pool_t *p, size_t n, void (*body) (size_t, void *),
         body (i, ctx);
       return;
     }
-  pthread_mutex_lock (&p->mu);
+  dp_mutex_lock (&p->mu);
   p->work.n    = n;
   p->work.body = body;
   p->work.ctx  = ctx;
   atomic_store (&p->work.next, (size_t)0);
   p->busy = p->helpers;
   p->gen++;
-  pthread_cond_broadcast (&p->wake);
-  pthread_mutex_unlock (&p->mu);
+  dp_cond_broadcast (&p->wake);
+  dp_mutex_unlock (&p->mu);
   dp_pf_worker (&p->work); /* the caller drains alongside the helpers */
-  pthread_mutex_lock (&p->mu);
+  dp_mutex_lock (&p->mu);
   while (p->busy > 0)
-    pthread_cond_wait (&p->done, &p->mu);
-  pthread_mutex_unlock (&p->mu);
+    dp_cond_wait (&p->done, &p->mu);
+  dp_mutex_unlock (&p->mu);
 }
 
 /* Stop and join the helpers, free the pool. NULL is a no-op. */
@@ -244,16 +241,16 @@ dp_pool_destroy (dp_pool_t *p)
 {
   if (!p)
     return;
-  pthread_mutex_lock (&p->mu);
+  dp_mutex_lock (&p->mu);
   p->stop = 1;
-  pthread_cond_broadcast (&p->wake);
-  pthread_mutex_unlock (&p->mu);
+  dp_cond_broadcast (&p->wake);
+  dp_mutex_unlock (&p->mu);
   for (int t = 0; t < p->helpers; t++)
-    pthread_join (p->th[t], NULL);
+    dp_thread_join (p->th[t]);
   free (p->th);
-  pthread_cond_destroy (&p->done);
-  pthread_cond_destroy (&p->wake);
-  pthread_mutex_destroy (&p->mu);
+  dp_cond_destroy (&p->done);
+  dp_cond_destroy (&p->wake);
+  dp_mutex_destroy (&p->mu);
   free (p);
 }
 

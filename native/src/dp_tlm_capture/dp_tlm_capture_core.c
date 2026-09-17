@@ -14,7 +14,7 @@
  */
 #include "dp_tlm_capture/dp_tlm_capture_core.h"
 
-#include <pthread.h>
+#include "dp_thread.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,15 +49,15 @@ struct dp_tlm_capture
   size_t        acc_cap;
 
   /* File sink + its writer thread. */
-  FILE           *fp;
-  char           *path;
-  pthread_t       thread;
-  pthread_mutex_t mu;
-  pthread_cond_t  work_cv; /* -> writer: a buffer is pending   */
-  pthread_cond_t  free_cv; /* -> boundary: the writer is idle  */
-  int             pending; /* stage index awaiting write, else -1 */
-  int             quit;
-  int             werr; /* first writer error, sticky */
+  FILE       *fp;
+  char       *path;
+  dp_thread_t thread;
+  dp_mutex_t  mu;
+  dp_cond_t   work_cv; /* -> writer: a buffer is pending   */
+  dp_cond_t   free_cv; /* -> boundary: the writer is idle  */
+  int         pending; /* stage index awaiting write, else -1 */
+  int         quit;
+  int         werr; /* first writer error, sticky */
 
   /* Borrowed, not copied: the pipeline's clock is the SSOT for the time base,
      and it may be corrected by dp_sample_clock_track() after we open.  Read
@@ -110,33 +110,32 @@ sink_write (dp_tlm_capture_t *c, const dp_tlm_rec_t *src, size_t n)
   return fwrite (src, sizeof *src, n, c->fp) == n ? DP_OK : DP_ERR_SEND;
 }
 
-static void *
-writer_thread (void *arg)
+DP_THREAD_FN (writer_thread, arg)
 {
   dp_tlm_capture_t *c = (dp_tlm_capture_t *)arg;
   for (;;)
     {
-      pthread_mutex_lock (&c->mu);
+      dp_mutex_lock (&c->mu);
       while (c->pending < 0 && !c->quit)
-        pthread_cond_wait (&c->work_cv, &c->mu);
+        dp_cond_wait (&c->work_cv, &c->mu);
       if (c->pending < 0)
         { /* quit with nothing outstanding */
-          pthread_mutex_unlock (&c->mu);
-          return NULL;
+          dp_mutex_unlock (&c->mu);
+          DP_THREAD_RETURN;
         }
       int    idx = c->pending;
       size_t n   = c->stage_n[idx];
-      pthread_mutex_unlock (&c->mu);
+      dp_mutex_unlock (&c->mu);
 
       int rc = sink_write (c, c->stage[idx], n);
 
-      pthread_mutex_lock (&c->mu);
+      dp_mutex_lock (&c->mu);
       c->stage_n[idx] = 0;
       c->pending      = -1;
       if (rc != DP_OK && c->werr == DP_OK)
         c->werr = rc;
-      pthread_cond_signal (&c->free_cv);
-      pthread_mutex_unlock (&c->mu);
+      dp_cond_signal (&c->free_cv);
+      dp_mutex_unlock (&c->mu);
     }
 }
 
@@ -159,17 +158,17 @@ swap_stage (dp_tlm_capture_t *c)
       return rc;
     }
 
-  pthread_mutex_lock (&c->mu);
+  dp_mutex_lock (&c->mu);
   while (c->pending >= 0 && c->werr == DP_OK)
-    pthread_cond_wait (&c->free_cv, &c->mu);
+    dp_cond_wait (&c->free_cv, &c->mu);
   int rc = c->werr;
   if (rc == DP_OK)
     {
       c->pending = c->active;
       c->active ^= 1;
-      pthread_cond_signal (&c->work_cv);
+      dp_cond_signal (&c->work_cv);
     }
-  pthread_mutex_unlock (&c->mu);
+  dp_mutex_unlock (&c->mu);
   return rc;
 }
 
@@ -204,10 +203,10 @@ resize_for (dp_tlm_capture_t *c, size_t bound)
          this returns without blocking. */
       if (c->fp)
         {
-          pthread_mutex_lock (&c->mu);
+          dp_mutex_lock (&c->mu);
           while (c->pending >= 0 && c->werr == DP_OK)
-            pthread_cond_wait (&c->free_cv, &c->mu);
-          pthread_mutex_unlock (&c->mu);
+            dp_cond_wait (&c->free_cv, &c->mu);
+          dp_mutex_unlock (&c->mu);
         }
       for (int i = 0; i < 2; i++)
         {
@@ -328,14 +327,14 @@ dp_tlm_capture_open (dp_tlm_t *t, size_t block_samples, const char *path,
       c->fp = fopen (path, "wb");
       if (!c->fp)
         goto fail;
-      pthread_mutex_init (&c->mu, NULL);
-      pthread_cond_init (&c->work_cv, NULL);
-      pthread_cond_init (&c->free_cv, NULL);
+      dp_mutex_init (&c->mu);
+      dp_cond_init (&c->work_cv);
+      dp_cond_init (&c->free_cv);
     }
 
   if (resize_for (c, bound) != DP_OK)
     goto fail_threaded;
-  if (c->fp && pthread_create (&c->thread, NULL, writer_thread, c) != 0)
+  if (c->fp && dp_thread_create (&c->thread, writer_thread, c) != 0)
     goto fail_threaded;
 
   /* Latch the monotonic drop count so `dropped` reports THIS capture. */
@@ -348,9 +347,9 @@ dp_tlm_capture_open (dp_tlm_t *t, size_t block_samples, const char *path,
 fail_threaded:
   if (c->fp)
     {
-      pthread_cond_destroy (&c->free_cv);
-      pthread_cond_destroy (&c->work_cv);
-      pthread_mutex_destroy (&c->mu);
+      dp_cond_destroy (&c->free_cv);
+      dp_cond_destroy (&c->work_cv);
+      dp_mutex_destroy (&c->mu);
     }
 fail:
   if (c->fp)
@@ -434,13 +433,13 @@ dp_tlm_capture_close (dp_tlm_capture_t *c)
       /* Retire the writer, then finish the active buffer on this thread —
          legal because the thread is joined, so there is still exactly one
          consumer of a stage at every instant. */
-      pthread_mutex_lock (&c->mu);
+      dp_mutex_lock (&c->mu);
       while (c->pending >= 0 && c->werr == DP_OK)
-        pthread_cond_wait (&c->free_cv, &c->mu);
+        dp_cond_wait (&c->free_cv, &c->mu);
       c->quit = 1;
-      pthread_cond_signal (&c->work_cv);
-      pthread_mutex_unlock (&c->mu);
-      pthread_join (c->thread, NULL);
+      dp_cond_signal (&c->work_cv);
+      dp_mutex_unlock (&c->mu);
+      dp_thread_join (c->thread);
       if (rc == DP_OK)
         rc = c->werr;
     }
@@ -544,9 +543,9 @@ dp_tlm_capture_destroy (dp_tlm_capture_t *c)
   int rc = c->closed ? c->verdict : dp_tlm_capture_close (c);
   if (c->path)
     {
-      pthread_cond_destroy (&c->free_cv);
-      pthread_cond_destroy (&c->work_cv);
-      pthread_mutex_destroy (&c->mu);
+      dp_cond_destroy (&c->free_cv);
+      dp_cond_destroy (&c->work_cv);
+      dp_mutex_destroy (&c->mu);
     }
   free (c->stage[0]);
   free (c->stage[1]);

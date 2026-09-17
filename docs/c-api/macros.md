@@ -153,6 +153,8 @@
 * **DP\_STATE\_ENDIAN** ([**dp\_state.h**](dp__state_8h.md))
 * **DP\_W\_CHILD** ([**dp\_state.h**](dp__state_8h.md))
 * **DP\_PY\_STATE\_METHODS** ([**dp\_state\_pyhelp.h**](dp__state__pyhelp_8h.md))
+* **DP\_THREAD\_FN** ([**dp\_thread.h**](dp__thread_8h.md))
+* **DP\_THREAD\_RETURN** ([**dp\_thread.h**](dp__thread_8h.md))
 * **DECLARE\_DP\_BUFFER** ([**buffer.h**](buffer_8h.md))
 * **DP\_ALIGN** ([**buffer.h**](buffer_8h.md))
 * **DP\_ASSERT\_PWR2** ([**buffer.h**](buffer_8h.md))

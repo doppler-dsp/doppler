@@ -909,8 +909,19 @@ main (void)
        the borrows on the way back have to cancel the carries out. */
     {
       fill_ctrl (1, 0.4, 0.0, 0.0); /* base 0, pure +-0.4 sine */
+      /* The excursion starts AND ends exactly on the wrap, so whether its
+         last residual lands at +eps or -eps decides a net 0 or -1 -- and
+         that is the accumulator's width, not the NCO. The oracle sums in
+         long double: 80-bit on x86-64 Linux (residual +1.4e-15, net 0), but
+         plain double on MSVC (residual just below 0, net -1). Measured both
+         ways; `want == 0` held only because of the extra 16 bits. So allow
+         the +-1 the device check below already allows, and say what makes it
+         decisive rather than vacuous: the one-way trip crosses hundreds of
+         times, so an implementation that accumulated |events| instead of
+         cancelling them would miss by hundreds, not by one. */
       long want = crossings_oracle (0.0, slew_buf, SLEW_N);
-      DP_CHECK (want == 0); /* the oracle agrees it is a closed excursion */
+      DP_CHECK (labs (want) <= 1); /* the oracle agrees it is closed */
+      DP_CHECK (crossings_oracle (0.0, slew_buf, SLEW_N / 2) > 100);
       DP_CHECK (labs (events_u32 (0.0, slew_buf, SLEW_N)) <= 1);
     }
   }

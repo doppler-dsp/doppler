@@ -86,7 +86,14 @@ main (void)
   dp_interrupt_guard_destroy (g);
 
   /* Arming: two sigaction calls and a malloc, per cycle. */
+#ifdef _WIN32
+  /* No SIGUSR1 in the UCRT. SIGINT is one of the signals dp_interrupt maps
+     onto a console control event there, so this arms the same machinery. */
+  const int32_t one[] = { SIGINT };
+#else
+  /* Unchanged on POSIX, so the published arming numbers stay comparable. */
   const int32_t one[] = { SIGUSR1 };
+#endif
   for (int r = 0; r < ITERATIONS; r++)
     {
       t0 = jm_bench_now_ns ();

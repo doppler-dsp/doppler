@@ -68,6 +68,7 @@ test_two_guards_share_one_flag (void)
   dp_interrupt_guard_destroy (b);
 }
 
+#ifndef _WIN32 /* POSIX signal API: sigaction, SIGUSR1/2, ... */
 static void
 test_guard_arms_and_destroy_restores (void)
 {
@@ -93,6 +94,7 @@ test_guard_arms_and_destroy_restores (void)
                     && after.sa_handler == before.sa_handler,
                 "destroy restores the handler the guard displaced");
 }
+#endif
 
 /* Destroy must NOT clear the flag: a caller that was interrupted still
    needs to see that it was, after the block that noticed has exited. */
@@ -145,6 +147,7 @@ test_guard_saves_and_restores_the_latency (void)
 
 /* A failed create arms NOTHING. Without the unwind, the handlers installed
    before the failing one would be live with no guard able to remove them. */
+#ifndef _WIN32 /* POSIX signal API: sigaction, SIGUSR1/2, ... */
 static void
 test_failed_create_arms_nothing (void)
 {
@@ -169,7 +172,9 @@ test_failed_create_arms_nothing (void)
   DP_CHECK_MSG (dp_interrupt_latency_ms () == latency_before,
                 "and so was the latency it had already overridden");
 }
+#endif
 
+#ifndef _WIN32 /* POSIX signal API: sigaction, SIGUSR1/2, ... */
 static void
 test_guard_rejects_more_signals_than_slots (void)
 {
@@ -193,6 +198,7 @@ test_guard_rejects_more_signals_than_slots (void)
                 "a count with no array is a caller error, not a read of "
                 "whatever was at address zero");
 }
+#endif
 
 static void
 test_guard_null_is_a_no_op (void)
@@ -213,11 +219,17 @@ main (void)
 {
   test_guard_with_no_signals_is_still_a_handle ();
   test_two_guards_share_one_flag ();
+#ifndef _WIN32
   test_guard_arms_and_destroy_restores ();
+#endif
   test_destroy_does_not_swallow_the_interrupt ();
   test_guard_saves_and_restores_the_latency ();
+#ifndef _WIN32
   test_failed_create_arms_nothing ();
+#endif
+#ifndef _WIN32
   test_guard_rejects_more_signals_than_slots ();
+#endif
   test_guard_null_is_a_no_op ();
 
   DP_TEST_END ("test_dp_interrupt_guard_core");

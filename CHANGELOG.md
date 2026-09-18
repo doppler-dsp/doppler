@@ -13,6 +13,115 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-09-17
+
+### Added
+
+- **A documented `make` goal is now checked against the real targets**
+    ([#1348](https://github.com/doppler-dsp/doppler/issues/1348)). The shell
+    fence gate collected every docs page but validated only `doppler` lines,
+    so a `make` line was inspected by a check that was a no-op on it. It is
+    the dual of `help-check` (*target ⇒ documented*; this is *documented ⇒
+    target*) and reads `make help`, not a second list. It caught one on its
+    first run: `tests/install/rust-test.sh` — included into the Rust install
+    page — ran `make rust-test`, which is not a target, and nothing executes
+    that script, so the line had never run.
+
+- **A tag is refused when its gallery plots or published benchmarks are
+    stale.** `docs/dev/release.md` §2 and §2b both said "regenerate it if it
+    changed since the last release" and nothing checked either, so forgetting
+    was invisible: a gallery page shows a PNG of code that no longer exists,
+    and a release publishes numbers measured against a different tree. Both
+    read as correct. `release-freshness-check` is a `tag-release`
+    prerequisite — the one moment the question means anything — and is
+    diff-based rather than regenerate-and-compare, because a PNG is not
+    byte-stable across a re-render and a flapping gate gets disabled.
+
+- **The published wheel is now smoke-tested from PyPI**
+    ([#1347](https://github.com/doppler-dsp/doppler/issues/1347)). `smoke-wheel`
+    installs a local file before the upload, so nothing in a release ever
+    exercised the index — the C library had a post-publish smoke and Python did
+    not. `smoke-pypi` installs `doppler-dsp==<version>` on x86_64 and aarch64
+    and runs the same end-to-end, retiring the release runbook's manual step 8.
+
+- **`make tag-release` refuses a commit whose CI has already failed**
+    (vendored from just-buildit's `standard.mk`). It checked everything about
+    the tag and nothing about the tree it points at. A release tag must not
+    move, so a tag pushed onto a known-red commit can only be walked back by
+    burning a version number. Advisory when CI has not concluded — tagging
+    ahead of it is legitimate and `release.yml` waits either way — and fails
+    open when `gh`, auth or the check is unavailable, so a release cannot
+    become un-cuttable by a convenience check.
+
+### Changed
+
+- **Benchmarks time through one clock.** All 106 benchmarks now call
+    `jm_bench_now_ns()` / `jm_bench_elapsed_sec()` from the vendored
+    `jm_bench.h` instead of opening `clock_gettime(CLOCK_MONOTONIC)` each and
+    carrying 85 private copies of a four-line `elapsed_sec()`. The UCRT has
+    neither, so this is also what lets them compile on Windows. Published
+    numbers are unaffected — the two formulas agree to 8.2e-11 relative,
+    against ~1e-2 run-to-run noise. Gated by `make lint-bench-timer`:
+    [#1368](https://github.com/doppler-dsp/doppler/pull/1368).
+
+- **just-makeit pin 0.75.5 → 0.76.4.** Six doppler-driven changes:
+    `header_only`, `borrow`, a borrowed `record_dtype` (the fix for #1346), a
+    method on a header-only component, a destructor derived from the declared
+    creator, and a portable benchmark timer. Also resolves libm by path rather
+    than the shadowable `m`, and `.pyi` stubs gain real default values instead
+    of `...`. Per-issue list and the jm links:
+    [#1363](https://github.com/doppler-dsp/doppler/pull/1363).
+
+- **Release container images build natively on both architectures**
+    ([#1369](https://github.com/doppler-dsp/doppler/issues/1369)). The SDK and
+    downstream images compile doppler from source and were built for
+    `linux/arm64` under QEMU — 28 minutes of a 36-minute job, and the whole
+    critical path of a 43-minute release. Each architecture now builds on its
+    own runner and the two are merged into one manifest, which is what every
+    other aarch64 leg already did. Measured on a probe before landing: the SDK
+    image 28m → 1m33s, release ~43m → ~13m. Same images, same smoke tests.
+
+- **The release bump is one command: `make release-pr VERSION=x.y.z`**. It
+    branches off `origin/main`, bumps the five version sites, promotes the
+    `changelog.d/` fragments, cuts the version section, regenerates the
+    comparison links, re-checks the versions and the notes size, commits,
+    pushes and opens the PR. `make changelog-assemble VERSION=x.y.z` does the
+    section cut alone: it renames the `[Unreleased]` heading to the version
+    and date and opens a fresh one, which was a hand step sitting directly
+    after a command that had already edited the same file. It refuses to cut
+    a version that already has a section.
+
+### Fixed
+
+- **The three ring buffers' `wait()` shapes are now pinned against each other**
+    ([#1346](https://github.com/doppler-dsp/doppler/issues/1346)).
+    `I16Buffer.wait()` returns 2-D `(n, 2)` while `F32Buffer`/`F64Buffer`
+    return 1-D, so `len()` agrees across the three while the *element* does
+    not — a sample for two of them, an I/Q pair row for the third. A strict
+    xfail records the divergence and flips CI red when
+    [just-makeit#1310](https://github.com/just-buildit/just-makeit/issues/1310)
+    lands the generated template that returns `[('i','<i2'),('q','<i2')]`.
+
+- **A `dll_set_code_phase()` across the period wrap no longer emits or skips
+    a period's partials**
+    ([#1287](https://github.com/doppler-dsp/doppler/issues/1287)). A put
+    backwards across the wrap left the segment bookkeeping past every
+    segment's end — a period of garbage partials in four samples — and a put
+    forwards skipped the wrap the epoch was waiting for, folding a second
+    period into it. Measured as a symbol slip every few intervals in
+    `async_dsss_receiver`'s cell mode. The put now records which way it
+    crossed and the epoch follows it, on both correlation paths.
+
+- **The specan demo recording is reproducible, and the gate that could not
+    check it is gone**
+    ([#1195](https://github.com/doppler-dsp/doppler/issues/1195)).
+    `record_demo` was unseeded, so `specan-check` — which asked only whether
+    `frames.json` had moved — was satisfied by committing noise. Seeding it
+    made that gate *unsatisfiable*, so it is replaced by a test that
+    re-records 120 frames in 0.25 s and compares them: geometry exactly,
+    levels within 0.2 dB. `DemoSource` takes an optional `seed`; the live
+    analyzer still runs unseeded.
+
 ## [0.49.0] — 2026-09-15
 
 ### Breaking
@@ -13809,8 +13918,9 @@ ______________________________________________________________________
 [0.5.3]: https://github.com/doppler-dsp/doppler/compare/v0.5.2...v0.5.3
 [0.5.4]: https://github.com/doppler-dsp/doppler/compare/v0.5.3...v0.5.4
 [0.5.5]: https://github.com/doppler-dsp/doppler/compare/v0.5.4...v0.5.5
+[0.50.0]: https://github.com/doppler-dsp/doppler/compare/v0.49.0...v0.50.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.49.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.50.0...HEAD

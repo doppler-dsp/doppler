@@ -945,27 +945,32 @@ test_release_gives_back_a_shadowed_burst (void)
      when the decoy's window is EMITTED, not when it arrived. Released, it
      comes out at its exact sample all the same. */
   {
-    const size_t           LONG = 4u * BURST_LEN, FAR = 3000u;
-    burst_capture_state_t *s = burst_capture_create (
-        acq_code (), ACQ_SF, LONG, REPS, SPC, 1.0e6, 0.0, 0.0, 1e-3, 0.9, 0);
+    /* Not LONG and FAR: <windows.h> typedefs LONG and #defines FAR to
+       nothing, so `AT - FAR` became `AT - ` on every Windows build. */
+    const size_t           LONG_LEN = 4u * BURST_LEN, DECOY_LEAD = 3000u;
+    burst_capture_state_t *s
+        = burst_capture_create (acq_code (), ACQ_SF, LONG_LEN, REPS, SPC,
+                                1.0e6, 0.0, 0.0, 1e-3, 0.9, 0);
     DP_REQUIRE (s != NULL);
-    DP_REQUIRE (FAR >= s->refine_span && FAR < LONG); /* the premise */
+    DP_REQUIRE (DECOY_LEAD >= s->refine_span
+                && DECOY_LEAD < LONG_LEN); /* the premise */
     static float _Complex scene[80000];
     build_capture (scene, sizeof scene / sizeof *scene, &AT, 1u, 0.02, 7u);
     {
       static float _Complex burst[1 << 16];
       build_burst (burst);
       for (size_t i = 0; i < REPS * ACQ_SF * SPC; i++)
-        scene[AT - FAR + i] += 0.35f * burst[i];
+        scene[AT - DECOY_LEAD + i] += 0.35f * burst[i];
     }
     static float _Complex big[8 * 4 * BURST_LEN];
-    /* One push past the decoy's window end (AT - FAR + LONG) and past the
-       real preamble's first frame, so both hits are queued before the drain
-       emits the decoy over the real one. */
-    const size_t first = AT - FAR + LONG + 500u;
+    /* One push past the decoy's window end (AT - DECOY_LEAD + LONG_LEN) and
+       past the real preamble's first frame, so both hits are queued before the
+       drain emits the decoy over the real one. */
+    const size_t first = AT - DECOY_LEAD + LONG_LEN + 500u;
     burst_capture_push (s, scene, first, big, sizeof big / sizeof *big);
     DP_REQUIRE (burst_capture_ready (s) == 1u);
-    DP_CHECK (burst_capture_event_at (s, 0)->preamble_start == AT - FAR);
+    DP_CHECK (burst_capture_event_at (s, 0)->preamble_start
+              == AT - DECOY_LEAD);
     DP_CHECK (burst_capture_get_pending (s) == 0); /* shadowed, uncounted */
     DP_CHECK (s->pending >= 1u);
     DP_CHECK (burst_capture_release (s, 0u) == DP_OK);
@@ -973,7 +978,7 @@ test_release_gives_back_a_shadowed_burst (void)
     size_t n = burst_capture_push (s, scene + first,
                                    sizeof scene / sizeof *scene - first, big,
                                    sizeof big / sizeof *big);
-    DP_CHECK (n == LONG);
+    DP_CHECK (n == LONG_LEN);
     DP_REQUIRE (burst_capture_ready (s) == 1u);
     DP_CHECK (burst_capture_event_at (s, 0)->preamble_start == AT);
     burst_capture_destroy (s);

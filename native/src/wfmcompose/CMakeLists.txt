@@ -195,6 +195,24 @@ add_test(NAME test_wfm_keywords COMMAND test_wfm_keywords)
 # core lands outside that file's BUILD_PYTHON gate, so the pure-C consumers
 # here still link it.
 
+# ── the composer in libdoppler, on EVERY platform ────────────────────────────
+# wfm_compose_core used to be folded in only by the foreach inside the
+# POSIX-only block below, so on Windows libdoppler shipped without
+# wfm_compose_* and every consumer failed to link (`undefined symbol:
+# wfm_compose_create` in wfmgen_demo, wfmgen_frame_demo,
+# dsss_burst_receiver_demo and validate_wfmgen_certify). It is defined
+# unguarded above and references nothing POSIX-only -- checked: no wfm_sink_*
+# / wfmgen_* / stream / nats call in wfm_compose.c, wfm_json.c or
+# wfm_resolve.c -- so it belongs in the library everywhere.
+#
+# ONLY this one. Its data layer (wfm_draw / wfm_writer / wfm_keywords /
+# wfm_cjson) is already folded in unconditionally by the jm-managed root
+# CMakeLists; that foreach below listed them a second time, harmlessly only
+# because CMake de-duplicates an identical source.
+foreach(_dt doppler_lib doppler_lib_static)
+    target_sources(${_dt} PRIVATE $<TARGET_OBJECTS:wfm_compose_core>)
+endforeach()
+
 # ── NATS PUB sink — POSIX only (vendored nats.c + pthreads don't build on
 #    MinGW; mirrors native/examples's streaming guard). The sink is independent of
 #    the composer, so it links the stream layer, not synth. ─────────────────
@@ -327,15 +345,12 @@ if(NOT WIN32)
     # (wfm_dsp_core is NOT folded here: wfm_synth now depends on it, so the
     # jm-managed root CMakeLists folds its objects in with wfm_synth_core —
     # a second copy would be a duplicate-symbol link error.)
+    # Only the two objects that exist here alone; the composer and its data
+    # layer are folded in above the guard, on every platform.
     foreach(_dt doppler_lib doppler_lib_static)
         target_sources(${_dt} PRIVATE
             $<TARGET_OBJECTS:wfmgen_core>
-            $<TARGET_OBJECTS:wfm_sink_stub_core>
-            $<TARGET_OBJECTS:wfm_compose_core>
-            $<TARGET_OBJECTS:wfm_draw_core>
-            $<TARGET_OBJECTS:wfm_writer_core>
-            $<TARGET_OBJECTS:wfm_keywords_core>
-            $<TARGET_OBJECTS:wfm_cjson_core>)
+            $<TARGET_OBJECTS:wfm_sink_stub_core>)
     endforeach()
 
     # Bundle the wfmgen binary into the Python package so the wheel ships it as

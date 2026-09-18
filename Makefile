@@ -2656,7 +2656,7 @@ endif
 	@$(MAKE) docs-relink
 	@$(MAKE) version-check VERSION=$(VERSION)
 	@$(MAKE) release-notes-size-check
-	git commit -am "chore: release v$(VERSION)"
+	git commit -a -m "chore: release v$(VERSION)" -m "No-issue:"
 	git push -u origin HEAD
 	gh pr create --fill
 	@echo ""

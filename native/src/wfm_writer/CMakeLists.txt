@@ -18,7 +18,6 @@ target_include_directories(
   wfm_writer_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                          ${CMAKE_SOURCE_DIR}/native/inc/wfm_writer)
 target_link_libraries(wfm_writer_core PUBLIC
-    m
     wfm_cjson_core
     wfm_keywords_core
     wfm_draw_core)
@@ -26,8 +25,7 @@ target_link_libraries(wfm_writer_core PUBLIC
 add_executable(test_wfm_writer_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_writer_core.c)
 target_link_libraries(test_wfm_writer_core
-                      PRIVATE wfm_writer_core m
-    wfm_cjson_core
+                      PRIVATE wfm_writer_core wfm_cjson_core
     wfm_keywords_core
     wfm_draw_core
     ${JM_MATH_LIBRARY})
@@ -39,8 +37,7 @@ add_executable(
   bench_wfm_writer_core
   ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_writer_core.c)
 target_link_libraries(bench_wfm_writer_core
-                      PRIVATE wfm_writer_core m
-    wfm_cjson_core
+                      PRIVATE wfm_writer_core wfm_cjson_core
     wfm_keywords_core
     wfm_draw_core
     ${JM_MATH_LIBRARY})
@@ -69,7 +66,6 @@ target_link_libraries(wfm_writer PRIVATE
     wfm_cjson_core
     wfm_keywords_core
     wfm_draw_core
-    m
     Python3::NumPy)
 target_include_directories(wfm_writer PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(wfm_writer PROPERTIES

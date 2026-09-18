@@ -67,7 +67,7 @@ target_include_directories(wfm_compose_core PUBLIC
 # wfm_plan.c fans the per-source signal build across cores (dp_parallel.h);
 # Threads::Threads (located once at the top-level CMakeLists) is PUBLIC so the
 # tests and the .so that link this object library pick up -pthread transitively.
-target_link_libraries(wfm_compose_core PUBLIC m Threads::Threads)
+target_link_libraries(wfm_compose_core PUBLIC ${DP_MATH_LIBRARY} Threads::Threads)
 
 add_executable(test_wfm_compose
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_compose.c)
@@ -77,7 +77,7 @@ target_link_libraries(test_wfm_compose PRIVATE
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
-    m)
+    ${DP_MATH_LIBRARY})
 target_include_directories(test_wfm_compose PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_compose COMMAND test_wfm_compose)
@@ -93,7 +93,7 @@ target_link_libraries(bench_wfm_compose_core PRIVATE
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
-    m)
+    ${DP_MATH_LIBRARY})
 target_include_directories(bench_wfm_compose_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/benchmarks
@@ -108,7 +108,7 @@ target_link_libraries(test_wfm_plan PRIVATE
     ccsds_tm_core conv_core rs_core
     wfm_synth_core lo_core awgn_core
     pn_core gold_core fir_core resamp_core
-    m)
+    ${DP_MATH_LIBRARY})
 target_include_directories(test_wfm_plan PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/vendor/cjson)
 add_test(NAME test_wfm_plan COMMAND test_wfm_plan)
@@ -130,7 +130,7 @@ add_library(wfm_frame_core OBJECT
 target_include_directories(wfm_frame_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm)
-target_link_libraries(wfm_frame_core PUBLIC pn_core gold_core m)
+target_link_libraries(wfm_frame_core PUBLIC pn_core gold_core ${DP_MATH_LIBRARY})
 
 # ── DSSS spreading + RRC pulse-shaping taps (pure DSP, no deps) ──────────────
 add_library(wfm_dsp_core OBJECT
@@ -138,11 +138,11 @@ add_library(wfm_dsp_core OBJECT
 target_include_directories(wfm_dsp_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/inc/wfm)
-target_link_libraries(wfm_dsp_core PUBLIC m)
+target_link_libraries(wfm_dsp_core PUBLIC ${DP_MATH_LIBRARY})
 
 add_executable(test_wfm_frame
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_frame.c)
-target_link_libraries(test_wfm_frame PRIVATE wfm_frame_core pn_core gold_core m)
+target_link_libraries(test_wfm_frame PRIVATE wfm_frame_core pn_core gold_core ${DP_MATH_LIBRARY})
 target_include_directories(test_wfm_frame PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_wfm_frame COMMAND test_wfm_frame)
@@ -154,7 +154,7 @@ add_test(NAME test_wfm_frame COMMAND test_wfm_frame)
 # no object, so its test is registered beside the descriptor's.
 add_executable(test_dp_frame
     ${CMAKE_SOURCE_DIR}/native/tests/test_dp_frame.c)
-target_link_libraries(test_dp_frame PRIVATE wfm_frame_core pn_core gold_core m)
+target_link_libraries(test_dp_frame PRIVATE wfm_frame_core pn_core gold_core ${DP_MATH_LIBRARY})
 target_include_directories(test_dp_frame PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_dp_frame COMMAND test_dp_frame)
@@ -162,7 +162,7 @@ add_test(NAME test_dp_frame COMMAND test_dp_frame)
 add_executable(test_wfm_dsp
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_dsp.c)
 target_link_libraries(test_wfm_dsp PRIVATE wfm_dsp_core wfm_frame_core
-    pn_core gold_core m)
+    pn_core gold_core ${DP_MATH_LIBRARY})
 target_include_directories(test_wfm_dsp
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_wfm_dsp COMMAND test_wfm_dsp)
@@ -244,7 +244,7 @@ if(NOT WIN32)
 
     add_executable(bench_timing_core
         ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_timing_core.c)
-    target_link_libraries(bench_timing_core PRIVATE timing_core m
+    target_link_libraries(bench_timing_core PRIVATE timing_core ${DP_MATH_LIBRARY}
         $<TARGET_OBJECTS:dp_interrupt_obj>)
     target_include_directories(bench_timing_core PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc ${CMAKE_SOURCE_DIR}/native/benchmarks)
@@ -257,7 +257,7 @@ if(NOT WIN32)
     target_include_directories(wfm_sink_core PUBLIC
         ${CMAKE_SOURCE_DIR}/native/inc
         ${CMAKE_SOURCE_DIR}/native/inc/wfm)
-    target_link_libraries(wfm_sink_core PUBLIC m)
+    target_link_libraries(wfm_sink_core PUBLIC ${DP_MATH_LIBRARY})
 
     add_executable(test_wfm_sink
         ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_sink.c)
@@ -266,7 +266,7 @@ if(NOT WIN32)
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
         dp_tlm_core
         nats_vendor_static
-        Threads::Threads m)
+        Threads::Threads ${DP_MATH_LIBRARY})
     target_include_directories(test_wfm_sink PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc)
     add_test(NAME test_wfm_sink COMMAND test_wfm_sink)
@@ -308,7 +308,7 @@ if(NOT WIN32)
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
         dp_tlm_core
         nats_vendor_static
-        Threads::Threads m)
+        Threads::Threads ${DP_MATH_LIBRARY})
     target_include_directories(wfmgen_cli PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
     install(TARGETS wfmgen_cli DESTINATION bin)
 

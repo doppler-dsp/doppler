@@ -7,7 +7,7 @@ add_executable(validate_ber_despreader
 target_include_directories(validate_ber_despreader
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_ber_despreader PRIVATE doppler_lib_static m)
+target_link_libraries(validate_ber_despreader PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 add_test(NAME validate_ber_despreader
          COMMAND validate_ber_despreader --check)
 # BER Monte-Carlo: allow FP-reduction vectorization (the despread is a plain
@@ -19,7 +19,7 @@ add_executable(validate_costas_jitter
                ${CMAKE_CURRENT_SOURCE_DIR}/costas_jitter.c)
 target_include_directories(validate_costas_jitter
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(validate_costas_jitter PRIVATE doppler_lib_static m)
+target_link_libraries(validate_costas_jitter PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_costas_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_costas_jitter
          COMMAND validate_costas_jitter --check)
@@ -32,7 +32,7 @@ add_executable(validate_costas_pullin
 target_include_directories(validate_costas_pullin
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_costas_pullin PRIVATE doppler_lib_static m)
+target_link_libraries(validate_costas_pullin PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_costas_pullin PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_costas_pullin
          COMMAND validate_costas_pullin --check)
@@ -45,7 +45,7 @@ add_executable(validate_receiver_pullin
 target_include_directories(validate_receiver_pullin
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_receiver_pullin PRIVATE doppler_lib_static m)
+target_link_libraries(validate_receiver_pullin PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_receiver_pullin PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_receiver_pullin
          COMMAND validate_receiver_pullin --check)
@@ -55,7 +55,7 @@ add_executable(validate_dll_jitter
 target_include_directories(validate_dll_jitter
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_dll_jitter PRIVATE doppler_lib_static m)
+target_link_libraries(validate_dll_jitter PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 # -ffp-contract=off: the closed-loop integrator (`integ += ki*x` in
 # loop_filter_step, `integ*inv_tsamps + kp*e*inv_tsamps_sf` in dll_update)
 # fuses into a single fmadd under the default -ffp-contract=fast on hosts with
@@ -74,7 +74,7 @@ add_executable(validate_carrier_mpsk_scurve
                ${CMAKE_CURRENT_SOURCE_DIR}/carrier_mpsk_scurve.c)
 target_include_directories(validate_carrier_mpsk_scurve
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(validate_carrier_mpsk_scurve PRIVATE doppler_lib_static m)
+target_link_libraries(validate_carrier_mpsk_scurve PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_carrier_mpsk_scurve PRIVATE -O3)
 add_test(NAME validate_carrier_mpsk_scurve
          COMMAND validate_carrier_mpsk_scurve --check)
@@ -84,7 +84,7 @@ add_executable(validate_carrier_mpsk_jitter
 target_include_directories(validate_carrier_mpsk_jitter
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_carrier_mpsk_jitter PRIVATE doppler_lib_static m)
+target_link_libraries(validate_carrier_mpsk_jitter PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_carrier_mpsk_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_carrier_mpsk_jitter
          COMMAND validate_carrier_mpsk_jitter --check)
@@ -93,7 +93,7 @@ add_executable(validate_carrier_nda_scurve
                ${CMAKE_CURRENT_SOURCE_DIR}/carrier_nda_scurve.c)
 target_include_directories(validate_carrier_nda_scurve
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(validate_carrier_nda_scurve PRIVATE doppler_lib_static m)
+target_link_libraries(validate_carrier_nda_scurve PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_carrier_nda_scurve PRIVATE -O3)
 add_test(NAME validate_carrier_nda_scurve
          COMMAND validate_carrier_nda_scurve --check)
@@ -103,7 +103,7 @@ add_executable(validate_carrier_nda_pullin
 target_include_directories(validate_carrier_nda_pullin
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_carrier_nda_pullin PRIVATE doppler_lib_static m)
+target_link_libraries(validate_carrier_nda_pullin PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_carrier_nda_pullin PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_carrier_nda_pullin
          COMMAND validate_carrier_nda_pullin --check)
@@ -114,7 +114,7 @@ target_include_directories(validate_carrier_nda_step_response
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_carrier_nda_step_response
-                      PRIVATE doppler_lib_static m)
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_carrier_nda_step_response PRIVATE -O3)
 add_test(NAME validate_carrier_nda_step_response
          COMMAND validate_carrier_nda_step_response --check)
@@ -129,7 +129,7 @@ add_executable(validate_mpsk_receiver_ber
 target_include_directories(validate_mpsk_receiver_ber
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_mpsk_receiver_ber PRIVATE doppler_lib_static m)
+target_link_libraries(validate_mpsk_receiver_ber PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_mpsk_receiver_ber PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_mpsk_receiver_ber
          COMMAND validate_mpsk_receiver_ber --check)
@@ -139,7 +139,7 @@ add_executable(validate_mpsk_receiver_real_ber
 target_include_directories(validate_mpsk_receiver_real_ber
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_mpsk_receiver_real_ber PRIVATE doppler_lib_static m)
+target_link_libraries(validate_mpsk_receiver_real_ber PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_mpsk_receiver_real_ber PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_mpsk_receiver_real_ber
          COMMAND validate_mpsk_receiver_real_ber --check)
@@ -149,7 +149,7 @@ add_executable(validate_symsync_lock
 target_include_directories(validate_symsync_lock
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_symsync_lock PRIVATE doppler_lib_static m)
+target_link_libraries(validate_symsync_lock PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_symsync_lock PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_symsync_lock
          COMMAND validate_symsync_lock --check)
@@ -158,7 +158,7 @@ add_executable(validate_carrier_nda_lock
                ${CMAKE_CURRENT_SOURCE_DIR}/carrier_nda_lock.c)
 target_include_directories(validate_carrier_nda_lock
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(validate_carrier_nda_lock PRIVATE doppler_lib_static m)
+target_link_libraries(validate_carrier_nda_lock PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_carrier_nda_lock PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_carrier_nda_lock
          COMMAND validate_carrier_nda_lock --check)
@@ -176,7 +176,7 @@ add_executable(validate_ratesync_scurve
 target_include_directories(validate_ratesync_scurve
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_ratesync_scurve PRIVATE doppler_lib_static m)
+target_link_libraries(validate_ratesync_scurve PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_ratesync_scurve PRIVATE -O3 -funroll-loops
                                                         -ffp-contract=off)
 add_test(NAME validate_ratesync_scurve
@@ -186,7 +186,7 @@ add_executable(validate_lockdet_verify
                ${CMAKE_CURRENT_SOURCE_DIR}/lockdet_verify.c)
 target_include_directories(validate_lockdet_verify
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(validate_lockdet_verify PRIVATE doppler_lib_static m)
+target_link_libraries(validate_lockdet_verify PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_lockdet_verify PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_lockdet_verify
          COMMAND validate_lockdet_verify --check)
@@ -195,7 +195,7 @@ add_executable(validate_mpsk_diff_penalty
                ${CMAKE_CURRENT_SOURCE_DIR}/mpsk_diff_penalty.c)
 target_include_directories(validate_mpsk_diff_penalty
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(validate_mpsk_diff_penalty PRIVATE doppler_lib_static m)
+target_link_libraries(validate_mpsk_diff_penalty PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_mpsk_diff_penalty PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_mpsk_diff_penalty
          COMMAND validate_mpsk_diff_penalty --check)
@@ -204,7 +204,7 @@ add_executable(validate_loop_filter_noise_bw
                ${CMAKE_CURRENT_SOURCE_DIR}/loop_filter_noise_bw.c)
 target_include_directories(validate_loop_filter_noise_bw
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(validate_loop_filter_noise_bw PRIVATE doppler_lib_static m)
+target_link_libraries(validate_loop_filter_noise_bw PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 # -ffp-contract=off: the measurement IS an accumulated integrator, so a fused
 # multiply-add inside loop_filter_step moves the last bits of a sum taken over
 # hundreds of thousands of updates. The 1% gate is nowhere near that
@@ -228,7 +228,7 @@ add_executable(validate_rx_battery
                ${CMAKE_CURRENT_SOURCE_DIR}/rx_battery.c)
 target_include_directories(validate_rx_battery
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_rx_battery PRIVATE doppler_lib_static m)
+target_link_libraries(validate_rx_battery PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_rx_battery PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_rx_battery
          COMMAND validate_rx_battery --check)
@@ -249,7 +249,7 @@ target_include_directories(validate_rx_dynamics
 # 2.34 pthread_create lives in libc proper so this links by accident; the
 # glibc 2.28 gate is where the missing -lpthread actually shows up.
 target_link_libraries(validate_rx_dynamics PRIVATE doppler_lib_static
-                                                   Threads::Threads m)
+                                                   Threads::Threads ${DP_MATH_LIBRARY})
 target_compile_options(validate_rx_dynamics PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_rx_dynamics
          COMMAND validate_rx_dynamics --check)
@@ -266,7 +266,7 @@ add_executable(validate_conv_certify
                ${CMAKE_CURRENT_SOURCE_DIR}/conv_certify.c)
 target_include_directories(validate_conv_certify
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(validate_conv_certify PRIVATE doppler_lib_static m)
+target_link_libraries(validate_conv_certify PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_conv_certify PRIVATE -O3 -funroll-loops)
 
 # rs_certify is conv_certify's shape, for the same reason: it MEASURES, and
@@ -279,7 +279,7 @@ add_executable(validate_rs_certify
 target_include_directories(validate_rs_certify
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_rs_certify PRIVATE doppler_lib_static m)
+target_link_libraries(validate_rs_certify PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_rs_certify PRIVATE -O3 -funroll-loops)
 
 # ccsds_tm_certify is the third of the C-only certifications, and measures the
@@ -292,7 +292,7 @@ add_executable(validate_ccsds_tm_certify
 target_include_directories(validate_ccsds_tm_certify
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_ccsds_tm_certify PRIVATE doppler_lib_static m)
+target_link_libraries(validate_ccsds_tm_certify PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_ccsds_tm_certify PRIVATE -O3 -funroll-loops)
 
 add_executable(validate_rx_coding_gain
@@ -300,7 +300,7 @@ add_executable(validate_rx_coding_gain
 target_include_directories(validate_rx_coding_gain
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_rx_coding_gain PRIVATE doppler_lib_static m)
+target_link_libraries(validate_rx_coding_gain PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_rx_coding_gain PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_rx_coding_gain
          COMMAND validate_rx_coding_gain --check)
@@ -310,7 +310,7 @@ add_executable(validate_rx_frame_fer
 target_include_directories(validate_rx_frame_fer
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_rx_frame_fer PRIVATE doppler_lib_static m)
+target_link_libraries(validate_rx_frame_fer PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_rx_frame_fer PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_rx_frame_fer
          COMMAND validate_rx_frame_fer --check)
@@ -320,7 +320,7 @@ add_executable(validate_interleave_burst_gain
 target_include_directories(validate_interleave_burst_gain
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_interleave_burst_gain PRIVATE doppler_lib_static m)
+target_link_libraries(validate_interleave_burst_gain PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_interleave_burst_gain PRIVATE -O3)
 add_test(NAME validate_interleave_burst_gain
          COMMAND validate_interleave_burst_gain --check)
@@ -330,7 +330,7 @@ add_executable(validate_wfm_follow_keepup
 target_include_directories(validate_wfm_follow_keepup
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_wfm_follow_keepup PRIVATE doppler_lib_static m)
+target_link_libraries(validate_wfm_follow_keepup PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 add_test(NAME validate_wfm_follow_keepup
          COMMAND validate_wfm_follow_keepup --check)
 
@@ -362,7 +362,7 @@ add_executable(validate_wfmgen_certify
                ${CMAKE_CURRENT_SOURCE_DIR}/wfmgen_certify.c)
 target_include_directories(validate_wfmgen_certify
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(validate_wfmgen_certify PRIVATE doppler_lib_static m)
+target_link_libraries(validate_wfmgen_certify PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 add_test(NAME validate_wfmgen_certify COMMAND validate_wfmgen_certify --check)
 
 # One emitter on the acquisition engine's own surface: the sidelobe floor
@@ -374,7 +374,7 @@ add_executable(validate_acq_emitter_floor
 target_include_directories(validate_acq_emitter_floor
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_acq_emitter_floor PRIVATE doppler_lib_static m)
+target_link_libraries(validate_acq_emitter_floor PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_acq_emitter_floor PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_acq_emitter_floor
          COMMAND validate_acq_emitter_floor --check)
@@ -384,7 +384,7 @@ add_executable(validate_acq_block_coherent
 target_include_directories(validate_acq_block_coherent
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_acq_block_coherent PRIVATE doppler_lib_static m)
+target_link_libraries(validate_acq_block_coherent PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_acq_block_coherent PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_acq_block_coherent
          COMMAND validate_acq_block_coherent --check)
@@ -400,7 +400,7 @@ target_include_directories(validate_async_dsss_receiver_release
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_async_dsss_receiver_release
-                      PRIVATE doppler_lib_static m)
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_async_dsss_receiver_release
                        PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_async_dsss_receiver_release
@@ -418,7 +418,7 @@ target_include_directories(validate_tracker_through_window
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_tracker_through_window
-                      PRIVATE doppler_lib_static m)
+                      PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_tracker_through_window
                        PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_tracker_through_window
@@ -433,7 +433,7 @@ add_executable(validate_refine_bias ${CMAKE_CURRENT_SOURCE_DIR}/refine_bias.c)
 target_include_directories(validate_refine_bias
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_refine_bias PRIVATE doppler_lib_static m)
+target_link_libraries(validate_refine_bias PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_refine_bias PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_refine_bias COMMAND validate_refine_bias --check)
 
@@ -448,7 +448,7 @@ add_executable(validate_dll_aid_jitter
 target_include_directories(validate_dll_aid_jitter
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_dll_aid_jitter PRIVATE doppler_lib_static m)
+target_link_libraries(validate_dll_aid_jitter PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_dll_aid_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_dll_aid_jitter
          COMMAND validate_dll_aid_jitter --check)
@@ -467,7 +467,7 @@ target_include_directories(validate_acq_surface_jitter
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_acq_surface_jitter
-                      PRIVATE doppler_lib_static Threads::Threads m)
+                      PRIVATE doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
 target_compile_options(validate_acq_surface_jitter PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_acq_surface_jitter
          COMMAND validate_acq_surface_jitter --check)
@@ -482,7 +482,7 @@ add_executable(validate_acq_peak_list
 target_include_directories(validate_acq_peak_list
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_acq_peak_list PRIVATE doppler_lib_static m)
+target_link_libraries(validate_acq_peak_list PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
 target_compile_options(validate_acq_peak_list PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_acq_peak_list
          COMMAND validate_acq_peak_list --check)
@@ -501,7 +501,7 @@ target_include_directories(validate_async_dsss_pool_soak
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 target_link_libraries(validate_async_dsss_pool_soak
-                      PRIVATE doppler_lib_static Threads::Threads m)
+                      PRIVATE doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
 target_compile_options(validate_async_dsss_pool_soak
                        PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_async_dsss_pool_soak

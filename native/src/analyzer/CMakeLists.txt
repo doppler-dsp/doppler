@@ -36,7 +36,6 @@ target_link_libraries(analyzer PRIVATE
     acc_trace_core
     fft_core
     spectral_core
-    m
     Python3::NumPy)
 target_include_directories(analyzer PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(analyzer PROPERTIES

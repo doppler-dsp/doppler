@@ -26,17 +26,17 @@ target_include_directories(fft_core PRIVATE ${CMAKE_SOURCE_DIR}/vendor)
 set_source_files_properties(${CMAKE_SOURCE_DIR}/vendor/pffft/pffft.c PROPERTIES
     INCLUDE_DIRECTORIES ${CMAKE_SOURCE_DIR}/vendor/pffft
     COMPILE_DEFINITIONS "_USE_MATH_DEFINES;_DEFAULT_SOURCE")
-target_link_libraries(fft_core PUBLIC m)
+target_link_libraries(fft_core PUBLIC ${DP_MATH_LIBRARY})
 
 add_executable(test_fft_core
     ${CMAKE_SOURCE_DIR}/native/tests/test_fft_core.c)
 target_include_directories(test_fft_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(test_fft_core PRIVATE fft_core m)
+target_link_libraries(test_fft_core PRIVATE fft_core ${DP_MATH_LIBRARY})
 add_test(NAME test_fft_core COMMAND test_fft_core)
 
 add_executable(bench_fft_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_fft_core.c)
 target_include_directories(bench_fft_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-target_link_libraries(bench_fft_core PRIVATE fft_core m)
+target_link_libraries(bench_fft_core PRIVATE fft_core ${DP_MATH_LIBRARY})

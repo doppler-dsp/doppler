@@ -27,7 +27,7 @@ if(NOT WIN32)
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
         dp_tlm_core
         nats_vendor_static
-        m pthread)
+        ${DP_MATH_LIBRARY} pthread)
     target_include_directories(bench_stream PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc)
     set_target_properties(bench_stream PROPERTIES
@@ -53,7 +53,7 @@ if(TARGET stream_core_obj)
       $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
       dp_tlm_core
       nats_vendor_static
-      m pthread)
+      ${DP_MATH_LIBRARY} pthread)
   target_include_directories(test_stream_wire PRIVATE
       ${CMAKE_SOURCE_DIR}/native/inc)
   add_test(NAME test_stream_wire COMMAND test_stream_wire)
@@ -66,7 +66,7 @@ if(NOT WIN32)
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
         dp_tlm_core
         nats_vendor_static
-        m pthread)
+        ${DP_MATH_LIBRARY} pthread)
     # The vendored nats headers, for the one test that must forge a frame
     # doppler's own writers cannot emit (an unparseable one). The target
     # already links nats_vendor_static; this only lets it see the header.
@@ -85,7 +85,7 @@ if(NOT WIN32)
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>
         dp_tlm_core
         nats_vendor_static
-        m pthread)
+        ${DP_MATH_LIBRARY} pthread)
     target_include_directories(test_tlm_sink PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc)
     add_test(NAME test_tlm_sink COMMAND test_tlm_sink)
@@ -100,7 +100,7 @@ if(BUILD_PYTHON)
         dp_tlm_core
         nats_vendor_static
         Python3::NumPy
-        m pthread)
+        ${DP_MATH_LIBRARY} pthread)
     target_include_directories(stream PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
     set_target_properties(stream PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY "${PYTHON_PACKAGE_DIR}/stream")

@@ -685,7 +685,7 @@ add_executable(test_tlm_bound_real native/tests/test_tlm_bound_real.c)
 target_link_libraries(
   test_tlm_bound_real
   PRIVATE dp_tlm_capture_core dp_tlm_core carrier_nda_core lo_core
-          loop_filter_core boxcar_core agc_core lockdet_core Threads::Threads m)
+          loop_filter_core boxcar_core agc_core lockdet_core Threads::Threads ${DP_MATH_LIBRARY})
 target_include_directories(test_tlm_bound_real
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_tlm_bound_real COMMAND test_tlm_bound_real)
@@ -695,7 +695,7 @@ add_test(NAME test_tlm_bound_real COMMAND test_tlm_bound_real)
 # module-level test here (per-object tests are jm-generated in their own
 # component CMakeLists).
 add_executable(test_detection_core native/tests/test_detection_core.c)
-target_link_libraries(test_detection_core PRIVATE detection_core m)
+target_link_libraries(test_detection_core PRIVATE detection_core ${DP_MATH_LIBRARY})
 target_include_directories(test_detection_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_detection_core COMMAND test_detection_core)
@@ -706,7 +706,7 @@ add_test(NAME test_detection_core COMMAND test_detection_core)
 # assertion inlines the header copy — which is the point, since the header
 # is what every C caller in the library actually compiles against.
 add_executable(test_util_core native/tests/test_util_core.c)
-target_link_libraries(test_util_core PRIVATE util_core m)
+target_link_libraries(test_util_core PRIVATE util_core ${DP_MATH_LIBRARY})
 target_include_directories(test_util_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_util_core COMMAND test_util_core)
@@ -719,7 +719,7 @@ add_test(NAME test_util_core COMMAND test_util_core)
 # compile the header copy, which is what mpsk_receiver and mpsk_rx_loops.h
 # actually decide through.
 add_executable(test_mpsk_core native/tests/test_mpsk_core.c)
-target_link_libraries(test_mpsk_core PRIVATE mpsk_core m)
+target_link_libraries(test_mpsk_core PRIVATE mpsk_core ${DP_MATH_LIBRARY})
 target_include_directories(test_mpsk_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
@@ -731,7 +731,7 @@ add_test(NAME test_mpsk_core COMMAND test_mpsk_core)
 # test_async_dsss_receiver_core.c and by two harness headers, which exercises
 # them as tools without pinning a single claim they make.
 add_executable(test_snr_core native/tests/test_snr_core.c)
-target_link_libraries(test_snr_core PRIVATE snr_core m)
+target_link_libraries(test_snr_core PRIVATE snr_core ${DP_MATH_LIBRARY})
 target_include_directories(test_snr_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
@@ -742,7 +742,7 @@ add_test(NAME test_snr_core COMMAND test_snr_core)
 # object, and has its own generated target). ber_evm_db is the harness's
 # quality metric and was likewise never asserted directly.
 add_executable(test_ber_core native/tests/test_ber_core.c)
-target_link_libraries(test_ber_core PRIVATE ber_core detection_core mpsk_core m)
+target_link_libraries(test_ber_core PRIVATE ber_core detection_core mpsk_core ${DP_MATH_LIBRARY})
 target_include_directories(test_ber_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
@@ -755,19 +755,19 @@ add_test(NAME test_ber_core COMMAND test_ber_core)
 # tested component loses its benchmark, if a benchmark records nothing, or if
 # it writes its JSON under a name no collector opens.
 add_executable(bench_mpsk_core native/benchmarks/bench_mpsk_core.c)
-target_link_libraries(bench_mpsk_core PRIVATE mpsk_core m)
+target_link_libraries(bench_mpsk_core PRIVATE mpsk_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_mpsk_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
 add_executable(bench_ber_core native/benchmarks/bench_ber_core.c)
-target_link_libraries(bench_ber_core PRIVATE ber_core detection_core mpsk_core m)
+target_link_libraries(bench_ber_core PRIVATE ber_core detection_core mpsk_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_ber_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
 add_executable(bench_snr_core native/benchmarks/bench_snr_core.c)
-target_link_libraries(bench_snr_core PRIVATE snr_core m)
+target_link_libraries(bench_snr_core PRIVATE snr_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_snr_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
@@ -778,7 +778,7 @@ target_include_directories(bench_snr_core
 # contain — the question is whether routing them through a shared inline
 # cost anything, not how fast an EMA is.
 add_executable(bench_util_core native/benchmarks/bench_util_core.c)
-target_link_libraries(bench_util_core PRIVATE util_core m)
+target_link_libraries(bench_util_core PRIVATE util_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_util_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
@@ -813,25 +813,25 @@ target_include_directories(bench_util_core
 # version failed rule 2 for all four of its targets while building them
 # perfectly. Anything else grepping for a target has the same problem.
 add_executable(bench_arith_core native/benchmarks/bench_arith_core.c)
-target_link_libraries(bench_arith_core PRIVATE arith_core m)
+target_link_libraries(bench_arith_core PRIVATE arith_core ${DP_MATH_LIBRARY})
 target_include_directories(
   bench_arith_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
 add_executable(bench_detection_core native/benchmarks/bench_detection_core.c)
-target_link_libraries(bench_detection_core PRIVATE detection_core m)
+target_link_libraries(bench_detection_core PRIVATE detection_core ${DP_MATH_LIBRARY})
 target_include_directories(
   bench_detection_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
 add_executable(bench_resample_core native/benchmarks/bench_resample_core.c)
-target_link_libraries(bench_resample_core PRIVATE resample_core m)
+target_link_libraries(bench_resample_core PRIVATE resample_core ${DP_MATH_LIBRARY})
 target_include_directories(
   bench_resample_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                   ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
 add_executable(bench_spectral_core native/benchmarks/bench_spectral_core.c)
-target_link_libraries(bench_spectral_core PRIVATE spectral_core m)
+target_link_libraries(bench_spectral_core PRIVATE spectral_core ${DP_MATH_LIBRARY})
 target_include_directories(
   bench_spectral_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                   ${CMAKE_SOURCE_DIR}/native/benchmarks)
@@ -850,7 +850,7 @@ target_include_directories(
 #            ccsds_tm_core. Not one of those is reimplemented here, which
 #            is the whole reason the link line is longer than the header
 add_executable(bench_measure_core native/benchmarks/bench_measure_core.c)
-target_link_libraries(bench_measure_core PRIVATE measure_core spectral_core m)
+target_link_libraries(bench_measure_core PRIVATE measure_core spectral_core ${DP_MATH_LIBRARY})
 target_include_directories(
   bench_measure_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                              ${CMAKE_SOURCE_DIR}/native/benchmarks)
@@ -858,14 +858,14 @@ target_include_directories(
 add_executable(bench_wfm_core native/benchmarks/bench_wfm_core.c)
 target_link_libraries(
   bench_wfm_core PRIVATE wfm_core wfm_dsp_core awgn_core ccsds_tm_core
-                         conv_core rs_core m)
+                         conv_core rs_core ${DP_MATH_LIBRARY})
 target_include_directories(
   bench_wfm_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                          ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
 add_executable(bench_filter_core native/benchmarks/bench_filter_core.c)
 target_link_libraries(bench_filter_core PRIVATE filter_core spectral_core
-                                                resample_core m)
+                                                resample_core ${DP_MATH_LIBRARY})
 target_include_directories(
   bench_filter_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                             ${CMAKE_SOURCE_DIR}/native/benchmarks)
@@ -877,7 +877,7 @@ target_include_directories(
 # footgun names. The self-test measures that: a stream carrying the WRONG
 # sequence must read badly at every alignment the search tries.
 add_executable(test_dp_mf native/tests/test_dp_mf.c)
-target_link_libraries(test_dp_mf PRIVATE m)
+target_link_libraries(test_dp_mf PRIVATE ${DP_MATH_LIBRARY})
 target_include_directories(test_dp_mf
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
@@ -894,7 +894,7 @@ add_test(NAME test_dp_mf COMMAND test_dp_mf)
 # a fact, the level cannot drift further unnoticed, and a one-character "fix"
 # turns the test red ON PURPOSE rather than quietly re-tuning two BER sweeps.
 add_executable(test_dp_dsss native/tests/test_dp_dsss.c)
-target_link_libraries(test_dp_dsss PRIVATE m)
+target_link_libraries(test_dp_dsss PRIVATE ${DP_MATH_LIBRARY})
 target_include_directories(test_dp_dsss
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
@@ -942,7 +942,7 @@ add_test(NAME test_dp_state COMMAND test_dp_state)
 # TED's slope goes as A^2 two of them were measuring loop bandwidths ~16x
 # apart while both read as "the RRC BPSK test".
 add_executable(test_dp_tx native/tests/test_dp_tx.c)
-target_link_libraries(test_dp_tx PRIVATE pn_core wfm_dsp_core m)
+target_link_libraries(test_dp_tx PRIVATE pn_core wfm_dsp_core ${DP_MATH_LIBRARY})
 target_include_directories(test_dp_tx
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
@@ -963,7 +963,7 @@ add_test(NAME test_dp_tx COMMAND test_dp_tx)
 # the real receiver's every-M loop until 2026-07-27 -- which a fully scattered 8PSK
 # stream passes.
 add_executable(test_dp_sym native/tests/test_dp_sym.c)
-target_link_libraries(test_dp_sym PRIVATE ber_core snr_core mpsk_core m)
+target_link_libraries(test_dp_sym PRIVATE ber_core snr_core mpsk_core ${DP_MATH_LIBRARY})
 target_include_directories(test_dp_sym
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
@@ -986,7 +986,7 @@ add_executable(test_dp_test native/tests/test_dp_test.c)
 # `cabs` on the component-wise-vs-magnitude assertion. gcc at -O2 folds it and
 # needs no libm; the coverage build is clang at -O0 and emits the call, so the
 # omission was invisible to `make test` and red only in `make coverage`.
-target_link_libraries(test_dp_test PRIVATE m)
+target_link_libraries(test_dp_test PRIVATE ${DP_MATH_LIBRARY})
 target_include_directories(test_dp_test
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                            ${CMAKE_SOURCE_DIR}/native/tests)
@@ -1018,7 +1018,7 @@ set_tests_properties(test_dp_test_end_nothing test_dp_test_end_fail
 # and assertions that fail if a `min over (lag, rotation)` search is ever
 # reintroduced into the scoring path.
 add_executable(test_dp_ber native/tests/test_dp_ber.c)
-target_link_libraries(test_dp_ber PRIVATE ber_core ber_meter_core detection_core snr_core m)
+target_link_libraries(test_dp_ber PRIVATE ber_core ber_meter_core detection_core snr_core ${DP_MATH_LIBRARY})
 target_include_directories(test_dp_ber
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
@@ -1034,7 +1034,7 @@ add_test(NAME test_dp_ber COMMAND test_dp_ber)
 # exactly and the distributions statistically; the header says why the
 # Gaussians cannot be pinned bit-for-bit across libm implementations.
 add_executable(test_dp_rng native/tests/test_dp_rng.c)
-target_link_libraries(test_dp_rng PRIVATE m)
+target_link_libraries(test_dp_rng PRIVATE ${DP_MATH_LIBRARY})
 target_include_directories(test_dp_rng
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                            ${CMAKE_SOURCE_DIR}/native/tests)
@@ -1140,8 +1140,8 @@ if(NOT WIN32)
     # resolve at ar time).
     target_link_libraries(doppler_stream
         PRIVATE nats_vendor_static doppler_lib
-        PUBLIC  Threads::Threads m)
-    target_link_libraries(doppler_stream_static PUBLIC Threads::Threads m)
+        PUBLIC  Threads::Threads ${DP_MATH_LIBRARY})
+    target_link_libraries(doppler_stream_static PUBLIC Threads::Threads ${DP_MATH_LIBRARY})
     # The static form can't embed an archive through link rules, so fold the
     # vendored libnats.a objects in (the ar-merge the core used to use) —
     # leaving the static consumer with `-ldoppler_stream` + the C runtime,

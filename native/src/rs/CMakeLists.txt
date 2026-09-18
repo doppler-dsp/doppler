@@ -18,7 +18,7 @@ add_executable(test_rs_core
 # errors corrected, E+1 never recovered -- which holds for every
 # configuration.
 # Holding the CCSDS numbers to Annex G is test_ccsds_tm_rs.c's job.
-target_link_libraries(test_rs_core PRIVATE rs_core m)
+target_link_libraries(test_rs_core PRIVATE rs_core ${DP_MATH_LIBRARY})
 target_include_directories(test_rs_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
@@ -28,7 +28,7 @@ add_test(NAME test_rs_core COMMAND test_rs_core)
 # components -- see the note in native/src/conv/CMakeLists.txt.
 add_executable(bench_rs_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_rs_core.c)
-target_link_libraries(bench_rs_core PRIVATE rs_core m)
+target_link_libraries(bench_rs_core PRIVATE rs_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_rs_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/benchmarks)

@@ -18,7 +18,6 @@ target_include_directories(
   wfm_reader_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
                          ${CMAKE_SOURCE_DIR}/native/inc/wfm_reader)
 target_link_libraries(wfm_reader_core PUBLIC
-    m
     dp_interrupt_guard_core
     wfm_cjson_core
     wfm_keywords_core
@@ -28,8 +27,7 @@ target_link_libraries(wfm_reader_core PUBLIC
 add_executable(test_wfm_reader_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader_core.c)
 target_link_libraries(test_wfm_reader_core
-                      PRIVATE wfm_reader_core m
-    dp_interrupt_guard_core
+                      PRIVATE wfm_reader_core dp_interrupt_guard_core
     wfm_cjson_core
     wfm_keywords_core
     wfm_writer_core
@@ -43,8 +41,7 @@ add_executable(
   bench_wfm_reader_core
   ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_wfm_reader_core.c)
 target_link_libraries(bench_wfm_reader_core
-                      PRIVATE wfm_reader_core m
-    dp_interrupt_guard_core
+                      PRIVATE wfm_reader_core dp_interrupt_guard_core
     wfm_cjson_core
     wfm_keywords_core
     wfm_writer_core
@@ -77,7 +74,6 @@ target_link_libraries(wfm_reader PRIVATE
     wfm_keywords_core
     wfm_writer_core
     wfm_draw_core
-    m
     Python3::NumPy)
 target_include_directories(wfm_reader PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(wfm_reader PROPERTIES

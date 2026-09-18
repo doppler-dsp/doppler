@@ -131,7 +131,7 @@ LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
                retired-names ci-pipefail rust-abi header-example-arity \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
-               bench-timer
+               bench-timer bare-libm
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -268,6 +268,17 @@ LINT_full-scale = $(UV) run python scripts/check_full_scale_sites.py
 # messages and sleeps intervals, which is a different clock for a different
 # job, and it is POSIX-only by its own CMake guard.
 LINT_bench-timer = $(UV) run python scripts/check_bench_timer.py
+
+# libm has one spelling in a link line, ${DP_MATH_LIBRARY} -- resolved once in
+# the root CMakeLists by find_library, so it is a path on POSIX and empty on
+# Windows, where the UCRT carries the math functions and a bare `m` means
+# `m.lib`, which does not exist. That is how the Windows link died after all
+# ~576 objects compiled (#1364): 85 hand-written link lines named `m`, plus
+# eight `extra_link_libs = ["m"]` in the manifest that jm rendered verbatim.
+# No allowlist -- every one was converted when the gate landed. Scoped to
+# doppler's own CMake project by DERIVING the owning project(), because a
+# separate project in the tree never sees DP_MATH_LIBRARY.
+LINT_bare-libm = $(UV) run python scripts/check_bare_libm.py
 
 # lgamma() writes the global signgam, so two threads race on it -- found by
 # TSan the first time a pool of receivers rebuilt their chains across

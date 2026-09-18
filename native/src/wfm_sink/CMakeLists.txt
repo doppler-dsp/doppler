@@ -11,7 +11,6 @@ target_link_libraries(wfm_sink PRIVATE
     dp_tlm_core
     nats_vendor_static
     Threads::Threads
-    m
     Python3::NumPy)
 target_include_directories(wfm_sink PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(wfm_sink PROPERTIES

@@ -131,7 +131,7 @@ LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
                retired-names ci-pipefail rust-abi header-example-arity \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
-               bench-timer bare-libm
+               bench-timer bare-libm gnu-flags
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -279,6 +279,10 @@ LINT_bench-timer = $(UV) run python scripts/check_bench_timer.py
 # doppler's own CMake project by DERIVING the owning project(), because a
 # separate project in the tree never sees DP_MATH_LIBRARY.
 LINT_bare-libm = $(UV) run python scripts/check_bare_libm.py
+
+# A GCC-style flag in target_compile_options() is silently dropped by
+# clang-cl; dp_gnu_compile_options() spells it for either driver (#1360).
+LINT_gnu-flags = $(UV) run python scripts/check_gnu_flags.py
 
 # lgamma() writes the global signgam, so two threads race on it -- found by
 # TSan the first time a pool of receivers rebuilt their chains across

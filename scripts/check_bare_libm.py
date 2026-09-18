@@ -83,8 +83,14 @@ def _files(root: Path) -> list[Path]:
     return out
 
 
-def _scan(text: str) -> list[tuple[int, int]]:
-    """(line_index, column) of every bare `m` inside a link call."""
+def _scan(
+    text: str, call: re.Pattern[str] = CALL, item: re.Pattern[str] = BARE_M
+) -> list[tuple[int, int]]:
+    """(line_index, column) of every `item` inside a `call`'s arguments.
+
+    Shared with check_gnu_flags.py, which asks the same question of
+    target_compile_options(): one walker for comments and nested parens.
+    """
     lines = text.split("\n")
     hits: list[tuple[int, int]] = []
     depth = 0
@@ -92,7 +98,7 @@ def _scan(text: str) -> list[tuple[int, int]]:
         code = line.split("#", 1)[0]
         col = 0
         if depth == 0:
-            m = CALL.search(code)
+            m = call.search(code)
             if not m:
                 continue
             depth, col = 1, m.end()
@@ -107,7 +113,7 @@ def _scan(text: str) -> list[tuple[int, int]]:
                 depth -= 1
             j += 1
         span = code[start:j]
-        for bm in BARE_M.finditer(span):
+        for bm in item.finditer(span):
             hits.append((i, start + bm.start()))
     return hits
 

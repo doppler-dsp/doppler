@@ -151,6 +151,22 @@ if(MSVC AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
     endif()
 endif()
 
+# The same trap, per target. A validation binary asks for its own -O3,
+# -funroll-loops or -ffp-contract=off, and under clang-cl every one of those
+# was an `unknown argument ignored` warning -- the binary built at the
+# preset's optimisation with the default contraction, so a measurement pinned
+# to `-ffp-contract=off` quietly measured something else on Windows. One
+# function spells a GCC-style flag for whichever driver is running: verbatim
+# for gcc and clang, behind /clang: for clang-cl. scripts/check_gnu_flags.py
+# fails a target_compile_options() that names one directly.
+function(dp_gnu_compile_options target scope)
+    set(_flags ${ARGN})
+    if(MSVC AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
+        list(TRANSFORM _flags PREPEND "/clang:")
+    endif()
+    target_compile_options(${target} ${scope} ${_flags})
+endfunction()
+
 # M_PI and friends are NOT in standard C, and the UCRT is the platform that
 # says so: <math.h> defines them only when _USE_MATH_DEFINES was set BEFORE it
 # was first included. glibc and Apple libc expose them under their default

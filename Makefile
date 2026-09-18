@@ -1062,7 +1062,34 @@ LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
     DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
     PATH="$(CURDIR)/$(COV_DIR)/pkg/doppler/wfm/_bin:$(dir $(PYTHON_EXECUTABLE)):$$PATH" \
     $(COV_GUARD) $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
-    -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' -n auto
+    -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' \
+    -m "not examples_serial" -n auto
+# The SERIAL pass, and the reason this job needs one at all: `-n auto` is 4
+# workers on CI's runner and 20 on a dev box, and `.examples-serial` exists
+# precisely because some examples cannot share the machine -- ddc_fn_scaling
+# asserts a thread-scaling speedup to prove execute() releases the GIL, and
+# the example pairs rendezvous between two processes over a broker. The
+# example gate has split them since the registry was added; THIS job never
+# did, so the one command that produces the coverage number ran them under
+# full xdist. It cost a report, not just a red line: the run aborts before
+# llvm-cov, so `make coverage` emitted nothing at all on a 20-core box and
+# `make gates` could not pass there (doppler#1376).
+#
+# Same shape as test-examples-python, exit code and all: 5 is pytest's "no
+# tests collected", which an emptied registry produces, and a gate must not
+# go red for the correction that emptied it.
+set +e; \
+    LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
+    PYTHONPATH="$(CURDIR)/$(COV_DIR)/pkg" \
+    DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
+    PATH="$(CURDIR)/$(COV_DIR)/pkg/doppler/wfm/_bin:$(dir $(PYTHON_EXECUTABLE)):$$PATH" \
+    $(COV_GUARD) $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
+    -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' \
+    -m "examples_serial"; \
+    rc=$$?; \
+    if [ $$rc -eq 5 ]; then \
+        echo "coverage: no examples_serial items — nothing needs a serial pass"; \
+    elif [ $$rc -ne 0 ]; then exit $$rc; fi
 -DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
     LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/rs-%p-%m.profraw" \
     $(COV_GUARD) cargo test --manifest-path $(RUST_DIR)/Cargo.toml

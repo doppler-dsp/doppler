@@ -262,6 +262,15 @@ def _stop(proc: subprocess.Popen) -> int:
     return proc.returncode
 
 
+# `examples_serial` on the whole family, not via `.examples-serial`: that
+# registry names one SCRIPT at a time, and what cannot share the machine here
+# is the two-process RENDEZVOUS -- each half blocks on its peer over a broker,
+# so under xdist both halves compete with every other worker for the cores
+# they need to meet on. Measured (doppler#1376): all four pairs pass serially
+# in 7.55 s, and `transmitter.py + receiver.py` fails with `receiver.py exited
+# 1` inside a 20-worker run. Same remedy as the timing assertions the registry
+# covers, so it reuses their marker and their second pass.
+@pytest.mark.examples_serial
 @pytest.mark.parametrize("pair", sorted(PAIRS))
 def test_example_pair_runs(pair: str, tmp_path: Path) -> None:
     """Run both halves of a two-process example; require the wire moved.

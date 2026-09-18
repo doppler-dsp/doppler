@@ -495,26 +495,32 @@ add_test(NAME validate_acq_peak_list
 # explicitly, as for rx_dynamics: the pool's receivers and the harness's
 # emitters both fan across dp_parallel.h, and doppler_lib_static carries no
 # usage requirement for it.
-add_executable(validate_async_dsss_pool_soak
-               ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_pool_soak.c)
-target_include_directories(validate_async_dsss_pool_soak
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
-                                   ${CMAKE_SOURCE_DIR}/native/tests)
-target_link_libraries(validate_async_dsss_pool_soak
-                      PRIVATE doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
-target_compile_options(validate_async_dsss_pool_soak
-                       PRIVATE -O3 -funroll-loops)
-add_test(NAME validate_async_dsss_pool_soak
-         COMMAND validate_async_dsss_pool_soak --check)
-# The same subset behind the shipped front end, with the CSV blocks the
-# report's validator parses: `--budget` puts the 13 MSa/s up-conversion and
-# the DDC in front of the pool and times both (§12 step 8, §6.4), and
-# `--emit` is the validator's own run. Without this twin, both paths ran on
-# no push -- the sweep is `make validate-c`'s -- and the patch gate read the
-# harness at 70%. The budget's real-time ratio is printed, not asserted, so
-# a loaded runner cannot fail it; the twin costs 5 s over the check alone.
-add_test(NAME validate_async_dsss_pool_soak_budget
-         COMMAND validate_async_dsss_pool_soak --check --budget --emit)
+# POSIX only. The soak measures its own memory with getrusage() and
+# configures itself with setenv() and clock_gettime(); the UCRT has none of
+# them, and the Windows equivalent (GetProcessMemoryInfo) is a port, not a
+# spelling. Recorded as a carve-out on #1364.
+if(NOT WIN32)
+  add_executable(validate_async_dsss_pool_soak
+                 ${CMAKE_CURRENT_SOURCE_DIR}/async_dsss_pool_soak.c)
+  target_include_directories(validate_async_dsss_pool_soak
+                             PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                     ${CMAKE_SOURCE_DIR}/native/tests)
+  target_link_libraries(validate_async_dsss_pool_soak
+                        PRIVATE doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
+  target_compile_options(validate_async_dsss_pool_soak
+                         PRIVATE -O3 -funroll-loops)
+  add_test(NAME validate_async_dsss_pool_soak
+           COMMAND validate_async_dsss_pool_soak --check)
+  # The same subset behind the shipped front end, with the CSV blocks the
+  # report's validator parses: `--budget` puts the 13 MSa/s up-conversion and
+  # the DDC in front of the pool and times both (§12 step 8, §6.4), and
+  # `--emit` is the validator's own run. Without this twin, both paths ran on
+  # no push -- the sweep is `make validate-c`'s -- and the patch gate read the
+  # harness at 70%. The budget's real-time ratio is printed, not asserted, so
+  # a loaded runner cannot fail it; the twin costs 5 s over the check alone.
+  add_test(NAME validate_async_dsss_pool_soak_budget
+           COMMAND validate_async_dsss_pool_soak --check --budget --emit)
+endif()
 
 # So `sweep` is what a sanitizer suite excludes (`ctest -LE sweep`). The spot
 # check still runs on every PR in the ordinary C suite, which is where it is

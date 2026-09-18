@@ -13,7 +13,7 @@
 #include "dp_test.h"
 #include "dp_tlm/dp_tlm_core.h"
 
-#include <pthread.h>
+#include "dp_thread.h"
 #include <stdio.h>
 
 /* ── mock instrumented object for the POD_STATE_TLM rule ────────────────── */
@@ -47,8 +47,7 @@ typedef struct
   int       n_events;
 } producer_arg_t;
 
-static void *
-producer_main (void *arg)
+DP_THREAD_FN (producer_main, arg)
 {
   producer_arg_t *pa = (producer_arg_t *)arg;
   for (int i = 0; i < pa->n_events; i++)
@@ -56,7 +55,7 @@ producer_main (void *arg)
       dp_tlm_set_now (pa->t, (uint64_t)i);
       dp_tlm_emit (pa->t, pa->id, (double)i);
     }
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 int
@@ -262,8 +261,8 @@ main (void)
     dp_tlm_t      *t  = dp_tlm_create (1 << 12);
     int            id = dp_tlm_probe (t, "x", 1);
     producer_arg_t pa = { t, id, 100000 };
-    pthread_t      th;
-    pthread_create (&th, NULL, producer_main, &pa);
+    dp_thread_t    th;
+    dp_thread_create (&th, producer_main, &pa);
 
     /* Drain concurrently while the producer runs (this is the actual
      * cross-thread hand-off under test), then join and drain the tail.
@@ -289,7 +288,7 @@ main (void)
   while (0)
     for (int spin = 0; spin < 1000000 && got < (uint64_t)pa.n_events; spin++)
       DRAIN ();
-    pthread_join (th, NULL);
+    dp_thread_join (th);
     DRAIN (); /* tail: everything still in the ring after the join */
 #undef DRAIN
     DP_CHECK (ordered);

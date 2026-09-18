@@ -24,6 +24,7 @@
 #include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "pn/pn_core.h"
+#include "timing/timing_core.h"
 #include "wfm_synth/wfm_synth_core.h"
 #include <math.h>
 #include <stdint.h>
@@ -94,9 +95,9 @@ main (int argc, char **argv)
   printf ("synchronous despreader BER  (MLS n=%d, L=%d, %ld sym/pt)\n", n, L,
           nsym);
   printf ("  Es/N0(dB)   measured     theory       meas/theory\n");
-  struct timespec t0, t1;
-  clock_gettime (CLOCK_MONOTONIC, &t0);
-  int fail = 0;
+  /* dp_mono_ns: the one portable monotonic clock (QPC on Windows). */
+  uint64_t t0   = dp_mono_ns ();
+  int      fail = 0;
   for (int p = 0; p < np; p++)
     {
       double meas = ber_point (codef, L, g, nb, db[p], nsym, &dst);
@@ -106,8 +107,7 @@ main (int argc, char **argv)
       if (check && (r < 0.85 || r > 1.15)) /* ~few-% CI at these counts */
         fail = 1;
     }
-  clock_gettime (CLOCK_MONOTONIC, &t1);
-  double sec = (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) * 1e-9;
+  double sec = (double)(dp_mono_ns () - t0) * 1e-9;
   printf ("  elapsed %.1f s  (%.2e chip-trials/s)\n", sec,
           (double)L * nsym * np / sec);
 

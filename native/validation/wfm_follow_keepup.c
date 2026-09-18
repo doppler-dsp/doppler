@@ -46,6 +46,8 @@
 #include "wfm_writer/wfm_writer_core.h"
 
 #include "dp_complex.h"
+#include "dp_thread.h"
+#include "timing/timing_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,19 +59,19 @@
 #define STYPE 3 /* ci16 */
 #define BLK 4096
 
+/* The portable pair: timing_core's monotonic clock (QPC on Windows) and the
+   threading shim's sleep. Both used to be clock_gettime / nanosleep, which the
+   UCRT does not have. */
 static double
 now_s (void)
 {
-  struct timespec ts;
-  clock_gettime (CLOCK_MONOTONIC, &ts);
-  return (double)ts.tv_sec + 1e-9 * (double)ts.tv_nsec;
+  return 1e-9 * (double)dp_mono_ns ();
 }
 
 static void
 nap_ms (long ms)
 {
-  struct timespec ts = { ms / 1000, (ms % 1000) * 1000000L };
-  nanosleep (&ts, NULL);
+  dp_thread_sleep_us ((unsigned)ms * 1000u);
 }
 
 typedef struct

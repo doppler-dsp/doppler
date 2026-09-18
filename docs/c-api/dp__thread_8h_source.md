@@ -99,9 +99,23 @@ dp_cpu_count (void)
   return n ? (int)n : 1;
 }
 
+static inline void
+dp_thread_yield (void)
+{
+  SwitchToThread ();
+}
+
+static inline void
+dp_thread_sleep_us (unsigned us)
+{
+  Sleep ((DWORD)((us + 999u) / 1000u));
+}
+
 #else /* POSIX */
 
 #include <pthread.h>
+#include <sched.h>
+#include <time.h>
 #include <unistd.h>
 
 typedef pthread_mutex_t dp_mutex_t;
@@ -175,6 +189,21 @@ dp_cpu_count (void)
 {
   long n = sysconf (_SC_NPROCESSORS_ONLN);
   return n > 0 ? (int)n : 1;
+}
+
+static inline void
+dp_thread_yield (void)
+{
+  sched_yield ();
+}
+
+static inline void
+dp_thread_sleep_us (unsigned us)
+{
+  struct timespec ts;
+  ts.tv_sec  = (time_t)(us / 1000000u);
+  ts.tv_nsec = (long)(us % 1000000u) * 1000L;
+  nanosleep (&ts, NULL);
 }
 
 #endif /* _WIN32 */

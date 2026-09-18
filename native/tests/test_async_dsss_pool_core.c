@@ -26,7 +26,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <process.h> /* getpid, under its POSIX name; the UCRT has no <unistd.h> */
+#else
 #include <unistd.h>
+#endif
 
 #define SF 1023u
 #define SPC 2u

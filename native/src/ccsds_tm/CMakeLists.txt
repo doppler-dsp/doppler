@@ -104,7 +104,7 @@ add_executable(test_ccsds_tm_frame
 # points the way docs/design/frame-description.md has it -- CCSDS is a
 # configuration of the general frame, not a peer of it.
 target_link_libraries(test_ccsds_tm_frame PRIVATE
-    ccsds_tm_core conv_core rs_core wfm_frame_core pn_core gold_core m)
+    ccsds_tm_core conv_core rs_core wfm_frame_core pn_core gold_core ${DP_MATH_LIBRARY})
 target_include_directories(test_ccsds_tm_frame PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
@@ -119,7 +119,7 @@ add_test(NAME test_ccsds_tm_frame COMMAND test_ccsds_tm_frame)
 add_executable(bench_ccsds_tm_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_ccsds_tm_core.c)
 target_link_libraries(bench_ccsds_tm_core PRIVATE
-    ccsds_tm_core conv_core rs_core wfm_frame_core pn_core gold_core m)
+    ccsds_tm_core conv_core rs_core wfm_frame_core pn_core gold_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_ccsds_tm_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/benchmarks)

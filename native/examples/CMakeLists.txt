@@ -11,7 +11,7 @@ foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo agc_demo corr_demo cic_demo 
     target_include_directories(${_ex} PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc
         ${CMAKE_BINARY_DIR}/native/inc)
-    target_link_libraries(${_ex} PRIVATE doppler_lib_static m)
+    target_link_libraries(${_ex} PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
     set_target_properties(${_ex} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 endforeach()
@@ -29,7 +29,7 @@ if(NOT WIN32)
         target_include_directories(${_ex} PRIVATE
             ${CMAKE_SOURCE_DIR}/native/inc
             ${CMAKE_BINARY_DIR}/native/inc)
-        target_link_libraries(${_ex} PRIVATE doppler_lib_static Threads::Threads m)
+        target_link_libraries(${_ex} PRIVATE doppler_lib_static Threads::Threads ${DP_MATH_LIBRARY})
         set_target_properties(${_ex} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     endforeach()
@@ -46,7 +46,7 @@ if(NOT WIN32)
             $<TARGET_OBJECTS:stream_core_obj>
             telemetry_core
             nats_vendor_static
-            Threads::Threads m)
+            Threads::Threads ${DP_MATH_LIBRARY})
         set_target_properties(${_ex} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     endforeach()

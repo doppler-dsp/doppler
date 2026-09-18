@@ -25,7 +25,6 @@ target_link_libraries(wfm_compose PRIVATE
     wfm_draw_core
     wfm_cjson_core
     wfm_keywords_core
-    m
     Python3::NumPy)
 target_include_directories(wfm_compose PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(wfm_compose PROPERTIES

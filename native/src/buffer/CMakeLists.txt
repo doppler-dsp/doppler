@@ -35,7 +35,7 @@ add_executable(bench_buffer_core
 # libm because jm_bench.h's stats take a sqrt for the standard deviation.
 # A Release build folds that call away and links without it; a Debug one
 # (make test-tsan, make test-ubsan) does not, which is where this surfaced.
-target_link_libraries(bench_buffer_core PRIVATE m)
+target_link_libraries(bench_buffer_core PRIVATE ${DP_MATH_LIBRARY})
 target_include_directories(bench_buffer_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)

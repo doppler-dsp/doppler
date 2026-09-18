@@ -20,7 +20,7 @@ add_executable(test_conv_core
 # Holding the CCSDS numbers to the standard is test_ccsds_tm_conv.c's job.
 # No viterbi_core either, since doppler#895 moved sections 4-8 to
 # test_viterbi_core.c -- this file is the CODE and the encoder now.
-target_link_libraries(test_conv_core PRIVATE conv_core m)
+target_link_libraries(test_conv_core PRIVATE conv_core ${DP_MATH_LIBRARY})
 target_include_directories(test_conv_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/tests)
@@ -39,7 +39,7 @@ add_test(NAME test_conv_core COMMAND test_conv_core)
 # it records a measurement, and it writes JSON under a collectable name.
 add_executable(bench_conv_core
     ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_conv_core.c)
-target_link_libraries(bench_conv_core PRIVATE conv_core m)
+target_link_libraries(bench_conv_core PRIVATE conv_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_conv_core PRIVATE
     ${CMAKE_SOURCE_DIR}/native/inc
     ${CMAKE_SOURCE_DIR}/native/benchmarks)

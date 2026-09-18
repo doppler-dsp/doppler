@@ -32,7 +32,6 @@ target_link_libraries(resample PRIVATE
     fir_core
     agc_core
     dp_tlm_core
-    m
     Python3::NumPy)
 target_include_directories(resample PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(resample PROPERTIES
@@ -62,7 +61,6 @@ target_link_libraries(test_resample_core PRIVATE
     fir_core
     agc_core
     dp_tlm_core
-    m
     ${JM_MATH_LIBRARY})
 target_include_directories(test_resample_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)

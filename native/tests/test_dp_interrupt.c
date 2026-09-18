@@ -13,8 +13,8 @@
 #include <signal.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>
 
+#ifndef _WIN32
 /* Set by the previous handler, to prove chaining actually calls it. */
 static volatile sig_atomic_t prior_ran = 0;
 
@@ -24,6 +24,7 @@ prior_handler (int sig)
   (void)sig;
   prior_ran = 1;
 }
+#endif
 
 static void
 test_flag_round_trip (void)
@@ -53,6 +54,15 @@ test_latency_knob (void)
   DP_CHECK (dp_interrupt_latency_ms () == DP_INTERRUPT_LATENCY_DEFAULT_MS);
 }
 
+/* Everything from here to the matching #endif installs POSIX signal
+ * handlers: SIGUSR1/2, SIGKILL, SIGCHLD and friends, `struct sigaction`,
+ * `sigemptyset`. None of them exist on Windows, where dp_interrupt delivers
+ * through console control events instead (SetConsoleCtrlHandler). raise()
+ * there goes through the CRT's signal() table and never reaches a console
+ * handler, so these cannot be ported by swapping signal numbers -- the
+ * Windows path needs its own test, tracked on doppler#1364. The three tests
+ * outside this region run on every platform. */
+#ifndef _WIN32
 static void
 test_signal_sets_the_flag (void)
 {
@@ -202,6 +212,8 @@ test_slot_exhaustion_is_refused (void)
   dp_resume ();
 }
 
+#endif /* !_WIN32 */
+
 /* The process-global rendezvous, at the layer that owns it.
  *
  * The DEFECT it exists for (doppler#976) is invisible here by construction:
@@ -269,6 +281,7 @@ main (void)
   test_flag_round_trip ();
   test_adopting_a_foreign_state_redirects_the_flag ();
   test_latency_knob ();
+#ifndef _WIN32
   test_signal_sets_the_flag ();
   test_installing_twice_is_not_an_error ();
   test_chaining_calls_the_previous_handler ();
@@ -277,6 +290,7 @@ main (void)
   test_chaining_calls_a_sigaction_predecessor ();
   test_uncatchable_signal_is_refused ();
   test_slot_exhaustion_is_refused ();
+#endif
 
   DP_TEST_END ("test_dp_interrupt");
 }

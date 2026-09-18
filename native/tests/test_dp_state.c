@@ -53,7 +53,12 @@
 
 #include <stdio.h>
 #include <string.h>
+#ifdef _WIN32
+/* dup / dup2 / close under their POSIX names; the UCRT has no <unistd.h>. */
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 
 /* ── A fake serializable object, over the real envelope ─────────────────── */
 

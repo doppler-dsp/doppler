@@ -888,6 +888,21 @@ COV_GUARD     ?= scripts/mem-guard.sh
 # so the two suites' escape hatches read the same. The measurement that
 # justifies it is at the ctest call site below. `COV_SWEEP=1` restores them.
 COV_EXCLUDE_SWEEP = $(if $(COV_SWEEP),,-LE sweep)
+
+# The PYTEST half of the same exclusion, and the reason it has to exist: the
+# ctest half above drops the 34 `sweep` validators, and then each module's
+# `test_validation_limits.py` runs the SAME validators again from Python. It
+# calls every object's `build(write=False)`, which by design executes every
+# measurement the report records -- so the work the line above removes comes
+# straight back through the other door. Measured on this machine: the
+# instrumented pytest leg is 29:08, and a single silent gap between "97%" and
+# "99%" is 28 of those minutes (#1370).
+#
+# Spelled as an --ignore-glob because the coverage command already uses one
+# for the benchmark dirs, so this needs no marker and no source change.
+# `COV_SWEEP=1` puts them back, exactly as it does for the ctest half -- one
+# flag restores the full instrumented picture for both.
+COV_EXCLUDE_LIMITS = $(if $(COV_SWEEP),,--ignore-glob='*/tests/test_validation_limits.py')
 export MEM_GUARD_PYTHON ?= $(PYTHON_EXECUTABLE)
 # Excluded from the report: vendored code, jm-generated binding aggregators
 # (`<mod>_ext.c`) and per-object fragments, and the test/bench/validation
@@ -1062,7 +1077,8 @@ LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
     DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
     PATH="$(CURDIR)/$(COV_DIR)/pkg/doppler/wfm/_bin:$(dir $(PYTHON_EXECUTABLE)):$$PATH" \
     $(COV_GUARD) $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
-    -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' -n auto
+    -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' \
+    $(COV_EXCLUDE_LIMITS) -n auto
 -DOPPLER_BUILD_DIR="$(CURDIR)/$(COV_DIR)" \
     LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/rs-%p-%m.profraw" \
     $(COV_GUARD) cargo test --manifest-path $(RUST_DIR)/Cargo.toml

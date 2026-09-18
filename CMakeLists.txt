@@ -82,11 +82,13 @@ option(ENABLE_SIMD "Enable SIMD / fast-math flags" ON)
 # safe path is the default, speed is the thing you ask for.
 option(DOPPLER_NATIVE
        "Tune for the build host CPU (-march=native). Local dev/bench ONLY — never for distributed wheels." OFF)
-# Windows / MSVC is intentionally unsupported (signal-processing users on
-# Windows run under WSL2, a VM, or a container), so only the GCC/Clang
-# toolchains carry SIMD flags. The MSVC `/arch:AVX2` branch was never even
-# exercised — Windows CI built with MinGW — and AVX2-by-default would SIGILL on
-# pre-2013 CPUs anyway, the same portability trap the -march policy avoids.
+# The GCC-style SIMD flags below are for gcc and clang. Windows builds with
+# clang (GNU driver), which takes them as-is, or clang-cl, which sets MSVC and
+# gets its numeric policy from the clang-cl block further down instead. MSVC's
+# own cl.exe cannot build doppler at all (no C99 `_Complex`; dp_complex.h
+# `#error`s), so there is deliberately no `/arch:` branch: AVX2-by-default
+# would SIGILL on pre-2013 CPUs, the same trap the -march policy avoids.
+# Supported toolchains per platform: docs/install/source.md.
 if(ENABLE_SIMD AND NOT MSVC)
     if(DOPPLER_NATIVE)
         add_compile_options(-march=native)
@@ -272,9 +274,10 @@ endforeach()
 # On Linux and macOS the suffixes differ (`libdoppler.so` vs `libdoppler.a`),
 # so the collision cannot arise and the shared name reads as deliberate. It is
 # renamed only where it has to be: nothing that ships is affected, since
-# Windows publishes no artifacts (.github/workflows/windows.yml is
-# exploratory), and EXPORT_NAME below is untouched, so `doppler::doppler` and
-# `doppler::doppler-static` are the same on every platform.
+# Windows publishes no artifacts (.github/workflows/windows.yml builds and
+# tests, non-binding), and EXPORT_NAME below is untouched, so
+# `doppler::doppler` and `doppler::doppler-static` are the same on every
+# platform.
 if(WIN32)
     set_target_properties(doppler_lib_static PROPERTIES
                           OUTPUT_NAME doppler_static)

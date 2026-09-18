@@ -47,8 +47,15 @@ SCAN_DIRS = (
     "scripts",
     "changelog.d",
     "docs",
+    ".github",
 )
-SCAN_FILES = ("Makefile", "CMakeLists.txt", "just-makeit.toml", "mkdocs.yml")
+SCAN_FILES = (
+    "Makefile",
+    "CMakeLists.txt",
+    "just-makeit.toml",
+    "mkdocs.yml",
+    "bootstrap.toml",
+)
 # `.venv`/`site-packages` are INSTALLED trees, not source: the downstream
 # example syncs a virtualenv under `examples/`, and an installed copy of
 # doppler's own stubs then carries every name this gate is asked about. That
@@ -104,13 +111,29 @@ def _files() -> list[Path]:
         for p in base.rglob("*"):
             if not p.is_file() or p.suffix not in SUFFIXES:
                 continue
-            rel = p.relative_to(ROOT).as_posix()
-            if any(part in SKIP_PARTS for part in p.parts):
-                continue
-            if any(rel.startswith(s) for s in SKIP_PARTS):
+            if _skipped(p.relative_to(ROOT).as_posix()):
                 continue
             seen.append(p)
     return seen
+
+
+def _skipped(rel: str) -> bool:
+    """True when the repo-relative POSIX path *rel* is not ours to scan.
+
+    Whole components, never a string prefix: `.github/...` starts with
+    `.git`, and a bare startswith() skipped every workflow file -- found the
+    day `.github` was added to SCAN_DIRS and a sabotaged workflow still
+    passed. Multi-component entries (`docs/c-api`) match as a leading run.
+    """
+    parts = rel.split("/")
+    for skip in SKIP_PARTS:
+        sp = skip.split("/")
+        if len(sp) == 1:
+            if skip in parts:
+                return True
+        elif parts[: len(sp)] == sp:
+            return True
+    return False
 
 
 def main() -> int:

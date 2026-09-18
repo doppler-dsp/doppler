@@ -186,9 +186,11 @@ jobs:
       # dependency shows up.
       run: make burst-pipeline-check
 
-  # Windows is intentionally unsupported: signal-processing users on Windows
-  # run under WSL2, a VM, or a container. Dropping it removed the flaky MSYS2
-  # toolchain setup and the MinGW build/test matrix.
+  # Windows is NOT in this workflow on purpose: it lives in windows.yml, which
+  # builds the C library and runs the full C suite under clang and clang-cl.
+  # Kept out of ci.yml because every job here must feed `CI passed`
+  # (check_ci_aggregator.py), and Windows is non-binding. The old MSYS2/MinGW
+  # matrix that used to sit here was dropped for being flaky.
   #
   # macOS still provisions with brew, because there is no macOS container to
   # bake: `make install-deps` is the one dep command a developer also runs and

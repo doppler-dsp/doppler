@@ -2,8 +2,8 @@
 # extension and the standalone streaming examples.
 # nats_vendor_static provides NATS headers and the static libnats.a (the
 # nats:// transport; pure C, TLS/STAN off — see the root CMakeLists).
-# Skipped on Windows: the vendored nats.c build's MinGW support is unverified
-# (kept conservative pending a dedicated Windows-streaming follow-up).
+# Skipped on Windows: the NATS stream layer (pthreads + the vendored nats.c)
+# is not ported there -- a carve-out tracked on #1364.
 if(NOT WIN32)
     # tlm_sink.c is the telemetry NATS sink (stream/tlm_sink.h): stream-
     # component code because it publishes through dp_pub_*. Its dp_tlm_read

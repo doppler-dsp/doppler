@@ -185,8 +185,9 @@ packages = [
 ]
 
 # NO valgrind: it does not exist on Windows at all -- valgrind has never had a
-# Windows port, MSYS2 packages none, and doppler does not target Windows for
-# development anyway ([project] platforms = ["linux", "macos"], jm gh-213).
+# Windows port and MSYS2 packages none. (This group is the MSYS2/MinGW
+# toolchain. The Windows build CI tests is clang/clang-cl against the MSVC
+# runtime -- windows.yml, docs/install/source.md -- not this one.)
 [dev.msys2]
 packages = [
     "mingw-w64-ucrt-x86_64-gcc",

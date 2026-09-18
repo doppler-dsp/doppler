@@ -74,6 +74,14 @@ def main(out_path: str = "ddc_fn_scaling.png") -> None:
     counts = [c for c in (1, 2, 4, 8, 12, 16, 24, 32) if c <= ncpu]
     if counts[-1] != ncpu:
         counts.append(ncpu)
+    # Under coverage the curve is not asserted (see below), so only its
+    # threaded CODE path matters, and two threads exercise all of it. The
+    # sweep's work is the SUM of the counts -- 65 blocks-per-thread units on
+    # a 20-core box against 9 on CI's 4 -- and instrumented execute() does
+    # not scale, so that sum is wall-clock: it ran past the example gate's
+    # timeout on its own, uncontended (doppler#1376).
+    if os.environ.get("LLVM_PROFILE_FILE"):
+        counts = counts[:2]
 
     # Sanity-check the kernel the workers hammer: the carrier must park at
     # DC and the 4× decimation must hold, else the benchmark times noise.

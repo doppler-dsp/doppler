@@ -22,6 +22,8 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <limits.h>
+#include <string.h>
 #include <time.h>
 
 /* Windows has neither `gmtime_r` nor `clock_gettime`, and both replacements
@@ -75,6 +77,52 @@ extern "C"
 #define DP_ISOTIME_EXTENDED 1
 
   static inline int
+  dp_isotime_utc_tm_ (int64_t sec, struct tm *out)
+  {
+    /* floor division: 86400 * days + rem with rem in [0, 86399], also for
+       sec < 0, which C's truncating `/` would get wrong by one day. */
+    int64_t days = sec / 86400;
+    int64_t rem  = sec % 86400;
+    if (rem < 0)
+      {
+        rem += 86400;
+        days -= 1;
+      }
+
+    int64_t        z   = days + 719468;
+    const int64_t  era = (z >= 0 ? z : z - 146096) / 146097;
+    const unsigned doe = (unsigned) (z - era * 146097);
+    const unsigned yoe
+        = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    const unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    const unsigned mp  = (5 * doy + 2) / 153;
+    const unsigned d   = doy - (153 * mp + 2) / 5 + 1;
+    const unsigned m   = mp < 10 ? mp + 3 : mp - 9;
+    const int64_t  y   = (int64_t) yoe + era * 400 + (m <= 2);
+
+    if (y - 1900 > INT_MAX || y - 1900 < INT_MIN)
+      return -1;
+
+    static const int cum[12]
+        = { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+    /* A remainder of zero is sign-agnostic in C, so this is the Gregorian
+       rule for negative years too. */
+    const int leap = (y % 4 == 0) && (y % 100 != 0 || y % 400 == 0);
+
+    memset (out, 0, sizeof *out);
+    out->tm_year  = (int) (y - 1900);
+    out->tm_mon   = (int) m - 1;
+    out->tm_mday  = (int) d;
+    out->tm_hour  = (int) (rem / 3600);
+    out->tm_min   = (int) (rem % 3600 / 60);
+    out->tm_sec   = (int) (rem % 60);
+    out->tm_yday  = cum[m - 1] + (int) d - 1 + (m > 2 && leap);
+    out->tm_wday  = (int) (((days % 7) + 7 + 4) % 7); /* 1970-01-01: Thu */
+    out->tm_isdst = 0;
+    return 0;
+  }
+
+  static inline int
   dp_isotime_format_as (char *buf, size_t cap, int64_t sec, uint32_t nsec,
                         unsigned frac, int style)
   {
@@ -86,9 +134,8 @@ extern "C"
     if (style != DP_ISOTIME_BASIC && style != DP_ISOTIME_EXTENDED)
       return -1;
 
-    time_t    t = (time_t) sec;
     struct tm tm_utc;
-    if (!dp_isotime_gmtime (&t, &tm_utc))
+    if (dp_isotime_utc_tm_ (sec, &tm_utc) != 0)
       return -1;
 
     /* Basic "YYYYMMDDThhmmss" is 15 chars and carries no colons; extended

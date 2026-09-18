@@ -553,10 +553,19 @@ test_a_line_is_bounded_on_both_sides (void)
   DP_CHECK_MSG (fopen (META_PATH, "r") == NULL,
                 "no sidecar is written for a refused file");
 
-  /* The reader, on type alone: `/dev/null` reads instant EOF, so a reader
-     that only capped the line would happily describe it as an empty run. */
-  DP_CHECK_MSG (dp_event_log_write_meta ("/dev/null", META_PATH, 0, 0, 1.0e6,
-                                         0.0, 0.0, NULL, NULL)
+  /* The reader, on type alone: the null device reads instant EOF, so a reader
+     that only capped the line would happily describe it as an empty run.
+     Spelled per platform, because the point is a file that OPENS and is not
+     regular: on Windows `/dev/null` does not exist, so the open failed
+     (DP_ERR_SEND) before the type was ever checked. `NUL` opens there, and
+     fstat reports it as a character device. */
+#ifdef _WIN32
+  const char *null_dev = "NUL";
+#else
+  const char *null_dev = "/dev/null";
+#endif
+  DP_CHECK_MSG (dp_event_log_write_meta (null_dev, META_PATH, 0, 0, 1.0e6, 0.0,
+                                         0.0, NULL, NULL)
                     == DP_ERR_INVALID,
                 "a file that is not a regular file is not an event log");
   DP_CHECK (fopen (META_PATH, "r") == NULL);

@@ -1254,7 +1254,8 @@ test_refine_span_bounds_start_to_start (void)
 static void
 scratch_path (char *buf, size_t n, const char *tag)
 {
-  snprintf (buf, n, "/tmp/dp_burst_capture_%s_%d.cf32", tag, (int)getpid ());
+  snprintf (buf, n, "%s/dp_burst_capture_%s_%d.cf32", dp_test_tmpdir (), tag,
+            (int)getpid ());
 }
 
 /**

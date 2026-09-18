@@ -97,6 +97,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /* Failure and check counters. `dp_test_checks_` exists so the epilogue can
  * report how much was actually asserted: a test that runs to completion
@@ -288,6 +289,32 @@ static int dp_test_checks_ = 0;
  * @param n  Octets to compare.
  * @return   Bits that differ, in `[0, 8n]`.
  */
+/**
+ * @brief A writable directory for a test's scratch files, with no trailing
+ *        separator.
+ *
+ * POSIX is exactly `/tmp`, as every test hard-coded before, so its paths and
+ * their lengths do not change. Windows has no `/tmp`; it gets `%TEMP%`, then
+ * `%TMP%`, then the current directory -- and a test that wrote to `/tmp`
+ * there got a NULL `fopen` and failed on the open, not on anything it was
+ * testing. Join with `/`: Windows accepts it as a separator.
+ *
+ * Size the buffer for the Windows case, which is the long one
+ * (`C:\Users\...\AppData\Local\Temp`); 256 is ample.
+ */
+static inline const char *
+dp_test_tmpdir (void)
+{
+#ifdef _WIN32
+  const char *d = getenv ("TEMP");
+  if (!d || !*d)
+    d = getenv ("TMP");
+  return (d && *d) ? d : ".";
+#else
+  return "/tmp";
+#endif
+}
+
 static inline size_t
 dp_bit_distance (const uint8_t *a, const uint8_t *b, size_t n)
 {

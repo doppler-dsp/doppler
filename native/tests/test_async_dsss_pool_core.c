@@ -388,9 +388,9 @@ _test_two_emitters_and_a_full_pool (void)
 static int
 _test_event_log (void)
 {
-  char path[64];
-  (void)snprintf (path, sizeof path, "/tmp/dp_pool_test_%d.events",
-                  (int)getpid ());
+  char path[256];
+  (void)snprintf (path, sizeof path, "%s/dp_pool_test_%d.events",
+                  dp_test_tmpdir (), (int)getpid ());
   dp_event_log_t *log = dp_event_log_open (path, 0.0);
   DP_REQUIRE (log != NULL);
   cap_t                    e = emitter (1500.0, 40, 103u);
@@ -438,9 +438,9 @@ _test_event_log (void)
 static int
 _test_on_time_release_and_reset (void)
 {
-  char path[64];
-  (void)snprintf (path, sizeof path, "/tmp/dp_pool_test_ot_%d.events",
-                  (int)getpid ());
+  char path[256];
+  (void)snprintf (path, sizeof path, "%s/dp_pool_test_ot_%d.events",
+                  dp_test_tmpdir (), (int)getpid ());
   dp_event_log_t *log = dp_event_log_open (path, 0.0);
   DP_REQUIRE (log != NULL);
   cap_t                    e = emitter (1500.0, 40, 105u);

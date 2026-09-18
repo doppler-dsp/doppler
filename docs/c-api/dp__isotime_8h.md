@@ -12,6 +12,8 @@ _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for nam
 
 * `#include <stdint.h>`
 * `#include <stdio.h>`
+* `#include <limits.h>`
+* `#include <string.h>`
 * `#include <time.h>`
 
 
@@ -63,6 +65,7 @@ _ISO 8601 UTC timestamps in both spellings — filename-safe_ **basic** _for nam
 |  struct tm \* | [**dp\_isotime\_gmtime**](#function-dp_isotime_gmtime) (const time\_t \* t, struct tm \* out) <br> |
 |  int | [**dp\_isotime\_now**](#function-dp_isotime_now) (char \* buf, size\_t cap, unsigned frac) <br> |
 |  int | [**dp\_isotime\_parse**](#function-dp_isotime_parse) (const char \* s, int64\_t \* sec, uint32\_t \* nsec) <br>_Parses an ISO 8601 UTC timestamp into UNIX seconds + nanoseconds._  |
+|  int | [**dp\_isotime\_utc\_tm\_**](#function-dp_isotime_utc_tm_) (int64\_t sec, struct tm \* out) <br>_Break a UTC instant into a fully-populated_ `struct tm` _, by arithmetic rather than by gmtime._ |
 |  int | [**dp\_isotime\_wall**](#function-dp_isotime_wall) (struct timespec \* ts) <br> |
 
 
@@ -366,6 +369,40 @@ uint32_t nsec;
 dp_isotime_parse ("1970-01-01T00:00:01Z", &sec, &nsec);  // sec == 1
 ```
  
+
+
+        
+
+<hr>
+
+
+
+### function dp\_isotime\_utc\_tm\_ 
+
+_Break a UTC instant into a fully-populated_ `struct tm` _, by arithmetic rather than by gmtime._
+```C++
+static inline int dp_isotime_utc_tm_ (
+    int64_t sec,
+    struct tm * out
+) 
+```
+
+
+
+Every platform, not a Windows branch: the MSVC CRT's `gmtime_s` REFUSES any instant before 1970 (EINVAL), where glibc's `gmtime_r` accepts it, so "1950-01-01" formatted on Linux and failed on Windows. One integer implementation removes the platform from the answer, and means the Linux suite tests the exact code Windows runs.
+
+
+Howard Hinnant's `civil_from_days`  the inverse of the `dp_isotime_days_from_civil_` below  exact over the whole proleptic Gregorian range. EVERY field is filled, because MSVC's `strftime` validates all of them (tm\_wday, tm\_yday included) and aborts through the invalid-parameter handler on one out of range.
+
+
+
+
+**Returns:**
+
+0, or -1 when the year does not fit `tm_year`. 
+
+
+
 
 
         

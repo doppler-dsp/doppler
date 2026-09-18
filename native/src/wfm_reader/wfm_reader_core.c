@@ -1154,7 +1154,15 @@ wfm_reader_create (const char *path, int hint_stype, int hint_endian)
     {
       fclose (r->fp);
       r->file_type = WFM_FT_CSV;
-      r->fp        = fopen (path, "r");
+      /* "rb", like every other path here, though CSV is text. seek_csv saves
+         and restores its place with ftell/fseek, and on Windows a TEXT-mode
+         stream's ftell is not a byte offset: over a file with LF line
+         endings -- which is what wfm_writer produces, opened "wb" -- the CRT
+         reports positions that do not round-trip, and a seek back read the
+         wrong samples. Binary mode makes positions plain byte offsets on
+         every platform. The parser already treats '\r' as a line end and as
+         whitespace, so a CRLF file from another tool still reads. */
+      r->fp = fopen (path, "rb");
       if (!r->fp)
         goto fail;
       adopt_sidecar (r, path, hint_is_auto);

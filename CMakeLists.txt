@@ -163,6 +163,15 @@ endif()
 # that for the files that happen to include it first. -D has no such gap.
 if(WIN32)
     add_compile_definitions(_USE_MATH_DEFINES)
+    # The MSVC CRT deprecates two classes of perfectly portable C, and says so
+    # on every use: the "secure" _s alternatives (fopen, strcpy, strncpy,
+    # fscanf, localtime -> fopen_s, ...) and the POSIX spellings of functions
+    # it ships under an underscore (strdup, getpid, dup -> _strdup, ...).
+    # Neither is a defect here -- doppler is portable C99 and the _s functions
+    # are not -- but a first Windows build emitted dozens of them, burying the
+    # diagnostics that were real. Silenced once, at the root, which also
+    # reaches the vendored jm_bench.h without a private edit to it.
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_DEPRECATE)
 endif()
 
 # Source-based code coverage (clang only) — driven by `make coverage`; see

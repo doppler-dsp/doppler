@@ -17,8 +17,8 @@ foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo agc_demo corr_demo cic_demo 
 endforeach()
 
 # ── Streaming examples (POSIX only — use pthreads + the vendored nats.c) ─────
-# Streaming examples require pthreads and the vendored nats.c, neither of
-# which builds reliably under MinGW.  Skip them on Windows.
+# Streaming examples need the NATS stream layer (pthreads + the vendored
+# nats.c), which is not ported to Windows -- a carve-out tracked on #1364.
 
 if(NOT WIN32)
     find_package(Threads REQUIRED)

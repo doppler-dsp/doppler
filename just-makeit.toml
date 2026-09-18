@@ -5,9 +5,11 @@ jm_version = "0.76.4"
 name = "doppler"
 version = "0.51.1"
 build = "cmake"
-# doppler does not target Windows (signal-processing users run WSL2/VM/container
-# — see docs). Omitting "windows" drops jm's per-component MinGW DLL-copy
-# boilerplate (jm-gh-213); the drift gate treats its absence as correct.
+# The C library builds on Windows with clang/clang-cl (windows.yml), but not
+# through jm's MinGW path: "windows" here would add jm's per-component MinGW
+# DLL-copy boilerplate (jm-gh-213), which the clang/clang-cl build does not
+# use. The Python extensions are not built on Windows. Omitting it is correct,
+# and the drift gate treats its absence as correct. See docs/install/source.md.
 platforms = ["linux", "macos"]
 # c_style / c_format_command (gh-265, gh-745): jm formats the C it generates
 # with the project's OWN pinned clang-format, so its render and the committed

@@ -49,3 +49,9 @@ doppler-doxygen:	the CI image — see deploy/docker/README.md
 # the same function again, module-prefixed. A name-based gate only works if it
 # covers the names people actually reach for.
 \b[a-z0-9_]*pow2_ceil\b	next_pow_two (native/inc/util/util_core.h)
+
+# The claim, not an identifier, but retired the same way: Windows is a
+# supported build platform for the C library (clang/clang-cl, windows.yml,
+# #1360), and stale "unsupported" comments outlived that by a release.
+(?i)(does not|doesn't) target Windows	Windows builds with clang/clang-cl: docs/install/source.md#windows
+(?i)Windows[^.\n]{0,20}\bis (intentionally |deliberately )?(unsupported|not supported)	Windows builds with clang/clang-cl: docs/install/source.md#windows

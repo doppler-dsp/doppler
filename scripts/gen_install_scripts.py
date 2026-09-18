@@ -66,8 +66,9 @@ DOCS_EXCLUDE = frozenset(
 )
 
 # manager -> (script filename, audience comment, install-command prefix).
-# msys2 is absent on purpose: doppler doesn't target Windows natively;
-# the docs route Windows users to WSL2 + the apt path.
+# msys2 is absent on purpose: these are shell scripts for POSIX package
+# managers. The Windows build is clang/clang-cl from Visual Studio or LLVM,
+# installed by hand -- docs/install/source.md#windows -- not an MSYS2 one.
 MANAGERS: dict[str, tuple[str, str, str]] = {
     "apt": (
         "build-apt-deps.sh",

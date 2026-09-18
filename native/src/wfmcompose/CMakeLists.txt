@@ -213,9 +213,9 @@ foreach(_dt doppler_lib doppler_lib_static)
     target_sources(${_dt} PRIVATE $<TARGET_OBJECTS:wfm_compose_core>)
 endforeach()
 
-# ── NATS PUB sink — POSIX only (vendored nats.c + pthreads don't build on
-#    MinGW; mirrors native/examples's streaming guard). The sink is independent of
-#    the composer, so it links the stream layer, not synth. ─────────────────
+# ── NATS PUB sink — POSIX only (the NATS stream layer is not ported to
+#    Windows, #1364; mirrors native/examples's streaming guard). The sink is
+#    independent of the composer, so it links the stream layer, not synth. ──
 # ── sample-clock pacing + timestamping (timing_core) — EVERY platform.
 #
 # Defined outside the POSIX guard below, and deliberately so. jm emits

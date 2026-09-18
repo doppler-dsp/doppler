@@ -23,8 +23,8 @@ fn main() {
 
     if target_os == "windows" {
         // Static link on Windows: avoids pseudo-relocation failures and
-        // the DLL runtime dependency. LTO is disabled on MinGW in CMake
-        // so the static archive contains plain object files.
+        // the DLL runtime dependency. doppler builds without LTO, so the
+        // static archive contains plain object files.
         // pocketfft_cxx stays a separate STATIC archive on Windows because
         // doppler_lib_static is linked with OBJECT libs, not the static
         // pocketfft archive, so it needs to come in separately.

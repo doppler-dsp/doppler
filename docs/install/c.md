@@ -213,5 +213,7 @@ The **shared** library is even simpler — `-ldoppler` alone is sufficient.
 
 !!! note "POSIX only"
 
-    `doppler_wfmgen` is built on the same POSIX surface as the `wfmgen` binary
-    (the stream sink and `--realtime` pacing), so it is not available on Windows.
+    `doppler_wfmgen` is built on the same surface as the `wfmgen` binary,
+    including the NATS stream sink, which is not ported to Windows, so it is
+    not available there. See [Build from Source](source.md#windows) for what
+    the Windows build includes.

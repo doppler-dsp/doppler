@@ -1,7 +1,9 @@
 name: Windows (clang-cl)
 
-# EXPLORATORY. This workflow is deliberately NOT part of the merge gate and
-# deliberately publishes nothing.
+# NON-BINDING. It builds the C library and runs the full C suite under clang
+# and clang-cl. It is deliberately NOT part of the merge gate and deliberately
+# publishes nothing. What the Windows build includes and leaves out is
+# documented in docs/install/source.md#windows.
 #
 # Not required to pass
 # --------------------
@@ -48,7 +50,7 @@ on:
     branches: [ main ]
   pull_request:
     # Only when something that could plausibly break it moves -- this is an
-    # exploratory signal, not a reason to burn a runner on every docs PR.
+    # non-binding signal, not a reason to burn a runner on every docs PR.
     paths:
       - 'native/**'
       - 'CMakeLists.txt'
@@ -118,16 +120,14 @@ jobs:
         shell: bash
         run: cmake --build build --parallel --target doppler_lib doppler_lib_static
 
-      # Benchmarks are expected to fail until just-buildit/just-makeit#1341:
-      # `jm_bench.h` has no portable monotonic timer, so each of the 106
-      # generated benchmarks calls clock_gettime(CLOCK_MONOTONIC) in its own
-      # main(). That is one fix upstream, and patching the vendored header
-      # here would be a private copy of it -- the shape doppler has already
-      # lost edits to twice on re-vendor.
+      # Tests and benchmarks are their own step so a red one says which half
+      # broke. The benchmarks used to fail here on `clock_gettime` in every
+      # generated main(); just-buildit/just-makeit#1341 fixed that upstream,
+      # in jm_bench.h, rather than doppler patching a private copy.
       - name: Build everything else (tests, benchmarks)
         if: always()
         shell: bash
-        # -k 0: keep going past the first failure. This runner is exploratory
+        # -k 0: keep going past the first failure. This runner is non-binding
         # and its job is to show every wall, and ninja's default stops
         # scheduling at the first -- one error per CI round, which is the
         # slowest possible way to learn a list. Measured: the last run stopped

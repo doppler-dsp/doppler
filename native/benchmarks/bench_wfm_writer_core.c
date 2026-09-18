@@ -1,7 +1,8 @@
 /* bench_wfm_writer_core.c — file type write throughput (MSa/s) per format.
  *
  * Isolates the codec (quantise + byte order + framing) from disk by writing to
- * an in-memory stream (open_memstream), so the numbers reflect conversion
+ * an in-memory stream (open_memstream; the null device on Windows, which has
+ * no open_memstream), so the numbers reflect conversion
  * cost, not the filesystem. Covers the cheap path (cf32 = memcpy), the integer
  * quantiser (ci16), and the text path (CSV). Emits pytest-benchmark JSON. */
 #define _POSIX_C_SOURCE 200809L
@@ -25,10 +26,18 @@ bench_cfg (const char *name, int ft, int stype, const float _Complex *x,
   double   times[ITERATIONS];
   for (int r = 0; r < ITERATIONS; r++)
     {
-      char  *buf = NULL;
+      char *buf = NULL;
+#ifdef _WIN32
+      /* The UCRT has no open_memstream. The null device is the nearest
+         disk-free sink: the CRT buffers the bytes, then they are discarded.
+         (tmpfile would be the wrong substitute -- it writes to disk.) */
+      FILE *fp = fopen ("NUL", "wb");
+#else
+      /* Unchanged on POSIX, so the published numbers stay comparable. */
       size_t len = 0;
       FILE  *fp  = open_memstream (&buf, &len);
-      t0         = jm_bench_now_ns ();
+#endif
+      t0 = jm_bench_now_ns ();
       wfm_writer_state_t *w
           = wfm_writer_open (fp, ft, stype, 0, 1e6, 0.0, BENCH_N, 0.0);
       wfm_writer_write (w, x, BENCH_N);

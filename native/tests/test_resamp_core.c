@@ -40,6 +40,7 @@
  */
 
 #include "dp_complex.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include "resamp/resamp_impl.h"
 #include <math.h>
@@ -945,14 +946,14 @@ inputs_needed_is_exact (double rate)
   if (!r)
     return 0;
 
-  unsigned seed   = 20250811u;
+  uint32_t seed   = 20250811u;
   size_t   tot_in = 0, tot_out = 0;
   int      ok = 1;
   for (int k = 0; k < CALLS && ok; k++)
     {
       /* Varied, and never the same twice: a fixed max_out would only ever
          exercise one phase alignment. */
-      size_t m    = 1 + (size_t)(rand_r (&seed) % (CAP - 1));
+      size_t m    = 1 + (size_t)(dp_xs32 (&seed) % (CAP - 1));
       size_t need = resamp_interp_inputs_needed (r, m);
       if (need > NIN)
         break;

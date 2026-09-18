@@ -442,10 +442,17 @@ jobs:
   # deploy/docker/Dockerfile.cli.
   # ------------------------------------------------------------------
   publish-container:
-    name: Publish container images
+    name: Build container images (${{ matrix.arch.tag }})
     needs: [verify-version, publish-python]
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.arch.runner }}
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # Native runners, same pair the wheel and C-package legs use.
+        include:
+          - arch: { tag: amd64, runner: ubuntu-latest, platform: linux/amd64 }
+          - arch: { tag: arm64, runner: ubuntu-24.04-arm, platform: linux/arm64 }
     permissions:
       packages: write
       contents: read
@@ -490,31 +497,153 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # The emulator only ever executes `pip install <wheel>` for the
-      # linux/arm64 image layer and the arm64 smoke `docker run` below —
-      # never a compiler (the aarch64 wheel is built natively by
-      # build-python). Emulated pip is a ~1 min cost, vs the ~19 min
-      # emulated source build this job carried before v0.32.0.
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
-        with:
-          platforms: arm64
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build and push
+      # NO QEMU. Each arch builds on its own runner, which is what every other
+      # aarch64 leg in this file already does ("no QEMU or cross-toolchain
+      # anywhere"). This job was the last holdout, and it was the expensive
+      # one: the SDK and downstream images COMPILE doppler from source, so
+      # their arm64 layer was a C build under emulation — 28 min of a 36 min
+      # job, and the whole critical path of a 43 min release (#1369).
+      #
+      # Each image is pushed BY DIGEST, untagged; the merge job below assembles
+      # the two digests into one multi-arch tag. That is the documented buildx
+      # pattern and it is why nothing here names a tag.
+      - name: Build and push the runtime image by digest
+        id: runtime
         uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/docker/Dockerfile.cli
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.arch.platform }}
           build-args: |
             DOPPLER_VERSION=${{ needs.verify-version.outputs.version }}
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }}
-            ghcr.io/${{ github.repository }}:latest
+          outputs: type=image,name=ghcr.io/${{ github.repository }},push-by-digest=true,name-canonical=true,push=true
+
+      # The SDK image (ghcr.io/doppler-dsp/doppler-sdk) — the "build ON
+      # doppler" artifact: doppler installed to /usr/local + toolchain + uv/jm.
+      # It compiles doppler from source, which is precisely why it must not be
+      # emulated. Version-lock is by source, so no PyPI wait.
+      - name: Build and push the SDK image by digest
+        id: sdk
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.examples
+          target: sdk
+          platforms: ${{ matrix.arch.platform }}
+          build-args: |
+            JM_VERSION=${{ needs.verify-version.outputs.jm_version }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }}-sdk,push-by-digest=true,name-canonical=true,push=true
+
+      # The iqtools showcase (ghcr.io/doppler-dsp/doppler-downstream-jm) — the
+      # flagship worked downstream, shipped already built with its whole suite
+      # green (the build RUNs `make test`). Natively now, so that suite runs at
+      # full speed instead of under an emulator.
+      - name: Build and push the downstream-jm showcase image by digest
+        id: downstream
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.examples
+          target: downstream-jm
+          platforms: ${{ matrix.arch.platform }}
+          build-args: |
+            JM_VERSION=${{ needs.verify-version.outputs.jm_version }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }}-downstream-jm,push-by-digest=true,name-canonical=true,push=true
+
+      # One file per image per arch. The merge job globs them, so adding a
+      # fourth image means adding it here and in IMAGES below, nowhere else.
+      - name: Record the digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/digests
+          echo "${{ steps.runtime.outputs.digest }}"    > "/tmp/digests/runtime.${{ matrix.arch.tag }}"
+          echo "${{ steps.sdk.outputs.digest }}"        > "/tmp/digests/sdk.${{ matrix.arch.tag }}"
+          echo "${{ steps.downstream.outputs.digest }}" > "/tmp/digests/downstream.${{ matrix.arch.tag }}"
+          for f in /tmp/digests/*; do
+            printf '%s: %s\n' "$(basename "$f")" "$(cat "$f")"
+            # An empty digest means the build silently produced nothing —
+            # catch it here, not in `imagetools create`'s error message.
+            test -s "$f"
+          done
+
+      - name: Upload the digests
+        uses: actions/upload-artifact@v7
+        with:
+          name: container-digests-${{ matrix.arch.tag }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ------------------------------------------------------------------
+  # Assemble each image's per-arch digests into one multi-arch tag, then
+  # smoke the result. Split from the builds because a manifest list cannot
+  # be written until BOTH arches exist, and because the smoke tests must run
+  # against the tag a user will actually pull.
+  # ------------------------------------------------------------------
+  publish-container-merge:
+    name: Merge + smoke container manifests
+    needs: [verify-version, publish-container]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download the digests
+        uses: actions/download-artifact@v8
+        with:
+          pattern: container-digests-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create the multi-arch tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.verify-version.outputs.version }}"
+          REPO="ghcr.io/${{ github.repository }}"
+          # name:repo-suffix — the suffix is what distinguishes the three.
+          IMAGES="runtime: sdk:-sdk downstream:-downstream-jm"
+          for entry in $IMAGES; do
+            name="${entry%%:*}"
+            suffix="${entry#*:}"
+            image="${REPO}${suffix}"
+            refs=""
+            for f in /tmp/digests/"$name".*; do
+              refs="$refs ${image}@$(cat "$f")"
+            done
+            echo "==> $image  <- $refs"
+            docker buildx imagetools create \
+              --tag "${image}:${VERSION}" \
+              --tag "${image}:latest" \
+              $refs
+            docker buildx imagetools inspect "${image}:${VERSION}"
+          done
+
+      # QEMU is needed HERE and only here: the smoke runs `docker run
+      # --platform linux/arm64` on an amd64 runner. That is a `--version`-shaped
+      # command, not a build — it measured 0 min even when the builds above
+      # were 28.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
 
       - name: Smoke-test the pushed image (both architectures)
         # Same scripts/smoke-image.sh that `make docker-runtime` runs, so the
@@ -522,26 +651,6 @@ jobs:
         run: |
           make smoke-image KIND=runtime \
             IMAGE="ghcr.io/${{ github.repository }}:${{ needs.verify-version.outputs.version }}"
-
-      # The SDK image (ghcr.io/doppler-dsp/doppler-sdk) — the "build ON
-      # doppler" artifact: doppler installed to /usr/local + toolchain + uv/jm.
-      # Unlike the runtime image it compiles doppler from source, so its arm64
-      # layer is an EMULATED C build under QEMU (a few minutes; BUILD_PYTHON=OFF
-      # keeps it to the C core, not the full extension tree the pre-v0.32
-      # runtime paid ~19 min for). Version-lock is by source, so no PyPI wait.
-      - name: Build and push the SDK image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: deploy/docker/Dockerfile.examples
-          target: sdk
-          platforms: linux/amd64,linux/arm64
-          build-args: |
-            JM_VERSION=${{ needs.verify-version.outputs.jm_version }}
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}-sdk:${{ needs.verify-version.outputs.version }}
-            ghcr.io/${{ github.repository }}-sdk:latest
 
       - name: Smoke-test the pushed SDK image (both architectures)
         # scripts/smoke-image.sh sdk builds + links + runs consumer_shared —
@@ -551,25 +660,6 @@ jobs:
         run: |
           make smoke-image KIND=sdk \
             IMAGE="ghcr.io/${{ github.repository }}-sdk:${{ needs.verify-version.outputs.version }}"
-
-      # The iqtools showcase (ghcr.io/doppler-dsp/doppler-downstream-jm) — the
-      # flagship worked downstream, shipped already built with its whole suite
-      # green (the build RUNs `make test`). Like the SDK it compiles doppler
-      # from source, so the arm64 layer additionally runs iqtools' ctest+pytest
-      # under emulation — a slower leg, paid once per release.
-      - name: Build and push the downstream-jm showcase image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: deploy/docker/Dockerfile.examples
-          target: downstream-jm
-          platforms: linux/amd64,linux/arm64
-          build-args: |
-            JM_VERSION=${{ needs.verify-version.outputs.jm_version }}
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}-downstream-jm:${{ needs.verify-version.outputs.version }}
-            ghcr.io/${{ github.repository }}-downstream-jm:latest
 
       - name: Smoke-test the pushed downstream-jm image (both architectures)
         # Same scripts/smoke-image.sh that `make docker-downstream` runs — one
@@ -593,7 +683,9 @@ jobs:
       - build-c-linux
       - build-c-macos
       - publish-python
-      - publish-container
+      # The MERGE job, not the per-arch builds: until it runs, the images
+      # exist only as untagged digests and `:<version>` resolves to nothing.
+      - publish-container-merge
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:

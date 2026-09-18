@@ -85,11 +85,12 @@ dp_thread_create (dp_thread_t *t, unsigned (__stdcall *fn) (void *), void *arg)
   return 0;
 }
 
-static inline void
+static inline int
 dp_thread_join (dp_thread_t t)
 {
-  WaitForSingleObject (t, INFINITE);
-  CloseHandle (t);
+  DWORD waited = WaitForSingleObject (t, INFINITE);
+  BOOL  closed = CloseHandle (t);
+  return (waited == WAIT_OBJECT_0 && closed) ? 0 : -1;
 }
 
 static inline int
@@ -178,10 +179,10 @@ dp_thread_create (dp_thread_t *t, void *(*fn) (void *), void *arg)
   return pthread_create (t, NULL, fn, arg);
 }
 
-static inline void
+static inline int
 dp_thread_join (dp_thread_t t)
 {
-  pthread_join (t, NULL);
+  return pthread_join (t, NULL);
 }
 
 static inline int

@@ -312,7 +312,7 @@ main (void)
         DP_CHECK (dp_f32_write (buf, chunk, 64) == true);
         dp_f32_close (buf);
 
-        dp_thread_join (th);
+        DP_REQUIRE (dp_thread_join (th) == 0);
         if (arg.got == NULL)
           lost++;
         else if (arg.first != 1.0f)

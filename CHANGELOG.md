@@ -13,6 +13,24 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.51.1] - 2026-09-18
+
+### Fixed
+
+- **A Windows or macOS checkout no longer shows a phantom edit in the
+    resample tests.** `test_Resampler.py` (a jm scaffold) and
+    `test_resampler.py` (the real suite) were one path on case-insensitive
+    filesystems. The real suite now has jm's name, and the tracked-paths gate
+    fails on any two paths that differ only in case.
+
+- **The C tarball links again for CMake consumers of the static library on
+    Debian and Ubuntu.** v0.51.0 exported the build container's
+    `/usr/lib64/libm.so` into `doppler-targets.cmake`; it exports `m` again,
+    and a new gate (`make exported-link-check`, in CI and before every
+    tarball) refuses an absolute path in any exported link interface. The
+    post-release PyPI smoke also stopped racing PyPI's CDN: it now waits
+    until `uv` itself can resolve the new version.
+
 ## [0.51.0] - 2026-09-18
 
 ### Added
@@ -13940,8 +13958,9 @@ ______________________________________________________________________
 [0.5.5]: https://github.com/doppler-dsp/doppler/compare/v0.5.4...v0.5.5
 [0.50.0]: https://github.com/doppler-dsp/doppler/compare/v0.49.0...v0.50.0
 [0.51.0]: https://github.com/doppler-dsp/doppler/compare/v0.50.0...v0.51.0
+[0.51.1]: https://github.com/doppler-dsp/doppler/compare/v0.51.0...v0.51.1
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.51.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.51.1...HEAD

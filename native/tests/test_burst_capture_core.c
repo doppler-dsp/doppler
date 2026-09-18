@@ -24,7 +24,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <process.h> /* getpid, under its POSIX name; the UCRT has no <unistd.h> */
+#else
 #include <unistd.h>
+#endif
 
 #define ACQ_SF 31u
 #define DATA_SF 8u

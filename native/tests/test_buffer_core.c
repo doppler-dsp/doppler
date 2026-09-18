@@ -10,7 +10,7 @@
  */
 #include "buffer/buffer.h"
 #include "dp_test.h"
-#include <pthread.h>
+#include "dp_thread.h"
 #include <stdio.h>
 #include <time.h>
 
@@ -50,14 +50,13 @@ typedef struct
   float     first;
 } eos_race_arg_t;
 
-static void *
-eos_consumer (void *p)
+DP_THREAD_FN (eos_consumer, p)
 {
   eos_race_arg_t *a = (eos_race_arg_t *)p;
   a->got            = dp_f32_wait (a->buf, 64);
   if (a->got)
     a->first = a->got[0];
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 int
@@ -303,18 +302,17 @@ main (void)
         DP_REQUIRE (buf != NULL);
 
         eos_race_arg_t arg = { buf, NULL, 0 };
-        pthread_t      th;
-        DP_REQUIRE (pthread_create (&th, NULL, eos_consumer, &arg) == 0);
+        dp_thread_t    th;
+        DP_REQUIRE (dp_thread_create (&th, eos_consumer, &arg) == 0);
 
         /* Long enough for the consumer to reach the spin, short enough
            that the loop above stays affordable. */
-        struct timespec nap = { 0, 200 * 1000 };
-        nanosleep (&nap, NULL);
+        dp_thread_sleep_us (200);
 
         DP_CHECK (dp_f32_write (buf, chunk, 64) == true);
         dp_f32_close (buf);
 
-        DP_REQUIRE (pthread_join (th, NULL) == 0);
+        dp_thread_join (th);
         if (arg.got == NULL)
           lost++;
         else if (arg.first != 1.0f)

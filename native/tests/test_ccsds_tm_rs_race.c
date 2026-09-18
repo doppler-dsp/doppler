@@ -32,8 +32,7 @@
 #include "ccsds_tm/ccsds_tm_rs.h"
 #include "dp_test.h"
 
-#include <pthread.h>
-#include <sched.h>
+#include "dp_thread.h"
 #include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
@@ -61,7 +60,7 @@ typedef struct
    by `make test-tsan`, and a harness that trips the tool cannot be evidence
    about the thing it is watching.
 
-   `sched_yield` in the spin is not politeness. Eight spinners on a
+   The yield in the spin is not politeness. Eight spinners on a
    two-core runner can keep the main thread off the CPU, and the main
    thread is the one that opens the gate -- a spin with no yield is a
    deadlock on a small box. */
@@ -71,15 +70,14 @@ static void
 gate_wait (void)
 {
   while (!atomic_load (&gate))
-    sched_yield ();
+    dp_thread_yield ();
 }
 
 /* One shared information block, so every thread encodes the same input and
  * any disagreement in the output is a disagreement about the FIELD. */
 static uint8_t info[CCSDS_TM_RS_K];
 
-static void *
-worker (void *arg)
+DP_THREAD_FN (worker, arg)
 {
   worker_t *w = (worker_t *)arg;
 
@@ -87,13 +85,13 @@ worker (void *arg)
 
   memcpy (w->gen, ccsds_tm_rs_generator (), sizeof w->gen);
   ccsds_tm_rs_encode (info, w->parity);
-  return NULL;
+  DP_THREAD_RETURN;
 }
 
 int
 main (void)
 {
-  pthread_t       th[NTHREADS];
+  dp_thread_t     th[NTHREADS];
   static worker_t w[NTHREADS];
 
   for (size_t i = 0; i < sizeof info; i++)
@@ -103,9 +101,9 @@ main (void)
 
   for (int i = 0; i < NTHREADS; i++)
     {
-      if (pthread_create (&th[i], NULL, worker, &w[i]) != 0)
+      if (dp_thread_create (&th[i], worker, &w[i]) != 0)
         {
-          fprintf (stderr, "pthread_create failed\n");
+          fprintf (stderr, "dp_thread_create failed\n");
           return 1;
         }
     }
@@ -114,7 +112,7 @@ main (void)
   atomic_store (&gate, 1);
 
   for (int i = 0; i < NTHREADS; i++)
-    pthread_join (th[i], NULL);
+    dp_thread_join (th[i]);
 
   /* Only now does the main thread touch the code -- after every worker has
      already raced for it. */

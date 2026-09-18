@@ -130,9 +130,31 @@ dp_cpu_count (void)
   return n ? (int)n : 1;
 }
 
+/** @brief Gives up the rest of this thread's time slice. */
+static inline void
+dp_thread_yield (void)
+{
+  SwitchToThread ();
+}
+
+/** @brief Sleeps for at least @p us microseconds.
+ *
+ *  AT LEAST, and on Windows usually longer: Sleep() takes milliseconds and
+ *  honours the system timer, 15.6 ms by default. So this rounds up to one
+ *  millisecond and may well take a tick. Use it for "let the other thread
+ *  get there", never for timing -- timing_core's waitable timer is the
+ *  precise sleep. */
+static inline void
+dp_thread_sleep_us (unsigned us)
+{
+  Sleep ((DWORD)((us + 999u) / 1000u));
+}
+
 #else /* POSIX */
 
 #include <pthread.h>
+#include <sched.h>
+#include <time.h>
 #include <unistd.h>
 
 typedef pthread_mutex_t dp_mutex_t;
@@ -213,6 +235,24 @@ dp_cpu_count (void)
 {
   long n = sysconf (_SC_NPROCESSORS_ONLN);
   return n > 0 ? (int)n : 1;
+}
+
+/** @brief Gives up the rest of this thread's time slice. */
+static inline void
+dp_thread_yield (void)
+{
+  sched_yield ();
+}
+
+/** @brief Sleeps for at least @p us microseconds. For "let the other thread
+ *  get there", never for timing. */
+static inline void
+dp_thread_sleep_us (unsigned us)
+{
+  struct timespec ts;
+  ts.tv_sec  = (time_t)(us / 1000000u);
+  ts.tv_nsec = (long)(us % 1000000u) * 1000L;
+  nanosleep (&ts, NULL);
 }
 
 #endif /* _WIN32 */

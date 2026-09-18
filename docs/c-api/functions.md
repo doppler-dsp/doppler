@@ -554,6 +554,8 @@
 * **dp\_mutex\_unlock** ([**dp\_thread.h**](dp__thread_8h.md))
 * **dp\_thread\_create** ([**dp\_thread.h**](dp__thread_8h.md))
 * **dp\_thread\_join** ([**dp\_thread.h**](dp__thread_8h.md))
+* **dp\_thread\_sleep\_us** ([**dp\_thread.h**](dp__thread_8h.md))
+* **dp\_thread\_yield** ([**dp\_thread.h**](dp__thread_8h.md))
 * **dot\_q15** ([**arith\_core.h**](arith__core_8h.md))
 * **dot\_q8** ([**arith\_core.h**](arith__core_8h.md))
 * **dp\_\_buf\_alloc** ([**buffer.h**](buffer_8h.md))

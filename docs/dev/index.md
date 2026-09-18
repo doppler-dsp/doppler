@@ -41,6 +41,7 @@ needs these:
 - [Release](release.md) — versioning, tagging, and publishing
 - [Build Internals](build-internals.md) — how the build/release pipeline turns source into a published wheel and C library tarball
 - [Coverage](coverage.md) — clang source-based coverage across the C/Python/Rust harnesses
+- [Quantization Discussion](quantization-discussion.md) — every integer ↔ float conversion, the rule for each kind, and the sites that still break it
 
 ## Historical records
 

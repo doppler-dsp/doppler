@@ -135,5 +135,6 @@ ______________________________________________________________________
 
 **Guides** — [Getting Started with Fixed-Point Arithmetic](../guide/fixed-point.md)
 **Design** — [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md)
+**Contributing** — [Quantization: rules, sites, and open violations](../dev/quantization-discussion.md)
 
 <!-- related-pages:end -->

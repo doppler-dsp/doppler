@@ -104,9 +104,11 @@ test_zero_fraction_pads (void)
   expect (T_2026, 999u, DP_ISOTIME_USEC, "20260805T041530.000000Z");
 }
 
-/* The epoch itself, and pre-epoch instants: `sec` is signed and gmtime_r
-   handles negatives, so a 1950s BLUE timecode converted to UNIX time still
-   formats rather than returning garbage. */
+/* The epoch itself, and pre-epoch instants: `sec` is signed and the civil
+   arithmetic floors it, so a 1950s BLUE timecode converted to UNIX time still
+   formats rather than returning garbage. -1 is the case that needs the floor
+   (C's `/` truncates toward zero, one day late); -631152000 is a whole number
+   of days, the case that must NOT be adjusted. */
 static void
 test_epoch_and_negative (void)
 {
@@ -132,6 +134,12 @@ test_rejects_bad_input (void)
   /* Too small a buffer reports failure rather than truncating silently. */
   char tiny[8];
   DP_CHECK (dp_isotime_format (tiny, sizeof tiny, T_2026, 0u, DP_ISOTIME_SEC)
+            < 0);
+  /* A year past tm_year's int. 1e17 s is ~3.2e9 years out -- representable
+     as int64 seconds, not as `int` years since 1900 -- and must be refused
+     rather than wrapped into a plausible-looking date. */
+  DP_CHECK (dp_isotime_format (buf, sizeof buf, (int64_t)100000000000000000LL,
+                               0u, DP_ISOTIME_SEC)
             < 0);
 }
 

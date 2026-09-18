@@ -12,8 +12,8 @@
 #ifndef DP_ISOTIME_H
 #define DP_ISOTIME_H
 
-/* clock_gettime + gmtime_r are POSIX, and the feature-test macro that
-   exposes them is on the COMPILE LINE -- see the top-level CMakeLists.txt,
+/* clock_gettime is POSIX, and the feature-test macro that
+   exposes it is on the COMPILE LINE -- see the top-level CMakeLists.txt,
    which puts it on the exported target too, so a downstream inherits it.
    This header used to raise _POSIX_C_SOURCE itself, which is a no-op for any
    translation unit that reached libc first (doppler#986); the comment on it
@@ -26,34 +26,23 @@
 #include <string.h>
 #include <time.h>
 
-/* Windows has neither `gmtime_r` nor `clock_gettime`, and both replacements
-   live in <time.h> -- so this header does NOT pull in <windows.h>. That
-   matters for a public header: windows.h is enormous and drags macros
-   (min/max, near/far) into every downstream translation unit that includes
-   doppler.
+/* Windows has no `clock_gettime`, and its replacement lives in <time.h> --
+   so this header does NOT pull in <windows.h>. That matters for a public
+   header: windows.h is enormous and drags macros (min/max, near/far) into
+   every downstream translation unit that includes doppler.
  *
- * `gmtime_s` reverses gmtime_r's arguments and returns errno_t; C11's
- * `timespec_get(&ts, TIME_UTC)` is the standard spelling of "wall clock with
- * nanoseconds" and the UCRT provides it. POSIX keeps clock_gettime, which is
- * the one with a documented clock ID rather than an implementation-defined
- * base. */
+ * C11's `timespec_get(&ts, TIME_UTC)` is the standard spelling of "wall
+ * clock with nanoseconds" and the UCRT provides it. POSIX keeps
+ * clock_gettime, which is the one with a documented clock ID rather than an
+ * implementation-defined base. (Breaking the instant into fields needs no
+ * platform call at all: see dp_isotime_utc_tm_.) */
 #ifdef _WIN32
-static inline struct tm *
-dp_isotime_gmtime (const time_t *t, struct tm *out)
-{
-  return gmtime_s (out, t) == 0 ? out : NULL;
-}
 static inline int
 dp_isotime_wall (struct timespec *ts)
 {
   return timespec_get (ts, TIME_UTC) == TIME_UTC ? 0 : -1;
 }
 #else
-static inline struct tm *
-dp_isotime_gmtime (const time_t *t, struct tm *out)
-{
-  return gmtime_r (t, out);
-}
 static inline int
 dp_isotime_wall (struct timespec *ts)
 {

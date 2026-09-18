@@ -511,7 +511,6 @@
 * **dp\_isotime\_digits\_** ([**dp\_isotime.h**](dp__isotime_8h.md))
 * **dp\_isotime\_format** ([**dp\_isotime.h**](dp__isotime_8h.md))
 * **dp\_isotime\_format\_as** ([**dp\_isotime.h**](dp__isotime_8h.md))
-* **dp\_isotime\_gmtime** ([**dp\_isotime.h**](dp__isotime_8h.md))
 * **dp\_isotime\_now** ([**dp\_isotime.h**](dp__isotime_8h.md))
 * **dp\_isotime\_parse** ([**dp\_isotime.h**](dp__isotime_8h.md))
 * **dp\_isotime\_utc\_tm\_** ([**dp\_isotime.h**](dp__isotime_8h.md))

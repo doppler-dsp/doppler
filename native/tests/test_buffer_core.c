@@ -357,5 +357,49 @@ main (void)
     dp_i16_destroy (b16);
   }
 
+  /* ── many rings live at once, each with a real mirror (#1360) ────────
+     The Windows allocator used to probe for a hole only as long as ONE
+     view, so whether the mirror fit depended on what happened to follow
+     it -- which ASLR changes every run. It failed as a NULL from create(),
+     seen as crashes in six unrelated suites. Holding many rings open,
+     interleaved with heap blocks, is what fills the address space around
+     each probe; and a mirror that is not the same memory is checked
+     directly, since a ring that merely allocates proves nothing. */
+  {
+    enum
+    {
+      N_RINGS = 96
+    };
+    dp_f32_t *rings[N_RINGS];
+    void     *heap[N_RINGS];
+    int       null_rings = 0, bad_mirror = 0;
+    for (size_t i = 0; i < N_RINGS; i++)
+      {
+        rings[i] = dp_f32_create ((size_t)8192 << (i % 4)); /* 64K..512K */
+        heap[i]  = malloc (4096 + 4096 * (i % 7));
+        if (!rings[i])
+          {
+            null_rings++;
+            continue;
+          }
+        /* Two floats per complex sample, so the mirror starts 2*capacity
+           floats in. */
+        size_t mirror              = 2 * rings[i]->capacity;
+        rings[i]->data[0]          = (float)i + 0.5f;
+        rings[i]->data[mirror - 1] = -(float)i;
+        if (rings[i]->data[mirror] != (float)i + 0.5f
+            || rings[i]->data[2 * mirror - 1] != -(float)i)
+          bad_mirror++;
+      }
+    DP_CHECK (null_rings == 0);
+    DP_CHECK (bad_mirror == 0);
+    for (size_t i = 0; i < N_RINGS; i++)
+      {
+        if (rings[i])
+          dp_f32_destroy (rings[i]);
+        free (heap[i]);
+      }
+  }
+
   DP_TEST_END ("test_buffer_core");
 }

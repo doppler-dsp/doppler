@@ -166,6 +166,69 @@ dp__page_size (void)
 #endif
 }
 
+#ifdef _WIN32
+/**
+ * @brief Maps @p mapping twice, back to back, and returns the first view.
+ *
+ * The one Windows mirror primitive: dp__buf_alloc() hands it an anonymous
+ * mapping and dp__buf_alloc_file() a file's, so a fix to how the pair is
+ * placed lands in both at once.
+ *
+ * @return Base address of the double-mapped region, or NULL on failure.
+ */
+static inline void *
+dp__win_map_twice (HANDLE mapping, size_t bytes)
+{
+  /*
+   * Windows ring-buffer using only kernel32.dll functions (Win7+).
+   *
+   * Strategy: CreateFileMapping + MapViewOfFileEx at adjacent addresses.
+   * Reserve 2*bytes of address space to find a hole BOTH views fit in,
+   * release it, then map the two views into it. A retry loop handles the
+   * one way that can still fail: another thread taking the address between
+   * the release and the maps.
+   *
+   * The hole has to be probed at 2*bytes. This used to probe with a
+   * `bytes`-long MapViewOfFile, which proves only that the FIRST view fits;
+   * whether the mirror did depended on whatever sat after it, which ASLR
+   * moves on every run. When it did not, every retry found the same hint,
+   * all 1024 failed, and create() returned NULL -- seen in CI as acq and
+   * dp_tlm constructors returning NULL, a dp_xnn abort (0xc0000409), heap
+   * corruption and segfaults, on commits that passed the run before.
+   */
+  void *addr = NULL;
+  for (int attempt = 0; attempt < 1024; ++attempt)
+    {
+      /* 1. Find a free region big enough for BOTH views. VirtualAlloc
+         returns it aligned to the allocation granularity, which is what
+         MapViewOfFileEx needs of each view's address. */
+      void *hint = VirtualAlloc (NULL, 2 * bytes, MEM_RESERVE, PAGE_NOACCESS);
+      if (!hint)
+        break;
+      VirtualFree (hint, 0, MEM_RELEASE);
+
+      /* 2. Remap first view at the hint address. */
+      void *v1
+          = MapViewOfFileEx (mapping, FILE_MAP_ALL_ACCESS, 0, 0, bytes, hint);
+      if (!v1)
+        continue; /* someone stole the address – retry */
+
+      /* 3. Remap second view immediately after the first. */
+      void *v2 = MapViewOfFileEx (mapping, FILE_MAP_ALL_ACCESS, 0, 0, bytes,
+                                  (char *)v1 + bytes);
+      if (v2)
+        {
+          addr = v1;
+          break;
+        } /* success */
+
+      UnmapViewOfFile (v1); /* second map failed – retry with new hint */
+    }
+
+  return addr;
+}
+#endif /* _WIN32 */
+
 /**
  * @brief Allocates a double-mapped ring-buffer region of @p bytes.
  *
@@ -185,14 +248,6 @@ dp__buf_alloc (size_t bytes, void **handle_out)
   *handle_out = NULL;
 
 #ifdef _WIN32
-  /*
-   * Windows ring-buffer using only kernel32.dll functions (Win7+).
-   *
-   * Strategy: CreateFileMapping + MapViewOfFileEx at adjacent addresses.
-   * We use MapViewOfFile to discover a free region, unmap it, then
-   * immediately remap twice. A tight retry loop handles the rare case
-   * where another thread grabs the address between the unmap and remap.
-   */
   DWORD size_hi = (DWORD)((DWORD64)bytes >> 32);
   DWORD size_lo = (DWORD)(bytes & 0xFFFFFFFFULL);
 
@@ -201,32 +256,7 @@ dp__buf_alloc (size_t bytes, void **handle_out)
   if (!h)
     return NULL;
 
-  void *addr = NULL;
-  for (int attempt = 0; attempt < 1024; ++attempt)
-    {
-      /* 1. Map once to find a suitably aligned free region. */
-      void *hint = MapViewOfFile (h, FILE_MAP_ALL_ACCESS, 0, 0, bytes);
-      if (!hint)
-        break;
-      UnmapViewOfFile (hint);
-
-      /* 2. Remap first view at the hint address. */
-      void *v1 = MapViewOfFileEx (h, FILE_MAP_ALL_ACCESS, 0, 0, bytes, hint);
-      if (!v1)
-        continue; /* someone stole the address – retry */
-
-      /* 3. Remap second view immediately after the first. */
-      void *v2 = MapViewOfFileEx (h, FILE_MAP_ALL_ACCESS, 0, 0, bytes,
-                                  (char *)v1 + bytes);
-      if (v2)
-        {
-          addr = v1;
-          break;
-        } /* success */
-
-      UnmapViewOfFile (v1); /* second map failed – retry with new hint */
-    }
-
+  void *addr = dp__win_map_twice (h, bytes);
   if (!addr)
     {
       CloseHandle (h);
@@ -327,12 +357,9 @@ dp__buf_alloc (size_t bytes, void **handle_out)
  *                   created or resized.
  * @return Base address of the double-mapped region, or NULL on failure.
  *
- * @note POSIX only. Windows returns NULL — it is not a platform doppler
- *       builds for (see `platforms` in just-makeit.toml), and a file mapping
- *       there needs the CreateFileMapping path rather than this one.
- *       Square brackets are deliberately absent from that phrase: doxygen
- *       reads `[x] y` as a markdown link reference and the generated c-api
- *       page then fails the strict docs build on the unresolved target.
+ * @note On Windows the file is a CreateFileMapping over CreateFileA, mirrored
+ *       by the same dp__win_map_twice() as the anonymous ring, and
+ *       dp__buf_sync() flushes the view but does not wait for the disk.
  */
 static inline void *
 dp__buf_alloc_file (size_t bytes, void **handle_out, const char *path,
@@ -342,9 +369,49 @@ dp__buf_alloc_file (size_t bytes, void **handle_out, const char *path,
   if (existed)
     *existed = 0;
 #ifdef _WIN32
-  (void)bytes;
-  (void)path;
-  return NULL;
+  if (!path || !*path)
+    return NULL;
+
+  HANDLE f = CreateFileA (path, GENERIC_READ | GENERIC_WRITE,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                          OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (f == INVALID_HANDLE_VALUE)
+    return NULL;
+
+  /* Same rule as POSIX: exactly this long is a ring somebody filled, and is
+     mapped as it stands; anything else is cut to zero and regrown, which
+     sizes it AND zeroes it -- NTFS reads an extension back as zeros. */
+  LARGE_INTEGER have, zero, want;
+  zero.QuadPart = 0;
+  want.QuadPart = (LONGLONG)bytes;
+  if (GetFileSizeEx (f, &have) && (size_t)have.QuadPart == bytes)
+    {
+      if (existed)
+        *existed = 1;
+    }
+  else if (!SetFilePointerEx (f, zero, NULL, FILE_BEGIN) || !SetEndOfFile (f)
+           || !SetFilePointerEx (f, want, NULL, FILE_BEGIN)
+           || !SetEndOfFile (f))
+    {
+      CloseHandle (f);
+      return NULL;
+    }
+
+  HANDLE h = CreateFileMappingA (f, NULL, PAGE_READWRITE,
+                                 (DWORD)((DWORD64)bytes >> 32),
+                                 (DWORD)(bytes & 0xFFFFFFFFULL), NULL);
+  CloseHandle (f); /* the mapping holds the file open from here */
+  if (!h)
+    return NULL;
+
+  void *addr = dp__win_map_twice (h, bytes);
+  if (!addr)
+    {
+      CloseHandle (h);
+      return NULL;
+    }
+  *handle_out = (void *)h;
+  return addr;
 #else
   if (!path || !*path)
     return NULL;
@@ -407,8 +474,10 @@ static inline void
 dp__buf_sync (void *addr, size_t bytes)
 {
 #ifdef _WIN32
-  (void)addr;
-  (void)bytes;
+  /* Writes the dirty pages to the file, which is what survives the PROCESS.
+     msync(MS_SYNC) also waits for the disk; the Windows equivalent needs
+     FlushFileBuffers on a file handle this mapping no longer keeps. */
+  (void)FlushViewOfFile (addr, bytes);
 #else
   (void)msync (addr, bytes, MS_SYNC);
 #endif

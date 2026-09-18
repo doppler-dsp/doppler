@@ -233,7 +233,7 @@ Base address of the double-mapped region, or NULL on failure.
 
 **Note:**
 
-POSIX only. Windows returns NULL — it is not a platform doppler builds for (see `platforms` in just-makeit.toml), and a file mapping there needs the CreateFileMapping path rather than this one. Square brackets are deliberately absent from that phrase: doxygen reads `[x] y` as a markdown link reference and the generated c-api page then fails the strict docs build on the unresolved target. 
+On Windows the file is a CreateFileMapping over CreateFileA, mirrored by the same dp\_\_win\_map\_twice() as the anonymous ring, and dp\_\_buf\_sync() flushes the view but does not wait for the disk. 
 
 
 

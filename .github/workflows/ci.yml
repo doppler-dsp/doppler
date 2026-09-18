@@ -158,6 +158,13 @@ jobs:
       # link time. Reads `nm`, so it needs the build above.
       run: make installed-headers-check
 
+    - name: Verify the exported CMake link interface names no absolute path
+      # v0.51.0 exported find_library's `/usr/lib64/libm.so` into
+      # doppler-targets.cmake, so CMake consumers of the static library on
+      # Debian/Ubuntu could not link. A consumer built HERE links anyway --
+      # the path exists on this machine -- so this reads the export's text.
+      run: make exported-link-check
+
     - name: Smoke-test the three consumer faces (cc / CMake / pkg-config)
       # Installs the fresh build to a scratch prefix and builds the
       # core+stream consumer via all three documented faces, asserting

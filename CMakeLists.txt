@@ -308,11 +308,23 @@ find_package(Threads REQUIRED)
 
 # libm is a separate library on POSIX and part of the UCRT on Windows, where
 # a bare `m` resolves to nothing and the link dies on `could not open
-# 'm.lib'`. `find_library` answers the question instead of assuming it, and
-# an empty result links nothing -- the same shape jm adopted for its
-# generated per-component link lines in gh-1305.
-find_library(DP_MATH_LIBRARY m)
-if(NOT DP_MATH_LIBRARY)
+# 'm.lib'`. `find_library` answers WHETHER there is one; the link item is
+# still the NAME `m`, never the path it found.
+#
+# The path is the build machine's, and doppler_lib_static's PUBLIC link
+# interface is exported into the installed doppler-targets.cmake. v0.51.0
+# shipped `/usr/lib64/libm.so` there -- where the manylinux container keeps it
+# -- so every CMake consumer of doppler::doppler-static on Debian or Ubuntu
+# failed with `No rule to make target '/usr/lib64/libm.so'`, caught by the
+# post-release C smoke. v0.50.0 exported `m`. A name resolves on the
+# consumer's machine; a path only on the one that built the tarball.
+#
+# The probe has its own cache name so a build tree configured before this
+# cannot keep the old path in DP_MATH_LIBRARY's cache entry.
+find_library(DP_MATH_LIBRARY_PROBE m)
+if(DP_MATH_LIBRARY_PROBE)
+    set(DP_MATH_LIBRARY m)
+else()
     set(DP_MATH_LIBRARY "")
 endif()
 

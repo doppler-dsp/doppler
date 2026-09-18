@@ -75,7 +75,7 @@ _The threading primitives doppler uses, with one platform split._ [More...](#det
 |  void | [**dp\_mutex\_lock**](#function-dp_mutex_lock) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br> |
 |  void | [**dp\_mutex\_unlock**](#function-dp_mutex_unlock) ([**dp\_mutex\_t**](dp__thread_8h.md#typedef-dp_mutex_t) \* m) <br> |
 |  int | [**dp\_thread\_create**](#function-dp_thread_create) ([**dp\_thread\_t**](dp__thread_8h.md#typedef-dp_thread_t) \* t, void \*(\*)(void \*) fn, void \* arg) <br>_Starts_ `fn` _on a new thread. Returns 0 on success._ |
-|  void | [**dp\_thread\_join**](#function-dp_thread_join) ([**dp\_thread\_t**](dp__thread_8h.md#typedef-dp_thread_t) t) <br>_Waits for_ `t` _to finish and releases it._ |
+|  int | [**dp\_thread\_join**](#function-dp_thread_join) ([**dp\_thread\_t**](dp__thread_8h.md#typedef-dp_thread_t) t) <br>_Waits for_ `t` _to finish and releases it. Returns 0 on success, as pthread\_join does, so a caller that asserted the join can still._ |
 |  void | [**dp\_thread\_sleep\_us**](#function-dp_thread_sleep_us) (unsigned us) <br>_Sleeps for at least_ `us` _microseconds. For "let the other thread
 get there", never for timing._ |
 |  void | [**dp\_thread\_yield**](#function-dp_thread_yield) (void) <br>_Gives up the rest of this thread's time slice._  |
@@ -364,9 +364,9 @@ static inline int dp_thread_create (
 
 ### function dp\_thread\_join 
 
-_Waits for_ `t` _to finish and releases it._
+_Waits for_ `t` _to finish and releases it. Returns 0 on success, as pthread\_join does, so a caller that asserted the join can still._
 ```C++
-static inline void dp_thread_join (
+static inline int dp_thread_join (
     dp_thread_t t
 ) 
 ```

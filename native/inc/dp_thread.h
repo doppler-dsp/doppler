@@ -114,12 +114,14 @@ dp_thread_create (dp_thread_t *t, unsigned (__stdcall *fn) (void *), void *arg)
   return 0;
 }
 
-/** @brief Waits for @p t to finish and releases it. */
-static inline void
+/** @brief Waits for @p t to finish and releases it. Returns 0 on success,
+ *  as pthread_join does, so a caller that asserted the join can still. */
+static inline int
 dp_thread_join (dp_thread_t t)
 {
-  WaitForSingleObject (t, INFINITE);
-  CloseHandle (t);
+  DWORD waited = WaitForSingleObject (t, INFINITE);
+  BOOL  closed = CloseHandle (t);
+  return (waited == WAIT_OBJECT_0 && closed) ? 0 : -1;
 }
 
 /** @brief Online processor count, or 1 if it cannot be determined. */
@@ -222,11 +224,12 @@ dp_thread_create (dp_thread_t *t, void *(*fn) (void *), void *arg)
   return pthread_create (t, NULL, fn, arg);
 }
 
-/** @brief Waits for @p t to finish and releases it. */
-static inline void
+/** @brief Waits for @p t to finish and releases it. Returns 0 on success,
+ *  as pthread_join does, so a caller that asserted the join can still. */
+static inline int
 dp_thread_join (dp_thread_t t)
 {
-  pthread_join (t, NULL);
+  return pthread_join (t, NULL);
 }
 
 /** @brief Online processor count, or 1 if it cannot be determined. */

@@ -10,6 +10,7 @@
 #include "dp_test.h"
 #include "interleaver/interleaver_core.h"
 
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,7 +34,13 @@ test_create_refuses_a_degenerate_geometry (void)
      multiplying to test for overflow is the test overflowing */
   DP_CHECK (interleaver_create ((size_t)-1, 2, 1) == NULL);
   DP_CHECK (interleaver_create (2, (size_t)-1, 1) == NULL);
-  DP_CHECK (interleaver_create ((size_t)1 << 40, (size_t)1 << 40, 8) == NULL);
+  /* Each factor fits and only the product overflows: half of size_t's own
+     width, so the case is the same on a 32-bit target, where a fixed
+     `(size_t)1 << 40` is itself an out-of-range shift. */
+  {
+    const size_t half = (size_t)1 << (sizeof (size_t) * CHAR_BIT / 2);
+    DP_CHECK (interleaver_create (half, half, 8) == NULL);
+  }
   return 0;
 }
 

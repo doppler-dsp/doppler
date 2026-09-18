@@ -31,7 +31,7 @@
 #   tests/install/wheel-smoke.sh --wheel-dir dist
 #   tests/install/wheel-smoke.sh --pypi 0.49.0
 #
-# Needs: uv; plus curl + jq for the --pypi readiness wait.
+# Needs: uv (the --pypi readiness wait resolves through uv itself).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -59,23 +59,28 @@ if [ "$MODE" = "wheel" ]; then
     echo ">> installing the built wheel from $ARG/"
     VIRTUAL_ENV="$work/venv" uv pip install --quiet "$ARG"/*.whl
 else
-    # The index lags the publish job — release-watch.sh measured 30-60s on the
-    # `latest` endpoint. Wait for the per-version endpoint the same way it
-    # does, rather than failing a release on a 404 that resolves itself.
-    echo ">> waiting for $PKG $ARG to appear on PyPI"
+    # The index lags the publish job, and the lag is per ENDPOINT. This used
+    # to wait on the per-version JSON API and then install through uv, which
+    # reads the /simple/ index behind PyPI's CDN. They disagree for seconds
+    # after a publish: on v0.51.0 the JSON said "0.51.0" 0.1 s into the wait,
+    # uv answered "there is no version of doppler-dsp==0.51.0", and the
+    # aarch64 job running the same steps two seconds later passed. So the wait
+    # asks the question the install needs, through the tool that will answer
+    # it: can uv resolve this exact version from the live index yet?
+    # (--refresh because uv caches index metadata; a cached index is how a
+    # post-publish check silently tests the PREVIOUS release.)
+    echo ">> waiting for uv to resolve $PKG==$ARG from PyPI"
     ok=0
     for _ in $(seq 1 12); do
-        v="$(curl -fsS "https://pypi.org/pypi/$PKG/$ARG/json" 2>/dev/null \
-             | jq -r '.info.version // empty' 2>/dev/null || true)"
-        if [ "${v:-}" = "$ARG" ]; then ok=1; break; fi
+        if VIRTUAL_ENV="$work/venv" uv pip install --quiet --dry-run \
+               --refresh "$PKG==$ARG" >/dev/null 2>&1; then
+            ok=1; break
+        fi
         sleep 15
     done
     [ "$ok" = 1 ] \
-        || { echo "wheel-smoke: $PKG $ARG absent from PyPI after 3 min" >&2; exit 1; }
+        || { echo "wheel-smoke: uv cannot resolve $PKG==$ARG after 3 min" >&2; exit 1; }
     echo ">> installing $PKG==$ARG from PyPI"
-    # --refresh because uv caches index metadata and this version is seconds
-    # old: a cached index is exactly how a post-publish check silently tests
-    # the PREVIOUS release instead of this one.
     VIRTUAL_ENV="$work/venv" uv pip install --quiet --refresh "$PKG==$ARG"
 fi
 

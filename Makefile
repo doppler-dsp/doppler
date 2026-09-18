@@ -597,6 +597,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 test-all test-sweep test-stubs test-api-docs test-snippets \
                 test-rust \
                 abi-check link-check installed-headers-check \
+                exported-link-check \
                 test-asan test-ubsan test-tsan \
                 consumer-faces-check burst-pipeline-check glibc-gate \
                 check-isotime-parity coverage coverage-gate \
@@ -1313,7 +1314,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 apt-stall-config deps-budget-check cargo-floor-check \
                 bench-coverage-check kwarg-parity-check issues \
                 doc-sections-check \
-                installed-headers-check \
+                installed-headers-check exported-link-check \
                 ci-image ci-image-check ci-image-repin-check \
                 ccsds-isolation-check instrumented-sweep-check \
                 cargo-lock-check design-pages-check \
@@ -1456,6 +1457,15 @@ installed-headers-check: build ## Verify installed headers declare only what the
 	    echo "installed-headers-check: no python3 — this gate has not run,"; \
 	    echo "  so it has not passed."; exit 1; }
 	@python3 scripts/check_installed_headers.py
+
+# The TEXT of the exported doppler-targets.cmake, because nothing that builds
+# a consumer on the build machine can see the defect: an absolute library path
+# (v0.51.0 exported find_library's `/usr/lib64/libm.so`) exists there, and
+# only a consumer on another distro fails. CMake writes the export file into
+# the build tree at configure time, so this needs `build` and no install.
+# Plain `python3` for the same reason as installed-headers-check above.
+exported-link-check: build ## Verify the exported CMake link interface names no absolute path
+	@python3 scripts/check_exported_link_paths.py $(BUILD_DIR)
 
 # Hung off `lint` rather than `validate-check` deliberately. `validate-check`
 # re-runs each validator and compares -- a STALENESS gate, and staleness is
@@ -2130,6 +2140,7 @@ endif
 # there while tar read the real path, and the release tarball came out EMPTY.
 	@rm -rf $(C_INSTALL_DIR)
 	@$(MAKE) --no-print-directory package-c PREFIX=$(abspath $(C_INSTALL_DIR))
+	@python3 scripts/check_exported_link_paths.py $(C_INSTALL_DIR)
 	@mkdir -p $(DIST_DIR)
 	@tar -czf "$(DIST_DIR)/doppler-$(VERSION)-$(C_PLATFORM).tar.gz" \
 	    -C $(C_INSTALL_DIR) .

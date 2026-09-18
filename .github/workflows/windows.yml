@@ -64,31 +64,51 @@ permissions:
 
 jobs:
   build-and-test-windows:
-    name: C build + ctest (clang-cl)
+    name: C build + ctest (${{ matrix.cc }})
     runs-on: windows-latest
     timeout-minutes: 30
+    # TWO drivers, because they are two configurations and only one of them
+    # was ever tested. This job was named clang-cl and ran `clang`: the GNU
+    # driver, under which CMake does NOT set MSVC, so every `NOT MSVC` block
+    # in CMakeLists.txt applied here and none applied to a user building with
+    # clang-cl. That gap is how `undefined symbol: ___muldc3` reached a user
+    # with this job green -- -ffast-math never reached clang-cl. `clang` stays
+    # as the reference leg; `clang-cl` is the one people actually run.
+    strategy:
+      fail-fast: false
+      matrix:
+        cc: [clang, clang-cl]
 
     steps:
       - uses: actions/checkout@v4
 
+      # clang-cl drives the MSVC toolchain the way cl.exe does and expects
+      # its environment (INCLUDE / LIB / the linker); the GNU `clang` driver
+      # finds the toolchain on its own. Loading vcvars64 for both keeps the
+      # two legs identical except for the driver under test.
+      - name: MSVC developer environment (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Record the toolchain
         shell: bash
         run: |
-          clang --version
+          ${{ matrix.cc }} --version
           cmake --version
           ninja --version || echo "ninja not on PATH; the configure step names a generator"
 
-      # clang on Windows defaults to the MSVC target, so doppler's GCC-style
-      # flags (-march=x86-64-v2 -ffast-math) are accepted as written. Using
-      # the `clang` driver rather than `clang-cl` is what keeps CMakeLists.txt
-      # unchanged -- clang-cl takes MSVC-style flags and would need every
-      # add_compile_options() line rewritten behind a /clang: prefix.
+      # Under `clang` doppler's GCC-style flags (-march=x86-64-v2 -ffast-math)
+      # are accepted as written. Under `clang-cl` CMake sets MSVC, those
+      # blocks are skipped, and CMakeLists.txt has to say what clang-cl gets
+      # instead, spelled /clang: -- the numeric policy is the one that turned
+      # out to be load-bearing for the link.
       - name: Configure
         shell: bash
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
             -DBUILD_PYTHON=OFF
 
       # Split into three steps so the result says WHICH claim holds, rather
@@ -107,7 +127,12 @@ jobs:
       - name: Build everything else (tests, benchmarks)
         if: always()
         shell: bash
-        run: cmake --build build --parallel
+        # -k 0: keep going past the first failure. This runner is exploratory
+        # and its job is to show every wall, and ninja's default stops
+        # scheduling at the first -- one error per CI round, which is the
+        # slowest possible way to learn a list. Measured: the last run stopped
+        # at object 37 of 575.
+        run: cmake --build build --parallel -- -k 0
 
       # Which symbols the objects actually need is the claim this runner is
       # here to check, so print it rather than infer it from a green build.
@@ -117,10 +142,21 @@ jobs:
         run: |
           echo "--- any _Fcomplex or compiler-rt complex helper should be ABSENT ---"
           if command -v llvm-nm >/dev/null 2>&1; then
-            find build -name '*.obj' -print0 \
+            # An ASSERTION, not a printout. This used to list what it found
+            # and exit 0 either way, so it could not fail -- and under the
+            # `clang` driver there was nothing to find anyway, because
+            # fast-math reached that configuration and not clang-cl's.
+            found=$(find build -name '*.obj' -print0 \
               | xargs -0 -r llvm-nm --undefined-only 2>/dev/null \
               | grep -iE '_Fcomplex|__mulsc3|__divsc3|__muldc3|__divdc3' \
-              | sort -u | head -20 || echo "  none — as designed"
+              | sort -u || true)
+            if [ -n "$found" ]; then
+              echo "$found" | head -20
+              echo "::error::compiler-rt complex helpers are referenced; the"
+              echo "  MSVC link has nothing that defines them (see CMakeLists.txt)"
+              exit 1
+            fi
+            echo "  none — as designed"
           else
             echo "  llvm-nm unavailable; skipped"
           fi

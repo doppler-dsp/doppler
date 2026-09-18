@@ -1110,10 +1110,17 @@ LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
 # own report, and the patch gate failed at 88% on lines that had a test. The
 # test SOURCES stay out of the report through COV_IGNORE; only what they
 # exercised in library headers is added.
+#
+# The WHOLE build tree, not native/: a test declared in the root CMakeLists
+# builds at the top of $(COV_DIR), and `find $(COV_DIR)/native` never saw
+# those 19 (test_dp_isotime, test_dp_state, test_dp_mf, ...). #1210's fix
+# was therefore half applied -- dp_isotime.h read 70.4% where its own test
+# proves 80.5%, and #1360's patch gate failed at 89% on lines a test ran.
+# pkg/ is pruned: it holds the Python package, whose .so are listed above.
 @objs="$(COV_DIR)/libdoppler.so $$(ls $(COV_DIR)/pkg/doppler/*/*.so \
     2>/dev/null | sed 's/^/-object /' | tr '\n' ' ') \
-    $$(find $(COV_DIR)/native -type f -perm -u+x \
-         \( -name 'test_*' -o -name 'validate_*' \) \
+    $$(find $(COV_DIR) -path $(COV_DIR)/pkg -prune -o -type f -perm -u+x \
+         \( -name 'test_*' -o -name 'validate_*' \) -print \
        | sed 's/^/-object /' | tr '\n' ' ')"; \
 $(COV_ENV) $(LLVM_PROFDATA) merge -sparse -failure-mode=all $(COV_DIR)/prof/*.profraw \
     -o $(COV_DIR)/doppler.profdata; \

@@ -13,6 +13,26 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-09-18
+
+### Added
+
+- **Windows: the C library builds and its full C suite passes, with clang
+    and with clang-cl.** A non-binding `windows.yml` runs all 166 C tests on
+    `windows-latest` under both drivers and publishes nothing.
+    `native/inc/dp_complex.h` stands in for `<complex.h>`, `dp_thread.h`
+    for pthreads, and the ring buffer now reserves room for both of its
+    mirror views, so it no longer fails at random on Windows. Persistent
+    (file-backed) rings work there too. Full list in
+    [#1360](https://github.com/doppler-dsp/doppler/pull/1360).
+
+### Fixed
+
+- **`make coverage` completes on a many-core box.** It ran the timing and
+    two-process examples under full xdist, so on 20 cores the run died before
+    `llvm-cov` and wrote no report at all. They now get the example gate's
+    serial pass. ([#1376](https://github.com/doppler-dsp/doppler/issues/1376))
+
 ## [0.50.0] - 2026-09-17
 
 ### Added
@@ -13919,8 +13939,9 @@ ______________________________________________________________________
 [0.5.4]: https://github.com/doppler-dsp/doppler/compare/v0.5.3...v0.5.4
 [0.5.5]: https://github.com/doppler-dsp/doppler/compare/v0.5.4...v0.5.5
 [0.50.0]: https://github.com/doppler-dsp/doppler/compare/v0.49.0...v0.50.0
+[0.51.0]: https://github.com/doppler-dsp/doppler/compare/v0.50.0...v0.51.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.50.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.51.0...HEAD

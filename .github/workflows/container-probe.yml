@@ -1,0 +1,190 @@
+name: Container build probe
+
+# TEMPORARY — delete before merging #1373.
+#
+# #1373 moves the release's container builds off QEMU onto native per-arch
+# runners, pushing each image by digest and merging the two into one tag. A
+# release workflow only ever runs on a tag, and this one runs AFTER PyPI has
+# published, so a flaw in that restructure would surface with the upload
+# already irreversible.
+#
+# This runs the identical mechanics against scratch image names so the two
+# things that could not be checked locally get checked before the tag:
+#
+#   1. does `ubuntu-24.04-arm` build all three Dockerfiles natively, and
+#   2. does `docker buildx imagetools create` produce a manifest the smoke
+#      can pull on both architectures?
+#
+# It publishes nothing a user consumes: the images are `-ciprobe*`, tagged
+# with the commit SHA, and no release artifact, tag or PyPI upload is touched.
+
+on:
+  push:
+    branches: [ci/native-arm-containers]
+  workflow_dispatch:
+
+env:
+  # Already on PyPI, so the runtime image's pip-install exercises the real
+  # path — including the aarch64 wheel, installed natively rather than under
+  # an emulator. The probe is about the BUILD mechanics, not the version.
+  PROBE_VERSION: 0.49.0
+
+jobs:
+  probe-build:
+    name: Probe build (${{ matrix.arch.tag }})
+    runs-on: ${{ matrix.arch.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: { tag: amd64, runner: ubuntu-latest, platform: linux/amd64 }
+          - arch: { tag: arm64, runner: ubuntu-24.04-arm, platform: linux/arm64 }
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Resolve the jm pin
+        id: jm
+        run: echo "version=$(make -s print-jm-version)" >> "$GITHUB_OUTPUT"
+
+      # No QEMU anywhere in this job — that is the whole point.
+      - name: Build and push the runtime image by digest
+        id: runtime
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.cli
+          platforms: ${{ matrix.arch.platform }}
+          build-args: |
+            DOPPLER_VERSION=${{ env.PROBE_VERSION }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }}-ciprobe,push-by-digest=true,name-canonical=true,push=true
+
+      - name: Build and push the SDK image by digest
+        id: sdk
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.examples
+          target: sdk
+          platforms: ${{ matrix.arch.platform }}
+          build-args: |
+            JM_VERSION=${{ steps.jm.outputs.version }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }}-ciprobe-sdk,push-by-digest=true,name-canonical=true,push=true
+
+      - name: Build and push the downstream-jm showcase image by digest
+        id: downstream
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.examples
+          target: downstream-jm
+          platforms: ${{ matrix.arch.platform }}
+          build-args: |
+            JM_VERSION=${{ steps.jm.outputs.version }}
+          outputs: type=image,name=ghcr.io/${{ github.repository }}-ciprobe-downstream-jm,push-by-digest=true,name-canonical=true,push=true
+
+      - name: Record the digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/digests
+          echo "${{ steps.runtime.outputs.digest }}"    > "/tmp/digests/runtime.${{ matrix.arch.tag }}"
+          echo "${{ steps.sdk.outputs.digest }}"        > "/tmp/digests/sdk.${{ matrix.arch.tag }}"
+          echo "${{ steps.downstream.outputs.digest }}" > "/tmp/digests/downstream.${{ matrix.arch.tag }}"
+          for f in /tmp/digests/*; do
+            printf '%s: %s\n' "$(basename "$f")" "$(cat "$f")"
+            test -s "$f"
+          done
+
+      - name: Upload the digests
+        uses: actions/upload-artifact@v7
+        with:
+          name: probe-digests-${{ matrix.arch.tag }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  probe-merge:
+    name: Probe merge + smoke
+    needs: probe-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download the digests
+        uses: actions/download-artifact@v8
+        with:
+          pattern: probe-digests-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Byte-for-byte the loop release.yml runs, with the scratch suffixes.
+      - name: Create the multi-arch tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="probe-${GITHUB_SHA:0:12}"
+          REPO="ghcr.io/${{ github.repository }}-ciprobe"
+          IMAGES="runtime: sdk:-sdk downstream:-downstream-jm"
+          for entry in $IMAGES; do
+            name="${entry%%:*}"
+            suffix="${entry#*:}"
+            image="${REPO}${suffix}"
+            refs=""
+            for f in /tmp/digests/"$name".*; do
+              refs="$refs ${image}@$(cat "$f")"
+            done
+            echo "==> $image  <- $refs"
+            docker buildx imagetools create --tag "${image}:${VERSION}" $refs
+            docker buildx imagetools inspect "${image}:${VERSION}"
+          done
+          echo "PROBE_TAG=${VERSION}" >> "$GITHUB_ENV"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
+        with:
+          platforms: arm64
+
+      # The real smoke targets, so a probe pass means the release's checks
+      # would pass on the same manifests.
+      - name: Smoke the runtime manifest (both architectures)
+        run: |
+          make smoke-image KIND=runtime \
+            IMAGE="ghcr.io/${{ github.repository }}-ciprobe:${PROBE_TAG}"
+
+      - name: Smoke the SDK manifest (both architectures)
+        run: |
+          make smoke-image KIND=sdk \
+            IMAGE="ghcr.io/${{ github.repository }}-ciprobe-sdk:${PROBE_TAG}"
+
+      - name: Smoke the downstream-jm manifest (both architectures)
+        run: |
+          make smoke-image KIND=downstream \
+            IMAGE="ghcr.io/${{ github.repository }}-ciprobe-downstream-jm:${PROBE_TAG}"

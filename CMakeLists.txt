@@ -122,6 +122,35 @@ if(ENABLE_SIMD AND NOT MSVC)
     add_compile_options(-ffast-math -fno-finite-math-only)
 endif()
 
+# clang-cl gets the same numeric policy -- and on this toolchain it is not
+# optional, because it decides whether the library LINKS.
+#
+# The block above is `NOT MSVC`, and CMake sets MSVC for clang-cl, so none of
+# it ever reached a Windows build. Without a complex-range relaxation clang
+# lowers `double _Complex` multiply and divide (and the float ones) to calls
+# into compiler-rt -- __muldc3, __divdc3, __mulsc3 -- to get C99 Annex G's
+# inf/NaN corner cases right. On POSIX libgcc or compiler-rt answers those
+# calls silently. The MSVC link has neither, so lld-link stops on
+# `undefined symbol: __muldc3` (acq_core.c's `ph *= step`), after every
+# object has compiled. Measured with clang-cl 22 on x86_64 and i686: either
+# flag below removes all three helpers; no flag leaves all three.
+#
+# Spelled /clang:, because clang-cl IGNORES a bare -ffast-math with only an
+# `unknown argument` warning -- lifting the line above out of its guard would
+# have looked like a fix and changed nothing. And MSVC's own cl.exe would
+# reject /clang:, hence the compiler-ID test.
+#
+# ENABLE_SIMD=OFF still needs the complex lowering inlined, or it does not
+# link; -fcx-limited-range is the narrowest flag that does that, leaving the
+# rest of the IEEE semantics the option exists to keep.
+if(MSVC AND CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    if(ENABLE_SIMD)
+        add_compile_options(/clang:-ffast-math /clang:-fno-finite-math-only)
+    else()
+        add_compile_options(/clang:-fcx-limited-range)
+    endif()
+endif()
+
 # M_PI and friends are NOT in standard C, and the UCRT is the platform that
 # says so: <math.h> defines them only when _USE_MATH_DEFINES was set BEFORE it
 # was first included. glibc and Apple libc expose them under their default

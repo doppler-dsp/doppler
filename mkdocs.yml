@@ -334,3 +334,4 @@ nav:
           - Release: dev/release.md
           - Build Internals: dev/build-internals.md
           - Coverage: dev/coverage.md
+          - Quantization Discussion: dev/quantization-discussion.md

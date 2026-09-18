@@ -40,5 +40,26 @@ if [ -n "$bad" ]; then
     exit 1
 fi
 
-printf 'check-tracked-paths: OK — %s tracked path(s), every name is one a person could type\n' \
+# Two paths that differ only in case are one path on Windows and on macOS's
+# default filesystem, so a checkout there holds only one of them and shows the
+# other as a modification nobody made. The repo had exactly one pair:
+# src/doppler/resample/tests/test_Resampler.py (jm's scaffold, named after the
+# class) beside test_resampler.py (the real suite, named by hand), found by a
+# Windows checkout rather than by anything here. Always the WHOLE tree: a
+# collision is a relation between two names, and a pre-commit run handed one
+# of them cannot see the other.
+collide=$(git ls-files | awk '
+    { k = tolower($0); n[k]++; m[k] = m[k] "\n  " $0 }
+    END { for (k in n) if (n[k] > 1) print substr(m[k], 2) }')
+
+if [ -n "$collide" ]; then
+    printf 'check-tracked-paths: FAIL — tracked paths that differ only in case:\n' >&2
+    printf '%s\n' "$collide" >&2
+    printf '\n  Windows and macOS keep one of each group, so the checkout shows\n' >&2
+    printf '  a phantom edit. Keep one name. For a jm scaffold, keep jm'"'"'s name\n' >&2
+    printf '  and move the real content into it: jm recreates a deleted scaffold.\n' >&2
+    exit 1
+fi
+
+printf 'check-tracked-paths: OK — %s tracked path(s), every name is one a person could type, none differ only in case\n' \
     "$(printf '%s\n' "$paths" | grep -c .)"

@@ -125,11 +125,20 @@ cbuild="$work/cmake-build"
 gen=()
 if [ "$WINDOWS" = 1 ]; then
     gen=(-G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=Release)
-    export PATH="$prefix/bin:$PATH"   # how the shared consumer finds the DLL
+    # How the shared consumer finds the DLL. PATH is colon-separated, so it
+    # needs the POSIX spelling (/d/a/...): the `D:/a/...` form pwd can return
+    # here splits at the drive colon.
+    export PATH="$(cygpath -u "$prefix")/bin:$PATH"
 fi
-cmake -S "$ROOT/example-projects/consumer" -B "$cbuild" "${gen[@]}" \
-    -DCMAKE_PREFIX_PATH="$prefix" >/dev/null
-cmake --build "$cbuild" >/dev/null
+# Quiet on success, the whole log on failure: a smoke that fails with its
+# output thrown away says only "exit 2".
+quiet() {
+    local log="$work/step.log"
+    "$@" >"$log" 2>&1 || { cat "$log" >&2; echo "FAIL: $*" >&2; exit 1; }
+}
+quiet cmake -S "$ROOT/example-projects/consumer" -B "$cbuild" "${gen[@]}" \
+    -DCMAKE_PREFIX_PATH="$prefix"
+quiet cmake --build "$cbuild"
 run "$cbuild/consumer_shared$EXE"
 [ -x "$cbuild/consumer_static$EXE" ] || { echo "FAIL: static target not built" >&2; exit 1; }
 run "$cbuild/consumer_static$EXE"

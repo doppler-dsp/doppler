@@ -107,13 +107,21 @@ vcpkg's toolchain finds the package and copies `doppler.dll` beside your
 executable, so there is no `CMAKE_PREFIX_PATH` and no `PATH` edit. vcpkg
 builds in a scrubbed environment and looks for `clang-cl` under
 `%LLVMInstallDir%`, then `%ProgramFiles%\LLVM`, then Visual Studio's Clang
-component. Two things to know:
+component. Three things to know:
+
+- **Use a full vcpkg checkout, not Visual Studio's.** A *Developer
+    PowerShell* sets `VCPKG_ROOT` to the copy bundled with Visual Studio,
+    which is manifest-only and answers `vcpkg install <port>` with "does not
+    have a classic mode instance". Clone `microsoft/vcpkg`, run its
+    `bootstrap-vcpkg.bat`, and point `VCPKG_ROOT` there. (doppler's own CI
+    hit exactly this.)
 
 - **Dynamic triplets only.** The exported targets carry both linkages and
     refuse to load with one missing, so a static triplet (which must ship no
     DLL) is not expressible yet
     ([#1405](https://github.com/doppler-dsp/doppler/issues/1405)). `doppler::doppler-static` is still there to
     link against.
+
 - **Rebuild after updating the clone.** vcpkg's binary cache is keyed on the
     port files, not on the sources an overlay port points at — after a
     `git pull`, run `vcpkg remove doppler` first or pass

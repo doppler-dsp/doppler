@@ -98,3 +98,54 @@ def test_the_live_ci_workflow_passes() -> None:
         [sys.executable, str(SCRIPT)], capture_output=True, text=True, cwd=REPO
     )
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+_FAST = """
+    jobs:
+      changes:
+        runs-on: ubuntu-latest
+      lint:
+        runs-on: ubuntu-latest
+      matrix:
+        needs: {needs}
+        if: needs.changes.outputs.src == 'true'
+        runs-on: ubuntu-latest
+      ci-passed:
+        name: CI passed
+        needs: [changes, lint, matrix]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+          - env:
+              SKIPPABLE: {skippable}
+            run: python3 scripts/ci_passed.py
+"""
+
+
+def test_a_sound_fast_path_passes(tmp_path: Path) -> None:
+    r = _check(tmp_path, _FAST.format(needs="changes", skippable="matrix"))
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_a_gated_job_must_need_changes(tmp_path: Path) -> None:
+    # Without it the condition reads an empty output: skipped on every diff.
+    r = _check(tmp_path, _FAST.format(needs="lint", skippable="matrix"))
+    assert r.returncode == 1
+    assert "does not need it" in r.stdout
+
+
+def test_a_gated_job_missing_from_skippable_is_caught(
+    tmp_path: Path,
+) -> None:
+    r = _check(tmp_path, _FAST.format(needs="changes", skippable="other"))
+    assert r.returncode == 1
+    assert "not in `ci-passed`'s SKIPPABLE" in r.stdout
+
+
+def test_skippable_may_not_name_an_ungated_job(tmp_path: Path) -> None:
+    # The dangerous direction: permission to skip a gate that never skips.
+    r = _check(
+        tmp_path, _FAST.format(needs="changes", skippable="matrix lint")
+    )
+    assert r.returncode == 1
+    assert "lists `lint`, which is not gated" in r.stdout

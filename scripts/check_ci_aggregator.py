@@ -19,7 +19,10 @@ What is checked
   requires), and runs ``if: always()`` -- without it a failed dependency
   SKIPS the aggregator, and a skipped required check does not block;
 - every other job in the workflow is in its ``needs``;
-- every entry in its ``needs`` names a job that exists.
+- every entry in its ``needs`` names a job that exists;
+- the bump-only fast path agrees with itself: every job gated on
+  ``needs.changes.outputs.src`` needs ``changes``, and the aggregator's
+  ``SKIPPABLE`` is exactly the set of gated jobs (see scripts/ci_passed.py).
 
 Usage
 -----
@@ -92,6 +95,61 @@ def check(path: pathlib.Path) -> list[str]:
         problems.append(
             f"{path}: `{AGGREGATOR}` needs `{job}`, which is not a job here"
         )
+    problems += _check_fast_path(path, jobs, agg)
+    return problems
+
+
+def _needs(job: dict) -> set[str]:
+    n = job.get("needs") or []
+    return {n} if isinstance(n, str) else set(n)
+
+
+def _check_fast_path(path: pathlib.Path, jobs: dict, agg: dict) -> list[str]:
+    """The bump-only fast path: the gated jobs and SKIPPABLE agree.
+
+    A job whose ``if`` reads ``needs.changes.outputs.src`` is skipped for a
+    version bump alone. Two ways that goes wrong, both silent:
+
+    - the job does not ``need`` ``changes``: the expression reads an empty
+      output, and the job is skipped on EVERY diff, forever;
+    - it is gated but missing from the aggregator's ``SKIPPABLE`` (every
+      bump turns red), or listed there without being gated (the aggregator
+      grants a skip the job never takes -- the permission outlives the
+      reason, and the next edit to that job inherits it).
+    """
+    gated = {
+        name
+        for name, job in jobs.items()
+        if "needs.changes.outputs.src" in str(job.get("if", ""))
+    }
+    problems = [
+        f"{path}: job `{name}` is gated on `changes` but does not need it, "
+        "so its condition reads nothing and it is skipped on every diff"
+        for name in sorted(gated)
+        if "changes" not in _needs(jobs[name])
+    ]
+    declared: set[str] | None = None
+    for step in agg.get("steps") or []:
+        env = step.get("env") or {}
+        if "SKIPPABLE" in env:
+            declared = set(str(env["SKIPPABLE"]).split())
+    if gated and declared is None:
+        problems.append(
+            f"{path}: jobs are gated on `changes` but `{AGGREGATOR}` declares "
+            "no SKIPPABLE, so every version bump would read as a failure"
+        )
+    elif declared is not None:
+        for name in sorted(gated - declared):
+            problems.append(
+                f"{path}: `{name}` is gated on `changes` but not in "
+                f"`{AGGREGATOR}`'s SKIPPABLE -- every version bump goes red"
+            )
+        for name in sorted(declared - gated):
+            problems.append(
+                f"{path}: `{AGGREGATOR}`'s SKIPPABLE lists `{name}`, which is "
+                "not gated on `changes` -- a skip it should never take would "
+                "be green"
+            )
     return problems
 
 

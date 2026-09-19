@@ -399,9 +399,18 @@ endef
 # TEST_SWEEP=1 puts them back -- `make test TEST_SWEEP=1` is the full C
 # battery, as SAN_SWEEP=1 and COV_SWEEP=1 are for their suites.
 TEST_EXCLUDE_SWEEP = $(if $(TEST_SWEEP),,-LE sweep)
-TEST_CMD      = $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
+# Every suite runs under LEAK_CHECK: a PASSING run must leave no file behind,
+# in the source tree or (--ctest) in any test's working directory. Three C
+# tests left 67 files in the build tree on every green run, and the same tests
+# run by hand from the root dropped them there, gitignored and unseen. The
+# wrapper returns the suite's own exit code when it fails. Stdlib-only, so it
+# runs on the plain python3 of every CI image and matrix leg.
+LEAK_CHECK    = python3 scripts/check_test_leaks.py
+TEST_CMD      = $(LEAK_CHECK) --ctest -- \
+                    $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
                     $(TEST_EXCLUDE_SWEEP)
-TEST_FAST_CMD = $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
+TEST_FAST_CMD = $(LEAK_CHECK) --ctest -- \
+                    $(CTEST) --test-dir $(BUILD_DIR) --output-on-failure \
                     --stop-on-failure $(TEST_EXCLUDE_SWEEP)
 # The SELECTION must match CI's exactly, or `make test-python` means one thing
 # locally and another in CI — which it did: local ran everything under src/,
@@ -457,7 +466,7 @@ PYTEST_BENCH_DIRS = $(wildcard src/doppler/*/benchmarks)
 # 268s step, on all SIX Python versions, ~14 minutes a run spent timing code
 # on a shared runner and discarding the numbers. Timing on a shared runner is
 # also the thing doppler#543 already deleted perf-regression.yml over.
-TEST_PYTHON_CMD = uv run pytest src/ -v $(PYTEST_SELECT) \
+TEST_PYTHON_CMD = $(LEAK_CHECK) -- uv run pytest src/ -v $(PYTEST_SELECT) \
                       --benchmark-disable -n auto $(PYTEST_ARGS)
 TEST_RUST_CMD   = cargo test --manifest-path $(RUST_DIR)/Cargo.toml
 
@@ -3563,7 +3572,7 @@ test-snippets: ## Run the python/C/shell doc-fence gates (PAGE=<path> to narrow)
 	 for t in test_doc_snippets test_c_doc_snippets test_sh_doc_snippets; do \
 	     echo "=== $$t ==="; \
 	     n=$$((n + 1)); \
-	     uv run python -m pytest -m docs_snippets -q \
+	     $(LEAK_CHECK) -- uv run python -m pytest -m docs_snippets -q \
 	         $(if $(PAGE),-k "$(PAGE)") \
 	         src/doppler/tests/$$t.py; rc=$$?; \
 	     : "5 is pytest's 'collected nothing'. Under PAGE that is the normal"; \
@@ -3633,7 +3642,8 @@ test-snippets: ## Run the python/C/shell doc-fence gates (PAGE=<path> to narrow)
 # the macOS build job, where there is no nats-server to start). It
 # self-skips without either.
 test-examples-python: ## Run the Python example gate (requires pyext)
-	uv run pytest -m "examples and not examples_serial" -q -n auto \
+	$(LEAK_CHECK) -- uv run pytest -m "examples and not examples_serial" \
+	    -q -n auto \
 	    $(PYTEST_ARGS) src/doppler/tests/test_examples.py \
 	    src/doppler/tests/test_c_example_pairs.py
 	@# Exit 5 is pytest's "no tests collected", which is what an EMPTY
@@ -3644,7 +3654,7 @@ test-examples-python: ## Run the Python example gate (requires pyext)
 	@# running" rule the serial pass exists to honour. Measured, not
 	@# assumed -- a marker expression selecting nothing exits 5 here.
 	@set +e; \
-	 uv run pytest -m "examples and examples_serial" -q \
+	 $(LEAK_CHECK) -- uv run pytest -m "examples and examples_serial" -q \
 	     $(PYTEST_ARGS) src/doppler/tests/test_examples.py; \
 	 rc=$$?; \
 	 if [ $$rc -eq 5 ]; then \
@@ -3671,8 +3681,11 @@ test-example-downstream-python: ## Build + test the downstream example (Python)
 	@cmake --build $(DOWNSTREAM_BUILD_DIR)-py --parallel $(NPROC) \
 	    > $(DOWNSTREAM_BUILD_DIR)-py.log 2>&1 \
 	    || { echo "  build FAILED"; cat $(DOWNSTREAM_BUILD_DIR)-py.log; exit 1; }
-	PYTHONPATH=$(abspath $(DOWNSTREAM_DIR))/src \
-	    uv run pytest -q $(DOWNSTREAM_DIR)/src/iqtools/capture/tests/
+	@# Its own pyproject, so not doppler's addopts: pytest-benchmark would
+	@# create .benchmarks/ in the cwd -- the repo root -- on every run.
+	PYTHONPATH=$(abspath $(DOWNSTREAM_DIR))/src $(LEAK_CHECK) -- \
+	    uv run pytest -q $(DOWNSTREAM_DIR)/src/iqtools/capture/tests/ \
+	    --benchmark-storage=file://$(abspath $(BUILD_DIR))/.benchmarks
 
 # ── Bench scripts that are not save/compare ──────────────────────────────────
 # Representative published numbers live under benchmarks/published/v<ver>/, two

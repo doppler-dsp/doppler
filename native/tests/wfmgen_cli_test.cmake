@@ -1,6 +1,17 @@
 # wfmgen_cli_test.cmake — drives the built `wfmgen` composer binary and checks
 # its byte output. Invoked by ctest with -DEXE=<wfmgen>.
-# Runs in the test's build directory; scratch files are written relative to it.
+# Runs in the test's build directory; scratch files are written relative to it,
+# all named wg_* or wg.*. They are swept before the first case, so a stale file
+# from an earlier run cannot satisfy a check, and again after the last one
+# passes -- a failing run keeps them for inspection. `make test` fails on any
+# file a passing test leaves behind (scripts/check_test_leaks.py).
+
+function(sweep_scratch)
+    file(GLOB _wg LIST_DIRECTORIES false "wg[._]*")
+    if(_wg)
+        file(REMOVE ${_wg})
+    endif()
+endfunction()
 
 function(run)
     execute_process(COMMAND ${EXE} ${ARGN} RESULT_VARIABLE rc)
@@ -32,6 +43,8 @@ function(expect_exit code)
         message(FATAL_ERROR "wfmgen ${ARGN}: exit ${rc}, expected ${code}")
     endif()
 endfunction()
+
+sweep_scratch()
 
 # 1. raw cf32: 8 samples * 8 bytes = 64
 run(--type tone --count 8 --sample-type cf32 -o wg_tone.bin)
@@ -184,4 +197,5 @@ expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 0)
 expect_exit(2 --type dsss --data-code ${DC} --symbol-rate 2700 --sps 2 --fs 6138000
     --continuous --file-type sigmf -o wg_bad_cont)
 
+sweep_scratch()
 message(STATUS "wfmgen_cli: OK")

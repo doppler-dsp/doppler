@@ -52,6 +52,7 @@ test_close_reports_a_failed_flush (void)
                       "close reports the failed flush");
     }
   fclose (ro);
+  remove (path);
   return 0;
 }
 

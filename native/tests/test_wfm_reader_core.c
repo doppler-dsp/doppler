@@ -14,6 +14,90 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <direct.h>  /* _mkdir, _chdir, _getcwd, _rmdir */
+#include <io.h>      /* _findfirst: the UCRT has no <dirent.h> */
+#include <process.h> /* _getpid */
+#define scratch_chdir_ _chdir
+#define scratch_rmdir_ _rmdir
+#else
+#include <dirent.h>
+#include <unistd.h>
+#define scratch_chdir_ chdir
+#define scratch_rmdir_ rmdir
+#endif
+
+/* Every capture in this file is written under a bare relative name
+   ("dp_reader.cf32"), so it lands in whatever the working directory is. Under
+   ctest that is the build tree, which collected 43 files this test never
+   removed; run by hand from the repo root, it was the root. So main() runs
+   the whole file inside a private directory and removes it on a PASS -- a
+   failing run returns early and keeps its captures, at the path printed. */
+static char scratch_dir[512];
+static char scratch_home[1024];
+
+static int
+scratch_enter (void)
+{
+#ifdef _WIN32
+  int made = 0;
+  for (int i = 0; i < 100 && !made; i++)
+    {
+      snprintf (scratch_dir, sizeof scratch_dir, "%s/dp_wfm_reader_%d_%d",
+                dp_test_tmpdir (), _getpid (), i);
+      made = _mkdir (scratch_dir) == 0;
+    }
+  DP_REQUIRE_MSG (made, "create the scratch directory");
+  DP_REQUIRE_MSG (_getcwd (scratch_home, sizeof scratch_home), "getcwd");
+#else
+  snprintf (scratch_dir, sizeof scratch_dir, "%s/dp_wfm_reader_XXXXXX",
+            dp_test_tmpdir ());
+  DP_REQUIRE_MSG (mkdtemp (scratch_dir), "create the scratch directory");
+  DP_REQUIRE_MSG (getcwd (scratch_home, sizeof scratch_home), "getcwd");
+#endif
+  DP_REQUIRE_MSG (scratch_chdir_ (scratch_dir) == 0, "enter scratch");
+  printf ("scratch: %s\n", scratch_dir);
+  return 0;
+}
+
+/* Delete the scratch directory's files, then the directory. Asserted, not
+   best-effort: a directory that will not go means something was written that
+   this could not remove (a subdirectory, a file still open), which is a leak
+   in /tmp instead of in the build tree. */
+static void
+scratch_leave (void)
+{
+  char p[1024];
+  DP_CHECK_MSG (scratch_chdir_ (scratch_home) == 0, "leave scratch");
+#ifdef _WIN32
+  struct _finddata_t fd;
+  snprintf (p, sizeof p, "%s/*", scratch_dir);
+  intptr_t h = _findfirst (p, &fd);
+  if (h != -1)
+    {
+      do
+        if (strcmp (fd.name, ".") != 0 && strcmp (fd.name, "..") != 0)
+          {
+            snprintf (p, sizeof p, "%s/%s", scratch_dir, fd.name);
+            remove (p);
+          }
+      while (_findnext (h, &fd) == 0);
+      _findclose (h);
+    }
+#else
+  DIR *d = opendir (scratch_dir);
+  for (struct dirent *e; d && (e = readdir (d));)
+    if (strcmp (e->d_name, ".") != 0 && strcmp (e->d_name, "..") != 0)
+      {
+        snprintf (p, sizeof p, "%s/%s", scratch_dir, e->d_name);
+        remove (p);
+      }
+  if (d)
+    closedir (d);
+#endif
+  DP_CHECK_MSG (scratch_rmdir_ (scratch_dir) == 0,
+                "scratch directory removed (nothing left inside it)");
+}
 
 #define N 1000
 /* A deterministic unit-scale test signal. */
@@ -2220,6 +2304,8 @@ test_sidecar_names_the_wire_type (void)
 int
 main (void)
 {
+  if (scratch_enter ())
+    return 1;
   if (roundtrip ("dp_reader.cf32", WFM_FT_RAW, 0, 1e6, 1e-6))
     return 1;
   if (roundtrip ("dp_reader.cf64", WFM_FT_RAW, 1, 1e6, 1e-9))
@@ -2300,6 +2386,7 @@ main (void)
     return 1;
   if (test_the_follow_knobs ())
     return 1;
+  scratch_leave ();
   /* DP_TEST_END, not `printf("all passed"); return 0`. This file used only
      DP_REQUIRE_MSG, which returns 1 itself, so the epilogue never had to
      consult the counters -- and the moment a DP_CHECK_MSG was added (the

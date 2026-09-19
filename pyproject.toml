@@ -81,6 +81,11 @@ editable_path = "src"
 [tool.pytest.ini_options]
 python_files = ["test_*.py", "bench_*.py"]
 testpaths = ["src"]
+# pytest-benchmark creates its storage directory at startup on EVERY run,
+# benchmarks disabled or not, and its default is `.benchmarks/` in the cwd --
+# the repo root. Nothing here reads it (`jm bench` keeps its own history via
+# --benchmark-json), so it goes under build/ with the other generated state.
+addopts = ["--benchmark-storage=file://build/.benchmarks"]
 markers = [
     "docs_snippets: doc-example drift gate (runs the ```python fences in docs/); CI runs it once on 3.12, excluded from the version matrix via -m 'not docs_snippets'",
     "examples_serial: an example whose own assertion is a TIMING, so it cannot share the machine. Applied from src/doppler/examples/.examples-serial, never by hand. The example gate runs its bulk under xdist with `-m 'examples and not examples_serial'` and then gives these a second SERIAL pass -- the same split `test-python` applies to the benchmark directories. Found the hard way: ddc_fn_scaling.py asserts a 2-thread speedup > 1.25x to prove execute() releases the GIL, and under 8 xdist workers it measured 1.15x and reported the contention as 'execute appears GIL-bound'.",

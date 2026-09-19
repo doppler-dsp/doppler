@@ -291,6 +291,14 @@ endif()
 # and Threads — pocketfft is pure C99 and the networking/stream layer is split
 # into the optional libdoppler_stream component.
 set_target_properties(doppler_lib PROPERTIES EXPORT_NAME doppler)
+# A Windows DLL exports NOTHING unless told to: doppler's headers carry no
+# __declspec(dllexport), so without this the DLL linked, installed and shipped
+# with an empty export table, and every consumer of doppler::doppler failed
+# with `undefined symbol: lo_create` (found by package-c-smoke on its first
+# Windows run). CMake generates the .def from the objects. Functions only are
+# needed: the public headers declare no global data, which would additionally
+# need __declspec(dllimport) at the consumer. No effect off Windows.
+set_target_properties(doppler_lib PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set_target_properties(doppler_lib_static PROPERTIES EXPORT_NAME doppler-static)
 # pocketfft (pure C99) is compiled into fft_core, which is folded into both libs
 # below with every other component — so no separate pocketfft target to wire here.

@@ -146,3 +146,64 @@ def test_a_repo_with_no_tag_does_not_fire(tmp_path: Path) -> None:
     r = _run(repo, "1.0.1")
     assert r.returncode == 0
     assert "no tag yet" in r.stdout
+
+
+def _with_cmake(repo: Path) -> Path:
+    """Add a CMakeLists.txt under native/src to the tagged baseline."""
+    (repo / "native/src/CMakeLists.txt").write_text(
+        "# the stream layer\nadd_library(k OBJECT k.c)\n"
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "cmake")
+    _git(repo, "tag", "-f", "v1.0.0")
+    return repo
+
+
+def test_a_comment_only_cmake_edit_needs_no_snapshot(
+    tmp_path: Path,
+) -> None:
+    """v0.51.1's refusal: two CMake comments rewritten, 66 min asked."""
+    repo = _with_cmake(_fixture(tmp_path))
+    (repo / "native/src/CMakeLists.txt").write_text(
+        "# the NATS stream layer, not ported to Windows\n"
+        "add_library(k OBJECT k.c)\n"
+    )
+    _git(repo, "commit", "-qam", "reword a comment")
+    r = _run(repo, "1.0.1")
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_cmake_flag_change_still_needs_one(tmp_path: Path) -> None:
+    """A flag can move performance: the path filter still applies."""
+    repo = _with_cmake(_fixture(tmp_path))
+    (repo / "native/src/CMakeLists.txt").write_text(
+        "# the stream layer\nadd_library(k OBJECT k.c)\n"
+        "target_compile_options(k PRIVATE -O3)\n"
+    )
+    _git(repo, "commit", "-qam", "tune")
+    r = _run(repo, "1.0.1")
+    assert r.returncode != 0
+    assert "native/src/CMakeLists.txt" in r.stdout
+
+
+def test_a_c_comment_only_edit_needs_no_snapshot(tmp_path: Path) -> None:
+    repo = _fixture(tmp_path)
+    (repo / "native/src/k.c").write_text(
+        "/* why k returns zero */\nint k(void){return 0;}\n"
+    )
+    _git(repo, "commit", "-qam", "document k")
+    r = _run(repo, "1.0.1")
+    assert r.returncode == 0, r.stdout
+
+
+def test_a_c_line_that_only_looks_like_a_comment_counts(
+    tmp_path: Path,
+) -> None:
+    """Conservative: `*p = 1;` is code, so it still asks for numbers."""
+    repo = _fixture(tmp_path)
+    (repo / "native/src/k.c").write_text(
+        "int k(void){return 0;}\nvoid z(int *p){\n*p = 1;\n}\n"
+    )
+    _git(repo, "commit", "-qam", "add z")
+    r = _run(repo, "1.0.1")
+    assert r.returncode != 0

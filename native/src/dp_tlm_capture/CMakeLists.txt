@@ -24,7 +24,8 @@ target_link_libraries(dp_tlm_capture_core PUBLIC
     timing_core)
 
 add_executable(test_dp_tlm_capture_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_dp_tlm_capture_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_dp_tlm_capture_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_dp_tlm_capture_symbols.c)
 target_link_libraries(test_dp_tlm_capture_core
                       PRIVATE dp_tlm_capture_core Threads::Threads
     dp_interrupt_guard_core
@@ -47,3 +48,8 @@ target_link_libraries(bench_dp_tlm_capture_core
 target_include_directories(
   bench_dp_tlm_capture_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in dp_tlm_capture_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/dp_tlm_capture_extra.cmake OPTIONAL)

@@ -82,7 +82,7 @@ static PyStructSequence_Field IMDMeasureObj_analyze_fields[] = {
   { "imd3_hi_freq", "3rd-order (2f2-f1) product frequency (Hz)." },
   { "toi_dbfs", "Third-order intercept (dBFS)." },
   { "soi_dbfs", "Second-order intercept (dBFS)." },
-  { "rbw_hz", "Resolution bandwidth = enbw*fs/n (Hz)." },
+  { "rbw_hz", "Resolution bandwidth (Hz)." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc IMDMeasureObj_analyze_desc

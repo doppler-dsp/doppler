@@ -8,7 +8,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <complex.h>
+#include "clib_common.h"
 #include <numpy/arrayobject.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1513,14 +1513,59 @@ Synth_reset (SynthObject *self, PyObject *Py_UNUSED (ignored))
   Py_RETURN_NONE;
 }
 
-static PyMethodDef Synth_methods[]
-    = { { "steps", (PyCFunction)Synth_steps, METH_VARARGS,
-          "steps(n) -> complex64[n] — generate n samples standalone." },
-        { "step", (PyCFunction)Synth_step, METH_NOARGS,
-          "step() -> complex — generate one sample standalone." },
-        { "reset", (PyCFunction)Synth_reset, METH_NOARGS,
-          "reset() -> None — rewind the generator to sample 0." },
-        { NULL, NULL, 0, NULL } };
+static PyMethodDef Synth_methods[] = {
+  { "steps", (PyCFunction)Synth_steps, METH_VARARGS,
+    "steps(n) -> NDArray[np.complex64]\n"
+    "\n"
+    "Generate the next *n* samples of this source on its own.\n"
+    "\n"
+    "The first call builds the generator from this configuration, through\n"
+    "`wfm_source_to_synth`; later calls continue it.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    How many samples; 0 returns an empty array.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "NDArray[np.complex64]\n"
+    "    The samples, in order.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If `n` is negative.\n"
+    "RuntimeError\n"
+    "    If `wfm_source_to_synth` cannot build the generator from this\n"
+    "    configuration.\n" },
+  { "step", (PyCFunction)Synth_step, METH_NOARGS,
+    "step() -> complex\n"
+    "\n"
+    "Generate the next sample of this source on its own.\n"
+    "\n"
+    "The first call builds the generator from this configuration, through\n"
+    "`wfm_source_to_synth`; later calls continue it.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "complex\n"
+    "    The sample.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "RuntimeError\n"
+    "    If `wfm_source_to_synth` cannot build the generator from this\n"
+    "    configuration.\n" },
+  { "reset", (PyCFunction)Synth_reset, METH_NOARGS,
+    "reset() -> None\n"
+    "\n"
+    "Rewind the generator to sample 0.\n"
+    "\n"
+    "A no-op before the first `steps()`/`step()`, which starts from sample 0\n"
+    "anyway.\n" },
+  { NULL, NULL, 0, NULL }
+};
 
 static PyTypeObject SynthType = {
   PyVarObject_HEAD_INIT (NULL, 0).tp_name = "doppler.wfm.Synth",

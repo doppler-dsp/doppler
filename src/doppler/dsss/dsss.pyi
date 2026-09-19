@@ -40,21 +40,21 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
     Attributes
     ----------
     state : int
-        The receiver's ASYNC_DSSS_RX_* state; -1 for a slot that does not exist.
+        ASYNC_DSSS_RX_SEARCHING .. _LOST -- where it is.
     doppler_hz : float
-        Signed coarse Doppler, folded, Hz.
+        Where the emitter is NOW: the whole carrier estimate, Hz -- loop 1's plus what loop 2 has taken up beyond it (the seed while refining, 0 when idle, frozen where it was when lost). Only as good as `locked`: with the carrier unlocked, loop 1 free-runs and this wanders.
     chip_phase : float
-        Chips, Dll's own instantaneous-phase convention (the mirror image of acq_result_t::code_phase's correlation-lag convention -- see acq_build_handoff()'s doc comment).
+        Live Dll code phase, chips.
     code_rate : float
-        chips advanced per nominal chip (~1.0).
+        Live Dll code rate, chips/sample.
     cn0_dbhz_est : float
-        C/N0 lower bound from the hit, dB-Hz.
+        C/N0 estimate, dB-Hz (the hit's).
     code_locked : int
-        Presence flag.
+        Presence flag: the Dll's lock detector.
     locked : int
-        Health flag (symbol lock).
+        Health flag: the symbol-lock detector.
     lock_metric : float
-        mean of |Re P|/|P| over the burst (~1 locked, ~2/pi with no carrier).
+        cos(2*phi) over the symbols, drives `locked`.
     lock_threshold : float
         `locked` latches above this.
     car_last_error : float
@@ -62,49 +62,46 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
     mpsk_last_error : float
         Post-despread carrier residual, rad.
     state_samples : int
-        Samples since the receiver's state was entered.
+        Input samples since `state` was entered.
     both_down_samples : int
-        The release clock, samples.
+        Input samples both flags have been down without a break (the release clock); in lost it keeps counting -- samples since the flags dropped.
     """
 
     @property
     def state(self) -> int:
-        """The receiver's ASYNC_DSSS_RX_* state; -1 for a slot that does not
-        exist.
-        """
+        """ASYNC_DSSS_RX_SEARCHING .. _LOST -- where it is."""
 
     @property
     def doppler_hz(self) -> float:
-        """Signed coarse Doppler, folded, Hz."""
+        """Where the emitter is NOW: the whole carrier estimate, Hz -- loop 1's
+        plus what loop 2 has taken up beyond it (the seed while refining, 0
+        when idle, frozen where it was when lost). Only as good as `locked`:
+        with the carrier unlocked, loop 1 free-runs and this wanders.
+        """
 
     @property
     def chip_phase(self) -> float:
-        """Chips, Dll's own instantaneous-phase convention (the mirror image of
-        acq_result_t::code_phase's correlation-lag convention -- see
-        acq_build_handoff()'s doc comment).
-        """
+        """Live Dll code phase, chips."""
 
     @property
     def code_rate(self) -> float:
-        """chips advanced per nominal chip (~1.0)."""
+        """Live Dll code rate, chips/sample."""
 
     @property
     def cn0_dbhz_est(self) -> float:
-        """C/N0 lower bound from the hit, dB-Hz."""
+        """C/N0 estimate, dB-Hz (the hit's)."""
 
     @property
     def code_locked(self) -> int:
-        """Presence flag."""
+        """Presence flag: the Dll's lock detector."""
 
     @property
     def locked(self) -> int:
-        """Health flag (symbol lock)."""
+        """Health flag: the symbol-lock detector."""
 
     @property
     def lock_metric(self) -> float:
-        """mean of |Re P|/|P| over the burst (~1 locked, ~2/pi with no
-        carrier).
-        """
+        """cos(2*phi) over the symbols, drives `locked`."""
 
     @property
     def lock_threshold(self) -> float:
@@ -120,11 +117,14 @@ class ReceiverStatus(tuple[int, float, float, float, float, int, int, float, flo
 
     @property
     def state_samples(self) -> int:
-        """Samples since the receiver's state was entered."""
+        """Input samples since `state` was entered."""
 
     @property
     def both_down_samples(self) -> int:
-        """The release clock, samples."""
+        """Input samples both flags have been down without a break (the release
+        clock); in lost it keeps counting -- samples since the flags
+        dropped.
+        """
 
 @final
 class PoolSlot(tuple[int, int, int, int, float, float, float, float, float, float, float, int, int, float, int, int, int]):
@@ -149,19 +149,19 @@ class PoolSlot(tuple[int, int, int, int, float, float, float, float, float, floa
     seed_cn0_dbhz : float
         The seed's C/N0 estimate, dB-Hz.
     doppler_hz : float
-        Signed coarse Doppler, folded, Hz.
+        Where the emitter is now, Hz.
     chip_phase : float
-        Chips, Dll's own instantaneous-phase convention (the mirror image of acq_result_t::code_phase's correlation-lag convention -- see acq_build_handoff()'s doc comment).
+        Live Dll code phase, chips.
     code_rate : float
-        chips advanced per nominal chip (~1.0).
+        Live Dll code rate, chips per sample.
     cn0_dbhz_est : float
-        C/N0 lower bound from the hit, dB-Hz.
+        C/N0 estimate, dB-Hz.
     code_locked : int
         Presence flag.
     locked : int
         Health flag (symbol lock).
     lock_metric : float
-        mean of |Re P|/|P| over the burst (~1 locked, ~2/pi with no carrier).
+        The symbol-lock statistic.
     state_samples : int
         Samples since the receiver's state was entered.
     both_down_samples : int
@@ -202,22 +202,19 @@ class PoolSlot(tuple[int, int, int, int, float, float, float, float, float, floa
 
     @property
     def doppler_hz(self) -> float:
-        """Signed coarse Doppler, folded, Hz."""
+        """Where the emitter is now, Hz."""
 
     @property
     def chip_phase(self) -> float:
-        """Chips, Dll's own instantaneous-phase convention (the mirror image of
-        acq_result_t::code_phase's correlation-lag convention -- see
-        acq_build_handoff()'s doc comment).
-        """
+        """Live Dll code phase, chips."""
 
     @property
     def code_rate(self) -> float:
-        """chips advanced per nominal chip (~1.0)."""
+        """Live Dll code rate, chips per sample."""
 
     @property
     def cn0_dbhz_est(self) -> float:
-        """C/N0 lower bound from the hit, dB-Hz."""
+        """C/N0 estimate, dB-Hz."""
 
     @property
     def code_locked(self) -> int:
@@ -229,9 +226,7 @@ class PoolSlot(tuple[int, int, int, int, float, float, float, float, float, floa
 
     @property
     def lock_metric(self) -> float:
-        """mean of |Re P|/|P| over the burst (~1 locked, ~2/pi with no
-        carrier).
-        """
+        """The symbol-lock statistic."""
 
     @property
     def state_samples(self) -> int:
@@ -607,11 +602,11 @@ class Despreader:
 
     @property
     def code_rate(self) -> float:
-        """chips advanced per nominal chip (~1.0)."""
+        """Code rate."""
 
     @property
     def lock_metric(self) -> float:
-        """EMA of |Re P|/|P| (1 = locked)."""
+        """Lock metric."""
 
     @property
     def carrier_locked(self) -> bool:
@@ -5573,9 +5568,7 @@ class AsyncDsssReceiver:
 
     @property
     def lock(self) -> float:
-        """decision rule on lock_metric: thresholds + verify counters, stepped
-        per symbol.
-        """
+        """Lock."""
 
     @property
     def norm_freq(self) -> float:
@@ -6191,22 +6184,19 @@ class CellAsyncDsssReceiver:
 
     @property
     def cn0_dbhz_est(self) -> float:
-        """Cached from the winning acquisition hit."""
+        """Cn0 dbhz est."""
 
     @property
     def segments(self) -> int:
-        """Live-tracking Dll's own segments -- distinct from refine_segments
-        above (see the module docstring / dll_lookback_segments()'s own doc on
-        the WINDOWS vs TRACK_WINDOWS split).
-        """
+        """Segments."""
 
     @property
     def sps(self) -> int:
-        """MpskReceiver's own samples/symbol."""
+        """Sps."""
 
     @property
     def n(self) -> int:
-        """MpskReceiver's own carrier-arm count."""
+        """N."""
 
     @property
     def chip_phase(self) -> float:
@@ -6222,9 +6212,7 @@ class CellAsyncDsssReceiver:
 
     @property
     def lock(self) -> float:
-        """decision rule on lock_metric: thresholds + verify counters, stepped
-        per symbol.
-        """
+        """Lock."""
 
     @property
     def norm_freq(self) -> float:
@@ -7223,7 +7211,7 @@ class DsssBurstReceiver:
 
     @property
     def preamble_start(self) -> int:
-        """Exact stream position of the preamble."""
+        """Stream-absolute preamble start. Never late."""
 
     @property
     def doppler_hz_est(self) -> float:
@@ -7231,19 +7219,19 @@ class DsssBurstReceiver:
 
     @property
     def doppler_res_hz(self) -> float:
-        """Acquisition's native bin width, Hz."""
+        """Width of that estimate."""
 
     @property
     def cn0_dbhz_est(self) -> float:
-        """C/N0 lower bound from the hit, dB-Hz."""
+        """C/N0 lower bound, dB-Hz (saturating)."""
 
     @property
     def est_freq_hz(self) -> float:
-        """Demod's residual-frequency estimate."""
+        """Demod's own residual estimate, Hz."""
 
     @property
     def est_rate_hz(self) -> float:
-        """Demod's chirp-rate estimate."""
+        """Demod's own chirp-rate estimate."""
 
     @property
     def demod_cn0_dbhz(self) -> float:
@@ -7329,9 +7317,7 @@ class DsssBurstReceiver:
 
     @property
     def dropped(self) -> int:
-        """Samples the ring refused. A LOST BURST each, not a statistic --
-        lifetime, survives reset().
-        """
+        """Dropped."""
 
     @property
     def n_bursts(self) -> int:

@@ -69,3 +69,8 @@ target_link_libraries(test_wfm_core PRIVATE
 target_include_directories(test_wfm_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_wfm_core COMMAND test_wfm_core)
+
+# Your own CMake for this directory goes in wfm_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/wfm_extra.cmake OPTIONAL)

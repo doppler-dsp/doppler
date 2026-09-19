@@ -19,9 +19,9 @@ class BerInterval(tuple[float, float, float, float, float, int, int]):
     rel : float
         Relative standard error `1/sqrt(r)`.
     conf : float
-        config: confidence level for the interval
+        Confidence level used.
     errors : int
-        running: frames not delivered
+        `r`.
     symbols : int
         `N` (or bits, for a BER).
     """
@@ -44,11 +44,11 @@ class BerInterval(tuple[float, float, float, float, float, int, int]):
 
     @property
     def conf(self) -> float:
-        """config: confidence level for the interval"""
+        """Confidence level used."""
 
     @property
     def errors(self) -> int:
-        """running: frames not delivered"""
+        """`r`."""
 
     @property
     def symbols(self) -> int:

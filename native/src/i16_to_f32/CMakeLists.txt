@@ -19,7 +19,8 @@ target_include_directories(
                          ${CMAKE_SOURCE_DIR}/native/inc/i16_to_f32)
 
 add_executable(test_i16_to_f32_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_i16_to_f32_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_i16_to_f32_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_i16_to_f32_symbols.c)
 target_link_libraries(test_i16_to_f32_core
                       PRIVATE i16_to_f32_core ${JM_MATH_LIBRARY})
 target_include_directories(test_i16_to_f32_core
@@ -34,3 +35,8 @@ target_link_libraries(bench_i16_to_f32_core
 target_include_directories(
   bench_i16_to_f32_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in i16_to_f32_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/i16_to_f32_extra.cmake OPTIONAL)

@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.76.4"
+jm_version = "0.76.5"
 name = "doppler"
 version = "0.52.0"
 build = "cmake"
@@ -10,7 +10,7 @@ build = "cmake"
 # DLL-copy boilerplate (jm-gh-213), which the clang/clang-cl build does not
 # use. The Python extensions are not built on Windows. Omitting it is correct,
 # and the drift gate treats its absence as correct. See docs/install/source.md.
-platforms = ["linux", "macos"]
+platforms = ["linux", "macos", "windows"]
 # c_style / c_format_command (gh-265, gh-745): jm formats the C it generates
 # with the project's OWN pinned clang-format, so its render and the committed
 # bytes agree instead of differing by style forever.
@@ -1785,6 +1785,7 @@ True
 
 """
 no_generate = "true"
+no_generate_reason = "Not migrated yet: a 674-line hand-written binding (buffer_ext.c), tracked with the other hand-owned surfaces on doppler#900."
 
 [module.telemetry]
 doc = """
@@ -1817,6 +1818,7 @@ True
 
 """
 no_generate = "true"
+no_generate_reason = "Not migrated yet: a 1122-line hand-written binding (stream_ext.c) over the NATS transport, tracked on doppler#900."
 
 [module.ddc]
 doc = """

@@ -19,7 +19,8 @@ target_include_directories(
                  ${CMAKE_SOURCE_DIR}/native/inc/lo)
 
 add_executable(test_lo_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_lo_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_lo_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_lo_symbols.c)
 target_link_libraries(test_lo_core
                       PRIVATE lo_core ${JM_MATH_LIBRARY})
 target_include_directories(test_lo_core
@@ -34,3 +35,8 @@ target_link_libraries(bench_lo_core
 target_include_directories(
   bench_lo_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in lo_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/lo_extra.cmake OPTIONAL)

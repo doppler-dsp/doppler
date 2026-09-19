@@ -22,7 +22,8 @@ target_link_libraries(corr2d_core PUBLIC
     fft_core)
 
 add_executable(test_corr2d_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_corr2d_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_corr2d_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_corr2d_symbols.c)
 target_link_libraries(test_corr2d_core
                       PRIVATE corr2d_core fft2d_core
     fft_core
@@ -41,3 +42,8 @@ target_link_libraries(bench_corr2d_core
 target_include_directories(
   bench_corr2d_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in corr2d_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/corr2d_extra.cmake OPTIONAL)

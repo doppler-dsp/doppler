@@ -22,7 +22,8 @@ target_link_libraries(carrier_mpsk_core PUBLIC
     loop_filter_core)
 
 add_executable(test_carrier_mpsk_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_carrier_mpsk_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_carrier_mpsk_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_carrier_mpsk_symbols.c)
 target_link_libraries(test_carrier_mpsk_core
                       PRIVATE carrier_mpsk_core lo_core
     loop_filter_core
@@ -41,3 +42,8 @@ target_link_libraries(bench_carrier_mpsk_core
 target_include_directories(
   bench_carrier_mpsk_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in carrier_mpsk_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/carrier_mpsk_extra.cmake OPTIONAL)

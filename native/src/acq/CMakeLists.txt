@@ -26,7 +26,8 @@ target_link_libraries(acq_core PUBLIC
     dp_tlm_core)
 
 add_executable(test_acq_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_acq_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_acq_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_acq_symbols.c)
 target_link_libraries(test_acq_core
                       PRIVATE acq_core Threads::Threads
     corr2d_core
@@ -53,3 +54,8 @@ target_link_libraries(bench_acq_core
 target_include_directories(
   bench_acq_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in acq_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/acq_extra.cmake OPTIONAL)

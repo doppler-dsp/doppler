@@ -169,9 +169,9 @@ static PyStructSequence_Field BerMeterObj_ser_fields[] = {
   { "lo", "Lower confidence limit." },
   { "hi", "Upper confidence limit." },
   { "rel", "Relative standard error `1/sqrt(r)`." },
-  { "conf", "Two-sided confidence level." },
-  { "errors", "Symbol errors counted." },
-  { "symbols", "Symbols scored." },
+  { "conf", "Confidence level used." },
+  { "errors", "`r`." },
+  { "symbols", "`N` (or bits, for a BER)." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc BerMeterObj_ser_desc
@@ -216,9 +216,9 @@ static PyStructSequence_Field BerMeterObj_ber_fields[] = {
   { "lo", "Lower confidence limit." },
   { "hi", "Upper confidence limit." },
   { "rel", "Relative standard error `1/sqrt(r)`." },
-  { "conf", "Two-sided confidence level." },
-  { "errors", "Symbol errors counted." },
-  { "symbols", "Symbols scored." },
+  { "conf", "Confidence level used." },
+  { "errors", "`r`." },
+  { "symbols", "`N` (or bits, for a BER)." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc BerMeterObj_ber_desc
@@ -263,9 +263,9 @@ static PyStructSequence_Field BerMeterObj_interval_fields[] = {
   { "lo", "Lower confidence limit." },
   { "hi", "Upper confidence limit." },
   { "rel", "Relative standard error `1/sqrt(r)`." },
-  { "conf", "Two-sided confidence level." },
-  { "errors", "Symbol errors counted." },
-  { "symbols", "Symbols scored." },
+  { "conf", "Confidence level used." },
+  { "errors", "`r`." },
+  { "symbols", "`N` (or bits, for a BER)." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc BerMeterObj_interval_desc

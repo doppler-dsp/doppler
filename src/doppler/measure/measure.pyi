@@ -211,7 +211,7 @@ class NPRMetrics(tuple[float, float, float, int, int, float]):
     n_notch_bins : int
         Bins averaged inside the notch.
     rbw_hz : float
-        Resolution bandwidth = enbw*fs/n (Hz).
+        Resolution bandwidth (Hz).
     """
 
     @property
@@ -236,7 +236,7 @@ class NPRMetrics(tuple[float, float, float, int, int, float]):
 
     @property
     def rbw_hz(self) -> float:
-        """Resolution bandwidth = enbw*fs/n (Hz)."""
+        """Resolution bandwidth (Hz)."""
 
 @final
 class IMDMetrics(tuple[float, float, float, float, float, float, float, float, float, float, float, float]):
@@ -268,7 +268,7 @@ class IMDMetrics(tuple[float, float, float, float, float, float, float, float, f
     soi_dbfs : float
         Second-order intercept (dBFS).
     rbw_hz : float
-        Resolution bandwidth = enbw*fs/n (Hz).
+        Resolution bandwidth (Hz).
     """
 
     @property
@@ -317,7 +317,7 @@ class IMDMetrics(tuple[float, float, float, float, float, float, float, float, f
 
     @property
     def rbw_hz(self) -> float:
-        """Resolution bandwidth = enbw*fs/n (Hz)."""
+        """Resolution bandwidth (Hz)."""
 
 @final
 class ToneMeasure:
@@ -517,23 +517,23 @@ class ToneMeasure:
 
     @property
     def n(self) -> int:
-        """Window / frame length (samples)."""
+        """N."""
 
     @property
     def nfft(self) -> int:
-        """Zero-padded transform length."""
+        """Nfft."""
 
     @property
     def fs(self) -> float:
-        """Sample rate, Hz."""
+        """Fs."""
 
     @property
     def enbw(self) -> float:
-        """Equivalent noise bandwidth, bins."""
+        """Enbw."""
 
     @property
     def lobe_bins(self) -> int:
-        """Window main-lobe half-width L (bins)."""
+        """Lobe bins."""
 
     @property
     def spur_guard_bins(self) -> int:
@@ -549,11 +549,11 @@ class ToneMeasure:
 
     @property
     def bin_hz(self) -> float:
-        """FFT bin spacing = fs/nfft (Hz)."""
+        """Bin hz."""
 
     @property
     def proc_gain_db(self) -> float:
-        """FFT processing gain = 10log10(nfft/2) (dB)."""
+        """Proc gain db."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -764,15 +764,15 @@ class NPRMeasure:
 
     @property
     def n(self) -> int:
-        """Window / frame length (samples)."""
+        """N."""
 
     @property
     def nfft(self) -> int:
-        """Zero-padded transform length."""
+        """Nfft."""
 
     @property
     def fs(self) -> float:
-        """Sample rate, Hz."""
+        """Fs."""
 
     @property
     def rbw(self) -> float:
@@ -966,15 +966,15 @@ class IMDMeasure:
 
     @property
     def n(self) -> int:
-        """Window / frame length (samples)."""
+        """N."""
 
     @property
     def nfft(self) -> int:
-        """Zero-padded transform length."""
+        """Nfft."""
 
     @property
     def fs(self) -> float:
-        """Sample rate, Hz."""
+        """Fs."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

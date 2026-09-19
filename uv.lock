@@ -763,7 +763,7 @@ dev = [
     { name = "clang-format", specifier = "==22.1.8" },
     { name = "clang-tidy", specifier = "==22.1.8" },
     { name = "jsonschema", specifier = ">=4.18" },
-    { name = "just-makeit", specifier = "==0.76.4" },
+    { name = "just-makeit", git = "https://github.com/just-buildit/just-makeit?rev=13b56a4cf489b88ade8e501aede68920da1fb6ab" },
     { name = "matplotlib", marker = "python_full_version == '3.9.*'", specifier = "<3.10" },
     { name = "matplotlib", marker = "python_full_version >= '3.10'", specifier = ">=3.10.9" },
     { name = "mdformat", marker = "python_full_version >= '3.10'", specifier = "==1.0.0" },
@@ -1234,14 +1234,11 @@ wheels = [
 
 [[package]]
 name = "just-makeit"
-version = "0.76.4"
-source = { registry = "https://pypi.org/simple" }
+version = "0.76.5"
+source = { git = "https://github.com/just-buildit/just-makeit?rev=13b56a4cf489b88ade8e501aede68920da1fb6ab#13b56a4cf489b88ade8e501aede68920da1fb6ab" }
 dependencies = [
     { name = "tomli", marker = "python_full_version < '3.11'" },
     { name = "tomlkit" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/18/db/745a76c1a211150c4bdd416901294d861ae41f706bc9b7e287d0c02b2d30/just_makeit-0.76.4-py3-none-any.whl", hash = "sha256:1bfc08e58f0d88ae0de4e8fb2b176c5c79648f1c939e5feaaee06d49acc68cd7", size = 1384550, upload-time = "2026-09-17T21:56:44.754Z" },
 ]
 
 [[package]]

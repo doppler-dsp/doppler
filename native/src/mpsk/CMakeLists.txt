@@ -32,3 +32,8 @@ add_custom_command(TARGET mpsk POST_BUILD
     VERBATIM
     COMMENT "Copy mpsk extension module")
 endif()
+
+# Your own CMake for this directory goes in mpsk_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/mpsk_extra.cmake OPTIONAL)

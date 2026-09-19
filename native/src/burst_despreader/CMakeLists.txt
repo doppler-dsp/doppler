@@ -21,7 +21,8 @@ target_link_libraries(burst_despreader_core PUBLIC
     loop_filter_core)
 
 add_executable(test_burst_despreader_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_burst_despreader_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_burst_despreader_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_burst_despreader_symbols.c)
 target_link_libraries(test_burst_despreader_core
                       PRIVATE burst_despreader_core loop_filter_core
     ${JM_MATH_LIBRARY})
@@ -38,3 +39,8 @@ target_link_libraries(bench_burst_despreader_core
 target_include_directories(
   bench_burst_despreader_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in burst_despreader_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/burst_despreader_extra.cmake OPTIONAL)

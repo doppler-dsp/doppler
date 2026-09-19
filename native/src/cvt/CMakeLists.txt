@@ -89,3 +89,8 @@ target_link_libraries(bench_cvt_core PRIVATE
 target_include_directories(bench_cvt_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
             ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in cvt_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/cvt_extra.cmake OPTIONAL)

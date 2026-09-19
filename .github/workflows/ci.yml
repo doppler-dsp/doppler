@@ -186,12 +186,58 @@ jobs:
       # dependency shows up.
       run: make burst-pipeline-check
 
-  # Windows is NOT in this workflow on purpose: it lives in windows.yml, which
-  # builds the C library and runs the full C suite under clang and clang-cl.
-  # Kept out of ci.yml because every job here must feed `CI passed`
-  # (check_ci_aggregator.py), and Windows is non-binding. The old MSYS2/MinGW
-  # matrix that used to sit here was dropped for being flaky.
+  # Windows, clang-cl: BINDING, because the release publishes what it builds.
+  # A zip of the C library ships on every GitHub Release, so a PR that breaks
+  # the Windows build must not merge -- otherwise the break surfaces at the
+  # tag, after PyPI has already published. clang-cl because it is the driver
+  # Windows users run (MSVC's cl.exe cannot compile doppler at all); the GNU
+  # `clang` driver stays in windows.yml as a non-binding reference leg.
   #
+  # It packages the same archive release.yml publishes and consumes it the
+  # way a user would (`make package-c-smoke`), so the published face is tested
+  # here on every PR rather than first at a tag. Python is off: the extensions
+  # are jm's to bring to Windows, and this job grows a pyext step when they do.
+  build-and-test-windows:
+    name: Build on windows-latest (clang-cl)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      WIN_CMAKE_ARGS: -G Ninja -DCMAKE_C_COMPILER=clang-cl
+
+    steps:
+    - uses: actions/checkout@v7
+
+    # clang-cl drives the MSVC toolchain the way cl.exe does and needs its
+    # environment: INCLUDE, LIB and the linker.
+    - name: MSVC developer environment (x64)
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
+    - name: Record the toolchain
+      run: |
+        clang-cl --version
+        cmake --version | head -1
+        ninja --version
+        make --version | head -1
+
+    # The library, the tests and the benchmarks, installed and zipped by the
+    # recipe release.yml runs -- one build serves the suite and the package.
+    - name: Build + package the C library
+      run: make package-c-tarball VERSION=ci CMAKE_ARGS="$WIN_CMAKE_ARGS"
+
+    - name: No compiler-rt complex helpers in the objects
+      run: make complex-helpers-check
+
+    - name: C suite
+      run: make test
+
+    - name: Consume the packaged zip (find_package, static + shared)
+      run: make package-c-smoke VERSION=ci
+
   # macOS still provisions with brew, because there is no macOS container to
   # bake: `make install-deps` is the one dep command a developer also runs and
   # it auto-detects apt vs brew, so this stays exactly as it was.
@@ -914,6 +960,7 @@ jobs:
       - pin
       - build-and-test-linux
       - build-and-test-macos
+      - build-and-test-windows
       - python
       - glibc-228
       - doxygen

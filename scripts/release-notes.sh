@@ -95,7 +95,9 @@ pip install "doppler-dsp[cli]==${VERSION}"
 pip install "doppler-dsp[specan]==${VERSION}"
 \`\`\`
 
-**C library:** download the pre-built tarballs from the assets below.
+**C library:** download the pre-built archive for your platform from the
+assets below: a \`.tar.gz\` for Linux and macOS, a \`.zip\` for Windows
+(clang-cl / MSVC runtime).
 
 **Container** (\`linux/amd64\` + \`linux/arm64\`, \`cli\`/\`specan-web\`
 extras pre-installed):

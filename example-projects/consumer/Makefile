@@ -46,7 +46,7 @@ run: build
 # The program writes its output beside itself when run in place, so clean
 # takes that too -- otherwise `make clean` leaves the interesting half behind.
 clean:
-	rm -rf $(BUILD_DIR) consumer.cf32
+	rm -rf $(BUILD_DIR)
 
 help:
 	@echo "consumer — the smallest project that links doppler"

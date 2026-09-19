@@ -599,10 +599,22 @@ COMPILE_DB = symlink
 # test-ubsan and test-tsan sat here-adjacent and gated no PR for their whole
 # lives (#1026). The mirror check belongs in standard.mk, which is vendored
 # verbatim -- just-buildit/just-makeit#1158.
+# package-c-tarball is the Windows job's BUILD step (it builds, installs and
+# zips in one recipe, the one release.yml runs), so it is provisioning too.
+#
+# GATES_WINDOWS_ONLY are real gates whose execution home is ci.yml's binding
+# Windows job, and which `make gates` -- run on the Linux dev box, as
+# abi-check and glibc-gate already assume -- cannot run: complex-helpers-check
+# reads clang-cl objects, and package-c-smoke consumes the archive
+# package-c-tarball just built, a recipe that reconfigures the build tree
+# without Python and must not be run on a dev box by `make gates`. Excluded
+# by name, like provisioning, so that adding one is a visible decision.
+GATES_WINDOWS_ONLY = complex-helpers-check package-c-smoke
 GATES_PROVISION = install-deps install-docs-deps build pyext nats-up \
                   nats-down install-deps-ci install-docs-deps-ci \
                   ccache-stats \
-                  apt-stall-config
+                  apt-stall-config \
+                  package-c-tarball $(GATES_WINDOWS_ONLY)
 GATES_DEPS    = lint changelog-check release-notes-size-check \
                 drift-check doxygen-check docs-check \
                 gen-c-api-check \
@@ -1275,12 +1287,18 @@ endef
 # 194-line copy that had drifted from just-makeit's — same filename, same
 # target, different capabilities.
 #
+# RW_MIN_ASSETS is the real count, not a floor well under it: the C archive
+# per platform (linux x86_64/aarch64, macOS arm64 .tar.gz, Windows .zip), a
+# starter per non-Windows platform, and the sdist -- 8. At 3 it could not
+# notice a whole platform missing from a release.
+#
 # RW_PUBLISH_JOB must stay precise: a matcher that also caught
 # "Publish container images" would read PyPI as live before it is, and one that
 # matches nothing at all would let a rerun fire after a successful publish.
 RELEASE_WATCH_CMD = @REPO=doppler-dsp/doppler RW_PKG=doppler-dsp \
                         RW_PUBLISH_JOB="publish to pypi" \
-                        HANG_MIN=30 RW_MIN_ASSETS=3 \
+                        HANG_MIN=30 RW_MIN_ASSETS=8 \
+                        RW_ASSET_PATTERN='\.(tar\.gz|zip)$$' \
                         scripts/release-watch.sh "$(VERSION)"
 
 # ── Clean ────────────────────────────────────────────────────────────────────
@@ -1305,7 +1323,8 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 plot-rx-dynamics \
                 gen-c-api-check \
                 gen-c-api-run \
-                package-c package-c-tarball sdist release-notes \
+                package-c package-c-tarball package-c-smoke \
+                complex-helpers-check sdist release-notes \
                 release-pr \
                 release-freshness-check \
                 print-jm-version nats-up nats-down nats-purge \
@@ -2139,14 +2158,21 @@ endif
 #
 # The platform string is DERIVED here rather than passed in. Each CI copy
 # hard-coded its own, which is precisely how one could disagree with the runner
-# it ran on; uname cannot. `darwin` is spelled `macos` in the published names,
-# and that rename is the only special case.
+# it ran on; uname cannot. Two renames: `darwin` is spelled `macos` in the
+# published names, and Git Bash's `MINGW64_NT-10.0-26100` (MSYS/Cygwin alike)
+# is `windows`. `sed -E` because macOS's BSD sed has no `\|` in a basic regex.
+#
+# Windows ships a .zip -- what a Windows user expects to open -- and every
+# other platform a .tar.gz. The zip is written by `cmake -E tar`: Git Bash's
+# tar is GNU tar, which cannot write one, and cmake is already on the path.
 # The staging prefix goes UNDER $(BUILD_DIR), not the repo root. CI installed
 # to ./install and got away with it on a throwaway runner; on a dev box that is
 # an untracked directory in the tree (`install/` is not even gitignored) and
 # scattered cmake output, which this repo's layout rule exists to prevent.
 C_PLATFORM ?= $(shell uname -s | tr '[:upper:]' '[:lower:]' \
-                  | sed 's/^darwin$$/macos/')-$(shell uname -m)
+                  | sed -E -e 's/^darwin$$/macos/' \
+                        -e 's/^(mingw|msys|cygwin).*/windows/')-$(shell uname -m)
+C_ARCHIVE_EXT ?= $(if $(filter windows-%,$(C_PLATFORM)),zip,tar.gz)
 C_INSTALL_DIR ?= $(BUILD_DIR)/package-c-prefix
 DIST_DIR      ?= dist
 
@@ -2163,20 +2189,65 @@ endif
 	@$(MAKE) --no-print-directory package-c PREFIX=$(abspath $(C_INSTALL_DIR))
 	@python3 scripts/check_exported_link_paths.py $(C_INSTALL_DIR)
 	@mkdir -p $(DIST_DIR)
-	@tar -czf "$(DIST_DIR)/doppler-$(VERSION)-$(C_PLATFORM).tar.gz" \
-	    -C $(C_INSTALL_DIR) .
+	@tb="$(abspath $(DIST_DIR))/doppler-$(VERSION)-$(C_PLATFORM).$(C_ARCHIVE_EXT)"; \
+	 rm -f "$$tb"; \
+	 if [ "$(C_ARCHIVE_EXT)" = zip ]; then \
+	     ( cd $(C_INSTALL_DIR) && $(CMAKE) -E tar cf "$$tb" --format=zip . ); \
+	 else tar -czf "$$tb" -C $(C_INSTALL_DIR) .; fi
 # And then CHECK it, because the failure above wrote a 20-byte archive on its
 # way out: had the prefix merely been empty rather than absent, tar would have
 # exited 0 and this would have shipped an empty tarball to a GitHub Release.
 # Assert the shape a consumer needs, not merely that bytes exist -- the three
 # documented faces resolve through include/, lib/ and lib/pkgconfig/.
-	@tb="$(DIST_DIR)/doppler-$(VERSION)-$(C_PLATFORM).tar.gz"; \
-	 for want in ./include/ ./lib/ ./lib/pkgconfig/; do \
-	     tar -tzf "$$tb" | grep -q "^$$want" || { \
+	@tb="$(DIST_DIR)/doppler-$(VERSION)-$(C_PLATFORM).$(C_ARCHIVE_EXT)"; \
+	 list() { $(CMAKE) -E tar tf "$$tb"; }; \
+	 for want in include/ lib/ lib/pkgconfig/ lib/cmake/doppler/; do \
+	     list | grep -Eq "^(\./)?$$want" || { \
 	         echo "package-c-tarball: $$tb has no $$want — refusing to ship it"; \
 	         exit 1; }; \
 	 done; \
-	 echo "package-c-tarball: $$tb ($$(tar -tzf "$$tb" | wc -l) entries)"
+	 echo "package-c-tarball: $$tb ($$(list | wc -l) entries)"
+
+# The packaged archive, consumed the way a downstream consumes the published
+# one: extract it into a fresh prefix and run the release smoke against that
+# prefix (find_package static + shared, pkg-config, the stream layer -- each
+# where the platform has it). `release-smoke` can only test an asset already
+# on a GitHub Release; this is the same script on the archive CI just built,
+# so the Windows zip is exercised on every PR rather than first at a tag.
+C_SMOKE_PREFIX ?= $(BUILD_DIR)/package-c-smoke-prefix
+
+package-c-smoke: ## VERSION=x.y.z — extract the package-c-tarball archive and smoke-test it
+ifndef VERSION
+	@echo "usage: make package-c-smoke VERSION=<x.y.z>"; exit 1
+endif
+	@rm -rf $(C_SMOKE_PREFIX) && mkdir -p $(C_SMOKE_PREFIX)
+	@cd $(C_SMOKE_PREFIX) && $(CMAKE) -E tar xf \
+	    "$(abspath $(DIST_DIR))/doppler-$(VERSION)-$(C_PLATFORM).$(C_ARCHIVE_EXT)"
+	bash tests/install/release-smoke.sh "$(VERSION)" "$(C_SMOKE_PREFIX)"
+
+# clang-cl links against the MSVC runtime, which defines none of compiler-rt's
+# complex helpers (__mulsc3 and friends) and no _Fcomplex arithmetic. A build
+# that references one compiles and then fails at a CONSUMER's link -- how
+# `undefined symbol: ___muldc3` reached a user while CI was green. So the
+# objects are read, not the build's exit code. Windows-only: llvm-nm ships
+# with the clang toolchain there. Both Windows legs call this one recipe.
+complex-helpers-check: ## (Windows) Refuse compiler-rt complex helpers in the objects
+	@command -v llvm-nm >/dev/null 2>&1 \
+	    || { echo "complex-helpers-check: llvm-nm not on PATH"; exit 1; }
+	@found=$$(find $(BUILD_DIR) -name '*.obj' -print0 \
+	    | xargs -0 -r llvm-nm --undefined-only 2>/dev/null \
+	    | grep -iE '_Fcomplex|__mulsc3|__divsc3|__muldc3|__divdc3' \
+	    | sort -u || true); \
+	 n=$$(find $(BUILD_DIR) -name '*.obj' | wc -l); \
+	 if [ "$$n" = 0 ]; then \
+	     echo "complex-helpers-check: no .obj under $(BUILD_DIR) — nothing was checked"; \
+	     exit 1; fi; \
+	 if [ -n "$$found" ]; then \
+	     echo "$$found" | head -20; \
+	     echo "complex-helpers-check: FAIL — compiler-rt complex helpers are"; \
+	     echo "  referenced; the MSVC link has nothing that defines them"; \
+	     exit 1; fi; \
+	 echo "complex-helpers-check: OK — none referenced in $$n objects"
 
 # ── The starter tarball ──────────────────────────────────────────────────────
 # `examples/downstream-jm` shipped as something a newcomer can extract and

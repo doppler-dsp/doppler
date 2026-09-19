@@ -37,6 +37,11 @@ name: CI image
 
 on:
   push:
+    # Branches only. GitHub does not evaluate `paths:` for TAG pushes, so
+    # without this every release tag rebuilt and published the image -- 19.4
+    # min on v0.51.0 for a tree that could not have changed it.
+    # scripts/check_workflow_tag_triggers.py holds the rule.
+    branches: ['**']
     paths:
       - deploy/docker/Dockerfile.ci
       - bootstrap.toml

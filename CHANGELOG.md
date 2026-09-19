@@ -54,6 +54,14 @@ ______________________________________________________________________
     silent on Linux and a SEGFAULT on Windows; AddressSanitizer names the
     line. Its test harness only; the receiver itself was never affected.
 
+- **A release tag no longer rebuilds the CI image, and comment-only edits no
+    longer demand a benchmark run.** `ci-image.yml` filtered on `paths:`,
+    which GitHub ignores for tag pushes, so every release tag rebuilt and
+    published the image (19.4 min on v0.51.0); its push trigger now names
+    branches, and a new gate (`make lint-workflow-tag-triggers`) refuses a
+    push trigger that names neither branches nor tags. `release-freshness-check`
+    no longer counts a file under `native/` whose diff is only comments.
+
 ## [0.51.0] - 2026-09-18
 
 ### Added

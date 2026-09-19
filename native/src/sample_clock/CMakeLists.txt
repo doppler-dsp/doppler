@@ -20,3 +20,8 @@ add_custom_command(TARGET sample_clock POST_BUILD
     COMMENT "Copy sample_clock extension module")
 
 endif()
+
+# Your own CMake for this directory goes in sample_clock_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/sample_clock_extra.cmake OPTIONAL)

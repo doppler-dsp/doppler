@@ -96,7 +96,13 @@ class Capture:
         """
 
     def summary(self) -> CaptureSummary:
-        """Summary."""
+        """Summary.
+
+        Returns
+        -------
+        CaptureSummary
+            Output.
+        """
 
     @property
     def fs(self) -> float:
@@ -251,7 +257,13 @@ class RawCapture:
         """
 
     def summary(self) -> CaptureSummary:
-        """Summary."""
+        """Summary.
+
+        Returns
+        -------
+        CaptureSummary
+            Output.
+        """
 
     @property
     def fs(self) -> float:

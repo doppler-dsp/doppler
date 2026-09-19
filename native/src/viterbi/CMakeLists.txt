@@ -21,7 +21,8 @@ target_link_libraries(viterbi_core PUBLIC
     conv_core)
 
 add_executable(test_viterbi_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_viterbi_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_viterbi_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_viterbi_symbols.c)
 target_link_libraries(test_viterbi_core
                       PRIVATE viterbi_core conv_core
     ${JM_MATH_LIBRARY})
@@ -38,3 +39,8 @@ target_link_libraries(bench_viterbi_core
 target_include_directories(
   bench_viterbi_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in viterbi_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/viterbi_extra.cmake OPTIONAL)

@@ -22,7 +22,8 @@ target_link_libraries(capture_core PUBLIC
     m)
 
 add_executable(test_capture_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_capture_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_capture_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_capture_symbols.c)
 target_link_libraries(test_capture_core
                       PRIVATE capture_core doppler::doppler-static
     m
@@ -74,3 +75,8 @@ add_custom_command(TARGET capture POST_BUILD
     VERBATIM
     COMMENT "Copy capture extension module")
 endif()
+
+# Your own CMake for this directory goes in capture_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/capture_extra.cmake OPTIONAL)

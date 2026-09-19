@@ -65,3 +65,8 @@ target_link_libraries(test_resample_core PRIVATE
 target_include_directories(test_resample_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_resample_core COMMAND test_resample_core)
+
+# Your own CMake for this directory goes in resample_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/resample_extra.cmake OPTIONAL)

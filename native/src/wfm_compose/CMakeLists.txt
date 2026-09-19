@@ -38,3 +38,8 @@ add_custom_command(TARGET wfm_compose POST_BUILD
     COMMENT "Copy wfm_compose extension module")
 
 endif()
+
+# Your own CMake for this directory goes in wfm_compose_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/wfm_compose_extra.cmake OPTIONAL)

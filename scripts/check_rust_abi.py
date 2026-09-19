@@ -75,10 +75,11 @@ PRIMITIVE = {
     "bool": {"bool", "_Bool"},
     "c_void": {"void"},
     "c_char": {"char"},
-    # `c_int`/`c_uint` are 32-bit on every platform this project targets
-    # (`[project] platforms` is linux + macos, both LP64), so the fixed-width
-    # spelling is the same type. Listed rather than assumed, because on a
-    # target where that stopped being true this gate should start failing.
+    # `c_int`/`c_uint` are 32-bit on every platform doppler builds for --
+    # Linux and macOS are LP64, Windows is LLP64, and `int` is 32 bits under
+    # both -- so the fixed-width spelling is the same type. Listed rather
+    # than assumed, because on a target where that stopped being true this
+    # gate should start failing.
     "c_int": {"int", "int32_t"},
     "c_uint": {"unsigned", "unsignedint", "uint32_t"},
     "()": {"void"},

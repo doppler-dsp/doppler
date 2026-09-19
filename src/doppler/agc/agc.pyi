@@ -310,7 +310,7 @@ class AGC:
 
     @property
     def decim(self) -> int:
-        """Emit every decim-th event, >= 1."""
+        """Decim."""
     @decim.setter
     def decim(self, value: int) -> None: ...
 

@@ -27,7 +27,8 @@ target_link_libraries(RateConverter_core PUBLIC
     dp_tlm_core)
 
 add_executable(test_RateConverter_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_RateConverter_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_RateConverter_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_RateConverter_symbols.c)
 target_link_libraries(test_RateConverter_core
                       PRIVATE RateConverter_core resamp_core
     hbdecim_core
@@ -56,3 +57,8 @@ target_link_libraries(bench_RateConverter_core
 target_include_directories(
   bench_RateConverter_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in RateConverter_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/RateConverter_extra.cmake OPTIONAL)

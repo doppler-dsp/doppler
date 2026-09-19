@@ -2342,7 +2342,7 @@ class RateSync:
 
     @property
     def bn(self) -> float:
-        """loop noise bandwidth (retained)."""
+        """Bn."""
     @bn.setter
     def bn(self, value: float) -> None: ...
 
@@ -3637,7 +3637,7 @@ class MpskReceiver:
 
     @property
     def lock(self) -> float:
-        """EMA of the carrier lock signal."""
+        """Lock."""
 
     @property
     def zeta(self) -> float:
@@ -3736,11 +3736,11 @@ class MpskReceiver:
 
     @property
     def m(self) -> int:
-        """constellation order M (2, 4, 8)."""
+        """M."""
 
     @property
     def sps(self) -> float:
-        """samples per symbol at the receiver's input."""
+        """Sps."""
 
     @property
     def m_out(self) -> int:
@@ -4208,7 +4208,7 @@ class BpskReceiver:
 
     @property
     def lock(self) -> float:
-        """EMA of the carrier lock signal."""
+        """Lock."""
 
     @property
     def zeta(self) -> float:
@@ -4307,11 +4307,11 @@ class BpskReceiver:
 
     @property
     def m(self) -> int:
-        """constellation order M (2, 4, 8)."""
+        """M."""
 
     @property
     def sps(self) -> float:
-        """samples per symbol at the receiver's input."""
+        """Sps."""
 
     @property
     def m_out(self) -> int:
@@ -4873,7 +4873,7 @@ class MpskReceiverR:
 
     @property
     def lock(self) -> float:
-        """EMA of the carrier lock signal."""
+        """Lock."""
 
     @property
     def zeta(self) -> float:
@@ -4972,11 +4972,11 @@ class MpskReceiverR:
 
     @property
     def m(self) -> int:
-        """constellation order M (2, 4, 8)."""
+        """M."""
 
     @property
     def sps(self) -> float:
-        """samples per symbol at the receiver's input."""
+        """Sps."""
 
     @property
     def m_out(self) -> int:

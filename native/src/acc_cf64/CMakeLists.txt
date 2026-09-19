@@ -19,7 +19,8 @@ target_include_directories(
                        ${CMAKE_SOURCE_DIR}/native/inc/acc_cf64)
 
 add_executable(test_acc_cf64_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_acc_cf64_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_acc_cf64_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_acc_cf64_symbols.c)
 target_link_libraries(test_acc_cf64_core
                       PRIVATE acc_cf64_core ${JM_MATH_LIBRARY})
 target_include_directories(test_acc_cf64_core
@@ -34,3 +35,8 @@ target_link_libraries(bench_acc_cf64_core
 target_include_directories(
   bench_acc_cf64_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in acc_cf64_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/acc_cf64_extra.cmake OPTIONAL)

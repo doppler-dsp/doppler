@@ -62,7 +62,8 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     wfm_draw_core)
 
 add_executable(test_async_dsss_pool_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_async_dsss_pool_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_async_dsss_pool_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_async_dsss_pool_symbols.c)
 target_link_libraries(test_async_dsss_pool_core
                       PRIVATE async_dsss_pool_core Threads::Threads
     async_dsss_receiver_core
@@ -161,3 +162,8 @@ target_link_libraries(bench_async_dsss_pool_core
 target_include_directories(
   bench_async_dsss_pool_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in async_dsss_pool_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/async_dsss_pool_extra.cmake OPTIONAL)

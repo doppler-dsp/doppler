@@ -840,17 +840,17 @@ DsssBurstReceiver_getprop_dropped (DsssBurstReceiverObject *self,
 
 static PyGetSetDef DsssBurstReceiver_getset[] = {
   { "preamble_start", (getter)DsssBurstReceiver_getprop_preamble_start, NULL,
-    "Exact stream position of the preamble.\n", NULL },
+    "Stream-absolute preamble start. Never late.\n", NULL },
   { "doppler_hz_est", (getter)DsssBurstReceiver_getprop_doppler_hz_est, NULL,
     "Signed coarse Doppler, Hz.\n", NULL },
   { "doppler_res_hz", (getter)DsssBurstReceiver_getprop_doppler_res_hz, NULL,
-    "Acquisition's native bin width, Hz.\n", NULL },
+    "Width of that estimate.\n", NULL },
   { "cn0_dbhz_est", (getter)DsssBurstReceiver_getprop_cn0_dbhz_est, NULL,
-    "C/N0 lower bound from the hit, dB-Hz.\n", NULL },
+    "C/N0 lower bound, dB-Hz (saturating).\n", NULL },
   { "est_freq_hz", (getter)DsssBurstReceiver_getprop_est_freq_hz, NULL,
-    "Demod's residual-frequency estimate.\n", NULL },
+    "Demod's own residual estimate, Hz.\n", NULL },
   { "est_rate_hz", (getter)DsssBurstReceiver_getprop_est_rate_hz, NULL,
-    "Demod's chirp-rate estimate.\n", NULL },
+    "Demod's own chirp-rate estimate.\n", NULL },
   { "demod_cn0_dbhz", (getter)DsssBurstReceiver_getprop_demod_cn0_dbhz, NULL,
     "The demodulator's C/N0 for the last completed burst, dB-Hz, referred to "
     "the CHANNEL: measured on the decoded symbols and corrected for the "

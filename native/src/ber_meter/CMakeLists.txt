@@ -22,7 +22,8 @@ target_link_libraries(ber_meter_core PUBLIC
     ber_core)
 
 add_executable(test_ber_meter_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_ber_meter_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_ber_meter_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_ber_meter_symbols.c)
 target_link_libraries(test_ber_meter_core
                       PRIVATE ber_meter_core detection_core
     ber_core
@@ -41,3 +42,8 @@ target_link_libraries(bench_ber_meter_core
 target_include_directories(
   bench_ber_meter_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in ber_meter_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/ber_meter_extra.cmake OPTIONAL)

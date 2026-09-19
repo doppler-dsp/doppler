@@ -35,7 +35,8 @@ target_link_libraries(specan_core PUBLIC
     acc_trace_core)
 
 add_executable(test_specan_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_specan_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_specan_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_specan_symbols.c)
 target_link_libraries(test_specan_core
                       PRIVATE specan_core ddc_core
     lo_core
@@ -80,3 +81,8 @@ target_link_libraries(bench_specan_core
 target_include_directories(
   bench_specan_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in specan_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/specan_extra.cmake OPTIONAL)

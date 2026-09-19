@@ -87,8 +87,8 @@ static PyStructSequence_Field FrameMeterObj_fer_fields[] = {
   { "lo", "Lower confidence limit." },
   { "hi", "Upper confidence limit." },
   { "rel", "Relative standard error `1/sqrt(r)`." },
-  { "conf", "config: confidence level for the interval" },
-  { "errors", "running: frames not delivered" },
+  { "conf", "Confidence level used." },
+  { "errors", "`r`." },
   { "symbols", "`N` (or bits, for a BER)." },
   { NULL, NULL },
 };
@@ -135,8 +135,8 @@ static PyStructSequence_Field FrameMeterObj_sync_miss_fields[] = {
   { "lo", "Lower confidence limit." },
   { "hi", "Upper confidence limit." },
   { "rel", "Relative standard error `1/sqrt(r)`." },
-  { "conf", "config: confidence level for the interval" },
-  { "errors", "running: frames not delivered" },
+  { "conf", "Confidence level used." },
+  { "errors", "`r`." },
   { "symbols", "`N` (or bits, for a BER)." },
   { NULL, NULL },
 };

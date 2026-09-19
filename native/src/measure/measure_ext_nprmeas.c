@@ -76,7 +76,7 @@ static PyStructSequence_Field NPRMeasureObj_analyze_fields[] = {
   { "notch_psd_dbfs", "Mean power folded into the notch (dBFS)." },
   { "n_inband_bins", "Bins averaged in the active band." },
   { "n_notch_bins", "Bins averaged inside the notch." },
-  { "rbw_hz", "Resolution bandwidth = enbw*fs/n (Hz)." },
+  { "rbw_hz", "Resolution bandwidth (Hz)." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc NPRMeasureObj_analyze_desc

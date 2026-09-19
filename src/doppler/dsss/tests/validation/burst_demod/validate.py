@@ -155,6 +155,10 @@ def _demod(x: np.ndarray, *, max_rate: float = 0.0, carrier_hz: float = 0.0):
 
 
 def _csv(path: Path, header: str, rows: list[list[object]]) -> None:
+    # A limits-only run (the pytest path, `build(write=False)`) has no
+    # report for the CSV to support, and must not write into the repo.
+    if not R.write:
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as fh:
         fh.write(header + "\n")

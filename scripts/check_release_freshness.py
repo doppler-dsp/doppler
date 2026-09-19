@@ -84,6 +84,39 @@ def stale_gallery(changed: list[str], scripts: list[str]) -> list[str]:
     return touched
 
 
+def _is_comment(path: str, line: str) -> bool:
+    """Is *line* (stripped) a comment, in *path*'s language?
+
+    Conservative on purpose: a line this cannot classify counts as CODE, so a
+    miss can only ask for benchmarks that were not needed -- never skip ones
+    that were. In C that means only the unambiguous shapes: `*p = 1;` is code,
+    `* the delay line` is a comment only because of the space.
+    """
+    if path.endswith(("CMakeLists.txt", ".cmake")):
+        return line.startswith("#")
+    if path.endswith((".c", ".h")):
+        return line.startswith(("//", "/*", "*/", "* ")) or line == "*"
+    return False
+
+
+def code_changed(path: str, ref: str, cwd: pathlib.Path) -> bool:
+    """Did *path* change anything but comments and blank lines since *ref*?
+
+    v0.51.1's tag was refused for two CMakeLists.txt files whose only edit
+    was a rewritten comment -- a 66-minute benchmark run demanded for prose.
+    A path is still the first filter (a CMake flag can move performance);
+    this only lets a diff that provably cannot through.
+    """
+    out = _git("diff", "-U0", f"{ref}..HEAD", "--", path, cwd=cwd)
+    for raw in out.splitlines():
+        if raw[:1] not in ("+", "-") or raw.startswith(("+++", "---")):
+            continue
+        line = raw[1:].strip()
+        if line and not _is_comment(path, line):
+            return True
+    return False
+
+
 def stale_benchmarks(
     changed: list[str], version: str, cwd: pathlib.Path
 ) -> list[str]:
@@ -94,7 +127,12 @@ def stale_benchmarks(
     machine (release.md §2b) precisely because CI runners are not, so this
     can only check that it EXISTS -- not that it is right.
     """
-    moved = [c for c in changed if c.startswith(PERF_PATHS)]
+    ref = last_tag(cwd)
+    moved = [
+        c
+        for c in changed
+        if c.startswith(PERF_PATHS) and code_changed(c, ref, cwd)
+    ]
     if not moved:
         return []
     if (cwd / SNAPSHOTS / f"v{version}").is_dir():

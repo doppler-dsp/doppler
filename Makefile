@@ -131,7 +131,7 @@ LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
                clang-tidy phase-conversion alloc-helpers stimulus-sources \
                retired-names ci-pipefail rust-abi header-example-arity \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
-               bench-timer bare-libm gnu-flags
+               bench-timer bare-libm gnu-flags workflow-tag-triggers
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -341,6 +341,10 @@ LINT_wfm-enum-tables = $(UV) run python scripts/check_wfm_enum_tables.py
 # discarded. Registration-free -- it walks every workflow and composite action,
 # so a new file is covered the moment it exists.
 LINT_ci-pipefail = $(UV) run python scripts/check_workflow_pipelines.py
+
+# A push trigger with only `paths:` fires on every TAG push (GitHub ignores
+# paths for tags): ci-image.yml rebuilt the image on each release tag.
+LINT_workflow-tag-triggers = $(UV) run python scripts/check_workflow_tag_triggers.py
 
 # ffi/rust/ is the one binding jm does not generate, so `jm status --check`
 # has nothing to say about it and an `extern "C"` block is a promise no

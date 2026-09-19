@@ -156,6 +156,15 @@ repos:
         pass_filenames: false
         types_or: [cmake]
 
+      # A push trigger names branches or tags: with only `paths:` it fires
+      # on every release tag, because GitHub ignores paths for tags.
+      - id: workflow-tag-triggers
+        name: push triggers are explicit about tags
+        entry: make -s lint-workflow-tag-triggers
+        language: system
+        pass_filenames: false
+        files: ^\.github/workflows/
+
       # A wire format's full scale is dp_format_full_scale() and the
       # arithmetic around it is the cvt converters'; four private copies had
       # already drifted into truncating at the wrong constant (#1117).

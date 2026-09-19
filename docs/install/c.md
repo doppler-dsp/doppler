@@ -84,6 +84,45 @@ or copy `doppler.dll` beside your executable — and
 NATS stream layer is not in the Windows build
 ([#1364](https://github.com/doppler-dsp/doppler/issues/1364)).
 
+#### With vcpkg
+
+The repository carries its own vcpkg port and a **clang-cl triplet**, under
+`packaging/vcpkg/`. The port is an *overlay*: it builds the checkout it lives
+in, so you get the version you cloned, and it is not in the upstream
+`microsoft/vcpkg` registry — whose default `x64-windows` triplet compiles
+with `cl.exe` and therefore cannot build doppler.
+
+```powershell
+$v = "X.Y.Z"   # the release to install
+git clone --depth 1 --branch "v$v" https://github.com/doppler-dsp/doppler
+vcpkg install doppler:x64-windows-clangcl `
+  --overlay-ports=doppler/packaging/vcpkg/ports `
+  --overlay-triplets=doppler/packaging/vcpkg/triplets
+cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-cl `
+  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
+  -DVCPKG_TARGET_TRIPLET=x64-windows-clangcl
+```
+
+vcpkg's toolchain finds the package and copies `doppler.dll` beside your
+executable, so there is no `CMAKE_PREFIX_PATH` and no `PATH` edit. vcpkg
+builds in a scrubbed environment and looks for `clang-cl` under
+`%LLVMInstallDir%`, then `%ProgramFiles%\LLVM`, then Visual Studio's Clang
+component. Two things to know:
+
+- **Dynamic triplets only.** The exported targets carry both linkages and
+    refuse to load with one missing, so a static triplet (which must ship no
+    DLL) is not expressible yet
+    ([#1405](https://github.com/doppler-dsp/doppler/issues/1405)). `doppler::doppler-static` is still there to
+    link against.
+- **Rebuild after updating the clone.** vcpkg's binary cache is keyed on the
+    port files, not on the sources an overlay port points at — after a
+    `git pull`, run `vcpkg remove doppler` first or pass
+    `--binarysource=clear`.
+
+The same port installs on Linux and macOS with the stock `*-dynamic`
+community triplets; CI exercises the Windows one on every pull request
+(`make vcpkg-smoke`).
+
 ## System install
 
 Install headers and libraries to a system prefix (default `/usr/local`)

@@ -108,6 +108,13 @@ SITES: tuple[Site, ...] = (
         r'^version = "([^"]+)"',
         "project",
     ),
+    # The overlay port builds the checkout it lives in, so its version IS
+    # this tree's version -- vcpkg just needs it as a literal.
+    Site(
+        "vcpkg.json",
+        "packaging/vcpkg/ports/doppler/vcpkg.json",
+        r'^  "version": "([^"]+)",',
+    ),
 )
 
 

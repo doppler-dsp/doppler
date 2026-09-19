@@ -39,11 +39,11 @@ CODE = np.asarray(Gold().generate(SF)).astype(np.uint8)
 _CSIGN = np.where(CODE & 1, -1.0, 1.0)
 
 
-def _make_ramp_signal(cn0_dbhz, seed):
+def _make_ramp_signal(cn0_dbhz, seed, n_sym=N_SYM):
     rng = np.random.default_rng(seed)
-    n = int(N_SYM * TSYM) + 4 * TE
+    n = int(n_sym * TSYM) + 4 * TE
     idx = np.arange(n)
-    data = (rng.integers(0, 2, N_SYM + 4) * 2 - 1).astype(float)
+    data = (rng.integers(0, 2, n_sym + 4) * 2 - 1).astype(float)
     si = np.clip(np.floor(idx / TSYM).astype(int), 0, len(data) - 1)
     cph = (idx // SPC) % SF
     t = idx / FS
@@ -482,29 +482,25 @@ def test_absolute_level_invariance(db):
     )
 
 
-@pytest.mark.parametrize("sig_esn0_db", [40.0, 80.0, 200.0])
-def test_extreme_high_snr_stays_stable(sig_esn0_db):
-    """Extremely high Es/N0 (up to effectively noiseless) must not destabilise
-    the receiver. A collapsing noise estimate is the classic high-SNR failure
-    mode -- a CFAR threshold or a `|P|`-normaliser whose denominator tends to
-    zero blows up to inf/NaN. This receiver does not: every ratio has a
-    guarded denominator, so fed a signal from 40 dB to ~noiseless (designed at
-    a normal 20 dB) it stays finite, locks, and decodes cleanly. Constellation
-    quality saturates at an implementation floor (~-24 dB EVM / ~22 dB
-    effective SNR, from the point-sample 2x replica's matched-filter loss + the
-    async-symbol straddle + NCO quantisation) -- more SNR past ~40 dB neither
-    improves nor destabilises it (measured; not asserted here)."""
-    design_cn0 = 20.0 + 10.0 * np.log10(SYM_RATE)  # a normal design point
-    sig_cn0 = sig_esn0_db + 10.0 * np.log10(SYM_RATE)  # 200 dB ~ noiseless
-    x, data = _make_ramp_signal(sig_cn0, seed=21)
-    rx = _new_receiver(design_cn0)
+def test_extreme_high_snr_stays_stable():
+    """Noiseless input must not destabilise a receiver designed at 20 dB.
 
-    syms = _stream(rx, x)
+    The fast twin of the `async_dsss_receiver` characterization, which
+    sweeps Es/N0 from 20 to 200 dB over several seeds at full length (`make
+    characterize`) -- that sweep is a stress test, not a per-push contract,
+    and at ~5.5 M samples a trial it was among the slowest tests under
+    coverage. This keeps the one point that IS the failure mode, a noise
+    estimate collapsing toward zero, on every push: 200 dB (effectively
+    noiseless), a third of the capture, still enough to lock and decode.
+    """
+    from doppler.dsss.tests.characterization.async_dsss_receiver.characterize import (  # noqa: E501
+        run_trial,
+        stable,
+    )
 
-    assert rx.tracking == 1
-    assert len(syms) > N_SYM // 2
-    assert np.all(np.isfinite(syms.view(np.float64)))  # no inf/NaN blow-up
-    assert _best_ber(syms, data) < 0.01  # still a clean decode
+    r = run_trial(200.0, seed=21, n_sym=N_SYM // 3)
+    assert r["finite"], "inf/NaN at 200 dB: a denominator collapsed"
+    assert stable(r), r
 
 
 def test_spec_floor_reaches_tracking_but_may_not_decode():

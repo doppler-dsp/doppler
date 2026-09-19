@@ -1047,6 +1047,14 @@ cd $(COV_DIR) && LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/c-%p-%m.profraw" \
     $(CURDIR)/$(COV_GUARD) $(CTEST) --output-on-failure -j $(NPROC) \
         $(COV_EXCLUDE_SWEEP)
 # -n auto for the same reason as ctest above: 486s serial in CI, 102s here.
+#
+# `not validation_limits` for the reason the ctest leg drops `sweep`, one
+# language over. Every test_validation_limits.py builds an object's whole
+# validation report in a fixture and asserts its limits; instrumented, the
+# async_dsss_pool one alone spent 823.7 s in setup of an 854.5 s pass on 20
+# cores (2026-09-18, --durations), and the leg took 40 min on CI's 4. The
+# plain `make test-python` still runs every limit on every push -- only the
+# ~6x instrumentation tax on them goes. check_instrumented_sweep.py holds it.
 # The per-process profile argument is identical -- xdist workers are separate
 # processes and %p gives each its own .profraw.
 #
@@ -1079,7 +1087,7 @@ LLVM_PROFILE_FILE="$(CURDIR)/$(COV_DIR)/prof/py-%p-%m.profraw" \
     PATH="$(CURDIR)/$(COV_DIR)/pkg/doppler/wfm/_bin:$(dir $(PYTHON_EXECUTABLE)):$$PATH" \
     $(COV_GUARD) $(PYTHON_EXECUTABLE) -m pytest $(COV_DIR)/pkg/doppler \
     -q -p no:cacheprovider --ignore-glob='*/benchmarks/*' \
-    -m "not examples_serial" -n auto
+    -m "not examples_serial and not validation_limits" -n auto
 # The SERIAL pass, and the reason this job needs one at all: `-n auto` is 4
 # workers on CI's runner and 20 on a dev box, and `.examples-serial` exists
 # precisely because some examples cannot share the machine -- ddc_fn_scaling

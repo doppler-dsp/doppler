@@ -73,6 +73,14 @@ INSTRUMENTED = (
 # use so a version-suffixed binary can be substituted.
 CTEST = re.compile(r"\$\(CTEST\)|(?<![\w-])ctest(?![\w-])")
 
+# `pytest`, as a command -- `python -m pytest` or a bare `pytest` -- and not
+# as part of a longer word (`pytest-benchmark`, `PYTEST_ARGS`).
+PYTEST = re.compile(r"(?<![\w./-])pytest(?![\w./-])")
+# A `-m` marker expression, quoted or bare.
+MARKEXPR = re.compile(r"""-m\s+(?:"([^"]*)"|'([^']*)'|(\S+))""")
+# The pytest twin of the `sweep` label: tests that build a whole validation
+# report (every `test_validation_limits.py`, marked by the root conftest).
+LIMITS_MARK = "validation_limits"
 # The label exclusion, and the shape of a variable reference that may carry
 # it. `-LE` takes the label as the next argument, so both spellings appear.
 LITERAL = re.compile(r"-LE\s+sweep\b")
@@ -116,7 +124,15 @@ class Block:
         )
 
     def ctest_lines(self) -> list[tuple[int, str]]:
-        """Logical lines invoking ctest, with continuations joined.
+        """Logical lines invoking ctest (see `logical_lines`)."""
+        return self.logical_lines(CTEST)
+
+    def pytest_lines(self) -> list[tuple[int, str]]:
+        """Logical lines invoking pytest (see `logical_lines`)."""
+        return self.logical_lines(PYTEST)
+
+    def logical_lines(self, command: re.Pattern[str]) -> list[tuple[int, str]]:
+        """Logical lines invoking *command*, with continuations joined.
 
         A ctest invocation is routinely split across several physical lines
         with trailing backslashes, and the `-LE sweep` may sit on any of
@@ -138,10 +154,10 @@ class Block:
                 first = num
             buf += " " + stripped.rstrip("\\")
             if not stripped.endswith("\\"):
-                if CTEST.search(buf):
+                if command.search(buf):
                     joined.append((first, buf.strip()))
                 buf = ""
-        if buf and CTEST.search(buf):
+        if buf and command.search(buf):
             joined.append((first, buf.strip()))
         return joined
 
@@ -238,9 +254,30 @@ def excludes_sweep(command: str, names: set[str]) -> bool:
     return any(ref in names for ref in VARREF.findall(command))
 
 
+def excludes_limits(command: str) -> bool:
+    """Does this pytest call deselect the `validation_limits` tests?
+
+    Either spelling counts: an expression that says `not validation_limits`,
+    or one that only SELECTS -- `-m "examples_serial"` runs nothing but the
+    marked tests, so a limits test can never reach it. Only the text after
+    `pytest` is read, so `python -m pytest` is not mistaken for a marker.
+    """
+    m = PYTEST.search(command)
+    tail = command[m.end() :] if m else command
+    for groups in MARKEXPR.findall(tail):
+        expr = next(g for g in groups if g)
+        if re.search(rf"\bnot\s+{LIMITS_MARK}\b", expr):
+            return True
+        words = set(re.findall(r"[A-Za-z_]\w*", expr))
+        if words and not words & {"not", "or"} and LIMITS_MARK not in words:
+            return True
+    return False
+
+
 def check(paths: list[Path]) -> int:
     findings: list[str] = []
     checked = 0
+    checked_py = 0
     for path in paths:
         text = path.read_text(encoding="utf-8")
         names = sweep_vars(text)
@@ -258,6 +295,21 @@ def check(paths: list[Path]) -> int:
                         f"    add -LE sweep, or a variable carrying it "
                         f"(SAN_EXCLUDE_SWEEP / COV_EXCLUDE_SWEEP)"
                     )
+            # The same rule, one language over. test_validation_limits.py
+            # builds each object's whole validation report in a fixture --
+            # the Python twin of a `sweep` validator -- and the instrumented
+            # pytest leg ran it wholesale: 823.7 s of an 854.5 s pass on 20
+            # cores, and most of CI's 40 minutes on 4.
+            for num, command in block.pytest_lines():
+                checked_py += 1
+                if not excludes_limits(command):
+                    findings.append(
+                        f"{path}:{num}: {block.name}: an instrumented pytest "
+                        f"leg does not exclude the validation-limits tests\n"
+                        f"    {command[:100]}\n"
+                        f'    add -m "... and not {LIMITS_MARK}" (the plain '
+                        f"suite still runs every limit)"
+                    )
     if findings:
         print("instrumented sweep exclusion: FAIL")
         for f in findings:
@@ -274,7 +326,8 @@ def check(paths: list[Path]) -> int:
         return 1
     print(
         f"instrumented sweep exclusion: OK — {checked} instrumented ctest "
-        f"leg(s), every one excludes the sweep validators"
+        f"leg(s), every one excludes the sweep validators; {checked_py} "
+        f"instrumented pytest leg(s), every one excludes {LIMITS_MARK}"
     )
     return 0
 

@@ -1235,8 +1235,12 @@ add_subdirectory(native/examples)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+# RUNTIME is the Windows half: a DLL is a runtime artifact there, and without
+# a RUNTIME destination CMake installs the import library (doppler.lib) and
+# silently drops doppler.dll itself. No effect on Linux or macOS.
 install(TARGETS doppler_lib
     EXPORT doppler-targets
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 # Static lib is a first-class export member → find_package gives consumers
@@ -1250,6 +1254,7 @@ install(TARGETS doppler_lib_static
 if(NOT WIN32)
     install(TARGETS doppler_stream doppler_stream_static
         EXPORT doppler-targets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif()

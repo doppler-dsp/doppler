@@ -71,29 +71,6 @@ CMAKE_ARGS  ?=
 # Extra C flags layered on top of -march=native by the `blazing` target.
 BLAZING_CFLAGS ?= -march=native
 
-# ── MSYS2: use the MinGW-native cmake, not the MSYS POSIX cmake ─────────────
-# /usr/bin/cmake.exe is the MSYS build; it does not understand Windows drive-
-# letter paths (C:/...) so every compiler-steering trick fails.
-# /$(_MSYSTEM_LC)/bin/cmake.exe is the MinGW native build; it speaks Windows
-# paths natively and auto-detects the correct MinGW GCC from PATH without any
-# extra -D flags.
-# Install (if missing):  pacman -S mingw-w64-ucrt-x86_64-cmake
-# make(1) inherits the shell environment, so $(MSYSTEM) is available here.
-ifneq ($(filter UCRT64 MINGW64 MINGW32 CLANG64,$(MSYSTEM)),)
-  _MSYSTEM_LC  := $(shell echo '$(MSYSTEM)' | tr '[:upper:]' '[:lower:]')
-  _MINGW_CMAKE := $(shell test -x /$(_MSYSTEM_LC)/bin/cmake && \
-                          echo /$(_MSYSTEM_LC)/bin/cmake)
-  ifneq ($(_MINGW_CMAKE),)
-    CMAKE := $(_MINGW_CMAKE)
-  else
-    $(warning MSYS2: /$(_MSYSTEM_LC)/bin/cmake not found; \
-              using /usr/bin/cmake (POSIX build — compiler detection may \
-              fail). Fix: pacman -S \
-              mingw-w64-$(subst 64,x86_64,$(subst 32,i686,$(_MSYSTEM_LC)))\
-              -cmake)
-  endif
-endif
-
 # ── Tooling ──────────────────────────────────────────────────────────────────
 # The ONLY place a tool binary is named or given flags. Humans, the pre-commit
 # hooks and CI all reach the tools through standard.mk's targets, so a flag

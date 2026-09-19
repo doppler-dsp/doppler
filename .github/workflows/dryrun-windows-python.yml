@@ -1,0 +1,48 @@
+name: DRY RUN - Windows Python extensions (jm main)
+
+# NOT FOR MERGE. Lives only on dryrun/* branches: builds doppler's Python
+# extensions with clang-cl against just-makeit's main (gh-1368) and runs the
+# Python suites, every step `if: always()` so one run shows every wall.
+
+on:
+  push:
+    branches: ['dryrun/**']
+  workflow_dispatch:
+
+jobs:
+  windows-python:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      WIN_CMAKE_ARGS: -G Ninja -DCMAKE_C_COMPILER=clang-cl
+    steps:
+    - uses: actions/checkout@v7
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+    - uses: astral-sh/setup-uv@v7
+    - name: Toolchain
+      run: |
+        clang-cl --version | head -1
+        uv --version
+        make --version | head -1
+    - name: Build the extensions (clang-cl)
+      run: make pyext CMAKE_ARGS="$WIN_CMAKE_ARGS"
+    - name: jm status --check
+      if: always()
+      run: make drift-check
+    - name: C suite
+      if: always()
+      run: make test
+    - name: Python suite
+      if: always()
+      run: make test-python PYTEST_ARGS="-p no:cacheprovider"
+    - name: Stub doctests
+      if: always()
+      run: make test-stubs
+    - name: Python examples
+      if: always()
+      run: make test-examples-python

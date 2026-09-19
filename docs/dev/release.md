@@ -113,9 +113,15 @@ ______________________________________________________________________
 make release-pr VERSION=X.Y.Z
 ```
 
-It branches off `origin/main`, bumps the five version sites, promotes the
-changelog fragments and cuts the section, regenerates the comparison links,
-re-checks the versions and the notes size, commits, pushes and opens the PR.
+It first asks the tag-time questions that only the tree can answer: whether
+benchmarks and the gallery are fresh for this version, and whether the notes
+fit (sizes and entry lengths read from the fragments, BEFORE assembly empties
+them). Then it branches off `origin/main`, bumps the five version sites,
+promotes the changelog fragments and cuts the section, regenerates the
+comparison links, checks the versions and that nothing is left unassembled,
+sizes the body `release-notes.sh` will actually publish, commits, pushes and
+opens the PR — so a merged, green release commit passes `make ship`'s own
+checks without a surprise at the tag.
 Read the sections below for what each part is doing and why — then review the
 changelog prose it assembled, which is the one part no command can judge.
 

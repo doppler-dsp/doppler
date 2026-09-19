@@ -1302,7 +1302,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 gen-c-api-run \
                 package-c package-c-tarball package-c-smoke \
                 complex-helpers-check sdist release-notes \
-                release-pr \
+                release-pr release-notes-body-check \
                 release-freshness-check \
                 print-jm-version nats-up nats-down nats-purge \
                 docs-relink docs-drift-check drift-check changelog-check \
@@ -2776,15 +2776,29 @@ tag-release: release-freshness-check
 # `changelog-assemble`, which is doppler's own. If a second repo grows the
 # same shape, that is the moment to promote it to canonical -- not before,
 # and never as a private copy of something that already lives there.
+#
+# Every tree-only gate `tag-release` will ask, asked HERE, in the order in
+# which it can still be acted on -- so a merged, green release commit goes
+# through `make ship` without a surprise at the one irreversible step:
+#
+# - freshness FIRST, before a branch exists (it refused v0.51.1 at the tag);
+# - the projected size and entry-length check BEFORE assembly: it reads
+#   [Unreleased] and the fragments, which assembly empties -- run after it,
+#   as it used to be, it measured nothing ("0 entries" for v0.52.0, #1400);
+# - after assembly, the RENDERED body, produced by the script release.yml
+#   publishes with, plus the assembled and version checks tag-release runs.
 release-pr: ## VERSION=x.y.z — branch, bump, assemble, open the release PR
 ifndef VERSION
 	@echo "usage: make release-pr VERSION=<x.y.z>"; exit 1
 endif
+	@$(MAKE) release-freshness-check VERSION=$(VERSION)
+	@$(MAKE) release-notes-size-check
 	@$(MAKE) release-branch VERSION=$(VERSION)
 	@$(MAKE) changelog-assemble VERSION=$(VERSION)
 	@$(MAKE) docs-relink
 	@$(MAKE) version-check VERSION=$(VERSION)
-	@$(MAKE) release-notes-size-check
+	@$(MAKE) changelog-assembled-check
+	@$(MAKE) release-notes-body-check VERSION=$(VERSION)
 	git commit -a -m "chore: release v$(VERSION)" -m "No-issue:"
 	git push -u origin HEAD
 	gh pr create --fill
@@ -2794,6 +2808,17 @@ endif
 
 release-notes-size-check: ## Fail if the release notes would exceed GitHub's cap
 	@uv run python scripts/check_release_notes_size.py
+
+# The body release.yml will actually publish -- rendered by release-notes.sh,
+# not re-derived from CHANGELOG.md -- sized against GitHub's cap. This is the
+# check that still means something once the fragments are assembled.
+release-notes-body-check: ## VERSION=x.y.z — size the rendered release body
+ifndef VERSION
+	@echo "usage: make release-notes-body-check VERSION=<x.y.z>"; exit 1
+endif
+	@t=$$(mktemp); trap 'rm -f "$$t"' EXIT; \
+	 scripts/release-notes.sh "$(VERSION)" > "$$t" \
+	 && uv run python scripts/check_release_notes_size.py --body-file "$$t"
 
 changelog-check: ## A branch changing code must add a changelog entry
 	@base=$$(git merge-base HEAD $(CHANGELOG_BASE) 2>/dev/null) || { \

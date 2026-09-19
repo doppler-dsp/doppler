@@ -22,6 +22,8 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+import pytest
+
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -123,3 +125,36 @@ def test_renames_even_with_no_fragments(tmp_path: Path) -> None:
     r = _run(script, "--version", "0.1.0")
     assert r.returncode == 0, r.stderr
     assert "## [0.1.0] - " in (tmp_path / "CHANGELOG.md").read_text()
+
+
+def test_assembled_changelog_is_already_mdformat_clean(
+    tmp_path: Path,
+) -> None:
+    """The release commit must not be rewritten by its own pre-commit hook.
+
+    mdformat rejected `make release-pr`'s commit on v0.50.0, v0.51.0, v0.51.1
+    and v0.52.0: the assembly left a double blank line under the new version
+    heading and none above the next `## `. The fixed point is the contract --
+    assembling and then formatting must change nothing.
+    """
+    mdformat = pytest.importorskip(
+        "mdformat",
+        reason="mdformat 1.x needs Python >= 3.10 (dev-group marker)",
+    )
+    script = _scratch(
+        tmp_path,
+        "# Changelog\n\n## [Unreleased]\n\n"
+        "## [0.1.0] - 2026-01-01\n\n### Fixed\n\n- an old fix\n",
+    )
+    _fragment(tmp_path, "added", "a.md", "- **A new thing.** It works.\n")
+    _fragment(tmp_path, "fixed", "b.md", "- **A fix.** It is fixed.\n")
+    r = _run(script, "--version", "0.2.0")
+    assert r.returncode == 0, r.stderr
+    out = (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## [0.2.0]" in out
+    # Every installed parser plugin, as the CLI `make lint-mdformat` runs does
+    # by default (gfm, gfm-alerts, mkdocs) -- the text API enables only what
+    # it is handed, and a narrower set could pass what the hook rejects.
+    from mdformat.plugins import PARSER_EXTENSIONS
+
+    assert mdformat.text(out, extensions=set(PARSER_EXTENSIONS)) == out

@@ -271,7 +271,7 @@ CellAsyncDsssReceiverObj_seed (CellAsyncDsssReceiverObject *self,
 }
 
 static PyStructSequence_Field CellAsyncDsssReceiverObj_status_fields[] = {
-  { "state", "One of the ASYNC_DSSS_RX_SEARCHING .. _LOST values." },
+  { "state", "ASYNC_DSSS_RX_SEARCHING .. _LOST -- where it is." },
   { "doppler_hz",
     "Where the emitter is NOW: the whole carrier estimate, Hz -- loop 1's "
     "plus what loop 2 has taken up beyond it (the seed while refining, 0 when "
@@ -279,18 +279,17 @@ static PyStructSequence_Field CellAsyncDsssReceiverObj_status_fields[] = {
     "carrier unlocked, loop 1 free-runs and this wanders." },
   { "chip_phase", "Live Dll code phase, chips." },
   { "code_rate", "Live Dll code rate, chips/sample." },
-  { "cn0_dbhz_est", "Cached from the winning acquisition hit." },
+  { "cn0_dbhz_est", "C/N0 estimate, dB-Hz (the hit's)." },
   { "code_locked", "Presence flag: the Dll's lock detector." },
   { "locked", "Health flag: the symbol-lock detector." },
   { "lock_metric", "cos(2*phi) over the symbols, drives `locked`." },
   { "lock_threshold", "`locked` latches above this." },
   { "car_last_error", "Pre-despread Costas residual, rad." },
   { "mpsk_last_error", "Post-despread carrier residual, rad." },
-  { "state_samples",
-    "Running: samples fed since the current state was entered." },
+  { "state_samples", "Input samples since `state` was entered." },
   { "both_down_samples",
-    "Running: consecutive samples fed while tracking with BOTH lock flags "
-    "down -- the release clock; lost keeps it counting." },
+    "Input samples both flags have been down without a break (the release "
+    "clock); in lost it keeps counting -- samples since the flags dropped." },
   { NULL, NULL },
 };
 static PyStructSequence_Desc CellAsyncDsssReceiverObj_status_desc

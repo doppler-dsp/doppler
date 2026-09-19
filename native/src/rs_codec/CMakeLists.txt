@@ -21,7 +21,8 @@ target_link_libraries(rs_codec_core PUBLIC
     rs_core)
 
 add_executable(test_rs_codec_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_rs_codec_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_rs_codec_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_rs_codec_symbols.c)
 target_link_libraries(test_rs_codec_core
                       PRIVATE rs_codec_core rs_core
     ${JM_MATH_LIBRARY})
@@ -38,3 +39,8 @@ target_link_libraries(bench_rs_codec_core
 target_include_directories(
   bench_rs_codec_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in rs_codec_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/rs_codec_extra.cmake OPTIONAL)

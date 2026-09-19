@@ -33,3 +33,8 @@ add_custom_command(TARGET interp POST_BUILD
     VERBATIM
     COMMENT "Copy interp extension module")
 endif()
+
+# Your own CMake for this directory goes in interp_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/interp_extra.cmake OPTIONAL)

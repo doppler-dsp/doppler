@@ -21,7 +21,8 @@ target_link_libraries(agc_core PUBLIC
     dp_tlm_core)
 
 add_executable(test_agc_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_agc_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_agc_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_agc_symbols.c)
 target_link_libraries(test_agc_core
                       PRIVATE agc_core dp_tlm_core
     ${JM_MATH_LIBRARY})
@@ -70,3 +71,8 @@ add_custom_command(TARGET agc POST_BUILD
     VERBATIM
     COMMENT "Copy agc extension module")
 endif()
+
+# Your own CMake for this directory goes in agc_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/agc_extra.cmake OPTIONAL)

@@ -1302,7 +1302,8 @@ endef
 # standard target" — a local target help omits is exactly as invisible.
 LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 docs-invariants \
-                jm-apply jm-upgrade changelog-assemble changelog-assembled-check \
+                jm-apply jm-apply-downstream \
+                jm-upgrade changelog-assemble changelog-assembled-check \
                 plot-rx-dynamics \
                 gen-c-api-check \
                 gen-c-api-run \
@@ -2710,8 +2711,18 @@ jm-apply: ## Regenerate jm-owned glue from the manifest (then run drift-check)
 	@echo "jm-apply: regenerated. Two things this does NOT do for you:"
 	@echo "  - a sacred native/src/<mod>/<mod>_ext_<obj>.c fragment is"
 	@echo "    reconciled member-by-member, never re-rendered -- read the diff"
-	@echo "  - the downstream example has its own manifest; 'make drift-check'"
-	@echo "    is what covers both. Run it now."
+	@echo "  - a SCOPED apply (JM_APPLY_ARGS=objects/<obj>.toml) leaves the"
+	@echo "    downstream example alone; a bare one regenerates it too."
+# The downstream example is a jm project in its own right, and `drift-check`
+# has always CHECKED it -- with nothing here to fix what it found. So every
+# pin bump ended in the same hand-run `cd examples/downstream-jm && jm apply`,
+# which the make-SSOT hook rightly refuses, and which is forgotten often
+# enough to have its own note. A bare `jm apply` now regenerates both; a
+# scoped one is about one object of doppler's and leaves the example alone.
+	$(if $(JM_APPLY_ARGS),,@$(MAKE) --no-print-directory jm-apply-downstream)
+
+jm-apply-downstream: ## Regenerate the downstream example's jm glue (same pin)
+	cd $(DOWNSTREAM_DIR) && uv run --project $(CURDIR) just-makeit apply
 
 # The jm manifest drift gate. --no-install-project because the gate only reads
 # the manifest, so there is no reason to build the C extension for it.

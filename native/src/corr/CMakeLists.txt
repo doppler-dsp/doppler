@@ -21,7 +21,8 @@ target_link_libraries(corr_core PUBLIC
     fft_core)
 
 add_executable(test_corr_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_corr_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_corr_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_corr_symbols.c)
 target_link_libraries(test_corr_core
                       PRIVATE corr_core fft_core
     ${JM_MATH_LIBRARY})
@@ -38,3 +39,8 @@ target_link_libraries(bench_corr_core
 target_include_directories(
   bench_corr_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in corr_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/corr_extra.cmake OPTIONAL)

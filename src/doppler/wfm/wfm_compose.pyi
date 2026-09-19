@@ -252,11 +252,52 @@ class Synth:
     dsss_code_only: int
     fs: float
     def steps(self, n: int) -> NDArray[np.complex64]:
-        """Generate *n* complex samples."""
+        """Generate the next *n* samples of this source on its own.
+
+        The first call builds the generator from this configuration, through
+        `wfm_source_to_synth`; later calls continue it.
+
+        Parameters
+        ----------
+        n : int
+            How many samples; 0 returns an empty array.
+
+        Returns
+        -------
+        NDArray[np.complex64]
+            The samples, in order.
+
+        Raises
+        ------
+        ValueError
+            If `n` is negative.
+        RuntimeError
+            If `wfm_source_to_synth` cannot build the generator from this
+            configuration.
+        """
     def step(self) -> complex:
-        """Generate one complex sample."""
+        """Generate the next sample of this source on its own.
+
+        The first call builds the generator from this configuration, through
+        `wfm_source_to_synth`; later calls continue it.
+
+        Returns
+        -------
+        complex
+            The sample.
+
+        Raises
+        ------
+        RuntimeError
+            If `wfm_source_to_synth` cannot build the generator from this
+            configuration.
+        """
     def reset(self) -> None:
-        """Reset to initial state."""
+        """Rewind the generator to sample 0.
+
+        A no-op before the first `steps()`/`step()`, which starts from sample 0
+        anyway.
+        """
 
 @disjoint_base
 class Segment:

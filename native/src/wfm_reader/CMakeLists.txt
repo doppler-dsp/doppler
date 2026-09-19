@@ -25,7 +25,8 @@ target_link_libraries(wfm_reader_core PUBLIC
     wfm_draw_core)
 
 add_executable(test_wfm_reader_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_reader_symbols.c)
 target_link_libraries(test_wfm_reader_core
                       PRIVATE wfm_reader_core dp_interrupt_guard_core
     wfm_cjson_core
@@ -86,3 +87,8 @@ add_custom_command(TARGET wfm_reader POST_BUILD
     VERBATIM
     COMMENT "Copy wfm_reader extension module")
 endif()
+
+# Your own CMake for this directory goes in wfm_reader_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/wfm_reader_extra.cmake OPTIONAL)

@@ -26,7 +26,8 @@ target_link_libraries(symsync_core PUBLIC
     dp_tlm_core)
 
 add_executable(test_symsync_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_symsync_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_symsync_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_symsync_symbols.c)
 target_link_libraries(test_symsync_core
                       PRIVATE symsync_core nco_core
     farrow_core
@@ -53,3 +54,8 @@ target_link_libraries(bench_symsync_core
 target_include_directories(
   bench_symsync_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in symsync_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/symsync_extra.cmake OPTIONAL)

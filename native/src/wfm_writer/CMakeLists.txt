@@ -23,7 +23,8 @@ target_link_libraries(wfm_writer_core PUBLIC
     wfm_draw_core)
 
 add_executable(test_wfm_writer_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_writer_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_writer_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_writer_symbols.c)
 target_link_libraries(test_wfm_writer_core
                       PRIVATE wfm_writer_core wfm_cjson_core
     wfm_keywords_core
@@ -78,3 +79,8 @@ add_custom_command(TARGET wfm_writer POST_BUILD
     VERBATIM
     COMMENT "Copy wfm_writer extension module")
 endif()
+
+# Your own CMake for this directory goes in wfm_writer_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/wfm_writer_extra.cmake OPTIONAL)

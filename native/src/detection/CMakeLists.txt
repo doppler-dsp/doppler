@@ -34,3 +34,8 @@ add_custom_command(TARGET detection POST_BUILD
     VERBATIM
     COMMENT "Copy detection extension module")
 endif()
+
+# Your own CMake for this directory goes in detection_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/detection_extra.cmake OPTIONAL)

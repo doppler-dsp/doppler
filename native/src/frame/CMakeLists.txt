@@ -27,7 +27,8 @@ target_link_libraries(frame_core PUBLIC
     cvt_core)
 
 add_executable(test_frame_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_frame_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_frame_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_frame_symbols.c)
 target_link_libraries(test_frame_core
                       PRIVATE frame_core wfm_frame_core
     ccsds_tm_core
@@ -56,3 +57,8 @@ target_link_libraries(bench_frame_core
 target_include_directories(
   bench_frame_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
+# Your own CMake for this directory goes in frame_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/frame_extra.cmake OPTIONAL)

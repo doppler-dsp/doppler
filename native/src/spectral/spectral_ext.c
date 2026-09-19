@@ -8,7 +8,7 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include <complex.h>
+#include "clib_common.h"
 #include <numpy/arrayobject.h>
 
 #include "spectral/spectral_core.h"
@@ -532,9 +532,9 @@ static PyMethodDef spectral_module_methods[] = {
     ">>> peaks\n"
     "[(-0.25, -10.0)]\n" },
   { "obw_from_power", (PyCFunction)(void *)_bind_obw_from_power,
-    METH_VARARGS | METH_KEYWORDS, "obw_from_power.\n" },
+    METH_VARARGS | METH_KEYWORDS, "Obw from power.\n" },
   { "noise_floor_db", (PyCFunction)(void *)_bind_noise_floor_db,
-    METH_VARARGS | METH_KEYWORDS, "noise_floor_db.\n" },
+    METH_VARARGS | METH_KEYWORDS, "Noise floor db.\n" },
   { NULL, NULL, 0, NULL }
 };
 

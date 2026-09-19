@@ -30,7 +30,8 @@ target_link_libraries(ddc_core PUBLIC
     hbdecim_r2c_core)
 
 add_executable(test_ddc_core
-               ${CMAKE_SOURCE_DIR}/native/tests/test_ddc_core.c)
+               ${CMAKE_SOURCE_DIR}/native/tests/test_ddc_core.c
+               ${CMAKE_SOURCE_DIR}/native/tests/test_ddc_symbols.c)
 target_link_libraries(test_ddc_core
                       PRIVATE ddc_core lo_core
     RateConverter_core
@@ -107,3 +108,8 @@ add_custom_command(TARGET ddc POST_BUILD
     VERBATIM
     COMMENT "Copy ddc extension module")
 endif()
+
+# Your own CMake for this directory goes in ddc_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/ddc_extra.cmake OPTIONAL)

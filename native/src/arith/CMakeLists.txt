@@ -45,3 +45,8 @@ target_link_libraries(test_arith_core PRIVATE
 target_include_directories(test_arith_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_arith_core COMMAND test_arith_core)
+
+# Your own CMake for this directory goes in arith_extra.cmake beside this
+# file: jm includes it and never writes it (gh-1351). This file is
+# regenerated.
+include(${CMAKE_CURRENT_LIST_DIR}/arith_extra.cmake OPTIONAL)

@@ -1236,11 +1236,11 @@ class CorrDetector:
 
     @property
     def dwell(self) -> int:
-        """Integration depth; dump every dwell calls."""
+        """Dwell."""
 
     @property
     def count(self) -> int:
-        """Frames accumulated so far (0 … dwell-1)."""
+        """Count."""
 
     @property
     def ring_cap(self) -> int:
@@ -1485,11 +1485,11 @@ class CorrDetector2D:
 
     @property
     def dwell(self) -> int:
-        """Integration depth."""
+        """Dwell."""
 
     @property
     def count(self) -> int:
-        """Frames accumulated (0 … dwell-1)."""
+        """Count."""
 
     @property
     def ring_cap(self) -> int:
@@ -1985,11 +1985,11 @@ class PSD:
 
     @property
     def count(self) -> int:
-        """Frames folded in so far."""
+        """Count."""
 
     @property
     def mode(self) -> int:
-        """Reduction mode."""
+        """Mode."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

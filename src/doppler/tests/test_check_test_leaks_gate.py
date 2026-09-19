@@ -37,6 +37,24 @@ def repo(tmp_path: Path) -> Path:
     )
     (root / "tracked.txt").write_text("v1\n", encoding="utf-8")
     subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    # COMMITTED, not merely staged: a staged file always shows in `git status`
+    # as `A`, which would let the unchanged-rewrite case pass for the wrong
+    # reason.
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(root),
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-qm",
+            "seed",
+        ],
+        check=True,
+    )
     return root
 
 
@@ -88,6 +106,14 @@ def test_an_untouched_leftover_is_not_this_runs_leak(repo: Path) -> None:
 
 def test_a_rewritten_tracked_file_is_a_leak(repo: Path) -> None:
     r = _gate(repo, "open('tracked.txt', 'w').write('v2')")
+    assert r.returncode == 1
+    assert "tracked.txt" in r.stderr
+
+
+def test_a_tracked_file_rewritten_unchanged_is_a_leak(repo: Path) -> None:
+    # Same bytes, so `git status` is clean -- the case that passed on the dev
+    # box and failed in CI, where the regenerated CSVs differed in a digit.
+    r = _gate(repo, "open('tracked.txt', 'w').write('v1\\n')")
     assert r.returncode == 1
     assert "tracked.txt" in r.stderr
 

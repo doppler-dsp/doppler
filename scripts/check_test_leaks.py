@@ -18,9 +18,14 @@ Scope and rules:
 
 - A FAILING run is not checked: the command's own exit code is returned
     unchanged, and a failed test may keep its files as evidence.
-- The source tree is read through ``git status --ignored``, so tracked files
-    a test rewrote count too. A NEW directory is walked, and only its files
-    that are not harness caches are reported.
+- The source tree is read through ``git status --ignored``, and every
+    TRACKED file is stat'ed as well: a test that rewrites a committed file
+    with the bytes it already had leaves ``git status`` clean, so only the
+    write time shows it. That is not hypothetical -- nine validators wrote
+    their committed CSVs on every pytest run despite ``build(write=False)``,
+    invisible on the dev box where the bytes came out the same, and caught
+    only on CI runners where four of them did not. A NEW directory is
+    walked, and only its files that are not harness caches are reported.
 - ``--ctest`` asks ctest for every test's ``WORKING_DIRECTORY``
     (``--show-only=json-v1``, same arguments) and walks each. Derived, not
     listed: a new test is covered the moment ctest knows it.
@@ -91,6 +96,21 @@ def _git_entries(root: Path) -> dict[str, str]:
             i += 1
         entries[path.rstrip("/")] = status
     return entries
+
+
+def _tracked_written(root: Path, start_ns: int) -> list[str]:
+    """Tracked files written during the run, identical bytes or not."""
+    out = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z"],
+        check=True,
+        capture_output=True,
+    ).stdout.decode("utf-8", "surrogateescape")
+    hit: list[str] = []
+    for rel in filter(None, out.split("\0")):
+        with contextlib.suppress(OSError):
+            if (root / rel).lstat().st_mtime_ns >= start_ns:
+                hit.append(str(root / rel))
+    return hit
 
 
 def _walk(top: Path) -> dict[str, int]:
@@ -193,6 +213,11 @@ def leaks(
             continue
         if rel not in before_git or mtime >= start_ns:
             found.add(str(full))
+    found.update(
+        p
+        for p in _tracked_written(root, start_ns)
+        if not _is_cache(os.path.relpath(p, root))
+    )
     return sorted(
         os.path.relpath(p, root) if p.startswith(str(root) + os.sep) else p
         for p in found

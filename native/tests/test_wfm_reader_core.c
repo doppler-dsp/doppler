@@ -62,12 +62,38 @@ scratch_enter (void)
 
 /* Delete the scratch directory's files, then the directory. Asserted, not
    best-effort: a directory that will not go means something was written that
-   this could not remove (a subdirectory, a file still open), which is a leak
-   in /tmp instead of in the build tree. */
+   this could not remove (a subdirectory, or -- on Windows, which refuses to
+   delete an open file -- a FILE the test never closed), which is a leak in
+   the temp directory instead of in the build tree. Each survivor is named. */
 static void
 scratch_leave (void)
 {
   char p[1024];
+#ifdef __linux__
+  /* A file this test forgot to close. Linux deletes it anyway, so only
+     Windows -- which refuses to delete an open file -- used to notice, and
+     only as a directory that would not go. Asking the kernel which
+     descriptors still point into the scratch directory makes the POSIX run
+     fail on it too, naming the file. */
+  DIR *fds = opendir ("/proc/self/fd");
+  for (struct dirent *e; fds && (e = readdir (fds));)
+    {
+      char    link[1024];
+      ssize_t n;
+      snprintf (p, sizeof p, "/proc/self/fd/%s", e->d_name);
+      n = readlink (p, link, sizeof link - 1);
+      if (n <= 0)
+        continue;
+      link[n] = 0;
+      if (strncmp (link, scratch_dir, strlen (scratch_dir)) == 0)
+        {
+          fprintf (stderr, "  still open at exit: %s\n", link);
+          DP_CHECK_MSG (0, "every file the test opened is closed");
+        }
+    }
+  if (fds)
+    closedir (fds);
+#endif
   DP_CHECK_MSG (scratch_chdir_ (scratch_home) == 0, "leave scratch");
 #ifdef _WIN32
   struct _finddata_t fd;
@@ -79,7 +105,8 @@ scratch_leave (void)
         if (strcmp (fd.name, ".") != 0 && strcmp (fd.name, "..") != 0)
           {
             snprintf (p, sizeof p, "%s/%s", scratch_dir, fd.name);
-            remove (p);
+            if (remove (p) != 0)
+              fprintf (stderr, "  could not remove %s\n", fd.name);
           }
       while (_findnext (h, &fd) == 0);
       _findclose (h);
@@ -90,7 +117,8 @@ scratch_leave (void)
     if (strcmp (e->d_name, ".") != 0 && strcmp (e->d_name, "..") != 0)
       {
         snprintf (p, sizeof p, "%s/%s", scratch_dir, e->d_name);
-        remove (p);
+        if (remove (p) != 0)
+          fprintf (stderr, "  could not remove %s\n", e->d_name);
       }
   if (d)
     closedir (d);
@@ -580,9 +608,9 @@ test_keyword_absent_and_corrupt (void)
   fseek (fp, 28, SEEK_SET);
   fwrite (&huge, 4, 1, fp);
   fclose (fp);
-  r = fopen ("dp_kw_bad.blue", "rb")
-          ? wfm_reader_create ("dp_kw_bad.blue", 0, 0)
-          : NULL;
+  /* No fopen() probe first: it leaked its FILE, which Windows then refused
+     to let the scratch cleanup delete. create() fails on a missing file. */
+  r = wfm_reader_create ("dp_kw_bad.blue", 0, 0);
   DP_REQUIRE_MSG (r != NULL, "a bad keyword region does not fail the open");
   DP_REQUIRE_MSG (wfm_reader_read (r, N, y, N) == N,
                   "samples survive a bad ext header");

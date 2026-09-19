@@ -259,6 +259,17 @@ def main() -> int:
             chunks.append(entry)
         body = insert(body, section, "\n\n".join(chunks))
 
+    # One blank line on each side of the section's content, whatever the
+    # inserts above left behind. The pre-commit mdformat hook rejected the
+    # release commit on v0.50.0, v0.51.0, v0.51.1 and v0.52.0 over exactly
+    # this: a double blank line under the version heading and none above the
+    # next `## `. Normalising the whole body once is the fixed point the
+    # test pins (assemble, then mdformat, changes nothing); fixing each
+    # insert() path would leave the next path to repeat it.
+    content = body.strip("\n")
+    lead = "\n" if text[:start].endswith("\n") else "\n\n"
+    tail = "\n\n" if end < len(text) else "\n"
+    body = lead + content + tail if content else lead
     CHANGELOG.write_text(text[:start] + body + text[end:])
 
     for files in found.values():

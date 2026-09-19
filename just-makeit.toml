@@ -3,7 +3,7 @@ include = ["objects/*.toml"]
 [project]
 jm_version = "0.76.4"
 name = "doppler"
-version = "0.51.1"
+version = "0.52.0"
 build = "cmake"
 # The C library builds on Windows with clang/clang-cl (windows.yml), but not
 # through jm's MinGW path: "windows" here would add jm's per-component MinGW

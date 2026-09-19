@@ -13,6 +13,24 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-09-19
+
+### Added
+
+- **Every release now publishes the C library for Windows:**
+    `doppler-<version>-windows-x86_64.zip`, built with clang-cl against the
+    MSVC runtime. The clang-cl build is now binding CI, and the same zip is
+    packaged and consumed through `find_package` on every PR. See
+    [Install the C library → Windows](docs/install/c.md#windows).
+
+### Fixed
+
+- **A passing test suite now leaves no file behind, and `make test` fails if
+    one does.** Three C tests left 67 captures in their build directories on
+    every green run (and in the repo root when run from there), and every
+    pytest run created `.benchmarks/` in the root. Every test target now runs
+    under `scripts/check_test_leaks.py`.
+
 ## [0.51.1] - 2026-09-18
 
 ### Changed
@@ -13990,8 +14008,9 @@ ______________________________________________________________________
 [0.50.0]: https://github.com/doppler-dsp/doppler/compare/v0.49.0...v0.50.0
 [0.51.0]: https://github.com/doppler-dsp/doppler/compare/v0.50.0...v0.51.0
 [0.51.1]: https://github.com/doppler-dsp/doppler/compare/v0.51.0...v0.51.1
+[0.52.0]: https://github.com/doppler-dsp/doppler/compare/v0.51.1...v0.52.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.51.1...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.52.0...HEAD

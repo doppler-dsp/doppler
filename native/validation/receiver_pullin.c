@@ -115,7 +115,13 @@ draw_open (draw_t *d, const uint8_t *code, double cn0_dbhz, uint32_t seed,
   d->x                = dp_xmalloc ((d->n + 4 * TE) * sizeof *d->x);
   float complex *sig  = dp_xmalloc (TE * sizeof *sig);
   float complex *fifo = dp_xmalloc (4 * TE * sizeof *fifo);
-  float complex *nz   = dp_xmalloc (TE * sizeof *nz);
+  /* Sized for `take`, not for one synth block: the channel resamples by the
+     Doppler factor, so one call can return more than TE (up to its 2*TE
+     max_out), and `take` is everything pending. At TE the loop below read
+     nz[TE] -- one past the end, silently on Linux and an access violation
+     on Windows, where it surfaced as a SEGFAULT in validate_receiver_pullin
+     that no Linux build reproduced; AddressSanitizer names it. */
+  float complex *nz   = dp_xmalloc (2 * TE * sizeof *nz);
   size_t         pend = 0, out = 0, dropped = 0;
   while (out < d->n)
     {
@@ -132,7 +138,7 @@ draw_open (draw_t *d, const uint8_t *code, double cn0_dbhz, uint32_t seed,
         }
       if (out + take > d->n)
         take = d->n - out;
-      awgn_generate (g, take, nz, TE);
+      awgn_generate (g, take, nz, 2 * TE);
       for (size_t i = 0; i < take; i++)
         d->x[out + i] = fifo[i] + nz[i];
       out += take;

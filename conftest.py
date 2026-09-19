@@ -114,6 +114,23 @@ def pytest_unconfigure(config):
     _stop_nats()
 
 
+def pytest_collection_modifyitems(config, items):
+    """Mark every test in a ``test_validation_limits.py`` `validation_limits`.
+
+    From the file NAME, so the dozen per-module limits files -- and the next
+    one -- carry the marker without anyone adding it. Those tests build a
+    whole validation report in a fixture, which is cheap enough per push and
+    ruinous under instrumentation, so `make coverage` deselects the marker the
+    way its ctest leg drops `sweep` (see the marker's entry in pyproject.toml).
+    """
+    import pytest
+
+    mark = pytest.mark.validation_limits
+    for item in items:
+        if pathlib.Path(str(item.fspath)).name == "test_validation_limits.py":
+            item.add_marker(mark)
+
+
 def _display_name(fullname: str, name: str) -> str:
     """Short, unique label -- same disambiguation as scripts/bench_report.py's
     _display_name(). Raw pytest-benchmark ``name``s collide across modules

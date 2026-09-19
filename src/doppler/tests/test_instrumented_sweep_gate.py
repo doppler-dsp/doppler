@@ -150,6 +150,59 @@ test: ## Run the default suite
     assert "no instrumented ctest leg" in proc.stdout
 
 
+# The coverage recipe's pytest leg: the same instrumented define-block, now
+# running the Python suite as well. Its ctest line is already correct, so any
+# finding below is about the pytest line alone.
+COVERAGE_PY = """\
+COV_DIR ?= build-cov
+CTEST := ctest
+COV_EXCLUDE_SWEEP = $(if $(COV_SWEEP),,-LE sweep)
+define COVERAGE_CMD
+$(CMAKE) -B $(COV_DIR) -S . -DDOPPLER_COVERAGE=ON -DBUILD_PYTHON=ON
+cd $(COV_DIR) && $(CTEST) --output-on-failure -j 4 $(COV_EXCLUDE_SWEEP)
+LLVM_PROFILE_FILE=x \\
+    $(PYTHON) -m pytest $(COV_DIR)/pkg/doppler -q \\
+    {mark} -n auto
+endef
+"""
+
+
+def test_an_instrumented_pytest_leg_running_the_limits_is_caught(
+    tmp_path: Path,
+) -> None:
+    """The shape that shipped: the async_dsss_pool report alone took 823.7 s
+    of an 854.5 s instrumented pass. Note `python -m pytest` must not read
+    as a marker expression that selects only `pytest`."""
+    proc = _check(
+        tmp_path, COVERAGE_PY.format(mark='-m "not examples_serial"')
+    )
+    assert proc.returncode == 1, proc.stdout
+    assert "does not exclude the validation-limits tests" in proc.stdout
+
+
+def test_no_marker_expression_at_all_is_caught(tmp_path: Path) -> None:
+    proc = _check(tmp_path, COVERAGE_PY.format(mark=""))
+    assert proc.returncode == 1, proc.stdout
+
+
+@pytest.mark.parametrize(
+    "mark",
+    [
+        '-m "not examples_serial and not validation_limits"',
+        "-m 'not validation_limits'",
+        '-m "examples_serial"',
+    ],
+    ids=["and-not", "only-not", "positive-selection"],
+)
+def test_each_way_of_leaving_the_limits_out_clears_it(
+    tmp_path: Path, mark: str
+) -> None:
+    """A positive selection counts: it runs nothing but its own marker."""
+    proc = _check(tmp_path, COVERAGE_PY.format(mark=mark))
+    assert proc.returncode == 0, proc.stdout
+    assert "1 instrumented pytest leg" in proc.stdout
+
+
 def test_the_repository_itself_passes() -> None:
     """The gate over the real makefiles, which is what CI runs."""
     proc = subprocess.run(

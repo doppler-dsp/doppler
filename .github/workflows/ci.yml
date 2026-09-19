@@ -39,6 +39,39 @@ jobs:
   # the value has to arrive from a job that already finished. The jobs still
   # fan out in parallel behind this one, so it is a single added hop, not a
   # cost per job.
+  # Is this diff a version bump and nothing else? `make ci-changes`
+  # (standard.mk) answers by SUBSTITUTION: every changed file but the
+  # changelog must equal its base copy with the old version replaced by the
+  # new one. A release commit then skips the heavy matrix -- its parent
+  # passed it, and the bump adds a version string -- while lint, manifest
+  # drift and the CI-image pin still run, because they check the very files
+  # a bump changes. Any doubt (unreachable base, empty probe, anything else
+  # changed) answers src=true and the whole matrix runs.
+  changes:
+    name: Classify the diff (a version bump alone?)
+    runs-on: ubuntu-latest
+    # Seconds of work; 25 because deps-budget-check holds EVERY ceiling in
+    # the workflows above the provisioning retry budget, as `pin`'s is.
+    timeout-minutes: 25
+    outputs:
+      src: ${{ steps.classify.outputs.src }}
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        fetch-depth: 2
+    - id: classify
+      run: |
+        case "${{ github.event_name }}" in
+          # A PR is checked out as its merge commit: HEAD^ is the base tip.
+          pull_request) base=HEAD^ ;;
+          # A push: the pushed range. If `before` cannot be fetched (a new
+          # branch is all zeros), ci-changes cannot prove a bump -> src=true.
+          push) base="${{ github.event.before }}"
+                git fetch -q --depth=1 origin "$base" 2>/dev/null || true ;;
+          *) echo "src=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+        esac
+        make -s ci-changes BASE="$base"
+
   pin:
     name: Resolve the pinned CI image
     runs-on: ubuntu-latest
@@ -62,7 +95,9 @@ jobs:
         echo "24.04 $CI_IMAGE_2404" >> "$GITHUB_STEP_SUMMARY"
 
   build-and-test-linux:
-    needs: pin
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
+    needs: [pin, changes]
     name: Build on ${{ matrix.os }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -198,6 +233,9 @@ jobs:
   # here on every PR rather than first at a tag. Python is off: the extensions
   # are jm's to bring to Windows, and this job grows a pyext step when they do.
   build-and-test-windows:
+    needs: changes
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     name: Build on windows-latest (clang-cl)
     runs-on: windows-latest
     timeout-minutes: 45
@@ -242,6 +280,9 @@ jobs:
   # bake: `make install-deps` is the one dep command a developer also runs and
   # it auto-detects apt vs brew, so this stays exactly as it was.
   build-and-test-macos:
+    needs: changes
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     name: Build on macos-latest
     runs-on: macos-latest
     timeout-minutes: 45
@@ -316,7 +357,9 @@ jobs:
   # Python package build + pytest
   # ------------------------------------------------------------------
   python:
-    needs: pin
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
+    needs: [pin, changes]
     name: Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -471,6 +514,9 @@ jobs:
   # Catches any accidental use of glibc symbols > 2.28 at build time.
   # ------------------------------------------------------------------
   glibc-228:
+    needs: changes
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     name: glibc 2.28 (Debian 10)
     # No `container:` any more, and no provisioning inline. The Debian 10
     # environment this job needs is deploy/docker/Dockerfile.glibc228, and
@@ -493,7 +539,9 @@ jobs:
   # Doxygen C API docs — zero warnings required
   # ------------------------------------------------------------------
   doxygen:
-    needs: pin
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
+    needs: [pin, changes]
     name: Doxygen
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -549,7 +597,9 @@ jobs:
   # the pinned image, and nowhere else. Locally `make test-sweep` reports.
   # ------------------------------------------------------------------
   sweep-validators:
-    needs: pin
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
+    needs: [pin, changes]
     name: sweep validators
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -593,6 +643,9 @@ jobs:
   # Documentation build (zensical)
   # ------------------------------------------------------------------
   docs:
+    needs: changes
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     name: Docs
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -624,6 +677,9 @@ jobs:
   # through the Makefile, the single driver for every docker build here.
   # ------------------------------------------------------------------
   docker:
+    needs: changes
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
     name: Docker
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -806,7 +862,9 @@ jobs:
   # job's result is a failure if any leg fails. No ruleset names these legs.
   # ------------------------------------------------------------------
   sanitizers:
-    needs: pin
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
+    needs: [pin, changes]
     name: ${{ matrix.san.label }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -869,7 +927,9 @@ jobs:
   # .py/.rs diffs carry no C coverage data and aren't counted.
   # ------------------------------------------------------------------
   coverage:
-    needs: pin
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
+    needs: [pin, changes]
     name: coverage (C + Python + Rust)
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -957,6 +1017,7 @@ jobs:
   ci-passed:
     name: CI passed
     needs:
+      - changes
       - pin
       - build-and-test-linux
       - build-and-test-macos
@@ -976,12 +1037,16 @@ jobs:
     timeout-minutes: 45
     if: always()
     steps:
+      - uses: actions/checkout@v7
+      # scripts/ci_passed.py: every job must SUCCEED, except that a job in
+      # SKIPPABLE may be skipped when `changes` classified the diff as a
+      # version bump alone. SKIPPABLE is exactly the jobs gated on
+      # `changes` -- scripts/check_ci_aggregator.py holds the two equal.
       - name: Require all jobs to have succeeded
-        run: |
-          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" || \
-                "${{ contains(needs.*.result, 'cancelled') }}" == "true" || \
-                "${{ contains(needs.*.result, 'skipped') }}" == "true" ]]; then
-            echo "::error::a required CI job did not succeed — CI not green"
-            exit 1
-          fi
-          echo "All required CI jobs succeeded."
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          SKIPPABLE: >-
+            build-and-test-linux build-and-test-windows build-and-test-macos
+            python glibc-228 doxygen sweep-validators docs docker sanitizers
+            coverage
+        run: python3 scripts/ci_passed.py

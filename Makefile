@@ -587,11 +587,14 @@ COMPILE_DB = symlink
 # without Python and must not be run on a dev box by `make gates`. Excluded
 # by name, like provisioning, so that adding one is a visible decision.
 GATES_WINDOWS_ONLY = complex-helpers-check package-c-smoke
+# ci-changes is ci.yml's `changes` job: it CLASSIFIES the diff (is it a
+# version bump alone?) so the matrix can skip, and gates nothing itself --
+# the gating is `CI passed`'s, in scripts/ci_passed.py.
 GATES_PROVISION = install-deps install-docs-deps build pyext nats-up \
                   nats-down install-deps-ci install-docs-deps-ci \
                   ccache-stats \
                   apt-stall-config \
-                  package-c-tarball $(GATES_WINDOWS_ONLY)
+                  package-c-tarball ci-changes $(GATES_WINDOWS_ONLY)
 GATES_DEPS    = lint changelog-check release-notes-size-check \
                 drift-check doxygen-check docs-check \
                 gen-c-api-check \

@@ -282,8 +282,12 @@ jobs:
     # VCPKG_INSTALLATION_ROOT. It builds the checkout a second time, in a
     # scrubbed environment and in both configurations, which is the point:
     # that is the build a vcpkg user gets.
+    #
+    # VCPKG_ROOT is named, not inherited: the MSVC step above exports it
+    # pointing at the copy bundled with Visual Studio, which is manifest-only
+    # and cannot install a port by name.
     - name: Install + consume through vcpkg (overlay port, clang-cl triplet)
-      run: make vcpkg-smoke
+      run: make vcpkg-smoke VCPKG_ROOT="$VCPKG_INSTALLATION_ROOT"
 
   # macOS still provisions with brew, because there is no macOS container to
   # bake: `make install-deps` is the one dep command a developer also runs and

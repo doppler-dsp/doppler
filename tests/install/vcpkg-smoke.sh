@@ -30,6 +30,17 @@ VCPKG_ROOT="${VCPKG_ROOT:-${VCPKG_INSTALLATION_ROOT:-}}"
     exit 2
 }
 
+# A full checkout has ports/. The vcpkg BUNDLED with Visual Studio does not:
+# it is manifest-mode only, and a VS developer prompt exports VCPKG_ROOT
+# pointing at it -- so the variable being set proves nothing.
+[ -d "$VCPKG_ROOT/ports" ] || {
+    echo "vcpkg-smoke: $VCPKG_ROOT has no ports/ -- it is not a full vcpkg" >&2
+    echo "  checkout (Visual Studio's bundled copy is manifest-only and a" >&2
+    echo "  developer prompt sets VCPKG_ROOT to it). Clone microsoft/vcpkg," >&2
+    echo "  bootstrap it, and pass VCPKG_ROOT=<that directory>." >&2
+    exit 2
+}
+
 WINDOWS=0; EXE=""
 case "$(uname -s)" in
     MINGW*|MSYS*|CYGWIN*) WINDOWS=1; EXE=".exe" ;;

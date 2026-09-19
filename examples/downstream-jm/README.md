@@ -97,7 +97,7 @@ no path to point `cmake` at. The tarball ships doppler *inside it*.
 <!-- doc-version:start -->
 
 ```bash
-VER=0.51.1
+VER=0.52.0
 PLAT=linux-x86_64          # or linux-aarch64, macos-arm64
 
 curl -fsSL -O https://github.com/doppler-dsp/doppler/releases/download/v$VER/doppler-starter-$VER-$PLAT.tar.gz

@@ -93,7 +93,7 @@ if(NOT WIN32)
         SKIP_RETURN_CODE 77)
 endif()
 
-if(BUILD_PYTHON)
+if(BUILD_PYTHON AND NOT WIN32)  # the NATS layer is POSIX-only (#1364)
     Python3_add_library(stream MODULE WITH_SOABI stream_ext.c)
     target_link_libraries(stream PRIVATE
         $<TARGET_OBJECTS:stream_core_obj> $<TARGET_OBJECTS:dp_interrupt_obj>

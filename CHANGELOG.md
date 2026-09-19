@@ -15,6 +15,23 @@ ______________________________________________________________________
 
 ## [0.51.1] - 2026-09-18
 
+### Changed
+
+- **`make coverage` no longer rebuilds every validation report under
+    instrumentation.** The `test_validation_limits.py` tests (now marked
+    `validation_limits`, from their file name) build each object's whole
+    report; instrumented, one took 823.7 s of an 854.5 s pass. Coverage now
+    deselects them, as its C leg drops the `sweep` validators, and the plain
+    suite still runs every limit on every push.
+
+- **Windows is documented as a supported build platform for the C library.**
+    [Build from Source → Windows](https://doppler-dsp.github.io/doppler/install/source/#windows)
+    now gives the clang / clang-cl recipe CI runs and lists what the Windows
+    build leaves out (NATS streaming, the `wfmgen` CLI, Python, Rust),
+    replacing "doppler does not target Windows" there and in eleven other
+    places. The retired-names gate now refuses that claim, and it scans
+    `.github/`, which a prefix bug had silently skipped.
+
 ### Fixed
 
 - **A Windows or macOS checkout no longer shows a phantom edit in the
@@ -30,6 +47,12 @@ ______________________________________________________________________
     tarball) refuses an absolute path in any exported link interface. The
     post-release PyPI smoke also stopped racing PyPI's CDN: it now waits
     until `uv` itself can resolve the new version.
+
+- **`validate_receiver_pullin` no longer reads past its noise buffer.** It
+    sized the noise for one synth block, but the Doppler channel can return
+    more than that per call, so it read one sample past the end. That was
+    silent on Linux and a SEGFAULT on Windows; AddressSanitizer names the
+    line. Its test harness only; the receiver itself was never affected.
 
 ## [0.51.0] - 2026-09-18
 

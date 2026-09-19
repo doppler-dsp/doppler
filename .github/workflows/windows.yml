@@ -1,9 +1,10 @@
-name: Windows (clang-cl)
+name: Windows (clang reference)
 
-# NON-BINDING. It builds the C library and runs the full C suite under clang
-# and clang-cl. It is deliberately NOT part of the merge gate and deliberately
-# publishes nothing. What the Windows build includes and leaves out is
-# documented in docs/install/source.md#windows.
+# NON-BINDING. It builds the C library and runs the full C suite under the GNU
+# `clang` driver, as a reference leg. The clang-cl build -- the one Windows
+# users run, and the one release.yml publishes as a zip -- moved to ci.yml,
+# where it is BINDING (`build-and-test-windows`). What the Windows build
+# includes and leaves out is documented in docs/install/source.md#windows.
 #
 # Not required to pass
 # --------------------
@@ -11,8 +12,9 @@ name: Windows (clang-cl)
 # `ci-passed` job at the bottom of ci.yml, which is green only when every job
 # in its `needs` succeeded. This workflow lives in its own file, so it is not
 # in that list and cannot be: `scripts/check_ci_aggregator.py` requires every
-# job *in ci.yml* to feed the aggregator, with no exemption, so a Windows job
-# added there would become binding, which is the opposite of the intent.
+# job *in ci.yml* to feed the aggregator, with no exemption -- which is exactly
+# why the clang-cl leg moved THERE once it was published, and why this
+# reference leg stays HERE.
 #
 # A separate file is therefore the mechanism, not a workaround -- and it is
 # preferable to `continue-on-error: true`, which would paint a failing build
@@ -22,10 +24,9 @@ name: Windows (clang-cl)
 #
 # Publishes nothing
 # -----------------
-# No wheel, no tarball, no container, no GitHub release, no PyPI upload, and
-# nothing is uploaded that another workflow consumes. Releases are cut by
-# release.yml, which triggers only on a `v[0-9]*` tag push; nothing here can
-# reach it. doppler's published artifacts remain Linux and macOS only.
+# Nothing is uploaded that another workflow consumes. The Windows zip on a
+# GitHub Release is built by release.yml with clang-cl, and the same zip is
+# packaged and consumed on every PR by ci.yml's binding Windows job.
 #
 # What it actually tests
 # ----------------------
@@ -69,17 +70,18 @@ jobs:
     name: C build + ctest (${{ matrix.cc }})
     runs-on: windows-latest
     timeout-minutes: 30
-    # TWO drivers, because they are two configurations and only one of them
-    # was ever tested. This job was named clang-cl and ran `clang`: the GNU
-    # driver, under which CMake does NOT set MSVC, so every `NOT MSVC` block
-    # in CMakeLists.txt applied here and none applied to a user building with
-    # clang-cl. That gap is how `undefined symbol: ___muldc3` reached a user
-    # with this job green -- -ffast-math never reached clang-cl. `clang` stays
-    # as the reference leg; `clang-cl` is the one people actually run.
+    # TWO drivers are tested, because they are two configurations: this job
+    # was once named clang-cl and ran `clang`, the GNU driver, under which
+    # CMake does NOT set MSVC -- so every `NOT MSVC` block in CMakeLists.txt
+    # applied here and none applied to a user building with clang-cl. That
+    # gap is how `undefined symbol: ___muldc3` reached a user with this job
+    # green. `clang` stays here as the reference leg; `clang-cl`, the one
+    # people run and the one published, is ci.yml's binding Windows job.
     strategy:
       fail-fast: false
       matrix:
-        cc: [clang, clang-cl]
+        # clang-cl is ci.yml's binding job; only the reference leg is here.
+        cc: [clang]
 
     steps:
       - uses: actions/checkout@v4
@@ -136,30 +138,13 @@ jobs:
 
       # Which symbols the objects actually need is the claim this runner is
       # here to check, so print it rather than infer it from a green build.
+      # Which symbols the objects actually need is the claim this runner is
+      # here to check, so read it rather than infer it from a green build.
+      # One recipe for both Windows legs; ci.yml's clang-cl job runs it too.
       - name: What the link actually required
         if: always()
         shell: bash
-        run: |
-          echo "--- any _Fcomplex or compiler-rt complex helper should be ABSENT ---"
-          if command -v llvm-nm >/dev/null 2>&1; then
-            # An ASSERTION, not a printout. This used to list what it found
-            # and exit 0 either way, so it could not fail -- and under the
-            # `clang` driver there was nothing to find anyway, because
-            # fast-math reached that configuration and not clang-cl's.
-            found=$(find build -name '*.obj' -print0 \
-              | xargs -0 -r llvm-nm --undefined-only 2>/dev/null \
-              | grep -iE '_Fcomplex|__mulsc3|__divsc3|__muldc3|__divdc3' \
-              | sort -u || true)
-            if [ -n "$found" ]; then
-              echo "$found" | head -20
-              echo "::error::compiler-rt complex helpers are referenced; the"
-              echo "  MSVC link has nothing that defines them (see CMakeLists.txt)"
-              exit 1
-            fi
-            echo "  none — as designed"
-          else
-            echo "  llvm-nm unavailable; skipped"
-          fi
+        run: make complex-helpers-check
 
       - name: C suite
         if: always()

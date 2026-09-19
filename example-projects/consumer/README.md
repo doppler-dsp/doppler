@@ -4,9 +4,10 @@ One source file, one `find_package(doppler)`, two link modes. If you are
 adding doppler to an existing build, start here: everything else in
 `example-projects/` is this plus a subject.
 
-It calls `doppler_wfmgen()` to generate a short waveform to `consumer.cf32`
-and prints the return code and the path. The waveform is not the point — the
-link line is.
+It runs the local oscillator at a quarter of the sample rate, where the output
+is known exactly (1, j, -1, -j, repeating), and exits 0 only if the samples
+match. It uses the pure-C core alone, so it is the same program on Linux,
+macOS and Windows. The oscillator is not the point — the link line is.
 
 ## What it demonstrates
 

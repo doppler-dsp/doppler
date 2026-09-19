@@ -24,6 +24,13 @@
 #
 # Needs: gh (authenticated) for the download, cmake, a C compiler, and
 #        ldd/otool; pkg-config is exercised when present.
+#
+# Windows (Git Bash, from an MSVC developer environment): the asset is a .zip,
+# the consumer is built with Ninja + clang-cl (cl.exe cannot compile doppler's
+# headers), dependencies are read with llvm-objdump, and the shared consumer
+# finds doppler.dll through PATH. pkg-config and the stream layer are skipped
+# there, each saying why: pkg-config is not how a Windows build finds a
+# library, and the stream layer is not ported (#1364).
 set -euo pipefail
 
 REPO="doppler-dsp/doppler"
@@ -35,8 +42,11 @@ CC="${CC:-cc}"
 case "$(uname -s)" in
     Linux)  SHEXT="so" ;;
     Darwin) SHEXT="dylib" ;;
+    MINGW*|MSYS*|CYGWIN*) SHEXT="dll" ;;
     *) echo "release-smoke: unsupported platform $(uname -s)" >&2; exit 2 ;;
 esac
+WINDOWS=0; EXE=""; EXT="tar.gz"
+if [ "$SHEXT" = dll ]; then WINDOWS=1; EXE=".exe"; EXT="zip"; fi
 
 case "$(uname -s)/$(uname -m)" in
     Linux/x86_64)               PLAT="linux-x86_64" ;;
@@ -44,6 +54,7 @@ case "$(uname -s)/$(uname -m)" in
     # some environments report arm64 instead -- same physical architecture.
     Linux/aarch64|Linux/arm64)  PLAT="linux-aarch64" ;;
     Darwin/arm64)                PLAT="macos-arm64" ;;
+    MINGW*/x86_64|MSYS*/x86_64|CYGWIN*/x86_64)  PLAT="windows-x86_64" ;;
     *) echo "release-smoke: no published tarball for $(uname -s)/$(uname -m)" >&2; exit 2 ;;
 esac
 
@@ -55,25 +66,40 @@ if [ -n "$PREFIX_DIR" ]; then
     prefix="$(cd "$PREFIX_DIR" && pwd)"
     echo ">> using local prefix: $prefix"
 else
-    tarball="doppler-${VERSION}-${PLAT}.tar.gz"
+    tarball="doppler-${VERSION}-${PLAT}.${EXT}"
     echo ">> downloading $tarball from release v$VERSION"
     ( cd "$work" && gh release download "v${VERSION}" -R "$REPO" -p "$tarball" )
     prefix="$work/prefix"
     mkdir -p "$prefix"
-    tar -xzf "$work/$tarball" -C "$prefix"
+    # cmake reads both formats; Git Bash has no unzip.
+    ( cd "$prefix" && cmake -E tar xf "$work/$tarball" )
 fi
 
 # ── locate headers, libs, pkgconfig (libdir is lib64 on manylinux, lib on macOS)
-lib_so="$(find "$prefix" -name "libdoppler.${SHEXT}" | head -1)"
-[ -n "$lib_so" ] || { echo "FAIL: no libdoppler.${SHEXT} in the tarball" >&2; exit 1; }
-libdir="$(dirname "$lib_so")"
+# Windows names them differently: the DLL is bin/doppler.dll, lib/doppler.lib is
+# its import library, and the static library is lib/doppler_static.lib.
+if [ "$WINDOWS" = 1 ]; then
+    shname="doppler.dll"; stname="doppler_static.lib"
+else
+    shname="libdoppler.${SHEXT}"; stname="libdoppler.a"
+fi
+lib_so="$(find "$prefix" -name "$shname" | head -1)"
+[ -n "$lib_so" ] || { echo "FAIL: no $shname in the archive" >&2; exit 1; }
+libdir="$prefix/lib"
+[ "$WINDOWS" = 1 ] || libdir="$(dirname "$lib_so")"
 pcdir="$libdir/pkgconfig"
-[ -f "$prefix/include/wfm/wfmgen.h" ] || { echo "FAIL: missing headers" >&2; exit 1; }
-[ -f "$libdir/libdoppler.a" ]         || { echo "FAIL: no libdoppler.a" >&2; exit 1; }
+[ -f "$prefix/include/lo/lo_core.h" ] || { echo "FAIL: missing headers" >&2; exit 1; }
+[ -f "$libdir/$stname" ]              || { echo "FAIL: no $stname" >&2; exit 1; }
 echo "   prefix=$prefix  libdir=$libdir"
 
 # ── no-zmq assertion (ldd on Linux, otool -L on macOS); pipefail-safe ─────────
-deps() { if [ "$SHEXT" = dylib ]; then otool -L "$1"; else ldd "$1"; fi; }
+deps() {
+    case "$SHEXT" in
+        dylib) otool -L "$1" ;;
+        dll)   llvm-objdump -p "$1" | grep 'DLL Name' ;;
+        *)     ldd "$1" ;;
+    esac
+}
 assert_no_zmq() {
     local hits
     hits="$(deps "$1" | grep -i zmq || true)"
@@ -85,7 +111,7 @@ assert_no_zmq() {
 }
 
 assert_no_zmq "$lib_so"
-echo "   libdoppler.${SHEXT}: no libzmq runtime dep"
+echo "   $shname: no libzmq runtime dep"
 
 run() {  # run a freshly built consumer and assert it has no libzmq dep
     "$1" >/dev/null || { echo "FAIL: $1 did not run" >&2; exit 1; }
@@ -96,15 +122,23 @@ run() {  # run a freshly built consumer and assert it has no libzmq dep
 # ── 1 & 2: CMake find_package (shared + static) via the example project ───────
 echo ">> CMake find_package (doppler::doppler + doppler::doppler-static)"
 cbuild="$work/cmake-build"
-cmake -S "$ROOT/example-projects/consumer" -B "$cbuild" \
+gen=()
+if [ "$WINDOWS" = 1 ]; then
+    gen=(-G Ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=Release)
+    export PATH="$prefix/bin:$PATH"   # how the shared consumer finds the DLL
+fi
+cmake -S "$ROOT/example-projects/consumer" -B "$cbuild" "${gen[@]}" \
     -DCMAKE_PREFIX_PATH="$prefix" >/dev/null
 cmake --build "$cbuild" >/dev/null
-run "$cbuild/consumer_shared"
-[ -x "$cbuild/consumer_static" ] || { echo "FAIL: static target not built" >&2; exit 1; }
-run "$cbuild/consumer_static"
+run "$cbuild/consumer_shared$EXE"
+[ -x "$cbuild/consumer_static$EXE" ] || { echo "FAIL: static target not built" >&2; exit 1; }
+run "$cbuild/consumer_static$EXE"
 
 # ── 3 & 4: pkg-config (shared + static), when pkg-config is available ─────────
-if command -v pkg-config >/dev/null 2>&1; then
+if [ "$WINDOWS" = 1 ]; then
+    echo ">> pkg-config: skipped on Windows — find_package above is the"
+    echo "   Windows face (the .pc file still ships, untested here)"
+elif command -v pkg-config >/dev/null 2>&1; then
     export PKG_CONFIG_PATH="$pcdir"
     src="$ROOT/example-projects/consumer/main.c"
 
@@ -130,6 +164,13 @@ fi
 # Builds the core+stream consumer via every face and asserts identical
 # output — the docs' "Compile it — three ways" snippets are --8<-- included
 # from the very script this runs.
+if [ "$WINDOWS" = 1 ]; then
+    echo ">> stream consumer: skipped — the stream layer is not built on"
+    echo "   Windows (#1364)"
+    echo ">> PASS: v$VERSION ($PLAT) consumable via find_package, static +"
+    echo "         shared (core), no libzmq anywhere."
+    exit 0
+fi
 echo ">> stream consumer, three ways"
 bash "$ROOT/tests/install/stream-consumer/build-three-ways.sh" "$prefix"
 

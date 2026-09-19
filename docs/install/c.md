@@ -59,6 +59,31 @@ running `nats-server` to connect to. See the
 [static vs. dynamic linking design notes](../design/archive/STATIC_VS_DYNAMIC.md)
 for why static vendoring was chosen over a system client-library dependency.
 
+### Windows
+
+Every release also carries `doppler-<version>-windows-x86_64.zip`, built with
+clang-cl against the MSVC runtime. Your own code must be compiled with
+**clang-cl** as well: doppler's headers use C99 `_Complex`, which MSVC's
+`cl.exe` does not implement, and they stop a `cl.exe` build with an `#error`
+saying so. From a *Developer PowerShell for VS* (x64), with the *C++ Clang
+tools for Windows* component installed:
+
+```powershell
+$v = "X.Y.Z"   # the release to install
+curl.exe -L -o doppler.zip `
+  "https://github.com/doppler-dsp/doppler/releases/download/v$v/doppler-$v-windows-x86_64.zip"
+Expand-Archive doppler.zip -DestinationPath "$HOME\doppler"
+cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-cl `
+  -DCMAKE_PREFIX_PATH="$HOME\doppler"
+```
+
+`find_package(doppler)` works exactly as below; pkg-config is not the Windows
+path. `doppler::doppler` links the DLL — put `$HOME\doppler\bin` on `PATH`,
+or copy `doppler.dll` beside your executable — and
+`doppler::doppler-static` links `doppler_static.lib` with no DLL at all. The
+NATS stream layer is not in the Windows build
+([#1364](https://github.com/doppler-dsp/doppler/issues/1364)).
+
 ## System install
 
 Install headers and libraries to a system prefix (default `/usr/local`)

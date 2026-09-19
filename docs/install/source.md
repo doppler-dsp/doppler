@@ -67,8 +67,11 @@ ctest --test-dir build --output-on-failure
 ```
 
 This is the build `.github/workflows/windows.yml` runs, once per driver, on
-every push to `main` and on pull requests that touch the C. That workflow is **non-binding** and publishes nothing: there are no
-Windows wheels or tarballs. On Windows the static library is
+every push to `main` and on pull requests that touch the C. The clang-cl
+build is **binding** (`ci.yml`'s Windows job) and is what every release
+publishes as `doppler-<version>-windows-x86_64.zip` — see
+[Install the C library → Windows](c.md#windows) to use it without building.
+There are no Windows wheels yet. On Windows the static library is
 `doppler_static.lib`, because `doppler.lib` is already the DLL's import
 library. The CMake target names (`doppler::doppler`, `doppler::doppler-static`)
 are the same on every platform.

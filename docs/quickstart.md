@@ -317,8 +317,9 @@ optional stream component, which vendors `nats.c`, are both pure C99).
         The C library builds natively with clang or clang-cl (Visual
         Studio's *C++ Clang tools for Windows*): see
         [Build from Source → Windows](install/source.md#windows) for the
-        commands and what the Windows build leaves out. There are no Windows
-        wheels; for Python, use
+        commands and what the Windows build leaves out, or download the
+        pre-built zip: [Install the C library → Windows](install/c.md#windows).
+        There are no Windows wheels; for Python, use
         [WSL2](https://learn.microsoft.com/windows/wsl/), a VM, or a
         container and follow the Ubuntu / Debian steps.
 

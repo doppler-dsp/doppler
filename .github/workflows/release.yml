@@ -360,6 +360,39 @@ jobs:
           name: c-dist-macos
           path: dist/doppler-*-macos-arm64.tar.gz
 
+  # The Windows C library, as a .zip -- built with clang-cl against the MSVC
+  # runtime, which is the build ci.yml's binding Windows job packages and
+  # consumes on every PR, so the tag cannot meet a Windows build nothing
+  # tested. No starter archive: it bundles the downstream project's Python
+  # extension, and doppler's extensions are not built on Windows yet.
+  build-c-windows:
+    name: Package C library (Windows x86_64)
+    needs: verify-version
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: MSVC developer environment (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build + zip the C library
+        run: |
+          make package-c-tarball \
+            VERSION="${{ needs.verify-version.outputs.version }}" \
+            CMAKE_ARGS="-G Ninja -DCMAKE_C_COMPILER=clang-cl"
+
+      - name: Upload C library (Windows)
+        uses: actions/upload-artifact@v7
+        with:
+          name: c-dist-windows
+          path: dist/doppler-*-windows-x86_64.zip
+
   # ------------------------------------------------------------------
   # Publish to PyPI (uses trusted publishing — configure in PyPI)
   # ------------------------------------------------------------------
@@ -682,6 +715,7 @@ jobs:
       - build-macos
       - build-c-linux
       - build-c-macos
+      - build-c-windows
       - publish-python
       # The MERGE job, not the per-arch builds: until it runs, the images
       # exist only as untagged digests and `:<version>` resolves to nothing.
@@ -755,8 +789,13 @@ jobs:
             plat: linux-aarch64
           - os: macos-14
             plat: macos-arm64
+          - os: windows-latest
+            plat: windows-x86_64
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 
@@ -764,7 +803,15 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install pkg-config
 
-      - name: Smoke-test the published tarball
+      # The consumer is compiled with clang-cl, which needs the MSVC
+      # environment exactly as the build did.
+      - name: MSVC developer environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Smoke-test the published archive
         env:
           GH_TOKEN: ${{ github.token }}
         run: make release-smoke VERSION="${{ needs.verify-version.outputs.version }}"

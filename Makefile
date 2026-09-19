@@ -584,9 +584,11 @@ COMPILE_DB = symlink
 # abi-check and glibc-gate already assume -- cannot run: complex-helpers-check
 # reads clang-cl objects, and package-c-smoke consumes the archive
 # package-c-tarball just built, a recipe that reconfigures the build tree
-# without Python and must not be run on a dev box by `make gates`. Excluded
+# without Python and must not be run on a dev box by `make gates`; and
+# vcpkg-smoke needs a bootstrapped vcpkg (VCPKG_ROOT), which the Windows
+# runner image carries and a dev box has no reason to. Excluded
 # by name, like provisioning, so that adding one is a visible decision.
-GATES_WINDOWS_ONLY = complex-helpers-check package-c-smoke
+GATES_WINDOWS_ONLY = complex-helpers-check package-c-smoke vcpkg-smoke
 # ci-changes is ci.yml's `changes` job: it CLASSIFIES the diff (is it a
 # version bump alone?) so the matrix can skip, and gates nothing itself --
 # the gating is `CI passed`'s, in scripts/ci_passed.py.
@@ -1222,7 +1224,7 @@ VERSION_SITES_CMD = python3 scripts/version_sites.py
 # EXPORTS VERSION_PROBES, so a shell in it would run once per recipe, on every
 # target -- this is pure make text and costs nothing.
 VERSION_SITE_LABELS = pyproject.toml CMakeLists.txt Cargo.toml \
-                      bootstrap.toml just-makeit.toml
+                      bootstrap.toml just-makeit.toml vcpkg.json
 
 define VERSION_PROBE_NEWLINE
 
@@ -1303,7 +1305,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 plot-rx-dynamics \
                 gen-c-api-check \
                 gen-c-api-run \
-                package-c package-c-tarball package-c-smoke \
+                package-c package-c-tarball package-c-smoke vcpkg-smoke \
                 complex-helpers-check sdist release-notes \
                 release-pr release-notes-body-check \
                 release-freshness-check \
@@ -2214,6 +2216,18 @@ endif
 	@cd $(C_SMOKE_PREFIX) && $(CMAKE) -E tar xf \
 	    "$(abspath $(DIST_DIR))/doppler-$(VERSION)-$(C_PLATFORM).$(C_ARCHIVE_EXT)"
 	bash tests/install/release-smoke.sh "$(VERSION)" "$(C_SMOKE_PREFIX)"
+
+# The vcpkg face: install doppler through the in-repo overlay port
+# (packaging/vcpkg/) and build the same consumer through vcpkg's toolchain
+# file -- no CMAKE_PREFIX_PATH, no PATH edit, because a vcpkg user writes
+# neither. The port builds THIS checkout, so it is tested on every PR against
+# the source it ships with, and wraps the same configure `package-c` runs.
+# The work dir sits under $(BUILD_DIR) so a failed run can be inspected.
+VCPKG_SMOKE_DIR ?= $(BUILD_DIR)/vcpkg-smoke
+
+vcpkg-smoke: ## [TRIPLET=...] install the vcpkg overlay port and consume it (needs VCPKG_ROOT)
+	@rm -rf $(VCPKG_SMOKE_DIR)
+	bash tests/install/vcpkg-smoke.sh "$(TRIPLET)" "$(VCPKG_SMOKE_DIR)"
 
 # clang-cl links against the MSVC runtime, which defines none of compiler-rt's
 # complex helpers (__mulsc3 and friends) and no _Fcomplex arithmetic. A build

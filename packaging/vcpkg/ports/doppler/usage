@@ -1,0 +1,8 @@
+doppler provides CMake targets:
+
+  find_package(doppler CONFIG REQUIRED)
+  target_link_libraries(main PRIVATE doppler::doppler)
+
+On Windows the consumer must compile with clang-cl as well
+(-DCMAKE_C_COMPILER=clang-cl): doppler's headers use C99 complex
+arithmetic, which cl.exe does not implement.

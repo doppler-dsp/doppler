@@ -261,6 +261,7 @@ jobs:
         cmake --version | head -1
         ninja --version
         make --version | head -1
+        "$VCPKG_INSTALLATION_ROOT/vcpkg" version | head -1
 
     # The library, the tests and the benchmarks, installed and zipped by the
     # recipe release.yml runs -- one build serves the suite and the package.
@@ -275,6 +276,14 @@ jobs:
 
     - name: Consume the packaged zip (find_package, static + shared)
       run: make package-c-smoke VERSION=ci
+
+    # The vcpkg face, from the in-repo overlay port and the clang-cl triplet
+    # (packaging/vcpkg/). vcpkg is the runner image's own, at
+    # VCPKG_INSTALLATION_ROOT. It builds the checkout a second time, in a
+    # scrubbed environment and in both configurations, which is the point:
+    # that is the build a vcpkg user gets.
+    - name: Install + consume through vcpkg (overlay port, clang-cl triplet)
+      run: make vcpkg-smoke
 
   # macOS still provisions with brew, because there is no macOS container to
   # bake: `make install-deps` is the one dep command a developer also runs and

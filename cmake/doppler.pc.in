@@ -16,4 +16,4 @@ Libs: -L${libdir} -ldoppler
 # has its own module: `pkg-config --cflags --libs doppler_stream` gives the
 # complete streaming link line (it Requires: this core module).
 Libs.private: -lm -lpthread
-Cflags: -I${includedir}
+Cflags: -I${includedir}/doppler

@@ -88,7 +88,7 @@ lib_so="$(find "$prefix" -name "$shname" | head -1)"
 libdir="$prefix/lib"
 [ "$WINDOWS" = 1 ] || libdir="$(dirname "$lib_so")"
 pcdir="$libdir/pkgconfig"
-[ -f "$prefix/include/lo/lo_core.h" ] || { echo "FAIL: missing headers" >&2; exit 1; }
+[ -f "$prefix/include/doppler/lo/lo_core.h" ] || { echo "FAIL: missing headers" >&2; exit 1; }
 [ -f "$libdir/$stname" ]              || { echo "FAIL: no $stname" >&2; exit 1; }
 echo "   prefix=$prefix  libdir=$libdir"
 

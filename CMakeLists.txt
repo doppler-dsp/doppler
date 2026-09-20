@@ -250,7 +250,7 @@ foreach(_t doppler_lib doppler_lib_static)
     target_include_directories(${_t} PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
         $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/native/inc>
-        $<INSTALL_INTERFACE:include>)
+        $<INSTALL_INTERFACE:include/doppler>)
     # The feature-test macro travels with the TARGET, so a downstream that
     # links doppler gets it on its own compile line without reading a note
     # (doppler#986). buffer.h is installed and calls syscall()/ftruncate();
@@ -1225,7 +1225,7 @@ if(NOT WIN32)
         set_target_properties(${_s} PROPERTIES OUTPUT_NAME doppler_stream)
         target_include_directories(${_s} PUBLIC
             $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/native/inc>
-            $<INSTALL_INTERFACE:include>)
+            $<INSTALL_INTERFACE:include/doppler>)
     endforeach()
     set_target_properties(doppler_stream        PROPERTIES EXPORT_NAME stream)
     # Versioned with the core, for the same reason (see DOPPLER_SOVERSION).
@@ -1291,10 +1291,23 @@ if(NOT WIN32)
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif()
 
+# Under include/doppler/, not include/ itself: native/inc holds 138 entries
+# with names no one library should own at a prefix root -- fft/, util/,
+# stream/, source/, pocketfft/, clib_common.h -- which is harmless in a
+# private prefix and a collision waiting in /usr/local or /usr (doppler#1408).
+# The headers include each other root-relative ("nco/nco_core.h") and a
+# consumer writes <lo/lo_core.h>; both keep working, because the -I that
+# find_package and pkg-config hand out moves with the files
+# (INSTALL_INTERFACE above, Cflags in the .pc). `package-c` refuses an
+# install tree with anything else in include/.
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/native/inc/
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/doppler
     FILES_MATCHING PATTERN "*.h"
-    PATTERN "pyex_common.h" EXCLUDE)
+    PATTERN "pyex_common.h" EXCLUDE
+    # doppler/ holds only version.h.in, a build-time template: FILES_MATCHING
+    # skips the file and still creates the directory, so every install tree
+    # shipped an empty include/doppler/ (vcpkg's post-build lint found it).
+    PATTERN "doppler" EXCLUDE)
 
 install(EXPORT doppler-targets
     FILE doppler-targets.cmake

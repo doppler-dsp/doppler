@@ -1,0 +1,7313 @@
+{
+ "machine_info": {
+  "node": "cachyos-x8664-ai465",
+  "processor": "",
+  "machine": "x86_64",
+  "python_compiler": "Clang 22.1.3 ",
+  "python_implementation": "CPython",
+  "python_implementation_version": "3.13.13",
+  "python_version": "3.13.13",
+  "python_build": [
+   "main",
+   "May 10 2026 19:26:54"
+  ],
+  "release": "7.2.5-1-cachyos",
+  "system": "Linux",
+  "cpu": {
+   "python_version": "3.13.13.final.0 (64 bit)",
+   "cpuinfo_version": [
+    9,
+    0,
+    0
+   ],
+   "cpuinfo_version_string": "9.0.0",
+   "arch": "X86_64",
+   "bits": 64,
+   "count": 20,
+   "arch_string_raw": "x86_64",
+   "vendor_id_raw": "AuthenticAMD",
+   "brand_raw": "AMD Ryzen AI 9 465 w/ Radeon 880M",
+   "hz_advertised_friendly": "5.0398 GHz",
+   "hz_actual_friendly": "5.0398 GHz",
+   "hz_advertised": [
+    5039772000,
+    0
+   ],
+   "hz_actual": [
+    5039772000,
+    0
+   ],
+   "model": 36,
+   "family": 26,
+   "flags": [
+    "3dnowprefetch",
+    "abm",
+    "adx",
+    "aes",
+    "amd_lbr_pmc_freeze",
+    "amd_lbr_v2",
+    "aperfmperf",
+    "apic",
+    "arat",
+    "avic",
+    "avx",
+    "avx2",
+    "avx512_bf16",
+    "avx512_bitalg",
+    "avx512_vbmi2",
+    "avx512_vnni",
+    "avx512_vp2intersect",
+    "avx512_vpopcntdq",
+    "avx512bitalg",
+    "avx512bw",
+    "avx512cd",
+    "avx512dq",
+    "avx512f",
+    "avx512ifma",
+    "avx512vbmi",
+    "avx512vbmi2",
+    "avx512vl",
+    "avx512vnni",
+    "avx512vpopcntdq",
+    "avx_vnni",
+    "bmi1",
+    "bmi2",
+    "bpext",
+    "bus_lock_detect",
+    "cat_l3",
+    "cdp_l3",
+    "clflush",
+    "clflushopt",
+    "clwb",
+    "clzero",
+    "cmov",
+    "cmp_legacy",
+    "constant_tsc",
+    "cpb",
+    "cppc",
+    "cpuid",
+    "cpuid_fault",
+    "cqm",
+    "cqm_llc",
+    "cqm_mbm_local",
+    "cqm_mbm_total",
+    "cqm_occup_llc",
+    "cr8_legacy",
+    "cx16",
+    "cx8",
+    "dbx",
+    "de",
+    "decodeassists",
+    "erms",
+    "extapic",
+    "extd_apicid",
+    "f16c",
+    "flush_l1d",
+    "flushbyasid",
+    "fma",
+    "fpu",
+    "fsgsbase",
+    "fsrm",
+    "fxsr",
+    "fxsr_opt",
+    "gfni",
+    "ht",
+    "hw_pstate",
+    "ibpb",
+    "ibrs",
+    "ibrs_enhanced",
+    "ibs",
+    "invpcid",
+    "irperf",
+    "lahf_lm",
+    "lbrv",
+    "lm",
+    "mba",
+    "mca",
+    "mce",
+    "misalignsse",
+    "mmx",
+    "mmxext",
+    "monitor",
+    "movbe",
+    "movdir64b",
+    "movdiri",
+    "msr",
+    "mtrr",
+    "mwaitx",
+    "nonstop_tsc",
+    "nopl",
+    "npt",
+    "nrip_save",
+    "nx",
+    "ospke",
+    "osvw",
+    "osxsave",
+    "overflow_recov",
+    "pae",
+    "pat",
+    "pausefilter",
+    "pci_l2i",
+    "pclmulqdq",
+    "pdpe1gb",
+    "perfctr_core",
+    "perfctr_llc",
+    "perfctr_nb",
+    "perfmon_v2",
+    "pfthreshold",
+    "pge",
+    "pku",
+    "pni",
+    "popcnt",
+    "pqe",
+    "pqm",
+    "pse",
+    "pse36",
+    "rapl",
+    "rdpid",
+    "rdpru",
+    "rdrand",
+    "rdrnd",
+    "rdseed",
+    "rdt_a",
+    "rdtscp",
+    "rep_good",
+    "sep",
+    "sha",
+    "sha_ni",
+    "skinit",
+    "smap",
+    "smca",
+    "smep",
+    "ssbd",
+    "sse",
+    "sse2",
+    "sse4_1",
+    "sse4_2",
+    "sse4a",
+    "ssse3",
+    "stibp",
+    "succor",
+    "svm",
+    "svm_lock",
+    "syscall",
+    "tce",
+    "topoext",
+    "tsc",
+    "tsc_adjust",
+    "tsc_scale",
+    "umip",
+    "user_shstk",
+    "v_spec_ctrl",
+    "v_vmsave_vmload",
+    "vaes",
+    "vgif",
+    "vmcb_clean",
+    "vme",
+    "vmmcall",
+    "vnmi",
+    "vpclmulqdq",
+    "wbnoinvd",
+    "wdt",
+    "x2avic",
+    "xgetbv1",
+    "xsave",
+    "xsavec",
+    "xsaveerptr",
+    "xsaveopt",
+    "xsaves",
+    "xtopology"
+   ],
+   "l3_cache_size": 1048576,
+   "l2_cache_size": 10485760,
+   "l1_data_cache_size": 491520,
+   "l1_instruction_cache_size": 327680,
+   "l2_cache_line_size": 1024,
+   "l2_cache_associativity": 8
+  }
+ },
+ "commit_info": {
+  "id": "cd82167ba9a0682f3242c50290942b2d5831844f",
+  "time": "2026-09-20T09:31:16-04:00",
+  "author_time": "2026-09-20T09:12:15-04:00",
+  "dirty": false,
+  "project": "doppler",
+  "branch": "(detached head)"
+ },
+ "benchmarks": [
+  {
+   "group": null,
+   "name": "bench_acc_cf64::test_bench_steps[1024]",
+   "fullname": "src/doppler/accumulator/benchmarks/bench_acc_cf64.py::test_bench_steps[1024]",
+   "params": {
+    "n": 1024
+   },
+   "param": "1024",
+   "extra_info": {
+    "MSa_s": 1462.9582087866438
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 6.810296326875687e-07,
+    "max": 9.948969818651676e-06,
+    "mean": 6.999516417145577e-07,
+    "stddev": 5.185650263321629e-08,
+    "rounds": 101533,
+    "median": 7.00994860380888e-07,
+    "iqr": 1.0943040251731873e-08,
+    "q1": 6.910413503646851e-07,
+    "q3": 7.019843906164169e-07,
+    "iqr_outliers": 3305,
+    "stddev_outliers": 129,
+    "outliers": "129;3305",
+    "ld15iqr": 6.810296326875687e-07,
+    "hd15iqr": 7.209600880742073e-07,
+    "ops": 1428670.1257682068,
+    "total": 0.0710681900382042,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acc_cf64::test_bench_steps[20480]",
+   "fullname": "src/doppler/accumulator/benchmarks/bench_acc_cf64.py::test_bench_steps[20480]",
+   "params": {
+    "n": 20480
+   },
+   "param": "20480",
+   "extra_info": {
+    "MSa_s": 1665.6626641251287
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.224299194291234e-05,
+    "max": 4.332105163484812e-05,
+    "mean": 1.2295406771788872e-05,
+    "stddev": 2.594880783881423e-07,
+    "rounds": 76605,
+    "median": 1.2272968888282776e-05,
+    "iqr": 1.996522769331932e-08,
+    "q1": 1.2263015378266573e-05,
+    "q3": 1.2282980605959892e-05,
+    "iqr_outliers": 2159,
+    "stddev_outliers": 1402,
+    "outliers": "1402;2159",
+    "ld15iqr": 1.224299194291234e-05,
+    "hd15iqr": 1.2312957551330328e-05,
+    "ops": 81331.1847717348,
+    "total": 0.9418896357528865,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acc_cf64::test_bench_steps[409600]",
+   "fullname": "src/doppler/accumulator/benchmarks/bench_acc_cf64.py::test_bench_steps[409600]",
+   "params": {
+    "n": 409600
+   },
+   "param": "409600",
+   "extra_info": {
+    "MSa_s": 1673.3589330944899
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00024363602278754115,
+    "max": 0.000264393980614841,
+    "mean": 0.00024477713173140904,
+    "stddev": 1.967647910046512e-06,
+    "rounds": 3907,
+    "median": 0.00024380598915740848,
+    "iqr": 1.693028025329113e-06,
+    "q1": 0.0002437559887766838,
+    "q3": 0.0002454490168020129,
+    "iqr_outliers": 230,
+    "stddev_outliers": 317,
+    "outliers": "317;230",
+    "ld15iqr": 0.00024363602278754115,
+    "hd15iqr": 0.0002480240073055029,
+    "ops": 4085.3489577502187,
+    "total": 0.9563442536746152,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acc_cf64::test_bench_steps[819200]",
+   "fullname": "src/doppler/accumulator/benchmarks/bench_acc_cf64.py::test_bench_steps[819200]",
+   "params": {
+    "n": 819200
+   },
+   "param": "819200",
+   "extra_info": {
+    "MSa_s": 1673.1534492715048
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0004871669807471335,
+    "max": 0.0005415700143203139,
+    "mean": 0.0004896143867477796,
+    "stddev": 3.5043717076164035e-06,
+    "rounds": 2036,
+    "median": 0.0004888809926342219,
+    "iqr": 2.409011358395219e-06,
+    "q1": 0.0004874889855273068,
+    "q3": 0.000489897996885702,
+    "iqr_outliers": 189,
+    "stddev_outliers": 204,
+    "outliers": "204;189",
+    "ld15iqr": 0.0004871669807471335,
+    "hd15iqr": 0.0004935189499519765,
+    "ops": 2042.4236441302546,
+    "total": 0.9968548914184794,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acc_f32::test_bench_steps[1024]",
+   "fullname": "src/doppler/accumulator/benchmarks/bench_acc_f32.py::test_bench_steps[1024]",
+   "params": {
+    "n": 1024
+   },
+   "param": "1024",
+   "extra_info": {
+    "MSa_s": 5432.249251219471
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.8674996681511403e-07,
+    "max": 4.6967994421720505e-07,
+    "mean": 1.885038687740856e-07,
+    "stddev": 2.986755387450945e-09,
+    "rounds": 52729,
+    "median": 1.8824997823685408e-07,
+    "iqr": 5.000038072466935e-10,
+    "q1": 1.8795020878314972e-07,
+    "q3": 1.8845021259039641e-07,
+    "iqr_outliers": 3634,
+    "stddev_outliers": 1334,
+    "outliers": "1334;3634",
+    "ld15iqr": 1.872499706223607e-07,
+    "hd15iqr": 1.8924998585134744e-07,
+    "ops": 5304930.909394016,
+    "total": 0.00993962049658876,
+    "iterations": 100
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acc_f32::test_bench_steps[20480]",
+   "fullname": "src/doppler/accumulator/benchmarks/bench_acc_f32.py::test_bench_steps[20480]",
+   "params": {
+    "n": 20480
+   },
+   "param": "20480",
+   "extra_info": {
+    "MSa_s": 6563.419138917002
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.100489266216755e-06,
+    "max": 1.774850534275174e-05,
+    "mean": 3.120324874357987e-06,
+    "stddev": 8.970909612485015e-08,
+    "rounds": 157679,
+    "median": 3.1154777389019728e-06,
+    "iqr": 5.005858838558197e-09,
+    "q1": 3.1109957490116358e-06,
+    "q3": 3.116001607850194e-06,
+    "iqr_outliers": 18533,
+    "stddev_outliers": 1603,
+    "outliers": "1603;18533",
+    "ld15iqr": 3.105495125055313e-06,
+    "hd15iqr": 3.125489456579089e-06,
+    "ops": 320479.4501424317,
+    "total": 0.49200970586389303,
+    "iterations": 2
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acc_f32::test_bench_steps[409600]",
+   "fullname": "src/doppler/accumulator/benchmarks/bench_acc_f32.py::test_bench_steps[409600]",
+   "params": {
+    "n": 409600
+   },
+   "param": "409600",
+   "extra_info": {
+    "MSa_s": 6688.218457494993
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 6.096402648836374e-05,
+    "max": 9.026896441355348e-05,
+    "mean": 6.124201872338537e-05,
+    "stddev": 7.54544546439534e-07,
+    "rounds": 16175,
+    "median": 6.1023980379104614e-05,
+    "iqr": 4.0046870708465576e-08,
+    "q1": 6.10139686614275e-05,
+    "q3": 6.105401553213596e-05,
+    "iqr_outliers": 2337,
+    "stddev_outliers": 1423,
+    "outliers": "1423;2337",
+    "ld15iqr": 6.096402648836374e-05,
+    "hd15iqr": 6.111495895311236e-05,
+    "ops": 16328.658343493636,
+    "total": 0.9905896528507583,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acc_f32::test_bench_steps[819200]",
+   "fullname": "src/doppler/accumulator/benchmarks/bench_acc_f32.py::test_bench_steps[819200]",
+   "params": {
+    "n": 819200
+   },
+   "param": "819200",
+   "extra_info": {
+    "MSa_s": 6690.542639137329
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0001218589604832232,
+    "max": 0.00014931097393855453,
+    "mean": 0.0001224414885584866,
+    "stddev": 1.2955308924839275e-06,
+    "rounds": 7750,
+    "median": 0.00012196996249258518,
+    "iqr": 6.990740075707436e-08,
+    "q1": 0.00012194004375487566,
+    "q3": 0.00012200995115563273,
+    "iqr_outliers": 1585,
+    "stddev_outliers": 943,
+    "outliers": "943;1585",
+    "ld15iqr": 0.0001218589604832232,
+    "hd15iqr": 0.0001221200218424201,
+    "ops": 8167.166307540686,
+    "total": 0.948921536328271,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_agc::test_bench_step",
+   "fullname": "src/doppler/agc/benchmarks/bench_agc.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 4.8289948608726264e-08,
+    "max": 2.625951310619712e-07,
+    "mean": 4.8838558954899664e-08,
+    "stddev": 1.992311356217951e-09,
+    "rounds": 102167,
+    "median": 4.869012627750635e-08,
+    "iqr": 1.4988472685218122e-10,
+    "q1": 4.864006768912077e-08,
+    "q3": 4.878995241597295e-08,
+    "iqr_outliers": 6546,
+    "stddev_outliers": 1495,
+    "outliers": "1495;6546",
+    "ld15iqr": 4.8439833335578445e-08,
+    "hd15iqr": 4.903995431959629e-08,
+    "ops": 20475624.617087033,
+    "total": 0.004989689052745235,
+    "iterations": 200
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_agc::test_bench_steps_64k",
+   "fullname": "src/doppler/agc/benchmarks/bench_agc.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 135.3683260244766
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0004762809840030968,
+    "max": 0.0006236769841052592,
+    "mean": 0.00048413097749432256,
+    "stddev": 5.246016080466051e-06,
+    "rounds": 2040,
+    "median": 0.0004835239960812032,
+    "iqr": 3.936962457373738e-06,
+    "q1": 0.0004817310255020857,
+    "q3": 0.0004856679879594594,
+    "iqr_outliers": 31,
+    "stddev_outliers": 171,
+    "outliers": "171;31",
+    "ld15iqr": 0.0004762809840030968,
+    "hd15iqr": 0.0004916000179946423,
+    "ops": 2065.5567325512175,
+    "total": 0.987627194088418,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acc_q15::test_bench_step",
+   "fullname": "src/doppler/arith/benchmarks/bench_acc_q15.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.499698894098401e-08,
+    "max": 4.9583031795918944e-08,
+    "mean": 2.5783612375883043e-08,
+    "stddev": 4.86819764471046e-10,
+    "rounds": 39483,
+    "median": 2.571899676695466e-08,
+    "iqr": 7.101334631443183e-11,
+    "q1": 2.568797208368778e-08,
+    "q3": 2.5758985430002213e-08,
+    "iqr_outliers": 4603,
+    "stddev_outliers": 1737,
+    "outliers": "1737;4603",
+    "ld15iqr": 2.5587971322238446e-08,
+    "hd15iqr": 2.5867950171232224e-08,
+    "ops": 38784324.92009382,
+    "total": 0.0010180143674369902,
+    "iterations": 1000
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acc_q15::test_bench_steps_64k",
+   "fullname": "src/doppler/arith/benchmarks/bench_acc_q15.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 4998.214577991242
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.2412958312779665e-05,
+    "max": 4.2669998947530985e-05,
+    "mean": 1.3111882048557148e-05,
+    "stddev": 2.623693259300492e-07,
+    "rounds": 62070,
+    "median": 1.308502396568656e-05,
+    "iqr": 1.100124791264534e-08,
+    "q1": 1.3083976227790117e-05,
+    "q3": 1.3094977475702763e-05,
+    "iqr_outliers": 6790,
+    "stddev_outliers": 1198,
+    "outliers": "1198;6790",
+    "ld15iqr": 1.3073964510113001e-05,
+    "hd15iqr": 1.3113953173160553e-05,
+    "ops": 76266.70193468081,
+    "total": 0.8138545187539421,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acc_q8::test_bench_step",
+   "fullname": "src/doppler/arith/benchmarks/bench_acc_q8.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.5057001039385796e-08,
+    "max": 7.043295772746205e-08,
+    "mean": 2.5662809418394116e-08,
+    "stddev": 5.057194435524298e-10,
+    "rounds": 39451,
+    "median": 2.560799475759268e-08,
+    "iqr": 7.99773260951056e-11,
+    "q1": 2.5568006094545126e-08,
+    "q3": 2.564798342064023e-08,
+    "iqr_outliers": 3677,
+    "stddev_outliers": 1572,
+    "outliers": "1572;3677",
+    "ld15iqr": 2.544804010540247e-08,
+    "hd15iqr": 2.57680076174438e-08,
+    "ops": 38966894.99954897,
+    "total": 0.0010124234943650664,
+    "iterations": 1000
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acc_q8::test_bench_steps_64k",
+   "fullname": "src/doppler/arith/benchmarks/bench_acc_q8.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 4254.730354961104
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.5287951100617647e-05,
+    "max": 3.84620507247746e-05,
+    "mean": 1.5403091273124666e-05,
+    "stddev": 2.850946536437292e-07,
+    "rounds": 54693,
+    "median": 1.5369034372270107e-05,
+    "iqr": 3.003515303134918e-08,
+    "q1": 1.5358964446932077e-05,
+    "q3": 1.5388999599963427e-05,
+    "iqr_outliers": 1728,
+    "stddev_outliers": 1229,
+    "outliers": "1229;1728",
+    "ld15iqr": 1.5317986253648996e-05,
+    "hd15iqr": 1.5437952242791653e-05,
+    "ops": 64922.03300416724,
+    "total": 0.8424412710010074,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_buffer::test_bench_f32_write",
+   "fullname": "src/doppler/buffer/benchmarks/bench_buffer.py::test_bench_f32_write",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 4218.154762592612
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.1996675059199333e-07,
+    "max": 5.810987204313278e-06,
+    "mean": 2.427601777632779e-07,
+    "stddev": 5.02634299288148e-08,
+    "rounds": 52340,
+    "median": 2.400483936071396e-07,
+    "iqr": 1.8975697457790375e-08,
+    "q1": 2.3102620616555214e-07,
+    "q3": 2.500019036233425e-07,
+    "iqr_outliers": 749,
+    "stddev_outliers": 111,
+    "outliers": "111;749",
+    "ld15iqr": 2.1996675059199333e-07,
+    "hd15iqr": 2.7997884899377823e-07,
+    "ops": 4119291.760344349,
+    "total": 0.012706067704129964,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_buffer::test_bench_f64_write",
+   "fullname": "src/doppler/buffer/benchmarks/bench_buffer.py::test_bench_f64_write",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 3536.2260253416466
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.5995541363954544e-07,
+    "max": 6.27199187874794e-06,
+    "mean": 2.8957425024919553e-07,
+    "stddev": 4.538683965742905e-08,
+    "rounds": 108261,
+    "median": 2.899905666708946e-07,
+    "iqr": 1.996522769331932e-08,
+    "q1": 2.800370566546917e-07,
+    "q3": 3.00002284348011e-07,
+    "iqr_outliers": 1338,
+    "stddev_outliers": 440,
+    "outliers": "440;1338",
+    "ld15iqr": 2.5995541363954544e-07,
+    "hd15iqr": 3.2997922971844673e-07,
+    "ops": 3453345.727872702,
+    "total": 0.031349597906228155,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_conv_enc::test_bench_encode[8192]",
+   "fullname": "src/doppler/coding/benchmarks/bench_conv_enc.py::test_bench_encode[8192]",
+   "params": {
+    "n": 8192
+   },
+   "param": "8192",
+   "extra_info": {
+    "Mbit_s": 333.0313885308195
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.4474982637912035e-05,
+    "max": 3.977399319410324e-05,
+    "mean": 2.459828197017499e-05,
+    "stddev": 3.3928453230586157e-07,
+    "rounds": 37823,
+    "median": 2.4555949494242668e-05,
+    "iqr": 2.9976945370435715e-08,
+    "q1": 2.4536042474210262e-05,
+    "q3": 2.4566019419580698e-05,
+    "iqr_outliers": 1282,
+    "stddev_outliers": 1188,
+    "outliers": "1188;1282",
+    "ld15iqr": 2.4494947865605354e-05,
+    "hd15iqr": 2.4615961592644453e-05,
+    "ops": 40653.24567026606,
+    "total": 0.9303808189579286,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_conv_enc::test_bench_encode[65536]",
+   "fullname": "src/doppler/coding/benchmarks/bench_conv_enc.py::test_bench_encode[65536]",
+   "params": {
+    "n": 65536
+   },
+   "param": "65536",
+   "extra_info": {
+    "Mbit_s": 335.8242379207207
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0001945660333149135,
+    "max": 0.00021277100313454866,
+    "mean": 0.00019514970213517266,
+    "stddev": 9.861794829335744e-07,
+    "rounds": 5102,
+    "median": 0.0001948369899764657,
+    "iqr": 2.200249582529068e-07,
+    "q1": 0.00019473698921501637,
+    "q3": 0.00019495701417326927,
+    "iqr_outliers": 1034,
+    "stddev_outliers": 660,
+    "outliers": "660;1034",
+    "ld15iqr": 0.0001945660333149135,
+    "hd15iqr": 0.00019528804114088416,
+    "ops": 5124.271208507091,
+    "total": 0.9956537802936509,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_conv_enc::test_bench_constraint_length[3]",
+   "fullname": "src/doppler/coding/benchmarks/bench_conv_enc.py::test_bench_constraint_length[3]",
+   "params": {
+    "k": 3
+   },
+   "param": "3",
+   "extra_info": {
+    "Mbit_s": 333.1121421504757
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.4475972168147564e-05,
+    "max": 5.835999036207795e-05,
+    "mean": 2.459231881226189e-05,
+    "stddev": 4.166567152981264e-07,
+    "rounds": 39561,
+    "median": 2.4545995984226465e-05,
+    "iqr": 3.003515303134918e-08,
+    "q1": 2.452696207910776e-05,
+    "q3": 2.455699723213911e-05,
+    "iqr_outliers": 1458,
+    "stddev_outliers": 1075,
+    "outliers": "1075;1458",
+    "ld15iqr": 2.448598388582468e-05,
+    "hd15iqr": 2.4605949874967337e-05,
+    "ops": 40663.10328985299,
+    "total": 0.9728967245318927,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_conv_enc::test_bench_constraint_length[5]",
+   "fullname": "src/doppler/coding/benchmarks/bench_conv_enc.py::test_bench_constraint_length[5]",
+   "params": {
+    "k": 5
+   },
+   "param": "5",
+   "extra_info": {
+    "Mbit_s": 333.17664271605685
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.4476030375808477e-05,
+    "max": 5.537300603464246e-05,
+    "mean": 2.4587557918882894e-05,
+    "stddev": 3.985216871935147e-07,
+    "rounds": 39405,
+    "median": 2.4545995984226465e-05,
+    "iqr": 2.9976945370435715e-08,
+    "q1": 2.4526030756533146e-05,
+    "q3": 2.455600770190358e-05,
+    "iqr_outliers": 1415,
+    "stddev_outliers": 1117,
+    "outliers": "1117;1415",
+    "ld15iqr": 2.448499435558915e-05,
+    "hd15iqr": 2.4605949874967337e-05,
+    "ops": 40670.976894049905,
+    "total": 0.9688727197935805,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_conv_enc::test_bench_constraint_length[7]",
+   "fullname": "src/doppler/coding/benchmarks/bench_conv_enc.py::test_bench_constraint_length[7]",
+   "params": {
+    "k": 7
+   },
+   "param": "7",
+   "extra_info": {
+    "Mbit_s": 333.07633793508086
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.4477019906044006e-05,
+    "max": 5.4191972594708204e-05,
+    "mean": 2.459496237645282e-05,
+    "stddev": 4.188398406598025e-07,
+    "rounds": 39312,
+    "median": 2.4545995984226465e-05,
+    "iqr": 2.1012965589761734e-08,
+    "q1": 2.453598426654935e-05,
+    "q3": 2.455699723213911e-05,
+    "iqr_outliers": 1902,
+    "stddev_outliers": 1050,
+    "outliers": "1050;1902",
+    "ld15iqr": 2.4505949113518e-05,
+    "hd15iqr": 2.4595996364951134e-05,
+    "ops": 40658.73265809093,
+    "total": 0.9668771609431133,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_conv_enc::test_bench_constraint_length[9]",
+   "fullname": "src/doppler/coding/benchmarks/bench_conv_enc.py::test_bench_constraint_length[9]",
+   "params": {
+    "k": 9
+   },
+   "param": "9",
+   "extra_info": {
+    "Mbit_s": 333.0813077865341
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.446601865813136e-05,
+    "max": 8.908699965104461e-05,
+    "mean": 2.459459539906126e-05,
+    "stddev": 4.978756440957694e-07,
+    "rounds": 39219,
+    "median": 2.4545995984226465e-05,
+    "iqr": 2.9045622795820236e-08,
+    "q1": 2.453598426654935e-05,
+    "q3": 2.456502988934517e-05,
+    "iqr_outliers": 1369,
+    "stddev_outliers": 1018,
+    "outliers": "1018;1369",
+    "ld15iqr": 2.4494947865605354e-05,
+    "hd15iqr": 2.4615961592644453e-05,
+    "ops": 40659.339329410905,
+    "total": 0.9645754369557835,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_interleaver::test_bench_interleave[1-8192]",
+   "fullname": "src/doppler/coding/benchmarks/bench_interleaver.py::test_bench_interleave[1-8192]",
+   "params": {
+    "unit_bits": 1,
+    "n": 8192
+   },
+   "param": "1-8192",
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 9.957992006093264e-06,
+    "max": 3.285199636593461e-05,
+    "mean": 1.0032575162228588e-05,
+    "stddev": 2.3659757107878157e-07,
+    "rounds": 88489,
+    "median": 1.0009040124714375e-05,
+    "iqr": 1.996522769331932e-08,
+    "q1": 9.999028407037258e-06,
+    "q3": 1.0018993634730577e-05,
+    "iqr_outliers": 3635,
+    "stddev_outliers": 1399,
+    "outliers": "1399;3635",
+    "ld15iqr": 9.977957233786583e-06,
+    "hd15iqr": 1.0048970580101013e-05,
+    "ops": 99675.30607344733,
+    "total": 0.8877725435304455,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_interleaver::test_bench_interleave[1-65536]",
+   "fullname": "src/doppler/coding/benchmarks/bench_interleaver.py::test_bench_interleave[1-65536]",
+   "params": {
+    "unit_bits": 1,
+    "n": 65536
+   },
+   "param": "1-65536",
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 7.808703230693936e-05,
+    "max": 0.00010189204476773739,
+    "mean": 7.833527817898672e-05,
+    "stddev": 7.082477468155211e-07,
+    "rounds": 12649,
+    "median": 7.818697486072779e-05,
+    "iqr": 7.898779585957527e-08,
+    "q1": 7.814797572791576e-05,
+    "q3": 7.822696352377534e-05,
+    "iqr_outliers": 1097,
+    "stddev_outliers": 1030,
+    "outliers": "1030;1097",
+    "ld15iqr": 7.808703230693936e-05,
+    "hd15iqr": 7.837801240384579e-05,
+    "ops": 12765.640503824086,
+    "total": 0.9908629336860031,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_interleaver::test_bench_interleave[8-8192]",
+   "fullname": "src/doppler/coding/benchmarks/bench_interleaver.py::test_bench_interleave[8-8192]",
+   "params": {
+    "unit_bits": 8,
+    "n": 8192
+   },
+   "param": "8-8192",
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.4076009392738343e-06,
+    "max": 6.364897126331926e-06,
+    "mean": 1.4282433019311857e-06,
+    "stddev": 6.103250460985588e-08,
+    "rounds": 68933,
+    "median": 1.424603397026658e-06,
+    "iqr": 2.9976945370435715e-09,
+    "q1": 1.4227000065147876e-06,
+    "q3": 1.4256977010518312e-06,
+    "iqr_outliers": 3183,
+    "stddev_outliers": 1090,
+    "outliers": "1090;3183",
+    "ld15iqr": 1.4185963664203882e-06,
+    "hd15iqr": 1.4305987861007452e-06,
+    "ops": 700160.8189920159,
+    "total": 0.09845309553202242,
+    "iterations": 10
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_interleaver::test_bench_interleave[8-65536]",
+   "fullname": "src/doppler/coding/benchmarks/bench_interleaver.py::test_bench_interleave[8-65536]",
+   "params": {
+    "unit_bits": 8,
+    "n": 65536
+   },
+   "param": "8-65536",
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 9.9879689514637e-06,
+    "max": 3.973499406129122e-05,
+    "mean": 1.0050379477215188e-05,
+    "stddev": 2.486354609247922e-07,
+    "rounds": 85602,
+    "median": 1.0029005352407694e-05,
+    "iqr": 2.0023435354232788e-08,
+    "q1": 1.0018993634730577e-05,
+    "q3": 1.003901707008481e-05,
+    "iqr_outliers": 1884,
+    "stddev_outliers": 1354,
+    "outliers": "1354;1884",
+    "ld15iqr": 9.997980669140816e-06,
+    "hd15iqr": 1.007795799523592e-05,
+    "ops": 99498.73059689536,
+    "total": 0.8603325840085745,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_interleaver::test_bench_deinterleave_soft[8192]",
+   "fullname": "src/doppler/coding/benchmarks/bench_interleaver.py::test_bench_deinterleave_soft[8192]",
+   "params": {
+    "n": 8192
+   },
+   "param": "8192",
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.155101926997304e-05,
+    "max": 3.9412989281117916e-05,
+    "mean": 1.1627930205846331e-05,
+    "stddev": 3.234681222121608e-07,
+    "rounds": 68461,
+    "median": 1.159199746325612e-05,
+    "iqr": 1.1059455573558807e-08,
+    "q1": 1.1590949725359678e-05,
+    "q3": 1.1602009180933237e-05,
+    "iqr_outliers": 9660,
+    "stddev_outliers": 1406,
+    "outliers": "1406;9660",
+    "ld15iqr": 1.1580996215343475e-05,
+    "hd15iqr": 1.1620984878391027e-05,
+    "ops": 85999.82819790374,
+    "total": 0.7960597298224457,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_interleaver::test_bench_deinterleave_soft[65536]",
+   "fullname": "src/doppler/coding/benchmarks/bench_interleaver.py::test_bench_deinterleave_soft[65536]",
+   "params": {
+    "n": 65536
+   },
+   "param": "65536",
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 9.10600065253675e-05,
+    "max": 0.00015032000374048948,
+    "mean": 9.1570524833951e-05,
+    "stddev": 1.5599505380919783e-06,
+    "rounds": 10631,
+    "median": 9.125098586082458e-05,
+    "iqr": 1.2101372703909874e-07,
+    "q1": 9.119999594986439e-05,
+    "q3": 9.132100967690349e-05,
+    "iqr_outliers": 1773,
+    "stddev_outliers": 664,
+    "outliers": "664;1773",
+    "ld15iqr": 9.10600065253675e-05,
+    "hd15iqr": 9.151000995188951e-05,
+    "ops": 10920.54459459903,
+    "total": 0.9734862495097332,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_rs_codec::test_bench_create",
+   "fullname": "src/doppler/coding/benchmarks/bench_rs_codec.py::test_bench_create",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 5.721101640827126e-07,
+    "max": 7.499552642305692e-06,
+    "mean": 5.867491294017415e-07,
+    "stddev": 3.111668218960278e-08,
+    "rounds": 183151,
+    "median": 5.855561337537235e-07,
+    "iqr": 7.773956490887489e-09,
+    "q1": 5.811129489706623e-07,
+    "q3": 5.888869054615498e-07,
+    "iqr_outliers": 2267,
+    "stddev_outliers": 1692,
+    "outliers": "1692;2267",
+    "ld15iqr": 5.721101640827126e-07,
+    "hd15iqr": 6.011105142533779e-07,
+    "ops": 1704305.8947860997,
+    "total": 0.10746368979905835,
+    "iterations": 9
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_rs_codec::test_bench_encode",
+   "fullname": "src/doppler/coding/benchmarks/bench_rs_codec.py::test_bench_encode",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.004970494657755e-06,
+    "max": 3.2451003789901733e-05,
+    "mean": 3.968382860634707e-06,
+    "stddev": 1.2432834517609397e-06,
+    "rounds": 90819,
+    "median": 3.075983840972185e-06,
+    "iqr": 2.5850022211670876e-06,
+    "q1": 3.035005647689104e-06,
+    "q3": 5.620007868856192e-06,
+    "iqr_outliers": 8,
+    "stddev_outliers": 32190,
+    "outliers": "32190;8",
+    "ld15iqr": 3.004970494657755e-06,
+    "hd15iqr": 1.1051015462726355e-05,
+    "ops": 251991.8150841068,
+    "total": 0.36040456301998347,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_rs_codec::test_bench_decode_clean",
+   "fullname": "src/doppler/coding/benchmarks/bench_rs_codec.py::test_bench_decode_clean",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.8924998585134745e-05,
+    "max": 7.186399307101965e-05,
+    "mean": 1.9041033763664478e-05,
+    "stddev": 4.053016471544833e-07,
+    "rounds": 47173,
+    "median": 1.900602364912629e-05,
+    "iqr": 4.0978193283081055e-08,
+    "q1": 1.898501068353653e-05,
+    "q3": 1.902598887681961e-05,
+    "iqr_outliers": 1262,
+    "stddev_outliers": 1085,
+    "outliers": "1085;1262",
+    "ld15iqr": 1.8924998585134745e-05,
+    "hd15iqr": 1.9095023162662983e-05,
+    "ops": 52518.156966260656,
+    "total": 0.8982226857333444,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_rs_codec::test_bench_decode_full",
+   "fullname": "src/doppler/coding/benchmarks/bench_rs_codec.py::test_bench_decode_full",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.6589026674628258e-05,
+    "max": 3.853201633319259e-05,
+    "mean": 2.6694136983489028e-05,
+    "stddev": 3.0099797803560443e-07,
+    "rounds": 18258,
+    "median": 2.664898056536913e-05,
+    "iqr": 3.899913281202316e-08,
+    "q1": 2.663000486791134e-05,
+    "q3": 2.6669004000723362e-05,
+    "iqr_outliers": 635,
+    "stddev_outliers": 594,
+    "outliers": "594;635",
+    "ld15iqr": 2.6589026674628258e-05,
+    "hd15iqr": 2.6729947421699762e-05,
+    "ops": 37461.40962034189,
+    "total": 0.48738155304454267,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_rs_codec::test_bench_codeword_ok",
+   "fullname": "src/doppler/coding/benchmarks/bench_rs_codec.py::test_bench_codeword_ok",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.895497553050518e-05,
+    "max": 4.867999814450741e-05,
+    "mean": 1.9079127504559958e-05,
+    "stddev": 3.438638308251626e-07,
+    "rounds": 47781,
+    "median": 1.904595410451293e-05,
+    "iqr": 4.0978193283081055e-08,
+    "q1": 1.902499934658408e-05,
+    "q3": 1.9065977539867163e-05,
+    "iqr_outliers": 1275,
+    "stddev_outliers": 1221,
+    "outliers": "1221;1275",
+    "ld15iqr": 1.8964987248182297e-05,
+    "hd15iqr": 1.913495361804962e-05,
+    "ops": 52413.29823709169,
+    "total": 0.9116197912953794,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_viterbi::test_bench_decode[8192]",
+   "fullname": "src/doppler/coding/benchmarks/bench_viterbi.py::test_bench_decode[8192]",
+   "params": {
+    "n": 8192
+   },
+   "param": "8192",
+   "extra_info": {
+    "Msym_s": 12.776801242321827
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.000632893992587924,
+    "max": 0.0006836989778093994,
+    "mean": 0.000641162043975831,
+    "stddev": 4.3022220943325875e-06,
+    "rounds": 1503,
+    "median": 0.0006406590109691024,
+    "iqr": 5.187466740608215e-06,
+    "q1": 0.0006382840219885111,
+    "q3": 0.0006434714887291193,
+    "iqr_outliers": 22,
+    "stddev_outliers": 362,
+    "outliers": "362;22",
+    "ld15iqr": 0.000632893992587924,
+    "hd15iqr": 0.0006513490225188434,
+    "ops": 1559.6681204006138,
+    "total": 0.963666552095674,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_viterbi::test_bench_decode[65536]",
+   "fullname": "src/doppler/coding/benchmarks/bench_viterbi.py::test_bench_decode[65536]",
+   "params": {
+    "n": 65536
+   },
+   "param": "65536",
+   "extra_info": {
+    "Msym_s": 12.08378879941575
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.005378119007218629,
+    "max": 0.006161564029753208,
+    "mean": 0.005423464534829395,
+    "stddev": 5.836881065230179e-05,
+    "rounds": 185,
+    "median": 0.005416058993432671,
+    "iqr": 2.2950523998588324e-05,
+    "q1": 0.005406336713349447,
+    "q3": 0.005429287237348035,
+    "iqr_outliers": 10,
+    "stddev_outliers": 3,
+    "outliers": "3;10",
+    "ld15iqr": 0.005378119007218629,
+    "hd15iqr": 0.005464470013976097,
+    "ops": 184.38398436608503,
+    "total": 1.0033409389434382,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_viterbi::test_bench_constraint_length[3]",
+   "fullname": "src/doppler/coding/benchmarks/bench_viterbi.py::test_bench_constraint_length[3]",
+   "params": {
+    "k": 3
+   },
+   "param": "3",
+   "extra_info": {
+    "Msym_s": 23.884484994822333
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00033455598168075085,
+    "max": 0.0004766719648614526,
+    "mean": 0.0003429841590377962,
+    "stddev": 5.356908794422834e-06,
+    "rounds": 2187,
+    "median": 0.0003423099988140166,
+    "iqr": 3.4145195968449116e-06,
+    "q1": 0.0003407769836485386,
+    "q3": 0.0003441915032453835,
+    "iqr_outliers": 101,
+    "stddev_outliers": 168,
+    "outliers": "168;101",
+    "ld15iqr": 0.00033573800465092063,
+    "hd15iqr": 0.0003493329859338701,
+    "ops": 2915.5865472195233,
+    "total": 0.7501063558156602,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_viterbi::test_bench_constraint_length[5]",
+   "fullname": "src/doppler/coding/benchmarks/bench_viterbi.py::test_bench_constraint_length[5]",
+   "params": {
+    "k": 5
+   },
+   "param": "5",
+   "extra_info": {
+    "Msym_s": 17.826144904316916
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0004519459907896817,
+    "max": 0.0009636530303396285,
+    "mean": 0.00045954972564012775,
+    "stddev": 1.1803819980527241e-05,
+    "rounds": 1976,
+    "median": 0.00045873800991103053,
+    "iqr": 3.471534000709653e-06,
+    "q1": 0.00045725548989139497,
+    "q3": 0.0004607270238921046,
+    "iqr_outliers": 76,
+    "stddev_outliers": 14,
+    "outliers": "14;76",
+    "ld15iqr": 0.0004520650254562497,
+    "hd15iqr": 0.00046598195331171155,
+    "ops": 2176.043079140248,
+    "total": 0.9080702578648925,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_viterbi::test_bench_constraint_length[7]",
+   "fullname": "src/doppler/coding/benchmarks/bench_viterbi.py::test_bench_constraint_length[7]",
+   "params": {
+    "k": 7
+   },
+   "param": "7",
+   "extra_info": {
+    "Msym_s": 10.744690597347521
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0007540900260210037,
+    "max": 0.0008123299921862781,
+    "mean": 0.0007624230707976191,
+    "stddev": 4.155270307717695e-06,
+    "rounds": 1200,
+    "median": 0.0007619299867656082,
+    "iqr": 4.693953087553382e-06,
+    "q1": 0.0007598860247526318,
+    "q3": 0.0007645799778401852,
+    "iqr_outliers": 18,
+    "stddev_outliers": 254,
+    "outliers": "254;18",
+    "ld15iqr": 0.0007540900260210037,
+    "hd15iqr": 0.0007716530235484242,
+    "ops": 1311.6077389340232,
+    "total": 0.9149076849571429,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_viterbi::test_bench_constraint_length[9]",
+   "fullname": "src/doppler/coding/benchmarks/bench_viterbi.py::test_bench_constraint_length[9]",
+   "params": {
+    "k": 9
+   },
+   "param": "9",
+   "extra_info": {
+    "Msym_s": 4.74785961796905
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.001698967011179775,
+    "max": 0.0017634580144658685,
+    "mean": 0.0017254090599048125,
+    "stddev": 9.129058350536986e-06,
+    "rounds": 565,
+    "median": 0.0017261579632759094,
+    "iqr": 1.0579227819107473e-05,
+    "q1": 0.0017191782826557755,
+    "q3": 0.001729757510474883,
+    "iqr_outliers": 24,
+    "stddev_outliers": 169,
+    "outliers": "169;24",
+    "ld15iqr": 0.0017035759519785643,
+    "hd15iqr": 0.0017458160291425884,
+    "ops": 579.5727072716126,
+    "total": 0.974856118846219,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_adc::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_adc.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.693424327044539e-08,
+    "max": 2.4778683176213273e-07,
+    "mean": 2.765034913039917e-08,
+    "stddev": 2.345618384891475e-09,
+    "rounds": 196077,
+    "median": 2.7481013593452224e-08,
+    "iqr": 2.7322612417851525e-10,
+    "q1": 2.7371595913920898e-08,
+    "q3": 2.7644822038099413e-08,
+    "iqr_outliers": 5460,
+    "stddev_outliers": 1583,
+    "outliers": "1583;5460",
+    "ld15iqr": 2.6988952110211056e-08,
+    "hd15iqr": 2.808185660692512e-08,
+    "ops": 36165908.62140639,
+    "total": 0.005421597506441278,
+    "iterations": 183
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_adc::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_adc.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1115.2976502372956
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 5.836901254951954e-05,
+    "max": 8.783402154222131e-05,
+    "mean": 5.8760995314619616e-05,
+    "stddev": 7.043447359834651e-07,
+    "rounds": 7492,
+    "median": 5.8699981309473515e-05,
+    "iqr": 2.5099143385887146e-07,
+    "q1": 5.8519013691693544e-05,
+    "q3": 5.8770005125552416e-05,
+    "iqr_outliers": 507,
+    "stddev_outliers": 463,
+    "outliers": "463;507",
+    "ld15iqr": 5.836901254951954e-05,
+    "hd15iqr": 5.914998473599553e-05,
+    "ops": 17018.091586872797,
+    "total": 0.44023737689713016,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_i16::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_i16.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.872228428635294e-08,
+    "max": 1.9458383644764133e-07,
+    "mean": 2.9317537175204248e-08,
+    "stddev": 9.122498073927959e-10,
+    "rounds": 199641,
+    "median": 2.9242788629897068e-08,
+    "iqr": 1.732771408695696e-10,
+    "q1": 2.918491742945131e-08,
+    "q3": 2.935819457032088e-08,
+    "iqr_outliers": 6884,
+    "stddev_outliers": 1839,
+    "outliers": "1839;6884",
+    "ld15iqr": 2.8953432627668272e-08,
+    "hd15iqr": 2.964721411208197e-08,
+    "ops": 34109277.12051356,
+    "total": 0.005852982439194952,
+    "iterations": 173
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_i16::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_i16.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 502.7675577709775
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00012998300371691585,
+    "max": 0.00015862699365243316,
+    "mean": 0.00013035049494950347,
+    "stddev": 8.465952232101258e-07,
+    "rounds": 6643,
+    "median": 0.00013011298142373562,
+    "iqr": 3.998866304755211e-08,
+    "q1": 0.0001300930161960423,
+    "q3": 0.00013013300485908985,
+    "iqr_outliers": 971,
+    "stddev_outliers": 792,
+    "outliers": "792;971",
+    "ld15iqr": 0.00013004295760765672,
+    "hd15iqr": 0.00013019301695749164,
+    "ops": 7671.624111495628,
+    "total": 0.8659183379495516,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_i16u32::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_i16u32.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.945516771542098e-08,
+    "max": 2.004968108397401e-07,
+    "mean": 3.0127995178730297e-08,
+    "stddev": 9.88478362695587e-10,
+    "rounds": 198807,
+    "median": 3.005397467020743e-08,
+    "iqr": 2.3910452327328397e-10,
+    "q1": 2.9934422408570786e-08,
+    "q3": 3.017352693184407e-08,
+    "iqr_outliers": 7370,
+    "stddev_outliers": 2456,
+    "outliers": "2456;7370",
+    "ld15iqr": 2.9580645307809293e-08,
+    "hd15iqr": 3.053288081448949e-08,
+    "ops": 33191720.65939449,
+    "total": 0.005989656337497834,
+    "iterations": 167
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_i16u32::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_i16u32.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 502.7101660556853
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00012995395809412003,
+    "max": 0.00016961898654699326,
+    "mean": 0.00013036537636428177,
+    "stddev": 1.16662242321616e-06,
+    "rounds": 5613,
+    "median": 0.00013009499525651336,
+    "iqr": 3.998866304755211e-08,
+    "q1": 0.00013007503002882004,
+    "q3": 0.0001301150186918676,
+    "iqr_outliers": 845,
+    "stddev_outliers": 477,
+    "outliers": "477;845",
+    "ld15iqr": 0.00013002398191019893,
+    "hd15iqr": 0.00013017503079026937,
+    "ops": 7670.748383418049,
+    "total": 0.7317408575327136,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_i16u64::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_i16u64.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.9339086419592302e-08,
+    "max": 1.9399435370273535e-07,
+    "mean": 3.017343511652574e-08,
+    "stddev": 1.1383181217637604e-09,
+    "rounds": 199641,
+    "median": 3.0059752697568564e-08,
+    "iqr": 1.846707337314168e-10,
+    "q1": 2.999392260486881e-08,
+    "q3": 3.0178593338600224e-08,
+    "iqr_outliers": 10830,
+    "stddev_outliers": 2104,
+    "outliers": "2104;10830",
+    "ld15iqr": 2.975589484863338e-08,
+    "hd15iqr": 3.0469978117339667e-08,
+    "ops": 33141735.30915969,
+    "total": 0.006023854760098315,
+    "iterations": 168
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_i16u64::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_i16u64.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 456.8180602831041
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00014296895824372768,
+    "max": 0.00017719302559271455,
+    "mean": 0.00014346192871487028,
+    "stddev": 1.1679779699559157e-06,
+    "rounds": 4548,
+    "median": 0.00014313904102891684,
+    "iqr": 1.2095551937818527e-07,
+    "q1": 0.00014307902893051505,
+    "q3": 0.00014319998444989324,
+    "iqr_outliers": 744,
+    "stddev_outliers": 450,
+    "outliers": "450;744",
+    "ld15iqr": 0.00014296895824372768,
+    "hd15iqr": 0.0001433899742551148,
+    "ops": 6970.490421800295,
+    "total": 0.6524648517952301,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_i32::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_i32.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.7994226132120406e-08,
+    "max": 1.047714613378048e-07,
+    "mean": 2.8628936091982382e-08,
+    "stddev": 7.790744165705242e-10,
+    "rounds": 199204,
+    "median": 2.8565659054688043e-08,
+    "iqr": 1.200740890843551e-10,
+    "q1": 2.8508449239390235e-08,
+    "q3": 2.862852332847459e-08,
+    "iqr_outliers": 12662,
+    "stddev_outliers": 2230,
+    "outliers": "2230;12662",
+    "ld15iqr": 2.833681979349681e-08,
+    "hd15iqr": 2.8851375515971865e-08,
+    "ops": 34929694.79505223,
+    "total": 0.005702998585267258,
+    "iterations": 175
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_i32::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_i32.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.591697895899415e-05,
+    "max": 5.155598046258092e-05,
+    "mean": 3.635744285128113e-05,
+    "stddev": 4.7350068113301936e-07,
+    "rounds": 13021,
+    "median": 3.627804107964039e-05,
+    "iqr": 4.409812390804291e-07,
+    "q1": 3.610702697187662e-05,
+    "q3": 3.654800821095705e-05,
+    "iqr_outliers": 475,
+    "stddev_outliers": 529,
+    "outliers": "529;475",
+    "ld15iqr": 3.591697895899415e-05,
+    "hd15iqr": 3.7210003938525915e-05,
+    "ops": 27504.684641614254,
+    "total": 0.4734102633665316,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_i8::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_i8.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.4161600580840717e-08,
+    "max": 1.7164212277195617e-07,
+    "mean": 2.4646465982750314e-08,
+    "stddev": 8.994630954589681e-10,
+    "rounds": 199204,
+    "median": 2.460300867610118e-08,
+    "iqr": 9.81540948736902e-11,
+    "q1": 2.4553931628664334e-08,
+    "q3": 2.4652085723538024e-08,
+    "iqr_outliers": 9400,
+    "stddev_outliers": 1696,
+    "outliers": "1696;9400",
+    "ld15iqr": 2.44067004863538e-08,
+    "hd15iqr": 2.480388217258687e-08,
+    "ops": 40573768.2919687,
+    "total": 0.004909674609627794,
+    "iterations": 204
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_i8::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_i8.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0001430169795639813,
+    "max": 0.00017186097102239728,
+    "mean": 0.00014337664202550892,
+    "stddev": 8.100228132085219e-07,
+    "rounds": 6288,
+    "median": 0.00014311698032543063,
+    "iqr": 4.901085048913956e-08,
+    "q1": 0.00014309794642031193,
+    "q3": 0.00014314695727080107,
+    "iqr_outliers": 1051,
+    "stddev_outliers": 847,
+    "outliers": "847;1051",
+    "ld15iqr": 0.0001430269912816584,
+    "hd15iqr": 0.00014322699280455709,
+    "ops": 6974.636773973856,
+    "total": 0.9015523250564002,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_uq15::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_uq15.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.946134259891228e-08,
+    "max": 1.9189343683024836e-07,
+    "mean": 3.0076412002642594e-08,
+    "stddev": 9.45113249028852e-10,
+    "rounds": 198846,
+    "median": 2.9994166571889406e-08,
+    "iqr": 2.3076409947942857e-10,
+    "q1": 2.988153991438228e-08,
+    "q3": 3.011230401386171e-08,
+    "iqr_outliers": 7912,
+    "stddev_outliers": 2669,
+    "outliers": "2669;7912",
+    "ld15iqr": 2.9579824464913655e-08,
+    "hd15iqr": 3.0467405187836767e-08,
+    "ops": 33248646.810402032,
+    "total": 0.005980574221077469,
+    "iterations": 169
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_f32_to_uq15::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_f32_to_uq15.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 457.0485203752311
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00014295894652605057,
+    "max": 0.000171884021256119,
+    "mean": 0.00014338959011659367,
+    "stddev": 9.735146271650421e-07,
+    "rounds": 5450,
+    "median": 0.0001431189593859017,
+    "iqr": 5.00003807246685e-08,
+    "q1": 0.00014309899415820837,
+    "q3": 0.00014314899453893304,
+    "iqr_outliers": 925,
+    "stddev_outliers": 647,
+    "outliers": "647;925",
+    "ld15iqr": 0.00014302902854979038,
+    "hd15iqr": 0.00014322897186502814,
+    "ops": 6974.0069637333845,
+    "total": 0.7814732661354356,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_i16_to_f32::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_i16_to_f32.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.4357623438916953e-08,
+    "max": 9.090210511988285e-08,
+    "mean": 2.480920412937113e-08,
+    "stddev": 7.825947106654837e-10,
+    "rounds": 197278,
+    "median": 2.474995448674057e-08,
+    "iqr": 9.81540948736902e-11,
+    "q1": 2.4700877439303726e-08,
+    "q3": 2.4799031534177416e-08,
+    "iqr_outliers": 10764,
+    "stddev_outliers": 3229,
+    "outliers": "3229;10764",
+    "ld15iqr": 2.4553931628664334e-08,
+    "hd15iqr": 2.495082798322626e-08,
+    "ops": 40307621.10647958,
+    "total": 0.0048943101722340775,
+    "iterations": 204
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_i16_to_f32::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_i16_to_f32.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 17978.662333983902
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.596011083573103e-06,
+    "max": 2.7010974008589983e-05,
+    "mean": 3.645210015214621e-06,
+    "stddev": 1.9590660818174504e-07,
+    "rounds": 20263,
+    "median": 3.636989276856184e-06,
+    "iqr": 1.9033905118703842e-08,
+    "q1": 3.6269775591790676e-06,
+    "q3": 3.6460114642977715e-06,
+    "iqr_outliers": 486,
+    "stddev_outliers": 131,
+    "outliers": "131;486",
+    "ld15iqr": 3.6060228012502193e-06,
+    "hd15iqr": 3.675988409668207e-06,
+    "ops": 274332.6161801743,
+    "total": 0.07386289053829387,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_i16u32_to_f32::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_i16u32_to_f32.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.3837614198917238e-08,
+    "max": 1.6972923816498276e-07,
+    "mean": 2.4475585555729407e-08,
+    "stddev": 1.6739170479101321e-09,
+    "rounds": 199243,
+    "median": 2.4335103320517564e-08,
+    "iqr": 1.427951484478155e-10,
+    "q1": 2.428578451422635e-08,
+    "q3": 2.4428579662674166e-08,
+    "iqr_outliers": 12251,
+    "stddev_outliers": 1858,
+    "outliers": "1858;12251",
+    "ld15iqr": 2.408363475588155e-08,
+    "hd15iqr": 2.4674600219638478e-08,
+    "ops": 40857040.89583726,
+    "total": 0.004876589092880194,
+    "iterations": 203
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_i16u32_to_f32::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_i16u32_to_f32.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 13149.762631024698
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 4.8889778554439545e-06,
+    "max": 1.2503005564212799e-05,
+    "mean": 4.983816197972928e-06,
+    "stddev": 1.7787353423539564e-07,
+    "rounds": 19480,
+    "median": 4.960049409419298e-06,
+    "iqr": 3.998866304755211e-08,
+    "q1": 4.940025974065065e-06,
+    "q3": 4.9800146371126175e-06,
+    "iqr_outliers": 1225,
+    "stddev_outliers": 213,
+    "outliers": "213;1225",
+    "ld15iqr": 4.8889778554439545e-06,
+    "hd15iqr": 5.040026735514402e-06,
+    "ops": 200649.4542087509,
+    "total": 0.09708473953651264,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_i16u64_to_f32::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_i16u64_to_f32.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.377518368038264e-08,
+    "max": 1.6149757296274725e-07,
+    "mean": 2.4419247890725373e-08,
+    "stddev": 8.497391494002662e-10,
+    "rounds": 199243,
+    "median": 2.4349462133988238e-08,
+    "iqr": 1.0026199965956063e-10,
+    "q1": 2.430155917859534e-08,
+    "q3": 2.44018211782549e-08,
+    "iqr_outliers": 11650,
+    "stddev_outliers": 3454,
+    "outliers": "3454;11650",
+    "ld15iqr": 2.4157850312416633e-08,
+    "hd15iqr": 2.4588419899843525e-08,
+    "ops": 40951302.20533156,
+    "total": 0.004865364207491796,
+    "iterations": 209
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_i16u64_to_f32::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_i16u64_to_f32.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 10092.088628819622
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 6.370944902300835e-06,
+    "max": 4.005496157333255e-05,
+    "mean": 6.493799490905297e-06,
+    "stddev": 2.738327866215734e-07,
+    "rounds": 70642,
+    "median": 6.4720516093075275e-06,
+    "iqr": 7.997732609510422e-08,
+    "q1": 6.432004738599062e-06,
+    "q3": 6.511982064694166e-06,
+    "iqr_outliers": 969,
+    "stddev_outliers": 843,
+    "outliers": "843;969",
+    "ld15iqr": 6.370944902300835e-06,
+    "hd15iqr": 6.632006261497736e-06,
+    "ops": 153993.05158721347,
+    "total": 0.458734983636532,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_i32_to_f32::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_i32_to_f32.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.4063731817638174e-08,
+    "max": 1.9403923229843962e-07,
+    "mean": 2.4599382244499544e-08,
+    "stddev": 1.987009134461118e-09,
+    "rounds": 187617,
+    "median": 2.4456062865461787e-08,
+    "iqr": 1.4666047896824527e-10,
+    "q1": 2.4406985818024944e-08,
+    "q3": 2.455364629699319e-08,
+    "iqr_outliers": 7012,
+    "stddev_outliers": 1739,
+    "outliers": "1739;7012",
+    "ld15iqr": 2.4210677628277564e-08,
+    "hd15iqr": 2.4798746202506272e-08,
+    "ops": 40651427.34320499,
+    "total": 0.004615262298566271,
+    "iterations": 204
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_i32_to_f32::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_i32_to_f32.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 18862.370980377895
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.4259865060448647e-06,
+    "max": 3.7209945730865e-05,
+    "mean": 3.474430657109631e-06,
+    "stddev": 3.2102094645484784e-07,
+    "rounds": 68980,
+    "median": 3.456021659076214e-06,
+    "iqr": 1.9033905118703842e-08,
+    "q1": 3.4469994716346264e-06,
+    "q3": 3.4660333767533302e-06,
+    "iqr_outliers": 2151,
+    "stddev_outliers": 484,
+    "outliers": "484;2151",
+    "ld15iqr": 3.4259865060448647e-06,
+    "hd15iqr": 3.4959521144628525e-06,
+    "ops": 287816.94000820763,
+    "total": 0.23966622672742233,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_i8_to_f32::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_i8_to_f32.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.4161885912511864e-08,
+    "max": 3.5826863798623285e-06,
+    "mean": 2.4821355828616706e-08,
+    "stddev": 1.1164609987623364e-08,
+    "rounds": 199641,
+    "median": 2.470116277097487e-08,
+    "iqr": 1.0271940161200384e-10,
+    "q1": 2.4652085723538024e-08,
+    "q3": 2.4754805125150028e-08,
+    "iqr_outliers": 18618,
+    "stddev_outliers": 368,
+    "outliers": "368;18618",
+    "ld15iqr": 2.450485458122749e-08,
+    "hd15iqr": 2.4945977344816806e-08,
+    "ops": 40287887.853696264,
+    "total": 0.004955360298980868,
+    "iterations": 204
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_i8_to_f32::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_i8_to_f32.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 14320.771039314475
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 4.447996616363525e-06,
+    "max": 3.9623992051929235e-05,
+    "mean": 4.576289909257369e-06,
+    "stddev": 1.7472525132243295e-07,
+    "rounds": 95420,
+    "median": 4.549045115709305e-06,
+    "iqr": 6.100162863731384e-08,
+    "q1": 4.547997377812862e-06,
+    "q3": 4.608999006450176e-06,
+    "iqr_outliers": 696,
+    "stddev_outliers": 686,
+    "outliers": "686;696",
+    "ld15iqr": 4.457950126379728e-06,
+    "hd15iqr": 4.707952030003071e-06,
+    "ops": 218517.6245012585,
+    "total": 0.4366695831413381,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_uq15_to_f32::test_bench_step",
+   "fullname": "src/doppler/cvt/benchmarks/bench_uq15_to_f32.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.674001734703779e-08,
+    "max": 7.81170092523098e-08,
+    "mean": 2.754887225745175e-08,
+    "stddev": 8.405599992693824e-10,
+    "rounds": 37077,
+    "median": 2.7412024792283774e-08,
+    "iqr": 1.7107231542467865e-10,
+    "q1": 2.7350964955985548e-08,
+    "q3": 2.7522037271410226e-08,
+    "iqr_outliers": 4334,
+    "stddev_outliers": 1565,
+    "outliers": "1565;4334",
+    "ld15iqr": 2.7100963052362204e-08,
+    "hd15iqr": 2.7781992685049772e-08,
+    "ops": 36299126.53609652,
+    "total": 0.0010214295366895384,
+    "iterations": 1000
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_uq15_to_f32::test_bench_steps_64k",
+   "fullname": "src/doppler/cvt/benchmarks/bench_uq15_to_f32.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 12879.814944068718
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 5.048990715295076e-06,
+    "max": 4.472397267818451e-05,
+    "mean": 5.088271864509977e-06,
+    "stddev": 2.1456292557761242e-07,
+    "rounds": 81480,
+    "median": 5.078967660665512e-06,
+    "iqr": 1.100124791264534e-08,
+    "q1": 5.069014150649309e-06,
+    "q3": 5.0800153985619545e-06,
+    "iqr_outliers": 6334,
+    "stddev_outliers": 739,
+    "outliers": "739;6334",
+    "ld15iqr": 5.058944225311279e-06,
+    "hd15iqr": 5.098991096019745e-06,
+    "ops": 196530.3793955798,
+    "total": 0.41459239152027294,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_ddc::test_bench_execute_64k",
+   "fullname": "src/doppler/ddc/benchmarks/bench_ddc.py::test_bench_execute_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 245.92211730001915
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0002645339700393379,
+    "max": 0.0006873239763081074,
+    "mean": 0.0002664908741007936,
+    "stddev": 9.009210644398449e-06,
+    "rounds": 2361,
+    "median": 0.00026565598091110587,
+    "iqr": 1.6932172002270818e-06,
+    "q1": 0.0002653150004334748,
+    "q3": 0.00026700821763370186,
+    "iqr_outliers": 64,
+    "stddev_outliers": 24,
+    "outliers": "24;64",
+    "ld15iqr": 0.0002645339700393379,
+    "hd15iqr": 0.0002695839502848685,
+    "ops": 3752.4737136843737,
+    "total": 0.6291849537519738,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_ddcr::test_bench_execute_64k",
+   "fullname": "src/doppler/ddc/benchmarks/bench_ddcr.py::test_bench_execute_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 254.09205869153516
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0002557589905336499,
+    "max": 0.0002795719774439931,
+    "mean": 0.0002579222677697297,
+    "stddev": 1.6917279710997027e-06,
+    "rounds": 3182,
+    "median": 0.00025728100445121527,
+    "iqr": 1.642969436943531e-06,
+    "q1": 0.00025699101388454437,
+    "q3": 0.0002586339833214879,
+    "iqr_outliers": 173,
+    "stddev_outliers": 312,
+    "outliers": "312;173",
+    "ld15iqr": 0.0002557589905336499,
+    "hd15iqr": 0.00026109901955351233,
+    "ops": 3877.1371260305045,
+    "total": 0.8207086560432799,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_delay::test_bench_push",
+   "fullname": "src/doppler/delay/benchmarks/bench_delay.py::test_bench_push",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 40.82485562777818
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.3360863873144474e-08,
+    "max": 1.5321477293604757e-07,
+    "mean": 2.449488147900704e-08,
+    "stddev": 1.0176410357340562e-09,
+    "rounds": 199641,
+    "median": 2.4385318705221502e-08,
+    "iqr": 5.318192628825577e-10,
+    "q1": 2.4146241385762284e-08,
+    "q3": 2.467806064864484e-08,
+    "iqr_outliers": 3439,
+    "stddev_outliers": 2981,
+    "outliers": "2981;3439",
+    "ld15iqr": 2.3360863873144474e-08,
+    "hd15iqr": 2.5507164891900085e-08,
+    "ops": 40824855.62777818,
+    "total": 0.004890182633350444,
+    "iterations": 205
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_delay::test_bench_push_ptr_64k",
+   "fullname": "src/doppler/delay/benchmarks/bench_delay.py::test_bench_push_ptr_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 5930.249411276897
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 8.586037438362837e-06,
+    "max": 4.138803342357278e-05,
+    "mean": 1.105113722120649e-05,
+    "stddev": 1.0405598066194806e-06,
+    "rounds": 4619,
+    "median": 1.0980002116411924e-05,
+    "iqr": 7.510388968512416e-07,
+    "q1": 1.0699965059757233e-05,
+    "q3": 1.1451003956608474e-05,
+    "iqr_outliers": 219,
+    "stddev_outliers": 905,
+    "outliers": "905;219",
+    "ld15iqr": 9.578012395650148e-06,
+    "hd15iqr": 1.2582982890307903e-05,
+    "ops": 90488.42485468899,
+    "total": 0.05104520282475278,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_marcum_q_m1",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_marcum_q_m1",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.9103754311800003e-07,
+    "max": 1.1171039659529924e-05,
+    "mean": 2.0742287651251488e-07,
+    "stddev": 4.496358687622418e-08,
+    "rounds": 156446,
+    "median": 2.0995503291487694e-07,
+    "iqr": 1.0943040251731873e-08,
+    "q1": 2.00001522898674e-07,
+    "q3": 2.1094456315040588e-07,
+    "iqr_outliers": 3129,
+    "stddev_outliers": 291,
+    "outliers": "291;3129",
+    "ld15iqr": 1.9103754311800003e-07,
+    "hd15iqr": 2.2997846826910973e-07,
+    "ops": 4821069.000745754,
+    "total": 0.0324504793388769,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_marcum_q_m4",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_marcum_q_m4",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.7902988474816084e-07,
+    "max": 5.908001912757755e-07,
+    "mean": 1.8065070108685332e-07,
+    "stddev": 8.449861352797676e-09,
+    "rounds": 55359,
+    "median": 1.8013990484178067e-07,
+    "iqr": 5.896436050534312e-10,
+    "q1": 1.798401353880763e-07,
+    "q3": 1.8042977899312974e-07,
+    "iqr_outliers": 1747,
+    "stddev_outliers": 1064,
+    "outliers": "1064;1747",
+    "ld15iqr": 1.7902988474816084e-07,
+    "hd15iqr": 1.8132966943085192e-07,
+    "ops": 5535544.52866042,
+    "total": 0.010000642161467113,
+    "iterations": 100
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_marcum_q_large_a",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_marcum_q_large_a",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.388170929004749e-08,
+    "max": 2.9826373469808863e-07,
+    "mean": 3.5269120922989715e-08,
+    "stddev": 1.2416845618407524e-09,
+    "rounds": 199999,
+    "median": 3.5201082937419415e-08,
+    "iqr": 4.236224210924602e-10,
+    "q1": 3.4992909705680276e-08,
+    "q3": 3.5416532126772736e-08,
+    "iqr_outliers": 4142,
+    "stddev_outliers": 2055,
+    "outliers": "2055;4142",
+    "ld15iqr": 3.436798579059541e-08,
+    "hd15iqr": 3.610411012131307e-08,
+    "ops": 28353414.370137107,
+    "total": 0.007053788915477021,
+    "iterations": 144
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_det_threshold",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_det_threshold",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.091439506725261e-08,
+    "max": 3.5230263356903665e-07,
+    "mean": 3.210365114105026e-08,
+    "stddev": 1.6182662249736773e-09,
+    "rounds": 199602,
+    "median": 3.1973621317822684e-08,
+    "iqr": 6.575168012396292e-10,
+    "q1": 3.170402794096031e-08,
+    "q3": 3.236154474219994e-08,
+    "iqr_outliers": 1932,
+    "stddev_outliers": 1695,
+    "outliers": "1695;1932",
+    "ld15iqr": 3.091439506725261e-08,
+    "hd15iqr": 3.334839436176576e-08,
+    "ops": 31149104.99140458,
+    "total": 0.006407952975055913,
+    "iterations": 152
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_det_threshold_power",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_det_threshold_power",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.7368656833078607e-08,
+    "max": 1.9399410207344833e-07,
+    "mean": 2.843571553800133e-08,
+    "stddev": 1.0076896191513648e-09,
+    "rounds": 198021,
+    "median": 2.837444619176774e-08,
+    "iqr": 4.526539887795925e-10,
+    "q1": 2.8150720657083574e-08,
+    "q3": 2.8603374645863166e-08,
+    "iqr_outliers": 2562,
+    "stddev_outliers": 1968,
+    "outliers": "1968;2562",
+    "ld15iqr": 2.7480194417957487e-08,
+    "hd15iqr": 2.932397898432263e-08,
+    "ops": 35167041.90768844,
+    "total": 0.005630868826550561,
+    "iterations": 179
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_det_pd_m1",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_det_pd_m1",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.0990508599206805e-07,
+    "max": 2.5482993805781005e-07,
+    "mean": 1.1116508644563564e-07,
+    "stddev": 2.1670168523663955e-09,
+    "rounds": 44088,
+    "median": 1.1090509360656142e-07,
+    "iqr": 5.000038072466803e-10,
+    "q1": 1.1066003935411572e-07,
+    "q3": 1.111600431613624e-07,
+    "iqr_outliers": 2088,
+    "stddev_outliers": 1138,
+    "outliers": "1138;2088",
+    "ld15iqr": 1.0995485354214907e-07,
+    "hd15iqr": 1.1191499652341008e-07,
+    "ops": 8995630.12069479,
+    "total": 0.004901046331215184,
+    "iterations": 200
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_det_pd_m4",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_det_pd_m4",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.0468025468289853e-07,
+    "max": 7.910799467936158e-07,
+    "mean": 2.072649581176531e-07,
+    "stddev": 5.358555663355277e-09,
+    "rounds": 48080,
+    "median": 2.0687992218881846e-07,
+    "iqr": 8.096685633063232e-10,
+    "q1": 2.0648003555834294e-07,
+    "q3": 2.0728970412164927e-07,
+    "iqr_outliers": 1615,
+    "stddev_outliers": 1058,
+    "outliers": "1058;1615",
+    "ld15iqr": 2.0527979359030723e-07,
+    "hd15iqr": 2.08589481189847e-07,
+    "ops": 4824742.248192065,
+    "total": 0.009965299186296761,
+    "iterations": 100
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_det_pd_m16",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_det_pd_m16",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 4.3085019569844006e-07,
+    "max": 1.9055500160902738e-06,
+    "mean": 4.363214294767881e-07,
+    "stddev": 9.8926589613488e-09,
+    "rounds": 86118,
+    "median": 4.353496478870511e-07,
+    "iqr": 1.9994331523775737e-09,
+    "q1": 4.3435138650238516e-07,
+    "q3": 4.3635081965476273e-07,
+    "iqr_outliers": 1610,
+    "stddev_outliers": 1286,
+    "outliers": "1286;1610",
+    "ld15iqr": 4.317989805713296e-07,
+    "hd15iqr": 4.39351424574852e-07,
+    "ops": 2291888.3475403516,
+    "total": 0.03757512886368204,
+    "iterations": 20
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_det_pd_power_m4",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_det_pd_power_m4",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.039800165221095e-07,
+    "max": 4.966300912201405e-07,
+    "mean": 2.0716121587487113e-07,
+    "stddev": 4.265457823725614e-09,
+    "rounds": 48406,
+    "median": 2.0669016521424054e-07,
+    "iqr": 1.099542714655392e-09,
+    "q1": 2.0619016140699388e-07,
+    "q3": 2.0728970412164927e-07,
+    "iqr_outliers": 1522,
+    "stddev_outliers": 1190,
+    "outliers": "1190;1522",
+    "ld15iqr": 2.0457955542951823e-07,
+    "hd15iqr": 2.0898994989693165e-07,
+    "ops": 4827158.383758555,
+    "total": 0.010027845815639012,
+    "iterations": 100
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_det_dwell",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_det_dwell",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.641999162733555e-05,
+    "max": 5.9793004766106606e-05,
+    "mean": 2.663801726289334e-05,
+    "stddev": 4.4758559753126654e-07,
+    "rounds": 28957,
+    "median": 2.658000448718667e-05,
+    "iqr": 5.00003807246685e-08,
+    "q1": 2.6559981051832438e-05,
+    "q3": 2.6609981432557106e-05,
+    "iqr_outliers": 1352,
+    "stddev_outliers": 889,
+    "outliers": "889;1352",
+    "ld15iqr": 2.6488967705518007e-05,
+    "hd15iqr": 2.668995875865221e-05,
+    "ops": 37540.33155436821,
+    "total": 0.7713570658816025,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_det_dwell_power",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_det_dwell_power",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.641999162733555e-05,
+    "max": 5.447195144370198e-05,
+    "mean": 2.661122499533476e-05,
+    "stddev": 4.4157436756914803e-07,
+    "rounds": 34754,
+    "median": 2.6559981051832438e-05,
+    "iqr": 5.902256816625595e-08,
+    "q1": 2.6530004106462002e-05,
+    "q3": 2.6589026674628258e-05,
+    "iqr_outliers": 1427,
+    "stddev_outliers": 1042,
+    "outliers": "1042;1427",
+    "ld15iqr": 2.6448979042470455e-05,
+    "hd15iqr": 2.6678957510739565e-05,
+    "ops": 37578.12728182603,
+    "total": 0.9248465134878643,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_det_snr_m4",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_det_snr_m4",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.256998024880886e-05,
+    "max": 7.23850098438561e-05,
+    "mean": 3.274082396109929e-05,
+    "stddev": 4.766968083894237e-07,
+    "rounds": 28405,
+    "median": 3.268098225817084e-05,
+    "iqr": 4.0046870708465576e-08,
+    "q1": 3.266095882281661e-05,
+    "q3": 3.2701005693525076e-05,
+    "iqr_outliers": 1210,
+    "stddev_outliers": 987,
+    "outliers": "987;1210",
+    "ld15iqr": 3.2600946724414825e-05,
+    "hd15iqr": 3.2761949114501476e-05,
+    "ops": 30542.908791426293,
+    "total": 0.9300031046150252,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_det_snr_m16",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_det_snr_m16",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.239000216126442e-05,
+    "max": 0.0001616920344531536,
+    "mean": 3.257419096727286e-05,
+    "stddev": 1.560170140235709e-06,
+    "rounds": 29930,
+    "median": 3.248098073527217e-05,
+    "iqr": 3.905734047293663e-08,
+    "q1": 3.2460957299917936e-05,
+    "q3": 3.250001464039087e-05,
+    "iqr_outliers": 1300,
+    "stddev_outliers": 373,
+    "outliers": "373;1300",
+    "ld15iqr": 3.240996738895774e-05,
+    "hd15iqr": 3.256095806136727e-05,
+    "ops": 30699.15077874675,
+    "total": 0.9749455356504768,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detection::test_bench_det_snr_power_m4",
+   "fullname": "src/doppler/detection/benchmarks/bench_detection.py::test_bench_det_snr_power_m4",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.257096977904439e-05,
+    "max": 0.00012456299737095833,
+    "mean": 3.2761322244567293e-05,
+    "stddev": 1.27709224043356e-06,
+    "rounds": 28782,
+    "median": 3.267102874815464e-05,
+    "iqr": 3.998866304755211e-08,
+    "q1": 3.265100531280041e-05,
+    "q3": 3.269099397584796e-05,
+    "iqr_outliers": 1285,
+    "stddev_outliers": 699,
+    "outliers": "699;1285",
+    "ld15iqr": 3.2591051422059536e-05,
+    "hd15iqr": 3.2751006074249744e-05,
+    "ops": 30523.79853703331,
+    "total": 0.9429363768431358,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_lockdet::test_bench_step",
+   "fullname": "src/doppler/detection/benchmarks/bench_lockdet.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.594897523522377e-08,
+    "max": 9.140203474089504e-08,
+    "mean": 2.6626106621972942e-08,
+    "stddev": 1.7697791501205426e-09,
+    "rounds": 37808,
+    "median": 2.6510038878768684e-08,
+    "iqr": 1.499429345130933e-10,
+    "q1": 2.644001506268978e-08,
+    "q3": 2.6589957997202874e-08,
+    "iqr_outliers": 2850,
+    "stddev_outliers": 280,
+    "outliers": "280;2850",
+    "ld15iqr": 2.6219000574201347e-08,
+    "hd15iqr": 2.6819994673132897e-08,
+    "ops": 37557124.44923358,
+    "total": 0.001006679839163553,
+    "iterations": 1000
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_lockdet::test_bench_steps_64k",
+   "fullname": "src/doppler/detection/benchmarks/bench_lockdet.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.91540233977139e-05,
+    "max": 5.0254049710929394e-05,
+    "mean": 3.935712050919177e-05,
+    "stddev": 5.11344521318197e-07,
+    "rounds": 8014,
+    "median": 3.924302291125059e-05,
+    "iqr": 3.905734047293663e-08,
+    "q1": 3.922398900613189e-05,
+    "q3": 3.9263046346604824e-05,
+    "iqr_outliers": 796,
+    "stddev_outliers": 481,
+    "outliers": "481;796",
+    "ld15iqr": 3.917299909517169e-05,
+    "hd15iqr": 3.9323000237345695e-05,
+    "ops": 25408.36288484195,
+    "total": 0.3154079637606628,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_syncword::test_bench_find_64k",
+   "fullname": "src/doppler/detection/benchmarks/bench_syncword.py::test_bench_find_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 8.559995330870152e-05,
+    "max": 0.00011385296238586307,
+    "mean": 8.723526282577735e-05,
+    "stddev": 7.326150973881727e-07,
+    "rounds": 10786,
+    "median": 8.708302630111575e-05,
+    "iqr": 1.5099067240953445e-07,
+    "q1": 8.70020012371242e-05,
+    "q3": 8.715299190953374e-05,
+    "iqr_outliers": 2208,
+    "stddev_outliers": 1088,
+    "outliers": "1088;2208",
+    "ld15iqr": 8.67819762788713e-05,
+    "hd15iqr": 8.738297037780285e-05,
+    "ops": 11463.254280521382,
+    "total": 0.9409195448388346,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_syncword::test_bench_find_call_overhead",
+   "fullname": "src/doppler/detection/benchmarks/bench_syncword.py::test_bench_find_call_overhead",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.0880001354962588e-07,
+    "max": 5.849002627655864e-07,
+    "mean": 1.1085996092599288e-07,
+    "stddev": 5.543523678452601e-09,
+    "rounds": 89279,
+    "median": 1.1051015462726354e-07,
+    "iqr": 6.903428584337176e-10,
+    "q1": 1.1020980309695006e-07,
+    "q3": 1.1090014595538378e-07,
+    "iqr_outliers": 2397,
+    "stddev_outliers": 1112,
+    "outliers": "1112;2397",
+    "ld15iqr": 1.0919990018010139e-07,
+    "hd15iqr": 1.1200958397239446e-07,
+    "ops": 9020389.25187402,
+    "total": 0.009897466451511718,
+    "iterations": 100
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_syncword::test_bench_max_errors_for",
+   "fullname": "src/doppler/detection/benchmarks/bench_syncword.py::test_bench_max_errors_for",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.164768217050511e-07,
+    "max": 1.444433228639157e-06,
+    "mean": 2.1902641088523739e-07,
+    "stddev": 1.1288289511299209e-08,
+    "rounds": 197278,
+    "median": 2.1826101305044215e-07,
+    "iqr": 4.808458945025626e-10,
+    "q1": 2.182154592288577e-07,
+    "q3": 2.1869630512336027e-07,
+    "iqr_outliers": 21970,
+    "stddev_outliers": 1760,
+    "outliers": "1760;21970",
+    "ld15iqr": 2.177801671559396e-07,
+    "hd15iqr": 2.1952133544761201e-07,
+    "ops": 4565659.437865541,
+    "total": 0.04320909228661786,
+    "iterations": 23
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acq::test_bench_tile_test_grid",
+   "fullname": "src/doppler/dsss/benchmarks/bench_acq.py::test_bench_tile_test_grid",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "N": 1984,
+    "MSa_s": 32.13831720138799
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 6.129400571808219e-05,
+    "max": 0.00010540703078731894,
+    "mean": 6.173316379845535e-05,
+    "stddev": 8.915909810679535e-07,
+    "rounds": 10024,
+    "median": 6.15749740973115e-05,
+    "iqr": 1.600128598511219e-07,
+    "q1": 6.151600973680615e-05,
+    "q3": 6.167602259665728e-05,
+    "iqr_outliers": 1091,
+    "stddev_outliers": 622,
+    "outliers": "622;1091",
+    "ld15iqr": 6.129400571808219e-05,
+    "hd15iqr": 6.192497676238418e-05,
+    "ops": 16198.74858940927,
+    "total": 0.6188132339157164,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_acq::test_bench_tile_worked",
+   "fullname": "src/doppler/dsss/benchmarks/bench_acq.py::test_bench_tile_worked",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "N": 20460,
+    "MSa_s": 27.155580938530452
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.000748760998249054,
+    "max": 0.001203201012685895,
+    "mean": 0.0007534362842876898,
+    "stddev": 1.6769557102848016e-05,
+    "rounds": 1023,
+    "median": 0.0007523279637098312,
+    "iqr": 1.9240396795794368e-06,
+    "q1": 0.0007514159806305543,
+    "q3": 0.0007533400203101337,
+    "iqr_outliers": 54,
+    "stddev_outliers": 8,
+    "outliers": "8;54",
+    "ld15iqr": 0.000748760998249054,
+    "hd15iqr": 0.000756315013859421,
+    "ops": 1327.2522452849685,
+    "total": 0.7707653188263066,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_async_dsss_pool::test_push_epoch",
+   "fullname": "src/doppler/dsss/benchmarks/bench_async_dsss_pool.py::test_push_epoch",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 6.178603507578373e-05,
+    "max": 0.36527342500630766,
+    "mean": 0.001399145549579155,
+    "stddev": 0.01638543328183317,
+    "rounds": 3858,
+    "median": 0.0006697099888697267,
+    "iqr": 3.114924766123295e-06,
+    "q1": 0.0006680470542050898,
+    "q3": 0.0006711619789712131,
+    "iqr_outliers": 541,
+    "stddev_outliers": 9,
+    "outliers": "9;541",
+    "ld15iqr": 0.0006641600048169494,
+    "hd15iqr": 0.0006758520030416548,
+    "ops": 714.7219246066194,
+    "total": 5.3979035302763805,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_burst_acq::test_bench_push_idle",
+   "fullname": "src/doppler/dsss/benchmarks/bench_burst_acq.py::test_bench_push_idle",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 56.37970867339841
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0011624040198512375,
+    "max": 0.001389398006722331,
+    "mean": 0.0011715620093588016,
+    "stddev": 1.4162351969958568e-05,
+    "rounds": 810,
+    "median": 0.0011685709760058671,
+    "iqr": 4.1869934648275375e-06,
+    "q1": 0.0011670929961837828,
+    "q3": 0.0011712799896486104,
+    "iqr_outliers": 77,
+    "stddev_outliers": 41,
+    "outliers": "41;77",
+    "ld15iqr": 0.0011624040198512375,
+    "hd15iqr": 0.0011777729960158467,
+    "ops": 853.561307051346,
+    "total": 0.9489652275806293,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_burst_acq::test_bench_push_bursts",
+   "fullname": "src/doppler/dsss/benchmarks/bench_burst_acq.py::test_bench_push_bursts",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 56.30467974704769
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0011639529839158058,
+    "max": 0.0018780570244416595,
+    "mean": 0.0011696165413618506,
+    "stddev": 2.513188353351025e-05,
+    "rounds": 818,
+    "median": 0.0011675705027300864,
+    "iqr": 2.905959263443947e-06,
+    "q1": 0.0011665080091916025,
+    "q3": 0.0011694139684550464,
+    "iqr_outliers": 76,
+    "stddev_outliers": 4,
+    "outliers": "4;76",
+    "ld15iqr": 0.0011639529839158058,
+    "hd15iqr": 0.0011738319881260395,
+    "ops": 854.9810682701558,
+    "total": 0.9567463308339939,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_burst_capture::test_bench_push_idle",
+   "fullname": "src/doppler/dsss/benchmarks/bench_burst_capture.py::test_bench_push_idle",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 52.49679451266586
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0012483809841796756,
+    "max": 0.00127984001301229,
+    "mean": 0.0012545028141558807,
+    "stddev": 4.549394084143467e-06,
+    "rounds": 760,
+    "median": 0.0012534009874798357,
+    "iqr": 4.057015758007765e-06,
+    "q1": 0.001251673005754128,
+    "q3": 0.0012557300215121359,
+    "iqr_outliers": 53,
+    "stddev_outliers": 116,
+    "outliers": "116;53",
+    "ld15iqr": 0.0012483809841796756,
+    "hd15iqr": 0.0012618770124390721,
+    "ops": 797.1285426512746,
+    "total": 0.9534221387584694,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_burst_capture::test_bench_push_bursts",
+   "fullname": "src/doppler/dsss/benchmarks/bench_burst_capture.py::test_bench_push_bursts",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 49.22684926070413
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0013313060044310987,
+    "max": 0.0013912179856561124,
+    "mean": 0.0013426540100329163,
+    "stddev": 5.767346657471977e-06,
+    "rounds": 719,
+    "median": 0.0013415360008366406,
+    "iqr": 5.136476829648018e-06,
+    "q1": 0.0013394710258580744,
+    "q3": 0.0013446075026877224,
+    "iqr_outliers": 29,
+    "stddev_outliers": 120,
+    "outliers": "120;29",
+    "ld15iqr": 0.0013323280145414174,
+    "hd15iqr": 0.0013527559931389987,
+    "ops": 744.7935153267699,
+    "total": 0.9653682332136668,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_burst_capture::test_bench_push_bursts_backed",
+   "fullname": "src/doppler/dsss/benchmarks/bench_burst_capture.py::test_bench_push_bursts_backed",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 50.322501912296524
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0013023199862800539,
+    "max": 0.0018654110026545823,
+    "mean": 0.0013097399551371027,
+    "stddev": 2.142139253585095e-05,
+    "rounds": 721,
+    "median": 0.00130760099273175,
+    "iqr": 4.636283847503364e-06,
+    "q1": 0.0013057144824415445,
+    "q3": 0.001310350766289048,
+    "iqr_outliers": 40,
+    "stddev_outliers": 13,
+    "outliers": "13;40",
+    "ld15iqr": 0.0013023199862800539,
+    "hd15iqr": 0.0013175400090403855,
+    "ops": 763.5103411770932,
+    "total": 0.9443225076538511,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_burst_demod::test_bench_demod_idle",
+   "fullname": "src/doppler/dsss/benchmarks/bench_burst_demod.py::test_bench_demod_idle",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 64.95478703623864
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0010089479619637132,
+    "max": 0.0010423120111227036,
+    "mean": 0.001013190211856775,
+    "stddev": 2.887171139012202e-06,
+    "rounds": 949,
+    "median": 0.0010128059657290578,
+    "iqr": 1.4730030670762062e-06,
+    "q1": 0.0010120749939233065,
+    "q3": 0.0010135479969903827,
+    "iqr_outliers": 54,
+    "stddev_outliers": 54,
+    "outliers": "54;54",
+    "ld15iqr": 0.0010099909850396216,
+    "hd15iqr": 0.001015811983961612,
+    "ops": 986.9815048522798,
+    "total": 0.9615175110520795,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_burst_demod::test_bench_demod_burst",
+   "fullname": "src/doppler/dsss/benchmarks/bench_burst_demod.py::test_bench_demod_burst",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 72.7537531668708
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0009007920161820948,
+    "max": 0.001769073016475886,
+    "mean": 0.0009097335813901249,
+    "stddev": 2.9940813729525715e-05,
+    "rounds": 1045,
+    "median": 0.0009060220327228308,
+    "iqr": 1.6252015484496951e-06,
+    "q1": 0.0009052377718035132,
+    "q3": 0.0009068629733519629,
+    "iqr_outliers": 131,
+    "stddev_outliers": 9,
+    "outliers": "9;131",
+    "ld15iqr": 0.0009028459899127483,
+    "hd15iqr": 0.000909617985598743,
+    "ops": 1099.2229158694383,
+    "total": 0.9506715925526805,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_burst_despreader::test_bench_steps_idle",
+   "fullname": "src/doppler/dsss/benchmarks/bench_burst_despreader.py::test_bench_steps_idle",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 131.4793225530117
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0004984510014764965,
+    "max": 0.0005182179738767445,
+    "mean": 0.0005005886031875164,
+    "stddev": 1.292480916314643e-06,
+    "rounds": 1931,
+    "median": 0.0005004050326533616,
+    "iqr": 1.6297708498314023e-06,
+    "q1": 0.000499696223414503,
+    "q3": 0.0005013259942643344,
+    "iqr_outliers": 24,
+    "stddev_outliers": 286,
+    "outliers": "286;24",
+    "ld15iqr": 0.0004984510014764965,
+    "hd15iqr": 0.0005039910320192575,
+    "ops": 1997.6483556206895,
+    "total": 0.9666365927550942,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_burst_despreader::test_bench_steps_bursts",
+   "fullname": "src/doppler/dsss/benchmarks/bench_burst_despreader.py::test_bench_steps_bursts",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 134.2397956276887
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00048820098163560033,
+    "max": 0.0005196810234338045,
+    "mean": 0.00049113705940475,
+    "stddev": 2.084986358875783e-06,
+    "rounds": 2007,
+    "median": 0.0004912169533781707,
+    "iqr": 2.462489646859467e-06,
+    "q1": 0.0004897042672382668,
+    "q3": 0.0004921667568851262,
+    "iqr_outliers": 20,
+    "stddev_outliers": 385,
+    "outliers": "385;20",
+    "ld15iqr": 0.00048820098163560033,
+    "hd15iqr": 0.0004958659992553294,
+    "ops": 2036.0915163111158,
+    "total": 0.9857120782253332,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_despreader::test_bench_steps_64k",
+   "fullname": "src/doppler/dsss/benchmarks/bench_despreader.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 40.99815234881965
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0015940259909257293,
+    "max": 0.0016201039543375373,
+    "mean": 0.0015985110607523952,
+    "stddev": 2.8709643574305616e-06,
+    "rounds": 620,
+    "median": 0.0015980930184014142,
+    "iqr": 1.8639839254319668e-06,
+    "q1": 0.0015971509856171906,
+    "q3": 0.0015990149695426226,
+    "iqr_outliers": 31,
+    "stddev_outliers": 58,
+    "outliers": "58;31",
+    "ld15iqr": 0.001594566972926259,
+    "hd15iqr": 0.0016018300084397197,
+    "ops": 625.582158642878,
+    "total": 0.991076857666485,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dsss_burst_receiver::test_bench_push_idle",
+   "fullname": "src/doppler/dsss/benchmarks/bench_dsss_burst_receiver.py::test_bench_push_idle",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 52.098165132115476
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0012579329777508974,
+    "max": 0.0012978179729543626,
+    "mean": 0.0012661994478028423,
+    "stddev": 5.099558827278929e-06,
+    "rounds": 699,
+    "median": 0.0012655280297622085,
+    "iqr": 6.196001777425408e-06,
+    "q1": 0.0012624470255104825,
+    "q3": 0.001268643027287908,
+    "iqr_outliers": 14,
+    "stddev_outliers": 184,
+    "outliers": "184;14",
+    "ld15iqr": 0.0012579329777508974,
+    "hd15iqr": 0.0012781719560734928,
+    "ops": 789.7649945553509,
+    "total": 0.8850734140141867,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dsss_burst_receiver::test_bench_push_bursts",
+   "fullname": "src/doppler/dsss/benchmarks/bench_dsss_burst_receiver.py::test_bench_push_bursts",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 32.624175632958725
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.002008817042224109,
+    "max": 0.0030690589919686317,
+    "mean": 0.0020289345769127693,
+    "stddev": 8.47735824394527e-05,
+    "rounds": 477,
+    "median": 0.0020151580101810396,
+    "iqr": 6.271031452342868e-06,
+    "q1": 0.0020129324693698436,
+    "q3": 0.0020192035008221865,
+    "iqr_outliers": 43,
+    "stddev_outliers": 22,
+    "outliers": "22;43",
+    "ld15iqr": 0.002008817042224109,
+    "hd15iqr": 0.002028653980232775,
+    "ops": 492.86951456148074,
+    "total": 0.967801793187391,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_ppe::test_bench_estimate_idle",
+   "fullname": "src/doppler/dsss/benchmarks/bench_ppe.py::test_bench_estimate_idle",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 14.431863070136334
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00454106304096058,
+    "max": 0.005302426987327635,
+    "mean": 0.004596940524763717,
+    "stddev": 5.7822038512900005e-05,
+    "rounds": 203,
+    "median": 0.004581729008350521,
+    "iqr": 3.7553225411102176e-05,
+    "q1": 0.004573109748889692,
+    "q3": 0.004610662974300794,
+    "iqr_outliers": 3,
+    "stddev_outliers": 9,
+    "outliers": "9;3",
+    "ld15iqr": 0.00454106304096058,
+    "hd15iqr": 0.004668760986533016,
+    "ops": 217.53598825414434,
+    "total": 0.9331789265270345,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_ppe::test_bench_estimate_bursts",
+   "fullname": "src/doppler/dsss/benchmarks/bench_ppe.py::test_bench_estimate_bursts",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 14.392891044394792
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.004553359001874924,
+    "max": 0.004894277022685856,
+    "mean": 0.0046337382972323525,
+    "stddev": 4.796423866687727e-05,
+    "rounds": 213,
+    "median": 0.004642114974558353,
+    "iqr": 7.178897794801742e-05,
+    "q1": 0.004586393770296127,
+    "q3": 0.004658182748244144,
+    "iqr_outliers": 2,
+    "stddev_outliers": 75,
+    "outliers": "75;2",
+    "ld15iqr": 0.004553359001874924,
+    "hd15iqr": 0.004792846972122788,
+    "ops": 215.80847597657421,
+    "total": 0.986986257310491,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_widedoppler::test_bench_2d_roll[gps_16x2046-16-2046-79]",
+   "fullname": "src/doppler/dsss/benchmarks/bench_widedoppler.py::test_bench_2d_roll[gps_16x2046-16-2046-79]",
+   "params": {
+    "label": "gps_16x2046",
+    "ny": 16,
+    "nx": 2046,
+    "d": 79
+   },
+   "param": "gps_16x2046-16-2046-79",
+   "extra_info": {
+    "grid": "gps_16x2046",
+    "doppler_bins": 79,
+    "us_per_bin": 14.108174496368067,
+    "MSa_s": 1.8357253933797333
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0011072329943999648,
+    "max": 0.001279207004699856,
+    "mean": 0.0011145457852130773,
+    "stddev": 7.818721203604682e-06,
+    "rounds": 803,
+    "median": 0.00111397699220106,
+    "iqr": 6.532252882607281e-06,
+    "q1": 0.0011102415155619383,
+    "q3": 0.0011167737684445456,
+    "iqr_outliers": 15,
+    "stddev_outliers": 40,
+    "outliers": "40;15",
+    "ld15iqr": 0.0011072329943999648,
+    "hd15iqr": 0.0011272410047240555,
+    "ops": 897.2264874778756,
+    "total": 0.894980265526101,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_widedoppler::test_bench_2d_roll[burst_5x4094-5-4094-49]",
+   "fullname": "src/doppler/dsss/benchmarks/bench_widedoppler.py::test_bench_2d_roll[burst_5x4094-5-4094-49]",
+   "params": {
+    "label": "burst_5x4094",
+    "ny": 5,
+    "nx": 4094,
+    "d": 49
+   },
+   "param": "burst_5x4094-5-4094-49",
+   "extra_info": {
+    "grid": "burst_5x4094",
+    "doppler_bins": 49,
+    "us_per_bin": 47.38179074999657,
+    "MSa_s": 1.7633571691920342
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0023011600133031607,
+    "max": 0.003139859007205814,
+    "mean": 0.002321707746749832,
+    "stddev": 5.736897192793444e-05,
+    "rounds": 424,
+    "median": 0.0023138434917200357,
+    "iqr": 1.6156001947820187e-05,
+    "q1": 0.0023076269717421383,
+    "q3": 0.0023237829736899585,
+    "iqr_outliers": 13,
+    "stddev_outliers": 4,
+    "outliers": "4;13",
+    "ld15iqr": 0.0023011600133031607,
+    "hd15iqr": 0.002349229995161295,
+    "ops": 430.717432631176,
+    "total": 0.9844040846219286,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_widedoppler::test_bench_column_tile[gps_16x2046-16-2046-79]",
+   "fullname": "src/doppler/dsss/benchmarks/bench_widedoppler.py::test_bench_column_tile[gps_16x2046-16-2046-79]",
+   "params": {
+    "label": "gps_16x2046",
+    "ny": 16,
+    "nx": 2046,
+    "d": 79
+   },
+   "param": "gps_16x2046-16-2046-79",
+   "extra_info": {
+    "grid": "gps_16x2046",
+    "fine_bins_per_tile": 16,
+    "MSa_s": 60.459036083639106,
+    "bank_ms_for_span": 42.77514442046884
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0005386570119298995,
+    "max": 0.0005887920269742608,
+    "mean": 0.0005414575243097322,
+    "stddev": 3.3263913616838164e-06,
+    "rounds": 1822,
+    "median": 0.0005412030150182545,
+    "iqr": 2.5550834834575653e-06,
+    "q1": 0.0005395289626903832,
+    "q3": 0.0005420840461738408,
+    "iqr_outliers": 71,
+    "stddev_outliers": 90,
+    "outliers": "90;71",
+    "ld15iqr": 0.0005386570119298995,
+    "hd15iqr": 0.000546020979527384,
+    "ops": 1846.8669380388292,
+    "total": 0.9865356092923321,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_widedoppler::test_bench_column_tile[burst_5x4094-5-4094-49]",
+   "fullname": "src/doppler/dsss/benchmarks/bench_widedoppler.py::test_bench_column_tile[burst_5x4094-5-4094-49]",
+   "params": {
+    "label": "burst_5x4094",
+    "ny": 5,
+    "nx": 4094,
+    "d": 49
+   },
+   "param": "burst_5x4094-5-4094-49",
+   "extra_info": {
+    "grid": "burst_5x4094",
+    "fine_bins_per_tile": 5,
+    "MSa_s": 35.286793604087386,
+    "bank_ms_for_span": 28.425081951447577
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0005751919816248119,
+    "max": 0.0011684590135701,
+    "mean": 0.0005801037132948485,
+    "stddev": 1.4751804009516025e-05,
+    "rounds": 1720,
+    "median": 0.0005793354939669371,
+    "iqr": 2.279033651575446e-06,
+    "q1": 0.0005782129883300513,
+    "q3": 0.0005804920219816267,
+    "iqr_outliers": 57,
+    "stddev_outliers": 15,
+    "outliers": "15;57",
+    "ld15iqr": 0.0005751919816248119,
+    "hd15iqr": 0.0005840390222147107,
+    "ops": 1723.8296826618162,
+    "total": 0.9977783868671395,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_boxcar::test_bench_step",
+   "fullname": "src/doppler/filter/benchmarks/bench_boxcar.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.823269989510829e-08,
+    "max": 1.9798277538608422e-07,
+    "mean": 2.871901023013071e-08,
+    "stddev": 1.8031800670182694e-09,
+    "rounds": 199999,
+    "median": 2.8630562486465682e-08,
+    "iqr": 1.6470122235742723e-10,
+    "q1": 2.8522746023637326e-08,
+    "q3": 2.8687447245994754e-08,
+    "iqr_outliers": 6840,
+    "stddev_outliers": 2045,
+    "outliers": "2045;6840",
+    "ld15iqr": 2.8289584654637358e-08,
+    "hd15iqr": 2.8971540318294006e-08,
+    "ops": 34820141.50163311,
+    "total": 0.0057437733270159115,
+    "iterations": 176
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_boxcar::test_bench_steps_64k",
+   "fullname": "src/doppler/filter/benchmarks/bench_boxcar.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00019495503511279821,
+    "max": 0.0002168049686588347,
+    "mean": 0.0001956108990857648,
+    "stddev": 9.880805260095621e-07,
+    "rounds": 4960,
+    "median": 0.00019518501358106732,
+    "iqr": 2.3550819605588913e-07,
+    "q1": 0.00019512500148266554,
+    "q3": 0.00019536050967872143,
+    "iqr_outliers": 1041,
+    "stddev_outliers": 905,
+    "outliers": "905;1041",
+    "ld15iqr": 0.00019495503511279821,
+    "hd15iqr": 0.00019571703160181642,
+    "ops": 5112.189579792044,
+    "total": 0.9702300594653934,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_fir::test_bench_execute[1024]",
+   "fullname": "src/doppler/filter/benchmarks/bench_fir.py::test_bench_execute[1024]",
+   "params": {
+    "n": 1024
+   },
+   "param": "1024",
+   "extra_info": {
+    "MSa_s": 87.40004249791441
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.1500960681587458e-05,
+    "max": 4.1667954064905643e-05,
+    "mean": 1.1716241442610685e-05,
+    "stddev": 3.1761384278249725e-07,
+    "rounds": 70289,
+    "median": 1.1692056432366371e-05,
+    "iqr": 5.098991096019745e-08,
+    "q1": 1.1670985259115696e-05,
+    "q3": 1.1721975170075893e-05,
+    "iqr_outliers": 4433,
+    "stddev_outliers": 1284,
+    "outliers": "1284;4433",
+    "ld15iqr": 1.1600961443036795e-05,
+    "hd15iqr": 1.1801952496170998e-05,
+    "ops": 85351.60400186955,
+    "total": 0.8235228947596624,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_fir::test_bench_execute[20480]",
+   "fullname": "src/doppler/filter/benchmarks/bench_fir.py::test_bench_execute[20480]",
+   "params": {
+    "n": 20480
+   },
+   "param": "20480",
+   "extra_info": {
+    "MSa_s": 88.50997783426442
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00022892095148563385,
+    "max": 0.0005115919630043209,
+    "mean": 0.00023138634198224464,
+    "stddev": 5.455305481223898e-06,
+    "rounds": 4187,
+    "median": 0.00023100501857697964,
+    "iqr": 1.4630495570600033e-06,
+    "q1": 0.00023028295254334807,
+    "q3": 0.00023174600210040808,
+    "iqr_outliers": 66,
+    "stddev_outliers": 39,
+    "outliers": "39;66",
+    "ld15iqr": 0.00022892095148563385,
+    "hd15iqr": 0.0002339499769732356,
+    "ops": 4321.776261438693,
+    "total": 0.9688146138796583,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_fir::test_bench_execute[409600]",
+   "fullname": "src/doppler/filter/benchmarks/bench_fir.py::test_bench_execute[409600]",
+   "params": {
+    "n": 409600
+   },
+   "param": "409600",
+   "extra_info": {
+    "MSa_s": 88.09817464912689
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0046129809925332665,
+    "max": 0.0056308110360987484,
+    "mean": 0.0046493585324705634,
+    "stddev": 7.073515533021854e-05,
+    "rounds": 212,
+    "median": 0.004646498477086425,
+    "iqr": 2.884448622353375e-05,
+    "q1": 0.0046281735121738166,
+    "q3": 0.00465701799839735,
+    "iqr_outliers": 3,
+    "stddev_outliers": 3,
+    "outliers": "3;3",
+    "ld15iqr": 0.0046129809925332665,
+    "hd15iqr": 0.004768911981955171,
+    "ops": 215.08343420196996,
+    "total": 0.9856640088837594,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_fir::test_bench_execute[819200]",
+   "fullname": "src/doppler/filter/benchmarks/bench_fir.py::test_bench_execute[819200]",
+   "params": {
+    "n": 819200
+   },
+   "param": "819200",
+   "extra_info": {
+    "MSa_s": 86.96095082846347
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00934024399612099,
+    "max": 0.00982072704937309,
+    "mean": 0.009420320180444313,
+    "stddev": 6.627354559470481e-05,
+    "rounds": 105,
+    "median": 0.009413783031050116,
+    "iqr": 4.769278166349977e-05,
+    "q1": 0.009383610493387096,
+    "q3": 0.009431303275050595,
+    "iqr_outliers": 7,
+    "stddev_outliers": 18,
+    "outliers": "18;7",
+    "ld15iqr": 0.00934024399612099,
+    "hd15iqr": 0.00951201602583751,
+    "ops": 106.1535044292767,
+    "total": 0.9891336189466529,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dp_interrupt_guard::test_interrupted",
+   "fullname": "src/doppler/interrupt/benchmarks/bench_dp_interrupt_guard.py::test_interrupted",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.8964987248182295e-08,
+    "max": 6.759597454220056e-08,
+    "mean": 1.9422521568538898e-08,
+    "stddev": 7.253453163187267e-10,
+    "rounds": 50462,
+    "median": 1.9315979443490505e-08,
+    "iqr": 1.3993121683597874e-10,
+    "q1": 1.9256025552749632e-08,
+    "q3": 1.939595676958561e-08,
+    "iqr_outliers": 7654,
+    "stddev_outliers": 1290,
+    "outliers": "1290;7654",
+    "ld15iqr": 1.905497629195452e-08,
+    "hd15iqr": 1.96059700101614e-08,
+    "ops": 51486620.646611914,
+    "total": 0.0009800992833916098,
+    "iterations": 1000
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dp_interrupt_guard::test_interrupt_and_resume",
+   "fullname": "src/doppler/interrupt/benchmarks/bench_dp_interrupt_guard.py::test_interrupt_and_resume",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.198063215957238e-08,
+    "max": 2.1656421431077595e-07,
+    "mean": 3.255000095609965e-08,
+    "stddev": 1.4700205753418686e-09,
+    "rounds": 194176,
+    "median": 3.2435845917998215e-08,
+    "iqr": 1.9850304875618695e-10,
+    "q1": 3.236532509804536e-08,
+    "q3": 3.256382814680155e-08,
+    "iqr_outliers": 5934,
+    "stddev_outliers": 1726,
+    "outliers": "1726;5934",
+    "ld15iqr": 3.210861438837571e-08,
+    "hd15iqr": 3.287800026532167e-08,
+    "ops": 30721965.30343286,
+    "total": 0.006320428985651607,
+    "iterations": 156
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dp_interrupt_guard::test_arm_disarm",
+   "fullname": "src/doppler/interrupt/benchmarks/bench_dp_interrupt_guard.py::test_arm_disarm",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.100140020251274e-07,
+    "max": 3.175984602421522e-06,
+    "mean": 3.373702141822641e-07,
+    "stddev": 3.124965599379267e-08,
+    "rounds": 140984,
+    "median": 3.3102696761488914e-07,
+    "iqr": 1.0011717677116394e-08,
+    "q1": 3.309687599539757e-07,
+    "q3": 3.4098047763109207e-07,
+    "iqr_outliers": 6057,
+    "stddev_outliers": 1662,
+    "outliers": "1662;6057",
+    "ld15iqr": 3.1996751204133034e-07,
+    "hd15iqr": 3.5995617508888245e-07,
+    "ops": 2964102.810391407,
+    "total": 0.04756380227627233,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_HalfbandDecimator::test_bench_execute_64k",
+   "fullname": "src/doppler/resample/benchmarks/bench_HalfbandDecimator.py::test_bench_execute_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 407.7921215810112
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00015924795297905803,
+    "max": 0.00020189699716866016,
+    "mean": 0.00016070933333855677,
+    "stddev": 1.3238653125159742e-06,
+    "rounds": 5875,
+    "median": 0.00016036996385082603,
+    "iqr": 8.320203050971031e-07,
+    "q1": 0.00016001897165551782,
+    "q3": 0.00016085099196061492,
+    "iqr_outliers": 728,
+    "stddev_outliers": 771,
+    "outliers": "771;728",
+    "ld15iqr": 0.00015924795297905803,
+    "hd15iqr": 0.0001621029805392027,
+    "ops": 6222.4139645540035,
+    "total": 0.944167333364021,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_RateConverter::test_bench_hb_64k",
+   "fullname": "src/doppler/resample/benchmarks/bench_RateConverter.py::test_bench_hb_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 413.3090443679203
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00015742401592433453,
+    "max": 0.00018885295139625669,
+    "mean": 0.00015856415651446774,
+    "stddev": 9.912694510865955e-07,
+    "rounds": 6152,
+    "median": 0.00015829602489247918,
+    "iqr": 4.909816198050976e-07,
+    "q1": 0.00015808502212166786,
+    "q3": 0.00015857600374147296,
+    "iqr_outliers": 970,
+    "stddev_outliers": 849,
+    "outliers": "849;970",
+    "ld15iqr": 0.00015742401592433453,
+    "hd15iqr": 0.0001593169872649014,
+    "ops": 6306.595525633549,
+    "total": 0.9754866908770055,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_RateConverter::test_bench_hb2_64k",
+   "fullname": "src/doppler/resample/benchmarks/bench_RateConverter.py::test_bench_hb2_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 275.42461192408047
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00023637199774384499,
+    "max": 0.00026689900550991297,
+    "mean": 0.00023794532936680581,
+    "stddev": 1.2504473143960443e-06,
+    "rounds": 4176,
+    "median": 0.0002375839976593852,
+    "iqr": 1.1279771570116282e-06,
+    "q1": 0.00023722302285023034,
+    "q3": 0.00023835100000724196,
+    "iqr_outliers": 156,
+    "stddev_outliers": 626,
+    "outliers": "626;156",
+    "ld15iqr": 0.00023637199774384499,
+    "hd15iqr": 0.00024004903389140964,
+    "ops": 4202.6460559704665,
+    "total": 0.993659695435781,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_RateConverter::test_bench_cic_64k",
+   "fullname": "src/doppler/resample/benchmarks/bench_RateConverter.py::test_bench_cic_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 529.6661141434537
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0001232200302183628,
+    "max": 0.00015112198889255524,
+    "mean": 0.00012373077727651343,
+    "stddev": 8.538386714287541e-07,
+    "rounds": 7665,
+    "median": 0.00012351101031526923,
+    "iqr": 1.0995427146553993e-07,
+    "q1": 0.00012346100993454456,
+    "q3": 0.0001235709642060101,
+    "iqr_outliers": 1032,
+    "stddev_outliers": 904,
+    "outliers": "904;1032",
+    "ld15iqr": 0.0001233000075444579,
+    "hd15iqr": 0.00012374098878353834,
+    "ops": 8082.063509269008,
+    "total": 0.9483964078244753,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_RateConverter::test_bench_cic_resamp_64k",
+   "fullname": "src/doppler/resample/benchmarks/bench_RateConverter.py::test_bench_cic_resamp_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 328.0630299453596
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.000198783993255347,
+    "max": 0.00022120599169284105,
+    "mean": 0.00019976649002758807,
+    "stddev": 1.2031788386509457e-06,
+    "rounds": 4903,
+    "median": 0.00019943597726523876,
+    "iqr": 8.619972504675388e-07,
+    "q1": 0.00019915401935577393,
+    "q3": 0.00020001601660624146,
+    "iqr_outliers": 268,
+    "stddev_outliers": 467,
+    "outliers": "467;268",
+    "ld15iqr": 0.000198783993255347,
+    "hd15iqr": 0.00020130904158577323,
+    "ops": 5005.844573140863,
+    "total": 0.9794551006052643,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_RateConverter::test_bench_resamp_64k",
+   "fullname": "src/doppler/resample/benchmarks/bench_RateConverter.py::test_bench_resamp_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 168.15573969566205
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00038633699296042323,
+    "max": 0.0009432050283066928,
+    "mean": 0.0003897339461537907,
+    "stddev": 1.1569505058229326e-05,
+    "rounds": 2577,
+    "median": 0.00038930296432226896,
+    "iqr": 2.5575136533007026e-06,
+    "q1": 0.000387930020224303,
+    "q3": 0.0003904875338776037,
+    "iqr_outliers": 47,
+    "stddev_outliers": 11,
+    "outliers": "11;47",
+    "ld15iqr": 0.00038633699296042323,
+    "hd15iqr": 0.0003944420022889972,
+    "ops": 2565.852961664765,
+    "total": 1.0043443792383187,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_Resampler::test_bench_execute_decim_64k",
+   "fullname": "src/doppler/resample/benchmarks/bench_Resampler.py::test_bench_execute_decim_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 140.1991380877056
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00046404299791902304,
+    "max": 0.0011447540018707514,
+    "mean": 0.0004674493787472651,
+    "stddev": 2.3950652678071636e-05,
+    "rounds": 2141,
+    "median": 0.000466056982986629,
+    "iqr": 2.0675361156463623e-06,
+    "q1": 0.0004649439943023026,
+    "q3": 0.00046701153041794896,
+    "iqr_outliers": 44,
+    "stddev_outliers": 8,
+    "outliers": "8;44",
+    "ld15iqr": 0.00046404299791902304,
+    "hd15iqr": 0.0004701149882748723,
+    "ops": 2139.269074824609,
+    "total": 1.0008091198978946,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_cic::test_bench_decimate_64k",
+   "fullname": "src/doppler/resample/benchmarks/bench_cic.py::test_bench_decimate_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 547.1358290366185
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00011887401342391968,
+    "max": 0.00016860797768458724,
+    "mean": 0.00011978012866639344,
+    "stddev": 1.1542804803848069e-06,
+    "rounds": 7977,
+    "median": 0.00011947500752285123,
+    "iqr": 4.0995655581355095e-07,
+    "q1": 0.00011941499542444944,
+    "q3": 0.000119824951980263,
+    "iqr_outliers": 964,
+    "stddev_outliers": 678,
+    "outliers": "678;964",
+    "ld15iqr": 0.00011887401342391968,
+    "hd15iqr": 0.00012044596951454878,
+    "ops": 8348.630203805824,
+    "total": 0.9554860863718204,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_cic::decimate_R4",
+   "fullname": "src/doppler/resample/benchmarks/bench_cic.py::test_bench_decimate_params[4]",
+   "params": {
+    "R": 4
+   },
+   "param": "4",
+   "extra_info": {
+    "MSa_s": 495.75851218301005
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00013171695172786713,
+    "max": 0.0001659099943935871,
+    "mean": 0.0001321933933346308,
+    "stddev": 1.171506697169429e-06,
+    "rounds": 7414,
+    "median": 0.00013191701145842671,
+    "iqr": 1.4103716239333153e-07,
+    "q1": 0.0001318659633398056,
+    "q3": 0.00013200700050219893,
+    "iqr_outliers": 1056,
+    "stddev_outliers": 644,
+    "outliers": "644;1056",
+    "ld15iqr": 0.00013171695172786713,
+    "hd15iqr": 0.00013222696725279093,
+    "ops": 7564.674563339387,
+    "total": 0.9800818181829527,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_cic::decimate_R8",
+   "fullname": "src/doppler/resample/benchmarks/bench_cic.py::test_bench_decimate_params[8]",
+   "params": {
+    "R": 8
+   },
+   "param": "8",
+   "extra_info": {
+    "MSa_s": 547.1050974080348
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00011933298083022237,
+    "max": 0.00016963697271421552,
+    "mean": 0.00011978685687719483,
+    "stddev": 1.018167617797152e-06,
+    "rounds": 8196,
+    "median": 0.00011954305227845907,
+    "iqr": 1.00000761449337e-07,
+    "q1": 0.0001195030054077506,
+    "q3": 0.00011960300616919994,
+    "iqr_outliers": 1132,
+    "stddev_outliers": 832,
+    "outliers": "832;1132",
+    "ld15iqr": 0.0001193530042655766,
+    "hd15iqr": 0.00011975399684160948,
+    "ops": 8348.161276367719,
+    "total": 0.9817730789654888,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_cic::decimate_R32",
+   "fullname": "src/doppler/resample/benchmarks/bench_cic.py::test_bench_decimate_params[32]",
+   "params": {
+    "R": 32
+   },
+   "param": "32",
+   "extra_info": {
+    "MSa_s": 547.3813187787908
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00011886394349858165,
+    "max": 0.0001639779657125473,
+    "mean": 0.00011972640963745528,
+    "stddev": 1.0408152123115495e-06,
+    "rounds": 8279,
+    "median": 0.00011947500752285123,
+    "iqr": 3.2997922971844673e-07,
+    "q1": 0.00011941499542444944,
+    "q3": 0.00011974497465416789,
+    "iqr_outliers": 1030,
+    "stddev_outliers": 770,
+    "outliers": "770;1030",
+    "ld15iqr": 0.00011892401380464435,
+    "hd15iqr": 0.00012025597970932722,
+    "ops": 8352.37607999864,
+    "total": 0.9912149453884922,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_cic::decimate_R64",
+   "fullname": "src/doppler/resample/benchmarks/bench_cic.py::test_bench_decimate_params[64]",
+   "params": {
+    "R": 64
+   },
+   "param": "64",
+   "extra_info": {
+    "MSa_s": 580.4285383952779
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00011232000542804599,
+    "max": 0.0001364150084555149,
+    "mean": 0.00011290967908157766,
+    "stddev": 1.0429165499571072e-06,
+    "rounds": 8719,
+    "median": 0.00011260999599471688,
+    "iqr": 3.0105002224445343e-07,
+    "q1": 0.00011255999561399221,
+    "q3": 0.00011286104563623667,
+    "iqr_outliers": 1074,
+    "stddev_outliers": 775,
+    "outliers": "775;1074",
+    "ld15iqr": 0.00011232000542804599,
+    "hd15iqr": 0.00011332100257277489,
+    "ops": 8856.636633228727,
+    "total": 0.9844594919122756,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_cic::decimate_R256",
+   "fullname": "src/doppler/resample/benchmarks/bench_cic.py::test_bench_decimate_params[256]",
+   "params": {
+    "R": 256
+   },
+   "param": "256",
+   "extra_info": {
+    "MSa_s": 608.5167675395277
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00010729097994044423,
+    "max": 0.00015478901332244277,
+    "mean": 0.00010769793618832854,
+    "stddev": 1.0224115851455424e-06,
+    "rounds": 9143,
+    "median": 0.00010747101623564959,
+    "iqr": 1.1007068678736687e-07,
+    "q1": 0.00010743096936494112,
+    "q3": 0.00010754104005172849,
+    "iqr_outliers": 1108,
+    "stddev_outliers": 809,
+    "outliers": "809;1108",
+    "ld15iqr": 0.00010729097994044423,
+    "hd15iqr": 0.00010771100642159581,
+    "ops": 9285.22899688,
+    "total": 0.9846822305698879,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_farrow::test_bench_delay_64k",
+   "fullname": "src/doppler/resample/benchmarks/bench_farrow.py::test_bench_delay_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 473.3485237109972
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00013744697207584977,
+    "max": 0.0001674529630690813,
+    "mean": 0.00013845189478189432,
+    "stddev": 1.0587303445727913e-06,
+    "rounds": 7049,
+    "median": 0.0001382090267725289,
+    "iqr": 5.409820005297661e-07,
+    "q1": 0.00013788801152259111,
+    "q3": 0.00013842899352312088,
+    "iqr_outliers": 1020,
+    "stddev_outliers": 910,
+    "outliers": "910;1020",
+    "ld15iqr": 0.00013744697207584977,
+    "hd15iqr": 0.00013924099039286375,
+    "ops": 7222.725276351887,
+    "total": 0.975947406317573,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_hbdecim_q15::test_bench_execute_64k",
+   "fullname": "src/doppler/resample/benchmarks/bench_hbdecim_q15.py::test_bench_execute_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 342.3990929598912
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00018982496112585068,
+    "max": 0.00021918897982686758,
+    "mean": 0.00019140237619635553,
+    "stddev": 1.4077917886785722e-06,
+    "rounds": 5013,
+    "median": 0.00019120704382658005,
+    "iqr": 1.3440148904919624e-06,
+    "q1": 0.00019054498989135027,
+    "q3": 0.00019188900478184223,
+    "iqr_outliers": 73,
+    "stddev_outliers": 402,
+    "outliers": "402;73",
+    "ld15iqr": 0.00018982496112585068,
+    "hd15iqr": 0.00019391195382922888,
+    "ops": 5224.595534666308,
+    "total": 0.9595001118723303,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_resample::test_bench_resample_down",
+   "fullname": "src/doppler/resample/benchmarks/bench_resample.py::test_bench_resample_down",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 137.50428516117063
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 7.383991032838821e-06,
+    "max": 3.578700125217438e-05,
+    "mean": 7.4470406416771355e-06,
+    "stddev": 2.3626620492585535e-07,
+    "rounds": 94163,
+    "median": 7.424037903547287e-06,
+    "iqr": 2.9976945370435715e-08,
+    "q1": 7.414026185870171e-06,
+    "q3": 7.444003131240606e-06,
+    "iqr_outliers": 2089,
+    "stddev_outliers": 1220,
+    "outliers": "1220;2089",
+    "ld15iqr": 7.383991032838821e-06,
+    "hd15iqr": 7.493945304304361e-06,
+    "ops": 134281.5284777057,
+    "total": 0.7012356879422441,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_resample::test_bench_resample_up",
+   "fullname": "src/doppler/resample/benchmarks/bench_resample.py::test_bench_resample_up",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 80.26066645690935
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.268298365175724e-05,
+    "max": 3.996503073722124e-05,
+    "mean": 1.2758428819548478e-05,
+    "stddev": 2.4270745452538575e-07,
+    "rounds": 69653,
+    "median": 1.2733973562717438e-05,
+    "iqr": 2.0954757928848267e-08,
+    "q1": 1.2723030522465706e-05,
+    "q3": 1.2743985280394554e-05,
+    "iqr_outliers": 5065,
+    "stddev_outliers": 1352,
+    "outliers": "1352;5065",
+    "ld15iqr": 1.2692995369434357e-05,
+    "hd15iqr": 1.2782984413206577e-05,
+    "ops": 78379.55708682553,
+    "total": 0.8886628425680101,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_resample::test_bench_hbdecim",
+   "fullname": "src/doppler/resample/benchmarks/bench_resample.py::test_bench_hbdecim",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 382.5584756151527
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.635002601891756e-06,
+    "max": 3.2010022550821304e-05,
+    "mean": 2.6767149737132646e-06,
+    "stddev": 1.445653466758486e-07,
+    "rounds": 176026,
+    "median": 2.6650377549231052e-06,
+    "iqr": 1.0011717677116394e-08,
+    "q1": 2.6649795472621918e-06,
+    "q3": 2.674991264939308e-06,
+    "iqr_outliers": 14470,
+    "stddev_outliers": 919,
+    "outliers": "919;14470",
+    "ld15iqr": 2.6539782993495464e-06,
+    "hd15iqr": 2.6949564926326275e-06,
+    "ops": 373592.2613429226,
+    "total": 0.4711714299628511,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_awgn::test_bench_generate_64k",
+   "fullname": "src/doppler/source/benchmarks/bench_awgn.py::test_bench_generate_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 301.5652987224553
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00021493202075362206,
+    "max": 0.00033106899354606867,
+    "mean": 0.00021731943389254431,
+    "stddev": 2.837898812196124e-06,
+    "rounds": 4351,
+    "median": 0.00021713599562644958,
+    "iqr": 7.309718057513237e-07,
+    "q1": 0.00021680601639673114,
+    "q3": 0.00021753698820248246,
+    "iqr_outliers": 1164,
+    "stddev_outliers": 66,
+    "outliers": "66;1164",
+    "ld15iqr": 0.00021572300465777516,
+    "hd15iqr": 0.00021863897563889623,
+    "ops": 4601.521281775746,
+    "total": 0.9455568568664603,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_lo::test_bench_steps_64k",
+   "fullname": "src/doppler/source/benchmarks/bench_lo.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 3859.28665661257
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.6820966266095638e-05,
+    "max": 5.561398575082421e-05,
+    "mean": 1.6981376568052923e-05,
+    "stddev": 9.005536138126144e-07,
+    "rounds": 53065,
+    "median": 1.69120030477643e-05,
+    "iqr": 8.89413058757782e-08,
+    "q1": 1.6862002667039633e-05,
+    "q3": 1.695094397291541e-05,
+    "iqr_outliers": 1569,
+    "stddev_outliers": 1092,
+    "outliers": "1092;1569",
+    "ld15iqr": 1.6820966266095638e-05,
+    "hd15iqr": 1.7090991605073214e-05,
+    "ops": 58888.04102497208,
+    "total": 0.9011167475837283,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_lo::test_bench_steps_ctrl_64k",
+   "fullname": "src/doppler/source/benchmarks/bench_lo.py::test_bench_steps_ctrl_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 1246.4474345236752
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 5.216803401708603e-05,
+    "max": 8.031097240746021e-05,
+    "mean": 5.2578230084002154e-05,
+    "stddev": 8.161081700571872e-07,
+    "rounds": 17130,
+    "median": 5.237804725766182e-05,
+    "iqr": 8.998904377222061e-08,
+    "q1": 5.233898991718888e-05,
+    "q3": 5.2428978960961103e-05,
+    "iqr_outliers": 1797,
+    "stddev_outliers": 1294,
+    "outliers": "1294;1797",
+    "ld15iqr": 5.220802268013358e-05,
+    "hd15iqr": 5.2567978855222464e-05,
+    "ops": 19019.278480891036,
+    "total": 0.900665081338957,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_nco::test_bench_steps_u32_64k",
+   "fullname": "src/doppler/source/benchmarks/bench_nco.py::test_bench_steps_u32_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 4102.98765417024
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.5649013221263885e-05,
+    "max": 5.3729978390038013e-05,
+    "mean": 1.5972750961945937e-05,
+    "stddev": 4.219846987244466e-07,
+    "rounds": 52122,
+    "median": 1.5930039808154106e-05,
+    "iqr": 1.2101372703909874e-07,
+    "q1": 1.5878991689532995e-05,
+    "q3": 1.6000005416572094e-05,
+    "iqr_outliers": 1809,
+    "stddev_outliers": 1167,
+    "outliers": "1167;1809",
+    "ld15iqr": 1.569895539432764e-05,
+    "hd15iqr": 1.618999522179365e-05,
+    "ops": 62606.62314102539,
+    "total": 0.832531725638546,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_nco::test_bench_steps_u32_ovf_64k",
+   "fullname": "src/doppler/source/benchmarks/bench_nco.py::test_bench_steps_u32_ovf_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 3171.4136178004824
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.0298000890761614e-05,
+    "max": 7.557094795629382e-05,
+    "mean": 2.0664601940333523e-05,
+    "stddev": 1.373568347319559e-06,
+    "rounds": 41607,
+    "median": 2.0468025468289852e-05,
+    "iqr": 1.1094380170106888e-07,
+    "q1": 2.04280368052423e-05,
+    "q3": 2.053898060694337e-05,
+    "iqr_outliers": 8570,
+    "stddev_outliers": 800,
+    "outliers": "800;8570",
+    "ld15iqr": 2.0298000890761614e-05,
+    "hd15iqr": 2.0707957446575165e-05,
+    "ops": 48391.931423957554,
+    "total": 0.8597920929314569,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_corr::test_bench_execute_64k",
+   "fullname": "src/doppler/spectral/benchmarks/bench_corr.py::test_bench_execute_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 244718.71280142743
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.534477971494198e-07,
+    "max": 3.6963989259675146e-06,
+    "mean": 2.6780134322289445e-07,
+    "stddev": 3.1424955210784375e-08,
+    "rounds": 119675,
+    "median": 2.6600027922540905e-07,
+    "iqr": 3.9988663047552e-09,
+    "q1": 2.640008460730314e-07,
+    "q3": 2.679997123777866e-07,
+    "iqr_outliers": 2431,
+    "stddev_outliers": 989,
+    "outliers": "989;2431",
+    "ld15iqr": 2.5844783522188666e-07,
+    "hd15iqr": 2.7400092221796514e-07,
+    "ops": 3734111.2182834996,
+    "total": 0.03204912575019989,
+    "iterations": 20
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_corr2d::test_bench_corr2d_fallback",
+   "fullname": "src/doppler/spectral/benchmarks/bench_corr2d.py::test_bench_corr2d_fallback",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "N": 20460,
+    "MSa_s": 59.24347576559787
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0003411879879422486,
+    "max": 0.0009260220103897154,
+    "mean": 0.0003453544839427016,
+    "stddev": 1.1211927930733288e-05,
+    "rounds": 2859,
+    "median": 0.0003446849877946079,
+    "iqr": 2.194021362811327e-06,
+    "q1": 0.00034376297844573855,
+    "q3": 0.0003459569998085499,
+    "iqr_outliers": 88,
+    "stddev_outliers": 22,
+    "outliers": "22;88",
+    "ld15iqr": 0.0003411879879422486,
+    "hd15iqr": 0.00034930300898849964,
+    "ops": 2895.5755506157316,
+    "total": 0.9873684695921838,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_corr2d::test_bench_corr2d_pffft",
+   "fullname": "src/doppler/spectral/benchmarks/bench_corr2d.py::test_bench_corr2d_pffft",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "N": 32000,
+    "MSa_s": 156.75800418537443
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00020098598906770349,
+    "max": 0.0006135980365797877,
+    "mean": 0.0002041363065719971,
+    "stddev": 1.0978037349554187e-05,
+    "rounds": 4717,
+    "median": 0.0002033999771811068,
+    "iqr": 1.7330166883766651e-06,
+    "q1": 0.00020249898079782724,
+    "q3": 0.0002042319974862039,
+    "iqr_outliers": 205,
+    "stddev_outliers": 51,
+    "outliers": "51;205",
+    "ld15iqr": 0.00020098598906770349,
+    "hd15iqr": 0.00020684697665274143,
+    "ops": 4898.6876307929515,
+    "total": 0.9629109581001103,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_corr2d::test_bench_corr2d_pffft_dwell8",
+   "fullname": "src/doppler/spectral/benchmarks/bench_corr2d.py::test_bench_corr2d_pffft_dwell8",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "N": 32000,
+    "MSa_s": 277.36149091622707
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00010225101141259074,
+    "max": 0.000235030020121485,
+    "mean": 0.00011537290160321906,
+    "stddev": 3.303047938030817e-05,
+    "rounds": 9694,
+    "median": 0.00010251201456412673,
+    "iqr": 6.119953468441963e-07,
+    "q1": 0.00010245101293548942,
+    "q3": 0.00010306300828233361,
+    "iqr_outliers": 2212,
+    "stddev_outliers": 1211,
+    "outliers": "1211;2212",
+    "ld15iqr": 0.00010225101141259074,
+    "hd15iqr": 0.0001039839698933065,
+    "ops": 8667.546591132095,
+    "total": 1.1184249081416056,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detector::test_bench_push_64k",
+   "fullname": "src/doppler/spectral/benchmarks/bench_detector.py::test_bench_push_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.836296334862709e-05,
+    "max": 8.606101619079709e-05,
+    "mean": 2.885815897995512e-05,
+    "stddev": 5.869494935669515e-07,
+    "rounds": 22435,
+    "median": 2.8812966775149107e-05,
+    "iqr": 1.6996636986732483e-07,
+    "q1": 2.8714013751596212e-05,
+    "q3": 2.8883980121463537e-05,
+    "iqr_outliers": 1128,
+    "stddev_outliers": 784,
+    "outliers": "784;1128",
+    "ld15iqr": 2.8462964110076427e-05,
+    "hd15iqr": 2.9143993742763996e-05,
+    "ops": 34652.24516555613,
+    "total": 0.6474327967152931,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_detector2d::test_bench_push_64k",
+   "fullname": "src/doppler/spectral/benchmarks/bench_detector2d.py::test_bench_push_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 5.317898467183113e-05,
+    "max": 0.0001823300262913108,
+    "mean": 5.417184667137274e-05,
+    "stddev": 1.8876360552197339e-06,
+    "rounds": 15121,
+    "median": 5.398999201133847e-05,
+    "iqr": 5.010515451431274e-07,
+    "q1": 5.377997877076268e-05,
+    "q3": 5.428103031590581e-05,
+    "iqr_outliers": 1116,
+    "stddev_outliers": 309,
+    "outliers": "309;1116",
+    "ld15iqr": 5.317898467183113e-05,
+    "hd15iqr": 5.503295687958598e-05,
+    "ops": 18459.773137629672,
+    "total": 0.8191324935178272,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_fft::test_bench_execute_cf64_8k",
+   "fullname": "src/doppler/spectral/benchmarks/bench_fft.py::test_bench_execute_cf64_8k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 234.60518209349792
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.380299312993884e-05,
+    "max": 6.446102634072304e-05,
+    "mean": 3.491823977159728e-05,
+    "stddev": 7.565011276047976e-07,
+    "rounds": 22542,
+    "median": 3.519596066325903e-05,
+    "iqr": 9.51054971665144e-07,
+    "q1": 3.4394965041428804e-05,
+    "q3": 3.534602001309395e-05,
+    "iqr_outliers": 282,
+    "stddev_outliers": 4027,
+    "outliers": "4027;282",
+    "ld15iqr": 3.380299312993884e-05,
+    "hd15iqr": 3.677798667922616e-05,
+    "ops": 28638.327892272693,
+    "total": 0.7871269609313458,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_fft::test_bench_execute_cf32_8k",
+   "fullname": "src/doppler/spectral/benchmarks/bench_fft.py::test_bench_execute_cf32_8k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 668.0464320960504
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.2161966878920794e-05,
+    "max": 3.856298280879855e-05,
+    "mean": 1.2262620689847754e-05,
+    "stddev": 2.701663922423921e-07,
+    "rounds": 51107,
+    "median": 1.2213014997541904e-05,
+    "iqr": 3.998866304755211e-08,
+    "q1": 1.2203003279864788e-05,
+    "q3": 1.224299194291234e-05,
+    "iqr_outliers": 6564,
+    "stddev_outliers": 1034,
+    "outliers": "1034;6564",
+    "ld15iqr": 1.2161966878920794e-05,
+    "hd15iqr": 1.2303004041314125e-05,
+    "ops": 81548.6367304749,
+    "total": 0.6267057555960491,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_fft2d::test_bench_execute_cf64",
+   "fullname": "src/doppler/spectral/benchmarks/bench_fft2d.py::test_bench_execute_cf64",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 244.5817377269051
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.6441044863313437e-05,
+    "max": 5.6254968512803316e-05,
+    "mean": 1.6746957634970724e-05,
+    "stddev": 4.871535426692722e-07,
+    "rounds": 38419,
+    "median": 1.6701000276952982e-05,
+    "iqr": 1.0995427146553993e-07,
+    "q1": 1.6650999896228313e-05,
+    "q3": 1.6760954167693853e-05,
+    "iqr_outliers": 1391,
+    "stddev_outliers": 766,
+    "outliers": "766;1391",
+    "ld15iqr": 1.6489997506141663e-05,
+    "hd15iqr": 1.693097874522209e-05,
+    "ops": 59712.338312232685,
+    "total": 0.6434013653779402,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_fft2d::test_bench_execute_cf32",
+   "fullname": "src/doppler/spectral/benchmarks/bench_fft2d.py::test_bench_execute_cf32",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 447.85885317063526
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 9.056995622813702e-06,
+    "max": 3.16689838655293e-05,
+    "mean": 9.145738598226201e-06,
+    "stddev": 1.9314084932291093e-07,
+    "rounds": 57794,
+    "median": 9.12696123123169e-06,
+    "iqr": 2.898741513490677e-08,
+    "q1": 9.108043741434813e-06,
+    "q3": 9.13703115656972e-06,
+    "iqr_outliers": 3833,
+    "stddev_outliers": 892,
+    "outliers": "892;3833",
+    "ld15iqr": 9.066949132829905e-06,
+    "hd15iqr": 9.186973329633474e-06,
+    "ops": 109340.54032486213,
+    "total": 0.5285688165458851,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dp_event_log::test_bench_append",
+   "fullname": "src/doppler/telemetry/benchmarks/bench_dp_event_log.py::test_bench_append",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0003530890098772943,
+    "max": 0.0008597660344094038,
+    "mean": 0.00036050730737644763,
+    "stddev": 1.5555525147577373e-05,
+    "rounds": 2320,
+    "median": 0.00035926050622947514,
+    "iqr": 2.3400061763823032e-06,
+    "q1": 0.00035816800664179027,
+    "q3": 0.0003605080128181726,
+    "iqr_outliers": 154,
+    "stddev_outliers": 30,
+    "outliers": "30;154",
+    "ld15iqr": 0.0003546630032360554,
+    "hd15iqr": 0.0003640300128608942,
+    "ops": 2773.868877381128,
+    "total": 0.8363769531133585,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dp_event_log::test_bench_append_with_fields",
+   "fullname": "src/doppler/telemetry/benchmarks/bench_dp_event_log.py::test_bench_append_with_fields",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0006796789821237326,
+    "max": 0.0015173630090430379,
+    "mean": 0.0006914873576229582,
+    "stddev": 2.9452880314661145e-05,
+    "rounds": 1357,
+    "median": 0.0006890359800308943,
+    "iqr": 4.239744157530367e-06,
+    "q1": 0.0006871037621749565,
+    "q3": 0.0006913435063324869,
+    "iqr_outliers": 118,
+    "stddev_outliers": 9,
+    "outliers": "9;118",
+    "ld15iqr": 0.0006808520411141217,
+    "hd15iqr": 0.0006977529847063124,
+    "ops": 1446.1580374189025,
+    "total": 0.9383483442943543,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dp_event_log::test_bench_finalize",
+   "fullname": "src/doppler/telemetry/benchmarks/bench_dp_event_log.py::test_bench_finalize",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0007285830215550959,
+    "max": 0.0007649310282431543,
+    "mean": 0.0007338246250553819,
+    "stddev": 2.753937042467856e-06,
+    "rounds": 1233,
+    "median": 0.0007335420232266188,
+    "iqr": 2.674991264939308e-06,
+    "q1": 0.0007322200108319521,
+    "q3": 0.0007348950020968914,
+    "iqr_outliers": 31,
+    "stddev_outliers": 229,
+    "outliers": "229;31",
+    "ld15iqr": 0.0007285830215550959,
+    "hd15iqr": 0.0007389819948002696,
+    "ops": 1362.7234162720142,
+    "total": 0.9048057626932859,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dp_tlm_capture::test_bench_uninstrumented",
+   "fullname": "src/doppler/telemetry/benchmarks/bench_dp_tlm_capture.py::test_bench_uninstrumented",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0004846550291404128,
+    "max": 0.0005153030506335199,
+    "mean": 0.00048725332462650313,
+    "stddev": 1.7826737174855976e-06,
+    "rounds": 2013,
+    "median": 0.00048698001774027944,
+    "iqr": 1.6929698176681995e-06,
+    "q1": 0.00048624799819663167,
+    "q3": 0.00048794096801429987,
+    "iqr_outliers": 31,
+    "stddev_outliers": 121,
+    "outliers": "121;31",
+    "ld15iqr": 0.0004846550291404128,
+    "hd15iqr": 0.0004905359819531441,
+    "ops": 2052.320527041114,
+    "total": 0.9808409424731508,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dp_tlm_capture::test_bench_attached_no_capture",
+   "fullname": "src/doppler/telemetry/benchmarks/bench_dp_tlm_capture.py::test_bench_attached_no_capture",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00048695498844608665,
+    "max": 0.0011417570058256388,
+    "mean": 0.0004898336503338204,
+    "stddev": 1.5623156504301597e-05,
+    "rounds": 1789,
+    "median": 0.0004891800344921649,
+    "iqr": 1.6430276446044445e-06,
+    "q1": 0.0004884279915131629,
+    "q3": 0.0004900710191577673,
+    "iqr_outliers": 31,
+    "stddev_outliers": 7,
+    "outliers": "7;31",
+    "ld15iqr": 0.00048695498844608665,
+    "hd15iqr": 0.0004925460088998079,
+    "ops": 2041.5093967482685,
+    "total": 0.8763124004472047,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dp_tlm_capture::test_bench_captured",
+   "fullname": "src/doppler/telemetry/benchmarks/bench_dp_tlm_capture.py::test_bench_captured",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0005358780035749078,
+    "max": 0.0005825849948450923,
+    "mean": 0.0005387670857162899,
+    "stddev": 2.6942005198180325e-06,
+    "rounds": 1615,
+    "median": 0.0005385830299928784,
+    "iqr": 2.9957591323181987e-06,
+    "q1": 0.000536759223905392,
+    "q3": 0.0005397549830377102,
+    "iqr_outliers": 47,
+    "stddev_outliers": 139,
+    "outliers": "139;47",
+    "ld15iqr": 0.0005358780035749078,
+    "hd15iqr": 0.0005443840054795146,
+    "ops": 1856.0896285460756,
+    "total": 0.870108843431808,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_carrier_nda::test_bench_steps_64k",
+   "fullname": "src/doppler/track/benchmarks/bench_carrier_nda.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 118.30387110151297
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0005501369596458972,
+    "max": 0.0006158899632282555,
+    "mean": 0.0005539632760095022,
+    "stddev": 2.575254340619183e-06,
+    "rounds": 1632,
+    "median": 0.0005537590477615595,
+    "iqr": 1.8329592421650887e-06,
+    "q1": 0.0005528420442715287,
+    "q3": 0.0005546750035136938,
+    "iqr_outliers": 36,
+    "stddev_outliers": 114,
+    "outliers": "114;36",
+    "ld15iqr": 0.0005501369596458972,
+    "hd15iqr": 0.0005575009854510427,
+    "ops": 1805.173814415176,
+    "total": 0.9040680664475076,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_costas::test_bench_steps_64k",
+   "fullname": "src/doppler/track/benchmarks/bench_costas.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 417.8996668369367
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00015580101171508431,
+    "max": 0.00018632796127349138,
+    "mean": 0.00015682233129315216,
+    "stddev": 1.153205188254895e-06,
+    "rounds": 5821,
+    "median": 0.00015662203077226877,
+    "iqr": 4.299945430830121e-07,
+    "q1": 0.00015637197066098452,
+    "q3": 0.00015680196520406753,
+    "iqr_outliers": 885,
+    "stddev_outliers": 463,
+    "outliers": "463;885",
+    "ld15iqr": 0.00015580101171508431,
+    "hd15iqr": 0.00015745399286970496,
+    "ops": 6376.642865553844,
+    "total": 0.9128627904574387,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_dll::test_bench_steps_64k",
+   "fullname": "src/doppler/track/benchmarks/bench_dll.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 45.40565085191429
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0014387620030902326,
+    "max": 0.0014827140257693827,
+    "mean": 0.0014433445787119914,
+    "stddev": 3.4668314912901333e-06,
+    "rounds": 684,
+    "median": 0.0014427539717871696,
+    "iqr": 2.2900057956576347e-06,
+    "q1": 0.0014417469792533666,
+    "q3": 0.0014440369850490242,
+    "iqr_outliers": 31,
+    "stddev_outliers": 53,
+    "outliers": "53;31",
+    "ld15iqr": 0.0014387620030902326,
+    "hd15iqr": 0.0014478180091828108,
+    "ops": 692.8352485948835,
+    "total": 0.9872476918390021,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_loop_filter::test_bench_step",
+   "fullname": "src/doppler/track/benchmarks/bench_loop_filter.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.426645208393509e-08,
+    "max": 1.698642870851198e-07,
+    "mean": 2.4787123966121454e-08,
+    "stddev": 1.5385135053892554e-09,
+    "rounds": 198412,
+    "median": 2.467332070871214e-08,
+    "iqr": 1.5034541562574182e-10,
+    "q1": 2.4618330556693388e-08,
+    "q3": 2.476867597231913e-08,
+    "iqr_outliers": 8759,
+    "stddev_outliers": 1848,
+    "outliers": "1848;8759",
+    "ld15iqr": 2.441679749956083e-08,
+    "hd15iqr": 2.5019934166915453e-08,
+    "ops": 40343526.799106665,
+    "total": 0.00491806284036609,
+    "iterations": 199
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_loop_filter::test_bench_steps_64k",
+   "fullname": "src/doppler/track/benchmarks/bench_loop_filter.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0001559410011395812,
+    "max": 0.0002534340019337833,
+    "mean": 0.0001564967540378487,
+    "stddev": 1.5661852094354446e-06,
+    "rounds": 6141,
+    "median": 0.000156151014380157,
+    "iqr": 1.3096723705530167e-07,
+    "q1": 0.00015610101399943233,
+    "q3": 0.00015623198123648763,
+    "iqr_outliers": 1084,
+    "stddev_outliers": 375,
+    "outliers": "375;1084",
+    "ld15iqr": 0.0001559410011395812,
+    "hd15iqr": 0.0001564319827593863,
+    "ops": 6389.908890750221,
+    "total": 0.961046566546429,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_mpsk_receiver::test_bench_steps_64k",
+   "fullname": "src/doppler/track/benchmarks/bench_mpsk_receiver.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0011237680446356535,
+    "max": 0.0011584230232983828,
+    "mean": 0.0011282146007285593,
+    "stddev": 3.686963822283726e-06,
+    "rounds": 877,
+    "median": 0.0011275259894318879,
+    "iqr": 2.828528522513807e-06,
+    "q1": 0.0011262704647378996,
+    "q3": 0.0011290989932604134,
+    "iqr_outliers": 39,
+    "stddev_outliers": 74,
+    "outliers": "74;39",
+    "ld15iqr": 0.0011237680446356535,
+    "hd15iqr": 0.0011333860456943512,
+    "ops": 886.3561944281141,
+    "total": 0.9894442048389465,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_mpsk_receiver::test_bench_steps_64k_telemetry_detached",
+   "fullname": "src/doppler/track/benchmarks/bench_mpsk_receiver.py::test_bench_steps_64k_telemetry_detached",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0011232210090383887,
+    "max": 0.0011566239991225302,
+    "mean": 0.0011272316818299183,
+    "stddev": 2.9273060131788493e-06,
+    "rounds": 885,
+    "median": 0.0011268079979345202,
+    "iqr": 2.156491973437369e-06,
+    "q1": 0.0011258359882049263,
+    "q3": 0.0011279924801783636,
+    "iqr_outliers": 25,
+    "stddev_outliers": 64,
+    "outliers": "64;25",
+    "ld15iqr": 0.0011232210090383887,
+    "hd15iqr": 0.0011314169969409704,
+    "ops": 887.129075698641,
+    "total": 0.9976000384194776,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_mpsk_receiver::test_bench_steps_64k_telemetry_attached",
+   "fullname": "src/doppler/track/benchmarks/bench_mpsk_receiver.py::test_bench_steps_64k_telemetry_attached",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0013555419864133,
+    "max": 0.0016986420378088951,
+    "mean": 0.001364645418325053,
+    "stddev": 1.571214008291029e-05,
+    "rounds": 555,
+    "median": 0.0013629950117319822,
+    "iqr": 3.7345016608014703e-06,
+    "q1": 0.001361274509690702,
+    "q3": 0.0013650090113515034,
+    "iqr_outliers": 34,
+    "stddev_outliers": 9,
+    "outliers": "9;34",
+    "ld15iqr": 0.0013562630047090352,
+    "hd15iqr": 0.0013707500183954835,
+    "ops": 732.7910873927867,
+    "total": 0.7573782071704045,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_mpsk_receiver_r::test_bench_steps_64k",
+   "fullname": "src/doppler/track/benchmarks/bench_mpsk_receiver_r.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.000834959966596216,
+    "max": 0.0008663400076329708,
+    "mean": 0.0008407082635567781,
+    "stddev": 2.8279944704738255e-06,
+    "rounds": 1178,
+    "median": 0.0008406310225836933,
+    "iqr": 1.9150320440530777e-06,
+    "q1": 0.000839598011225462,
+    "q3": 0.000841513043269515,
+    "iqr_outliers": 73,
+    "stddev_outliers": 158,
+    "outliers": "158;73",
+    "ld15iqr": 0.0008367429836653173,
+    "hd15iqr": 0.0008446690044365823,
+    "ops": 1189.4732612348873,
+    "total": 0.9903543344698846,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_mpsk_receiver_r::test_bench_steps_64k_telemetry_detached",
+   "fullname": "src/doppler/track/benchmarks/bench_mpsk_receiver_r.py::test_bench_steps_64k_telemetry_detached",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0008401689701713622,
+    "max": 0.0009587910026311874,
+    "mean": 0.0008471795800024002,
+    "stddev": 5.36654285045442e-06,
+    "rounds": 1184,
+    "median": 0.0008465310093015432,
+    "iqr": 2.2145104594528675e-06,
+    "q1": 0.0008454585040453821,
+    "q3": 0.000847673014504835,
+    "iqr_outliers": 63,
+    "stddev_outliers": 45,
+    "outliers": "45;63",
+    "ld15iqr": 0.0008422129903919995,
+    "hd15iqr": 0.0008510199841111898,
+    "ops": 1180.387279869478,
+    "total": 1.0030606227228418,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_mpsk_receiver_r::test_bench_steps_64k_telemetry_attached",
+   "fullname": "src/doppler/track/benchmarks/bench_mpsk_receiver_r.py::test_bench_steps_64k_telemetry_attached",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0009632009896449745,
+    "max": 0.0011414269683882594,
+    "mean": 0.000967740374170975,
+    "stddev": 1.092207953500387e-05,
+    "rounds": 866,
+    "median": 0.0009664880344644189,
+    "iqr": 1.4529796317219734e-06,
+    "q1": 0.0009658359922468662,
+    "q3": 0.0009672889718785882,
+    "iqr_outliers": 65,
+    "stddev_outliers": 15,
+    "outliers": "15;65",
+    "ld15iqr": 0.0009637519833631814,
+    "hd15iqr": 0.0009695030166767538,
+    "ops": 1033.3350004712374,
+    "total": 0.8380631640320644,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_ratesync::test_bench_steps_gardner",
+   "fullname": "src/doppler/track/benchmarks/bench_ratesync.py::test_bench_steps_gardner",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 68.89779772675948,
+    "Msym_s": 17.22444943168987,
+    "evm_db": -37.72408485540194
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0009512060205452144,
+    "max": 0.001646094024181366,
+    "mean": 0.000956389606219148,
+    "stddev": 2.2068956009405187e-05,
+    "rounds": 1047,
+    "median": 0.0009546529618091881,
+    "iqr": 2.6970228645950556e-06,
+    "q1": 0.0009538742451695725,
+    "q3": 0.0009565712680341676,
+    "iqr_outliers": 44,
+    "stddev_outliers": 9,
+    "outliers": "9;44",
+    "ld15iqr": 0.0009512060205452144,
+    "hd15iqr": 0.0009606240200810134,
+    "ops": 1045.5989834030663,
+    "total": 1.001339917711448,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_ratesync::test_bench_steps_dttl",
+   "fullname": "src/doppler/track/benchmarks/bench_ratesync.py::test_bench_steps_dttl",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 64.03558117499495,
+    "Msym_s": 16.008895293748736,
+    "evm_db": -46.38960689143144
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0010234310175292194,
+    "max": 0.0012121830368414521,
+    "mean": 0.0010287974060117244,
+    "stddev": 6.521165437994223e-06,
+    "rounds": 967,
+    "median": 0.0010280400165356696,
+    "iqr": 1.894019078463316e-06,
+    "q1": 0.0010272079962305725,
+    "q3": 0.0010291020153090358,
+    "iqr_outliers": 89,
+    "stddev_outliers": 24,
+    "outliers": "24;89",
+    "ld15iqr": 0.0010244330042041838,
+    "hd15iqr": 0.0010321480222046375,
+    "ops": 972.0086716359818,
+    "total": 0.9948470916133374,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_symsync::test_bench_steps_64k",
+   "fullname": "src/doppler/track/benchmarks/bench_symsync.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 176.98038596420798
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0003694010083563626,
+    "max": 0.0003969129757024348,
+    "mean": 0.00037030092144365543,
+    "stddev": 1.2342133176870224e-06,
+    "rounds": 2683,
+    "median": 0.00036967196501791477,
+    "iqr": 1.4619436115026474e-06,
+    "q1": 0.00036957202246412635,
+    "q3": 0.000371033966075629,
+    "iqr_outliers": 36,
+    "stddev_outliers": 216,
+    "outliers": "216;36",
+    "ld15iqr": 0.0003694010083563626,
+    "hd15iqr": 0.00037325796438381076,
+    "ops": 2700.5063776276857,
+    "total": 0.9935173722333275,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_util::test_ema_step_binding",
+   "fullname": "src/doppler/util/benchmarks/bench_util.py::test_ema_step_binding",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.140377931487866e-08,
+    "max": 2.843716617625875e-07,
+    "mean": 3.252487052559257e-08,
+    "stddev": 2.3123993255109637e-09,
+    "rounds": 196080,
+    "median": 3.2429129649431275e-08,
+    "iqr": 3.141721185201196e-10,
+    "q1": 3.224368601177748e-08,
+    "q3": 3.2557858130297596e-08,
+    "iqr_outliers": 7001,
+    "stddev_outliers": 1844,
+    "outliers": "1844;7001",
+    "ld15iqr": 3.1788099127320144e-08,
+    "hd15iqr": 3.307016017154241e-08,
+    "ops": 30745702.714270245,
+    "total": 0.006377476612658192,
+    "iterations": 156
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_util::test_ema_step_pure_python",
+   "fullname": "src/doppler/util/benchmarks/bench_util.py::test_ema_step_pure_python",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.127542396004383e-08,
+    "max": 1.52076842287221e-07,
+    "mean": 3.215776599880385e-08,
+    "stddev": 9.653543010146926e-10,
+    "rounds": 197278,
+    "median": 3.204518296302129e-08,
+    "iqr": 3.8469293847298045e-10,
+    "q1": 3.1858993073304496e-08,
+    "q3": 3.224368601177748e-08,
+    "iqr_outliers": 6529,
+    "stddev_outliers": 4574,
+    "outliers": "4574;6529",
+    "ld15iqr": 3.133960163746125e-08,
+    "hd15iqr": 3.287800026532167e-08,
+    "ops": 31096687.501152795,
+    "total": 0.006344019760712026,
+    "iterations": 156
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_util::test_ema_alpha_decim_binding",
+   "fullname": "src/doppler/util/benchmarks/bench_util.py::test_ema_alpha_decim_binding",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 4.508474376052618e-08,
+    "max": 2.4020002456381914e-07,
+    "mean": 4.685855827852157e-08,
+    "stddev": 2.515054954084857e-09,
+    "rounds": 104954,
+    "median": 4.678993718698621e-08,
+    "iqr": 6.498885340988615e-10,
+    "q1": 4.6435161493718624e-08,
+    "q3": 4.7085050027817486e-08,
+    "iqr_outliers": 2426,
+    "stddev_outliers": 1207,
+    "outliers": "1207;2426",
+    "ld15iqr": 4.5484921429306266e-08,
+    "hd15iqr": 4.808971425518393e-08,
+    "ops": 21340818.76903087,
+    "total": 0.004917993125563953,
+    "iterations": 200
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_util::test_ema_block_python_loop[1000]",
+   "fullname": "src/doppler/util/benchmarks/bench_util.py::test_ema_block_python_loop[1000]",
+   "params": {
+    "n": 1000
+   },
+   "param": "1000",
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.3212010748684406e-05,
+    "max": 6.621400825679302e-05,
+    "mean": 3.412543846415139e-05,
+    "stddev": 7.053396121973366e-07,
+    "rounds": 27665,
+    "median": 3.401399590075016e-05,
+    "iqr": 5.110050551593304e-07,
+    "q1": 3.376300446689129e-05,
+    "q3": 3.427400952205062e-05,
+    "iqr_outliers": 1251,
+    "stddev_outliers": 1912,
+    "outliers": "1912;1251",
+    "ld15iqr": 3.3212010748684406e-05,
+    "hd15iqr": 3.5044969990849495e-05,
+    "ops": 29303.65278824169,
+    "total": 0.9440802551107481,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_util::test_ema_block_python_loop[100000]",
+   "fullname": "src/doppler/util/benchmarks/bench_util.py::test_ema_block_python_loop[100000]",
+   "params": {
+    "n": 100000
+   },
+   "param": "100000",
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0033583790063858032,
+    "max": 0.005164609989151359,
+    "mean": 0.0033992379933797286,
+    "stddev": 0.0001069733328269916,
+    "rounds": 291,
+    "median": 0.0033902180148288608,
+    "iqr": 1.8241233192384243e-05,
+    "q1": 0.003381361995707266,
+    "q3": 0.0033996032288996503,
+    "iqr_outliers": 14,
+    "stddev_outliers": 3,
+    "outliers": "3;14",
+    "ld15iqr": 0.0033583790063858032,
+    "hd15iqr": 0.003426977025810629,
+    "ops": 294.18357936325,
+    "total": 0.989178256073501,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_compose::test_bench_writer[raw-cf32]",
+   "fullname": "src/doppler/wfm/benchmarks/bench_compose.py::test_bench_writer[raw-cf32]",
+   "params": {
+    "file_type": "raw",
+    "stype": "cf32"
+   },
+   "param": "raw-cf32",
+   "extra_info": {
+    "MSa_s": 679.1202746458745
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 9.434600360691547e-05,
+    "max": 0.00039493804797530174,
+    "mean": 9.650131566779327e-05,
+    "stddev": 7.922404800941373e-06,
+    "rounds": 7183,
+    "median": 9.5469004008919e-05,
+    "iqr": 7.309718057513237e-07,
+    "q1": 9.522802429273725e-05,
+    "q3": 9.595899609848857e-05,
+    "iqr_outliers": 984,
+    "stddev_outliers": 204,
+    "outliers": "204;984",
+    "ld15iqr": 9.434600360691547e-05,
+    "hd15iqr": 9.706098353490233e-05,
+    "ops": 10362.553018888466,
+    "total": 0.6931689504417591,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_compose::test_bench_writer[raw-ci16]",
+   "fullname": "src/doppler/wfm/benchmarks/bench_compose.py::test_bench_writer[raw-ci16]",
+   "params": {
+    "file_type": "raw",
+    "stype": "ci16"
+   },
+   "param": "raw-ci16",
+   "extra_info": {
+    "MSa_s": 194.19171937259424
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00033374299528077245,
+    "max": 0.000394356029573828,
+    "mean": 0.0003374809194322882,
+    "stddev": 2.8992358796761516e-06,
+    "rounds": 2795,
+    "median": 0.0003370789927430451,
+    "iqr": 1.9515282474458218e-06,
+    "q1": 0.00033664796501398087,
+    "q3": 0.0003385994932614267,
+    "iqr_outliers": 65,
+    "stddev_outliers": 462,
+    "outliers": "462;65",
+    "ld15iqr": 0.00033374299528077245,
+    "hd15iqr": 0.00034160801442340016,
+    "ops": 2963.1304835906103,
+    "total": 0.9432591698132455,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_compose::test_bench_writer[blue-cf32]",
+   "fullname": "src/doppler/wfm/benchmarks/bench_compose.py::test_bench_writer[blue-cf32]",
+   "params": {
+    "file_type": "blue",
+    "stype": "cf32"
+   },
+   "param": "blue-cf32",
+   "extra_info": {
+    "MSa_s": 684.788138564383
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 9.389600018039346e-05,
+    "max": 0.00032504700357094407,
+    "mean": 9.570259224611028e-05,
+    "stddev": 5.335097074279067e-06,
+    "rounds": 6902,
+    "median": 9.463704191148281e-05,
+    "iqr": 9.220093488693237e-07,
+    "q1": 9.444600436836481e-05,
+    "q3": 9.536801371723413e-05,
+    "iqr_outliers": 857,
+    "stddev_outliers": 320,
+    "outliers": "320;857",
+    "ld15iqr": 9.389600018039346e-05,
+    "hd15iqr": 9.67599917203188e-05,
+    "ops": 10449.03775885594,
+    "total": 0.6605392916826531,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_compose::test_bench_writer[csv-cf32]",
+   "fullname": "src/doppler/wfm/benchmarks/bench_compose.py::test_bench_writer[csv-cf32]",
+   "params": {
+    "file_type": "csv",
+    "stype": "cf32"
+   },
+   "param": "csv-cf32",
+   "extra_info": {
+    "MSa_s": 6.159377779103526
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.010576309985481203,
+    "max": 0.011000532016623765,
+    "mean": 0.010640035787760776,
+    "stddev": 8.057565269339643e-05,
+    "rounds": 94,
+    "median": 0.010609205986838788,
+    "iqr": 3.3953983802348375e-05,
+    "q1": 0.010594464023597538,
+    "q3": 0.010628418007399887,
+    "iqr_outliers": 17,
+    "stddev_outliers": 17,
+    "outliers": "17;17",
+    "ld15iqr": 0.010576309985481203,
+    "hd15iqr": 0.010745715990196913,
+    "ops": 93.98464628759042,
+    "total": 1.000163364049513,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_compose::test_bench_reader[raw-cf32]",
+   "fullname": "src/doppler/wfm/benchmarks/bench_compose.py::test_bench_reader[raw-cf32]",
+   "params": {
+    "file_type": "raw",
+    "stype": "cf32"
+   },
+   "param": "raw-cf32",
+   "extra_info": {
+    "MSa_s": 554.4291588547205
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00011704897042363882,
+    "max": 0.00015154399443417788,
+    "mean": 0.00011820446120723006,
+    "stddev": 1.7405289099574463e-06,
+    "rounds": 5817,
+    "median": 0.00011773000005632639,
+    "iqr": 4.7107459977269173e-07,
+    "q1": 0.00011758995242416859,
+    "q3": 0.00011806102702394128,
+    "iqr_outliers": 919,
+    "stddev_outliers": 411,
+    "outliers": "411;919",
+    "ld15iqr": 0.00011704897042363882,
+    "hd15iqr": 0.00011877197539433837,
+    "ops": 8459.917585063484,
+    "total": 0.6875953508424573,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_compose::test_bench_reader[raw-ci16]",
+   "fullname": "src/doppler/wfm/benchmarks/bench_compose.py::test_bench_reader[raw-ci16]",
+   "params": {
+    "file_type": "raw",
+    "stype": "ci16"
+   },
+   "param": "raw-ci16",
+   "extra_info": {
+    "MSa_s": 473.6358771713661
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00013687496539205313,
+    "max": 0.000552301004063338,
+    "mean": 0.00013836789643426533,
+    "stddev": 1.0107205415837697e-05,
+    "rounds": 6736,
+    "median": 0.00013762596063315868,
+    "iqr": 4.105386324226856e-07,
+    "q1": 0.00013740698341280222,
+    "q3": 0.0001378175220452249,
+    "iqr_outliers": 1171,
+    "stddev_outliers": 28,
+    "outliers": "28;1171",
+    "ld15iqr": 0.00013687496539205313,
+    "hd15iqr": 0.00013843795750290155,
+    "ops": 7227.109942190035,
+    "total": 0.9320461503812112,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_compose::test_bench_reader[blue-cf32]",
+   "fullname": "src/doppler/wfm/benchmarks/bench_compose.py::test_bench_reader[blue-cf32]",
+   "params": {
+    "file_type": "blue",
+    "stype": "cf32"
+   },
+   "param": "blue-cf32",
+   "extra_info": {
+    "MSa_s": 553.9216065015052
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00011669896775856614,
+    "max": 0.0004118999931961298,
+    "mean": 0.0001183127706714974,
+    "stddev": 5.913389263145344e-06,
+    "rounds": 6410,
+    "median": 0.00011778000043705106,
+    "iqr": 4.5006163418293e-07,
+    "q1": 0.00011754996376112103,
+    "q3": 0.00011800002539530396,
+    "iqr_outliers": 1036,
+    "stddev_outliers": 81,
+    "outliers": "81;1036",
+    "ld15iqr": 0.0001168790040537715,
+    "hd15iqr": 0.00011868198635056615,
+    "ops": 8452.172950767595,
+    "total": 0.7583848600042984,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_timing::test_bench_stamp",
+   "fullname": "src/doppler/wfm/benchmarks/bench_timing.py::test_bench_stamp",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 2.858235829455011e-08,
+    "max": 4.6009423813837417e-07,
+    "mean": 2.962523438456652e-08,
+    "stddev": 1.7595907955650583e-09,
+    "rounds": 198807,
+    "median": 2.9529431177412762e-08,
+    "iqr": 2.9377748861032456e-10,
+    "q1": 2.940616789547836e-08,
+    "q3": 2.9699945384088685e-08,
+    "iqr_outliers": 2637,
+    "stddev_outliers": 1748,
+    "outliers": "1748;2637",
+    "ld15iqr": 2.8993920697008863e-08,
+    "hd15iqr": 3.017040024347165e-08,
+    "ops": 33755007.20159558,
+    "total": 0.005889703972292516,
+    "iterations": 170
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_timing::test_bench_pace_nowait",
+   "fullname": "src/doppler/wfm/benchmarks/bench_timing.py::test_bench_pace_nowait",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 8.003960829228162e-08,
+    "max": 3.6128039937466383e-07,
+    "mean": 8.198268112405981e-08,
+    "stddev": 2.8409827808939777e-09,
+    "rounds": 121878,
+    "median": 8.176022674888373e-08,
+    "iqr": 3.1024683266877705e-10,
+    "q1": 8.164963219314814e-08,
+    "q3": 8.195987902581691e-08,
+    "iqr_outliers": 8091,
+    "stddev_outliers": 1667,
+    "outliers": "1667;8091",
+    "ld15iqr": 8.124974556267261e-08,
+    "hd15iqr": 8.244998753070831e-08,
+    "ops": 12197698.175871508,
+    "total": 0.009991885210038163,
+    "iterations": 100
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_wfm_reader::test_read_64k",
+   "fullname": "src/doppler/wfm/benchmarks/bench_wfm_reader.py::test_read_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.00011317298049107194,
+    "max": 0.0001344130141660571,
+    "mean": 0.00011414917942507513,
+    "stddev": 1.1372102663935068e-06,
+    "rounds": 6763,
+    "median": 0.00011382397497072816,
+    "iqr": 3.110617399215698e-07,
+    "q1": 0.00011371297296136618,
+    "q3": 0.00011402403470128775,
+    "iqr_outliers": 913,
+    "stddev_outliers": 809,
+    "outliers": "809;913",
+    "ld15iqr": 0.00011332298163324594,
+    "hd15iqr": 0.00011449505109339952,
+    "ops": 8760.465953733612,
+    "total": 0.7719909004517831,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_wfm_reader::test_seek_midpoint",
+   "fullname": "src/doppler/wfm/benchmarks/bench_wfm_reader.py::test_seek_midpoint",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 1.3568538374134473e-07,
+    "max": 1.2142866450761045e-06,
+    "mean": 1.42223090210472e-07,
+    "stddev": 7.389370181972949e-09,
+    "rounds": 190477,
+    "median": 1.4171403433595385e-07,
+    "iqr": 2.315001828329912e-09,
+    "q1": 1.405432288135801e-07,
+    "q3": 1.4285823064191e-07,
+    "iqr_outliers": 4976,
+    "stddev_outliers": 1810,
+    "outliers": "1810;4976",
+    "ld15iqr": 1.3708569375532015e-07,
+    "hd15iqr": 1.4654194403971944e-07,
+    "ops": 7031207.08824515,
+    "total": 0.027090227554020074,
+    "iterations": 35
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_wfm_synth::test_bench_step",
+   "fullname": "src/doppler/wfm/benchmarks/bench_wfm_synth.py::test_bench_step",
+   "params": null,
+   "param": null,
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 4.9942173063755035e-08,
+    "max": 1.31949782371521e-05,
+    "mean": 6.156984266740122e-08,
+    "stddev": 3.310839192881362e-08,
+    "rounds": 184164,
+    "median": 6.00120984017849e-08,
+    "iqr": 0.0,
+    "q1": 6.00120984017849e-08,
+    "q3": 6.00120984017849e-08,
+    "iqr_outliers": 78404,
+    "stddev_outliers": 57,
+    "outliers": "57;78404",
+    "ld15iqr": 6.00120984017849e-08,
+    "hd15iqr": 6.094342097640038e-08,
+    "ops": 16241717.644171601,
+    "total": 0.01133894850499928,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_wfm_synth::test_bench_steps_64k",
+   "fullname": "src/doppler/wfm/benchmarks/bench_wfm_synth.py::test_bench_steps_64k",
+   "params": null,
+   "param": null,
+   "extra_info": {
+    "MSa_s": 17705.189120900333
+   },
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 3.6559649743139744e-06,
+    "max": 2.056802622973919e-05,
+    "mean": 3.701513694797935e-06,
+    "stddev": 1.4206198999451468e-07,
+    "rounds": 34925,
+    "median": 3.687047865241766e-06,
+    "iqr": 1.0011717677116394e-08,
+    "q1": 3.6869896575808525e-06,
+    "q3": 3.697001375257969e-06,
+    "iqr_outliers": 3453,
+    "stddev_outliers": 260,
+    "outliers": "260;3453",
+    "ld15iqr": 3.675988409668207e-06,
+    "hd15iqr": 3.7159770727157593e-06,
+    "ops": 270159.746107488,
+    "total": 0.1292753657908179,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_wfm_writer::test_write_64k[cf32]",
+   "fullname": "src/doppler/wfm/benchmarks/bench_wfm_writer.py::test_write_64k[cf32]",
+   "params": {
+    "sample_type": "cf32"
+   },
+   "param": "cf32",
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 9.720097295939922e-05,
+    "max": 0.001096721040084958,
+    "mean": 0.00010013255795197413,
+    "stddev": 1.5935186246362597e-05,
+    "rounds": 7066,
+    "median": 9.839402628131211e-05,
+    "iqr": 1.341977622359991e-06,
+    "q1": 9.805400623008609e-05,
+    "q3": 9.939598385244608e-05,
+    "iqr_outliers": 767,
+    "stddev_outliers": 64,
+    "outliers": "64;767",
+    "ld15iqr": 9.720097295939922e-05,
+    "hd15iqr": 0.00010140903759747744,
+    "ops": 9986.761753151486,
+    "total": 0.7075366544886492,
+    "iterations": 1
+   }
+  },
+  {
+   "group": null,
+   "name": "bench_wfm_writer::test_write_64k[ci16]",
+   "fullname": "src/doppler/wfm/benchmarks/bench_wfm_writer.py::test_write_64k[ci16]",
+   "params": {
+    "sample_type": "ci16"
+   },
+   "param": "ci16",
+   "extra_info": {},
+   "options": {
+    "disable_gc": false,
+    "timer": "perf_counter",
+    "min_rounds": 5,
+    "max_time": 1.0,
+    "min_time": 5e-06,
+    "warmup": false
+   },
+   "stats": {
+    "min": 0.0003369100159034133,
+    "max": 0.0004115300253033638,
+    "mean": 0.000338989289427666,
+    "stddev": 3.0664431285398274e-06,
+    "rounds": 2749,
+    "median": 0.0003379620029591024,
+    "iqr": 2.333967131562531e-06,
+    "q1": 0.00033752102172002196,
+    "q3": 0.0003398549888515845,
+    "iqr_outliers": 91,
+    "stddev_outliers": 154,
+    "outliers": "154;91",
+    "ld15iqr": 0.0003369100159034133,
+    "hd15iqr": 0.0003433619858697057,
+    "ops": 2949.945709754884,
+    "total": 0.9318815566366538,
+    "iterations": 1
+   }
+  }
+ ],
+ "datetime": "2026-09-20T14:30:36.826664+00:00",
+ "version": "5.2.3",
+ "doppler_meta": {
+  "measured_at": "2026-09-20T14:30:36.826664+00:00",
+  "commit": "cd82167b",
+  "compiler": "cc (GCC) 16.2.1 20260810",
+  "flags": "-O3 -march=x86-64-v2 -ffast-math",
+  "cpu": "AMD Ryzen AI 9 465 w/ Radeon 880M",
+  "cores": 20,
+  "cpu_governor": "performance",
+  "cpu_boost": "on",
+  "pinned_cpus": [
+   0,
+   1,
+   2,
+   3,
+   10,
+   11,
+   12,
+   13
+  ],
+  "kernel": "7.2.5-1-cachyos",
+  "python": "3.13.13",
+  "numpy": "2.4.5",
+  "glibc": "glibc 2.44",
+  "cmake": "4.4.3"
+ }
+}

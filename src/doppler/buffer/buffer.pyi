@@ -195,6 +195,136 @@ class F32Buffer:
         """
         ...
 
+    def peek(self, n: int) -> NDArray[np.complex64] | None:
+        """:meth:`wait` that never blocks: a view, or None for not yet.
+
+        The single-threaded consumer's read. :meth:`wait` spins until a
+        producer on *another* thread delivers, so a caller that is its
+        own producer would deadlock in it; ``peek`` answers at once
+        instead. When ``n`` samples are buffered it returns the same
+        zero-copy, always-contiguous view :meth:`wait` would
+        (1-D complex64); otherwise it returns ``None``.
+
+        ``None`` means **not yet** and nothing else. The two conditions
+        no amount of waiting can cure are raised, exactly as
+        :meth:`wait` raises them, so a poll loop cannot mistake either
+        for a slow producer.
+
+        Peeking does not consume. Follow it with :meth:`consume`; a
+        ``consume(k)`` with ``k < n`` advances by a hop smaller than
+        the frame, which is how overlapped frames are read.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples wanted.  Must be positive and not larger
+            than :attr:`capacity`.
+
+        Returns
+        -------
+        ndarray of complex64, shape (n,), or None
+            Zero-copy view of the next ``n`` samples, or ``None`` when
+            fewer than ``n`` have been written so far.
+
+        Raises
+        ------
+        EOFError
+            The ring is closed and fewer than ``n`` samples remain:
+            the rest is never coming.
+        ValueError
+            ``n`` exceeds :attr:`capacity` (or is not positive), so no
+            producer could ever satisfy it.
+
+        Examples
+        --------
+        >>> from doppler.buffer import F32Buffer
+        >>> import numpy as np
+        >>> buf = F32Buffer(1024)
+        >>> buf.peek(4) is None
+        True
+        >>> buf.write_some(np.ones(8, dtype=np.complex64))
+        8
+        >>> buf.peek(4).shape
+        (4,)
+        >>> buf.consume(2)
+        >>> buf.available
+        6
+        >>> buf.close()
+        >>> buf.peek(8)
+        Traceback (most recent call last):
+            ...
+        EOFError: end of stream: the producer closed the ring
+
+        """
+        ...
+
+    def write_some(self, arr: NDArray[np.complex64]) -> int:
+        """Write as much of ``arr`` as fits and say how much that was.
+
+        The partial-write twin of :meth:`write`. Where :meth:`write`
+        refuses a block that does not fit whole, this takes the leading
+        samples that do and returns their count -- ``0`` when the ring
+        is full. It never refuses, so it never touches
+        :attr:`dropped`. It is the only way to feed a chunk larger than
+        the ring: loop, advancing by the return value, draining in
+        between.
+
+        Parameters
+        ----------
+        arr : ndarray of complex64
+            Samples to write.  Must be 1-D and C-contiguous.
+
+        Returns
+        -------
+        int
+            Samples accepted, ``0 <= k <= len(arr)``.  The caller still
+            owns ``arr[k:]``.
+
+        Examples
+        --------
+        A chunk three times the size of the ring, fed by looping:
+
+        >>> from doppler.buffer import F32Buffer
+        >>> import numpy as np
+        >>> buf = F32Buffer(1024)
+        >>> cap = buf.capacity
+        >>> chunk = np.ones(3 * cap, dtype=np.complex64)
+        >>> fed = 0
+        >>> while fed < len(chunk):
+        ...     fed += buf.write_some(chunk[fed:])
+        ...     _ = buf.peek(buf.available); buf.consume()
+        >>> fed == 3 * cap, buf.dropped
+        (True, 0)
+
+        """
+        ...
+
+    def reset(self) -> None:
+        """Empty the ring and reopen it.
+
+        Discards everything buffered, and clears :attr:`closed` so the
+        same ring can carry a second stream -- without it, reuse after
+        :meth:`close` means destroying and re-mapping.  :attr:`dropped`
+        is a lifetime count and is kept.
+
+        Not safe against a concurrent producer or consumer: it moves
+        both ends of the ring.  Call it only when both sides are idle.
+
+        Examples
+        --------
+        >>> from doppler.buffer import F32Buffer
+        >>> import numpy as np
+        >>> buf = F32Buffer(1024)
+        >>> buf.write_some(np.ones(8, dtype=np.complex64))
+        8
+        >>> buf.close()
+        >>> buf.reset()
+        >>> buf.available, buf.closed
+        (0, False)
+
+        """
+        ...
+
     def consume(self, n: int = ...) -> None:
         """Release ``n`` samples back to the producer.
 
@@ -237,6 +367,30 @@ class F32Buffer:
         >>> from doppler.buffer import F32Buffer
         >>> buf = F32Buffer(1024)
         >>> buf.destroy()
+
+        """
+        ...
+
+    @property
+    def space(self) -> int:
+        """Free room in samples: the largest :meth:`write` sure to fit.
+
+        ``capacity - available``, read in one place so callers stop
+        deriving it.  Read from the producer side it is a *lower*
+        bound: a consumer on another thread can only increase it, so a
+        block sized from it is always accepted.
+
+        Examples
+        --------
+        >>> from doppler.buffer import F32Buffer
+        >>> import numpy as np
+        >>> buf = F32Buffer(1024)
+        >>> buf.space == buf.capacity
+        True
+        >>> buf.write_some(np.ones(8, dtype=np.complex64))
+        8
+        >>> buf.capacity - buf.space
+        8
 
         """
         ...
@@ -503,6 +657,136 @@ class F64Buffer:
         """
         ...
 
+    def peek(self, n: int) -> NDArray[np.complex128] | None:
+        """:meth:`wait` that never blocks: a view, or None for not yet.
+
+        The single-threaded consumer's read. :meth:`wait` spins until a
+        producer on *another* thread delivers, so a caller that is its
+        own producer would deadlock in it; ``peek`` answers at once
+        instead. When ``n`` samples are buffered it returns the same
+        zero-copy, always-contiguous view :meth:`wait` would
+        (1-D complex128); otherwise it returns ``None``.
+
+        ``None`` means **not yet** and nothing else. The two conditions
+        no amount of waiting can cure are raised, exactly as
+        :meth:`wait` raises them, so a poll loop cannot mistake either
+        for a slow producer.
+
+        Peeking does not consume. Follow it with :meth:`consume`; a
+        ``consume(k)`` with ``k < n`` advances by a hop smaller than
+        the frame, which is how overlapped frames are read.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples wanted.  Must be positive and not larger
+            than :attr:`capacity`.
+
+        Returns
+        -------
+        ndarray of complex128, shape (n,), or None
+            Zero-copy view of the next ``n`` samples, or ``None`` when
+            fewer than ``n`` have been written so far.
+
+        Raises
+        ------
+        EOFError
+            The ring is closed and fewer than ``n`` samples remain:
+            the rest is never coming.
+        ValueError
+            ``n`` exceeds :attr:`capacity` (or is not positive), so no
+            producer could ever satisfy it.
+
+        Examples
+        --------
+        >>> from doppler.buffer import F64Buffer
+        >>> import numpy as np
+        >>> buf = F64Buffer(1024)
+        >>> buf.peek(4) is None
+        True
+        >>> buf.write_some(np.ones(8, dtype=np.complex128))
+        8
+        >>> buf.peek(4).shape
+        (4,)
+        >>> buf.consume(2)
+        >>> buf.available
+        6
+        >>> buf.close()
+        >>> buf.peek(8)
+        Traceback (most recent call last):
+            ...
+        EOFError: end of stream: the producer closed the ring
+
+        """
+        ...
+
+    def write_some(self, arr: NDArray[np.complex128]) -> int:
+        """Write as much of ``arr`` as fits and say how much that was.
+
+        The partial-write twin of :meth:`write`. Where :meth:`write`
+        refuses a block that does not fit whole, this takes the leading
+        samples that do and returns their count -- ``0`` when the ring
+        is full. It never refuses, so it never touches
+        :attr:`dropped`. It is the only way to feed a chunk larger than
+        the ring: loop, advancing by the return value, draining in
+        between.
+
+        Parameters
+        ----------
+        arr : ndarray of complex128
+            Samples to write.  Must be 1-D and C-contiguous.
+
+        Returns
+        -------
+        int
+            Samples accepted, ``0 <= k <= len(arr)``.  The caller still
+            owns ``arr[k:]``.
+
+        Examples
+        --------
+        A chunk three times the size of the ring, fed by looping:
+
+        >>> from doppler.buffer import F64Buffer
+        >>> import numpy as np
+        >>> buf = F64Buffer(1024)
+        >>> cap = buf.capacity
+        >>> chunk = np.ones(3 * cap, dtype=np.complex128)
+        >>> fed = 0
+        >>> while fed < len(chunk):
+        ...     fed += buf.write_some(chunk[fed:])
+        ...     _ = buf.peek(buf.available); buf.consume()
+        >>> fed == 3 * cap, buf.dropped
+        (True, 0)
+
+        """
+        ...
+
+    def reset(self) -> None:
+        """Empty the ring and reopen it.
+
+        Discards everything buffered, and clears :attr:`closed` so the
+        same ring can carry a second stream -- without it, reuse after
+        :meth:`close` means destroying and re-mapping.  :attr:`dropped`
+        is a lifetime count and is kept.
+
+        Not safe against a concurrent producer or consumer: it moves
+        both ends of the ring.  Call it only when both sides are idle.
+
+        Examples
+        --------
+        >>> from doppler.buffer import F64Buffer
+        >>> import numpy as np
+        >>> buf = F64Buffer(1024)
+        >>> buf.write_some(np.ones(8, dtype=np.complex128))
+        8
+        >>> buf.close()
+        >>> buf.reset()
+        >>> buf.available, buf.closed
+        (0, False)
+
+        """
+        ...
+
     def consume(self, n: int = ...) -> None:
         """Release ``n`` samples back to the producer.
 
@@ -539,6 +823,30 @@ class F64Buffer:
         >>> from doppler.buffer import F64Buffer
         >>> buf = F64Buffer(512)
         >>> buf.destroy()
+
+        """
+        ...
+
+    @property
+    def space(self) -> int:
+        """Free room in samples: the largest :meth:`write` sure to fit.
+
+        ``capacity - available``, read in one place so callers stop
+        deriving it.  Read from the producer side it is a *lower*
+        bound: a consumer on another thread can only increase it, so a
+        block sized from it is always accepted.
+
+        Examples
+        --------
+        >>> from doppler.buffer import F64Buffer
+        >>> import numpy as np
+        >>> buf = F64Buffer(1024)
+        >>> buf.space == buf.capacity
+        True
+        >>> buf.write_some(np.ones(8, dtype=np.complex128))
+        8
+        >>> buf.capacity - buf.space
+        8
 
         """
         ...
@@ -811,6 +1119,136 @@ class I16Buffer:
         """
         ...
 
+    def peek(self, n: int) -> NDArray[np.int16] | None:
+        """:meth:`wait` that never blocks: a view, or None for not yet.
+
+        The single-threaded consumer's read. :meth:`wait` spins until a
+        producer on *another* thread delivers, so a caller that is its
+        own producer would deadlock in it; ``peek`` answers at once
+        instead. When ``n`` samples are buffered it returns the same
+        zero-copy, always-contiguous view :meth:`wait` would
+        (int16, shape ``(n, 2)``); otherwise it returns ``None``.
+
+        ``None`` means **not yet** and nothing else. The two conditions
+        no amount of waiting can cure are raised, exactly as
+        :meth:`wait` raises them, so a poll loop cannot mistake either
+        for a slow producer.
+
+        Peeking does not consume. Follow it with :meth:`consume`; a
+        ``consume(k)`` with ``k < n`` advances by a hop smaller than
+        the frame, which is how overlapped frames are read.
+
+        Parameters
+        ----------
+        n : int
+            Number of samples wanted.  Must be positive and not larger
+            than :attr:`capacity`.
+
+        Returns
+        -------
+        ndarray of int16, shape (n, 2), or None
+            Zero-copy view of the next ``n`` samples, or ``None`` when
+            fewer than ``n`` have been written so far.
+
+        Raises
+        ------
+        EOFError
+            The ring is closed and fewer than ``n`` samples remain:
+            the rest is never coming.
+        ValueError
+            ``n`` exceeds :attr:`capacity` (or is not positive), so no
+            producer could ever satisfy it.
+
+        Examples
+        --------
+        >>> from doppler.buffer import I16Buffer
+        >>> import numpy as np
+        >>> buf = I16Buffer(1024)
+        >>> buf.peek(4) is None
+        True
+        >>> buf.write_some(np.ones((8, 2), dtype=np.int16))
+        8
+        >>> buf.peek(4).shape
+        (4, 2)
+        >>> buf.consume(2)
+        >>> buf.available
+        6
+        >>> buf.close()
+        >>> buf.peek(8)
+        Traceback (most recent call last):
+            ...
+        EOFError: end of stream: the producer closed the ring
+
+        """
+        ...
+
+    def write_some(self, arr: NDArray[np.int16]) -> int:
+        """Write as much of ``arr`` as fits and say how much that was.
+
+        The partial-write twin of :meth:`write`. Where :meth:`write`
+        refuses a block that does not fit whole, this takes the leading
+        samples that do and returns their count -- ``0`` when the ring
+        is full. It never refuses, so it never touches
+        :attr:`dropped`. It is the only way to feed a chunk larger than
+        the ring: loop, advancing by the return value, draining in
+        between.
+
+        Parameters
+        ----------
+        arr : ndarray of int16
+            Samples to write.  Shape ``(n, 2)`` (I, Q columns), C-contiguous.
+
+        Returns
+        -------
+        int
+            Samples accepted, ``0 <= k <= len(arr)``.  The caller still
+            owns ``arr[k:]``.
+
+        Examples
+        --------
+        A chunk three times the size of the ring, fed by looping:
+
+        >>> from doppler.buffer import I16Buffer
+        >>> import numpy as np
+        >>> buf = I16Buffer(1024)
+        >>> cap = buf.capacity
+        >>> chunk = np.ones((3 * cap, 2), dtype=np.int16)
+        >>> fed = 0
+        >>> while fed < len(chunk):
+        ...     fed += buf.write_some(chunk[fed:])
+        ...     _ = buf.peek(buf.available); buf.consume()
+        >>> fed == 3 * cap, buf.dropped
+        (True, 0)
+
+        """
+        ...
+
+    def reset(self) -> None:
+        """Empty the ring and reopen it.
+
+        Discards everything buffered, and clears :attr:`closed` so the
+        same ring can carry a second stream -- without it, reuse after
+        :meth:`close` means destroying and re-mapping.  :attr:`dropped`
+        is a lifetime count and is kept.
+
+        Not safe against a concurrent producer or consumer: it moves
+        both ends of the ring.  Call it only when both sides are idle.
+
+        Examples
+        --------
+        >>> from doppler.buffer import I16Buffer
+        >>> import numpy as np
+        >>> buf = I16Buffer(1024)
+        >>> buf.write_some(np.ones((8, 2), dtype=np.int16))
+        8
+        >>> buf.close()
+        >>> buf.reset()
+        >>> buf.available, buf.closed
+        (0, False)
+
+        """
+        ...
+
     def consume(self, n: int = ...) -> None:
         """Release ``n`` IQ sample pairs back to the producer.
 
@@ -848,6 +1286,30 @@ class I16Buffer:
         >>> from doppler.buffer import I16Buffer
         >>> buf = I16Buffer(1024)
         >>> buf.destroy()
+
+        """
+        ...
+
+    @property
+    def space(self) -> int:
+        """Free room in samples: the largest :meth:`write` sure to fit.
+
+        ``capacity - available``, read in one place so callers stop
+        deriving it.  Read from the producer side it is a *lower*
+        bound: a consumer on another thread can only increase it, so a
+        block sized from it is always accepted.
+
+        Examples
+        --------
+        >>> from doppler.buffer import I16Buffer
+        >>> import numpy as np
+        >>> buf = I16Buffer(1024)
+        >>> buf.space == buf.capacity
+        True
+        >>> buf.write_some(np.ones((8, 2), dtype=np.int16))
+        8
+        >>> buf.capacity - buf.space
+        8
 
         """
         ...

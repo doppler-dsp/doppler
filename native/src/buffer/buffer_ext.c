@@ -137,23 +137,69 @@
     return PyLong_FromSize_t (dp_##NAME##_space (self->buf));                 \
   }
 
-#define DP_RING_PY_METHODS(CLS)                                               \
+/* The runtime face of the docstrings buffer.pyi carries, to the same bar
+ * (check_docstring_coverage scores both). ONES is the width's 8-sample
+ * array constructor, the one thing an example cannot share. */
+#define DP_RING_PY_IMPORT_(CLS)                                               \
+  ">>> import numpy as np\n"                                                  \
+  ">>> from doppler.buffer import " #CLS "\n"                                 \
+  ">>> buf = " #CLS "(1024)\n"
+
+#define DP_RING_PY_METHODS(CLS, ONES)                                         \
   { "peek", (PyCFunction)CLS##_peek, METH_VARARGS,                            \
     "peek(n) -> ndarray | None\n\n"                                           \
     "wait() that never blocks: a zero-copy view of n samples if they are\n"  \
     "there, else None. For a single-threaded user, where wait() would\n"     \
-    "deadlock. Does not consume -- call consume(k); k < n reads overlapped\n"\
-    "frames. Raises EOFError on a closed ring with fewer than n left, and\n" \
-    "ValueError if n exceeds the capacity." },                                \
+    "deadlock. None means NOT YET and nothing else. Does not consume --\n"   \
+    "call consume(k); k < n reads overlapped frames.\n\n"                     \
+    "Parameters\n----------\n"                                                \
+    "n : int\n"                                                               \
+    "    Samples wanted. Positive, and no larger than capacity.\n\n"          \
+    "Returns\n-------\n"                                                      \
+    "ndarray or None\n"                                                       \
+    "    View of the next n samples, or None when fewer are buffered.\n\n"   \
+    "Raises\n------\n"                                                        \
+    "EOFError\n"                                                              \
+    "    The ring is closed and fewer than n samples remain.\n"              \
+    "ValueError\n"                                                            \
+    "    n exceeds the capacity, or is not positive.\n\n"                     \
+    "Examples\n--------\n"                                                    \
+    DP_RING_PY_IMPORT_ (CLS)                                                  \
+    ">>> buf.peek(4) is None\n"                                               \
+    "True\n"                                                                  \
+    ">>> buf.write_some(" ONES ")\n"                                          \
+    "8\n"                                                                     \
+    ">>> len(buf.peek(4))\n"                                                  \
+    "4\n" },                                                                  \
   { "write_some", (PyCFunction)CLS##_write_some, METH_VARARGS,                \
     "write_some(arr) -> int\n\n"                                              \
     "Write as much of arr as fits and return how many samples that was\n"    \
     "(0 when full). Unlike write() it never refuses and never counts a\n"    \
-    "drop, so a chunk larger than the ring is fed by looping." },             \
+    "drop, so a chunk larger than the ring is fed by looping.\n\n"            \
+    "Parameters\n----------\n"                                                \
+    "arr : ndarray\n"                                                         \
+    "    Samples to write, in the dtype and shape write() takes.\n\n"        \
+    "Returns\n-------\n"                                                      \
+    "int\n"                                                                   \
+    "    Samples accepted; the caller still owns arr[k:].\n\n"               \
+    "Examples\n--------\n"                                                    \
+    DP_RING_PY_IMPORT_ (CLS)                                                  \
+    ">>> buf.write_some(" ONES ")\n"                                          \
+    "8\n"                                                                     \
+    ">>> buf.dropped\n"                                                       \
+    "0\n" },                                                                  \
   { "reset", (PyCFunction)CLS##_reset, METH_NOARGS,                           \
     "reset()\n\n"                                                             \
     "Empty the ring and reopen it (closed becomes False). dropped is a\n"    \
-    "lifetime count and is kept. Not safe against a concurrent thread." }
+    "lifetime count and is kept. Not safe against a concurrent thread.\n\n"  \
+    "Examples\n--------\n"                                                    \
+    DP_RING_PY_IMPORT_ (CLS)                                                  \
+    ">>> buf.write_some(" ONES ")\n"                                          \
+    "8\n"                                                                     \
+    ">>> buf.close()\n"                                                       \
+    ">>> buf.reset()\n"                                                       \
+    ">>> buf.available, buf.closed\n"                                         \
+    "(0, False)\n" }
 
 #define DP_RING_PY_GETSET(CLS)                                                \
   { "space", (getter)CLS##_space, NULL,                                       \
@@ -350,7 +396,7 @@ static PyGetSetDef F32Buffer_getset[] = {
 };
 
 static PyMethodDef F32Buffer_methods[] = {
-  DP_RING_PY_METHODS (F32Buffer),
+  DP_RING_PY_METHODS (F32Buffer, "np.ones(8, np.complex64)"),
   { "write", (PyCFunction)F32Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (complex64). Returns True\n"
     "if every sample was written, False if the ring had no room for all of\n"
@@ -605,7 +651,7 @@ static PyGetSetDef F64Buffer_getset[] = {
 };
 
 static PyMethodDef F64Buffer_methods[] = {
-  DP_RING_PY_METHODS (F64Buffer),
+  DP_RING_PY_METHODS (F64Buffer, "np.ones(8, np.complex128)"),
   { "write", (PyCFunction)F64Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (complex128). Returns True\n"
     "if every sample was written, False if the call was REFUSED for want of\n"
@@ -870,7 +916,7 @@ static PyGetSetDef I16Buffer_getset[] = {
 };
 
 static PyMethodDef I16Buffer_methods[] = {
-  DP_RING_PY_METHODS (I16Buffer),
+  DP_RING_PY_METHODS (I16Buffer, "np.ones((8, 2), np.int16)"),
   { "write", (PyCFunction)I16Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (int16, shape (n,2) or\n"
     "(2n,)). Returns True if every pair was written, False if the call was\n"

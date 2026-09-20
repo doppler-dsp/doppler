@@ -27,15 +27,32 @@ real size back from `.capacity`; it may exceed what you asked for.
 
 ______________________________________________________________________
 
-## Threading model
+## Two surfaces, one ring
 
-One producer thread calls `write`; one consumer thread calls `wait` /
-`consume`. `write` is non-blocking and **refuses** the whole call if the
-ring has no room — it copies nothing and leaves your array untouched, so
-you still hold the data and can retry. Nothing is dropped unless you
-discard it; `dropped` counts refused calls, not lost samples. `wait`
-blocks the consumer and releases the GIL so the producer can run
-concurrently.
+| You are                               | Read with          | Write with        |
+| ------------------------------------- | ------------------ | ----------------- |
+| a consumer **thread**, producer apart | `wait(n)` — blocks | `write(arr)`      |
+| **one thread** doing both             | `peek(n)` — never  | `write_some(arr)` |
+
+**Threaded.** One producer thread calls `write`; one consumer thread calls
+`wait` / `consume`. `write` is non-blocking and **refuses** the whole call if
+the ring has no room — it copies nothing and leaves your array untouched, so
+you still hold the data and can retry. Nothing is dropped unless you discard
+it; `dropped` counts refused calls, not lost samples. `wait` blocks the
+consumer and releases the GIL so the producer can run concurrently.
+
+**Single-threaded.** `wait` would deadlock a caller that is its own
+producer, so `peek(n)` returns the same zero-copy view when `n` samples are
+there and `None` when they are not yet. `None` means *not yet* and nothing
+else: a closed ring with fewer than `n` left raises `EOFError`, and
+`n > capacity` raises `ValueError`, exactly as `wait` does. `write_some`
+takes what fits and returns the count, never refusing and never touching
+`dropped` — the only way to feed a chunk larger than the ring. `space` is
+the room a `write` is guaranteed to find; `reset()` empties **and reopens**
+the ring (both sides must be idle).
+
+Both surfaces release with `consume(k)`; `k < n` keeps the overlap, which is
+how overlapped frames are read.
 
 ______________________________________________________________________
 
@@ -84,6 +101,22 @@ buf.write(np.ones(2048, dtype=np.complex64))   # producer filled the ring
 view = buf.wait(1024)          # 1024 already buffered -> returns at once
 np.abs(view).mean()            # process the zero-copy view
 buf.consume(1024)
+```
+
+### One thread: a chunk larger than the ring, overlapped frames out
+
+From `src/doppler/examples/ring_nonblocking_demo.py`, which checks every
+frame against the input:
+
+```python
+--8<-- "src/doppler/examples/ring_nonblocking_demo.py:setup"
+--8<-- "src/doppler/examples/ring_nonblocking_demo.py:chunk"
+```
+
+### End of stream, then the same ring again
+
+```python
+--8<-- "src/doppler/examples/ring_nonblocking_demo.py:eos"
 ```
 
 ### I16Buffer — raw ADC samples

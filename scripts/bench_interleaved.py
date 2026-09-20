@@ -39,7 +39,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bench_report import collect_meta
+from bench_report import collect_meta, fastest_cpus
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PUBLISHED = os.path.join(REPO, "benchmarks", "published")
@@ -97,14 +97,22 @@ def setup_worktree(build):
     return wt
 
 
-def bench_once(wt):
-    """Run the suite once in the worktree; return (python_json, c_json)."""
+def bench_once(wt, cpus=None):
+    """Run the suite once in the worktree; return (python_json, c_json).
+
+    `cpus`, when given, is the affinity the MEASUREMENT runs under -- the
+    fastest core class (`bench_report.fastest_cpus`). Only this call is
+    pinned: the builds in `setup_worktree` keep every core, because a build is
+    not being measured. The affinity is set in the child before exec, so
+    `make`, pytest and every benchmark binary below it inherit it.
+    """
     _run(
         ["make", "bench"],
         wt,
         check=True,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        preexec_fn=(lambda: os.sched_setaffinity(0, cpus)) if cpus else None,
     )
     hist = os.path.join(wt, "benchmarks", "history")
     pj = max(
@@ -142,11 +150,18 @@ def main() -> int:
     wts = {b: setup_worktree(b) for b in BUILD_ARGS}
     info = {b: _build_info(wts[b]) for b in BUILD_ARGS}
     samples = {b: {"py": [], "c": []} for b in BUILD_ARGS}
+    cpus = fastest_cpus()
+    print(
+        f"measuring on cpus {cpus} (the fastest core class)"
+        if cpus
+        else "measuring unpinned (one core class, or no cpufreq to read)",
+        flush=True,
+    )
     order = list(BUILD_ARGS)
     for i in range(a.passes):
         for b in order if i % 2 == 0 else order[::-1]:
             print(f"pass {i + 1}/{a.passes} [{b}] ...", flush=True)
-            py, c = bench_once(wts[b])
+            py, c = bench_once(wts[b], cpus)
             samples[b]["py"].append(py)
             samples[b]["c"].append(c)
 
@@ -165,6 +180,7 @@ def main() -> int:
                 flags,
                 commit,
                 merged.get("datetime", ""),
+                pinned_cpus=cpus,
             )
             with open(os.path.join(dst, name), "w") as fh:
                 json.dump(merged, fh, indent=1)

@@ -328,7 +328,7 @@ if(NOT WIN32)
         nats_vendor_static
         Threads::Threads ${DP_MATH_LIBRARY})
     target_include_directories(wfmgen_cli PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
-    install(TARGETS wfmgen_cli DESTINATION bin)
+    install(TARGETS wfmgen_cli DESTINATION bin COMPONENT tools)
 
     # Archive the whole generator into libdoppler (.so + .a) so a downstream
     # linking the library can drive wfmgen in-process via

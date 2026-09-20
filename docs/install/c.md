@@ -131,6 +131,46 @@ The same port installs on Linux and macOS with the stock `*-dynamic`
 community triplets; CI exercises the Windows one on every pull request
 (`make vcpkg-smoke`).
 
+## System packages (.deb / .rpm)
+
+Every release carries native packages for x86_64 and aarch64, attached to the
+[GitHub Release](https://github.com/doppler-dsp/doppler/releases). Download
+the ones for your format and install them with your package manager, which
+resolves the dependencies:
+
+```text
+# Debian / Ubuntu
+sudo apt install ./libdoppler-dsp0.52_*.deb ./libdoppler-dsp-dev_*.deb
+
+# Fedora / RHEL / AlmaLinux
+sudo dnf install ./libdoppler-dsp-0.*.rpm ./libdoppler-dsp-devel-*.rpm
+```
+
+|                                         | Debian / Ubuntu       | Fedora / RHEL          |
+| --------------------------------------- | --------------------- | ---------------------- |
+| shared libraries                        | `libdoppler-dsp<X.Y>` | `libdoppler-dsp`       |
+| headers, `.a`, CMake + pkg-config files | `libdoppler-dsp-dev`  | `libdoppler-dsp-devel` |
+| the `wfmgen` CLI                        | `doppler-dsp-tools`   | `doppler-dsp-tools`    |
+
+After that `find_package(doppler)` and `pkg-config doppler` resolve with no
+path of yours on the command line. Three things to know:
+
+- **The name is `doppler-dsp`**, as on PyPI — an unrelated `doppler` package
+    (a secrets-manager CLI) is distributed from its vendor's own repository.
+    The library itself is still `libdoppler.so`.
+- **One package per architecture, for every distro at or above glibc 2.28**
+    (Debian 10, Ubuntu 20.04, RHEL 8): they are built in the same
+    `manylinux_2_28` image as the tarballs, and CI installs them on
+    AlmaLinux 8, the floor, on every pull request. The x86_64 build targets
+    `x86-64-v2` (SSE4.2), which is above the oldest CPUs those distros
+    themselves still run on.
+- **The Debian runtime package carries the ABI version in its name**
+    (`libdoppler-dsp0.52`), so two minors install side by side and a program
+    built against one keeps running after you install the next.
+
+These are release assets, not an apt or yum repository: upgrading means
+downloading the next release's files.
+
 ## System install
 
 Install headers and libraries to a system prefix (default `/usr/local`)

@@ -1267,13 +1267,27 @@ add_subdirectory(native/examples)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+# Install COMPONENTS, for the .deb/.rpm split (cmake/packaging.cmake). A plain
+# `cmake --install` installs every component, so the release tarballs, the
+# vcpkg port and `make package-c` see no difference. Three:
+#
+#   runtime  the versioned shared objects, and nothing else
+#   dev      everything a BUILD needs: headers, .a, the unversioned
+#            libdoppler.so dev symlink, the cmake config, the .pc files
+#   tools    the wfmgen CLI (native/src/wfmcompose/CMakeLists.txt)
+#
+# `dev` is the default so that a new install() rule lands in the package whose
+# absence is loud (a consumer fails to build) rather than in none.
+set(CMAKE_INSTALL_DEFAULT_COMPONENT_NAME dev)
+
 # RUNTIME is the Windows half: a DLL is a runtime artifact there, and without
 # a RUNTIME destination CMake installs the import library (doppler.lib) and
 # silently drops doppler.dll itself. No effect on Linux or macOS.
 install(TARGETS doppler_lib
     EXPORT doppler-targets
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT runtime
+            NAMELINK_COMPONENT dev
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 # Static lib is a first-class export member → find_package gives consumers
 # `doppler::doppler-static` (pure C, self-contained: -lm and -lpthread).
@@ -1286,8 +1300,9 @@ install(TARGETS doppler_lib_static
 if(NOT WIN32)
     install(TARGETS doppler_stream doppler_stream_static
         EXPORT doppler-targets
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT runtime
+                NAMELINK_COMPONENT dev
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif()
 
@@ -1339,6 +1354,11 @@ install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/doppler-config-version.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/doppler)
 
+# From <libdir>/pkgconfig back up to the prefix, however deep the libdir is:
+# `../..` for lib/ and lib64/, `../../..` for Debian's lib/<multiarch>/.
+file(RELATIVE_PATH DOPPLER_PC_TO_PREFIX
+     "/${CMAKE_INSTALL_LIBDIR}/pkgconfig" "/")
+string(REGEX REPLACE "/$" "" DOPPLER_PC_TO_PREFIX "${DOPPLER_PC_TO_PREFIX}")
 configure_file(cmake/doppler.pc.in doppler.pc @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler.pc"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
@@ -1358,3 +1378,9 @@ endif()
 # ── Validation harnesses (hand-owned, Monte-Carlo vs theory) ─────────
 add_subdirectory(native/validation)
 # ── Validation end ──────────────────────────────────────────────────
+
+# ── Packaging (.deb / .rpm) ──────────────────────────────────────────
+# POSIX packages only; Windows ships the zip and the vcpkg port.
+if(UNIX AND NOT APPLE)
+    include(cmake/packaging.cmake)
+endif()

@@ -110,6 +110,15 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # A version-site file states the version once (scripts/version_sites.py).
+      # Always runs: the sites are toml, cmake and json, and the check is ms.
+      - id: version-literals
+        name: one version literal per site file
+        entry: make -s lint-version-literals
+        language: system
+        pass_filenames: false
+        always_run: true
+
       # fmod() keeps the dividend's sign; folding into [0, m) is
       # dp_fmod_pos() and nowhere else (five hand copies, #1249).
       - id: fmod-fold

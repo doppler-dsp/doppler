@@ -40,6 +40,7 @@ Usage
     python3 scripts/version_sites.py --read <label>   # one site's version
     python3 scripts/version_sites.py --write X.Y.Z    # rewrite every site
     python3 scripts/version_sites.py --labels         # declared labels
+    python3 scripts/version_sites.py --check-literals # one literal per file
 
 ``--write`` verifies afterwards that **every declared site** reads back the
 value it was given, so a site the Makefile forgets to probe is still covered.
@@ -205,6 +206,46 @@ def write(version: str) -> None:
         print(f"  {site.label:<24} {version}")
 
 
+def stray_literals() -> list[str]:
+    """Every place a site FILE states the current version a second time.
+
+    A site file may say the version exactly once -- on the declared line. A
+    second literal is a claim nothing bumps, and it has a precise cost:
+    standard.mk's `ci-changes` decides "this PR is a version bump alone" by
+    substituting old -> new across each changed file and requiring the result
+    to equal HEAD. A stale literal elsewhere in the file breaks that equality,
+    so the release PR is classified `src=true` and the whole matrix runs --
+    at EVERY release, because the literal is stale again the moment it is
+    fixed by hand. The v0.53.0 release PR hit exactly this: a comment in
+    CMakeLists.txt spelled the SONAME chain as `libdoppler.so.0.52.0`.
+
+    It fails closed (the slow path is the safe one), which is why nothing
+    caught it before a release did. This is the per-PR check.
+
+    Returns
+    -------
+    list[str]
+        One `path:line: text` per stray literal; empty when clean.
+    """
+    out = []
+    for path in sorted({s.path for s in SITES}):
+        declared = {
+            _locate(s)[1] for s in SITES if s.path == path
+        }  # 0-based indices of the lines that ARE the declaration
+        version = read(next(s.label for s in SITES if s.path == path))
+        # Not part of a longer number (10.52.0, 0.52.01, 1.0.52.0) -- but a
+        # bare leading dot is fine and is the case that matters:
+        # `libdoppler.so.0.52.0` is preceded by ".so.", not by a digit.
+        rx = re.compile(
+            r"(?<!\d)(?<!\d\.)" + re.escape(version) + r"(?!\.?\d)"
+        )
+        lines = (ROOT / path).read_text(encoding="utf-8").splitlines()
+        for i, line in enumerate(lines):
+            if i not in declared and rx.search(line):
+                out.append(f"{path}:{i + 1}: {line.strip()}")
+    return out
+
+
 def _site(label: str) -> Site:
     for s in SITES:
         if s.label == label:
@@ -219,10 +260,32 @@ def main() -> int:
     g.add_argument("--read", metavar="LABEL")
     g.add_argument("--write", metavar="X.Y.Z")
     g.add_argument("--labels", action="store_true")
+    g.add_argument(
+        "--check-literals",
+        action="store_true",
+        help="fail if a site file states the version anywhere else",
+    )
     args = ap.parse_args()
     try:
         if args.labels:
             print(" ".join(s.label for s in SITES))
+        elif args.check_literals:
+            stray = stray_literals()
+            if stray:
+                print(
+                    "version_sites: a version-site file states the version "
+                    "outside its declared line:\n  "
+                    + "\n  ".join(stray)
+                    + "\n  Nothing bumps these, and one stale literal makes "
+                    "`ci-changes` classify every release PR as src=true\n"
+                    "  (the full matrix). Write X.Y.Z, or derive it.",
+                    file=sys.stderr,
+                )
+                return 1
+            print(
+                f"version_sites: OK -- {len({s.path for s in SITES})} site "
+                "file(s), each states the version once"
+            )
         elif args.read:
             print(read(args.read))
         else:

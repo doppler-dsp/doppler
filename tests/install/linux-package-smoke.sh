@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# linux-package-smoke.sh — runs INSIDE a distro container (make
+# package-linux-smoke): install doppler's .deb or .rpm packages with the
+# distro's own package manager, then consume them from /usr.
+#
+# What it proves, in order, and why each is here:
+#   1. the packages INSTALL -- dependencies resolve against the distro's real
+#      archive, the -dev/-devel pin on the runtime package is satisfiable;
+#   2. the split is right -- after installing ONLY the runtime package there
+#      is a versioned libdoppler.so.X.Y and NO dev symlink, header or .a;
+#   3. the loader finds it -- `ldconfig -p` lists the soname, which is the
+#      trigger / %post doing its job, not the consumer's rpath;
+#   4. a consumer builds with no path of ours on its command line --
+#      find_package (shared + static) and pkg-config, against /usr;
+#   5. /usr/include gained exactly one entry, doppler/ (doppler#1408).
+#
+# Usage: linux-package-smoke.sh <dir holding the built packages>
+set -euo pipefail
+PKGS="$1"
+SRC="$(cd "$(dirname "$0")/../.." && pwd)"
+say() { echo "   $*"; }
+die() { echo "FAIL: $*" >&2; exit 1; }
+
+if command -v apt-get >/dev/null 2>&1; then
+    fmt=deb
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq >/dev/null
+    install() { apt-get install -y -qq --no-install-recommends "$@" >/dev/null; }
+    toolchain=(gcc libc6-dev cmake make pkg-config)
+    rt=("$PKGS"/libdoppler-dsp[0-9]*.deb)
+    dev=("$PKGS"/libdoppler-dsp-dev_*.deb)
+    tools=("$PKGS"/doppler-dsp-tools_*.deb)
+else
+    fmt=rpm
+    install() { dnf install -y -q "$@" >/dev/null; }
+    toolchain=(gcc cmake make pkgconf-pkg-config)
+    # The runtime rpm is the one whose name has no -devel and no -tools.
+    rt=("$PKGS"/libdoppler-dsp-[0-9]*.rpm)
+    dev=("$PKGS"/libdoppler-dsp-devel-*.rpm)
+    tools=("$PKGS"/doppler-dsp-tools-*.rpm)
+fi
+for f in "${rt[0]}" "${dev[0]}" "${tools[0]}"; do
+    [ -f "$f" ] || die "no package matching $f — run 'make package-linux'"
+done
+
+# ── 1+2: runtime alone ───────────────────────────────────────────────────────
+install "${rt[0]}"
+so="$(find /usr/lib /usr/lib64 -name 'libdoppler.so.*' 2>/dev/null | head -1)"
+[ -n "$so" ] || die "runtime package installed no versioned libdoppler.so.*"
+libdir="$(dirname "$so")"
+[ ! -e "$libdir/libdoppler.so" ] || die "runtime package ships the dev symlink"
+[ ! -e "$libdir/libdoppler.a" ]  || die "runtime package ships the static lib"
+[ ! -e /usr/include/doppler ]    || die "runtime package ships headers"
+say "runtime only: $(basename "$so"), no dev files ($fmt, $libdir)"
+
+# ── 3: the loader cache ──────────────────────────────────────────────────────
+ldconfig -p | grep -q 'libdoppler\.so\.[0-9]' \
+    || die "ldconfig -p does not list libdoppler — the trigger/%post did not run"
+say "ldconfig lists $(ldconfig -p | grep -o 'libdoppler\.so\.[0-9.]*' | head -1)"
+
+# ── dev + tools ──────────────────────────────────────────────────────────────
+install "${dev[0]}" "${tools[0]}"
+[ -L "$libdir/libdoppler.so" ] || die "-dev did not install the dev symlink"
+[ -f /usr/include/doppler/lo/lo_core.h ] || die "-dev did not install headers"
+wfmgen --help >/dev/null || die "wfmgen does not run"
+say "dev + tools installed; wfmgen runs"
+
+# ── 5: the namespace ─────────────────────────────────────────────────────────
+# What OUR package owns directly under /usr/include, asked of the package
+# manager: -dev pulls in libc6-dev, so a before/after listing of the
+# directory measures the distro's headers, not doppler's.
+if [ "$fmt" = deb ]; then owned() { dpkg -L libdoppler-dsp-dev; }
+else owned() { rpm -ql libdoppler-dsp-devel; }; fi
+tops="$(owned | sed -n 's#^/usr/include/\([^/]*\).*#\1#p' | sort -u | tr '\n' ' ')"
+[ "$tops" = "doppler " ] || die "-dev owns in /usr/include: $tops(want: doppler)"
+say "-dev owns only doppler/ under /usr/include"
+
+# ── 4: consume from /usr ─────────────────────────────────────────────────────
+install "${toolchain[@]}"
+work="$(mktemp -d)"
+cmake -S "$SRC/example-projects/consumer" -B "$work/b" \
+    -DCMAKE_BUILD_TYPE=Release >"$work/log" 2>&1 \
+    && cmake --build "$work/b" >>"$work/log" 2>&1 \
+    || { cat "$work/log" >&2; die "find_package consumer did not build"; }
+"$work/b/consumer_shared" >/dev/null || die "consumer_shared did not run"
+"$work/b/consumer_static" >/dev/null || die "consumer_static did not run"
+# shellcheck disable=SC2046
+cc "$SRC/example-projects/consumer/main.c" -o "$work/pc" \
+    $(pkg-config --cflags --libs doppler) || die "pkg-config consumer"
+"$work/pc" >/dev/null || die "pkg-config consumer did not run"
+say "find_package (shared + static) and pkg-config consumers build and run"
+echo "   PASS ($fmt)"

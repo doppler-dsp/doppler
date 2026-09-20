@@ -704,6 +704,30 @@ jobs:
       run: make docker-examples
 
   # ------------------------------------------------------------------
+  # .deb / .rpm — BINDING, for the reason the Windows zip is: the release
+  # publishes what this builds, so a PR that breaks the packages must not
+  # merge and surface at the tag. Built in the manylinux_2_28 image exactly
+  # as release.yml builds them, then installed with the distro's own package
+  # manager in four containers -- the glibc floor (almalinux:8) among them --
+  # and consumed from /usr through find_package and pkg-config.
+  # ------------------------------------------------------------------
+  linux-packages:
+    needs: changes
+    # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
+    if: needs.changes.outputs.src == 'true'
+    name: Linux packages (.deb + .rpm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+    - uses: actions/checkout@v7
+
+    # One target: it builds the packages first (package-linux), so the
+    # smoke can never run against last time's.
+    - name: Build the packages, then install + consume them in each distro
+      run: make package-linux-smoke
+
+  # ------------------------------------------------------------------
   # just-makeit manifest drift gate
   #
   # Asserts the generated glue (bindings, stubs, CMake, _core.h decls) on disk
@@ -1041,6 +1065,7 @@ jobs:
       - sweep-validators
       - docs
       - docker
+      - linux-packages
       - pre-commit
       - manifest-drift
       - ci-image-repin
@@ -1061,5 +1086,5 @@ jobs:
           SKIPPABLE: >-
             build-and-test-linux build-and-test-windows build-and-test-macos
             python glibc-228 doxygen sweep-validators docs docker sanitizers
-            coverage
+            coverage linux-packages
         run: python3 scripts/ci_passed.py

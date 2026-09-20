@@ -302,7 +302,7 @@ jobs:
               # Container-context dep install (2 packages); a jbx/bootstrap.toml
               # bootstrap here would add a CDN dependency to the C build for no
               # gain. make itself ships in the manylinux image.
-              dnf install -y make cmake pkg-config tar gzip
+              dnf install -y make cmake pkg-config tar gzip rpm-build
               make package-c-tarball VERSION=${{ needs.verify-version.outputs.version }}
               # The starter ships the SDK inside it, so it is built here where
               # that SDK has just been built rather than in a job of its own
@@ -321,6 +321,12 @@ jobs:
               # a slow metadata fetch on every release leg, for no change.
               git config --global --add safe.directory /project
               make package-starter-tarball VERSION=${{ needs.verify-version.outputs.version }}
+              # The .deb and .rpm (doppler#1409), here because this image IS
+              # the glibc floor they claim. Their own build tree (build-pkg),
+              # the path ci.yml's linux-packages job exercises on every PR:
+              # a system prefix and a per-format libdir, which the relocatable
+              # tarball build above must not inherit.
+              make package-deb package-rpm
           IN_CONTAINER
 
       - name: Upload C library + starter (Linux ${{ matrix.arch.tag }})
@@ -331,6 +337,16 @@ jobs:
           # why the starter is named that way: it rides the existing glob, and
           # a release page shows the two side by side saying what each is.
           path: dist/doppler-*-linux-${{ matrix.arch.tag }}.tar.gz
+
+      # Its own artifact so the files sit at the artifact ROOT: the release
+      # job merges every c-dist-* into dist/ and publishes `dist/*`, which
+      # does not descend into a subdirectory.
+      - name: Upload .deb + .rpm (Linux ${{ matrix.arch.tag }})
+        uses: actions/upload-artifact@v7
+        with:
+          name: c-dist-linux-packages-${{ matrix.arch.tag }}
+          path: dist/linux-packages/*
+          if-no-files-found: error
 
   build-c-macos:
     name: Package C library (macOS arm64)

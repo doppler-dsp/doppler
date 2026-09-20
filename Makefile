@@ -596,7 +596,8 @@ GATES_PROVISION = install-deps install-docs-deps build pyext nats-up \
                   nats-down install-deps-ci install-docs-deps-ci \
                   ccache-stats \
                   apt-stall-config \
-                  package-c-tarball ci-changes $(GATES_WINDOWS_ONLY)
+                  package-c-tarball ci-changes $(GATES_WINDOWS_ONLY) \
+                  package-deb package-rpm package-linux
 GATES_DEPS    = lint changelog-check release-notes-size-check \
                 drift-check doxygen-check docs-check \
                 gen-c-api-check \
@@ -608,7 +609,7 @@ GATES_DEPS    = lint changelog-check release-notes-size-check \
                 test-asan test-ubsan test-tsan \
                 consumer-faces-check burst-pipeline-check glibc-gate \
                 check-isotime-parity coverage coverage-gate \
-                docker-examples ci-image-repin-check
+                docker-examples ci-image-repin-check package-linux-smoke
 
 # ── Build ────────────────────────────────────────────────────────────────────
 # Compile through ccache when it is installed, and silently not when it is
@@ -1306,6 +1307,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 gen-c-api-check \
                 gen-c-api-run \
                 package-c package-c-tarball package-c-smoke vcpkg-smoke \
+                package-deb package-rpm package-linux package-linux-smoke \
                 complex-helpers-check sdist release-notes \
                 release-pr release-notes-body-check \
                 release-freshness-check \
@@ -2199,6 +2201,75 @@ endif
 	         exit 1; }; \
 	 done; \
 	 echo "package-c-tarball: $$tb ($$(list | wc -l) entries)"
+
+# ── .deb / .rpm (doppler#1409) ───────────────────────────────────────────────
+# The same build `package-c` makes, configured for a SYSTEM prefix and the
+# libdir each format wants, then split into runtime / dev / tools packages by
+# CPack from cmake/packaging.cmake -- the one description of both formats.
+#
+# Two configures, not one tree moved twice: doppler-targets.cmake computes its
+# prefix from its own depth below it, so lib/<multiarch>/cmake/doppler and
+# lib64/cmake/doppler are different files. Reconfiguring changes the install
+# rules and the .pc files and recompiles nothing.
+#
+# Built where the release tarballs are -- the manylinux_2_28 image -- so ONE
+# binary package per arch covers every distro at or above that glibc floor
+# (`glibc-gate`). release.yml calls package-deb/package-rpm inside the
+# container it already runs; `package-linux` is the same thing from outside
+# one, for a dev box and for CI.
+CPACK           ?= cpack
+PKG_BUILD_DIR   ?= build-pkg
+PKG_OUT_DIR     ?= $(DIST_DIR)/linux-packages
+DEB_MULTIARCH   ?= $(shell uname -m)-linux-gnu
+PKG_IMAGE       ?= quay.io/pypa/manylinux_2_28_$(shell uname -m)
+
+define PKG_BUILD
+	$(CMAKE) -S . -B $(PKG_BUILD_DIR) -DCMAKE_BUILD_TYPE=Release \
+	    -DBUILD_PYTHON=OFF -DCMAKE_INSTALL_PREFIX=/usr \
+	    -DCMAKE_INSTALL_LIBDIR=$(1) $(CMAKE_ARGS)
+	$(CMAKE) --build $(PKG_BUILD_DIR) --parallel $(NPROC)
+	@mkdir -p $(PKG_OUT_DIR)
+	cd $(PKG_BUILD_DIR) && $(CPACK) -G $(2)
+	@mv $(PKG_BUILD_DIR)/*.$(3) $(PKG_OUT_DIR)/
+endef
+
+package-deb: ## Build the .deb packages into $(PKG_OUT_DIR)/ (runtime, -dev, tools)
+	$(call PKG_BUILD,lib/$(DEB_MULTIARCH),DEB,deb)
+
+package-rpm: ## Build the .rpm packages into $(PKG_OUT_DIR)/ (needs rpmbuild)
+	@command -v rpmbuild >/dev/null 2>&1 || { \
+	    echo "package-rpm: no rpmbuild on PATH (dnf install rpm-build), or"; \
+	    echo "  run 'make package-linux' to build inside the manylinux image."; \
+	    exit 1; }
+	$(call PKG_BUILD,lib64,RPM,rpm)
+
+# As the caller, not root, for the reason glibc-gate gives: the build tree
+# lands in the bind-mounted checkout. rpm-build therefore cannot be installed
+# at run time, so it is a one-line derived image.
+PKG_BUILDER_IMAGE ?= doppler-pkg-builder:local
+package-linux: ## Build the .deb and .rpm packages inside the manylinux_2_28 image
+	printf 'FROM %s\nRUN dnf install -y rpm-build && dnf clean all\n' \
+	    "$(PKG_IMAGE)" | docker build -q -t $(PKG_BUILDER_IMAGE) - >/dev/null
+	@rm -rf $(PKG_OUT_DIR)
+	docker run --rm -u $$(id -u):$$(id -g) -e HOME=/tmp \
+	    -v "$(CURDIR)":/w -w /w $(PKG_BUILDER_IMAGE) \
+	    make package-deb package-rpm PKG_BUILD_DIR=$(PKG_BUILD_DIR)
+	@ls -1 $(PKG_OUT_DIR)
+
+# Install the packages the way a user does -- the distro's own package manager,
+# from local files -- in one container per distro, then build and run the
+# consumer against /usr with nothing but find_package and pkg-config. The
+# floor (almalinux:8, glibc 2.28) is in the list on purpose: it is the claim
+# the manylinux build makes.
+PKG_SMOKE_DISTROS ?= debian:stable ubuntu:24.04 almalinux:8 fedora:latest
+package-linux-smoke: package-linux ## Install the built packages in each of $(PKG_SMOKE_DISTROS) and consume them
+	@for d in $(PKG_SMOKE_DISTROS); do \
+	    echo ">> $$d"; \
+	    docker run --rm -v "$(CURDIR)":/w:ro -w /w $$d \
+	        bash tests/install/linux-package-smoke.sh /w/$(PKG_OUT_DIR) \
+	        || { echo "package-linux-smoke: FAILED in $$d"; exit 1; }; \
+	 done; \
+	 echo "package-linux-smoke: PASS in $(PKG_SMOKE_DISTROS)"
 
 # The packaged archive, consumed the way a downstream consumes the published
 # one: extract it into a fresh prefix and run the release smoke against that

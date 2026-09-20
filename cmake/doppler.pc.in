@@ -1,7 +1,11 @@
 # Relocatable: derive the prefix from this file's own location
 # (<prefix>/<libdir>/pkgconfig/doppler.pc), so an extracted release tarball
 # works wherever it lands — not only the build-time CMAKE_INSTALL_PREFIX.
-prefix=${pcfiledir}/../..
+# The hop count is DERIVED from the libdir (DOPPLER_PC_TO_PREFIX in
+# CMakeLists.txt): it was a literal `../..`, which is right for lib/ and
+# lib64/ and wrong for Debian's lib/<multiarch>/, where it resolved the
+# prefix to /usr/lib and the include path to /usr/lib/include.
+prefix=${pcfiledir}/@DOPPLER_PC_TO_PREFIX@
 exec_prefix=${prefix}
 libdir=${exec_prefix}/@CMAKE_INSTALL_LIBDIR@
 includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@

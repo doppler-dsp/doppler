@@ -3,7 +3,7 @@ include = ["objects/*.toml"]
 [project]
 jm_version = "0.78.1"
 name = "doppler"
-version = "0.52.0"
+version = "0.53.0"
 build = "cmake"
 # c_style / c_format_command (gh-265, gh-745): jm formats the C it generates
 # with the project's OWN pinned clang-format, so its render and the committed

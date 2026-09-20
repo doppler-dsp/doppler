@@ -45,7 +45,12 @@ done
 
 # ── 1+2: runtime alone ───────────────────────────────────────────────────────
 install "${rt[0]}"
-so="$(find /usr/lib /usr/lib64 -name 'libdoppler.so.*' 2>/dev/null | head -1)"
+# Only the lib roots that EXIST: arm64 Debian has no /usr/lib64 (x86_64 has
+# one, for the loader), `find` exits 1 on a missing start point, and under
+# pipefail that ended this script in silence -- on a package that had
+# installed correctly. Found by the first arm64 run (doppler#1413).
+roots=(); for r in /usr/lib /usr/lib64; do [ -d "$r" ] && roots+=("$r"); done
+so="$(find "${roots[@]}" -name 'libdoppler.so.*' | head -1)"
 [ -n "$so" ] || die "runtime package installed no versioned libdoppler.so.*"
 libdir="$(dirname "$so")"
 [ ! -e "$libdir/libdoppler.so" ] || die "runtime package ships the dev symlink"

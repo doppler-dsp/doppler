@@ -30,6 +30,7 @@
 * **dp\_cond\_t** ([**dp\_thread.h**](dp__thread_8h.md))
 * **dp\_mutex\_t** ([**dp\_thread.h**](dp__thread_8h.md))
 * **dp\_thread\_t** ([**dp\_thread.h**](dp__thread_8h.md))
+* **dp\_wait\_status\_t** ([**buffer.h**](buffer_8h.md))
 * **dp\_bitorder\_t** ([**cvt\_core.h**](cvt__core_8h.md))
 * **ddc\_state\_t** ([**ddc\_core.h**](ddc__core_8h.md))
 * **ddcr\_state\_t** ([**ddcr\_core.h**](ddcr__core_8h.md))

@@ -39,6 +39,11 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 
 
 
+## Public Types
+
+| Type | Name |
+| ---: | :--- |
+| enum  | [**dp\_wait\_status\_t**](#enum-dp_wait_status_t)  <br>_Why a ring's wait can or cannot be satisfied right now._  |
 
 
 
@@ -149,6 +154,32 @@ The head and tail pointers are separated by 64 bytes to prevent the "Ping-Pong" 
 
 
     
+## Public Types Documentation
+
+
+
+
+### enum dp\_wait\_status\_t 
+
+_Why a ring's wait can or cannot be satisfied right now._ 
+```C++
+enum dp_wait_status_t {
+    DP_WAIT_OK = 0,
+    DP_WAIT_PENDING = 1,
+    DP_WAIT_TOO_LARGE = 2,
+    DP_WAIT_CLOSED = 3,
+    DP_WAIT_INTERRUPTED = 4
+};
+```
+
+
+
+dp\_&lt;name&gt;_wait() and dp_&lt;name&gt;_peek() return NULL for more than one reason, and the reasons call for different responses: end of stream is normal and a consumer loop catches it, an interrupt means stop, too-large is a caller bug, and "not yet" is no failure at all. dp_&lt;name&gt;\_wait\_status() owns the PRECEDENCE between them, so a binding or a consumer asks one question instead of re-deriving the order from three  which is what the Python binding did, in three hand-written copies. 
+
+
+        
+
+<hr>
 ## Public Static Functions Documentation
 
 

@@ -505,6 +505,26 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
 #endif
 }
 
+/**
+ * @brief Why a ring's wait can or cannot be satisfied right now.
+ *
+ * dp_<name>_wait() and dp_<name>_peek() return NULL for more than one reason,
+ * and the reasons call for different responses: end of stream is normal and a
+ * consumer loop catches it, an interrupt means stop, too-large is a caller
+ * bug, and "not yet" is no failure at all. dp_<name>_wait_status() owns the
+ * PRECEDENCE between them, so a binding or a consumer asks one question
+ * instead of re-deriving the order from three -- which is what the Python
+ * binding did, in three hand-written copies.
+ */
+typedef enum
+{
+  DP_WAIT_OK          = 0, /**< @p n samples are readable now.              */
+  DP_WAIT_PENDING     = 1, /**< Fewer than @p n so far; nothing is wrong.    */
+  DP_WAIT_TOO_LARGE   = 2, /**< @p n exceeds capacity: never satisfiable.    */
+  DP_WAIT_CLOSED      = 3, /**< Closed with fewer than @p n left: the end.   */
+  DP_WAIT_INTERRUPTED = 4  /**< The process was asked to stop.               */
+} dp_wait_status_t;
+
 /* =========================================================================
  * DECLARE_DP_BUFFER(name, type)
  *
@@ -806,6 +826,145 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
     size_t h = DP_LOAD_ACQ (&ab->head);                                       \
     size_t t = DP_LOAD_RLX (&ab->tail);                                       \
     return h - t;                                                             \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Free room, in complex samples -- the producer's view.             \
+   *                                                                          \
+   * The largest @p n dp_##name##_write() is guaranteed to accept. Read from  \
+   * the PRODUCER side: the consumer may only grow it concurrently, so the    \
+   * value is a lower bound that never goes stale in the unsafe direction.    \
+   *                                                                          \
+   * @param ab Pointer to buffer.                                             \
+   * @return   Samples that can be written without being refused.             \
+   */                                                                         \
+  static inline size_t dp_##name##_space (const dp_##name##_t *ab)            \
+  {                                                                           \
+    size_t h = DP_LOAD_RLX (&ab->head);                                       \
+    size_t t = DP_LOAD_ACQ (&ab->tail);                                       \
+    return ab->capacity - (h - t);                                            \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Write as much of @p src as fits; return how much that was.        \
+   *                                                                          \
+   * The streaming half of the ring. dp_##name##_write() is all-or-nothing,   \
+   * which is right for a frame and wrong for a stream: a chunk larger than   \
+   * the free room is refused whole, and one larger than the CAPACITY can     \
+   * never be written at all. This takes what fits, so a producer feeds any   \
+   * chunk -- larger than the ring included -- by looping, draining between   \
+   * calls:                                                                   \
+   *                                                                          \
+   *     while (off < n)                                                      \
+   *       {                                                                  \
+   *         off += dp_f32_write_some (ab, src + 2 * off, n - off);           \
+   *         while ((frame = dp_f32_peek (ab, nfft)))                         \
+   *           { process (frame); dp_f32_consume (ab, hop); }                 \
+   *       }                                                                  \
+   *                                                                          \
+   * It never touches @c dropped: nothing is refused, so there is nothing to  \
+   * count. A return of 0 means the ring is full.                             \
+   *                                                                          \
+   * @param ab  Pointer to buffer.                                            \
+   * @param src Source data array (@p n complex samples).                     \
+   * @param n   Complex samples offered.                                      \
+   * @return    Complex samples actually written, 0..@p n.                    \
+   */                                                                         \
+  JM_FORCEINLINE size_t dp_##name##_write_some (dp_##name##_t *ab,            \
+                                                const type *src, size_t n)    \
+  {                                                                           \
+    size_t h     = DP_LOAD_RLX (&ab->head);                                   \
+    size_t t     = DP_LOAD_ACQ (&ab->tail);                                   \
+    size_t space = ab->capacity - (h - t);                                    \
+    if (n > space)                                                            \
+      n = space;                                                              \
+    if (n == 0)                                                               \
+      return 0;                                                               \
+    memcpy (&ab->data[(h & ab->mask) * 2], src, n * sizeof (type) * 2);       \
+    DP_STORE_REL (&ab->head, h + n);                                          \
+    return n;                                                                 \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief The non-blocking dp_##name##_wait(): @p n samples, or NULL.       \
+   *                                                                          \
+   * Returns the same contiguous, zero-copy pointer wait() does when @p n     \
+   * samples are readable, and NULL at once when they are not -- it never     \
+   * spins. This is what a SINGLE-THREADED user needs, where wait() would     \
+   * deadlock: the same thread that would produce the samples is the one      \
+   * waiting for them. Accumulate until a frame is there, then take it:       \
+   *                                                                          \
+   *     dp_f32_write_some (ab, x, n);                                        \
+   *     if ((frame = dp_f32_peek (ab, N)))                                   \
+   *       { process (frame); dp_f32_consume (ab, N); }                       \
+   *                                                                          \
+   * Like wait(), it does not consume: call dp_##name##_consume() with        \
+   * however many samples to release, which need not be @p n -- releasing     \
+   * fewer is how overlapped frames (hop < frame) are read.                   \
+   *                                                                          \
+   * NULL here is usually not a failure. Ask dp_##name##_wait_status() when   \
+   * the difference between "not yet" and "never" matters.                    \
+   *                                                                          \
+   * @param ab Pointer to buffer.                                             \
+   * @param n  Samples required.                                              \
+   * @return   Pointer to the read-head, or NULL if fewer than @p n are       \
+   *           readable (always, when @p n exceeds capacity).                 \
+   */                                                                         \
+  JM_FORCEINLINE type *dp_##name##_peek (dp_##name##_t *ab, size_t n)         \
+  {                                                                           \
+    size_t h = DP_LOAD_ACQ (&ab->head);                                       \
+    size_t t = DP_LOAD_RLX (&ab->tail);                                       \
+    if (h - t < n)                                                            \
+      return NULL;                                                            \
+    return &ab->data[(t & ab->mask) * 2];                                     \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Why @p n samples can or cannot be had right now.                  \
+   *                                                                          \
+   * The one owner of the precedence dp_##name##_wait() applies. Too-large    \
+   * is checked first because it is a caller bug whatever the ring holds;     \
+   * readable samples win over closed, since a closed ring still drains;      \
+   * and closed wins over interrupted, since "no more is coming" is the       \
+   * more final of the two. After observing @c closed it looks at the count   \
+   * AGAIN, for the reason wait() does: a close() is a release store, so a    \
+   * consumer that sees the flag is guaranteed to see every write before      \
+   * it -- but only if it looks again.                                        \
+   *                                                                          \
+   * @param ab Pointer to buffer.                                             \
+   * @param n  Samples wanted.                                                \
+   * @return   A dp_wait_status_t.                                            \
+   */                                                                         \
+  static inline dp_wait_status_t dp_##name##_wait_status (                    \
+      const dp_##name##_t *ab, size_t n)                                      \
+  {                                                                           \
+    if (n > ab->capacity)                                                     \
+      return DP_WAIT_TOO_LARGE;                                               \
+    if (dp_##name##_available (ab) >= n)                                      \
+      return DP_WAIT_OK;                                                      \
+    if (dp_##name##_closed (ab))                                              \
+      return dp_##name##_available (ab) >= n ? DP_WAIT_OK : DP_WAIT_CLOSED;   \
+    if (dp_interrupted ())                                                    \
+      return DP_WAIT_INTERRUPTED;                                             \
+    return DP_WAIT_PENDING;                                                   \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief Empty the ring and reopen it.                                     \
+   *                                                                          \
+   * Both positions return to zero and @c closed is cleared, so a ring that   \
+   * reached end of stream can carry the next one. @c dropped is a lifetime   \
+   * count and is kept. NOT safe against a concurrent producer or consumer:   \
+   * it writes both sides' indices, so both sides must be quiescent -- it is  \
+   * for the single-threaded user and for between-runs.                       \
+   *                                                                          \
+   * @param ab Pointer to buffer.                                             \
+   */                                                                         \
+  static inline void dp_##name##_reset (dp_##name##_t *ab)                    \
+  {                                                                           \
+    DP_STORE_REL (&ab->head, 0);                                              \
+    DP_STORE_REL (&ab->tail, 0);                                              \
+    __atomic_store_n (&ab->closed, 0, __ATOMIC_RELEASE);                      \
   }                                                                           \
                                                                               \
   /** @brief Releases @p n samples after processing is complete. */           \

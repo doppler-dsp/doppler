@@ -100,7 +100,7 @@ echo ">> vcpkg install doppler:$TRIPLET"
 # vcpkg exits 0 on a post-build lint WARNING, so the layout is asserted here
 # rather than read off the exit code.
 tree="$work/installed/$TRIPLET"
-for want in include/lo/lo_core.h share/doppler/doppler-config.cmake \
+for want in include/doppler/lo/lo_core.h share/doppler/doppler-config.cmake \
             share/doppler/copyright share/doppler/usage; do
     [ -f "$tree/$want" ] || { echo "FAIL: no $want in $tree" >&2; exit 1; }
 done

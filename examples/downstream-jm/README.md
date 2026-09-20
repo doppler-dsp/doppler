@@ -203,7 +203,7 @@ export PKG_CONFIG_PATH=$PWD/third_party/doppler/lib/pkgconfig
 cc myapp.c $(pkg-config --cflags --libs doppler) -o myapp
 
 # static — name the archive to get a binary with no doppler runtime dependency
-cc myapp.c -I$PWD/third_party/doppler/include \
+cc myapp.c -I$PWD/third_party/doppler/include/doppler \
    $PWD/third_party/doppler/lib/libdoppler.a -lm -lpthread -o myapp
 ```
 

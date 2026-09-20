@@ -2128,6 +2128,16 @@ endif
 	    -DBUILD_PYTHON=OFF -DCMAKE_INSTALL_LIBDIR=lib $(CMAKE_ARGS)
 	$(CMAKE) --build $(BUILD_DIR) --parallel $(NPROC)
 	$(CMAKE) --install $(BUILD_DIR) --prefix $(PREFIX)
+# include/ holds doppler/ and nothing else (doppler#1408). Checked HERE so
+# that every caller -- the release tarballs, the Windows job, the starter
+# tarball -- gets it, rather than in one of them.
+	@stray=$$(ls -A "$(PREFIX)/include" | grep -vx doppler || true); \
+	 [ -z "$$stray" ] || { \
+	     echo "package-c: $(PREFIX)/include holds more than doppler/:"; \
+	     echo "$$stray" | head -5 | sed 's/^/    /'; \
+	     echo "  headers install under include/doppler/ so a system prefix"; \
+	     echo "  is not handed 138 generic names (fft/, util/, ...)."; \
+	     exit 1; }
 
 # "Trivial" was true of each copy and false of the set. This was three
 # hand-written `tar -czf` lines in release.yml — one per platform — wrapped in

@@ -214,7 +214,7 @@ lives in the **pure-C core**, so the file/raw/csv/BLUE/SigMF output paths link
 with just `libdoppler.a -lm -lpthread`:
 
 ```sh
-gcc -o app app.c -I "$PREFIX/include" "$PREFIX/lib/libdoppler.a" \
+gcc -o app app.c -I "$PREFIX/include/doppler" "$PREFIX/lib/libdoppler.a" \
     -lm -lpthread
 ```
 
@@ -225,7 +225,7 @@ there is still **no runtime client-library dependency** — just a running
 `nats-server` to connect to:
 
 ```sh
-gcc -o app app.c -I "$PREFIX/include" \
+gcc -o app app.c -I "$PREFIX/include/doppler" \
     "$PREFIX/lib/libdoppler.a" "$PREFIX/lib/libdoppler_stream.a" \
     -lpthread -lm
 ```

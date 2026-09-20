@@ -96,7 +96,7 @@ extern "C"
     double ref_db;  /* target output power, dB                        */
     double loop_bw; /* loop noise bandwidth, cycles/sample             */
     double alpha;   /* power-detector EMA coefficient, (0, 1]          */
-    size_t decim;   /* agc_steps() chunk length (8 / 16 / 32)          */
+    size_t decim;   
     double clip_db; /* output square-clip level, dB (per component)    */
     /* agc_step() control-update period: the detector + gain-apply run
      * every sample, but the loop-filter command (the exp10/log10 work)

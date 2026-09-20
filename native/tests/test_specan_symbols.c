@@ -8,7 +8,7 @@
  */
 #include "specan/specan_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_specan[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,15 +17,19 @@ extern const jm_any_fn jm_bound_symbols_specan[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_specan[] = {
-  (jm_any_fn)specan_create,      (jm_any_fn)specan_destroy,
-  (jm_any_fn)specan_reset,       (jm_any_fn)specan_execute_max_out,
-  (jm_any_fn)specan_execute,     (jm_any_fn)specan_retune,
-  (jm_any_fn)specan_state_bytes, (jm_any_fn)specan_get_state,
-  (jm_any_fn)specan_set_state,
+    (jm_any_fn)specan_create,
+    (jm_any_fn)specan_destroy,
+    (jm_any_fn)specan_reset,
+    (jm_any_fn)specan_execute_max_out,
+    (jm_any_fn)specan_execute,
+    (jm_any_fn)specan_retune,
+    (jm_any_fn)specan_state_bytes,
+    (jm_any_fn)specan_get_state,
+    (jm_any_fn)specan_set_state,
 };

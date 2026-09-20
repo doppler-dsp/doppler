@@ -776,8 +776,9 @@ static PyGetSetDef CellAsyncDsssReceiver_getset[] = {
   { "code_rate", (getter)CellAsyncDsssReceiver_getprop_code_rate, NULL,
     "Live Dll code rate: chips advanced per nominal chip (~1.0).\n", NULL },
   { "lock", (getter)CellAsyncDsssReceiver_getprop_lock, NULL,
-    "decision rule on lock_metric: thresholds + verify counters, stepped per "
-    "symbol.\n",
+    "The carrier lock statistic of the MpskReceiver this receiver tracks "
+    "with: the EMA of its M-th-power lock signal, near 1 when locked and near "
+    "0 on noise. 0 until a track chain exists.\n",
     NULL },
   { "norm_freq", (getter)CellAsyncDsssReceiver_getprop_norm_freq, NULL,
     "Smoothed carrier estimate (integrator only, cycles/sample of the "

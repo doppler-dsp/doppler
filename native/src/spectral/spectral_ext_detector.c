@@ -303,9 +303,11 @@ static PyGetSetDef CorrDetector_getset[] = {
   { "n", (getter)CorrDetector_getprop_n, NULL,
     "Frame / FFT length in complex samples.\n", NULL },
   { "dwell", (getter)CorrDetector_getprop_dwell, NULL,
-    "Integration depth; dump every dwell calls.\n", NULL },
+    "Integration depth: a detection statistic is dumped every `dwell` "
+    "frames.\n",
+    NULL },
   { "count", (getter)CorrDetector_getprop_count, NULL,
-    "Frames accumulated so far (0 … dwell-1).\n", NULL },
+    "Frames accumulated toward the next dump (0 ... dwell-1).\n", NULL },
   { "ring_cap", (getter)CorrDetector_getprop_ring_cap, NULL,
     "Ring buffer capacity in complex samples.\n", NULL },
   { "noise_lo", (getter)CorrDetector_getprop_noise_lo, NULL,

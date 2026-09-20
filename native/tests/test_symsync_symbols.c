@@ -8,7 +8,7 @@
  */
 #include "symsync/symsync_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_symsync[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,28 +17,28 @@ extern const jm_any_fn jm_bound_symbols_symsync[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_symsync[] = {
-  (jm_any_fn)symsync_create,
-  (jm_any_fn)symsync_destroy,
-  (jm_any_fn)symsync_reset,
-  (jm_any_fn)symsync_steps_max_out,
-  (jm_any_fn)symsync_steps,
-  (jm_any_fn)symsync_configure,
-  (jm_any_fn)symsync_get_bn,
-  (jm_any_fn)symsync_set_bn,
-  (jm_any_fn)symsync_get_timing_error,
-  (jm_any_fn)symsync_get_rate,
-  (jm_any_fn)symsync_get_lock_stat,
-  (jm_any_fn)symsync_get_locked,
-  (jm_any_fn)symsync_configure_lock,
-  (jm_any_fn)symsync_configure_lock_raw,
-  (jm_any_fn)symsync_set_telemetry,
-  (jm_any_fn)symsync_state_bytes,
-  (jm_any_fn)symsync_get_state,
-  (jm_any_fn)symsync_set_state,
+    (jm_any_fn)symsync_create,
+    (jm_any_fn)symsync_destroy,
+    (jm_any_fn)symsync_reset,
+    (jm_any_fn)symsync_steps_max_out,
+    (jm_any_fn)symsync_steps,
+    (jm_any_fn)symsync_configure,
+    (jm_any_fn)symsync_get_bn,
+    (jm_any_fn)symsync_set_bn,
+    (jm_any_fn)symsync_get_timing_error,
+    (jm_any_fn)symsync_get_rate,
+    (jm_any_fn)symsync_get_lock_stat,
+    (jm_any_fn)symsync_get_locked,
+    (jm_any_fn)symsync_configure_lock,
+    (jm_any_fn)symsync_configure_lock_raw,
+    (jm_any_fn)symsync_set_telemetry,
+    (jm_any_fn)symsync_state_bytes,
+    (jm_any_fn)symsync_get_state,
+    (jm_any_fn)symsync_set_state,
 };

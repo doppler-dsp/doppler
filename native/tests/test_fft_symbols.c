@@ -8,7 +8,7 @@
  */
 #include "fft/fft_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_fft[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,23 +17,23 @@ extern const jm_any_fn jm_bound_symbols_fft[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_fft[] = {
-  (jm_any_fn)fft_create,
-  (jm_any_fn)fft_destroy,
-  (jm_any_fn)fft_reset,
-  (jm_any_fn)fft_execute_cf64_max_out,
-  (jm_any_fn)fft_execute_cf64,
-  (jm_any_fn)fft_execute_cf32_max_out,
-  (jm_any_fn)fft_execute_cf32,
-  (jm_any_fn)fft_execute_inplace_cf64_max_out,
-  (jm_any_fn)fft_execute_inplace_cf64,
-  (jm_any_fn)fft_execute_inplace_cf32_max_out,
-  (jm_any_fn)fft_execute_inplace_cf32,
-  (jm_any_fn)fft_execute_ci16,
-  (jm_any_fn)fft_execute_ci8,
+    (jm_any_fn)fft_create,
+    (jm_any_fn)fft_destroy,
+    (jm_any_fn)fft_reset,
+    (jm_any_fn)fft_execute_cf64_max_out,
+    (jm_any_fn)fft_execute_cf64,
+    (jm_any_fn)fft_execute_cf32_max_out,
+    (jm_any_fn)fft_execute_cf32,
+    (jm_any_fn)fft_execute_inplace_cf64_max_out,
+    (jm_any_fn)fft_execute_inplace_cf64,
+    (jm_any_fn)fft_execute_inplace_cf32_max_out,
+    (jm_any_fn)fft_execute_inplace_cf32,
+    (jm_any_fn)fft_execute_ci16,
+    (jm_any_fn)fft_execute_ci8,
 };

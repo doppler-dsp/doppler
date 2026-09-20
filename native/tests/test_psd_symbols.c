@@ -8,7 +8,7 @@
  */
 #include "psd/psd_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_psd[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,33 +17,33 @@ extern const jm_any_fn jm_bound_symbols_psd[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_psd[] = {
-  (jm_any_fn)psd_create,
-  (jm_any_fn)psd_destroy,
-  (jm_any_fn)psd_reset,
-  (jm_any_fn)psd_accumulate,
-  (jm_any_fn)psd_accumulate_real,
-  (jm_any_fn)psd_power_twosided_max_out,
-  (jm_any_fn)psd_power_twosided,
-  (jm_any_fn)psd_power_onesided_max_out,
-  (jm_any_fn)psd_power_onesided,
-  (jm_any_fn)psd_psd_db_max_out,
-  (jm_any_fn)psd_psd_db,
-  (jm_any_fn)psd_psd_dbhz_max_out,
-  (jm_any_fn)psd_psd_dbhz,
-  (jm_any_fn)psd_band_power_max_out,
-  (jm_any_fn)psd_band_power,
-  (jm_any_fn)psd_total_band_power,
-  (jm_any_fn)psd_occupied_bw,
-  (jm_any_fn)psd_noise_floor,
-  (jm_any_fn)psd_snr,
-  (jm_any_fn)psd_sfdr,
-  (jm_any_fn)psd_state_bytes,
-  (jm_any_fn)psd_get_state,
-  (jm_any_fn)psd_set_state,
+    (jm_any_fn)psd_create,
+    (jm_any_fn)psd_destroy,
+    (jm_any_fn)psd_reset,
+    (jm_any_fn)psd_accumulate,
+    (jm_any_fn)psd_accumulate_real,
+    (jm_any_fn)psd_power_twosided_max_out,
+    (jm_any_fn)psd_power_twosided,
+    (jm_any_fn)psd_power_onesided_max_out,
+    (jm_any_fn)psd_power_onesided,
+    (jm_any_fn)psd_psd_db_max_out,
+    (jm_any_fn)psd_psd_db,
+    (jm_any_fn)psd_psd_dbhz_max_out,
+    (jm_any_fn)psd_psd_dbhz,
+    (jm_any_fn)psd_band_power_max_out,
+    (jm_any_fn)psd_band_power,
+    (jm_any_fn)psd_total_band_power,
+    (jm_any_fn)psd_occupied_bw,
+    (jm_any_fn)psd_noise_floor,
+    (jm_any_fn)psd_snr,
+    (jm_any_fn)psd_sfdr,
+    (jm_any_fn)psd_state_bytes,
+    (jm_any_fn)psd_get_state,
+    (jm_any_fn)psd_set_state,
 };

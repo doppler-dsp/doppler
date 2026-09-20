@@ -8,7 +8,7 @@
  */
 #include "Resampler/Resampler_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_Resampler[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,24 +17,24 @@ extern const jm_any_fn jm_bound_symbols_Resampler[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_Resampler[] = {
-  (jm_any_fn)Resampler_create,
-  (jm_any_fn)Resampler_create_custom,
-  (jm_any_fn)Resampler_destroy,
-  (jm_any_fn)Resampler_reset,
-  (jm_any_fn)Resampler_execute_max_out,
-  (jm_any_fn)Resampler_execute,
-  (jm_any_fn)Resampler_execute_ctrl_max_out,
-  (jm_any_fn)Resampler_execute_ctrl,
-  (jm_any_fn)Resampler_get_rate,
-  (jm_any_fn)Resampler_set_rate,
-  (jm_any_fn)Resampler_get_ctrl_acc,
-  (jm_any_fn)Resampler_get_num_phases,
-  (jm_any_fn)Resampler_get_num_taps,
-  (jm_any_fn)Resampler_get_delay,
+    (jm_any_fn)Resampler_create,
+    (jm_any_fn)Resampler_create_custom,
+    (jm_any_fn)Resampler_destroy,
+    (jm_any_fn)Resampler_reset,
+    (jm_any_fn)Resampler_execute_max_out,
+    (jm_any_fn)Resampler_execute,
+    (jm_any_fn)Resampler_execute_ctrl_max_out,
+    (jm_any_fn)Resampler_execute_ctrl,
+    (jm_any_fn)Resampler_get_rate,
+    (jm_any_fn)Resampler_set_rate,
+    (jm_any_fn)Resampler_get_ctrl_acc,
+    (jm_any_fn)Resampler_get_num_phases,
+    (jm_any_fn)Resampler_get_num_taps,
+    (jm_any_fn)Resampler_get_delay,
 };

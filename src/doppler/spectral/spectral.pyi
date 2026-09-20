@@ -1236,11 +1236,13 @@ class CorrDetector:
 
     @property
     def dwell(self) -> int:
-        """Dwell."""
+        """Integration depth: a detection statistic is dumped every `dwell`
+        frames.
+        """
 
     @property
     def count(self) -> int:
-        """Count."""
+        """Frames accumulated toward the next dump (0 ... dwell-1)."""
 
     @property
     def ring_cap(self) -> int:
@@ -1485,11 +1487,13 @@ class CorrDetector2D:
 
     @property
     def dwell(self) -> int:
-        """Dwell."""
+        """Integration depth: a detection statistic is dumped every `dwell`
+        frames.
+        """
 
     @property
     def count(self) -> int:
-        """Count."""
+        """Frames accumulated toward the next dump (0 ... dwell-1)."""
 
     @property
     def ring_cap(self) -> int:
@@ -1985,11 +1989,13 @@ class PSD:
 
     @property
     def count(self) -> int:
-        """Count."""
+        """Frames folded into the averaged trace so far."""
 
     @property
     def mode(self) -> int:
-        """Mode."""
+        """Trace reduction mode, as the enum index: 0 mean, 1 exp, 2 maxhold, 3
+        minhold.
+        """
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

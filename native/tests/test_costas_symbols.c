@@ -8,7 +8,7 @@
  */
 #include "costas/costas_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_costas[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,20 +17,30 @@ extern const jm_any_fn jm_bound_symbols_costas[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_costas[] = {
-  (jm_any_fn)costas_create,         (jm_any_fn)costas_destroy,
-  (jm_any_fn)costas_reset,          (jm_any_fn)costas_state_bytes,
-  (jm_any_fn)costas_get_state,      (jm_any_fn)costas_set_state,
-  (jm_any_fn)costas_steps_max_out,  (jm_any_fn)costas_steps,
-  (jm_any_fn)costas_configure,      (jm_any_fn)costas_get_bn,
-  (jm_any_fn)costas_set_bn,         (jm_any_fn)costas_get_norm_freq,
-  (jm_any_fn)costas_set_norm_freq,  (jm_any_fn)costas_get_lock_metric,
-  (jm_any_fn)costas_get_last_error, (jm_any_fn)costas_get_bn_fll,
-  (jm_any_fn)costas_set_bn_fll,     (jm_any_fn)costas_configure_lock,
-  (jm_any_fn)costas_get_locked,     (jm_any_fn)costas_set_telemetry,
+    (jm_any_fn)costas_create,
+    (jm_any_fn)costas_destroy,
+    (jm_any_fn)costas_reset,
+    (jm_any_fn)costas_state_bytes,
+    (jm_any_fn)costas_get_state,
+    (jm_any_fn)costas_set_state,
+    (jm_any_fn)costas_steps_max_out,
+    (jm_any_fn)costas_steps,
+    (jm_any_fn)costas_configure,
+    (jm_any_fn)costas_get_bn,
+    (jm_any_fn)costas_set_bn,
+    (jm_any_fn)costas_get_norm_freq,
+    (jm_any_fn)costas_set_norm_freq,
+    (jm_any_fn)costas_get_lock_metric,
+    (jm_any_fn)costas_get_last_error,
+    (jm_any_fn)costas_get_bn_fll,
+    (jm_any_fn)costas_set_bn_fll,
+    (jm_any_fn)costas_configure_lock,
+    (jm_any_fn)costas_get_locked,
+    (jm_any_fn)costas_set_telemetry,
 };

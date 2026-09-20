@@ -8,7 +8,7 @@
  */
 #include "dp_tlm_capture/dp_tlm_capture_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_dp_tlm_capture[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,21 +17,21 @@ extern const jm_any_fn jm_bound_symbols_dp_tlm_capture[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_dp_tlm_capture[] = {
-  (jm_any_fn)dp_tlm_capture_open,
-  (jm_any_fn)dp_tlm_capture_open_memory,
-  (jm_any_fn)dp_tlm_capture_block,
-  (jm_any_fn)dp_tlm_capture_close,
-  (jm_any_fn)dp_tlm_capture_count,
-  (jm_any_fn)dp_tlm_capture_records,
-  (jm_any_fn)dp_tlm_capture_read_max_out,
-  (jm_any_fn)dp_tlm_capture_read,
-  (jm_any_fn)dp_tlm_capture_dropped,
-  (jm_any_fn)dp_tlm_capture_context,
-  (jm_any_fn)dp_tlm_capture_destroy,
+    (jm_any_fn)dp_tlm_capture_open,
+    (jm_any_fn)dp_tlm_capture_open_memory,
+    (jm_any_fn)dp_tlm_capture_block,
+    (jm_any_fn)dp_tlm_capture_close,
+    (jm_any_fn)dp_tlm_capture_count,
+    (jm_any_fn)dp_tlm_capture_records,
+    (jm_any_fn)dp_tlm_capture_read_max_out,
+    (jm_any_fn)dp_tlm_capture_read,
+    (jm_any_fn)dp_tlm_capture_dropped,
+    (jm_any_fn)dp_tlm_capture_context,
+    (jm_any_fn)dp_tlm_capture_destroy,
 };

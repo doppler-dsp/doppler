@@ -97,7 +97,7 @@ despreading" lock, de-chattered by up/down hysteresis._  |
 |  double | [**async\_dsss\_receiver\_get\_code\_rate**](#function-async_dsss_receiver_get_code_rate) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br> |
 |  double | [**async\_dsss\_receiver\_get\_doppler\_hz**](#function-async_dsss_receiver_get_doppler_hz) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br> |
 |  int | [**async\_dsss\_receiver\_get\_idle**](#function-async_dsss_receiver_get_idle) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br>_1 while waiting for a seed (cell mode, before seed() or after reset()); 0 in every other state._  |
-|  double | [**async\_dsss\_receiver\_get\_lock**](#function-async_dsss_receiver_get_lock) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br> |
+|  double | [**async\_dsss\_receiver\_get\_lock**](#function-async_dsss_receiver_get_lock) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br>_The carrier lock statistic of the MpskReceiver this receiver tracks with: the EMA of its M-th-power lock signal, near 1 when locked and near 0 on noise. 0 until a track chain exists._  |
 |  double | [**async\_dsss\_receiver\_get\_lock\_metric**](#function-async_dsss_receiver_get_lock_metric) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br>_Symbol-lock metric = SNR-weighted EMA of (I^2-Q^2)/(I^2+Q^2) = cos(2\*phi) over the emitted symbols (locked -&gt; ~+1). Drives_ `locked` _._ |
 |  double | [**async\_dsss\_receiver\_get\_lock\_threshold**](#function-async_dsss_receiver_get_lock_threshold) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br>_The lock-metric declare threshold_ `locked` _latches above (the lockdet up\_thresh); exposed alongside lock\_metric for engineering debug._ |
 |  int | [**async\_dsss\_receiver\_get\_locked**](#function-async_dsss_receiver_get_locked) (const [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md) \* state) <br>_Binary carrier-lock flag from the loop's hysteretic (up/down verify-counted) lock detector — the de-chattered lock indicator, unlike the raw_ `lock` _metric._ |
@@ -730,6 +730,7 @@ int async_dsss_receiver_get_idle (
 
 ### function async\_dsss\_receiver\_get\_lock 
 
+_The carrier lock statistic of the MpskReceiver this receiver tracks with: the EMA of its M-th-power lock signal, near 1 when locked and near 0 on noise. 0 until a track chain exists._ 
 ```C++
 double async_dsss_receiver_get_lock (
     const async_dsss_receiver_state_t * state

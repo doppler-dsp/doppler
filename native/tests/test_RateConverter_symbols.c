@@ -8,7 +8,7 @@
  */
 #include "RateConverter/RateConverter_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_RateConverter[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,31 +17,31 @@ extern const jm_any_fn jm_bound_symbols_RateConverter[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_RateConverter[] = {
-  (jm_any_fn)RateConverter_create,
-  (jm_any_fn)RateConverter_create_matched,
-  (jm_any_fn)RateConverter_get_clipped,
-  (jm_any_fn)RateConverter_get_narrow_pulse,
-  (jm_any_fn)RateConverter_num_stages,
-  (jm_any_fn)RateConverter_stages_value,
-  (jm_any_fn)RateConverter_num_bank_shape,
-  (jm_any_fn)RateConverter_bank_shape_value,
-  (jm_any_fn)RateConverter_destroy,
-  (jm_any_fn)RateConverter_reset,
-  (jm_any_fn)RateConverter_state_bytes,
-  (jm_any_fn)RateConverter_get_state,
-  (jm_any_fn)RateConverter_set_state,
-  (jm_any_fn)RateConverter_execute,
-  (jm_any_fn)RateConverter_execute_max_out,
-  (jm_any_fn)RateConverter_execute_ctrl_max_out,
-  (jm_any_fn)RateConverter_execute_ctrl_push_max_out,
-  (jm_any_fn)RateConverter_execute_ctrl,
-  (jm_any_fn)RateConverter_execute_ctrl_push,
-  (jm_any_fn)RateConverter_get_rate,
-  (jm_any_fn)RateConverter_set_rate,
+    (jm_any_fn)RateConverter_create,
+    (jm_any_fn)RateConverter_create_matched,
+    (jm_any_fn)RateConverter_get_clipped,
+    (jm_any_fn)RateConverter_get_narrow_pulse,
+    (jm_any_fn)RateConverter_num_stages,
+    (jm_any_fn)RateConverter_stages_value,
+    (jm_any_fn)RateConverter_num_bank_shape,
+    (jm_any_fn)RateConverter_bank_shape_value,
+    (jm_any_fn)RateConverter_destroy,
+    (jm_any_fn)RateConverter_reset,
+    (jm_any_fn)RateConverter_state_bytes,
+    (jm_any_fn)RateConverter_get_state,
+    (jm_any_fn)RateConverter_set_state,
+    (jm_any_fn)RateConverter_execute,
+    (jm_any_fn)RateConverter_execute_max_out,
+    (jm_any_fn)RateConverter_execute_ctrl_max_out,
+    (jm_any_fn)RateConverter_execute_ctrl_push_max_out,
+    (jm_any_fn)RateConverter_execute_ctrl,
+    (jm_any_fn)RateConverter_execute_ctrl_push,
+    (jm_any_fn)RateConverter_get_rate,
+    (jm_any_fn)RateConverter_set_rate,
 };

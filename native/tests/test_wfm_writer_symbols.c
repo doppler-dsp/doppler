@@ -8,7 +8,7 @@
  */
 #include "wfm_writer/wfm_writer_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_wfm_writer[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,15 +17,19 @@ extern const jm_any_fn jm_bound_symbols_wfm_writer[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_wfm_writer[] = {
-  (jm_any_fn)wfm_writer_write,         (jm_any_fn)wfm_writer_add_keyword,
-  (jm_any_fn)wfm_writer_destroy,       (jm_any_fn)wfm_writer_track_clipping,
-  (jm_any_fn)wfm_writer_create,        (jm_any_fn)wfm_writer_get_clip_fraction,
-  (jm_any_fn)wfm_writer_get_peak_dbfs, (jm_any_fn)wfm_writer_get_clipped,
-  (jm_any_fn)wfm_writer_flush,
+    (jm_any_fn)wfm_writer_write,
+    (jm_any_fn)wfm_writer_add_keyword,
+    (jm_any_fn)wfm_writer_destroy,
+    (jm_any_fn)wfm_writer_track_clipping,
+    (jm_any_fn)wfm_writer_create,
+    (jm_any_fn)wfm_writer_get_clip_fraction,
+    (jm_any_fn)wfm_writer_get_peak_dbfs,
+    (jm_any_fn)wfm_writer_get_clipped,
+    (jm_any_fn)wfm_writer_flush,
 };

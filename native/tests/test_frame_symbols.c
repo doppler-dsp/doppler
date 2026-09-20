@@ -8,7 +8,7 @@
  */
 #include "frame/frame_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_frame[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,23 +17,35 @@ extern const jm_any_fn jm_bound_symbols_frame[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_frame[] = {
-  (jm_any_fn)frame_create,          (jm_any_fn)frame_destroy,
-  (jm_any_fn)frame_bits_max_out,    (jm_any_fn)frame_bits,
-  (jm_any_fn)frame_layout,          (jm_any_fn)frame_crc_ok,
-  (jm_any_fn)frame_create_desc,     (jm_any_fn)frame_add_field,
-  (jm_any_fn)frame_add_stage,       (jm_any_fn)frame_build,
-  (jm_any_fn)frame_field_index,     (jm_any_fn)frame_name_field,
-  (jm_any_fn)frame_add_derived,     (jm_any_fn)frame_add_hex,
-  (jm_any_fn)frame_add_value,       (jm_any_fn)frame_add_stage_over,
-  (jm_any_fn)frame_check,           (jm_any_fn)frame_deframe,
-  (jm_any_fn)frame_deframe_max_out, (jm_any_fn)frame_n_fields,
-  (jm_any_fn)frame_n_stages,        (jm_any_fn)frame_field_off,
-  (jm_any_fn)frame_field_bits,      (jm_any_fn)frame_stage_first,
-  (jm_any_fn)frame_stage_bits,
+    (jm_any_fn)frame_create,
+    (jm_any_fn)frame_destroy,
+    (jm_any_fn)frame_bits_max_out,
+    (jm_any_fn)frame_bits,
+    (jm_any_fn)frame_layout,
+    (jm_any_fn)frame_crc_ok,
+    (jm_any_fn)frame_create_desc,
+    (jm_any_fn)frame_add_field,
+    (jm_any_fn)frame_add_stage,
+    (jm_any_fn)frame_build,
+    (jm_any_fn)frame_field_index,
+    (jm_any_fn)frame_name_field,
+    (jm_any_fn)frame_add_derived,
+    (jm_any_fn)frame_add_hex,
+    (jm_any_fn)frame_add_value,
+    (jm_any_fn)frame_add_stage_over,
+    (jm_any_fn)frame_check,
+    (jm_any_fn)frame_deframe,
+    (jm_any_fn)frame_deframe_max_out,
+    (jm_any_fn)frame_n_fields,
+    (jm_any_fn)frame_n_stages,
+    (jm_any_fn)frame_field_off,
+    (jm_any_fn)frame_field_bits,
+    (jm_any_fn)frame_stage_first,
+    (jm_any_fn)frame_stage_bits,
 };

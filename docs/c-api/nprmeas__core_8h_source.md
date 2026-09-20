@@ -28,9 +28,9 @@ typedef struct {
     double enbw;            /* window equivalent noise bandwidth (bins)   */
     double beta;            /* auto-selected Kaiser shape (from DR target) */
     size_t spur_guard_bins; /* min notch keep-out (bins) from window skirt */
-    size_t n;               /* capture / frame length                     */
-    size_t nfft;            /* zero-padded transform length               */
-    double fs;              /* sample rate (Hz)                           */
+    size_t n;               
+    size_t nfft;            
+    double fs;              
 } nprmeas_state_t;
 
 nprmeas_state_t *nprmeas_create(size_t n, double fs, double full_scale,

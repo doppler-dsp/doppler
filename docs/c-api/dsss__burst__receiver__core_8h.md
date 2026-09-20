@@ -89,7 +89,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 |  double | [**dsss\_burst\_receiver\_get\_demod\_timing\_chips**](#function-dsss_burst_receiver_get_demod_timing_chips) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_doppler\_hz\_est**](#function-dsss_burst_receiver_get_doppler_hz_est) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_doppler\_res\_hz**](#function-dsss_burst_receiver_get_doppler_res_hz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
-|  uint64\_t | [**dsss\_burst\_receiver\_get\_dropped**](#function-dsss_burst_receiver_get_dropped) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
+|  uint64\_t | [**dsss\_burst\_receiver\_get\_dropped**](#function-dsss_burst_receiver_get_dropped) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br>_Samples the capture ring refused. Each is a LOST BURST, not a statistic_  _a lifetime count that survives reset()._ |
 |  double | [**dsss\_burst\_receiver\_get\_est\_freq\_hz**](#function-dsss_burst_receiver_get_est_freq_hz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  double | [**dsss\_burst\_receiver\_get\_est\_rate\_hz**](#function-dsss_burst_receiver_get_est_rate_hz) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
 |  bool | [**dsss\_burst\_receiver\_get\_frame\_valid**](#function-dsss_burst_receiver_get_frame_valid) (const [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md) \* state) <br> |
@@ -511,6 +511,7 @@ double dsss_burst_receiver_get_doppler_res_hz (
 
 ### function dsss\_burst\_receiver\_get\_dropped 
 
+_Samples the capture ring refused. Each is a LOST BURST, not a statistic_  _a lifetime count that survives reset()._
 ```C++
 uint64_t dsss_burst_receiver_get_dropped (
     const dsss_burst_receiver_state_t * state

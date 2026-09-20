@@ -8,7 +8,7 @@
  */
 #include "syncword/syncword_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_syncword[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,13 +17,15 @@ extern const jm_any_fn jm_bound_symbols_syncword[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_syncword[] = {
-  (jm_any_fn)syncword_create,         (jm_any_fn)syncword_destroy,
-  (jm_any_fn)syncword_find,           (jm_any_fn)syncword_pfa,
-  (jm_any_fn)syncword_max_errors_for,
+    (jm_any_fn)syncword_create,
+    (jm_any_fn)syncword_destroy,
+    (jm_any_fn)syncword_find,
+    (jm_any_fn)syncword_pfa,
+    (jm_any_fn)syncword_max_errors_for,
 };

@@ -517,23 +517,23 @@ class ToneMeasure:
 
     @property
     def n(self) -> int:
-        """N."""
+        """Capture / frame length, samples."""
 
     @property
     def nfft(self) -> int:
-        """Nfft."""
+        """Zero-padded transform length, bins."""
 
     @property
     def fs(self) -> float:
-        """Fs."""
+        """Sample rate, Hz."""
 
     @property
     def enbw(self) -> float:
-        """Enbw."""
+        """Window equivalent noise bandwidth, bins."""
 
     @property
     def lobe_bins(self) -> int:
-        """Lobe bins."""
+        """Window main-lobe half-width L, bins."""
 
     @property
     def spur_guard_bins(self) -> int:
@@ -549,11 +549,11 @@ class ToneMeasure:
 
     @property
     def bin_hz(self) -> float:
-        """Bin hz."""
+        """FFT bin spacing, fs/nfft (Hz)."""
 
     @property
     def proc_gain_db(self) -> float:
-        """Proc gain db."""
+        """FFT processing gain, 10*log10(nfft/2) (dB)."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
@@ -764,15 +764,15 @@ class NPRMeasure:
 
     @property
     def n(self) -> int:
-        """N."""
+        """Capture / frame length, samples."""
 
     @property
     def nfft(self) -> int:
-        """Nfft."""
+        """Zero-padded transform length, bins."""
 
     @property
     def fs(self) -> float:
-        """Fs."""
+        """Sample rate, Hz."""
 
     @property
     def rbw(self) -> float:
@@ -966,15 +966,15 @@ class IMDMeasure:
 
     @property
     def n(self) -> int:
-        """N."""
+        """Capture / frame length, samples."""
 
     @property
     def nfft(self) -> int:
-        """Nfft."""
+        """Zero-padded transform length, bins."""
 
     @property
     def fs(self) -> float:
-        """Fs."""
+        """Sample rate, Hz."""
 
     def destroy(self) -> None:
         """Release the underlying C resources immediately.

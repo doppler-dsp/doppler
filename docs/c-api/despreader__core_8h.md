@@ -80,8 +80,8 @@ _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](
 |  int | [**despreader\_get\_carrier\_locked**](#function-despreader_get_carrier_locked) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br>_Carrier lock decision (1 = locked): the embedded Costas loop's verify-counted detector on its lock-metric EMA (see costas\_configure\_lock)._  |
 |  int | [**despreader\_get\_code\_locked**](#function-despreader_get_code_locked) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br>_Code lock decision (1 = locked): the embedded DLL's verify-counted CFAR detector (see dll\_configure\_lock); live in composition — the despreader runs the same always-on detector dll\_steps does._  |
 |  double | [**despreader\_get\_code\_phase**](#function-despreader_get_code_phase) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
-|  double | [**despreader\_get\_code\_rate**](#function-despreader_get_code_rate) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
-|  double | [**despreader\_get\_lock\_metric**](#function-despreader_get_lock_metric) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
+|  double | [**despreader\_get\_code\_rate**](#function-despreader_get_code_rate) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br>_Chips the embedded DLL advances per nominal chip: ~1.0, and its departure from 1 is the code-rate (clock) offset being tracked._  |
+|  double | [**despreader\_get\_lock\_metric**](#function-despreader_get_lock_metric) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br>_The embedded Costas loop's lock statistic: the EMA of \|Re P\|/\|P\| over the prompt correlations, 1 when locked._ `carrier_locked` _is the de-chattered decision made on it._ |
 |  double | [**despreader\_get\_norm\_freq**](#function-despreader_get_norm_freq) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state) <br> |
 |  void | [**despreader\_get\_state**](#function-despreader_get_state) (const [**despreader\_state\_t**](structdespreader__state__t.md) \* state, void \* blob) <br> |
 |  void | [**despreader\_init**](#function-despreader_init) ([**despreader\_state\_t**](structdespreader__state__t.md) \* ch, const uint8\_t \* code, size\_t code\_len, size\_t sps, double init\_norm\_freq, double init\_chip, double bn\_carrier, double bn\_code, double bn\_fll, double zeta, double spacing, size\_t periods\_per\_bit) <br>_Initialise a despreader in place; BORROWS_ `code` _._ |
@@ -532,6 +532,7 @@ double despreader_get_code_phase (
 
 ### function despreader\_get\_code\_rate 
 
+_Chips the embedded DLL advances per nominal chip: ~1.0, and its departure from 1 is the code-rate (clock) offset being tracked._ 
 ```C++
 double despreader_get_code_rate (
     const despreader_state_t * state
@@ -547,6 +548,7 @@ double despreader_get_code_rate (
 
 ### function despreader\_get\_lock\_metric 
 
+_The embedded Costas loop's lock statistic: the EMA of \|Re P\|/\|P\| over the prompt correlations, 1 when locked._ `carrier_locked` _is the de-chattered decision made on it._
 ```C++
 double despreader_get_lock_metric (
     const despreader_state_t * state

@@ -151,6 +151,11 @@ size_t agc_state_t::decim;
 
 
 
+Envelope decimation: the detector and loop filter run once per chunk of this many samples, &gt;= 1 (typically 8, 16 or 32). 
+ 
+
+
+        
 
 <hr>
 

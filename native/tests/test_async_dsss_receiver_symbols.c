@@ -8,7 +8,7 @@
  */
 #include "async_dsss_receiver/async_dsss_receiver_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_async_dsss_receiver[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,46 +17,46 @@ extern const jm_any_fn jm_bound_symbols_async_dsss_receiver[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_async_dsss_receiver[] = {
-  (jm_any_fn)async_dsss_receiver_create,
-  (jm_any_fn)async_dsss_receiver_create_cell,
-  (jm_any_fn)async_dsss_receiver_destroy,
-  (jm_any_fn)async_dsss_receiver_reset,
-  (jm_any_fn)async_dsss_receiver_steps_max_out,
-  (jm_any_fn)async_dsss_receiver_steps,
-  (jm_any_fn)async_dsss_receiver_seed,
-  (jm_any_fn)async_dsss_receiver_status,
-  (jm_any_fn)async_dsss_receiver_get_idle,
-  (jm_any_fn)async_dsss_receiver_get_lost,
-  (jm_any_fn)async_dsss_receiver_configure_search_raw,
-  (jm_any_fn)async_dsss_receiver_set_refine_min_blocks,
-  (jm_any_fn)async_dsss_receiver_configure_lock_raw,
-  (jm_any_fn)async_dsss_receiver_configure_chain_raw,
-  (jm_any_fn)async_dsss_receiver_get_tracking,
-  (jm_any_fn)async_dsss_receiver_get_refining,
-  (jm_any_fn)async_dsss_receiver_get_doppler_hz,
-  (jm_any_fn)async_dsss_receiver_get_cn0_dbhz_est,
-  (jm_any_fn)async_dsss_receiver_get_segments,
-  (jm_any_fn)async_dsss_receiver_get_sps,
-  (jm_any_fn)async_dsss_receiver_get_n,
-  (jm_any_fn)async_dsss_receiver_get_chip_phase,
-  (jm_any_fn)async_dsss_receiver_get_code_rate,
-  (jm_any_fn)async_dsss_receiver_get_lock,
-  (jm_any_fn)async_dsss_receiver_get_norm_freq,
-  (jm_any_fn)async_dsss_receiver_get_nco_freq,
-  (jm_any_fn)async_dsss_receiver_get_locked,
-  (jm_any_fn)async_dsss_receiver_get_code_locked,
-  (jm_any_fn)async_dsss_receiver_get_car_last_error,
-  (jm_any_fn)async_dsss_receiver_get_car_nco_freq,
-  (jm_any_fn)async_dsss_receiver_get_mpsk_last_error,
-  (jm_any_fn)async_dsss_receiver_get_lock_metric,
-  (jm_any_fn)async_dsss_receiver_get_lock_threshold,
-  (jm_any_fn)async_dsss_receiver_state_bytes,
-  (jm_any_fn)async_dsss_receiver_get_state,
-  (jm_any_fn)async_dsss_receiver_set_state,
+    (jm_any_fn)async_dsss_receiver_create,
+    (jm_any_fn)async_dsss_receiver_create_cell,
+    (jm_any_fn)async_dsss_receiver_destroy,
+    (jm_any_fn)async_dsss_receiver_reset,
+    (jm_any_fn)async_dsss_receiver_steps_max_out,
+    (jm_any_fn)async_dsss_receiver_steps,
+    (jm_any_fn)async_dsss_receiver_seed,
+    (jm_any_fn)async_dsss_receiver_status,
+    (jm_any_fn)async_dsss_receiver_get_idle,
+    (jm_any_fn)async_dsss_receiver_get_lost,
+    (jm_any_fn)async_dsss_receiver_configure_search_raw,
+    (jm_any_fn)async_dsss_receiver_set_refine_min_blocks,
+    (jm_any_fn)async_dsss_receiver_configure_lock_raw,
+    (jm_any_fn)async_dsss_receiver_configure_chain_raw,
+    (jm_any_fn)async_dsss_receiver_get_tracking,
+    (jm_any_fn)async_dsss_receiver_get_refining,
+    (jm_any_fn)async_dsss_receiver_get_doppler_hz,
+    (jm_any_fn)async_dsss_receiver_get_cn0_dbhz_est,
+    (jm_any_fn)async_dsss_receiver_get_segments,
+    (jm_any_fn)async_dsss_receiver_get_sps,
+    (jm_any_fn)async_dsss_receiver_get_n,
+    (jm_any_fn)async_dsss_receiver_get_chip_phase,
+    (jm_any_fn)async_dsss_receiver_get_code_rate,
+    (jm_any_fn)async_dsss_receiver_get_lock,
+    (jm_any_fn)async_dsss_receiver_get_norm_freq,
+    (jm_any_fn)async_dsss_receiver_get_nco_freq,
+    (jm_any_fn)async_dsss_receiver_get_locked,
+    (jm_any_fn)async_dsss_receiver_get_code_locked,
+    (jm_any_fn)async_dsss_receiver_get_car_last_error,
+    (jm_any_fn)async_dsss_receiver_get_car_nco_freq,
+    (jm_any_fn)async_dsss_receiver_get_mpsk_last_error,
+    (jm_any_fn)async_dsss_receiver_get_lock_metric,
+    (jm_any_fn)async_dsss_receiver_get_lock_threshold,
+    (jm_any_fn)async_dsss_receiver_state_bytes,
+    (jm_any_fn)async_dsss_receiver_get_state,
+    (jm_any_fn)async_dsss_receiver_set_state,
 };

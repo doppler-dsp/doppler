@@ -8,7 +8,7 @@
  */
 #include "ratesync/ratesync_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_ratesync[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,29 +17,29 @@ extern const jm_any_fn jm_bound_symbols_ratesync[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_ratesync[] = {
-  (jm_any_fn)ratesync_create,
-  (jm_any_fn)ratesync_destroy,
-  (jm_any_fn)ratesync_reset,
-  (jm_any_fn)ratesync_steps_max_out,
-  (jm_any_fn)ratesync_steps,
-  (jm_any_fn)ratesync_configure,
-  (jm_any_fn)ratesync_get_bn,
-  (jm_any_fn)ratesync_set_bn,
-  (jm_any_fn)ratesync_get_timing_error,
-  (jm_any_fn)ratesync_get_rate,
-  (jm_any_fn)ratesync_get_ctrl,
-  (jm_any_fn)ratesync_get_lock_stat,
-  (jm_any_fn)ratesync_get_locked,
-  (jm_any_fn)ratesync_get_clipped,
-  (jm_any_fn)ratesync_configure_lock_raw,
-  (jm_any_fn)ratesync_set_telemetry,
-  (jm_any_fn)ratesync_state_bytes,
-  (jm_any_fn)ratesync_get_state,
-  (jm_any_fn)ratesync_set_state,
+    (jm_any_fn)ratesync_create,
+    (jm_any_fn)ratesync_destroy,
+    (jm_any_fn)ratesync_reset,
+    (jm_any_fn)ratesync_steps_max_out,
+    (jm_any_fn)ratesync_steps,
+    (jm_any_fn)ratesync_configure,
+    (jm_any_fn)ratesync_get_bn,
+    (jm_any_fn)ratesync_set_bn,
+    (jm_any_fn)ratesync_get_timing_error,
+    (jm_any_fn)ratesync_get_rate,
+    (jm_any_fn)ratesync_get_ctrl,
+    (jm_any_fn)ratesync_get_lock_stat,
+    (jm_any_fn)ratesync_get_locked,
+    (jm_any_fn)ratesync_get_clipped,
+    (jm_any_fn)ratesync_configure_lock_raw,
+    (jm_any_fn)ratesync_set_telemetry,
+    (jm_any_fn)ratesync_state_bytes,
+    (jm_any_fn)ratesync_get_state,
+    (jm_any_fn)ratesync_set_state,
 };

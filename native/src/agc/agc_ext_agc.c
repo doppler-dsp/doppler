@@ -443,7 +443,9 @@ static PyGetSetDef AGC_getset[]
         { "alpha", (getter)AGC_getprop_alpha, (setter)AGC_setprop_alpha,
           "Alpha.\n", NULL },
         { "decim", (getter)AGC_getprop_decim, (setter)AGC_setprop_decim,
-          "Emit every decim-th event, >= 1.\n", NULL },
+          "Envelope decimation: the detector and loop filter run once per "
+          "chunk of this many samples, >= 1 (typically 8, 16 or 32).\n",
+          NULL },
         { "clip_db", (getter)AGC_getprop_clip_db, (setter)AGC_setprop_clip_db,
           "Clip db.\n", NULL },
         { "gain_update_period", (getter)AGC_getprop_gain_update_period,

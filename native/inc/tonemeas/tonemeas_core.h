@@ -48,14 +48,14 @@ typedef struct {
     psd_state_t *psd;     /* shared averaging PSD core (window+FFT+avg)   */
     float         *pwr;     /* metric working buffer, length nfft          */
     unsigned char *excl;    /* DC/fundamental/harmonic exclusion mask      */
-    double enbw;            /* window equivalent noise bandwidth (bins)    */
+    double enbw;            /**< Window equivalent noise bandwidth, bins.    */
     double beta;            /* auto-selected Kaiser shape (from DR target)  */
-    size_t lobe_bins;       /* main-lobe half-width L, for power integration*/
+    size_t lobe_bins;       /**< Window main-lobe half-width L, bins.        */
     size_t spur_guard_bins; /* fundamental keep-out for spur search (>= L)  */
-    size_t n;               /* capture / frame length                      */
-    size_t nfft;            /* zero-padded transform length                */
+    size_t n;               /**< Capture / frame length, samples.            */
+    size_t nfft;            /**< Zero-padded transform length, bins.         */
     size_t n_harm;          /* harmonics tracked (k = 2..n_harm)           */
-    double fs;              /* sample rate (Hz)                            */
+    double fs;              /**< Sample rate, Hz.                            */
     size_t dc_guard;        /* extra bins excluded beyond L around DC      */
 } tonemeas_state_t;
 

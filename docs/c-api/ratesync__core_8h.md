@@ -84,7 +84,7 @@ _RateSync — symbol-timing recovery on a matched-filter rate cascade._ [More...
 |  void | [**ratesync\_configure\_lock\_raw**](#function-ratesync_configure_lock_raw) ([**ratesync\_state\_t**](structratesync__state__t.md) \* state, size\_t avgs, double up\_thresh, double down\_thresh, uint32\_t n\_up, uint32\_t n\_down) <br>_Set the lock detector's geometry directly._  |
 |  [**ratesync\_state\_t**](structratesync__state__t.md) \* | [**ratesync\_create**](#function-ratesync_create) (double sps, int pulse, double beta, size\_t span, size\_t m, size\_t num\_phases, double bn, double zeta, int ted) <br>_Create a RateSync instance._  |
 |  void | [**ratesync\_destroy**](#function-ratesync_destroy) ([**ratesync\_state\_t**](structratesync__state__t.md) \* state) <br>_Destroy a RateSync instance and release all memory._  |
-|  double | [**ratesync\_get\_bn**](#function-ratesync_get_bn) (const [**ratesync\_state\_t**](structratesync__state__t.md) \* state) <br> |
+|  double | [**ratesync\_get\_bn**](#function-ratesync_get_bn) (const [**ratesync\_state\_t**](structratesync__state__t.md) \* state) <br>_Timing-loop noise bandwidth, normalised to the symbol rate. Writing it re-derives the loop gains at the damping already in use, exactly as configure() does._  |
 |  int | [**ratesync\_get\_clipped**](#function-ratesync_get_clipped) (const [**ratesync\_state\_t**](structratesync__state__t.md) \* state) <br>_Has the cascade's CIC stage clipped its input since the last reset? Forwarded from the RateConverter: a CIC bounds its input to +-1.0 and clips silently past that, which no timing metric reveals. Always 0 when the plan has no CIC stage._  |
 |  double | [**ratesync\_get\_ctrl**](#function-ratesync_get_ctrl) (const [**ratesync\_state\_t**](structratesync__state__t.md) \* state) <br>_Current per-input control deviation steering the strobe._  |
 |  double | [**ratesync\_get\_lock\_stat**](#function-ratesync_get_lock_stat) (const [**ratesync\_state\_t**](structratesync__state__t.md) \* state) <br>_Last block-averaged lock statistic (the eye-opening ratio)._  |
@@ -475,6 +475,7 @@ void ratesync_destroy (
 
 ### function ratesync\_get\_bn 
 
+_Timing-loop noise bandwidth, normalised to the symbol rate. Writing it re-derives the loop gains at the damping already in use, exactly as configure() does._ 
 ```C++
 double ratesync_get_bn (
     const ratesync_state_t * state

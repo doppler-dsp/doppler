@@ -8,7 +8,7 @@
  */
 #include "rs_codec/rs_codec_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_rs_codec[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,17 +17,24 @@ extern const jm_any_fn jm_bound_symbols_rs_codec[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_rs_codec[] = {
-  (jm_any_fn)rs_codec_create,         (jm_any_fn)rs_codec_destroy,
-  (jm_any_fn)rs_codec_encode_max_out, (jm_any_fn)rs_codec_encode,
-  (jm_any_fn)rs_codec_decode,         (jm_any_fn)rs_codec_syndromes_max_out,
-  (jm_any_fn)rs_codec_syndromes,      (jm_any_fn)rs_codec_codeword_ok,
-  (jm_any_fn)rs_codec_generator,      (jm_any_fn)rs_codec_get_n,
-  (jm_any_fn)rs_codec_get_k,          (jm_any_fn)rs_codec_get_e,
-  (jm_any_fn)rs_codec_get_nroots,     (jm_any_fn)rs_codec_get_symbol_bits,
+    (jm_any_fn)rs_codec_create,
+    (jm_any_fn)rs_codec_destroy,
+    (jm_any_fn)rs_codec_encode_max_out,
+    (jm_any_fn)rs_codec_encode,
+    (jm_any_fn)rs_codec_decode,
+    (jm_any_fn)rs_codec_syndromes_max_out,
+    (jm_any_fn)rs_codec_syndromes,
+    (jm_any_fn)rs_codec_codeword_ok,
+    (jm_any_fn)rs_codec_generator,
+    (jm_any_fn)rs_codec_get_n,
+    (jm_any_fn)rs_codec_get_k,
+    (jm_any_fn)rs_codec_get_e,
+    (jm_any_fn)rs_codec_get_nroots,
+    (jm_any_fn)rs_codec_get_symbol_bits,
 };

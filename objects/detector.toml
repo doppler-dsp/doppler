@@ -68,11 +68,13 @@ field = true
 name = "dwell"
 type = "size_t"
 expr = "self->handle->corr->dwell"
+doc = "Integration depth: a detection statistic is dumped every `dwell` frames."
 
 [[detector.properties]]
 name = "count"
 type = "size_t"
 expr = "self->handle->corr->count"
+doc = "Frames accumulated toward the next dump (0 ... dwell-1)."
 
 [[detector.properties]]
 name = "ring_cap"

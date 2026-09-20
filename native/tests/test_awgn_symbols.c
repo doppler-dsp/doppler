@@ -8,7 +8,7 @@
  */
 #include "awgn/awgn_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_awgn[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,16 +17,21 @@ extern const jm_any_fn jm_bound_symbols_awgn[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_awgn[] = {
-  (jm_any_fn)awgn_create,        (jm_any_fn)awgn_destroy,
-  (jm_any_fn)awgn_reset,         (jm_any_fn)awgn_state_bytes,
-  (jm_any_fn)awgn_get_state,     (jm_any_fn)awgn_set_state,
-  (jm_any_fn)awgn_get_amplitude, (jm_any_fn)awgn_set_amplitude,
-  (jm_any_fn)awgn_reseed,        (jm_any_fn)awgn_generate_max_out,
-  (jm_any_fn)awgn_generate,
+    (jm_any_fn)awgn_create,
+    (jm_any_fn)awgn_destroy,
+    (jm_any_fn)awgn_reset,
+    (jm_any_fn)awgn_state_bytes,
+    (jm_any_fn)awgn_get_state,
+    (jm_any_fn)awgn_set_state,
+    (jm_any_fn)awgn_get_amplitude,
+    (jm_any_fn)awgn_set_amplitude,
+    (jm_any_fn)awgn_reseed,
+    (jm_any_fn)awgn_generate_max_out,
+    (jm_any_fn)awgn_generate,
 };

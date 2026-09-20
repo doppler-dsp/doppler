@@ -13,6 +13,99 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-09-20
+
+### Breaking
+
+- **Headers install under `include/doppler/`, not `include/` itself.** The
+    old layout put 138 generic names (`fft/`, `util/`, `pocketfft/`) at the
+    prefix root. `find_package` and pkg-config consumers change nothing —
+    the `-I` moves with the files, and `#include <lo/lo_core.h>` still
+    resolves. Only a hand-written `-I<prefix>/include` must become
+    `-I<prefix>/include/doppler`
+    ([#1408](https://github.com/doppler-dsp/doppler/issues/1408)).
+
+### Added
+
+- **`.deb` and `.rpm` packages on every GitHub Release**, x86_64 and
+    aarch64: `libdoppler-dsp<X.Y>` / `libdoppler-dsp-dev` /
+    `doppler-dsp-tools` (RPM: `libdoppler-dsp`, `-devel`). One build per
+    arch covers every distro at or above glibc 2.28; CI installs them in
+    four distros on every PR. See
+    [Install → System packages](docs/install/c.md#system-packages-deb-rpm)
+    ([#1409](https://github.com/doppler-dsp/doppler/issues/1409)).
+
+- **A vcpkg port for the Windows C library, with a clang-cl triplet.**
+    `vcpkg install doppler:x64-windows-clangcl` from the in-repo overlay
+    under `packaging/vcpkg/`; CI installs and consumes it on every PR
+    (`make vcpkg-smoke`). Not upstream vcpkg, whose `cl.exe` triplets cannot
+    build doppler. See [Install → Windows](docs/install/c.md#with-vcpkg).
+
+### Changed
+
+- **The async receiver's extreme-SNR stress test moved to `make characterize`.**
+    It fed three full 5.5 M-sample captures per push to try to break the
+    receiver; the full 20–200 dB sweep is now a characterization subject, and
+    the per-push suite keeps one short noiseless check of the same failure
+    mode.
+
+- **A release commit no longer re-runs the whole CI matrix.** A diff that
+    is a version bump alone (`make ci-changes`, from `standard.mk`) skips
+    the 11 heavy jobs its parent already passed; lint, manifest drift and
+    the CI-image pin still run. `CI passed` accepts those skips only on that
+    classification (`scripts/ci_passed.py`).
+
+- **just-makeit pin 0.76.4 → 0.78.1.** Windows is clang-cl with no flag
+    (MinGW retired, so doppler's `platforms` key is gone), every generated
+    component gains a `test_<obj>_symbols.c` that fails at link time when a
+    binding calls a function nothing defines, and `jm status --docs` lists
+    members documented only by their name. A property now takes its doc
+    from its OWN struct field, never a same-named field elsewhere — 35
+    doppler properties were authored to match
+    ([jm#1394](https://github.com/just-buildit/just-makeit/issues/1394)).
+    doppler drove jm#1381, jm#1382, jm#1400 (a view's field docs) and the
+    Windows DLL export fix.
+
+- **`libdoppler.so` carries an ABI version: the SONAME is now
+    `libdoppler.so.MAJOR.MINOR`** (`libdoppler.so.0.52`), and likewise
+    `libdoppler_stream.so`. A binary linked against one minor can no longer
+    have the next one's ABI swapped underneath it by an upgrade. Relink
+    consumers once; `-ldoppler`, `find_package` and pkg-config are unchanged.
+    `abi-check` asserts it
+    ([#1407](https://github.com/doppler-dsp/doppler/issues/1407)).
+
+### Fixed
+
+- **Published benchmarks are measured on one core class.** On a
+    heterogeneous CPU an unpinned benchmark is bimodal (3.5 vs 5.6 µs for
+    one `awgn` binary, Zen 5 vs Zen 5c), so a handful of the 465 lost the
+    coin toss every pass and published a 1.6× "regression" with no source
+    change. `bench-interleaved` now pins the measurement to the fastest
+    class and records it in the snapshot.
+
+- **Install trees no longer ship an empty `include/doppler/`.** The
+    directory holds only a build-time template; `install(DIRECTORY)` skipped
+    the file and created the directory anyway. Found by vcpkg's post-build
+    lint.
+
+- **A version-site file states the version once, and lint holds it.** A
+    comment in `CMakeLists.txt` spelled the SONAME chain with a literal
+    version, so `ci-changes` classified the v0.53.0 release PR as
+    `src=true` and ran the whole matrix — and would have at every release.
+    `make lint-version-literals` checks it per PR, from the one site table.
+
+- **`doppler.pc` resolves its prefix under a multiarch libdir.** The
+    relocatable prefix was a literal `${pcfiledir}/../..`, right for `lib/`
+    and wrong for Debian's `lib/x86_64-linux-gnu/`, where
+    `pkg-config --cflags` pointed at `/usr/lib/include`. The hop count is
+    now derived from the libdir. Found by the new package install test.
+
+- **`make release-pr` now runs every tree-only check `make ship` will run,
+    at a point where each can still see what it checks.** Its size check ran
+    after assembly and measured an empty section ("0 entries" for v0.52.0,
+    #1400), and the assembled CHANGELOG was rewritten by the mdformat hook on
+    four releases running, rejecting the release commit.
+
 ## [0.52.0] - 2026-09-19
 
 ### Added
@@ -14009,8 +14102,9 @@ ______________________________________________________________________
 [0.51.0]: https://github.com/doppler-dsp/doppler/compare/v0.50.0...v0.51.0
 [0.51.1]: https://github.com/doppler-dsp/doppler/compare/v0.51.0...v0.51.1
 [0.52.0]: https://github.com/doppler-dsp/doppler/compare/v0.51.1...v0.52.0
+[0.53.0]: https://github.com/doppler-dsp/doppler/compare/v0.52.0...v0.53.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.52.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.53.0...HEAD

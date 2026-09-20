@@ -50,29 +50,29 @@
  * ===================================================================== */
 #define DP_RING_PY_FACES(CLS, NAME, CTYPE, NPYT, NDIM)                        \
                                                                               \
-  /* Why wait()/peek() came back NULL, as the exception it means. Called     \
-     with the GIL held. PENDING is peek()'s ordinary "not yet" and is the    \
-     caller's to turn into None; it cannot reach wait(), which would still   \
-     be spinning. */                                                         \
-  static PyObject *CLS##_raise_status_ (CLS##Object *self, Py_ssize_t n)     \
+  /* Why wait()/peek() came back NULL, as the exception it means. Called      \
+     with the GIL held. PENDING is peek()'s ordinary "not yet" and is the     \
+     caller's to turn into None; it cannot reach wait(), which would still    \
+     be spinning. */                                                          \
+  static PyObject *CLS##_raise_status_ (CLS##Object *self, Py_ssize_t n)      \
   {                                                                           \
     switch (dp_##NAME##_wait_status (self->buf, (size_t)n))                   \
       {                                                                       \
       case DP_WAIT_TOO_LARGE:                                                 \
-        /* A caller bug, not a state: no producer can ever make it true.     \
-           Said plainly, because reporting it as end of stream would send    \
-           the caller to look at the producer (doppler#1335). */             \
+        /* A caller bug, not a state: no producer can ever make it true.      \
+           Said plainly, because reporting it as end of stream would send     \
+           the caller to look at the producer (doppler#1335). */              \
         PyErr_Format (PyExc_ValueError,                                       \
                       "wait(%zd) can never be satisfied: the ring holds %zu", \
                       n, (size_t)self->buf->capacity);                        \
         return NULL;                                                          \
       case DP_WAIT_CLOSED:                                                    \
         PyErr_SetString (PyExc_EOFError,                                      \
-                         "end of stream: the producer closed the ring");     \
+                         "end of stream: the producer closed the ring");      \
         return NULL;                                                          \
       default:                                                                \
-        /* Interrupted. CPython may already have raised; do not raise a      \
-           second. */                                                        \
+        /* Interrupted. CPython may already have raised; do not raise a       \
+           second. */                                                         \
         if (PyErr_CheckSignals () != 0)                                       \
           return NULL;                                                        \
         PyErr_SetString (PyExc_KeyboardInterrupt, "interrupted");             \
@@ -80,8 +80,8 @@
       }                                                                       \
   }                                                                           \
                                                                               \
-  /* A zero-copy view of n samples at the read head, kept alive by `self`. */\
-  static PyObject *CLS##_view_ (CLS##Object *self, CTYPE *ptr, Py_ssize_t n) \
+  /* A zero-copy view of n samples at the read head, kept alive by `self`. */ \
+  static PyObject *CLS##_view_ (CLS##Object *self, CTYPE *ptr, Py_ssize_t n)  \
   {                                                                           \
     npy_intp  dims[2] = { n, 2 };                                             \
     PyObject *arr                                                             \
@@ -94,9 +94,9 @@
     return arr;                                                               \
   }                                                                           \
                                                                               \
-  /* peek(n) -> view | None. wait() that never blocks, so it needs no GIL    \
-     release: it returns at once. */                                         \
-  static PyObject *CLS##_peek (CLS##Object *self, PyObject *args)            \
+  /* peek(n) -> view | None. wait() that never blocks, so it needs no GIL     \
+     release: it returns at once. */                                          \
+  static PyObject *CLS##_peek (CLS##Object *self, PyObject *args)             \
   {                                                                           \
     Py_ssize_t n;                                                             \
     if (!PyArg_ParseTuple (args, "n", &n))                                    \
@@ -114,8 +114,8 @@
     return CLS##_raise_status_ (self, n);                                     \
   }                                                                           \
                                                                               \
-  /* write_some(arr) -> int. Takes what fits and says how much. */           \
-  static PyObject *CLS##_write_some (CLS##Object *self, PyObject *args)      \
+  /* write_some(arr) -> int. Takes what fits and says how much. */            \
+  static PyObject *CLS##_write_some (CLS##Object *self, PyObject *args)       \
   {                                                                           \
     const CTYPE *src;                                                         \
     size_t       n;                                                           \
@@ -124,86 +124,83 @@
     return PyLong_FromSize_t (dp_##NAME##_write_some (self->buf, src, n));    \
   }                                                                           \
                                                                               \
-  static PyObject *CLS##_reset (CLS##Object *self,                           \
-                                PyObject    *Py_UNUSED (ignored))            \
+  static PyObject *CLS##_reset (CLS##Object *self,                            \
+                                PyObject    *Py_UNUSED (ignored))             \
   {                                                                           \
     dp_##NAME##_reset (self->buf);                                            \
     self->wait_n = 0;                                                         \
     Py_RETURN_NONE;                                                           \
   }                                                                           \
                                                                               \
-  static PyObject *CLS##_space (CLS##Object *self, void *Py_UNUSED (closure))\
+  static PyObject *CLS##_space (CLS##Object *self, void *Py_UNUSED (closure)) \
   {                                                                           \
     return PyLong_FromSize_t (dp_##NAME##_space (self->buf));                 \
   }
 
 /* The runtime face of the docstrings buffer.pyi carries, to the same bar
- * (check_docstring_coverage scores both). ONES is the width's 8-sample
- * array constructor, the one thing an example cannot share. */
+ * (check_docstring_coverage scores both). IMPORT is the width's
+ * three setup lines and ONES its 8-sample array constructor: the two things
+ * an example cannot share. IMPORT is an ARGUMENT, not a call in the body,
+ * because clang-format tears a macro call placed between string literals. */
 #define DP_RING_PY_IMPORT_(CLS)                                               \
   ">>> import numpy as np\n"                                                  \
   ">>> from doppler.buffer import " #CLS "\n"                                 \
   ">>> buf = " #CLS "(1024)\n"
 
-#define DP_RING_PY_METHODS(CLS, ONES)                                         \
+#define DP_RING_PY_METHODS(CLS, IMPORT, ONES)                                 \
   { "peek", (PyCFunction)CLS##_peek, METH_VARARGS,                            \
     "peek(n) -> ndarray | None\n\n"                                           \
-    "wait() that never blocks: a zero-copy view of n samples if they are\n"  \
-    "there, else None. For a single-threaded user, where wait() would\n"     \
-    "deadlock. None means NOT YET and nothing else. Does not consume --\n"   \
+    "wait() that never blocks: a zero-copy view of n samples if they are\n"   \
+    "there, else None. For a single-threaded user, where wait() would\n"      \
+    "deadlock. None means NOT YET and nothing else. Does not consume --\n"    \
     "call consume(k); k < n reads overlapped frames.\n\n"                     \
     "Parameters\n----------\n"                                                \
     "n : int\n"                                                               \
     "    Samples wanted. Positive, and no larger than capacity.\n\n"          \
     "Returns\n-------\n"                                                      \
     "ndarray or None\n"                                                       \
-    "    View of the next n samples, or None when fewer are buffered.\n\n"   \
+    "    View of the next n samples, or None when fewer are buffered.\n\n"    \
     "Raises\n------\n"                                                        \
     "EOFError\n"                                                              \
-    "    The ring is closed and fewer than n samples remain.\n"              \
+    "    The ring is closed and fewer than n samples remain.\n"               \
     "ValueError\n"                                                            \
     "    n exceeds the capacity, or is not positive.\n\n"                     \
-    "Examples\n--------\n"                                                    \
-    DP_RING_PY_IMPORT_ (CLS)                                                  \
-    ">>> buf.peek(4) is None\n"                                               \
+    "Examples\n--------\n" IMPORT ">>> buf.peek(4) is None\n"                 \
     "True\n"                                                                  \
     ">>> buf.write_some(" ONES ")\n"                                          \
     "8\n"                                                                     \
     ">>> len(buf.peek(4))\n"                                                  \
     "4\n" },                                                                  \
-  { "write_some", (PyCFunction)CLS##_write_some, METH_VARARGS,                \
-    "write_some(arr) -> int\n\n"                                              \
-    "Write as much of arr as fits and return how many samples that was\n"    \
-    "(0 when full). Unlike write() it never refuses and never counts a\n"    \
-    "drop, so a chunk larger than the ring is fed by looping.\n\n"            \
-    "Parameters\n----------\n"                                                \
-    "arr : ndarray\n"                                                         \
-    "    Samples to write, in the dtype and shape write() takes.\n\n"        \
-    "Returns\n-------\n"                                                      \
-    "int\n"                                                                   \
-    "    Samples accepted; the caller still owns arr[k:].\n\n"               \
-    "Examples\n--------\n"                                                    \
-    DP_RING_PY_IMPORT_ (CLS)                                                  \
-    ">>> buf.write_some(" ONES ")\n"                                          \
-    "8\n"                                                                     \
-    ">>> buf.dropped\n"                                                       \
-    "0\n" },                                                                  \
-  { "reset", (PyCFunction)CLS##_reset, METH_NOARGS,                           \
-    "reset()\n\n"                                                             \
-    "Empty the ring and reopen it (closed becomes False). dropped is a\n"    \
-    "lifetime count and is kept. Not safe against a concurrent thread.\n\n"  \
-    "Examples\n--------\n"                                                    \
-    DP_RING_PY_IMPORT_ (CLS)                                                  \
-    ">>> buf.write_some(" ONES ")\n"                                          \
-    "8\n"                                                                     \
-    ">>> buf.close()\n"                                                       \
-    ">>> buf.reset()\n"                                                       \
-    ">>> buf.available, buf.closed\n"                                         \
-    "(0, False)\n" }
+      { "write_some", (PyCFunction)CLS##_write_some, METH_VARARGS,            \
+        "write_some(arr) -> int\n\n"                                          \
+        "Write as much of arr as fits and return how many samples that was\n" \
+        "(0 when full). Unlike write() it never refuses and never counts a\n" \
+        "drop, so a chunk larger than the ring is fed by looping.\n\n"        \
+        "Parameters\n----------\n"                                            \
+        "arr : ndarray\n"                                                     \
+        "    Samples to write, in the dtype and shape write() takes.\n\n"     \
+        "Returns\n-------\n"                                                  \
+        "int\n"                                                               \
+        "    Samples accepted; the caller still owns arr[k:].\n\n"            \
+        "Examples\n--------\n" IMPORT ">>> buf.write_some(" ONES ")\n"        \
+        "8\n"                                                                 \
+        ">>> buf.dropped\n"                                                   \
+        "0\n" },                                                              \
+      { "reset", (PyCFunction)CLS##_reset, METH_NOARGS,                       \
+        "reset()\n\n"                                                         \
+        "Empty the ring and reopen it (closed becomes False). dropped is a\n" \
+        "lifetime count and is kept. Not safe against a concurrent "          \
+        "thread.\n\n"                                                         \
+        "Examples\n--------\n" IMPORT ">>> buf.write_some(" ONES ")\n"        \
+        "8\n"                                                                 \
+        ">>> buf.close()\n"                                                   \
+        ">>> buf.reset()\n"                                                   \
+        ">>> buf.available, buf.closed\n"                                     \
+        "(0, False)\n" }
 
 #define DP_RING_PY_GETSET(CLS)                                                \
   { "space", (getter)CLS##_space, NULL,                                       \
-    "Free room in samples: the largest write() guaranteed to be accepted.",  \
+    "Free room in samples: the largest write() guaranteed to be accepted.",   \
     NULL }
 
 /* =====================================================================
@@ -271,8 +268,8 @@ F32Buffer_src_ (PyObject *args, const char *who, const float **src, size_t *n)
     return 0;
   if (PyArray_TYPE (arr) != NPY_COMPLEX64)
     {
-      PyErr_Format (PyExc_TypeError, "F32Buffer.%s() requires a complex64 array",
-                    who);
+      PyErr_Format (PyExc_TypeError,
+                    "F32Buffer.%s() requires a complex64 array", who);
       return 0;
     }
   if (PyArray_NDIM (arr) != 1 || !PyArray_IS_C_CONTIGUOUS (arr))
@@ -292,7 +289,7 @@ static PyObject *
 F32Buffer_write (F32BufferObject *self, PyObject *args)
 {
   const float *src;
-  size_t n;
+  size_t       n;
   if (!F32Buffer_src_ (args, "write", &src, &n))
     return NULL;
   return PyBool_FromLong (dp_f32_write (self->buf, src, n) ? 1 : 0);
@@ -396,7 +393,8 @@ static PyGetSetDef F32Buffer_getset[] = {
 };
 
 static PyMethodDef F32Buffer_methods[] = {
-  DP_RING_PY_METHODS (F32Buffer, "np.ones(8, np.complex64)"),
+  DP_RING_PY_METHODS (F32Buffer, DP_RING_PY_IMPORT_ (F32Buffer),
+                      "np.ones(8, np.complex64)"),
   { "write", (PyCFunction)F32Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (complex64). Returns True\n"
     "if every sample was written, False if the ring had no room for all of\n"
@@ -527,8 +525,8 @@ F64Buffer_src_ (PyObject *args, const char *who, const double **src, size_t *n)
     return 0;
   if (PyArray_TYPE (arr) != NPY_COMPLEX128)
     {
-      PyErr_Format (PyExc_TypeError, "F64Buffer.%s() requires a complex128 array",
-                    who);
+      PyErr_Format (PyExc_TypeError,
+                    "F64Buffer.%s() requires a complex128 array", who);
       return 0;
     }
   if (PyArray_NDIM (arr) != 1 || !PyArray_IS_C_CONTIGUOUS (arr))
@@ -548,7 +546,7 @@ static PyObject *
 F64Buffer_write (F64BufferObject *self, PyObject *args)
 {
   const double *src;
-  size_t n;
+  size_t        n;
   if (!F64Buffer_src_ (args, "write", &src, &n))
     return NULL;
   return PyBool_FromLong (dp_f64_write (self->buf, src, n) ? 1 : 0);
@@ -651,7 +649,8 @@ static PyGetSetDef F64Buffer_getset[] = {
 };
 
 static PyMethodDef F64Buffer_methods[] = {
-  DP_RING_PY_METHODS (F64Buffer, "np.ones(8, np.complex128)"),
+  DP_RING_PY_METHODS (F64Buffer, DP_RING_PY_IMPORT_ (F64Buffer),
+                      "np.ones(8, np.complex128)"),
   { "write", (PyCFunction)F64Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (complex128). Returns True\n"
     "if every sample was written, False if the call was REFUSED for want of\n"
@@ -777,7 +776,8 @@ I16Buffer_dealloc (I16BufferObject *self)
 /* One validation for every method that takes samples IN, so write() and
    write_some() cannot disagree about what an acceptable array is. */
 static int
-I16Buffer_src_ (PyObject *args, const char *who, const int16_t **src, size_t *n)
+I16Buffer_src_ (PyObject *args, const char *who, const int16_t **src,
+                size_t *n)
 {
   PyArrayObject *arr;
   if (!PyArg_ParseTuple (args, "O!", &PyArray_Type, &arr))
@@ -798,7 +798,8 @@ I16Buffer_src_ (PyObject *args, const char *who, const int16_t **src, size_t *n)
   if (total % 2 != 0)
     {
       PyErr_Format (PyExc_ValueError,
-                    "I16Buffer.%s(): array size must be even (I/Q pairs)", who);
+                    "I16Buffer.%s(): array size must be even (I/Q pairs)",
+                    who);
       return 0;
     }
   *src = (const int16_t *)PyArray_DATA (arr);
@@ -812,7 +813,7 @@ static PyObject *
 I16Buffer_write (I16BufferObject *self, PyObject *args)
 {
   const int16_t *src;
-  size_t n;
+  size_t         n;
   if (!I16Buffer_src_ (args, "write", &src, &n))
     return NULL;
   return PyBool_FromLong (dp_i16_write (self->buf, src, n) ? 1 : 0);
@@ -916,7 +917,8 @@ static PyGetSetDef I16Buffer_getset[] = {
 };
 
 static PyMethodDef I16Buffer_methods[] = {
-  DP_RING_PY_METHODS (I16Buffer, "np.ones((8, 2), np.int16)"),
+  DP_RING_PY_METHODS (I16Buffer, DP_RING_PY_IMPORT_ (I16Buffer),
+                      "np.ones((8, 2), np.int16)"),
   { "write", (PyCFunction)I16Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (int16, shape (n,2) or\n"
     "(2n,)). Returns True if every pair was written, False if the call was\n"

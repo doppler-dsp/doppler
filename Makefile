@@ -166,7 +166,13 @@ LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)
 # red on files nobody edited.
 C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|(^|/)jm_(bench|test)\.h$$|_ext\.c$$|_symbols\.c$$
 
-C_FILES = git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'
+# ...except the `_ext.c` of a `no_generate` module, which is HAND-WRITTEN: the
+# blanket exclusion left it formatted by nobody until `jm apply`, whose c_style
+# pass walks all of native/src, rewrote it under whoever applied next
+# (buffer_ext.c after doppler#1432). Derived from the manifest, so a migrated
+# module leaves the set by itself.
+C_FILES = { git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'; \
+            uv run python scripts/list_hand_ext_c.py; }
 
 LINT_clang-format = @$(C_FILES) | xargs -r $(CLANG_FORMAT) -i --style=file
 

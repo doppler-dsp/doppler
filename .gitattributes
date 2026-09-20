@@ -1,0 +1,36 @@
+# Line endings, decided here rather than by whichever machine cloned.
+#
+# Git for Windows ships core.autocrlf=true, so a clone made there rewrites
+# every text file to CRLF on checkout. This repo carries shell scripts that
+# gates and CI invoke, and bash does not tolerate CRLF: it fails with `set:
+# pipefail: invalid option name` and `$'\r': command not found`, naming
+# neither the file nor the cause.
+#
+# Measured 2026-09-20 on a Windows checkout of a sibling repo -- every .sh was
+# CRLF and none of them could run, while the same commit on Linux was LF and
+# fine. Visual Studio clones into %USERPROFILE%\source\repos by default, so
+# this is a realistic way to acquire this repo rather than a hypothetical one.
+#
+# `eol=lf` overrides the cloner's autocrlf rather than asking it. C, headers
+# and Python are covered too: a .c file that arrives CRLF still compiles, but
+# it diffs against every line its author did not touch.
+* text=auto eol=lf
+
+# Validation fixtures keep exactly the bytes they were generated with.
+# Ten of these CSVs are CRLF in the index, and normalising them would rewrite
+# golden data inside an unrelated change -- there is checksum logic in this
+# tree, and a fixture whose bytes moved for a line-ending reason is the worst
+# kind of test failure to read. Whether they SHOULD be LF is a real question,
+# but it is its own change with its own verification.
+*.csv -text
+
+# Binaries: never touched, never diffed as text.
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.npy binary
+*.wav binary

@@ -59,7 +59,7 @@ repos:
       # catches is by definition one no other hook's file filter matches.
       - id: tracked-paths
         name: tracked paths are names a person could type
-        entry: make -s lint-tracked-paths
+        entry: make -s tracked-paths-check
         language: system
         pass_filenames: false
         always_run: true

@@ -8,7 +8,7 @@
  */
 #include "burst_despreader/burst_despreader_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_burst_despreader[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,32 +17,32 @@ extern const jm_any_fn jm_bound_symbols_burst_despreader[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_burst_despreader[] = {
-  (jm_any_fn)burst_despreader_create,
-  (jm_any_fn)burst_despreader_set_acq,
-  (jm_any_fn)burst_despreader_destroy,
-  (jm_any_fn)burst_despreader_reset,
-  (jm_any_fn)burst_despreader_steps_max_out,
-  (jm_any_fn)burst_despreader_steps,
-  (jm_any_fn)burst_despreader_bits_max_out,
-  (jm_any_fn)burst_despreader_bits,
-  (jm_any_fn)burst_despreader_get_bn_carrier,
-  (jm_any_fn)burst_despreader_set_bn_carrier,
-  (jm_any_fn)burst_despreader_get_bn_code,
-  (jm_any_fn)burst_despreader_set_bn_code,
-  (jm_any_fn)burst_despreader_get_norm_freq,
-  (jm_any_fn)burst_despreader_set_norm_freq,
-  (jm_any_fn)burst_despreader_get_code_phase,
-  (jm_any_fn)burst_despreader_get_lock_metric,
-  (jm_any_fn)burst_despreader_get_snr_est,
-  (jm_any_fn)burst_despreader_get_lock_stat,
-  (jm_any_fn)burst_despreader_get_stat_n,
-  (jm_any_fn)burst_despreader_state_bytes,
-  (jm_any_fn)burst_despreader_get_state,
-  (jm_any_fn)burst_despreader_set_state,
+    (jm_any_fn)burst_despreader_create,
+    (jm_any_fn)burst_despreader_set_acq,
+    (jm_any_fn)burst_despreader_destroy,
+    (jm_any_fn)burst_despreader_reset,
+    (jm_any_fn)burst_despreader_steps_max_out,
+    (jm_any_fn)burst_despreader_steps,
+    (jm_any_fn)burst_despreader_bits_max_out,
+    (jm_any_fn)burst_despreader_bits,
+    (jm_any_fn)burst_despreader_get_bn_carrier,
+    (jm_any_fn)burst_despreader_set_bn_carrier,
+    (jm_any_fn)burst_despreader_get_bn_code,
+    (jm_any_fn)burst_despreader_set_bn_code,
+    (jm_any_fn)burst_despreader_get_norm_freq,
+    (jm_any_fn)burst_despreader_set_norm_freq,
+    (jm_any_fn)burst_despreader_get_code_phase,
+    (jm_any_fn)burst_despreader_get_lock_metric,
+    (jm_any_fn)burst_despreader_get_snr_est,
+    (jm_any_fn)burst_despreader_get_lock_stat,
+    (jm_any_fn)burst_despreader_get_stat_n,
+    (jm_any_fn)burst_despreader_state_bytes,
+    (jm_any_fn)burst_despreader_get_state,
+    (jm_any_fn)burst_despreader_set_state,
 };

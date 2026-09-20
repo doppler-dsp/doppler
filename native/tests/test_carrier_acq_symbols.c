@@ -8,7 +8,7 @@
  */
 #include "carrier_acq/carrier_acq_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_carrier_acq[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,14 +17,17 @@ extern const jm_any_fn jm_bound_symbols_carrier_acq[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_carrier_acq[] = {
-  (jm_any_fn)carrier_acq_create,      (jm_any_fn)carrier_acq_destroy,
-  (jm_any_fn)carrier_acq_reset,       (jm_any_fn)carrier_acq_steps,
-  (jm_any_fn)carrier_acq_state_bytes, (jm_any_fn)carrier_acq_get_state,
-  (jm_any_fn)carrier_acq_set_state,
+    (jm_any_fn)carrier_acq_create,
+    (jm_any_fn)carrier_acq_destroy,
+    (jm_any_fn)carrier_acq_reset,
+    (jm_any_fn)carrier_acq_steps,
+    (jm_any_fn)carrier_acq_state_bytes,
+    (jm_any_fn)carrier_acq_get_state,
+    (jm_any_fn)carrier_acq_set_state,
 };

@@ -310,7 +310,9 @@ class AGC:
 
     @property
     def decim(self) -> int:
-        """Decim."""
+        """Envelope decimation: the detector and loop filter run once per chunk
+        of this many samples, >= 1 (typically 8, 16 or 32).
+        """
     @decim.setter
     def decim(self, value: int) -> None: ...
 

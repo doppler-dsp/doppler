@@ -442,6 +442,8 @@ double dsss_burst_receiver_get_est_rate_hz(const dsss_burst_receiver_state_t *st
 double dsss_burst_receiver_get_demod_cn0_dbhz(const dsss_burst_receiver_state_t *state);
 double dsss_burst_receiver_get_demod_timing_chips(const dsss_burst_receiver_state_t *state);
 size_t dsss_burst_receiver_get_pending(const dsss_burst_receiver_state_t *state);
+/** @brief Samples the capture ring refused. Each is a LOST BURST, not a
+ *  statistic -- a lifetime count that survives reset(). */
 uint64_t dsss_burst_receiver_get_dropped(const dsss_burst_receiver_state_t *state);
 uint64_t dsss_burst_receiver_get_n_bursts(const dsss_burst_receiver_state_t *state);
 

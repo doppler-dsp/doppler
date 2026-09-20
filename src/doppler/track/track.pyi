@@ -2342,7 +2342,10 @@ class RateSync:
 
     @property
     def bn(self) -> float:
-        """Bn."""
+        """Timing-loop noise bandwidth, normalised to the symbol rate. Writing
+        it re-derives the loop gains at the damping already in use, exactly as
+        configure() does.
+        """
     @bn.setter
     def bn(self, value: float) -> None: ...
 
@@ -3637,7 +3640,10 @@ class MpskReceiver:
 
     @property
     def lock(self) -> float:
-        """Lock."""
+        """The raw carrier lock statistic: the EMA of the M-th-power NDA lock
+        signal, near 1 when locked and near 0 on noise. It chatters at the
+        threshold; `locked` is the de-chattered decision made on it.
+        """
 
     @property
     def zeta(self) -> float:
@@ -3736,11 +3742,13 @@ class MpskReceiver:
 
     @property
     def m(self) -> int:
-        """M."""
+        """Constellation order M (2, 4 or 8), as constructed."""
 
     @property
     def sps(self) -> float:
-        """Sps."""
+        """Nominal samples per symbol at the receiver's input, as constructed;
+        `timing_rate` is the tracked value.
+        """
 
     @property
     def m_out(self) -> int:
@@ -4208,7 +4216,10 @@ class BpskReceiver:
 
     @property
     def lock(self) -> float:
-        """Lock."""
+        """The raw carrier lock statistic: the EMA of the M-th-power NDA lock
+        signal, near 1 when locked and near 0 on noise. It chatters at the
+        threshold; `locked` is the de-chattered decision made on it.
+        """
 
     @property
     def zeta(self) -> float:
@@ -4307,11 +4318,13 @@ class BpskReceiver:
 
     @property
     def m(self) -> int:
-        """M."""
+        """Constellation order M (2, 4 or 8), as constructed."""
 
     @property
     def sps(self) -> float:
-        """Sps."""
+        """Nominal samples per symbol at the receiver's input, as constructed;
+        `timing_rate` is the tracked value.
+        """
 
     @property
     def m_out(self) -> int:
@@ -4873,7 +4886,10 @@ class MpskReceiverR:
 
     @property
     def lock(self) -> float:
-        """Lock."""
+        """The raw carrier lock statistic: the EMA of the M-th-power NDA lock
+        signal, near 1 when locked and near 0 on noise. It chatters at the
+        threshold; `locked` is the de-chattered decision made on it.
+        """
 
     @property
     def zeta(self) -> float:
@@ -4972,11 +4988,13 @@ class MpskReceiverR:
 
     @property
     def m(self) -> int:
-        """M."""
+        """Constellation order M (2, 4 or 8), as constructed."""
 
     @property
     def sps(self) -> float:
-        """Sps."""
+        """Nominal samples per symbol at the receiver's input, as constructed;
+        `timing_rate` is the tracked value.
+        """
 
     @property
     def m_out(self) -> int:

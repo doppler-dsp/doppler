@@ -954,8 +954,8 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "refused, and that difference is the thing worth seeing.\n",
     NULL },
   { "dropped", (getter)DsssBurstReceiver_getprop_dropped, NULL,
-    "Samples the ring refused. A LOST BURST each, not a statistic -- "
-    "lifetime, survives reset().\n",
+    "Samples the capture ring refused. Each is a LOST BURST, not a statistic "
+    "-- a lifetime count that survives reset().\n",
     NULL },
   { NULL }
 };

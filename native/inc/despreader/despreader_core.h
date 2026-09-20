@@ -276,7 +276,12 @@ extern "C"
   double despreader_get_norm_freq (const despreader_state_t *state);
   void   despreader_set_norm_freq (despreader_state_t *state, double val);
   double despreader_get_code_phase (const despreader_state_t *state);
+  /** @brief Chips the embedded DLL advances per nominal chip: ~1.0, and its
+   *  departure from 1 is the code-rate (clock) offset being tracked. */
   double despreader_get_code_rate (const despreader_state_t *state);
+  /** @brief The embedded Costas loop's lock statistic: the EMA of
+   *  |Re P|/|P| over the prompt correlations, 1 when locked. `carrier_locked`
+   *  is the de-chattered decision made on it. */
   double despreader_get_lock_metric (const despreader_state_t *state);
 
   /** @brief Carrier lock decision (1 = locked): the embedded Costas loop's

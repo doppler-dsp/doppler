@@ -8,7 +8,7 @@
  */
 #include "capture/capture_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_capture[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,21 +17,21 @@ extern const jm_any_fn jm_bound_symbols_capture[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_capture[] = {
-  (jm_any_fn)capture_create,
-  (jm_any_fn)capture_destroy,
-  (jm_any_fn)capture_reset,
-  (jm_any_fn)capture_read_max_out,
-  (jm_any_fn)capture_read,
-  (jm_any_fn)capture_get_fs,
-  (jm_any_fn)capture_get_fc,
-  (jm_any_fn)capture_get_num_samples,
-  (jm_any_fn)capture_get_metadata_source,
-  (jm_any_fn)capture_summary,
-  (jm_any_fn)capture_open_raw,
+    (jm_any_fn)capture_create,
+    (jm_any_fn)capture_destroy,
+    (jm_any_fn)capture_reset,
+    (jm_any_fn)capture_read_max_out,
+    (jm_any_fn)capture_read,
+    (jm_any_fn)capture_get_fs,
+    (jm_any_fn)capture_get_fc,
+    (jm_any_fn)capture_get_num_samples,
+    (jm_any_fn)capture_get_metadata_source,
+    (jm_any_fn)capture_summary,
+    (jm_any_fn)capture_open_raw,
 };

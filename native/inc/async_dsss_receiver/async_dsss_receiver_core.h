@@ -1085,6 +1085,9 @@ extern "C"
       const async_dsss_receiver_state_t *state);
   double async_dsss_receiver_get_code_rate (
       const async_dsss_receiver_state_t *state);
+  /** @brief The carrier lock statistic of the MpskReceiver this receiver
+   *  tracks with: the EMA of its M-th-power lock signal, near 1 when locked
+   *  and near 0 on noise. 0 until a track chain exists. */
   double async_dsss_receiver_get_lock (
       const async_dsss_receiver_state_t *state);
   double async_dsss_receiver_get_norm_freq (

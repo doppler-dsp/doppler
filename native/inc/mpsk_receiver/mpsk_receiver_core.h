@@ -776,6 +776,9 @@ extern "C"
   /** @brief Retune to @p val cycles/sample: moves the LO centre there and
    *  zeroes the loop's residual estimate, so norm_freq reads back exactly. */
   void mpsk_receiver_set_norm_freq (mpsk_receiver_state_t *state, double val);
+  /** @brief The raw carrier lock statistic: the EMA of the M-th-power NDA
+   *  lock signal, near 1 when locked and near 0 on noise. It chatters at
+   *  the threshold; `locked` is the de-chattered decision made on it. */
   double mpsk_receiver_get_lock (const mpsk_receiver_state_t *state);
   /** @brief Binary carrier-lock flag from the loop's hysteretic (up/down
    * verify-counted) lock detector — de-chattered, unlike the raw metric. */
@@ -879,7 +882,10 @@ extern "C"
   /** @brief Smoothed tracked samples per symbol — departs from the nominal
    *  `sps` by exactly the sample-clock offset the timing loop is tracking. */
   double mpsk_receiver_get_timing_rate (const mpsk_receiver_state_t *state);
+  /** @brief Constellation order M (2, 4 or 8), as constructed. */
   int    mpsk_receiver_get_m (const mpsk_receiver_state_t *state);
+  /** @brief Nominal samples per symbol at the receiver's input, as
+   *  constructed; `timing_rate` is the tracked value. */
   double mpsk_receiver_get_sps (const mpsk_receiver_state_t *state);
   /** @brief Terminal outputs per symbol (the old `n`, now the cascade's). */
   size_t mpsk_receiver_get_m_out (const mpsk_receiver_state_t *state);

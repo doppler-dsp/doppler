@@ -660,9 +660,14 @@ static PyGetSetDef Despreader_getset[] = {
   { "code_phase", (getter)Despreader_getprop_code_phase, NULL, "Code phase.\n",
     NULL },
   { "code_rate", (getter)Despreader_getprop_code_rate, NULL,
-    "chips advanced per nominal chip (~1.0).\n", NULL },
+    "Chips the embedded DLL advances per nominal chip: ~1.0, and its "
+    "departure from 1 is the code-rate (clock) offset being tracked.\n",
+    NULL },
   { "lock_metric", (getter)Despreader_getprop_lock_metric, NULL,
-    "EMA of |Re P|/|P| (1 = locked).\n", NULL },
+    "The embedded Costas loop's lock statistic: the EMA of |Re P|/|P| over "
+    "the prompt correlations, 1 when locked. `carrier_locked` is the "
+    "de-chattered decision made on it.\n",
+    NULL },
   { "carrier_locked", (getter)Despreader_getprop_carrier_locked, NULL,
     "Carrier lock decision: the embedded Costas loop's verify-counted "
     "detector on its lock-metric EMA (True = locked; see "

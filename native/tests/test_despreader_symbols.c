@@ -8,7 +8,7 @@
  */
 #include "despreader/despreader_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_despreader[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,35 +17,35 @@ extern const jm_any_fn jm_bound_symbols_despreader[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_despreader[] = {
-  (jm_any_fn)despreader_create,
-  (jm_any_fn)despreader_destroy,
-  (jm_any_fn)despreader_reset,
-  (jm_any_fn)despreader_steps_max_out,
-  (jm_any_fn)despreader_steps,
-  (jm_any_fn)despreader_bits_max_out,
-  (jm_any_fn)despreader_bits,
-  (jm_any_fn)despreader_get_norm_freq,
-  (jm_any_fn)despreader_set_norm_freq,
-  (jm_any_fn)despreader_get_code_phase,
-  (jm_any_fn)despreader_get_code_rate,
-  (jm_any_fn)despreader_get_lock_metric,
-  (jm_any_fn)despreader_get_carrier_locked,
-  (jm_any_fn)despreader_get_code_locked,
-  (jm_any_fn)despreader_configure_carrier_lock,
-  (jm_any_fn)despreader_configure_code_lock,
-  (jm_any_fn)despreader_get_bit_phase,
-  (jm_any_fn)despreader_get_bn_carrier,
-  (jm_any_fn)despreader_set_bn_carrier,
-  (jm_any_fn)despreader_get_bn_code,
-  (jm_any_fn)despreader_set_bn_code,
-  (jm_any_fn)despreader_set_telemetry,
-  (jm_any_fn)despreader_state_bytes,
-  (jm_any_fn)despreader_get_state,
-  (jm_any_fn)despreader_set_state,
+    (jm_any_fn)despreader_create,
+    (jm_any_fn)despreader_destroy,
+    (jm_any_fn)despreader_reset,
+    (jm_any_fn)despreader_steps_max_out,
+    (jm_any_fn)despreader_steps,
+    (jm_any_fn)despreader_bits_max_out,
+    (jm_any_fn)despreader_bits,
+    (jm_any_fn)despreader_get_norm_freq,
+    (jm_any_fn)despreader_set_norm_freq,
+    (jm_any_fn)despreader_get_code_phase,
+    (jm_any_fn)despreader_get_code_rate,
+    (jm_any_fn)despreader_get_lock_metric,
+    (jm_any_fn)despreader_get_carrier_locked,
+    (jm_any_fn)despreader_get_code_locked,
+    (jm_any_fn)despreader_configure_carrier_lock,
+    (jm_any_fn)despreader_configure_code_lock,
+    (jm_any_fn)despreader_get_bit_phase,
+    (jm_any_fn)despreader_get_bn_carrier,
+    (jm_any_fn)despreader_set_bn_carrier,
+    (jm_any_fn)despreader_get_bn_code,
+    (jm_any_fn)despreader_set_bn_code,
+    (jm_any_fn)despreader_set_telemetry,
+    (jm_any_fn)despreader_state_bytes,
+    (jm_any_fn)despreader_get_state,
+    (jm_any_fn)despreader_set_state,
 };

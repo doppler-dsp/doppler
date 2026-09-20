@@ -29,9 +29,9 @@ typedef struct {
     double enbw;            /* window equivalent noise bandwidth (bins)   */
     double beta;            /* auto-selected Kaiser shape (from DR target) */
     size_t spur_guard_bins; /* min notch keep-out (bins) from window skirt */
-    size_t n;               /* capture / frame length                     */
-    size_t nfft;            /* zero-padded transform length               */
-    double fs;              /* sample rate (Hz)                           */
+    size_t n;               /**< Capture / frame length, samples.            */
+    size_t nfft;            /**< Zero-padded transform length, bins.         */
+    double fs;              /**< Sample rate, Hz.                            */
 } nprmeas_state_t;
 
 /**

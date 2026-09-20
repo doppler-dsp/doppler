@@ -213,8 +213,10 @@ expr = "self->handle->enbw * self->handle->fs / (double)self->handle->n"
 name = "count"
 type = "size_t"
 expr = "(size_t)self->handle->avg->count"
+doc = "Frames folded into the averaged trace so far."
 
 [[psd.properties]]
 name = "mode"
 type = "int"
 expr = "(int)self->handle->avg->mode"
+doc = "Trace reduction mode, as the enum index: 0 mean, 1 exp, 2 maxhold, 3 minhold."

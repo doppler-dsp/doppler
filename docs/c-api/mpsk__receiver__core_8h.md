@@ -92,17 +92,17 @@ _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...
 |  double | [**mpsk\_receiver\_get\_bn\_agc\_ratio**](#function-mpsk_receiver_get_bn_agc_ratio) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_AGC bandwidth ratio in use — derived unless pinned (§8.1)._  |
 |  int | [**mpsk\_receiver\_get\_clipped**](#function-mpsk_receiver_get_clipped) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Has the cascade's CIC stage clipped its input since the last reset? A CIC bounds its input to +-1.0 and clips silently past that, which costs ~25 dB of EVM behind a perfectly healthy lock._  |
 |  double | [**mpsk\_receiver\_get\_last\_error**](#function-mpsk_receiver_get_last_error) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier loop phase discriminator (rad) — the residual phase the loop is trying to null; loop stress._  |
-|  double | [**mpsk\_receiver\_get\_lock**](#function-mpsk_receiver_get_lock) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  double | [**mpsk\_receiver\_get\_lock**](#function-mpsk_receiver_get_lock) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_The raw carrier lock statistic: the EMA of the M-th-power NDA lock signal, near 1 when locked and near 0 on noise. It chatters at the threshold;_ `locked` _is the de-chattered decision made on it._ |
 |  double | [**mpsk\_receiver\_get\_lock\_drop\_thresh**](#function-mpsk_receiver_get_lock_drop_thresh) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier DROP threshold in use —_ `MPSK_RX_LOCK_DOWN` _x the declare threshold, the level hysteresis the pair is stated with._ |
 |  double | [**mpsk\_receiver\_get\_lock\_thresh**](#function-mpsk_receiver_get_lock_thresh) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier lock DECLARE threshold in use — derived unless pinned (§8.1). It gates no loop and no output; see_ [_**mpsk\_rx\_loops.h**_](mpsk__rx__loops_8h.md) _._ |
 |  int64\_t | [**mpsk\_receiver\_get\_lock\_time**](#function-mpsk_receiver_get_lock_time) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Symbols from reset to the FIRST carrier-lock declaration, or -1 if the receiver has not locked yet._  |
 |  int | [**mpsk\_receiver\_get\_locked**](#function-mpsk_receiver_get_locked) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Binary carrier-lock flag from the loop's hysteretic (up/down verify-counted) lock detector — de-chattered, unlike the raw metric._  |
-|  int | [**mpsk\_receiver\_get\_m**](#function-mpsk_receiver_get_m) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  int | [**mpsk\_receiver\_get\_m**](#function-mpsk_receiver_get_m) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Constellation order M (2, 4 or 8), as constructed._  |
 |  size\_t | [**mpsk\_receiver\_get\_m\_out**](#function-mpsk_receiver_get_m_out) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Terminal outputs per symbol (the old_ `n` _, now the cascade's)._ |
 |  double | [**mpsk\_receiver\_get\_nco\_freq**](#function-mpsk_receiver_get_nco_freq) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Instantaneous NCO frequency command (carrier loop filter output, cycles/sample): mean tracks a ramp with no lag, variance is loop stress._  |
 |  double | [**mpsk\_receiver\_get\_norm\_freq**](#function-mpsk_receiver_get_norm_freq) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Carrier frequency the receiver is tracking, cycles/sample at the input rate: the create-time centre plus the loop's own estimate._  |
 |  size\_t | [**mpsk\_receiver\_get\_num\_phases**](#function-mpsk_receiver_get_num_phases) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Matched-filter bank arms in use — derived unless pinned (§8.1)._  |
-|  double | [**mpsk\_receiver\_get\_sps**](#function-mpsk_receiver_get_sps) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br> |
+|  double | [**mpsk\_receiver\_get\_sps**](#function-mpsk_receiver_get_sps) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Nominal samples per symbol at the receiver's input, as constructed;_ `timing_rate` _is the tracked value._ |
 |  void | [**mpsk\_receiver\_get\_state**](#function-mpsk_receiver_get_state) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state, void \* blob) <br> |
 |  double | [**mpsk\_receiver\_get\_sync\_lock\_drop\_thresh**](#function-mpsk_receiver_get_sync_lock_drop_thresh) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Timing DROP threshold on_ `sync.lock` _. Equal to the declare threshold when the timing loop carries no level hysteresis._ |
 |  double | [**mpsk\_receiver\_get\_sync\_lock\_thresh**](#function-mpsk_receiver_get_sync_lock_thresh) (const [**mpsk\_receiver\_state\_t**](structmpsk__receiver__state__t.md) \* state) <br>_Timing DECLARE threshold on_ `sync.lock` _, derived by symsync's own (rolloff, esno\_min, pfa, pd) geometry rather than pinned._ |
@@ -788,6 +788,7 @@ double mpsk_receiver_get_last_error (
 
 ### function mpsk\_receiver\_get\_lock 
 
+_The raw carrier lock statistic: the EMA of the M-th-power NDA lock signal, near 1 when locked and near 0 on noise. It chatters at the threshold;_ `locked` _is the de-chattered decision made on it._
 ```C++
 double mpsk_receiver_get_lock (
     const mpsk_receiver_state_t * state
@@ -879,6 +880,7 @@ int mpsk_receiver_get_locked (
 
 ### function mpsk\_receiver\_get\_m 
 
+_Constellation order M (2, 4 or 8), as constructed._ 
 ```C++
 int mpsk_receiver_get_m (
     const mpsk_receiver_state_t * state
@@ -958,6 +960,7 @@ size_t mpsk_receiver_get_num_phases (
 
 ### function mpsk\_receiver\_get\_sps 
 
+_Nominal samples per symbol at the receiver's input, as constructed;_ `timing_rate` _is the tracked value._
 ```C++
 double mpsk_receiver_get_sps (
     const mpsk_receiver_state_t * state

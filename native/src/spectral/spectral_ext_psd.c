@@ -937,8 +937,11 @@ static PyGetSetDef PSD_getset[]
           "Equivalent noise bandwidth, bins.\n", NULL },
         { "rbw", (getter)PSD_getprop_rbw, NULL, "Rbw.\n", NULL },
         { "count", (getter)PSD_getprop_count, NULL,
-          "Frames folded in so far.\n", NULL },
-        { "mode", (getter)PSD_getprop_mode, NULL, "Reduction mode.\n", NULL },
+          "Frames folded into the averaged trace so far.\n", NULL },
+        { "mode", (getter)PSD_getprop_mode, NULL,
+          "Trace reduction mode, as the enum index: 0 mean, 1 exp, 2 maxhold, "
+          "3 minhold.\n",
+          NULL },
         { NULL } };
 
 static PyObject *

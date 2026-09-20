@@ -8,7 +8,7 @@
  */
 #include "burst_capture/burst_capture_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_burst_capture[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,40 +17,40 @@ extern const jm_any_fn jm_bound_symbols_burst_capture[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_burst_capture[] = {
-  (jm_any_fn)burst_capture_create,
-  (jm_any_fn)burst_capture_create_backed,
-  (jm_any_fn)burst_capture_destroy,
-  (jm_any_fn)burst_capture_reset,
-  (jm_any_fn)burst_capture_push_max_out,
-  (jm_any_fn)burst_capture_push,
-  (jm_any_fn)burst_capture_detections_max_out,
-  (jm_any_fn)burst_capture_detections,
-  (jm_any_fn)burst_capture_events_max_out,
-  (jm_any_fn)burst_capture_events,
-  (jm_any_fn)burst_capture_release,
-  (jm_any_fn)burst_capture_configure_search_raw,
-  (jm_any_fn)burst_capture_get_eta,
-  (jm_any_fn)burst_capture_get_eta_nc,
-  (jm_any_fn)burst_capture_get_straddle_loss,
-  (jm_any_fn)burst_capture_get_pd_predicted,
-  (jm_any_fn)burst_capture_get_doppler_bins,
-  (jm_any_fn)burst_capture_get_n_noncoh,
-  (jm_any_fn)burst_capture_get_code_bins,
-  (jm_any_fn)burst_capture_get_doppler_span_hz,
-  (jm_any_fn)burst_capture_state_bytes,
-  (jm_any_fn)burst_capture_get_state,
-  (jm_any_fn)burst_capture_set_state,
-  (jm_any_fn)burst_capture_get_preamble_start,
-  (jm_any_fn)burst_capture_get_doppler_hz_est,
-  (jm_any_fn)burst_capture_get_doppler_res_hz,
-  (jm_any_fn)burst_capture_get_cn0_dbhz_est,
-  (jm_any_fn)burst_capture_get_pending,
-  (jm_any_fn)burst_capture_get_dropped,
-  (jm_any_fn)burst_capture_get_n_bursts,
+    (jm_any_fn)burst_capture_create,
+    (jm_any_fn)burst_capture_create_backed,
+    (jm_any_fn)burst_capture_destroy,
+    (jm_any_fn)burst_capture_reset,
+    (jm_any_fn)burst_capture_push_max_out,
+    (jm_any_fn)burst_capture_push,
+    (jm_any_fn)burst_capture_detections_max_out,
+    (jm_any_fn)burst_capture_detections,
+    (jm_any_fn)burst_capture_events_max_out,
+    (jm_any_fn)burst_capture_events,
+    (jm_any_fn)burst_capture_release,
+    (jm_any_fn)burst_capture_configure_search_raw,
+    (jm_any_fn)burst_capture_get_eta,
+    (jm_any_fn)burst_capture_get_eta_nc,
+    (jm_any_fn)burst_capture_get_straddle_loss,
+    (jm_any_fn)burst_capture_get_pd_predicted,
+    (jm_any_fn)burst_capture_get_doppler_bins,
+    (jm_any_fn)burst_capture_get_n_noncoh,
+    (jm_any_fn)burst_capture_get_code_bins,
+    (jm_any_fn)burst_capture_get_doppler_span_hz,
+    (jm_any_fn)burst_capture_state_bytes,
+    (jm_any_fn)burst_capture_get_state,
+    (jm_any_fn)burst_capture_set_state,
+    (jm_any_fn)burst_capture_get_preamble_start,
+    (jm_any_fn)burst_capture_get_doppler_hz_est,
+    (jm_any_fn)burst_capture_get_doppler_res_hz,
+    (jm_any_fn)burst_capture_get_cn0_dbhz_est,
+    (jm_any_fn)burst_capture_get_pending,
+    (jm_any_fn)burst_capture_get_dropped,
+    (jm_any_fn)burst_capture_get_n_bursts,
 };

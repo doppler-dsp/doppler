@@ -8,7 +8,7 @@
  */
 #include "pn/pn_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_pn[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,18 +17,18 @@ extern const jm_any_fn jm_bound_symbols_pn[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_pn[] = {
-  (jm_any_fn)pn_create,
-  (jm_any_fn)pn_destroy,
-  (jm_any_fn)pn_reset,
-  (jm_any_fn)pn_state_bytes,
-  (jm_any_fn)pn_get_state,
-  (jm_any_fn)pn_set_state,
-  (jm_any_fn)pn_generate_max_out,
-  (jm_any_fn)pn_generate,
+    (jm_any_fn)pn_create,
+    (jm_any_fn)pn_destroy,
+    (jm_any_fn)pn_reset,
+    (jm_any_fn)pn_state_bytes,
+    (jm_any_fn)pn_get_state,
+    (jm_any_fn)pn_set_state,
+    (jm_any_fn)pn_generate_max_out,
+    (jm_any_fn)pn_generate,
 };

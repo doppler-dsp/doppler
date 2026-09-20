@@ -8,7 +8,7 @@
  */
 #include "gold/gold_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_gold[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,18 +17,18 @@ extern const jm_any_fn jm_bound_symbols_gold[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_gold[] = {
-  (jm_any_fn)gold_create,
-  (jm_any_fn)gold_destroy,
-  (jm_any_fn)gold_reset,
-  (jm_any_fn)gold_state_bytes,
-  (jm_any_fn)gold_get_state,
-  (jm_any_fn)gold_set_state,
-  (jm_any_fn)gold_generate_max_out,
-  (jm_any_fn)gold_generate,
+    (jm_any_fn)gold_create,
+    (jm_any_fn)gold_destroy,
+    (jm_any_fn)gold_reset,
+    (jm_any_fn)gold_state_bytes,
+    (jm_any_fn)gold_get_state,
+    (jm_any_fn)gold_set_state,
+    (jm_any_fn)gold_generate_max_out,
+    (jm_any_fn)gold_generate,
 };

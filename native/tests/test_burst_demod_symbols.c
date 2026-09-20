@@ -8,7 +8,7 @@
  */
 #include "burst_demod/burst_demod_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_burst_demod[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,16 +17,22 @@ extern const jm_any_fn jm_bound_symbols_burst_demod[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_burst_demod[] = {
-  (jm_any_fn)burst_demod_create,          (jm_any_fn)burst_demod_destroy,
-  (jm_any_fn)burst_demod_reset,           (jm_any_fn)burst_demod_set_preamble,
-  (jm_any_fn)burst_demod_set_sync,        (jm_any_fn)burst_demod_llrs,
-  (jm_any_fn)burst_demod_llrs_max_out,    (jm_any_fn)burst_demod_symbols,
-  (jm_any_fn)burst_demod_symbols_max_out, (jm_any_fn)burst_demod_set_prior,
-  (jm_any_fn)burst_demod_demod_max_out,   (jm_any_fn)burst_demod_demod,
+    (jm_any_fn)burst_demod_create,
+    (jm_any_fn)burst_demod_destroy,
+    (jm_any_fn)burst_demod_reset,
+    (jm_any_fn)burst_demod_set_preamble,
+    (jm_any_fn)burst_demod_set_sync,
+    (jm_any_fn)burst_demod_llrs,
+    (jm_any_fn)burst_demod_llrs_max_out,
+    (jm_any_fn)burst_demod_symbols,
+    (jm_any_fn)burst_demod_symbols_max_out,
+    (jm_any_fn)burst_demod_set_prior,
+    (jm_any_fn)burst_demod_demod_max_out,
+    (jm_any_fn)burst_demod_demod,
 };

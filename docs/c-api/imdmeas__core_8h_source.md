@@ -29,9 +29,9 @@ typedef struct {
     double beta;            /* auto-selected Kaiser shape (from DR target)   */
     size_t lobe_bins;       /* main-lobe half-width L, for power integration*/
     size_t spur_guard_bins; /* tone keep-out for the two-tone search (>= L) */
-    size_t n;               /* capture / frame length                      */
-    size_t nfft;            /* zero-padded transform length                */
-    double fs;              /* sample rate (Hz)                            */
+    size_t n;               
+    size_t nfft;            
+    double fs;              
 } imdmeas_state_t;
 
 imdmeas_state_t *imdmeas_create(size_t n, double fs, double full_scale,

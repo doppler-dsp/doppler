@@ -291,9 +291,9 @@ IMDMeasure_getprop_fs (IMDMeasureObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef IMDMeasure_getset[]
     = { { "n", (getter)IMDMeasure_getprop_n, NULL,
-          "Window / frame length (samples).\n", NULL },
+          "Capture / frame length, samples.\n", NULL },
         { "nfft", (getter)IMDMeasure_getprop_nfft, NULL,
-          "Zero-padded transform length.\n", NULL },
+          "Zero-padded transform length, bins.\n", NULL },
         { "fs", (getter)IMDMeasure_getprop_fs, NULL, "Sample rate, Hz.\n",
           NULL },
         { NULL } };

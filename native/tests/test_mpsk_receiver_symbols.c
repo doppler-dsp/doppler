@@ -8,7 +8,7 @@
  */
 #include "mpsk_receiver/mpsk_receiver_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_mpsk_receiver[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,45 +17,45 @@ extern const jm_any_fn jm_bound_symbols_mpsk_receiver[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_mpsk_receiver[] = {
-  (jm_any_fn)mpsk_receiver_create,
-  (jm_any_fn)mpsk_receiver_create_real,
-  (jm_any_fn)mpsk_receiver_get_agc_gain_db,
-  (jm_any_fn)mpsk_receiver_create_bpsk,
-  (jm_any_fn)mpsk_receiver_destroy,
-  (jm_any_fn)mpsk_receiver_reset,
-  (jm_any_fn)mpsk_receiver_steps_max_out,
-  (jm_any_fn)mpsk_receiver_steps,
-  (jm_any_fn)mpsk_receiver_bits_max_out,
-  (jm_any_fn)mpsk_receiver_bits,
-  (jm_any_fn)mpsk_receiver_steps_real_max_out,
-  (jm_any_fn)mpsk_receiver_steps_real,
-  (jm_any_fn)mpsk_receiver_bits_real_max_out,
-  (jm_any_fn)mpsk_receiver_bits_real,
-  (jm_any_fn)mpsk_receiver_get_norm_freq,
-  (jm_any_fn)mpsk_receiver_set_norm_freq,
-  (jm_any_fn)mpsk_receiver_get_lock,
-  (jm_any_fn)mpsk_receiver_get_locked,
-  (jm_any_fn)mpsk_receiver_get_lock_time,
-  (jm_any_fn)mpsk_receiver_set_telemetry,
-  (jm_any_fn)mpsk_receiver_get_timing_rate,
-  (jm_any_fn)mpsk_receiver_get_m,
-  (jm_any_fn)mpsk_receiver_get_sps,
-  (jm_any_fn)mpsk_receiver_get_m_out,
-  (jm_any_fn)mpsk_receiver_get_zeta,
-  (jm_any_fn)mpsk_receiver_get_bn_agc_ratio,
-  (jm_any_fn)mpsk_receiver_get_lock_thresh,
-  (jm_any_fn)mpsk_receiver_get_lock_drop_thresh,
-  (jm_any_fn)mpsk_receiver_get_sync_lock_thresh,
-  (jm_any_fn)mpsk_receiver_get_sync_lock_drop_thresh,
-  (jm_any_fn)mpsk_receiver_get_num_phases,
-  (jm_any_fn)mpsk_receiver_get_clipped,
-  (jm_any_fn)mpsk_receiver_state_bytes,
-  (jm_any_fn)mpsk_receiver_get_state,
-  (jm_any_fn)mpsk_receiver_set_state,
+    (jm_any_fn)mpsk_receiver_create,
+    (jm_any_fn)mpsk_receiver_create_real,
+    (jm_any_fn)mpsk_receiver_get_agc_gain_db,
+    (jm_any_fn)mpsk_receiver_create_bpsk,
+    (jm_any_fn)mpsk_receiver_destroy,
+    (jm_any_fn)mpsk_receiver_reset,
+    (jm_any_fn)mpsk_receiver_steps_max_out,
+    (jm_any_fn)mpsk_receiver_steps,
+    (jm_any_fn)mpsk_receiver_bits_max_out,
+    (jm_any_fn)mpsk_receiver_bits,
+    (jm_any_fn)mpsk_receiver_steps_real_max_out,
+    (jm_any_fn)mpsk_receiver_steps_real,
+    (jm_any_fn)mpsk_receiver_bits_real_max_out,
+    (jm_any_fn)mpsk_receiver_bits_real,
+    (jm_any_fn)mpsk_receiver_get_norm_freq,
+    (jm_any_fn)mpsk_receiver_set_norm_freq,
+    (jm_any_fn)mpsk_receiver_get_lock,
+    (jm_any_fn)mpsk_receiver_get_locked,
+    (jm_any_fn)mpsk_receiver_get_lock_time,
+    (jm_any_fn)mpsk_receiver_set_telemetry,
+    (jm_any_fn)mpsk_receiver_get_timing_rate,
+    (jm_any_fn)mpsk_receiver_get_m,
+    (jm_any_fn)mpsk_receiver_get_sps,
+    (jm_any_fn)mpsk_receiver_get_m_out,
+    (jm_any_fn)mpsk_receiver_get_zeta,
+    (jm_any_fn)mpsk_receiver_get_bn_agc_ratio,
+    (jm_any_fn)mpsk_receiver_get_lock_thresh,
+    (jm_any_fn)mpsk_receiver_get_lock_drop_thresh,
+    (jm_any_fn)mpsk_receiver_get_sync_lock_thresh,
+    (jm_any_fn)mpsk_receiver_get_sync_lock_drop_thresh,
+    (jm_any_fn)mpsk_receiver_get_num_phases,
+    (jm_any_fn)mpsk_receiver_get_clipped,
+    (jm_any_fn)mpsk_receiver_state_bytes,
+    (jm_any_fn)mpsk_receiver_get_state,
+    (jm_any_fn)mpsk_receiver_set_state,
 };

@@ -8,7 +8,7 @@
  */
 #include "dp_tlm/dp_tlm_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_dp_tlm[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,18 +17,26 @@ extern const jm_any_fn jm_bound_symbols_dp_tlm[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_dp_tlm[] = {
-  (jm_any_fn)dp_tlm_create,       (jm_any_fn)dp_tlm_destroy,
-  (jm_any_fn)dp_tlm_probe,        (jm_any_fn)dp_tlm_probe_id,
-  (jm_any_fn)dp_tlm_emit_checked, (jm_any_fn)dp_tlm_set_decim,
-  (jm_any_fn)dp_tlm_probe_name,   (jm_any_fn)dp_tlm_probe_count,
-  (jm_any_fn)dp_tlm_capacity,     (jm_any_fn)dp_tlm_probe_id_at,
-  (jm_any_fn)dp_tlm_avail,        (jm_any_fn)dp_tlm_stats,
-  (jm_any_fn)dp_tlm_read_max_out, (jm_any_fn)dp_tlm_read,
-  (jm_any_fn)dp_tlm_dropped,      (jm_any_fn)dp_tlm_emitted,
+    (jm_any_fn)dp_tlm_create,
+    (jm_any_fn)dp_tlm_destroy,
+    (jm_any_fn)dp_tlm_probe,
+    (jm_any_fn)dp_tlm_probe_id,
+    (jm_any_fn)dp_tlm_emit_checked,
+    (jm_any_fn)dp_tlm_set_decim,
+    (jm_any_fn)dp_tlm_probe_name,
+    (jm_any_fn)dp_tlm_probe_count,
+    (jm_any_fn)dp_tlm_capacity,
+    (jm_any_fn)dp_tlm_probe_id_at,
+    (jm_any_fn)dp_tlm_avail,
+    (jm_any_fn)dp_tlm_stats,
+    (jm_any_fn)dp_tlm_read_max_out,
+    (jm_any_fn)dp_tlm_read,
+    (jm_any_fn)dp_tlm_dropped,
+    (jm_any_fn)dp_tlm_emitted,
 };

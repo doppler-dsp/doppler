@@ -8,7 +8,7 @@
  */
 #include "nco/nco_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_nco[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,33 +17,33 @@ extern const jm_any_fn jm_bound_symbols_nco[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_nco[] = {
-  (jm_any_fn)nco_create,
-  (jm_any_fn)nco_destroy,
-  (jm_any_fn)nco_reset,
-  (jm_any_fn)nco_state_bytes,
-  (jm_any_fn)nco_get_state,
-  (jm_any_fn)nco_set_state,
-  (jm_any_fn)nco_get_norm_freq,
-  (jm_any_fn)nco_set_norm_freq,
-  (jm_any_fn)nco_get_phase,
-  (jm_any_fn)nco_set_phase,
-  (jm_any_fn)nco_get_phase_inc,
-  (jm_any_fn)nco_steps_u32_max_out,
-  (jm_any_fn)nco_steps_u32,
-  (jm_any_fn)nco_steps_u32_scaled_max_out,
-  (jm_any_fn)nco_steps_u32_scaled,
-  (jm_any_fn)nco_steps_u32_ovf_max_out,
-  (jm_any_fn)nco_steps_u32_ovf,
-  (jm_any_fn)nco_steps_u32_ctrl_max_out,
-  (jm_any_fn)nco_steps_u32_ctrl,
-  (jm_any_fn)nco_steps_u32_scaled_ctrl_max_out,
-  (jm_any_fn)nco_steps_u32_scaled_ctrl,
-  (jm_any_fn)nco_steps_u32_ovf_ctrl_max_out,
-  (jm_any_fn)nco_steps_u32_ovf_ctrl,
+    (jm_any_fn)nco_create,
+    (jm_any_fn)nco_destroy,
+    (jm_any_fn)nco_reset,
+    (jm_any_fn)nco_state_bytes,
+    (jm_any_fn)nco_get_state,
+    (jm_any_fn)nco_set_state,
+    (jm_any_fn)nco_get_norm_freq,
+    (jm_any_fn)nco_set_norm_freq,
+    (jm_any_fn)nco_get_phase,
+    (jm_any_fn)nco_set_phase,
+    (jm_any_fn)nco_get_phase_inc,
+    (jm_any_fn)nco_steps_u32_max_out,
+    (jm_any_fn)nco_steps_u32,
+    (jm_any_fn)nco_steps_u32_scaled_max_out,
+    (jm_any_fn)nco_steps_u32_scaled,
+    (jm_any_fn)nco_steps_u32_ovf_max_out,
+    (jm_any_fn)nco_steps_u32_ovf,
+    (jm_any_fn)nco_steps_u32_ctrl_max_out,
+    (jm_any_fn)nco_steps_u32_ctrl,
+    (jm_any_fn)nco_steps_u32_scaled_ctrl_max_out,
+    (jm_any_fn)nco_steps_u32_scaled_ctrl,
+    (jm_any_fn)nco_steps_u32_ovf_ctrl_max_out,
+    (jm_any_fn)nco_steps_u32_ovf_ctrl,
 };

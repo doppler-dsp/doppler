@@ -158,7 +158,12 @@ LINT_ruff-format = $(RUFF) format $(RUFF_PATHS)
 # So the exclusion is what makes the new signal mean something: with these
 # formatted, OUTDATED fires forever on a file nobody needs to act on, and a
 # real upstream change would arrive into a line already being ignored.
-C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|(^|/)jm_(bench|test)\.h$$|_ext\.c$$
+#
+# test_<obj>_symbols.c (jm 0.77.0) is the same case once more, and worse: jm
+# regenerates it on every apply and does NOT run c_format_command over it, so
+# formatting it here made all 84 STALE in `jm status --check` -- a drift gate
+# red on files nobody edited.
+C_EXCLUDE_RE = (^|/)(native/inc/|vendor/)|(^|/)jm_(bench|test)\.h$$|_ext\.c$$|_symbols\.c$$
 
 C_FILES = git ls-files '*.c' '*.h' | grep -Ev '$(C_EXCLUDE_RE)'
 

@@ -469,7 +469,10 @@ RateSync_getprop_clipped (RateSyncObject *self, void *Py_UNUSED (closure))
 
 static PyGetSetDef RateSync_getset[] = {
   { "bn", (getter)RateSync_getprop_bn, (setter)RateSync_setprop_bn,
-    "loop noise bandwidth (retained).\n", NULL },
+    "Timing-loop noise bandwidth, normalised to the symbol rate. Writing it "
+    "re-derives the loop gains at the damping already in use, exactly as "
+    "configure() does.\n",
+    NULL },
   { "timing_error", (getter)RateSync_getprop_timing_error, NULL,
     "Last normalised TED error — the loop stress.\n", NULL },
   { "rate", (getter)RateSync_getprop_rate, NULL,

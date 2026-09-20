@@ -8,7 +8,7 @@
  */
 #include "carrier_mpsk/carrier_mpsk_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_carrier_mpsk[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,28 +17,28 @@ extern const jm_any_fn jm_bound_symbols_carrier_mpsk[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_carrier_mpsk[] = {
-  (jm_any_fn)carrier_mpsk_create,
-  (jm_any_fn)carrier_mpsk_destroy,
-  (jm_any_fn)carrier_mpsk_reset,
-  (jm_any_fn)carrier_mpsk_state_bytes,
-  (jm_any_fn)carrier_mpsk_get_state,
-  (jm_any_fn)carrier_mpsk_set_state,
-  (jm_any_fn)carrier_mpsk_steps_max_out,
-  (jm_any_fn)carrier_mpsk_steps,
-  (jm_any_fn)carrier_mpsk_configure,
-  (jm_any_fn)carrier_mpsk_get_bn,
-  (jm_any_fn)carrier_mpsk_set_bn,
-  (jm_any_fn)carrier_mpsk_get_norm_freq,
-  (jm_any_fn)carrier_mpsk_set_norm_freq,
-  (jm_any_fn)carrier_mpsk_get_lock_metric,
-  (jm_any_fn)carrier_mpsk_get_last_error,
-  (jm_any_fn)carrier_mpsk_get_bn_fll,
-  (jm_any_fn)carrier_mpsk_set_bn_fll,
-  (jm_any_fn)carrier_mpsk_get_m,
+    (jm_any_fn)carrier_mpsk_create,
+    (jm_any_fn)carrier_mpsk_destroy,
+    (jm_any_fn)carrier_mpsk_reset,
+    (jm_any_fn)carrier_mpsk_state_bytes,
+    (jm_any_fn)carrier_mpsk_get_state,
+    (jm_any_fn)carrier_mpsk_set_state,
+    (jm_any_fn)carrier_mpsk_steps_max_out,
+    (jm_any_fn)carrier_mpsk_steps,
+    (jm_any_fn)carrier_mpsk_configure,
+    (jm_any_fn)carrier_mpsk_get_bn,
+    (jm_any_fn)carrier_mpsk_set_bn,
+    (jm_any_fn)carrier_mpsk_get_norm_freq,
+    (jm_any_fn)carrier_mpsk_set_norm_freq,
+    (jm_any_fn)carrier_mpsk_get_lock_metric,
+    (jm_any_fn)carrier_mpsk_get_last_error,
+    (jm_any_fn)carrier_mpsk_get_bn_fll,
+    (jm_any_fn)carrier_mpsk_set_bn_fll,
+    (jm_any_fn)carrier_mpsk_get_m,
 };

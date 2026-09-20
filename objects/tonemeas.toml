@@ -198,8 +198,10 @@ expr = "self->handle->enbw * self->handle->fs / (double)self->handle->n"
 name = "bin_hz"
 type = "double"
 expr = "self->handle->fs / (double)self->handle->nfft"
+doc = "FFT bin spacing, fs/nfft (Hz)."
 
 [[tonemeas.properties]]
 name = "proc_gain_db"
 type = "double"
 expr = "10.0 * log10((double)self->handle->nfft / 2.0)"
+doc = "FFT processing gain, 10*log10(nfft/2) (dB)."

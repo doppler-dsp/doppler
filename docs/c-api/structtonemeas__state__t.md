@@ -138,6 +138,11 @@ double tonemeas_state_t::enbw;
 
 
 
+Window equivalent noise bandwidth, bins. 
+ 
+
+
+        
 
 <hr>
 
@@ -164,6 +169,11 @@ double tonemeas_state_t::fs;
 
 
 
+Sample rate, Hz. 
+ 
+
+
+        
 
 <hr>
 
@@ -177,6 +187,11 @@ size_t tonemeas_state_t::lobe_bins;
 
 
 
+Window main-lobe half-width L, bins. 
+ 
+
+
+        
 
 <hr>
 
@@ -190,6 +205,11 @@ size_t tonemeas_state_t::n;
 
 
 
+Capture / frame length, samples. 
+ 
+
+
+        
 
 <hr>
 
@@ -216,6 +236,11 @@ size_t tonemeas_state_t::nfft;
 
 
 
+Zero-padded transform length, bins. 
+ 
+
+
+        
 
 <hr>
 

@@ -757,6 +757,9 @@ extern "C"
    * @endcode
    */
   void   ratesync_configure (ratesync_state_t *state, double bn, double zeta);
+  /** @brief Timing-loop noise bandwidth, normalised to the symbol rate.
+   *  Writing it re-derives the loop gains at the damping already in use,
+   *  exactly as configure() does. */
   double ratesync_get_bn (const ratesync_state_t *state);
   void   ratesync_set_bn (ratesync_state_t *state, double val);
 

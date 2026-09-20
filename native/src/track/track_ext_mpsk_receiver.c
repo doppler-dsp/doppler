@@ -708,7 +708,10 @@ static PyGetSetDef MpskReceiver_getset[] = {
     "rate: the create-time centre plus the loop's own estimate.\n",
     NULL },
   { "lock", (getter)MpskReceiver_getprop_lock, NULL,
-    "EMA of the carrier lock signal.\n", NULL },
+    "The raw carrier lock statistic: the EMA of the M-th-power NDA lock "
+    "signal, near 1 when locked and near 0 on noise. It chatters at the "
+    "threshold; `locked` is the de-chattered decision made on it.\n",
+    NULL },
   { "zeta", (getter)MpskReceiver_getprop_zeta, NULL,
     "Loop damping actually in use. Reads back the DERIVED `1/sqrt(2)` when "
     "the constructor was given 0, or whatever was pinned instead. Everything "
@@ -774,9 +777,11 @@ static PyGetSetDef MpskReceiver_getset[] = {
     "exactly the sample-clock offset the timing loop is tracking.\n",
     NULL },
   { "m", (getter)MpskReceiver_getprop_m, NULL,
-    "constellation order M (2, 4, 8).\n", NULL },
+    "Constellation order M (2, 4 or 8), as constructed.\n", NULL },
   { "sps", (getter)MpskReceiver_getprop_sps, NULL,
-    "samples per symbol at the receiver's input.\n", NULL },
+    "Nominal samples per symbol at the receiver's input, as constructed; "
+    "`timing_rate` is the tracked value.\n",
+    NULL },
   { "m_out", (getter)MpskReceiver_getprop_m_out, NULL,
     "Terminal outputs per symbol (the old `n`, now the cascade's).\n", NULL },
   { "clipped", (getter)MpskReceiver_getprop_clipped, NULL,

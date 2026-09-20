@@ -602,11 +602,16 @@ class Despreader:
 
     @property
     def code_rate(self) -> float:
-        """Code rate."""
+        """Chips the embedded DLL advances per nominal chip: ~1.0, and its
+        departure from 1 is the code-rate (clock) offset being tracked.
+        """
 
     @property
     def lock_metric(self) -> float:
-        """Lock metric."""
+        """The embedded Costas loop's lock statistic: the EMA of |Re P|/|P|
+        over the prompt correlations, 1 when locked. `carrier_locked` is the
+        de-chattered decision made on it.
+        """
 
     @property
     def carrier_locked(self) -> bool:
@@ -5568,7 +5573,10 @@ class AsyncDsssReceiver:
 
     @property
     def lock(self) -> float:
-        """Lock."""
+        """The carrier lock statistic of the MpskReceiver this receiver tracks
+        with: the EMA of its M-th-power lock signal, near 1 when locked and
+        near 0 on noise. 0 until a track chain exists.
+        """
 
     @property
     def norm_freq(self) -> float:
@@ -6184,19 +6192,22 @@ class CellAsyncDsssReceiver:
 
     @property
     def cn0_dbhz_est(self) -> float:
-        """Cn0 dbhz est."""
+        """Cached from the winning acquisition hit."""
 
     @property
     def segments(self) -> int:
-        """Segments."""
+        """Live-tracking Dll's own segments -- distinct from refine_segments
+        above (see the module docstring / dll_lookback_segments()'s own doc on
+        the WINDOWS vs TRACK_WINDOWS split).
+        """
 
     @property
     def sps(self) -> int:
-        """Sps."""
+        """MpskReceiver's own samples/symbol."""
 
     @property
     def n(self) -> int:
-        """N."""
+        """MpskReceiver's own carrier-arm count."""
 
     @property
     def chip_phase(self) -> float:
@@ -6212,7 +6223,10 @@ class CellAsyncDsssReceiver:
 
     @property
     def lock(self) -> float:
-        """Lock."""
+        """The carrier lock statistic of the MpskReceiver this receiver tracks
+        with: the EMA of its M-th-power lock signal, near 1 when locked and
+        near 0 on noise. 0 until a track chain exists.
+        """
 
     @property
     def norm_freq(self) -> float:
@@ -7317,7 +7331,9 @@ class DsssBurstReceiver:
 
     @property
     def dropped(self) -> int:
-        """Dropped."""
+        """Samples the capture ring refused. Each is a LOST BURST, not a
+        statistic -- a lifetime count that survives reset().
+        """
 
     @property
     def n_bursts(self) -> int:

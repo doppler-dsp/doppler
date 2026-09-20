@@ -127,6 +127,11 @@ double nprmeas_state_t::fs;
 
 
 
+Sample rate, Hz. 
+ 
+
+
+        
 
 <hr>
 
@@ -140,6 +145,11 @@ size_t nprmeas_state_t::n;
 
 
 
+Capture / frame length, samples. 
+ 
+
+
+        
 
 <hr>
 
@@ -153,6 +163,11 @@ size_t nprmeas_state_t::nfft;
 
 
 
+Zero-padded transform length, bins. 
+ 
+
+
+        
 
 <hr>
 

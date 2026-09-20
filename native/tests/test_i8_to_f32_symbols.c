@@ -8,7 +8,7 @@
  */
 #include "i8_to_f32/i8_to_f32_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_i8_to_f32[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,14 +17,14 @@ extern const jm_any_fn jm_bound_symbols_i8_to_f32[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_i8_to_f32[] = {
-  (jm_any_fn)i8_to_f32_create,
-  (jm_any_fn)i8_to_f32_destroy,
-  (jm_any_fn)i8_to_f32_reset,
-  (jm_any_fn)i8_to_f32_steps,
+    (jm_any_fn)i8_to_f32_create,
+    (jm_any_fn)i8_to_f32_destroy,
+    (jm_any_fn)i8_to_f32_reset,
+    (jm_any_fn)i8_to_f32_steps,
 };

@@ -8,7 +8,7 @@
  */
 #include "wfm_synth/wfm_synth_core.h"
 
-typedef void (*jm_any_fn) (void);
+typedef void (*jm_any_fn)(void);
 
 extern const jm_any_fn jm_bound_symbols_wfm_synth[];
 /* `used` keeps the compiler from dropping the table; `retain` keeps
@@ -17,22 +17,34 @@ extern const jm_any_fn jm_bound_symbols_wfm_synth[];
  * Mach-O, `used` alone already marks it no-dead-strip. */
 #if defined(__has_attribute)
 #if __has_attribute(retain)
-__attribute__ ((used, retain))
+__attribute__((used, retain))
 #elif __has_attribute(used)
-__attribute__ ((used))
+__attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_wfm_synth[] = {
-  (jm_any_fn)wfm_synth_create,        (jm_any_fn)wfm_synth_set_chirp_span,
-  (jm_any_fn)wfm_synth_set_bits,      (jm_any_fn)wfm_synth_set_dsss,
-  (jm_any_fn)wfm_synth_set_dsss_cont, (jm_any_fn)wfm_synth_set_dsss_window,
-  (jm_any_fn)wfm_synth_set_symbols,   (jm_any_fn)wfm_synth_set_rrc,
-  (jm_any_fn)wfm_synth_destroy,       (jm_any_fn)wfm_synth_reset,
-  (jm_any_fn)wfm_synth_steps,         (jm_any_fn)wfm_synth_get_wtype,
-  (jm_any_fn)wfm_synth_set_wtype,     (jm_any_fn)wfm_synth_get_nsps,
-  (jm_any_fn)wfm_synth_set_nsps,      (jm_any_fn)wfm_synth_get_sym_pos,
-  (jm_any_fn)wfm_synth_set_sym_pos,   (jm_any_fn)wfm_synth_get_cur_re,
-  (jm_any_fn)wfm_synth_set_cur_re,    (jm_any_fn)wfm_synth_get_cur_im,
-  (jm_any_fn)wfm_synth_set_cur_im,    (jm_any_fn)wfm_synth_state_bytes,
-  (jm_any_fn)wfm_synth_get_state,     (jm_any_fn)wfm_synth_set_state,
+    (jm_any_fn)wfm_synth_create,
+    (jm_any_fn)wfm_synth_set_chirp_span,
+    (jm_any_fn)wfm_synth_set_bits,
+    (jm_any_fn)wfm_synth_set_dsss,
+    (jm_any_fn)wfm_synth_set_dsss_cont,
+    (jm_any_fn)wfm_synth_set_dsss_window,
+    (jm_any_fn)wfm_synth_set_symbols,
+    (jm_any_fn)wfm_synth_set_rrc,
+    (jm_any_fn)wfm_synth_destroy,
+    (jm_any_fn)wfm_synth_reset,
+    (jm_any_fn)wfm_synth_steps,
+    (jm_any_fn)wfm_synth_get_wtype,
+    (jm_any_fn)wfm_synth_set_wtype,
+    (jm_any_fn)wfm_synth_get_nsps,
+    (jm_any_fn)wfm_synth_set_nsps,
+    (jm_any_fn)wfm_synth_get_sym_pos,
+    (jm_any_fn)wfm_synth_set_sym_pos,
+    (jm_any_fn)wfm_synth_get_cur_re,
+    (jm_any_fn)wfm_synth_set_cur_re,
+    (jm_any_fn)wfm_synth_get_cur_im,
+    (jm_any_fn)wfm_synth_set_cur_im,
+    (jm_any_fn)wfm_synth_state_bytes,
+    (jm_any_fn)wfm_synth_get_state,
+    (jm_any_fn)wfm_synth_set_state,
 };

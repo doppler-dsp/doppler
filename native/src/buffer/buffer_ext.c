@@ -30,6 +30,137 @@
 #include "dp_interrupt_pyadopt.h"
 
 /* =====================================================================
+ * The faces all three widths share, written ONCE.
+ *
+ * This file is three hand-written blocks that are ~99% identical, and the
+ * 1% is where doppler#1346 came from (i16 grew a different rank). So what
+ * is added for the ring's non-blocking surface is stamped from one body
+ * per width rather than pasted three times -- and wait()'s give-up logic,
+ * which WAS pasted three times, moves onto dp_*_wait_status(), the one
+ * owner of that precedence in C.
+ *
+ * It all goes away when the binding is generated (doppler#1358); until
+ * then this is the smallest thing that cannot drift.
+ *
+ *   CLS    Python class / C prefix          F32Buffer
+ *   NAME   ring instantiation               f32
+ *   CTYPE  the ring's scalar type           float
+ *   NPYT   numpy type of a returned view    NPY_COMPLEX64
+ *   NDIM   rank of a returned view          1   (2 for i16: shape (n, 2))
+ * ===================================================================== */
+#define DP_RING_PY_FACES(CLS, NAME, CTYPE, NPYT, NDIM)                        \
+                                                                              \
+  /* Why wait()/peek() came back NULL, as the exception it means. Called     \
+     with the GIL held. PENDING is peek()'s ordinary "not yet" and is the    \
+     caller's to turn into None; it cannot reach wait(), which would still   \
+     be spinning. */                                                         \
+  static PyObject *CLS##_raise_status_ (CLS##Object *self, Py_ssize_t n)     \
+  {                                                                           \
+    switch (dp_##NAME##_wait_status (self->buf, (size_t)n))                   \
+      {                                                                       \
+      case DP_WAIT_TOO_LARGE:                                                 \
+        /* A caller bug, not a state: no producer can ever make it true.     \
+           Said plainly, because reporting it as end of stream would send    \
+           the caller to look at the producer (doppler#1335). */             \
+        PyErr_Format (PyExc_ValueError,                                       \
+                      "wait(%zd) can never be satisfied: the ring holds %zu", \
+                      n, (size_t)self->buf->capacity);                        \
+        return NULL;                                                          \
+      case DP_WAIT_CLOSED:                                                    \
+        PyErr_SetString (PyExc_EOFError,                                      \
+                         "end of stream: the producer closed the ring");     \
+        return NULL;                                                          \
+      default:                                                                \
+        /* Interrupted. CPython may already have raised; do not raise a      \
+           second. */                                                        \
+        if (PyErr_CheckSignals () != 0)                                       \
+          return NULL;                                                        \
+        PyErr_SetString (PyExc_KeyboardInterrupt, "interrupted");             \
+        return NULL;                                                          \
+      }                                                                       \
+  }                                                                           \
+                                                                              \
+  /* A zero-copy view of n samples at the read head, kept alive by `self`. */\
+  static PyObject *CLS##_view_ (CLS##Object *self, CTYPE *ptr, Py_ssize_t n) \
+  {                                                                           \
+    npy_intp  dims[2] = { n, 2 };                                             \
+    PyObject *arr                                                             \
+        = PyArray_SimpleNewFromData ((NDIM), dims, (NPYT), (void *)ptr);      \
+    if (!arr)                                                                 \
+      return NULL;                                                            \
+    PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);           \
+    Py_INCREF (self);                                                         \
+    self->wait_n = n;                                                         \
+    return arr;                                                               \
+  }                                                                           \
+                                                                              \
+  /* peek(n) -> view | None. wait() that never blocks, so it needs no GIL    \
+     release: it returns at once. */                                         \
+  static PyObject *CLS##_peek (CLS##Object *self, PyObject *args)            \
+  {                                                                           \
+    Py_ssize_t n;                                                             \
+    if (!PyArg_ParseTuple (args, "n", &n))                                    \
+      return NULL;                                                            \
+    if (n <= 0)                                                               \
+      {                                                                       \
+        PyErr_SetString (PyExc_ValueError, "n must be positive");             \
+        return NULL;                                                          \
+      }                                                                       \
+    CTYPE *ptr = dp_##NAME##_peek (self->buf, (size_t)n);                     \
+    if (ptr)                                                                  \
+      return CLS##_view_ (self, ptr, n);                                      \
+    if (dp_##NAME##_wait_status (self->buf, (size_t)n) == DP_WAIT_PENDING)    \
+      Py_RETURN_NONE; /* not yet -- the ordinary answer */                    \
+    return CLS##_raise_status_ (self, n);                                     \
+  }                                                                           \
+                                                                              \
+  /* write_some(arr) -> int. Takes what fits and says how much. */           \
+  static PyObject *CLS##_write_some (CLS##Object *self, PyObject *args)      \
+  {                                                                           \
+    const CTYPE *src;                                                         \
+    size_t       n;                                                           \
+    if (!CLS##_src_ (args, "write_some", &src, &n))                           \
+      return NULL;                                                            \
+    return PyLong_FromSize_t (dp_##NAME##_write_some (self->buf, src, n));    \
+  }                                                                           \
+                                                                              \
+  static PyObject *CLS##_reset (CLS##Object *self,                           \
+                                PyObject    *Py_UNUSED (ignored))            \
+  {                                                                           \
+    dp_##NAME##_reset (self->buf);                                            \
+    self->wait_n = 0;                                                         \
+    Py_RETURN_NONE;                                                           \
+  }                                                                           \
+                                                                              \
+  static PyObject *CLS##_space (CLS##Object *self, void *Py_UNUSED (closure))\
+  {                                                                           \
+    return PyLong_FromSize_t (dp_##NAME##_space (self->buf));                 \
+  }
+
+#define DP_RING_PY_METHODS(CLS)                                               \
+  { "peek", (PyCFunction)CLS##_peek, METH_VARARGS,                            \
+    "peek(n) -> ndarray | None\n\n"                                           \
+    "wait() that never blocks: a zero-copy view of n samples if they are\n"  \
+    "there, else None. For a single-threaded user, where wait() would\n"     \
+    "deadlock. Does not consume -- call consume(k); k < n reads overlapped\n"\
+    "frames. Raises EOFError on a closed ring with fewer than n left, and\n" \
+    "ValueError if n exceeds the capacity." },                                \
+  { "write_some", (PyCFunction)CLS##_write_some, METH_VARARGS,                \
+    "write_some(arr) -> int\n\n"                                              \
+    "Write as much of arr as fits and return how many samples that was\n"    \
+    "(0 when full). Unlike write() it never refuses and never counts a\n"    \
+    "drop, so a chunk larger than the ring is fed by looping." },             \
+  { "reset", (PyCFunction)CLS##_reset, METH_NOARGS,                           \
+    "reset()\n\n"                                                             \
+    "Empty the ring and reopen it (closed becomes False). dropped is a\n"    \
+    "lifetime count and is kept. Not safe against a concurrent thread." }
+
+#define DP_RING_PY_GETSET(CLS)                                                \
+  { "space", (getter)CLS##_space, NULL,                                       \
+    "Free room in samples: the largest write() guaranteed to be accepted.",  \
+    NULL }
+
+/* =====================================================================
  * F32Buffer  (float _Complex / complex64)
  * ===================================================================== */
 
@@ -84,30 +215,41 @@ F32Buffer_dealloc (F32BufferObject *self)
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
-static PyObject *
-F32Buffer_write (F32BufferObject *self, PyObject *args)
+/* One validation for every method that takes samples IN, so write() and
+   write_some() cannot disagree about what an acceptable array is. */
+static int
+F32Buffer_src_ (PyObject *args, const char *who, const float **src, size_t *n)
 {
   PyArrayObject *arr;
   if (!PyArg_ParseTuple (args, "O!", &PyArray_Type, &arr))
-    return NULL;
-
+    return 0;
   if (PyArray_TYPE (arr) != NPY_COMPLEX64)
     {
-      PyErr_SetString (PyExc_TypeError,
-                       "F32Buffer.write() requires a complex64 array");
-      return NULL;
+      PyErr_Format (PyExc_TypeError, "F32Buffer.%s() requires a complex64 array",
+                    who);
+      return 0;
     }
   if (PyArray_NDIM (arr) != 1 || !PyArray_IS_C_CONTIGUOUS (arr))
     {
-      PyErr_SetString (PyExc_ValueError,
-                       "F32Buffer.write() requires a contiguous 1-D array");
-      return NULL;
+      PyErr_Format (PyExc_ValueError,
+                    "F32Buffer.%s() requires a contiguous 1-D array", who);
+      return 0;
     }
+  *src = (const float *)PyArray_DATA (arr);
+  *n   = (size_t)PyArray_SIZE (arr);
+  return 1;
+}
 
-  npy_intp n = PyArray_SIZE (arr);
-  bool     ok
-      = dp_f32_write (self->buf, (const float *)PyArray_DATA (arr), (size_t)n);
-  return PyBool_FromLong (ok ? 1 : 0);
+DP_RING_PY_FACES (F32Buffer, f32, float, NPY_COMPLEX64, 1)
+
+static PyObject *
+F32Buffer_write (F32BufferObject *self, PyObject *args)
+{
+  const float *src;
+  size_t n;
+  if (!F32Buffer_src_ (args, "write", &src, &n))
+    return NULL;
+  return PyBool_FromLong (dp_f32_write (self->buf, src, n) ? 1 : 0);
 }
 
 /* wait() releases the GIL so a producer thread can write concurrently. */
@@ -122,52 +264,15 @@ F32Buffer_wait (F32BufferObject *self, PyObject *args)
       PyErr_SetString (PyExc_ValueError, "n must be positive");
       return NULL;
     }
-  /* Unsatisfiable by construction: the ring holds at most `capacity`, so no
-     producer can ever supply n. Raised here rather than left to the C
-     wait's NULL, which the block below would report as end-of-stream --
-     a lie, and the caller would go looking at the producer (doppler#1335). */
-  if ((size_t)n > self->buf->capacity)
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "wait(%zd) can never be satisfied: the ring holds %zu",
-                    (Py_ssize_t)n, (size_t)self->buf->capacity);
-      return NULL;
-    }
-
   float *ptr;
   Py_BEGIN_ALLOW_THREADS
     ptr = dp_f32_wait (self->buf, (size_t)n);
   Py_END_ALLOW_THREADS
 
   if (!ptr)
-    {
-      /* wait() gives up at end of stream or on an interrupt, and the two
-         are told apart by asking which happened. Building an array over
-         NULL would be the alternative, so this guard is load-bearing
-         rather than defensive. */
-      if (dp_f32_closed (self->buf))
-        {
-          PyErr_SetString (PyExc_EOFError,
-                           "end of stream: the producer closed the ring");
-          return NULL;
-        }
-      if (PyErr_CheckSignals () != 0)
-        return NULL; /* CPython raised it; do not raise a second */
-      PyErr_SetString (PyExc_KeyboardInterrupt, "interrupted");
-      return NULL;
-    }
+    return F32Buffer_raise_status_ (self, n); /* one owner: dp_*_wait_status */
 
-  /* Reinterpret float* IQ pairs as complex64 */
-  npy_intp  dims[1] = { n };
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, dims, NPY_COMPLEX64, (void *)ptr);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-
-  self->wait_n = n;
-  return arr;
+  return F32Buffer_view_ (self, ptr, n);
 }
 
 static PyObject *
@@ -226,6 +331,7 @@ F32Buffer_closed (F32BufferObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef F32Buffer_getset[] = {
+  DP_RING_PY_GETSET (F32Buffer),
   { "closed", (getter)F32Buffer_closed, NULL,
     "True once the producer has called close(): no more data is coming.",
     NULL },
@@ -244,6 +350,7 @@ static PyGetSetDef F32Buffer_getset[] = {
 };
 
 static PyMethodDef F32Buffer_methods[] = {
+  DP_RING_PY_METHODS (F32Buffer),
   { "write", (PyCFunction)F32Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (complex64). Returns True\n"
     "if every sample was written, False if the ring had no room for all of\n"
@@ -364,30 +471,41 @@ F64Buffer_dealloc (F64BufferObject *self)
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
-static PyObject *
-F64Buffer_write (F64BufferObject *self, PyObject *args)
+/* One validation for every method that takes samples IN, so write() and
+   write_some() cannot disagree about what an acceptable array is. */
+static int
+F64Buffer_src_ (PyObject *args, const char *who, const double **src, size_t *n)
 {
   PyArrayObject *arr;
   if (!PyArg_ParseTuple (args, "O!", &PyArray_Type, &arr))
-    return NULL;
-
+    return 0;
   if (PyArray_TYPE (arr) != NPY_COMPLEX128)
     {
-      PyErr_SetString (PyExc_TypeError,
-                       "F64Buffer.write() requires a complex128 array");
-      return NULL;
+      PyErr_Format (PyExc_TypeError, "F64Buffer.%s() requires a complex128 array",
+                    who);
+      return 0;
     }
   if (PyArray_NDIM (arr) != 1 || !PyArray_IS_C_CONTIGUOUS (arr))
     {
-      PyErr_SetString (PyExc_ValueError,
-                       "F64Buffer.write() requires a contiguous 1-D array");
-      return NULL;
+      PyErr_Format (PyExc_ValueError,
+                    "F64Buffer.%s() requires a contiguous 1-D array", who);
+      return 0;
     }
+  *src = (const double *)PyArray_DATA (arr);
+  *n   = (size_t)PyArray_SIZE (arr);
+  return 1;
+}
 
-  npy_intp n  = PyArray_SIZE (arr);
-  bool     ok = dp_f64_write (self->buf, (const double *)PyArray_DATA (arr),
-                              (size_t)n);
-  return PyBool_FromLong (ok ? 1 : 0);
+DP_RING_PY_FACES (F64Buffer, f64, double, NPY_COMPLEX128, 1)
+
+static PyObject *
+F64Buffer_write (F64BufferObject *self, PyObject *args)
+{
+  const double *src;
+  size_t n;
+  if (!F64Buffer_src_ (args, "write", &src, &n))
+    return NULL;
+  return PyBool_FromLong (dp_f64_write (self->buf, src, n) ? 1 : 0);
 }
 
 static PyObject *
@@ -401,51 +519,15 @@ F64Buffer_wait (F64BufferObject *self, PyObject *args)
       PyErr_SetString (PyExc_ValueError, "n must be positive");
       return NULL;
     }
-  /* Unsatisfiable by construction: the ring holds at most `capacity`, so no
-     producer can ever supply n. Raised here rather than left to the C
-     wait's NULL, which the block below would report as end-of-stream --
-     a lie, and the caller would go looking at the producer (doppler#1335). */
-  if ((size_t)n > self->buf->capacity)
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "wait(%zd) can never be satisfied: the ring holds %zu",
-                    (Py_ssize_t)n, (size_t)self->buf->capacity);
-      return NULL;
-    }
-
   double *ptr;
   Py_BEGIN_ALLOW_THREADS
     ptr = dp_f64_wait (self->buf, (size_t)n);
   Py_END_ALLOW_THREADS
 
   if (!ptr)
-    {
-      /* wait() gives up at end of stream or on an interrupt, and the two
-         are told apart by asking which happened. Building an array over
-         NULL would be the alternative, so this guard is load-bearing
-         rather than defensive. */
-      if (dp_f64_closed (self->buf))
-        {
-          PyErr_SetString (PyExc_EOFError,
-                           "end of stream: the producer closed the ring");
-          return NULL;
-        }
-      if (PyErr_CheckSignals () != 0)
-        return NULL; /* CPython raised it; do not raise a second */
-      PyErr_SetString (PyExc_KeyboardInterrupt, "interrupted");
-      return NULL;
-    }
+    return F64Buffer_raise_status_ (self, n); /* one owner: dp_*_wait_status */
 
-  npy_intp  dims[1] = { n };
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, dims, NPY_COMPLEX128, (void *)ptr);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-
-  self->wait_n = n;
-  return arr;
+  return F64Buffer_view_ (self, ptr, n);
 }
 
 static PyObject *
@@ -504,6 +586,7 @@ F64Buffer_closed (F64BufferObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef F64Buffer_getset[] = {
+  DP_RING_PY_GETSET (F64Buffer),
   { "closed", (getter)F64Buffer_closed, NULL,
     "True once the producer has called close(): no more data is coming.",
     NULL },
@@ -522,6 +605,7 @@ static PyGetSetDef F64Buffer_getset[] = {
 };
 
 static PyMethodDef F64Buffer_methods[] = {
+  DP_RING_PY_METHODS (F64Buffer),
   { "write", (PyCFunction)F64Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (complex128). Returns True\n"
     "if every sample was written, False if the call was REFUSED for want of\n"
@@ -644,39 +728,48 @@ I16Buffer_dealloc (I16BufferObject *self)
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
-static PyObject *
-I16Buffer_write (I16BufferObject *self, PyObject *args)
+/* One validation for every method that takes samples IN, so write() and
+   write_some() cannot disagree about what an acceptable array is. */
+static int
+I16Buffer_src_ (PyObject *args, const char *who, const int16_t **src, size_t *n)
 {
   PyArrayObject *arr;
   if (!PyArg_ParseTuple (args, "O!", &PyArray_Type, &arr))
-    return NULL;
-
+    return 0;
   if (PyArray_TYPE (arr) != NPY_INT16)
     {
-      PyErr_SetString (PyExc_TypeError,
-                       "I16Buffer.write() requires an int16 array");
-      return NULL;
+      PyErr_Format (PyExc_TypeError, "I16Buffer.%s() requires an int16 array",
+                    who);
+      return 0;
     }
   if (!PyArray_IS_C_CONTIGUOUS (arr))
     {
-      PyErr_SetString (PyExc_ValueError,
-                       "I16Buffer.write() requires a C-contiguous array");
-      return NULL;
+      PyErr_Format (PyExc_ValueError,
+                    "I16Buffer.%s() requires a C-contiguous array", who);
+      return 0;
     }
-
   npy_intp total = PyArray_SIZE (arr);
   if (total % 2 != 0)
     {
-      PyErr_SetString (
-          PyExc_ValueError,
-          "I16Buffer.write(): array size must be even (I/Q pairs)");
-      return NULL;
+      PyErr_Format (PyExc_ValueError,
+                    "I16Buffer.%s(): array size must be even (I/Q pairs)", who);
+      return 0;
     }
-  npy_intp n_samples = total / 2;
+  *src = (const int16_t *)PyArray_DATA (arr);
+  *n   = (size_t)(total / 2);
+  return 1;
+}
 
-  bool ok = dp_i16_write (self->buf, (const int16_t *)PyArray_DATA (arr),
-                          (size_t)n_samples);
-  return PyBool_FromLong (ok ? 1 : 0);
+DP_RING_PY_FACES (I16Buffer, i16, int16_t, NPY_INT16, 2)
+
+static PyObject *
+I16Buffer_write (I16BufferObject *self, PyObject *args)
+{
+  const int16_t *src;
+  size_t n;
+  if (!I16Buffer_src_ (args, "write", &src, &n))
+    return NULL;
+  return PyBool_FromLong (dp_i16_write (self->buf, src, n) ? 1 : 0);
 }
 
 static PyObject *
@@ -690,51 +783,16 @@ I16Buffer_wait (I16BufferObject *self, PyObject *args)
       PyErr_SetString (PyExc_ValueError, "n must be positive");
       return NULL;
     }
-  /* Unsatisfiable by construction: the ring holds at most `capacity`, so no
-     producer can ever supply n. Raised here rather than left to the C
-     wait's NULL, which the block below would report as end-of-stream --
-     a lie, and the caller would go looking at the producer (doppler#1335). */
-  if ((size_t)n > self->buf->capacity)
-    {
-      PyErr_Format (PyExc_ValueError,
-                    "wait(%zd) can never be satisfied: the ring holds %zu",
-                    (Py_ssize_t)n, (size_t)self->buf->capacity);
-      return NULL;
-    }
-
   int16_t *ptr;
   Py_BEGIN_ALLOW_THREADS
     ptr = dp_i16_wait (self->buf, (size_t)n);
   Py_END_ALLOW_THREADS
 
   if (!ptr)
-    {
-      /* wait() gives up at end of stream or on an interrupt, and the two
-         are told apart by asking which happened. Building an array over
-         NULL would be the alternative, so this guard is load-bearing
-         rather than defensive. */
-      if (dp_i16_closed (self->buf))
-        {
-          PyErr_SetString (PyExc_EOFError,
-                           "end of stream: the producer closed the ring");
-          return NULL;
-        }
-      if (PyErr_CheckSignals () != 0)
-        return NULL; /* CPython raised it; do not raise a second */
-      PyErr_SetString (PyExc_KeyboardInterrupt, "interrupted");
-      return NULL;
-    }
+    return I16Buffer_raise_status_ (self, n); /* one owner: dp_*_wait_status */
 
   /* Shape (n, 2) int16: column 0 = I, column 1 = Q */
-  npy_intp  dims[2] = { n, 2 };
-  PyObject *arr = PyArray_SimpleNewFromData (2, dims, NPY_INT16, (void *)ptr);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-
-  self->wait_n = n;
-  return arr;
+  return I16Buffer_view_ (self, ptr, n);
 }
 
 static PyObject *
@@ -793,6 +851,7 @@ I16Buffer_closed (I16BufferObject *self, void *Py_UNUSED (closure))
 }
 
 static PyGetSetDef I16Buffer_getset[] = {
+  DP_RING_PY_GETSET (I16Buffer),
   { "closed", (getter)I16Buffer_closed, NULL,
     "True once the producer has called close(): no more data is coming.",
     NULL },
@@ -811,6 +870,7 @@ static PyGetSetDef I16Buffer_getset[] = {
 };
 
 static PyMethodDef I16Buffer_methods[] = {
+  DP_RING_PY_METHODS (I16Buffer),
   { "write", (PyCFunction)I16Buffer_write, METH_VARARGS,
     "write(arr) -> bool\n\nNon-blocking write (int16, shape (n,2) or\n"
     "(2n,)). Returns True if every pair was written, False if the call was\n"

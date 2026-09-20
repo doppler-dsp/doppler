@@ -212,7 +212,7 @@ test-fast: ## Run tests, stopping at the first failure
 # `lint` is the gate — CI runs exactly this and nothing else. The three
 # consistency gates come first because they are near-free and catch the class
 # of rot that review demonstrably does not.
-lint: standard-check help-check ghost-check hook-dispatch-check hook-stage-check gates-check gates-home-check ## Run the full lint gate (CI runs this)
+lint: standard-check help-check ghost-check hook-dispatch-check hook-stage-check tracked-paths-check gates-check gates-home-check ## Run the full lint gate (CI runs this)
 	@hook=$$(git rev-parse --git-path hooks/pre-commit 2>/dev/null); \
 	 if [ -n "$$hook" ] && [ ! -f "$$hook" ]; then \
 	     $(PRE_COMMIT) install >/dev/null 2>&1 \
@@ -1030,8 +1030,50 @@ endif
 # Three invariants that review has been shown not to catch, each failing rather
 # than warning. A gate that cannot run has not passed.
 
+# Two classes of tracked path that nothing else here can see, both found the
+# expensive way and neither by CI.
+#
+# A path a PERSON meant contains letters, digits, dot, dash, underscore and
+# slash. A path a SHELL produced by accident carries the punctuation of the
+# command that leaked -- a space, a paren, a semicolon, `>`, `+`, a comma. One
+# repo carried `fm_stream_sink_close (self->h);,+25p`, a 1500-line stale copy
+# of a CLI source, in its root for a week. It compiled nowhere so no build
+# broke; it matched no formatter's glob so no linter opened it; and a drift
+# gate reads the manifest rather than the tree. The NAME is what makes the
+# class findable, so the rule is the character set, exact rather than
+# heuristic.
+#
+# And two paths differing only in CASE are one path on Windows and on macOS's
+# default filesystem: a checkout there keeps one of the pair and reports the
+# other as a modification nobody made. One repo shipped test_Resampler.py
+# beside test_resampler.py for months, found by a Windows checkout rather than
+# by anything in CI -- which is the point. Every machine that would notice is
+# the machine the author is not using.
+#
+# Always the WHOLE tree, never the changed files: a collision is a relation
+# between two names, and a run handed one of them cannot see the other.
+tracked-paths-check: ## Tracked paths are typeable, and none differ only in case
+	@bad=$$(git ls-files | grep -vE '^[A-Za-z0-9._/-]+$$' || true); \
+	 if [ -n "$$bad" ]; then \
+	     echo "tracked-paths-check: FAIL — tracked path(s) outside [A-Za-z0-9._/-]:" >&2; \
+	     printf '%s\n' "$$bad" | sed 's/^/  /' >&2; \
+	     echo "  A name like this is a shell fragment, not a decision: find the" >&2; \
+	     echo "  command that created it, delete the file, and re-run." >&2; \
+	     exit 1; \
+	 fi; \
+	 collide=$$(git ls-files | awk '{ k = tolower($$0); n[k]++; m[k] = m[k] "\n  " $$0 } \
+	                                END { for (k in n) if (n[k] > 1) print substr(m[k], 2) }'); \
+	 if [ -n "$$collide" ]; then \
+	     echo "tracked-paths-check: FAIL — tracked paths that differ only in case:" >&2; \
+	     printf '%s\n' "$$collide" >&2; \
+	     echo "  Windows and macOS keep one of each group, so the checkout shows" >&2; \
+	     echo "  a phantom edit nobody made. Keep one name." >&2; \
+	     exit 1; \
+	 fi; \
+	 echo "tracked-paths-check: $$(git ls-files | grep -c .) tracked path(s), every name typeable, none differ only in case"
+
 STD_TARGETS += standard-check standard-update help-check ghost-check hook-dispatch-check
-STD_TARGETS += hook-stage-check
+STD_TARGETS += hook-stage-check tracked-paths-check
 
 # A temp file, portably: bare `mktemp` is a GNU extension, and the BSD one
 # macOS ships requires a template. The gates parse make's own database, which
@@ -1132,7 +1174,7 @@ _STD_SECTION = case "$$t" in \
     bump-version|version-check|release-branch|tag-release|release-watch \
         |ship|ci-changes) tsec="Release";; \
     test-examples) tsec="Examples";; \
-    standard-check|standard-update|help-check|ghost-check|hook-dispatch-check|hook-stage-check) \
+    standard-check|standard-update|help-check|ghost-check|hook-dispatch-check|hook-stage-check|tracked-paths-check) \
         tsec="Gates";; \
     *) tsec="Local";; \
 esac

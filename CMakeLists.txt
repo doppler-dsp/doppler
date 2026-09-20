@@ -291,6 +291,26 @@ endif()
 # and Threads — pocketfft is pure C99 and the networking/stream layer is split
 # into the optional libdoppler_stream component.
 set_target_properties(doppler_lib PROPERTIES EXPORT_NAME doppler)
+# The ABI version. Without one the SONAME is the bare `libdoppler.so`, so a
+# consumer linked against 0.52 records NEEDED libdoppler.so and an upgrade to
+# 0.53 swaps the ABI underneath it with nothing to object -- and the ABI does
+# move, because the public headers expose the state structs (doppler#1407).
+#
+# MAJOR.MINOR while doppler is 0.x: every minor is honestly its own ABI, and
+# a patch release must not break one. At 1.0 this becomes MAJOR, earned by an
+# ABI-diff gate rather than asserted. Derived from PROJECT_VERSION, so it is
+# not a version site. `abi-check` asserts the SONAME that results.
+#
+#   libdoppler.so -> libdoppler.so.0.52 -> libdoppler.so.0.52.0
+#
+# Not on Windows: a DLL has no SONAME, and VERSION there only stamps the
+# image header.
+set(DOPPLER_SOVERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
+if(NOT WIN32)
+    set_target_properties(doppler_lib PROPERTIES
+        VERSION   ${PROJECT_VERSION}
+        SOVERSION ${DOPPLER_SOVERSION})
+endif()
 # A Windows DLL exports NOTHING unless told to: doppler's headers carry no
 # __declspec(dllexport), so without this the DLL linked, installed and shipped
 # with an empty export table, and every consumer of doppler::doppler failed
@@ -1208,6 +1228,10 @@ if(NOT WIN32)
             $<INSTALL_INTERFACE:include>)
     endforeach()
     set_target_properties(doppler_stream        PROPERTIES EXPORT_NAME stream)
+    # Versioned with the core, for the same reason (see DOPPLER_SOVERSION).
+    set_target_properties(doppler_stream PROPERTIES
+        VERSION   ${PROJECT_VERSION}
+        SOVERSION ${DOPPLER_SOVERSION})
     set_target_properties(doppler_stream_static PROPERTIES EXPORT_NAME stream-static)
     # tlm_sink.c (in stream_core_obj) calls dp_tlm_read from the core's
     # telemetry_core — the component's one cross-lib symbol. Linking the

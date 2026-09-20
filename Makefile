@@ -3091,6 +3091,16 @@ abi-check: ## Verify the built libraries are portable and C++-free (Linux)
 	   || ldd $(BUILD_DIR)/libdoppler_stream.so 2>/dev/null | grep -qi 'libstdc++'; then \
 	     echo "  FAIL: a dynamic libstdc++ dependency"; fail=1; \
 	 else echo "  OK — C++-free everywhere; links -lm only."; fi; \
+	 echo "=== versioned SONAME (libdoppler.so.MAJOR.MINOR, doppler#1407) ==="; \
+	 want=$$($(VERSION_SITES_CMD) --read CMakeLists.txt | cut -d. -f1,2); \
+	 for lib in libdoppler libdoppler_stream; do \
+	     got=$$(readelf -d $(BUILD_DIR)/$$lib.so 2>/dev/null \
+	            | sed -n 's/.*(SONAME).*\[\(.*\)\]/\1/p'); \
+	     if [ "$$got" = "$$lib.so.$$want" ]; then echo "  OK — $$got"; \
+	     else echo "  FAIL: $$lib.so has SONAME '$$got', want '$$lib.so.$$want' —"; \
+	          echo "        an unversioned SONAME lets an upgrade swap the ABI"; \
+	          echo "        under every consumer already linked."; fail=1; fi; \
+	 done; \
 	 if [ "$$fail" = 0 ]; then echo "abi-check: ALL PASS"; \
 	 else echo "abi-check: FAILURES above"; exit 1; fi
 

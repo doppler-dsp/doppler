@@ -106,6 +106,44 @@ Three things that bite, all of them measurable:
 The runnable version of both directions, with the assertions that keep it
 honest, is `src/doppler/examples/ring_chunking_demo.py`.
 
+## One thread: `peek` and `write_some`
+
+`wait(n)` spins until a producer on *another* thread delivers, so a caller
+that is its own producer — a read loop, a callback, a notebook cell — would
+wait forever. `peek(n)` is the same zero-copy view without the wait: the
+frame if it is there, `None` if it is not yet.
+
+**Drip-feed until a frame is there.** Arrivals smaller than a frame; ask
+after each one:
+
+```python
+--8<-- "src/doppler/examples/ring_nonblocking_demo.py:setup"
+--8<-- "src/doppler/examples/ring_nonblocking_demo.py:drip"
+```
+
+**A chunk larger than the ring, read as overlapped frames.** `write` is
+all-or-nothing, so it can never accept this chunk. `write_some` takes what
+fits and says how much; alternate it with the drain. `consume(HOP)` with
+`HOP < NFFT` releases a hop and keeps the overlap:
+
+```python
+--8<-- "src/doppler/examples/ring_nonblocking_demo.py:chunk"
+```
+
+**End of stream, then reuse.** `None` only ever means *not yet*. Once the
+ring is closed a frame that cannot arrive raises `EOFError`; what is there
+can still be read, and `reset()` reopens the same mapping for a second
+stream:
+
+```python
+--8<-- "src/doppler/examples/ring_nonblocking_demo.py:eos"
+```
+
+`space` is the room a `write` is guaranteed to find — use it instead of
+deriving `capacity - available`. From Python this pair is also the cheaper
+one per frame: `wait` releases and retakes the GIL, `peek` has no reason
+to. Time it with `src/doppler/buffer/benchmarks/bench_buffer.py`.
+
 ______________________________________________________________________
 
 ## Buffer types
@@ -134,12 +172,14 @@ buf16 = I16Buffer(1024)
 
 ## Overflow detection
 
-`buf.dropped` counts samples lost to overrun since the buffer was created:
+`buf.dropped` adds up the length of every **refused** `write` — the caller
+still holds those samples, so it is a loss count only if they are then
+discarded. `write_some` never refuses, so it never moves it:
 
 ```python
 buf = F64Buffer(256)
 buf.write(np.zeros(256, dtype=np.complex128))
-buf.write(np.zeros(256, dtype=np.complex128))  # overrun: consumer too slow
+buf.write(np.zeros(256, dtype=np.complex128))  # refused whole: no room
 print(f"dropped: {buf.dropped}")
 ```
 

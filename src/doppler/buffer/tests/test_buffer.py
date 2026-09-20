@@ -456,3 +456,134 @@ class TestTheThreeInstantiationsAgree:
             ranks[cls.__name__] = view.ndim
             buf.consume(64)
         assert len(set(ranks.values())) == 1, ranks
+
+
+# ── The non-blocking surface: peek / write_some / space / reset ─────────────
+#
+# Everything here runs on ONE thread, which is the point: wait() would
+# deadlock in every one of these tests, because the thread that would produce
+# the samples is the one asking for them.
+
+_WIDTHS = [
+    pytest.param(F32Buffer, lambda a: a.astype(np.complex64), id="f32"),
+    pytest.param(F64Buffer, lambda a: a.astype(np.complex128), id="f64"),
+    pytest.param(
+        I16Buffer,
+        lambda a: np.stack([a.real, a.imag], axis=1).astype(np.int16),
+        id="i16",
+    ),
+]
+
+
+def _ramp(n, start=0):
+    """Complex ramp whose real part IS the stream position."""
+    k = np.arange(start, start + n)
+    return k + 1j * (-k)
+
+
+def _pos(view):
+    """Stream position of each sample in a view, whatever the width."""
+    v = np.asarray(view)
+    return (v[:, 0] if v.ndim == 2 else v.real).astype(np.int64)
+
+
+@pytest.mark.parametrize(("cls", "cast"), _WIDTHS)
+class TestNonBlockingSurface:
+    def test_peek_is_none_until_the_frame_is_there(self, cls, cast):
+        buf = cls(4096)
+        assert buf.peek(64) is None  # empty AND open: wait() would hang
+        buf.write_some(cast(_ramp(32)))
+        assert buf.peek(64) is None  # half a frame
+        buf.write_some(cast(_ramp(32, 32)))
+        frame = buf.peek(64)
+        assert frame is not None
+        assert len(frame) == 64
+        np.testing.assert_array_equal(_pos(frame), np.arange(64))
+        assert buf.available == 64, "peek() must not consume"
+
+    def test_write_some_takes_what_fits_and_counts_no_drop(self, cls, cast):
+        buf = cls(4096)
+        cap = buf.capacity
+        big = cast(_ramp(cap + 100))
+        assert buf.write(big) is False  # all-or-nothing refuses it, forever
+        refused = buf.dropped
+        assert refused == cap + 100
+        assert buf.write_some(big) == cap  # ...this takes what fits
+        assert buf.dropped == refused, "nothing refused, nothing counted"
+        assert buf.space == 0
+        assert buf.write_some(big) == 0  # full
+        assert buf.dropped == refused, "a full ring is not a refusal either"
+
+    def test_space_and_available_partition_the_capacity(self, cls, cast):
+        buf = cls(4096)
+        assert buf.space == buf.capacity
+        buf.write_some(cast(_ramp(100)))
+        assert buf.space + buf.available == buf.capacity
+        buf.peek(60)
+        buf.consume(60)
+        assert buf.space + buf.available == buf.capacity
+        assert buf.available == 40
+
+    def test_chunking_any_chunk_in_fixed_frames_out(self, cls, cast):
+        """One chunk far larger than the ring, a frame that does not divide
+        the capacity (so frames cross the end of the ring), 75% overlap."""
+        buf = cls(1024)
+        total, nfft, hop = 3 * buf.capacity + 777, 1000, 250
+        src = cast(_ramp(total))
+        off, frames = 0, 0
+        while off < total:
+            took = buf.write_some(src[off:])
+            off += took
+            # A write_some that refuses like write() would never accept a
+            # chunk larger than the ring, and this loop would spin forever:
+            # a HANG under sabotage, which is a defect in the test. Found
+            # exactly that way -- so no progress is a failure, not a wait.
+            assert took > 0 or buf.peek(nfft) is not None, (
+                "no progress: ring full and no frame to drain"
+            )
+            while (frame := buf.peek(nfft)) is not None:
+                want = np.arange(frames * hop, frames * hop + nfft)
+                np.testing.assert_array_equal(_pos(frame), want)
+                buf.consume(hop)
+                frames += 1
+        assert frames == (total - nfft) // hop + 1
+
+    def test_peek_raises_eof_on_a_closed_ring_but_still_drains(
+        self, cls, cast
+    ):
+        """None means NOT YET and nothing else: a single-threaded loop that
+        got None forever could not tell 'not yet' from 'never'."""
+        buf = cls(4096)
+        buf.write_some(cast(_ramp(10)))
+        buf.close()
+        assert buf.peek(10) is not None  # a closed ring still drains
+        with pytest.raises(EOFError):
+            buf.peek(11)
+
+    def test_peek_beyond_capacity_is_a_value_error_not_none(self, cls, cast):
+        buf = cls(1024)
+        with pytest.raises(ValueError, match="can never be satisfied"):
+            buf.peek(buf.capacity + 1)
+
+    def test_reset_empties_and_reopens_but_keeps_dropped(self, cls, cast):
+        buf = cls(4096)
+        buf.write_some(cast(_ramp(10)))
+        assert buf.write(cast(_ramp(buf.capacity))) is False
+        dropped = buf.dropped
+        buf.close()
+        buf.reset()
+        assert buf.available == 0
+        assert buf.space == buf.capacity
+        assert buf.closed is False
+        assert buf.dropped == dropped
+        assert buf.peek(1) is None  # PENDING again, not EOF
+        assert buf.write_some(cast(_ramp(5))) == 5
+
+    def test_write_some_validates_like_write(self, cls, cast):
+        """One validator behind both, so they cannot disagree."""
+        buf = cls(1024)
+        wrong = np.zeros(8, dtype=np.float32)
+        with pytest.raises(TypeError, match=r"write_some\(\)"):
+            buf.write_some(wrong)
+        with pytest.raises(TypeError, match=r"write\(\)"):
+            buf.write(wrong)

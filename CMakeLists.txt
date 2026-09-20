@@ -1356,9 +1356,11 @@ install(FILES
 
 # From <libdir>/pkgconfig back up to the prefix, however deep the libdir is:
 # `../..` for lib/ and lib64/, `../../..` for Debian's lib/<multiarch>/.
-file(RELATIVE_PATH DOPPLER_PC_TO_PREFIX
-     "/${CMAKE_INSTALL_LIBDIR}/pkgconfig" "/")
-string(REGEX REPLACE "/$" "" DOPPLER_PC_TO_PREFIX "${DOPPLER_PC_TO_PREFIX}")
+# String arithmetic -- every path component becomes `..` -- and deliberately
+# not file(RELATIVE_PATH): that needs two FULL paths, and `/` is not one on
+# Windows, where it stopped the configure outright.
+string(REGEX REPLACE "[^/]+" ".." DOPPLER_PC_TO_PREFIX
+       "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 configure_file(cmake/doppler.pc.in doppler.pc @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/doppler.pc"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)

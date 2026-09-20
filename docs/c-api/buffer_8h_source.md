@@ -407,6 +407,15 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
 #endif
 }
 
+typedef enum
+{
+  DP_WAIT_OK          = 0, 
+  DP_WAIT_PENDING     = 1, 
+  DP_WAIT_TOO_LARGE   = 2, 
+  DP_WAIT_CLOSED      = 3, 
+  DP_WAIT_INTERRUPTED = 4  
+} dp_wait_status_t;
+
 /* =========================================================================
  * DECLARE_DP_BUFFER(name, type)
  *
@@ -577,6 +586,63 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
     size_t h = DP_LOAD_ACQ (&ab->head);                                       \
     size_t t = DP_LOAD_RLX (&ab->tail);                                       \
     return h - t;                                                             \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline size_t dp_##name##_space (const dp_##name##_t *ab)            \
+  {                                                                           \
+    size_t h = DP_LOAD_RLX (&ab->head);                                       \
+    size_t t = DP_LOAD_ACQ (&ab->tail);                                       \
+    return ab->capacity - (h - t);                                            \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  JM_FORCEINLINE size_t dp_##name##_write_some (dp_##name##_t *ab,            \
+                                                const type *src, size_t n)    \
+  {                                                                           \
+    size_t h     = DP_LOAD_RLX (&ab->head);                                   \
+    size_t t     = DP_LOAD_ACQ (&ab->tail);                                   \
+    size_t space = ab->capacity - (h - t);                                    \
+    if (n > space)                                                            \
+      n = space;                                                              \
+    if (n == 0)                                                               \
+      return 0;                                                               \
+    memcpy (&ab->data[(h & ab->mask) * 2], src, n * sizeof (type) * 2);       \
+    DP_STORE_REL (&ab->head, h + n);                                          \
+    return n;                                                                 \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  JM_FORCEINLINE type *dp_##name##_peek (dp_##name##_t *ab, size_t n)         \
+  {                                                                           \
+    size_t h = DP_LOAD_ACQ (&ab->head);                                       \
+    size_t t = DP_LOAD_RLX (&ab->tail);                                       \
+    if (h - t < n)                                                            \
+      return NULL;                                                            \
+    return &ab->data[(t & ab->mask) * 2];                                     \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline dp_wait_status_t dp_##name##_wait_status (                    \
+      const dp_##name##_t *ab, size_t n)                                      \
+  {                                                                           \
+    if (n > ab->capacity)                                                     \
+      return DP_WAIT_TOO_LARGE;                                               \
+    if (dp_##name##_available (ab) >= n)                                      \
+      return DP_WAIT_OK;                                                      \
+    if (dp_##name##_closed (ab))                                              \
+      return dp_##name##_available (ab) >= n ? DP_WAIT_OK : DP_WAIT_CLOSED;   \
+    if (dp_interrupted ())                                                    \
+      return DP_WAIT_INTERRUPTED;                                             \
+    return DP_WAIT_PENDING;                                                   \
+  }                                                                           \
+                                                                              \
+                                                                         \
+  static inline void dp_##name##_reset (dp_##name##_t *ab)                    \
+  {                                                                           \
+    DP_STORE_REL (&ab->head, 0);                                              \
+    DP_STORE_REL (&ab->tail, 0);                                              \
+    __atomic_store_n (&ab->closed, 0, __ATOMIC_RELEASE);                      \
   }                                                                           \
                                                                               \
            \

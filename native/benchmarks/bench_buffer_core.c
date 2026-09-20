@@ -59,6 +59,24 @@ static const char *kind_name[N_KIND] = { "f32", "f64" };
 
 #define N_CFG (N_CHUNK * N_KIND)
 
+/* The streaming row: chunks that neither divide the frame nor fit a whole
+   number of times into the ring go IN through write_some(), and fixed frames
+   come OUT through peek() -- the loop every single-threaded consumer of this
+   ring runs (acq, detector, detector2d, burst_capture). It is read against
+   write_wait_consume[f32,chunk=1024]: same samples, same per-sample read.
+
+   Measured 2026-09-20 (Zen 5, pinned, -O3 x86-64-v2), and it is two effects:
+     1.03x  with STREAM_CHUNK == STREAM_FRAME -- the loop itself: the drain
+            ends on one peek() that returns NULL per chunk, ~10 ns against a
+            ~340 ns frame. That is the price of not knowing the chunk size.
+     1.08x  at STREAM_CHUNK 3000 -- the other 5% is cache geometry, not the
+            API: 24 KB is written before any of it is read back, where the
+            reference row reads each 8 KB while it is still hot.
+   So the non-blocking surface is not free, it is ~3% at this frame size,
+   and the ratio printed below is expected to read ~1.08, not 1.00. */
+#define STREAM_CHUNK 3000
+#define STREAM_FRAME 1024
+
 /* Read the batch so the contiguity of the returned pointer is load-bearing
    rather than decorative. The sum is returned to keep it alive. */
 #define DRAIN(name, type, buf, chunk, acc)                                    \
@@ -82,14 +100,19 @@ main (void)
   jm_bench_t    _bench = { 0 };
   uint64_t      t0, t1;
   static double t[N_CFG][ITERATIONS];
+  static double t_stream[ITERATIONS];       /* write_some + peek, f32   */
+  static double t_i16[N_CHUNK][ITERATIONS]; /* write/wait/consume, i16 */
   dp_f32_t     *b32   = dp_f32_create (CAPACITY);
   dp_f64_t     *b64   = dp_f64_create (CAPACITY);
+  dp_i16_t     *b16   = dp_i16_create (CAPACITY);
+  float        *srcs  = NULL; /* STREAM_CHUNK samples, for the stream row */
+  int16_t      *src16 = NULL;
   float        *src32 = NULL;
   double       *src64 = NULL;
   double        acc   = 0.0;
   char          name[72];
 
-  if (!b32 || !b64)
+  if (!b32 || !b64 || !b16)
     {
       fprintf (stderr, "buffer create failed\n");
       return 1;
@@ -97,8 +120,14 @@ main (void)
 
   src32 = malloc ((size_t)2 * chunks[0] * sizeof *src32);
   src64 = malloc ((size_t)2 * chunks[0] * sizeof *src64);
-  if (!src32 || !src64)
+  srcs  = malloc ((size_t)2 * STREAM_CHUNK * sizeof *srcs);
+  src16 = malloc ((size_t)2 * chunks[0] * sizeof *src16);
+  if (!src32 || !src64 || !srcs || !src16)
     return 1;
+  for (size_t i = 0; i < 2 * STREAM_CHUNK; i++)
+    srcs[i] = (float)(i & 0xff);
+  for (size_t i = 0; i < 2 * chunks[0]; i++)
+    src16[i] = (int16_t)(i & 0xff);
   for (size_t i = 0; i < 2 * chunks[0]; i++)
     {
       src32[i] = (float)(i & 0xff);
@@ -140,6 +169,43 @@ main (void)
           }
         t1                          = jm_bench_now_ns ();
         t[c * N_KIND + KIND_F64][r] = jm_bench_elapsed_sec (t0, t1);
+
+        t0 = jm_bench_now_ns ();
+        for (size_t done = 0; done < TOTAL; done += chunk)
+          {
+            (void)dp_i16_write (b16, src16, chunk);
+            DRAIN (i16, int16_t, b16, chunk, acc);
+          }
+        t1          = jm_bench_now_ns ();
+        t_i16[c][r] = jm_bench_elapsed_sec (t0, t1);
+
+        if (c == REF_IDX)
+          {
+            /* Interleaved with its reference row, in the same round. */
+            size_t fed = 0;
+            dp_f32_reset (b32);
+            t0 = jm_bench_now_ns ();
+            while (fed < TOTAL)
+              {
+                size_t off = 0;
+                while (off < STREAM_CHUNK)
+                  {
+                    const float *f;
+                    off += dp_f32_write_some (b32, srcs + 2 * off,
+                                              STREAM_CHUNK - off);
+                    while ((f = dp_f32_peek (b32, STREAM_FRAME)) != NULL)
+                      {
+                        for (size_t k = 0; k < (size_t)STREAM_FRAME * 2; k++)
+                          acc += (double)f[k];
+                        dp_f32_consume (b32, STREAM_FRAME);
+                      }
+                  }
+                fed += STREAM_CHUNK;
+              }
+            t1          = jm_bench_now_ns ();
+            t_stream[r] = jm_bench_elapsed_sec (t0, t1);
+            dp_f32_reset (b32); /* leave no remainder for the next row */
+          }
       }
 
   for (int c = 0; c < N_CHUNK; c++)
@@ -150,6 +216,29 @@ main (void)
         dp_bench_record (&_bench, name, t[c * N_KIND + k], ITERATIONS, TOTAL,
                          "sample");
       }
+
+  for (int c = 0; c < N_CHUNK; c++)
+    {
+      (void)snprintf (name, sizeof name, "write_wait_consume[i16,chunk=%zu]",
+                      chunks[c]);
+      dp_bench_record (&_bench, name, t_i16[c], ITERATIONS, TOTAL, "sample");
+    }
+  (void)snprintf (name, sizeof name,
+                  "write_some_peek_consume[f32,in=%d,frame=%d]", STREAM_CHUNK,
+                  STREAM_FRAME);
+  dp_bench_record (&_bench, name, t_stream, ITERATIONS,
+                   (TOTAL + STREAM_CHUNK - 1) / STREAM_CHUNK * STREAM_CHUNK,
+                   "sample");
+
+  printf (
+      "\n  the streaming loop (write_some + peek), against write + wait:\n");
+  printf (
+      "    f32  in=%d frame=%d over chunk=%zu   %.2fx per sample\n",
+      STREAM_CHUNK, STREAM_FRAME, chunks[REF_IDX],
+      (dp_bench_min (t_stream, ITERATIONS)
+       / (double)((TOTAL + STREAM_CHUNK - 1) / STREAM_CHUNK * STREAM_CHUNK))
+          / (dp_bench_min (t[REF_IDX * N_KIND + KIND_F32], ITERATIONS)
+             / (double)TOTAL));
 
   printf ("\n  straddling the wrap, against never straddling it:\n");
   for (int k = 0; k < N_KIND; k++)
@@ -167,8 +256,11 @@ main (void)
 
   free (src32);
   free (src64);
+  free (srcs);
+  free (src16);
   dp_f32_destroy (b32);
   dp_f64_destroy (b64);
+  dp_i16_destroy (b16);
   jm_bench_write_json (&_bench, "buffer");
   return 0;
 }

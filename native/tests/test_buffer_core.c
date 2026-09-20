@@ -401,5 +401,211 @@ main (void)
       }
   }
 
+  /* ══ The non-blocking surface: space / write_some / peek / reset ═══════
+     Every C consumer of this ring is single-threaded, and until these
+     existed each one rebuilt them from head/tail/mask by hand. */
+
+  /* ── space is the producer's free room, and write() agrees with it ─── */
+  {
+    dp_f32_t *b = dp_f32_create (4096);
+    DP_CHECK (b != NULL);
+    float src[2 * 64] = { 0 };
+    DP_CHECK (dp_f32_space (b) == b->capacity);
+    DP_CHECK (dp_f32_write (b, src, 64));
+    DP_CHECK (dp_f32_space (b) == b->capacity - 64);
+    DP_CHECK (dp_f32_space (b) + dp_f32_available (b) == b->capacity);
+    dp_f32_consume (b, 64);
+    DP_CHECK (dp_f32_space (b) == b->capacity);
+    dp_f32_destroy (b);
+  }
+
+  /* ── write_some takes what fits, reports it, and never counts a drop ── */
+  {
+    dp_f32_t *b = dp_f32_create (4096);
+    DP_CHECK (b != NULL);
+    size_t cap = b->capacity;
+    float *src = (float *)calloc (2 * (cap + 100), sizeof *src);
+    DP_CHECK (src != NULL);
+    for (size_t i = 0; i < 2 * (cap + 100); i++)
+      src[i] = (float)i;
+
+    /* More than the ring can ever hold: all-or-nothing write() refuses it
+       forever; write_some takes exactly `capacity` of it. */
+    DP_CHECK (!dp_f32_write (b, src, cap + 100));
+    size_t refused = b->dropped;
+    DP_CHECK (refused == cap + 100);
+    DP_CHECK (dp_f32_write_some (b, src, cap + 100) == cap);
+    DP_CHECK (b->dropped == refused); /* nothing refused: nothing counted */
+    DP_CHECK (dp_f32_space (b) == 0);
+    DP_CHECK (dp_f32_write_some (b, src, 1) == 0); /* full */
+    DP_CHECK (b->dropped == refused); /* a FULL ring is not a refusal either */
+    /* ...and it wrote the FIRST `cap` samples, in order. */
+    float *v = dp_f32_peek (b, cap);
+    DP_CHECK (v != NULL);
+    DP_CHECK (v[0] == 0.0f && v[1] == 1.0f);
+    DP_CHECK (v[2 * cap - 1] == (float)(2 * cap - 1));
+    free (src);
+    dp_f32_destroy (b);
+  }
+
+  /* ── peek never blocks: NULL until n are there, then wait()'s pointer ─ */
+  {
+    dp_f32_t *b = dp_f32_create (4096);
+    DP_CHECK (b != NULL);
+    float src[2 * 32];
+    for (size_t i = 0; i < 2 * 32; i++)
+      src[i] = (float)i;
+    /* On an EMPTY, OPEN ring wait() would spin forever; this returns. */
+    DP_CHECK (dp_f32_peek (b, 64) == NULL);
+    DP_CHECK (dp_f32_write_some (b, src, 32) == 32);
+    DP_CHECK (dp_f32_peek (b, 64) == NULL); /* half a frame: still no */
+    DP_CHECK (dp_f32_write_some (b, src, 32) == 32);
+    float *pk = dp_f32_peek (b, 64);
+    DP_CHECK (pk != NULL);
+    DP_CHECK (pk == dp_f32_wait (b, 64));  /* the same zero-copy pointer */
+    DP_CHECK (dp_f32_available (b) == 64); /* and it consumed nothing */
+    DP_CHECK (dp_f32_peek (b, b->capacity + 1) == NULL); /* never */
+    dp_f32_destroy (b);
+  }
+
+  /* ── the chunking loop: ANY chunk in, fixed frames out, across the wrap ─
+     The pattern write_some()'s header documents, run as written -- with a
+     chunk larger than the ring, and a frame size that does not divide the
+     capacity, so frames straddle the mirror seam. Every output sample is
+     checked against the input stream, so a dropped, repeated or torn
+     sample anywhere fails. */
+  {
+    dp_f32_t *b = dp_f32_create (1024);
+    DP_CHECK (b != NULL);
+    const size_t total = 3 * b->capacity + 777; /* > capacity, on purpose */
+    const size_t nfft  = 1000;                  /* does not divide it     */
+    float       *in    = (float *)malloc (2 * total * sizeof *in);
+    DP_CHECK (in != NULL);
+    for (size_t i = 0; i < 2 * total; i++)
+      in[i] = (float)i;
+    size_t off = 0, frames = 0, bad = 0, seam = 0;
+    while (off < total)
+      {
+        size_t w = dp_f32_write_some (b, in + 2 * off, total - off);
+        off += w;
+        float *f;
+        while ((f = dp_f32_peek (b, nfft)) != NULL)
+          {
+            size_t base = frames * nfft; /* stream position of f[0] */
+            if ((b->tail & b->mask) + nfft > b->capacity)
+              seam++; /* this frame crosses the mirror seam */
+            for (size_t k = 0; k < 2 * nfft; k++)
+              if (f[k] != (float)(2 * base + k))
+                bad++;
+            dp_f32_consume (b, nfft);
+            frames++;
+          }
+        if (w == 0 && dp_f32_peek (b, nfft) == NULL)
+          break; /* cannot progress: would be a bug, not a hang */
+      }
+    DP_CHECK (off == total);
+    DP_CHECK (frames == total / nfft);
+    DP_CHECK (bad == 0);
+    DP_CHECK (seam > 0); /* the wrap was actually exercised */
+    DP_CHECK (dp_f32_available (b) == total % nfft); /* the remainder */
+    free (in);
+    dp_f32_destroy (b);
+  }
+
+  /* ── overlapped frames: consume(hop) with hop < the peeked frame ────── */
+  {
+    dp_f32_t *b = dp_f32_create (4096);
+    DP_CHECK (b != NULL);
+    float src[2 * 256];
+    for (size_t i = 0; i < 2 * 256; i++)
+      src[i] = (float)i;
+    DP_CHECK (dp_f32_write_some (b, src, 256) == 256);
+    const size_t nfft = 64, hop = 16;
+    size_t       n = 0, bad = 0;
+    float       *f;
+    while ((f = dp_f32_peek (b, nfft)) != NULL)
+      {
+        if (f[0] != (float)(2 * n * hop)) /* frame n starts at n*hop */
+          bad++;
+        dp_f32_consume (b, hop);
+        n++;
+      }
+    DP_CHECK (bad == 0);
+    DP_CHECK (n == (256 - nfft) / hop + 1); /* 13 overlapped frames */
+    dp_f32_destroy (b);
+  }
+
+  /* ── wait_status: one owner of the precedence ──────────────────────── */
+  {
+    dp_f32_t *b = dp_f32_create (4096);
+    DP_CHECK (b != NULL);
+    float src[2 * 64] = { 0 };
+    DP_CHECK (dp_f32_wait_status (b, 64) == DP_WAIT_PENDING);
+    DP_CHECK (dp_f32_wait_status (b, b->capacity + 1) == DP_WAIT_TOO_LARGE);
+    DP_CHECK (dp_f32_write (b, src, 64));
+    DP_CHECK (dp_f32_wait_status (b, 64) == DP_WAIT_OK);
+
+    /* Interrupted, with too few samples. */
+    dp_interrupt ();
+    DP_CHECK (dp_f32_wait_status (b, 128) == DP_WAIT_INTERRUPTED);
+    /* Readable samples win over an interrupt... */
+    DP_CHECK (dp_f32_wait_status (b, 64) == DP_WAIT_OK);
+    /* ...too-large wins over everything... */
+    DP_CHECK (dp_f32_wait_status (b, b->capacity + 1) == DP_WAIT_TOO_LARGE);
+    /* ...and closed wins over interrupted. */
+    dp_f32_close (b);
+    DP_CHECK (dp_f32_wait_status (b, 128) == DP_WAIT_CLOSED);
+    DP_CHECK (dp_f32_wait_status (b, 64) == DP_WAIT_OK); /* still drains */
+    dp_resume ();
+
+    /* It agrees with wait() on every case wait() can return from. */
+    DP_CHECK (dp_f32_wait (b, 64) != NULL);
+    DP_CHECK (dp_f32_wait (b, 128) == NULL);
+    DP_CHECK (dp_f32_wait (b, b->capacity + 1) == NULL);
+    dp_f32_destroy (b);
+  }
+
+  /* ── reset empties AND reopens; dropped is a lifetime count ─────────── */
+  {
+    dp_f32_t *b = dp_f32_create (4096);
+    DP_CHECK (b != NULL);
+    float src[2 * 64] = { 0 };
+    DP_CHECK (dp_f32_write (b, src, 64));
+    DP_CHECK (!dp_f32_write (b, src, b->capacity)); /* refused: counted */
+    size_t dropped = b->dropped;
+    DP_CHECK (dropped == b->capacity);
+    dp_f32_close (b);
+    dp_f32_reset (b);
+    DP_CHECK (dp_f32_available (b) == 0);
+    DP_CHECK (dp_f32_space (b) == b->capacity);
+    DP_CHECK (!dp_f32_closed (b));    /* reopened */
+    DP_CHECK (b->dropped == dropped); /* kept */
+    DP_CHECK (dp_f32_wait_status (b, 64) == DP_WAIT_PENDING);
+    DP_CHECK (dp_f32_write (b, src, 64)); /* and usable again */
+    dp_f32_destroy (b);
+  }
+
+  /* ── all three widths carry the surface (they are one macro) ────────── */
+  {
+    dp_f64_t *d = dp_f64_create (4096);
+    dp_i16_t *q = dp_i16_create (4096);
+    DP_CHECK (d != NULL && q != NULL);
+    double  sd[2 * 8] = { 0 };
+    int16_t sq[2 * 8] = { 1, -1, 2, -2, 3, -3, 4, -4 };
+    DP_CHECK (dp_f64_peek (d, 8) == NULL && dp_i16_peek (q, 8) == NULL);
+    DP_CHECK (dp_f64_write_some (d, sd, 8) == 8);
+    DP_CHECK (dp_i16_write_some (q, sq, 8) == 8);
+    DP_CHECK (dp_f64_space (d) == d->capacity - 8);
+    int16_t *iq = dp_i16_peek (q, 8);
+    DP_CHECK (iq != NULL && iq[0] == 1 && iq[1] == -1 && iq[7] == -4);
+    DP_CHECK (dp_f64_wait_status (d, 8) == DP_WAIT_OK);
+    DP_CHECK (dp_i16_wait_status (q, 9) == DP_WAIT_PENDING);
+    dp_f64_reset (d);
+    dp_i16_reset (q);
+    DP_CHECK (dp_f64_available (d) == 0 && dp_i16_available (q) == 0);
+    dp_f64_destroy (d);
+    dp_i16_destroy (q);
+  }
+
   DP_TEST_END ("test_buffer_core");
 }

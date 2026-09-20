@@ -32,6 +32,12 @@ instead.)
     memory and disk: why "no data right now" is indistinguishable from
     "no data ever" on all three, the interrupt primitive that already
     exists and is misnamed, and the end-of-stream marker that does not
+- [The Ring Buffer](ring-buffer.md) — zero-copy, wrap-free, lock-free:
+    what each promise means, the blocking and non-blocking surfaces, and
+    the two streaming patterns.
+- [The Ring Buffer — measurements](ring-buffer-measurements.md) — the
+    dated record: what the ring costs per sample, what the non-blocking
+    surface adds, and the three premises that were wrong.
 - [Capture Files](capture-files.md) — the file I/O subsystem underneath
     `Reader`/`Writer`: why the file type is decided by content, why one
     keyword codec serves both directions, why provenance is a value rather

@@ -508,10 +508,10 @@ dp__buf_free (void *addr, size_t bytes, void *handle)
 /**
  * @brief Why a ring's wait can or cannot be satisfied right now.
  *
- * dp_<name>_wait() and dp_<name>_peek() return NULL for more than one reason,
+ * dp_*_wait() and dp_*_peek() return NULL for more than one reason,
  * and the reasons call for different responses: end of stream is normal and a
  * consumer loop catches it, an interrupt means stop, too-large is a caller
- * bug, and "not yet" is no failure at all. dp_<name>_wait_status() owns the
+ * bug, and "not yet" is no failure at all. dp_*_wait_status() owns the
  * PRECEDENCE between them, so a binding or a consumer asks one question
  * instead of re-deriving the order from three -- which is what the Python
  * binding did, in three hand-written copies.

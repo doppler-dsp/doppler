@@ -174,7 +174,7 @@ enum dp_wait_status_t {
 
 
 
-dp\_&lt;name&gt;_wait() and dp_&lt;name&gt;_peek() return NULL for more than one reason, and the reasons call for different responses: end of stream is normal and a consumer loop catches it, an interrupt means stop, too-large is a caller bug, and "not yet" is no failure at all. dp_&lt;name&gt;\_wait\_status() owns the PRECEDENCE between them, so a binding or a consumer asks one question instead of re-deriving the order from three  which is what the Python binding did, in three hand-written copies. 
+dp\_\*\_wait() and dp\_\*\_peek() return NULL for more than one reason, and the reasons call for different responses: end of stream is normal and a consumer loop catches it, an interrupt means stop, too-large is a caller bug, and "not yet" is no failure at all. dp\_\*\_wait\_status() owns the PRECEDENCE between them, so a binding or a consumer asks one question instead of re-deriving the order from three  which is what the Python binding did, in three hand-written copies. 
 
 
         

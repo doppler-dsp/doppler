@@ -292,16 +292,20 @@ endif()
 # into the optional libdoppler_stream component.
 set_target_properties(doppler_lib PROPERTIES EXPORT_NAME doppler)
 # The ABI version. Without one the SONAME is the bare `libdoppler.so`, so a
-# consumer linked against 0.52 records NEEDED libdoppler.so and an upgrade to
-# 0.53 swaps the ABI underneath it with nothing to object -- and the ABI does
-# move, because the public headers expose the state structs (doppler#1407).
+# consumer linked against one minor records NEEDED libdoppler.so and an upgrade
+# to the next swaps the ABI underneath it with nothing to object -- and the
+# ABI does move, because the public headers expose the state structs
+# (doppler#1407).
 #
 # MAJOR.MINOR while doppler is 0.x: every minor is honestly its own ABI, and
 # a patch release must not break one. At 1.0 this becomes MAJOR, earned by an
 # ABI-diff gate rather than asserted. Derived from PROJECT_VERSION, so it is
 # not a version site. `abi-check` asserts the SONAME that results.
 #
-#   libdoppler.so -> libdoppler.so.0.52 -> libdoppler.so.0.52.0
+#   libdoppler.so -> libdoppler.so.X.Y -> libdoppler.so.X.Y.Z
+#
+# (Spelled X.Y.Z on purpose: this file is a version site, and a literal here is
+# bumped by nothing -- `make lint-version-literals`.)
 #
 # Not on Windows: a DLL has no SONAME, and VERSION there only stamps the
 # image header.

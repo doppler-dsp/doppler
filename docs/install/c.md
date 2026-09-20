@@ -140,7 +140,7 @@ resolves the dependencies:
 
 ```text
 # Debian / Ubuntu
-sudo apt install ./libdoppler-dsp0.52_*.deb ./libdoppler-dsp-dev_*.deb
+sudo apt install ./libdoppler-dsp0.*_*.deb ./libdoppler-dsp-dev_*.deb
 
 # Fedora / RHEL / AlmaLinux
 sudo dnf install ./libdoppler-dsp-0.*.rpm ./libdoppler-dsp-devel-*.rpm
@@ -165,7 +165,7 @@ path of yours on the command line. Three things to know:
     `x86-64-v2` (SSE4.2), which is above the oldest CPUs those distros
     themselves still run on.
 - **The Debian runtime package carries the ABI version in its name**
-    (`libdoppler-dsp0.52`), so two minors install side by side and a program
+    (`libdoppler-dsp0.53` for the 0.53 series), so two minors install side by side and a program
     built against one keeps running after you install the next.
 
 These are release assets, not an apt or yum repository: upgrading means

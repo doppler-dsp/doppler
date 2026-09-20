@@ -183,7 +183,9 @@ def _readfile(path):
         return ""
 
 
-def collect_meta(machine, compiler, flags, commit, measured_at):
+def collect_meta(
+    machine, compiler, flags, commit, measured_at, pinned_cpus=None
+):
     """Reproducibility metadata for a published snapshot — what you want when a
     regression appears: when it ran, which commit, the compiler + flags, the
     CPU's *state* (governor/boost decide whether numbers are even repeatable),
@@ -214,12 +216,91 @@ def collect_meta(machine, compiler, flags, commit, measured_at):
         )
         or None,
         "cpu_boost": {"1": "on", "0": "off"}.get(boost),
+        # The affinity the MEASUREMENT ran under, when it was narrowed: a
+        # published number is not comparable without knowing which core class
+        # produced it. None means unpinned (see `fastest_cpus`).
+        "pinned_cpus": pinned_cpus,
         "kernel": machine.get("release") or platform.release(),
         "python": machine.get("python_version") or platform.python_version(),
         "numpy": numpy_v,
         "glibc": " ".join(platform.libc_ver()).strip(),
         "cmake": cmake_v,
     }
+
+
+def _cpu_ranges(cpus):
+    """`[0, 1, 2, 3, 10, 11]` -> `"0-3,10-11"`, the spelling taskset takes.
+
+    Examples
+    --------
+    >>> _cpu_ranges([0, 1, 2, 3, 10, 11, 12, 13])
+    '0-3,10-13'
+    >>> _cpu_ranges([5])
+    '5'
+    """
+    out, run = [], []
+    for n in [*sorted(cpus), None]:
+        if run and n is not None and n == run[-1] + 1:
+            run.append(n)
+            continue
+        if run:
+            out.append(str(run[0]) if len(run) == 1 else f"{run[0]}-{run[-1]}")
+        run = [n]
+    return ",".join(out)
+
+
+def fastest_cpus(sysfs="/sys/devices/system/cpu"):
+    """Logical CPUs of the fastest core class; None if there is only one.
+
+    A heterogeneous CPU schedules a benchmark onto whichever core is free, and
+    the classes are not close: on the Ryzen AI 9 465 the published numbers come
+    from (4 Zen 5 at 5.09 GHz, 6 Zen 5c at 3.35 GHz) the same binary measured
+    3.5 us/call pinned to a Zen 5 core and 5.6 us/call pinned to a Zen 5c one.
+    Unpinned, a benchmark is therefore BIMODAL, and min-of-K only usually finds
+    the fast mode: across 465 benchmarks a handful lose the coin toss K times
+    running and publish a 1.6x "regression" with no source change behind it
+    (measured on the v0.53.0 snapshot -- `awgn` read slower native than
+    portable, and re-ran identical in both builds).
+
+    The class is read from ``cpuinfo_max_freq``, which the kernel reports per
+    logical CPU and which does not move with load or governor. Returns None
+    when every CPU reports the same ceiling, or none report one, so a uniform
+    machine and a container without cpufreq are both left alone.
+
+    Parameters
+    ----------
+    sysfs : str
+        Root of the per-CPU sysfs tree; a parameter so the test can point it
+        at a fake one.
+
+    Returns
+    -------
+    list[int] | None
+        Sorted logical CPU numbers of the fastest class, or None.
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> root = tempfile.mkdtemp()
+    >>> for n, khz in enumerate([5090000, 3350000, 5090000]):
+    ...     d = os.path.join(root, f"cpu{n}", "cpufreq")
+    ...     os.makedirs(d)
+    ...     _ = open(os.path.join(d, "cpuinfo_max_freq"), "w").write(str(khz))
+    >>> fastest_cpus(root)
+    [0, 2]
+    >>> os.remove(os.path.join(root, "cpu1", "cpufreq", "cpuinfo_max_freq"))
+    >>> fastest_cpus(root) is None  # one class left: nothing to choose
+    True
+    """
+    ceilings = {}
+    for path in glob.glob(os.path.join(sysfs, "cpu[0-9]*")):
+        khz = _readfile(os.path.join(path, "cpufreq", "cpuinfo_max_freq"))
+        if khz and khz.isdigit():
+            ceilings[int(os.path.basename(path)[3:])] = int(khz)
+    if len(set(ceilings.values())) < 2:
+        return None
+    top = max(ceilings.values())
+    return sorted(n for n, khz in ceilings.items() if khz == top)
 
 
 def _git_short_sha():
@@ -357,7 +438,13 @@ def cmd_page(published, out_path) -> int:
         f"doppler `{m.get('commit', '?')}`, {m.get('compiler', '?')}.",
         "",
         f"- CPU: **{cpu}** — {m.get('cores', '?')} threads, governor "
-        f"`{m.get('cpu_governor') or '?'}`, boost {m.get('cpu_boost') or '?'}",
+        f"`{m.get('cpu_governor') or '?'}`, boost {m.get('cpu_boost') or '?'}"
+        + (
+            f", measured on the fastest core class only "
+            f"(cpus {_cpu_ranges(m['pinned_cpus'])})"
+            if m.get("pinned_cpus")
+            else ""
+        ),
         f"- OS: {m.get('kernel', '?')}, {m.get('glibc') or 'glibc ?'}",
         f"- Libs: Python {m.get('python', pyv)}, NumPy "
         f"{m.get('numpy') or '?'}, CMake {m.get('cmake') or '?'}",

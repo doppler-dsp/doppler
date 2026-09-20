@@ -89,7 +89,12 @@ git commit -m "docs: publish benchmarks for vX.Y.Z (<cpu>)"
 `bench-interleaved` builds both flavours in throwaway git worktrees, runs the
 suite alternately K times (default 5; `K=N` to override), and keeps each
 benchmark's lowest-mean run — so the *from src* column reflects the real build
-difference, not cross-run system drift. Each snapshot is stamped with the
+difference, not cross-run system drift. The measurement (not the build) is
+pinned to the CPU's **fastest core class**, read from `cpuinfo_max_freq`: on a
+heterogeneous part an unpinned benchmark is bimodal — the same binary measured
+3.5 µs on a Zen 5 core and 5.6 µs on a Zen 5c one — and min-of-K only *usually*
+finds the fast mode. The snapshot records the pinned CPUs and the page prints
+them. Each snapshot is stamped with the
 compiler + flags it read from `compile_commands.json`, so the page is
 self-describing. Skip only if no perf-relevant code changed since the last
 release.

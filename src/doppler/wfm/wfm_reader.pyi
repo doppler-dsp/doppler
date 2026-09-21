@@ -1,5 +1,5 @@
 # wfm/wfm_reader.pyi — type stubs for the wfm_reader C extension.
-from typing import Any, final, Literal
+from typing import final, Literal
 import os
 import numpy as np
 from numpy.typing import NDArray

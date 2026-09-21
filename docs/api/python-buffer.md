@@ -72,22 +72,17 @@ more, and it arrives as `EOFError` once the ring is drained.
 --8<-- "src/doppler/examples/buffers_demo.py:threads"
 ```
 
-### Draining without blocking
+### One thread: any block in, exact frames out
 
-`wait(n)` returns a zero-copy view immediately when `n` samples are already
-buffered; it only blocks the consumer while fewer than `n` are available. So a
-producer that has filled the ring lets the consumer drain without waiting.
+`wait(n)` blocks until a producer on *another* thread delivers, so a caller
+that is its own producer would wait forever. `peek(n)` is the same zero-copy
+view without the wait — the frame, or `None` for "not yet" — and `write_some`
+takes what fits. Together they are the whole single-threaded pattern: feed,
+take every whole frame, repeat until the block is gone.
 
 ```python
-from doppler.buffer import F32Buffer
-import numpy as np
-
-buf = F32Buffer(4096)
-buf.write(np.ones(2048, dtype=np.complex64))   # producer filled the ring
-
-view = buf.wait(1024)          # 1024 already buffered -> returns at once
-np.abs(view).mean()            # process the zero-copy view
-buf.consume(1024)
+--8<-- "src/doppler/examples/ring_chunking_demo.py:setup"
+--8<-- "src/doppler/examples/ring_chunking_demo.py:reblock"
 ```
 
 ### One thread: a chunk larger than the ring, overlapped frames out

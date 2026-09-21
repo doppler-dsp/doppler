@@ -230,8 +230,10 @@ jobs:
   #
   # It packages the same archive release.yml publishes and consumes it the
   # way a user would (`make package-c-smoke`), so the published face is tested
-  # here on every PR rather than first at a tag. Python is off: the extensions
-  # are jm's to bring to Windows, and this job grows a pyext step when they do.
+  # here on every PR rather than first at a tag. Then the Python extensions,
+  # built and tested in place (doppler#1457 step 1): jm brought its generated
+  # bindings to clang-cl in 0.77.0, and this is where doppler's own cores are
+  # tested under it -- the prerequisite for a Windows wheel.
   build-and-test-windows:
     needs: changes
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
@@ -288,6 +290,21 @@ jobs:
     # and cannot install a port by name.
     - name: Install + consume through vcpkg (overlay port, clang-cl triplet)
       run: make vcpkg-smoke VCPKG_ROOT="$VCPKG_INSTALLATION_ROOT"
+
+    # Last, and after the C steps on purpose: PYTHON_EXECUTABLE resolves
+    # through `uv run` once uv is on PATH, so installing it earlier would
+    # change the interpreter the C build above configured against.
+    - name: Install uv + Python + package deps
+      uses: ./.github/actions/setup-uv
+      with:
+        python-version: '3.12'
+        sync: --group dev
+
+    - name: Build Python C extensions
+      run: make pyext CMAKE_ARGS="$WIN_CMAKE_ARGS"
+
+    - name: Python suite
+      run: make test-python
 
   # macOS still provisions with brew, because there is no macOS container to
   # bake: `make install-deps` is the one dep command a developer also runs and

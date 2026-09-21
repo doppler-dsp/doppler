@@ -166,11 +166,13 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
        * jm's generated form (gh-581). */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX128
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
           PyErr_SetString (
               PyExc_TypeError,
-              "out must be a writable ndarray of the output dtype");
+              "out must be a writable, C-contiguous ndarray of the "
+              "output dtype");
           return NULL;
         }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
@@ -289,11 +291,13 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
        * jm's generated form (gh-581). */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX128
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
           PyErr_SetString (
               PyExc_TypeError,
-              "out must be a writable ndarray of the output dtype");
+              "out must be a writable, C-contiguous ndarray of the "
+              "output dtype");
           return NULL;
         }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (

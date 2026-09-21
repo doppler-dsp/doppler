@@ -744,6 +744,7 @@ uv run python scripts/check_mermaid_theme.py
 uv run python scripts/check_serializable.py
 uv run python scripts/check_doc_face_parity.py
 uv run python scripts/check_init_param_optionality.py
+uv run python scripts/check_out_param_guard.py
 endef
 
 # docs-check's invariants WITHOUT the site build, so pre-commit can run them.

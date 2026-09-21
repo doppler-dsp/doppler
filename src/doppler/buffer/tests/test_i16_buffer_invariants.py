@@ -14,6 +14,7 @@ import pytest
 
 from doppler.buffer import I16Buffer
 
+
 _ELEM_DTYPE = np.dtype([("i", np.int16), ("q", np.int16)])
 
 pytestmark = pytest.mark.skip(
@@ -42,3 +43,5 @@ def test_write_some_speaks_dp_iq16_t():
     wrong = np.zeros(4, dtype=np.float64)
     with pytest.raises((TypeError, ValueError)):
         obj.write_some(wrong)
+
+

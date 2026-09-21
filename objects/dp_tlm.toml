@@ -31,15 +31,15 @@ extra_link_libs = ["Threads::Threads"]
 arg_type = "float _Complex"
 return_type = "float _Complex"
 
-# A NULL from dp_tlm_create means the size was not a power of two (buffer.h's
-# requirement) far more often than it means OOM, so say that instead of the
-# blanket MemoryError (gh-482).
+# A NULL from dp_tlm_create means a ring of 0 records far more often than it
+# means OOM, so say that instead of the blanket MemoryError (gh-482). Any size
+# from 1 up is granted exactly: buffer.h rounds its mapping, not the capacity.
 #
 # These two keys MUST stay above the [[dp_tlm.init_params]] header: TOML binds
 # every key after a table header to that table, so written below they land
 # inside the init-param, where jm never looks for them and says nothing.
 create_error = "ValueError"
-create_error_message = "ring_records must be a power of two (and at least the page minimum); read the granted size back from Telemetry.capacity"
+create_error_message = "ring_records must be at least 1, and small enough to map"
 
 [[dp_tlm.init_params]]
 name = "ring_records"
@@ -179,7 +179,7 @@ doc = "Registered probes as `{name: id}`, in registration order. The inverse of 
 name = "capacity"
 type = "size_t"
 expr = "dp_tlm_capacity(self->handle)"
-doc = "Ring capacity in records, after buffer.h rounds the requested size up to a power of two and the page minimum. Read this rather than assuming the constructor's argument was granted verbatim."
+doc = "Ring capacity in records: exactly the number passed to the constructor, on every machine."
 
 [[dp_tlm.properties]]
 name = "dropped"

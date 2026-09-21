@@ -57,24 +57,21 @@ slurp (const char *path, size_t *len)
   return b;
 }
 
-/* The smallest ring this platform will hand out. buffer.h rounds a sub-page
-   request up to the page minimum, so it is 256 records on a 4 KiB page and
-   1024 on a 16 KiB one (macOS). Several blocks below need a bound that
-   genuinely EXCEEDS the floor to be testing anything at all, so derive it
-   rather than hard-coding a number that is only true on one platform. */
-static size_t
-ring_floor (void)
+/* A block size for the cases below. It used to be DERIVED -- "the smallest
+   ring this platform will hand out" -- because buffer.h rounded a sub-page
+   capacity up to the page minimum, so dp_tlm_create (1) was 256 records on
+   a 4 KiB page and 1024 on macOS, and a bound had to be engineered to exceed
+   it. The ring now holds exactly what was asked, on every platform: a ring
+   of 1 is a ring of 1, every bound below exceeds it, and this is just a
+   number. */
+enum
 {
-  dp_tlm_t *t = dp_tlm_create (1);
-  size_t    n = dp_tlm_capacity (t);
-  dp_tlm_destroy (t);
-  return n;
-}
+  FLOOR = 256
+};
 
 int
 main (void)
 {
-  const size_t FLOOR = ring_floor ();
   /* ── THE claim: emit the bound every block, forever, and lose nothing ──
      No sleeps, no thread timing, no safety factor -- the ring is sized to
      exactly one block's worth and drained at every boundary, so overflow is

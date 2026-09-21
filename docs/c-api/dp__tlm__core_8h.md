@@ -357,13 +357,13 @@ dp_tlm_t * dp_tlm_create (
 **Parameters:**
 
 
-* `ring_records` Requested ring capacity in records. MUST be a power of 2. Sub-page requests are rounded up to the page minimum ([**buffer.h**](buffer_8h.md) semantics) — read the authoritative value back with [**dp\_tlm\_capacity()**](dp__tlm__core_8h.md#function-dp_tlm_capacity). 
+* `ring_records` Ring capacity in records: any size from 1 up, and [**dp\_tlm\_capacity()**](dp__tlm__core_8h.md#function-dp_tlm_capacity) is exactly this number ([**buffer.h**](buffer_8h.md) rounds the MAPPING behind it, not the capacity). 
 
 
 
 **Returns:**
 
-New context, or NULL on invalid size / allocation failure. 
+New context, or NULL on a size of 0 / allocation failure. 
 
 
 
@@ -922,7 +922,7 @@ int dp_tlm_resize (
 
 
 
-Rounds `records` up to a power of two ([**buffer.h**](buffer_8h.md) requires it) and then to the page minimum. A no-op returning [**DP\_OK**](clib__common_8h.md#define-dp_ok) when the ring is already big enough, so it is cheap to call speculatively at every boundary.
+The new ring holds exactly `records`. A no-op returning [**DP\_OK**](clib__common_8h.md#define-dp_ok) when the ring is already big enough, so it is cheap to call speculatively at every boundary.
 
 
 

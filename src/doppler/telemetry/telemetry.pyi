@@ -46,16 +46,15 @@ class Telemetry:
     Parameters
     ----------
     ring_records : int, default 16384
-        Requested ring capacity in records. MUST be a power of 2. Sub-page
-        requests are rounded up to the page minimum (buffer.h semantics) — read
-        the authoritative value back with dp_tlm_capacity().
+        Ring capacity in records: any size from 1 up, and dp_tlm_capacity() is
+        exactly this number (buffer.h rounds the MAPPING behind it, not the
+        capacity).
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is ``ring_records must be
-        a power of two (and at least the page minimum); read the granted size
-        back from Telemetry.capacity``.
+        at least 1, and small enough to map``.
 
     Examples
     --------
@@ -371,9 +370,8 @@ class Telemetry:
 
     @property
     def capacity(self) -> int:
-        """Ring capacity in records, after buffer.h rounds the requested size
-        up to a power of two and the page minimum. Read this rather than
-        assuming the constructor's argument was granted verbatim.
+        """Ring capacity in records: exactly the number passed to the
+        constructor, on every machine.
         """
 
     @property

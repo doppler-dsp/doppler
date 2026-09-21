@@ -174,11 +174,10 @@ typedef dp_tlm_t dp_tlm_state_t;
 /**
  * @brief Creates a telemetry context with a ring of @p ring_records slots.
  *
- * @param ring_records Requested ring capacity in records.  MUST be a power
- *                     of 2.  Sub-page requests are rounded up to the page
- *                     minimum (buffer.h semantics) — read the authoritative
- *                     value back with dp_tlm_capacity().
- * @return New context, or NULL on invalid size / allocation failure.
+ * @param ring_records Ring capacity in records: any size from 1 up, and
+ *                     dp_tlm_capacity() is exactly this number (buffer.h
+ *                     rounds the MAPPING behind it, not the capacity).
+ * @return New context, or NULL on a size of 0 / allocation failure.
  */
 dp_tlm_t *dp_tlm_create (size_t ring_records);
 
@@ -349,9 +348,9 @@ size_t dp_tlm_avail (const dp_tlm_t *t);
 /**
  * @brief Replaces the ring with one holding at least @p records.
  *
- * Rounds @p records up to a power of two (buffer.h requires it) and then to
- * the page minimum.  A no-op returning ::DP_OK when the ring is already big
- * enough, so it is cheap to call speculatively at every boundary.
+ * The new ring holds exactly @p records.  A no-op returning ::DP_OK when the
+ * ring is already big enough, so it is cheap to call speculatively at every
+ * boundary.
  *
  * @warning **Destroys whatever the ring holds** and is unsynchronised with
  * the producer.  Legal only where the producer is quiescent AND the ring has

@@ -1384,6 +1384,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats pr-watch \
                 wheel-check wheel-smoke release-smoke release-smoke-pypi \
+                release-smoke-packages \
                 bench-python \
                 bench-interleaved bench-publish bench-docs bench-stream \
                 bench-report \
@@ -2302,14 +2303,56 @@ package-linux: ## Build the .deb and .rpm packages inside the manylinux_2_28 ima
 # floor (almalinux:8, glibc 2.28) is in the list on purpose: it is the claim
 # the manylinux build makes.
 PKG_SMOKE_DISTROS ?= debian:stable ubuntu:24.04 almalinux:8 fedora:latest
-package-linux-smoke: package-linux ## Install the built packages in each of $(PKG_SMOKE_DISTROS) and consume them
-	@for d in $(PKG_SMOKE_DISTROS); do \
+
+# $(call PKG_SMOKE_RUN,<target>,<packages dir, relative to the checkout>) --
+# the distro loop both package smokes run, so the packages CI just built and
+# the packages a user downloads are held to one script and one distro list.
+# Read-only mount: the script only reads the checkout (consumer sources).
+PKG_SMOKE_RUN = for d in $(PKG_SMOKE_DISTROS); do \
 	    echo ">> $$d"; \
 	    docker run --rm -v "$(CURDIR)":/w:ro -w /w $$d \
-	        bash tests/install/linux-package-smoke.sh /w/$(PKG_OUT_DIR) \
-	        || { echo "package-linux-smoke: FAILED in $$d"; exit 1; }; \
+	        bash tests/install/linux-package-smoke.sh /w/$(2) \
+	        || { echo "$(1): FAILED in $$d"; exit 1; }; \
 	 done; \
-	 echo "package-linux-smoke: PASS in $(PKG_SMOKE_DISTROS)"
+	 echo "$(1): PASS in $(PKG_SMOKE_DISTROS)"
+
+package-linux-smoke: package-linux ## Install the built packages in each of $(PKG_SMOKE_DISTROS) and consume them
+	@$(call PKG_SMOKE_RUN,package-linux-smoke,$(PKG_OUT_DIR))
+
+# The same smoke, on the packages a user actually downloads: this machine's
+# architecture's .deb/.rpm set from the GitHub Release, not a local build.
+# release.yml builds and uploads them, but until this nothing installed a
+# PUBLISHED one on any arch -- v0.53.0's and v0.54.0's were each installed
+# once, by hand (doppler#1413), and that by-hand run is how doppler#1451 was
+# found. Rehearsable against any released version, which is what makes it
+# testable before a tag exists: `make release-smoke-packages VERSION=0.54.1`.
+#
+# EXACTLY 6 files (runtime, -dev, -tools, times deb and rpm): the smoke script
+# takes the first glob match, so a second arch's file in the directory would
+# be installed on the wrong machine, and a missing one would fail as "no
+# package matching" rather than naming the release as short.
+RELEASE_PKG_DIR ?= $(DIST_DIR)/release-packages
+release-smoke-packages: ## Install the PUBLISHED .deb/.rpm for this arch in each of $(PKG_SMOKE_DISTROS) (VERSION=x.y.z)
+ifndef VERSION
+	@echo "usage: make release-smoke-packages VERSION=<x.y.z>"; exit 1
+endif
+	@rm -rf $(RELEASE_PKG_DIR) && mkdir -p $(RELEASE_PKG_DIR)
+	@case "$$(uname -m)" in \
+	     x86_64)        deb=amd64; rpm=x86_64 ;; \
+	     aarch64|arm64) deb=arm64; rpm=aarch64 ;; \
+	     *) echo "release-smoke-packages: no packages for $$(uname -m)"; \
+	        exit 1 ;; \
+	 esac; \
+	 gh release download "v$(VERSION)" -R doppler-dsp/doppler \
+	     -D $(RELEASE_PKG_DIR) -p "*_$$deb.deb" -p "*.$$rpm.rpm"; \
+	 n=$$(ls $(RELEASE_PKG_DIR) | wc -l); \
+	 if [ "$$n" -ne 6 ]; then \
+	     echo "release-smoke-packages: v$(VERSION) has $$n $$deb/$$rpm"; \
+	     echo "  packages, want 6 (runtime, -dev, -tools x deb, rpm):"; \
+	     ls -1 $(RELEASE_PKG_DIR) | sed 's/^/    /'; exit 1; \
+	 fi; \
+	 ls -1 $(RELEASE_PKG_DIR)
+	@$(call PKG_SMOKE_RUN,release-smoke-packages,$(RELEASE_PKG_DIR))
 
 # The packaged archive, consumed the way a downstream consumes the published
 # one: extract it into a fresh prefix and run the release smoke against that

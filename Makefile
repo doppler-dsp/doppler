@@ -58,6 +58,23 @@ PYTHON_EXECUTABLE ?= $(shell uv run python -c \
     'import sys; print(sys.executable)' 2>/dev/null || which python3)
 PYTHON_EXECUTABLE := $(or $(JUST_BUILDIT_PYTHON),$(PYTHON_EXECUTABLE))
 
+# $(call CONTAINER_CHECKOUT,<build dir>) -- the `docker run` flags for "this
+# checkout, bind-mounted read-write at /w, worked on by a `make` inside".
+# Every such mount goes through here; container-mount-check requires it.
+#
+# The line above is why. A `make` inside the container expands it too, and
+# `uv run` there syncs the project environment -- which, through the mount,
+# is the HOST's .venv -- for the container's interpreter, stamping every
+# entry point `#!/w/.venv/bin/python`. The next host `make lint` then dies on
+# "Failed to spawn: just-makeit" (gh-1452). UV_PROJECT_ENVIRONMENT moves the
+# container's venv into the build tree the container already owns: per image,
+# gitignored, and cleaned with it.
+#
+# As the caller, not root: the build tree lands in the checkout, and a
+# root-owned one is a `make clean` away from needing sudo.
+CONTAINER_CHECKOUT = -u $$(id -u):$$(id -g) -v "$(CURDIR)":/w -w /w \
+                     -e UV_PROJECT_ENVIRONMENT=/w/$(1)/.venv
+
 # Extra cmake args passed through to every configure step.
 # Example: make build CMAKE_ARGS="-DENABLE_SIMD=OFF"
 CMAKE_ARGS  ?=
@@ -1362,6 +1379,7 @@ LOCAL_TARGETS = specan record-demo gallery blazing gen-c-api just-build \
                 installed-headers-check exported-link-check \
                 ci-image ci-image-check ci-image-repin-check \
                 ccsds-isolation-check instrumented-sweep-check \
+                container-mount-check \
                 cargo-lock-check design-pages-check \
                 ci-image-shell ci-image-source-hash \
                 ci-shell ci-run ci-gates ccache-stats pr-watch \
@@ -1429,7 +1447,8 @@ lint: tests-ssot characterization-check validation-report-check changelog-check 
       workflow-syntax-check ci-aggregator-check release-notes-size-check \
       issue-link-check deps-budget-check ci-image-check cargo-floor-check \
       bench-coverage-check kwarg-parity-check doc-sections-check \
-      ccsds-isolation-check cargo-lock-check instrumented-sweep-check \
+      ccsds-isolation-check container-mount-check cargo-lock-check \
+      instrumented-sweep-check \
       design-pages-check drift-check doxygen-check
 
 # The base the assertion ratchet compares against, same shape as COV_BASE:
@@ -2272,8 +2291,8 @@ package-linux: ## Build the .deb and .rpm packages inside the manylinux_2_28 ima
 	printf 'FROM %s\nRUN dnf install -y rpm-build && dnf clean all\n' \
 	    "$(PKG_IMAGE)" | docker build -q -t $(PKG_BUILDER_IMAGE) - >/dev/null
 	@rm -rf $(PKG_OUT_DIR)
-	docker run --rm -u $$(id -u):$$(id -g) -e HOME=/tmp \
-	    -v "$(CURDIR)":/w -w /w $(PKG_BUILDER_IMAGE) \
+	docker run --rm -e HOME=/tmp $(call CONTAINER_CHECKOUT,$(PKG_BUILD_DIR)) \
+	    $(PKG_BUILDER_IMAGE) \
 	    make package-deb package-rpm PKG_BUILD_DIR=$(PKG_BUILD_DIR)
 	@ls -1 $(PKG_OUT_DIR)
 
@@ -3391,8 +3410,8 @@ glibc-gate: glibc-image ## Build in a glibc $(GLIBC_MAX) container, then run gli
 # checkout, and a root-owned build-glibc228/ is one `make clean` away from
 # needing sudo. One `make` invocation, three goals — command-line overrides
 # propagate to the sub-makes `test-examples` spawns.
-	docker run --rm -u $$(id -u):$$(id -g) \
-	    -v "$(CURDIR)":/w -w /w $(GLIBC_IMAGE) \
+	docker run --rm $(call CONTAINER_CHECKOUT,$(GLIBC_BUILD_DIR)) \
+	    $(GLIBC_IMAGE) \
 	    make build test-examples glibc-check \
 	        BUILD_DIR=$(GLIBC_BUILD_DIR) \
 	        STANDALONE_BUILD_DIR=$(GLIBC_BUILD_DIR)/standalone
@@ -3490,12 +3509,11 @@ ci-image: ## Build the CI toolchain image locally, one per base
 # glibc-gate's build-glibc228.
 CI_IMAGE     ?= $(CI_IMAGE_2404)
 CI_BUILD_DIR ?= build-ci
-CI_DOCKER_RUN = docker run --rm -u $$(id -u):$$(id -g) \
-                    -v "$(CURDIR)":/w -w /w
+CI_DOCKER_RUN = docker run --rm $(call CONTAINER_CHECKOUT,$(CI_BUILD_DIR))
 
 ci-shell: ## Interactive shell in the PINNED CI image, checkout at /w
-	@docker run --rm -it -u $$(id -u):$$(id -g) \
-	    -v "$(CURDIR)":/w -w /w $(CI_IMAGE) bash
+	@docker run --rm -it $(call CONTAINER_CHECKOUT,$(CI_BUILD_DIR)) \
+	    $(CI_IMAGE) bash
 
 ci-run: ## Run `make TARGET=<goals>` inside the PINNED CI image
 	@if [ -z "$(TARGET)" ]; then \
@@ -3541,8 +3559,8 @@ ci-gates: ## Run the full gate set inside the PINNED CI image (pre-push check)
 	@$(MAKE) --no-print-directory ci-run TARGET=gates
 
 ci-image-shell: ## A shell in the LOCALLY BUILT CI image (see ci-image)
-	@docker run --rm -it -u $$(id -u):$$(id -g) \
-	    -v "$(CURDIR)":/w -w /w doppler-ci:ubuntu-24.04 bash
+	@docker run --rm -it $(call CONTAINER_CHECKOUT,$(CI_BUILD_DIR)) \
+	    doppler-ci:ubuntu-24.04 bash
 # Report what a PR's checks did. It NEVER authorizes a merge -- that is
 # `gh pr merge <n> --auto --rebase`, which evaluates the repo's required set
 # SERVER-side and cannot be got wrong by a poll loop. Arm auto-merge first;
@@ -3635,6 +3653,25 @@ ci-image-repin-check: ## Fail when a rebuilt CI-image pin is pending and unmerge
 # it over a seeded tree, as `issue-link-check` does.
 ccsds-isolation-check: ## Fail when a component outside ccsds_tm includes its headers
 	@$(UV) run python scripts/check_ccsds_isolation.py
+
+# A read-write mount of the checkout is only safe through CONTAINER_CHECKOUT,
+# which keeps an in-container `uv run` off the host's .venv (gh-1452). So the
+# Makefile must hold EXACTLY ONE such mount -- the declaration's. A second is
+# a site that bypasses it; zero means the pattern no longer finds the
+# declaration, and a check that finds nothing has checked nothing. `:ro`
+# mounts are exempt: nothing can be written through them.
+container-mount-check: ## Fail on a writable checkout mount outside CONTAINER_CHECKOUT
+	@hits=$$(grep -nE -- '-v +"?\$$\(CURDIR\)"?:[^ :"]+( |\\|$$)' \
+	     $(filter Makefile %.mk,$(MAKEFILE_LIST)) /dev/null); \
+	 n=$$(printf '%s\n' "$$hits" | grep -c .); \
+	 if [ "$$n" -ne 1 ] || ! printf '%s' "$$hits" | \
+	     grep -q 'CONTAINER_CHECKOUT = '; then \
+	     echo "container-mount-check: want exactly 1 writable checkout"; \
+	     echo "  mount (CONTAINER_CHECKOUT's), found $$n:"; \
+	     printf '%s\n' "$$hits" | sed 's/^/    /'; \
+	     echo "  Use \$$(call CONTAINER_CHECKOUT,<build dir>) (gh-1452)."; \
+	     exit 1; \
+	 fi
 
 # Cargo.lock records the resolved graph INCLUDING doppler's own version, and
 # `bump-version` never regenerated it -- so it stated 0.46.0 against a 0.47.0

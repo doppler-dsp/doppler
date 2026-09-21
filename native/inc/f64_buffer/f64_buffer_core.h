@@ -239,9 +239,13 @@ static inline double _Complex *dp_f64_peek_view (dp_f64_t *state, size_t n);
  * @param n Number of samples to release.  Defaults to the count of the
  *          outstanding :meth:`wait` / :meth:`peek` view.
  *
+ * @return DP_OK, or DP_ERR_INVALID when ``n`` exceeds what is readable.
+ *
+ * @throws ValueError ``n`` exceeds :attr:`available`. Nothing is released:
+ *         past that point the ring's counts would stop describing it.
  * @throws RuntimeError ``n`` was omitted and nothing is outstanding -- no view
- *                      was lent since the last release, so there is no count
- *                      to default to.
+ *         was lent since the last release, so there is no count to default
+ *         to.
  *
  * @code
  * >>> from doppler.buffer import F64Buffer
@@ -253,7 +257,7 @@ static inline double _Complex *dp_f64_peek_view (dp_f64_t *state, size_t n);
  * >>> buf.consume()
  * @endcode
  */
-static inline void dp_f64_consume (dp_f64_t *state, size_t n);
+static inline int dp_f64_consume (dp_f64_t *state, size_t n);
 
 /**
  * @brief Say that no more data is coming.

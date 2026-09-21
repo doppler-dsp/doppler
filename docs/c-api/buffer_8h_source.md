@@ -524,7 +524,13 @@ typedef enum
   {                                                                           \
     size_t h = DP_LOAD_RLX (&ab->head);                                       \
     size_t t = DP_LOAD_ACQ (&ab->tail);                                       \
-    if ((ab->capacity - (h - t)) < n)                                         \
+    /* n > capacity FIRST, and not only because it can never fit: the room    \
+       below is computed from two indices, and if they are ever wrong --      \
+       tail past head -- it comes out LARGER than the ring. Believing it      \
+       copied past the mapping. consume() now refuses the one way in, but     \
+       a memcpy must not depend on that: capacity is already loaded, so       \
+       this costs the hot path one compare and no atomic. */                  \
+    if (n > ab->capacity || (ab->capacity - (h - t)) < n)                     \
       {                                                                       \
         __atomic_fetch_add (&ab->dropped, n, __ATOMIC_RELAXED);               \
         return false;                                                         \
@@ -609,6 +615,8 @@ typedef enum
     size_t h     = DP_LOAD_RLX (&ab->head);                                   \
     size_t t     = DP_LOAD_ACQ (&ab->tail);                                   \
     size_t space = ab->capacity - (h - t);                                    \
+    if (space > ab->capacity) /* indices corrupt (see write()): stay in */    \
+      space = ab->capacity;   /* the mapping whatever they claim       */     \
     if (n > space)                                                            \
       n = space;                                                              \
     if (n == 0)                                                               \
@@ -651,11 +659,15 @@ typedef enum
     __atomic_store_n (&ab->closed, 0, __ATOMIC_RELEASE);                      \
   }                                                                           \
                                                                               \
-           \
-  static inline void dp_##name##_consume (dp_##name##_t *ab, size_t n)        \
+                                                                         \
+  static inline int dp_##name##_consume (dp_##name##_t *ab, size_t n)         \
   {                                                                           \
+    size_t h = DP_LOAD_ACQ (&ab->head);                                       \
     size_t t = DP_LOAD_RLX (&ab->tail);                                       \
+    if (n > h - t)                                                            \
+      return DP_ERR_INVALID;                                                  \
     DP_STORE_REL (&ab->tail, t + n);                                          \
+    return DP_OK;                                                             \
   }
 
 /* -------------------------------------------------------------------------

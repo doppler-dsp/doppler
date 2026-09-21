@@ -37,7 +37,7 @@ static inline float _Complex *dp_f32_wait_view (dp_f32_t *state, size_t n);
 
 static inline float _Complex *dp_f32_peek_view (dp_f32_t *state, size_t n);
 
-static inline void dp_f32_consume (dp_f32_t *state, size_t n);
+static inline int dp_f32_consume (dp_f32_t *state, size_t n);
 
 static inline void dp_f32_close (dp_f32_t *state);
 

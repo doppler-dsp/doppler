@@ -31,12 +31,6 @@ to. §2 and §3 are the two surfaces.
 
 ## What is not known yet
 
-- **What bounding `consume()` costs.** It would need the producer's index on
-    the consumer's release path — a cross-core cache line per call. Unmeasured
-    ([#1424](https://github.com/doppler-dsp/doppler/issues/1424)).
-- **Two-thread throughput.** Every benchmark here is one thread alternating
-    roles, which is the sequencing the acquire/release pairs are written for
-    and not the case they exist for.
 - **Whether `burst_capture`'s position-addressed history belongs in the
     ring** (`at(pos)`, `restore(head, tail)`) or stays that object's own
     ([#1425](https://github.com/doppler-dsp/doppler/issues/1425)).
@@ -71,6 +65,13 @@ assuming the number you asked for.
 Both return the same contiguous pointer and **neither consumes**. Releasing
 is always `dp_<t>_consume(ab, k)`, and `k` need not equal `n` — releasing
 fewer is how overlapped frames are read.
+
+`consume(k)` refuses `k > available()` — `DP_ERR_INVALID`, nothing released —
+because past that the read position overtakes the write position and the two
+indices stop describing a ring. A caller that releases only what it was lent
+never meets it. The bound is free: the read that preceded it already loaded
+the producer's index
+([measurements §6](ring-buffer-measurements.md#6-consume-is-bounded-after-all-and-two-threads-2026-09-21)).
 
 `NULL` has more than one meaning, and they call for different responses, so
 one function owns the precedence — `dp_<t>_wait_status(ab, n)`:
@@ -159,10 +160,6 @@ says why:
 
 - **No thread, no timeout.** `wait()` spins; it is for a consumer that has a
     core to spend. A single-threaded user calls `peek()`.
-- **No bounds check in `consume()`.** Releasing more than `available()`
-    moves the tail past the head and every later count is garbage. `peek()`
-    and `wait()` return only what is there, so release no more than you were
-    given.
 - **No ownership of the pointer's lifetime.** A pointer from `wait()` or
     `peek()` is valid until those samples are consumed; after that the
     producer may overwrite them. Zero-copy means exactly that.

@@ -227,6 +227,13 @@ them, so it is a loss count only if they are then thrown away:
 --8<-- "src/doppler/examples/ring_refusals_demo.py:full"
 ```
 
+So is releasing more than is there — refused, and nothing released, because
+the two positions are all a ring knows about itself:
+
+```python
+--8<-- "src/doppler/examples/ring_refusals_demo.py:release"
+```
+
 A request nothing could ever satisfy is a caller bug, and says so with both
 numbers instead of waiting forever. "Not yet" and "never" are different
 answers — `None` and `EOFError`:

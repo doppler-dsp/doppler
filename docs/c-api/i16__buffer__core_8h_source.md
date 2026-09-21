@@ -43,7 +43,7 @@ static inline dp_iq16_t *dp_i16_wait_view (dp_i16_t *state, size_t n);
 
 static inline dp_iq16_t *dp_i16_peek_view (dp_i16_t *state, size_t n);
 
-static inline void dp_i16_consume (dp_i16_t *state, size_t n);
+static inline int dp_i16_consume (dp_i16_t *state, size_t n);
 
 static inline void dp_i16_close (dp_i16_t *state);
 

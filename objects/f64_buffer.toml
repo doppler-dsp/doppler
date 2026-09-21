@@ -109,10 +109,16 @@ message = "interrupted"
 
 # The two releases. consume(n) defaults n to the outstanding borrow's count;
 # reset() takes none and just invalidates it.
+# The C release REFUSES n > available (DP_ERR_INVALID, nothing released);
+# `status_return` turns that into the exception. Unbounded, it let two lines
+# of Python push the tail past the head and crash the interpreter.
 [[f64_buffer.methods]]
 name = "consume"
 arg_type = "void"
-return_type = "void"
+return_type = "int"
+status_return = true
+error = "ValueError"
+error_message = "consume(n): n exceeds the samples available; nothing was released"
 fn = "dp_f64_consume"
 releases = ["wait", "peek"]
 

@@ -897,7 +897,9 @@ target_include_directories(bench_util_core
 add_executable(bench_buffer_core
                ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_buffer_core.c
                $<TARGET_OBJECTS:dp_interrupt_obj>)
-target_link_libraries(bench_buffer_core PRIVATE ${DP_MATH_LIBRARY})
+find_package(Threads REQUIRED) # the two-thread row
+target_link_libraries(bench_buffer_core PRIVATE Threads::Threads
+                                                ${DP_MATH_LIBRARY})
 target_include_directories(bench_buffer_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)

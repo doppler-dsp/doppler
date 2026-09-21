@@ -285,7 +285,15 @@ F32BufferObj_consume (F32BufferObject *self, PyObject *args, PyObject *kwds)
         }
     }
   self->_jm_borrowed = 0;
-  dp_f32_consume (self->handle, n);
+  int _rc            = dp_f32_consume (self->handle, n);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "consume(n): n exceeds the samples available; nothing "
+                    "was released",
+                    (long long)_rc);
+      return NULL;
+    }
   Py_RETURN_NONE;
 }
 
@@ -632,9 +640,16 @@ static PyMethodDef F32BufferObj_methods[] = {
     "\n"
     "Raises\n"
     "------\n"
+    "ValueError\n"
+    "    ``n`` exceeds :attr:`available`. Nothing is released: past that\n"
+    "    point the ring's counts would stop describing it.\n"
     "RuntimeError\n"
     "    ``n`` was omitted and nothing is outstanding -- no view was lent\n"
     "    since the last release, so there is no count to default to.\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``consume(n): n exceeds the samples available; nothing was\n"
+    "    released``, with the return code appended (gh-869).\n"
     "\n"
     "Examples\n"
     "--------\n"

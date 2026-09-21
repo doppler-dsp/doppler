@@ -36,6 +36,7 @@
  */
 #include "buffer/buffer.h"
 #include "dp_bench.h"
+#include "dp_thread.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -93,6 +94,35 @@ static const char *kind_name[N_KIND] = { "f32", "f64" };
       dp_##name##_consume ((buf), (chunk));                                   \
     }                                                                         \
   while (0)
+
+/* ── two threads ──────────────────────────────────────────────────────────
+   Every row above is ONE thread alternating roles, which is the sequencing
+   the acquire/release pairs are written for and not the case they exist
+   for. This is that case: a producer on its own thread against a blocking
+   wait(), at a SMALL frame -- so the cost is the ring's calls and the
+   cross-core traffic on its two indices, not memcpy. It is also where a
+   bounded consume() would show if it cost anything: the bound reads the
+   producer's index on the consumer's release path. It does not, because
+   the wait() just before it has already loaded that line. */
+#define TWO_FRAME 64
+#define TWO_TOTAL (8u * 1024u * 1024u) /* samples per timed round */
+#define TWO_ROUNDS 20
+
+DP_THREAD_FN (two_producer, p)
+{
+  dp_f32_t    *ring = (dp_f32_t *)p;
+  static float block[2 * TWO_FRAME];
+  size_t       sent = 0;
+  while (sent < TWO_TOTAL)
+    {
+      if (dp_f32_space (ring) < TWO_FRAME)
+        continue; /* write() never blocks: backpressure is ours */
+      dp_f32_write (ring, block, TWO_FRAME);
+      sent += TWO_FRAME;
+    }
+  dp_f32_close (ring);
+  DP_THREAD_RETURN;
+}
 
 int
 main (void)
@@ -250,6 +280,44 @@ main (void)
           "  position does not change what a batch costs, which is the\n"
           "  entire reason the pages are mapped twice. Anything else is\n"
           "  a copy or a split that the contiguity was supposed to remove.\n");
+
+  {
+    static double t_two[TWO_ROUNDS];
+    size_t        got = 0;
+    for (int r = 0; r < TWO_ROUNDS; r++)
+      {
+        dp_f32_t   *ring = dp_f32_create (65536);
+        dp_thread_t th;
+        float      *v;
+        if (!ring || dp_thread_create (&th, two_producer, ring) != 0)
+          return 1;
+        t0 = jm_bench_now_ns ();
+        while ((v = dp_f32_wait (ring, TWO_FRAME)) != NULL)
+          {
+            acc += v[0];
+            dp_f32_consume (ring, TWO_FRAME);
+            got += TWO_FRAME;
+          }
+        t1       = jm_bench_now_ns ();
+        t_two[r] = jm_bench_elapsed_sec (t0, t1);
+        dp_thread_join (th);
+        dp_f32_destroy (ring);
+      }
+    if (got != (size_t)TWO_ROUNDS * TWO_TOTAL)
+      {
+        fprintf (stderr, "two-thread: %zu samples, expected %zu\n", got,
+                 (size_t)TWO_ROUNDS * TWO_TOTAL);
+        return 1; /* a throughput for a stream that lost samples is a lie */
+      }
+    (void)snprintf (name, sizeof name,
+                    "two_thread_write_wait_consume[f32,frame=%d]", TWO_FRAME);
+    dp_bench_record (&_bench, name, t_two, TWO_ROUNDS, TWO_TOTAL, "sample");
+    printf ("\n  two threads, frame=%d:   %.1f ns/frame   %.0f MSa/s\n",
+            TWO_FRAME,
+            1e9 * dp_bench_min (t_two, TWO_ROUNDS)
+                / (double)(TWO_TOTAL / TWO_FRAME),
+            (double)TWO_TOTAL / dp_bench_min (t_two, TWO_ROUNDS) / 1e6);
+  }
 
   printf ("\n  (checksum %.0f -- keeps the drain from being optimised out)\n",
           acc);

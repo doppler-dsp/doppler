@@ -67,7 +67,7 @@ _The int16 I/Q pair ring as the component just-makeit binds._ [More...](#detaile
 | Type | Name |
 | ---: | :--- |
 |  void | [**dp\_i16\_close**](#function-dp_i16_close) (dp\_i16\_t \* state) <br>_Say that no more data is coming._  |
-|  void | [**dp\_i16\_consume**](#function-dp_i16_consume) (dp\_i16\_t \* state, size\_t n) <br>_Release_ `n` _samples back to the producer._ |
+|  int | [**dp\_i16\_consume**](#function-dp_i16_consume) (dp\_i16\_t \* state, size\_t n) <br>_Release_ `n` _samples back to the producer._ |
 |  dp\_i16\_t \* | [**dp\_i16\_create**](#function-dp_i16_create) (size\_t capacity) <br>_Lock-free SPSC ring buffer for interleaved int16 IQ pairs._  |
 |  void | [**dp\_i16\_destroy**](#function-dp_i16_destroy) (dp\_i16\_t \* state) <br>_Unmap the buffer and free the underlying struct._  |
 |  [**dp\_iq16\_t**](structdp__iq16__t.md) \* | [**dp\_i16\_peek\_view**](#function-dp_i16_peek_view) (dp\_i16\_t \* state, size\_t n) <br>_:meth:_ `wait` _that never blocks: a view, or None for not yet._ |
@@ -191,7 +191,7 @@ EOFError: end of stream: the producer closed the ring
 
 _Release_ `n` _samples back to the producer._
 ```C++
-static inline void dp_i16_consume (
+static inline int dp_i16_consume (
     dp_i16_t * state,
     size_t n
 ) 
@@ -212,9 +212,17 @@ Advances the consumer tail pointer by `n`, making that space available for the p
 
 
 
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when `n` exceeds what is readable.
+
+
+
+
 **Exception:**
 
 
+* `ValueError` `n` exceeds :attr:`available`. Nothing is released: past that point the ring's counts would stop describing it. 
 * `RuntimeError` `n` was omitted and nothing is outstanding  no view was lent since the last release, so there is no count to default to.
 
 

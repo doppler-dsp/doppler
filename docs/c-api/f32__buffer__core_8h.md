@@ -67,7 +67,7 @@ _The complex64 ring as the component just-makeit binds._ [More...](#detailed-des
 |  void | [**dp\_f32\_destroy**](#function-dp_f32_destroy) (dp\_f32\_t \* state) <br>_Unmap the double-mapped region and free the buffer struct._  |
 |  float \_Complex \* | [**dp\_f32\_peek\_view**](#function-dp_f32_peek_view) (dp\_f32\_t \* state, size\_t n) <br>_:meth:_ `wait` _that never blocks: a view, or None for not yet._ |
 |  void | [**dp\_f32\_reset**](#function-dp_f32_reset) (dp\_f32\_t \* state) <br>_Empty the ring and reopen it._  |
-|  float \_Complex \* | [**dp\_f32\_wait\_view**](#function-dp_f32_wait_view) (dp\_f32\_t \* state, size\_t n) <br>_Block until_ `n` _samples are available, then return a zero-copy view._ |
+|  float \_Complex \* | [**dp\_f32\_wait\_view**](#function-dp_f32_wait_view) (dp\_f32\_t \* state, size\_t n) <br>_Block until_ `n` _samples are available, then lend a zero-copy view._ |
 |  size\_t | [**dp\_f32\_write\_some\_view**](#function-dp_f32_write_some_view) (dp\_f32\_t \* state, const float \_Complex \* x, size\_t x\_len) <br>_Write as much of_ `x` _as fits and say how much that was._ |
 |  bool | [**dp\_f32\_write\_view**](#function-dp_f32_write_view) (dp\_f32\_t \* state, const float \_Complex \* x, size\_t x\_len) <br>_Write samples into the buffer without blocking._  |
 |  size\_t | [**f32\_buffer\_get\_available**](#function-f32_buffer_get_available) (const [**f32\_buffer\_state\_t**](f32__buffer__core_8h.md#typedef-f32_buffer_state_t) \* state) <br>_Samples written but not yet consumed._  |
@@ -414,7 +414,7 @@ Not safe against a concurrent producer or consumer: it moves both ends of the ri
 
 ### function dp\_f32\_wait\_view 
 
-_Block until_ `n` _samples are available, then return a zero-copy view._
+_Block until_ `n` _samples are available, then lend a zero-copy view._
 ```C++
 static inline float _Complex * dp_f32_wait_view (
     dp_f32_t * state,

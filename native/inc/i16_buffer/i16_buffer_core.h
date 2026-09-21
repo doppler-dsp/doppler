@@ -124,8 +124,8 @@ static inline dp_i16_t *dp_i16_create (size_t capacity);
  * False
  * @endcode
  */
-static inline bool dp_i16_write_view (dp_i16_t *state, const dp_iq16_t *x,
-                                      size_t x_len);
+static inline bool
+dp_i16_write_view (dp_i16_t *state, const dp_iq16_t *x, size_t x_len);
 
 /**
  * @brief Write as much of ``x`` as fits and say how much that was.
@@ -161,8 +161,9 @@ static inline bool dp_i16_write_view (dp_i16_t *state, const dp_iq16_t *x,
  * (True, 0)
  * @endcode
  */
-static inline size_t dp_i16_write_some_view (dp_i16_t *state, const dp_iq16_t *x,
-                                             size_t x_len);
+static inline size_t
+dp_i16_write_some_view (dp_i16_t *state, const dp_iq16_t *x,
+                        size_t x_len);
 
 /**
  * @brief Block until ``n`` samples are available, then lend a zero-copy view.
@@ -181,9 +182,9 @@ static inline size_t dp_i16_write_some_view (dp_i16_t *state, const dp_iq16_t *x
  *                  samples remain.  The tail is drained and no more is coming,
  *                  so the wait ends rather than blocking forever.
  * @throws KeyboardInterrupt Somebody asked this process to stop, through a
- *                           :class:`doppler.interrupt.Interrupt` guard -- from any
- *                           module: the flag is process-wide. Without a guard
- *                           the spin checks for no signals at all.
+ *         :class:`doppler.interrupt.Interrupt` guard -- from any module:
+ *         the flag is process-wide. Without a guard the spin checks for
+ *         no signals at all.
  *
  * @code
  * >>> from doppler.buffer import I16Buffer

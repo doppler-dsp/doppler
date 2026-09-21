@@ -101,8 +101,8 @@ static inline dp_f32_t *dp_f32_create (size_t capacity);
  * False
  * @endcode
  */
-static inline bool dp_f32_write_view (dp_f32_t *state, const float _Complex *x,
-                                      size_t x_len);
+static inline bool
+dp_f32_write_view (dp_f32_t *state, const float _Complex *x, size_t x_len);
 
 /**
  * @brief Write as much of ``x`` as fits and say how much that was.
@@ -136,11 +136,12 @@ static inline bool dp_f32_write_view (dp_f32_t *state, const float _Complex *x,
  * (True, 0)
  * @endcode
  */
-static inline size_t dp_f32_write_some_view (dp_f32_t *state, const float _Complex *x,
-                                             size_t x_len);
+static inline size_t
+dp_f32_write_some_view (dp_f32_t *state, const float _Complex *x,
+                        size_t x_len);
 
 /**
- * @brief Block until ``n`` samples are available, then return a zero-copy view.
+ * @brief Block until ``n`` samples are available, then lend a zero-copy view.
  *
  * Spins (releasing the GIL so a producer thread can run concurrently)
  * until at least ``n`` samples have been written by the producer.
@@ -162,9 +163,9 @@ static inline size_t dp_f32_write_some_view (dp_f32_t *state, const float _Compl
  *                  samples remain.  The tail is drained and no more is coming,
  *                  so the wait ends rather than blocking forever.
  * @throws KeyboardInterrupt Somebody asked this process to stop, through a
- *                           :class:`doppler.interrupt.Interrupt` guard -- from any
- *                           module: the flag is process-wide. Without a guard
- *                           the spin checks for no signals at all.
+ *         :class:`doppler.interrupt.Interrupt` guard -- from any module:
+ *         the flag is process-wide. Without a guard the spin checks for
+ *         no signals at all.
  *
  * @code
  * >>> from doppler.buffer import F32Buffer

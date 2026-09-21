@@ -26,11 +26,12 @@ typedef dp_f64_t f64_buffer_state_t;
 
 static inline dp_f64_t *dp_f64_create (size_t capacity);
 
-static inline bool dp_f64_write_view (dp_f64_t *state, const double _Complex *x,
-                                      size_t x_len);
+static inline bool
+dp_f64_write_view (dp_f64_t *state, const double _Complex *x, size_t x_len);
 
-static inline size_t dp_f64_write_some_view (dp_f64_t *state, const double _Complex *x,
-                                             size_t x_len);
+static inline size_t
+dp_f64_write_some_view (dp_f64_t *state, const double _Complex *x,
+                        size_t x_len);
 
 static inline double _Complex *dp_f64_wait_view (dp_f64_t *state, size_t n);
 

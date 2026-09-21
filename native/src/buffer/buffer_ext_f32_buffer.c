@@ -499,8 +499,7 @@ static PyMethodDef F32BufferObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "wait(n) -> ndarray\n"
     "\n"
-    "Block until ``n`` samples are available, then return a zero-copy\n"
-    "view.\n"
+    "Block until ``n`` samples are available, then lend a zero-copy view.\n"
     "\n"
     "Spins (releasing the GIL so a producer thread can run concurrently)\n"
     "until at least ``n`` samples have been written by the producer. Returns\n"

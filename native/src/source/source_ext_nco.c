@@ -129,7 +129,13 @@ NCOObj_steps_u32 (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -225,7 +231,13 @@ NCOObj_steps_u32_scaled (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -393,7 +405,13 @@ NCOObj_steps_u32_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
@@ -507,7 +525,13 @@ NCOObj_steps_u32_scaled_ctrl (NCOObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (ctrl_arr);
@@ -837,20 +861,14 @@ static PyMethodDef NCOObj_methods[] = {
     "Pre-allocation hint: the buffer size the binding starts with.\n"
     "\n"
     "NOT a limit on the call, and it used to say it was (\"requesting more\n"
-    "\n"
-    "samples per call is undefined behaviour\"). That was the contract\n"
-    "\n"
-    "before `pass_capacity` (jm gh-138) started telling the kernel the\n"
-    "\n"
-    "caller's capacity: every stepper now clamps to its own max_out\n"
-    "\n"
-    "argument and returns what it actually wrote, and the Python binding\n"
-    "\n"
-    "grows its buffer on demand. Measured: all three faces return 70000\n"
-    "\n"
-    "correct samples for a 70000-sample request. Size an out= buffer\n"
-    "\n"
-    "with this, or ignore it and let the binding allocate.\n"
+    "samples per call is undefined behaviour\"). That was the contract "
+    "before\n"
+    "`pass_capacity` (jm gh-138) started telling the kernel the caller's\n"
+    "capacity: every stepper now clamps to its own max_out argument and\n"
+    "returns what it actually wrote, and the Python binding grows its buffer\n"
+    "on demand. Measured: all three faces return 70000 correct samples for a\n"
+    "70000-sample request. Size an out= buffer with this, or ignore it and\n"
+    "let the binding allocate.\n"
     "\n"
     "Returns\n"
     "-------\n"

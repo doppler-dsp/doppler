@@ -137,12 +137,13 @@ void delay_push(delay_state_t *state, double _Complex x);
 size_t delay_ptr_max_out(delay_state_t *state, size_t n);
 
   /**
-   * @brief Return a zero-copy view of the n most recent samples.
+   * @brief Snapshot the n most recent samples.
    * Copies at most min(n, num_taps) samples starting from `buf[head]` into
    * out.  Because the dual-buffer layout guarantees contiguity, this is a
    * single memcpy of up to num_taps elements; no wrap-around logic is
-   * needed.  The Python binding returns a NumPy array backed directly by
-   * the pre-allocated output buffer (base object is the DelayCf64 itself).
+   * needed.  The Python binding returns an independent NumPy array per
+   * call, so an earlier snapshot is never overwritten by a later one; pass
+   * `out=` to fill a caller-owned buffer instead of allocating.
    *
    * @param state  Must be non-NULL.
    * @param n      Number of samples to copy; clamped to num_taps.
@@ -169,8 +170,8 @@ size_t delay_ptr(delay_state_t *state, size_t n, double _Complex *out, size_t ma
 
   /**
    * @brief Return the maximum output capacity for delay_push_ptr().
-   * Returns num_taps; the Python binding uses this to pre-allocate the
-   * output buffer before calling delay_push_ptr().
+   * Returns num_taps; the Python binding sizes each call's output array
+   * with it, and checks a caller's `out=` buffer against it.
    *
    * @param state  Must be non-NULL.
    * @return       num_taps (number of samples delay_push_ptr() will write).
@@ -181,8 +182,8 @@ size_t delay_push_ptr_max_out(delay_state_t *state);
    * @brief Atomically push a sample and snapshot the current window.
    * Equivalent to calling delay_push() then delay_ptr(num_taps), but
    * avoids the overhead of a second function call.  Always writes exactly
-   * num_taps samples to out.  The Python binding returns a NumPy array
-   * backed by the pre-allocated push_ptr output buffer.
+   * num_taps samples to out.  The Python binding returns an independent
+   * NumPy array per call; pass `out=` to reuse one buffer across pushes.
    *
    * @param state  Must be non-NULL.
    * @param x      New complex sample to insert.

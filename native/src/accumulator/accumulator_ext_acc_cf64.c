@@ -154,16 +154,17 @@ AccCf64_dump (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-AccCf64_madd (AccCf64Object *self, PyObject *args)
+AccCf64_madd (AccCf64Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *x_obj = NULL;
-  PyObject *h_obj = NULL;
-  if (!PyArg_ParseTuple (args, "OO", &x_obj, &h_obj))
+  static char *_kwlist[] = { "x", "h", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *h_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &x_obj, &h_obj))
     return NULL;
   PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
       x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
@@ -189,15 +190,16 @@ AccCf64_madd (AccCf64Object *self, PyObject *args)
 }
 
 static PyObject *
-AccCf64_add2d (AccCf64Object *self, PyObject *args)
+AccCf64_add2d (AccCf64Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *x_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O", &x_obj))
+  static char *_kwlist[] = { "x", NULL };
+  PyObject    *x_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
   PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
       x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
@@ -213,16 +215,17 @@ AccCf64_add2d (AccCf64Object *self, PyObject *args)
 }
 
 static PyObject *
-AccCf64_madd2d (AccCf64Object *self, PyObject *args)
+AccCf64_madd2d (AccCf64Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *x_obj = NULL;
-  PyObject *h_obj = NULL;
-  if (!PyArg_ParseTuple (args, "OO", &x_obj, &h_obj))
+  static char *_kwlist[] = { "x", "h", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *h_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &x_obj, &h_obj))
     return NULL;
   PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
       x_obj, NPY_COMPLEX128, NPY_ARRAY_C_CONTIGUOUS);
@@ -244,36 +247,6 @@ AccCf64_madd2d (AccCf64Object *self, PyObject *args)
   acc_cf64_madd2d (self->handle, x, x_len, h, h_len);
   Py_DECREF (x_arr);
   Py_DECREF (h_arr);
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-AccCf64_destroy (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
-{
-  if (self->handle)
-    {
-      acc_cf64_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-AccCf64_enter (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
-{
-  Py_INCREF (self);
-  return (PyObject *)self;
-}
-
-static PyObject *
-AccCf64_exit (AccCf64Object *self, PyObject *args)
-{
-  (void)args;
-  if (self->handle)
-    {
-      acc_cf64_destroy (self->handle);
-      self->handle = NULL;
-    }
   Py_RETURN_NONE;
 }
 
@@ -330,6 +303,36 @@ AccCf64_set_state (AccCf64Object *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+AccCf64_destroy (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->handle)
+    {
+      acc_cf64_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AccCf64_enter (AccCf64Object *self, PyObject *Py_UNUSED (ignored))
+{
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+AccCf64_exit (AccCf64Object *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
+    {
+      acc_cf64_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef AccCf64_methods[] = {
   { "reset", (PyCFunction)AccCf64_reset, METH_NOARGS,
     "Zero the accumulator, restoring the same state as a fresh\n"
@@ -349,9 +352,9 @@ static PyMethodDef AccCf64_methods[] = {
   { "step", (PyCFunction)AccCf64_step, METH_VARARGS,
     "step(x) -> None\n"
     "\n"
-    "Add one complex sample to the running sum (``acc += x``). This is "
-    "the hot-path entry for sample-by-sample processing. For block "
-    "inputs prefer ``acc_cf64_steps`` to amortise call overhead.\n"
+    "Add one complex sample to the running sum (``acc += x``). This is\n"
+    "the hot-path entry for sample-by-sample processing. For block inputs\n"
+    "prefer ``acc_cf64_steps`` to amortise call overhead.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -369,9 +372,9 @@ static PyMethodDef AccCf64_methods[] = {
   { "steps", (PyCFunction)AccCf64_steps, METH_VARARGS,
     "steps(x[, out]) -> ndarray\n"
     "\n"
-    "Add all samples in ``input`` to the running sum. Equivalent to "
-    "calling ``acc_cf64_step`` for each element; iterates "
-    "element-by-element over double-precision complex samples.\n"
+    "Add all samples in ``input`` to the running sum. Equivalent to\n"
+    "calling ``acc_cf64_step`` for each element; iterates element-by-element\n"
+    "over double-precision complex samples.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -389,22 +392,22 @@ static PyMethodDef AccCf64_methods[] = {
     "\n" },
 
   { "get_acc", (PyCFunction)AccCf64_get_acc, METH_NOARGS,
-    "Return the current accumulator value without modifying state. Use "
-    "this when you need to read the running sum mid-accumulation "
-    "without disturbing it. For a read-and-reset in one call use "
+    "Return the current accumulator value without modifying state. Use this "
+    "when you need to read the running sum mid-accumulation without "
+    "disturbing it. For a read-and-reset in one call use "
     "``acc_cf64_dump``.\n" },
   { "set_acc", (PyCFunction)AccCf64_set_acc, METH_VARARGS,
-    "Overwrite the accumulator with a new complex value. Useful for "
-    "seeding the accumulator to a known baseline before processing a "
-    "new segment without a full ``reset``; subsequent ``step`` / "
-    "``steps`` samples accumulate on top of the seeded value.\n" },
+    "Overwrite the accumulator with a new complex value. Useful for seeding "
+    "the accumulator to a known baseline before processing a new segment "
+    "without a full ``reset``; subsequent ``step`` / ``steps`` samples "
+    "accumulate on top of the seeded value.\n" },
   { "get", (PyCFunction)AccCf64_get, METH_NOARGS,
     "get() -> complex\n"
     "\n"
-    "Return the current accumulated sum without resetting state. "
-    "Identical to reading the ``acc`` property directly; retained as an "
-    "explicit method so call sites that need the value can be uniform "
-    "with ``dump`` without a conditional.\n"
+    "Return the current accumulated sum without resetting state.\n"
+    "Identical to reading the ``acc`` property directly; retained as an\n"
+    "explicit method so call sites that need the value can be uniform with\n"
+    "``dump`` without a conditional.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -422,10 +425,10 @@ static PyMethodDef AccCf64_methods[] = {
   { "dump", (PyCFunction)AccCf64_dump, METH_NOARGS,
     "dump() -> complex\n"
     "\n"
-    "Return the accumulated sum and atomically reset it to zero. This "
-    "is the canonical \"drain\" primitive: read the period total, then "
-    "start a fresh accumulation interval without a separate ``reset`` "
-    "call. Both real and imaginary parts are zeroed unconditionally.\n"
+    "Return the accumulated sum and atomically reset it to zero. This is\n"
+    "the canonical \"drain\" primitive: read the period total, then start a\n"
+    "fresh accumulation interval without a separate ``reset`` call. Both\n"
+    "real and imaginary parts are zeroed unconditionally.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -442,7 +445,7 @@ static PyMethodDef AccCf64_methods[] = {
     "(4+3j)\n"
     ">>> obj.get()\n"
     "0j\n" },
-  { "madd", (PyCFunction)AccCf64_madd, METH_VARARGS,
+  { "madd", (PyCFunction)(void *)AccCf64_madd, METH_VARARGS | METH_KEYWORDS,
     "madd(x, h) -> None\n"
     "\n"
     "Dot-product accumulate with complex signal and float weights: ``acc\n"
@@ -468,7 +471,7 @@ static PyMethodDef AccCf64_methods[] = {
     ">>> obj.madd(x, h)\n"
     ">>> obj.get()\n"
     "(5+0j)\n" },
-  { "add2d", (PyCFunction)AccCf64_add2d, METH_VARARGS,
+  { "add2d", (PyCFunction)(void *)AccCf64_add2d, METH_VARARGS | METH_KEYWORDS,
     "add2d(x) -> None\n"
     "\n"
     "Sum all elements of a (logically) 2-D complex array into the\n"
@@ -490,7 +493,8 @@ static PyMethodDef AccCf64_methods[] = {
     ">>> obj.add2d(grid)\n"
     ">>> obj.get()\n"
     "(10+0j)\n" },
-  { "madd2d", (PyCFunction)AccCf64_madd2d, METH_VARARGS,
+  { "madd2d", (PyCFunction)(void *)AccCf64_madd2d,
+    METH_VARARGS | METH_KEYWORDS,
     "madd2d(x, h) -> None\n"
     "\n"
     "Dot-product accumulate over a flat 2-D complex buffer: ``acc +=\n"
@@ -516,43 +520,6 @@ static PyMethodDef AccCf64_methods[] = {
     ">>> obj.madd2d(x, h)\n"
     ">>> obj.get()\n"
     "(5+0j)\n" },
-  { "destroy", (PyCFunction)AccCf64_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
-    "\n"
-    "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
-    "exit.\n"
-    "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)AccCf64_enter, METH_NOARGS,
-    "Enter a context manager, returning this object.\n"
-    "\n"
-    "Lets a AccCf64 be used in a `with` statement so its C resources are\n"
-    "released deterministically on exit rather than at collection time.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "AccCf64\n"
-    "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)AccCf64_exit, METH_VARARGS,
-    "Exit a context manager, releasing the AccCf64.\n"
-    "\n"
-    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "exc_type : object | None\n"
-    "    Exception class, or None. Ignored.\n"
-    "exc : object | None\n"
-    "    Exception instance, or None. Ignored.\n"
-    "tb : object | None\n"
-    "    Traceback object, or None. Ignored.\n" },
   { "state_bytes", (PyCFunction)AccCf64_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -588,9 +555,9 @@ static PyMethodDef AccCf64_methods[] = {
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
     "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()` "
-    "before\n"
-    "the blob is handed to the C core, and the core may reject it as well.\n"
+    "was constructed with. Length is validated against `state_bytes()`\n"
+    "before the blob is handed to the C core, and the core may reject it as\n"
+    "well.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"
@@ -601,6 +568,41 @@ static PyMethodDef AccCf64_methods[] = {
     "blob : bytes\n"
     "    A `get_state()` blob from this type, exactly `state_bytes()` "
     "long.\n" },
+  { "destroy", (PyCFunction)AccCf64_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on\n"
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)AccCf64_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a AccCf64 be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "AccCf64\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)AccCf64_exit, METH_VARARGS,
+    "Exit a context manager, releasing the AccCf64.\n"
+    "\n"
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
   { NULL }
 };
 

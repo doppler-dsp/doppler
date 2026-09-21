@@ -169,7 +169,13 @@ SpecanObj_execute (SpecanObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
@@ -324,8 +330,8 @@ Specan_getprop_rbw (SpecanObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->psd->enbw * self->handle->fs_out
-                             / (double)self->handle->n);
+  return PyFloat_FromDouble ((self->handle->psd->enbw * self->handle->fs_out
+                              / (double)self->handle->n));
 }
 static PyObject *
 Specan_getprop_center (SpecanObject *self, void *Py_UNUSED (closure))
@@ -386,7 +392,7 @@ Specan_getprop_display_size (SpecanObject *self, void *Py_UNUSED (closure))
       return NULL;
     }
   return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->disp_n);
+      (unsigned long long)(self->handle->disp_n));
 }
 
 static PyGetSetDef Specan_getset[]
@@ -576,12 +582,11 @@ static PyMethodDef SpecanObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)SpecanObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -596,9 +601,8 @@ static PyMethodDef SpecanObj_methods[] = {
     "Exit a context manager, releasing the Specan.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"

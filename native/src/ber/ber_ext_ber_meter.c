@@ -91,7 +91,8 @@ BerMeterObj_set_truth (BerMeterObject *self, PyObject *args, PyObject *kwds)
   Py_DECREF (truth_arr);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "set_truth failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_truth failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;

@@ -106,7 +106,9 @@ IMDMeasureObj_analyze (IMDMeasureObject *self, PyObject *args)
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
       in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   size_t n_in = (size_t)PyArray_SIZE (in_arr);
   if (!IMDMeasureObj_analyze_type)
     {
@@ -120,7 +122,8 @@ IMDMeasureObj_analyze (IMDMeasureObject *self, PyObject *args)
     }
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
-   * object per stream). */
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
   const float *_ng0 = (const float *)PyArray_DATA (in_arr);
   imd_meas_t   _r;
   Py_BEGIN_ALLOW_THREADS
@@ -224,7 +227,13 @@ IMDMeasureObj_spectrum_dbfs (IMDMeasureObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
@@ -427,12 +436,11 @@ static PyMethodDef IMDMeasureObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)IMDMeasureObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

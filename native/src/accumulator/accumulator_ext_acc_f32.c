@@ -150,16 +150,17 @@ AccF32_dump (AccF32Object *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-AccF32_madd (AccF32Object *self, PyObject *args)
+AccF32_madd (AccF32Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *x_obj = NULL;
-  PyObject *h_obj = NULL;
-  if (!PyArg_ParseTuple (args, "OO", &x_obj, &h_obj))
+  static char *_kwlist[] = { "x", "h", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *h_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &x_obj, &h_obj))
     return NULL;
   PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
       x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
@@ -185,15 +186,16 @@ AccF32_madd (AccF32Object *self, PyObject *args)
 }
 
 static PyObject *
-AccF32_add2d (AccF32Object *self, PyObject *args)
+AccF32_add2d (AccF32Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *x_obj = NULL;
-  if (!PyArg_ParseTuple (args, "O", &x_obj))
+  static char *_kwlist[] = { "x", NULL };
+  PyObject    *x_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &x_obj))
     return NULL;
   PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
       x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
@@ -209,16 +211,17 @@ AccF32_add2d (AccF32Object *self, PyObject *args)
 }
 
 static PyObject *
-AccF32_madd2d (AccF32Object *self, PyObject *args)
+AccF32_madd2d (AccF32Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *x_obj = NULL;
-  PyObject *h_obj = NULL;
-  if (!PyArg_ParseTuple (args, "OO", &x_obj, &h_obj))
+  static char *_kwlist[] = { "x", "h", NULL };
+  PyObject    *x_obj     = NULL;
+  PyObject    *h_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &x_obj, &h_obj))
     return NULL;
   PyArrayObject *x_arr = (PyArrayObject *)PyArray_FROM_OTF (
       x_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
@@ -240,36 +243,6 @@ AccF32_madd2d (AccF32Object *self, PyObject *args)
   acc_f32_madd2d (self->handle, x, x_len, h, h_len);
   Py_DECREF (x_arr);
   Py_DECREF (h_arr);
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-AccF32_destroy (AccF32Object *self, PyObject *Py_UNUSED (ignored))
-{
-  if (self->handle)
-    {
-      acc_f32_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-AccF32_enter (AccF32Object *self, PyObject *Py_UNUSED (ignored))
-{
-  Py_INCREF (self);
-  return (PyObject *)self;
-}
-
-static PyObject *
-AccF32_exit (AccF32Object *self, PyObject *args)
-{
-  (void)args;
-  if (self->handle)
-    {
-      acc_f32_destroy (self->handle);
-      self->handle = NULL;
-    }
   Py_RETURN_NONE;
 }
 
@@ -326,6 +299,36 @@ AccF32_set_state (AccF32Object *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+AccF32_destroy (AccF32Object *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->handle)
+    {
+      acc_f32_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AccF32_enter (AccF32Object *self, PyObject *Py_UNUSED (ignored))
+{
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+AccF32_exit (AccF32Object *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
+    {
+      acc_f32_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef AccF32_methods[] = {
   { "reset", (PyCFunction)AccF32_reset, METH_NOARGS,
     "Zero the accumulator, restoring the same state as a fresh\n"
@@ -344,9 +347,9 @@ static PyMethodDef AccF32_methods[] = {
   { "step", (PyCFunction)AccF32_step, METH_VARARGS,
     "step(x) -> None\n"
     "\n"
-    "Add one sample to the running sum (``acc += x``). This is the hot-path "
-    "entry point for sample-by-sample processing. For block inputs prefer "
-    "``acc_f32_steps`` to amortise call overhead and allow "
+    "Add one sample to the running sum (``acc += x``). This is the\n"
+    "hot-path entry point for sample-by-sample processing. For block inputs\n"
+    "prefer ``acc_f32_steps`` to amortise call overhead and allow\n"
     "auto-vectorisation.\n"
     "\n"
     "Parameters\n"
@@ -365,10 +368,11 @@ static PyMethodDef AccF32_methods[] = {
   { "steps", (PyCFunction)AccF32_steps, METH_VARARGS,
     "steps(x[, out]) -> ndarray\n"
     "\n"
-    "Add all samples in ``input`` to the running sum. Equivalent to calling "
-    "``acc_f32_step`` for each element, but SIMD-vectorised on platforms that "
-    "provide it (AVX-512 / AVX2 / SSE2). The loop uses JM_RESTRICT so the "
-    "compiler can assume no aliasing between ``state`` and ``input``.\n"
+    "Add all samples in ``input`` to the running sum. Equivalent to\n"
+    "calling ``acc_f32_step`` for each element, but SIMD-vectorised on\n"
+    "platforms that provide it (AVX-512 / AVX2 / SSE2). The loop uses\n"
+    "JM_RESTRICT so the compiler can assume no aliasing between ``state``\n"
+    "and ``input``.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -398,10 +402,10 @@ static PyMethodDef AccF32_methods[] = {
   { "get", (PyCFunction)AccF32_get, METH_NOARGS,
     "get() -> float\n"
     "\n"
-    "Return the current accumulated sum without resetting state. Identical to "
-    "reading the ``acc`` property directly; retained as an explicit method so "
-    "call sites that need the value can be uniform with ``dump`` without a "
-    "conditional.\n"
+    "Return the current accumulated sum without resetting state.\n"
+    "Identical to reading the ``acc`` property directly; retained as an\n"
+    "explicit method so call sites that need the value can be uniform with\n"
+    "``dump`` without a conditional.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -419,10 +423,10 @@ static PyMethodDef AccF32_methods[] = {
   { "dump", (PyCFunction)AccF32_dump, METH_NOARGS,
     "dump() -> float\n"
     "\n"
-    "Return the accumulated sum and atomically reset it to zero. This is the "
-    "canonical \"drain\" primitive: read the period total, then start a fresh "
-    "accumulation interval without a separate ``reset`` call. The zero-reset "
-    "is unconditional and always writes 0.0f.\n"
+    "Return the accumulated sum and atomically reset it to zero. This is\n"
+    "the canonical \"drain\" primitive: read the period total, then start a\n"
+    "fresh accumulation interval without a separate ``reset`` call. The\n"
+    "zero-reset is unconditional and always writes 0.0f.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -439,7 +443,7 @@ static PyMethodDef AccF32_methods[] = {
     "7.0\n"
     ">>> obj.get()\n"
     "0.0\n" },
-  { "madd", (PyCFunction)AccF32_madd, METH_VARARGS,
+  { "madd", (PyCFunction)(void *)AccF32_madd, METH_VARARGS | METH_KEYWORDS,
     "madd(x, h) -> None\n"
     "\n"
     "Dot-product accumulate: ``acc += sum(x[i] * h[i])`` for ``i`` in ``0\n"
@@ -465,7 +469,7 @@ static PyMethodDef AccF32_methods[] = {
     ">>> obj.madd(x, h)\n"
     ">>> obj.get()\n"
     "5.0\n" },
-  { "add2d", (PyCFunction)AccF32_add2d, METH_VARARGS,
+  { "add2d", (PyCFunction)(void *)AccF32_add2d, METH_VARARGS | METH_KEYWORDS,
     "add2d(x) -> None\n"
     "\n"
     "Sum all elements of a (logically) 2-D float array into the\n"
@@ -487,7 +491,7 @@ static PyMethodDef AccF32_methods[] = {
     ">>> obj.add2d(grid)\n"
     ">>> obj.get()\n"
     "10.0\n" },
-  { "madd2d", (PyCFunction)AccF32_madd2d, METH_VARARGS,
+  { "madd2d", (PyCFunction)(void *)AccF32_madd2d, METH_VARARGS | METH_KEYWORDS,
     "madd2d(x, h) -> None\n"
     "\n"
     "Dot-product accumulate over a flat 2-D buffer: ``acc += sum(x[i] *\n"
@@ -513,43 +517,6 @@ static PyMethodDef AccF32_methods[] = {
     ">>> obj.madd2d(x, h)\n"
     ">>> obj.get()\n"
     "5.0\n" },
-  { "destroy", (PyCFunction)AccF32_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
-    "\n"
-    "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
-    "exit.\n"
-    "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)AccF32_enter, METH_NOARGS,
-    "Enter a context manager, returning this object.\n"
-    "\n"
-    "Lets a AccF32 be used in a `with` statement so its C resources are\n"
-    "released deterministically on exit rather than at collection time.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "AccF32\n"
-    "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)AccF32_exit, METH_VARARGS,
-    "Exit a context manager, releasing the AccF32.\n"
-    "\n"
-    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "exc_type : object | None\n"
-    "    Exception class, or None. Ignored.\n"
-    "exc : object | None\n"
-    "    Exception instance, or None. Ignored.\n"
-    "tb : object | None\n"
-    "    Traceback object, or None. Ignored.\n" },
   { "state_bytes", (PyCFunction)AccF32_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -585,9 +552,9 @@ static PyMethodDef AccF32_methods[] = {
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
     "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()` "
-    "before\n"
-    "the blob is handed to the C core, and the core may reject it as well.\n"
+    "was constructed with. Length is validated against `state_bytes()`\n"
+    "before the blob is handed to the C core, and the core may reject it as\n"
+    "well.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"
@@ -598,6 +565,41 @@ static PyMethodDef AccF32_methods[] = {
     "blob : bytes\n"
     "    A `get_state()` blob from this type, exactly `state_bytes()` "
     "long.\n" },
+  { "destroy", (PyCFunction)AccF32_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on\n"
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)AccF32_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a AccF32 be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "AccF32\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)AccF32_exit, METH_VARARGS,
+    "Exit a context manager, releasing the AccF32.\n"
+    "\n"
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
   { NULL }
 };
 

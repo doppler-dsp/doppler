@@ -37,7 +37,7 @@ static int
 AccQ15_init (AccQ15Object *self, PyObject *args, PyObject *kwds)
 {
   static char *kwlist[] = { "acc", NULL };
-  long long    acc_raw  = 0LL;
+  long long    acc_raw  = 0;
 
   if (!PyArg_ParseTupleAndKeywords (args, kwds, "|L", kwlist, &acc_raw))
     return -1;
@@ -153,16 +153,17 @@ AccQ15_dump (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
 }
 
 static PyObject *
-AccQ15_madd (AccQ15Object *self, PyObject *args)
+AccQ15_madd (AccQ15Object *self, PyObject *args, PyObject *kwds)
 {
   if (!self->handle)
     {
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  PyObject *a_obj = NULL;
-  PyObject *b_obj = NULL;
-  if (!PyArg_ParseTuple (args, "OO", &a_obj, &b_obj))
+  static char *_kwlist[] = { "a", "b", NULL };
+  PyObject    *a_obj     = NULL;
+  PyObject    *b_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &a_obj, &b_obj))
     return NULL;
   PyArrayObject *a_arr = (PyArrayObject *)PyArray_FROM_OTF (
       a_obj, NPY_INT16, NPY_ARRAY_C_CONTIGUOUS);
@@ -184,36 +185,6 @@ AccQ15_madd (AccQ15Object *self, PyObject *args)
   acc_q15_madd (self->handle, a, a_len, b, b_len);
   Py_DECREF (a_arr);
   Py_DECREF (b_arr);
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-AccQ15_destroy (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
-{
-  if (self->handle)
-    {
-      acc_q15_destroy (self->handle);
-      self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-AccQ15_enter (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
-{
-  Py_INCREF (self);
-  return (PyObject *)self;
-}
-
-static PyObject *
-AccQ15_exit (AccQ15Object *self, PyObject *args)
-{
-  (void)args;
-  if (self->handle)
-    {
-      acc_q15_destroy (self->handle);
-      self->handle = NULL;
-    }
   Py_RETURN_NONE;
 }
 
@@ -270,6 +241,36 @@ AccQ15_set_state (AccQ15Object *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 
+static PyObject *
+AccQ15_destroy (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
+{
+  if (self->handle)
+    {
+      acc_q15_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+AccQ15_enter (AccQ15Object *self, PyObject *Py_UNUSED (ignored))
+{
+  Py_INCREF (self);
+  return (PyObject *)self;
+}
+
+static PyObject *
+AccQ15_exit (AccQ15Object *self, PyObject *args)
+{
+  (void)args;
+  if (self->handle)
+    {
+      acc_q15_destroy (self->handle);
+      self->handle = NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef AccQ15_methods[] = {
   { "reset", (PyCFunction)AccQ15_reset, METH_NOARGS,
     "Reset the accumulator to zero, mirroring the post-create state. Does\n"
@@ -287,9 +288,9 @@ static PyMethodDef AccQ15_methods[] = {
   { "step", (PyCFunction)AccQ15_step, METH_VARARGS,
     "step(x) -> None\n"
     "\n"
-    "Accumulate one Q15 sample into the running total. The sample is "
-    "sign-extended to 64 bits before addition, ensuring that negative samples "
-    "subtract correctly from the accumulator without wrap.\n"
+    "Accumulate one Q15 sample into the running total. The sample is\n"
+    "sign-extended to 64 bits before addition, ensuring that negative\n"
+    "samples subtract correctly from the accumulator without wrap.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -308,8 +309,8 @@ static PyMethodDef AccQ15_methods[] = {
   { "steps", (PyCFunction)AccQ15_steps, METH_VARARGS,
     "steps(x[, out]) -> ndarray\n"
     "\n"
-    "Accumulate a contiguous block of Q15 samples. Equivalent to calling "
-    "step() n times but faster for large arrays because the loop can be "
+    "Accumulate a contiguous block of Q15 samples. Equivalent to calling\n"
+    "step() n times but faster for large arrays because the loop can be\n"
     "auto-vectorised by the compiler.\n"
     "\n"
     "Parameters\n"
@@ -373,11 +374,11 @@ static PyMethodDef AccQ15_methods[] = {
     "15\n"
     ">>> obj.get()\n"
     "0\n" },
-  { "madd", (PyCFunction)AccQ15_madd, METH_VARARGS,
+  { "madd", (PyCFunction)(void *)AccQ15_madd, METH_VARARGS | METH_KEYWORDS,
     "madd(a, b) -> None\n"
     "\n"
-    "Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)). Uses "
-    "AVX2 when available.\n"
+    "Multiply-accumulate: acc += sum(a[i] * b[i]) for i in [0, len(a)).\n"
+    "Uses AVX2 when available.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -396,43 +397,6 @@ static PyMethodDef AccQ15_methods[] = {
     ">>> obj.madd(a, b)\n"
     ">>> obj.get()\n"
     "14000\n" },
-  { "destroy", (PyCFunction)AccQ15_destroy, METH_NOARGS,
-    "Release the underlying C resources immediately.\n"
-    "\n"
-    "Ordinarily unnecessary: the resources are freed when the object is\n"
-    "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
-    "exit.\n"
-    "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
-  { "__enter__", (PyCFunction)AccQ15_enter, METH_NOARGS,
-    "Enter a context manager, returning this object.\n"
-    "\n"
-    "Lets a AccQ15 be used in a `with` statement so its C resources are\n"
-    "released deterministically on exit rather than at collection time.\n"
-    "\n"
-    "Returns\n"
-    "-------\n"
-    "AccQ15\n"
-    "    This same object, not a copy.\n" },
-  { "__exit__", (PyCFunction)AccQ15_exit, METH_VARARGS,
-    "Exit a context manager, releasing the AccQ15.\n"
-    "\n"
-    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "exc_type : object | None\n"
-    "    Exception class, or None. Ignored.\n"
-    "exc : object | None\n"
-    "    Exception instance, or None. Ignored.\n"
-    "tb : object | None\n"
-    "    Traceback object, or None. Ignored.\n" },
   { "state_bytes", (PyCFunction)AccQ15_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -468,9 +432,9 @@ static PyMethodDef AccQ15_methods[] = {
     "Restore mutable state from a `get_state()` blob.\n"
     "\n"
     "Overwrites the live state in place; the object keeps the parameters it\n"
-    "was constructed with. Length is validated against `state_bytes()` "
-    "before\n"
-    "the blob is handed to the C core, and the core may reject it as well.\n"
+    "was constructed with. Length is validated against `state_bytes()`\n"
+    "before the blob is handed to the C core, and the core may reject it as\n"
+    "well.\n"
     "\n"
     "Raises ``TypeError`` if *blob* is not bytes, ``ValueError`` if its\n"
     "length differs from `state_bytes()` or the core rejects it, and\n"
@@ -481,6 +445,41 @@ static PyMethodDef AccQ15_methods[] = {
     "blob : bytes\n"
     "    A `get_state()` blob from this type, exactly `state_bytes()` "
     "long.\n" },
+  { "destroy", (PyCFunction)AccQ15_destroy, METH_NOARGS,
+    "Release the underlying C resources immediately.\n"
+    "\n"
+    "Ordinarily unnecessary: the resources are freed when the object is\n"
+    "garbage-collected. Call this to release them at a definite point\n"
+    "instead, or use the object as a context manager, which calls it on\n"
+    "exit.\n"
+    "\n"
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
+  { "__enter__", (PyCFunction)AccQ15_enter, METH_NOARGS,
+    "Enter a context manager, returning this object.\n"
+    "\n"
+    "Lets a AccQ15 be used in a `with` statement so its C resources are\n"
+    "released deterministically on exit rather than at collection time.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "AccQ15\n"
+    "    This same object, not a copy.\n" },
+  { "__exit__", (PyCFunction)AccQ15_exit, METH_VARARGS,
+    "Exit a context manager, releasing the AccQ15.\n"
+    "\n"
+    "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "exc_type : object | None\n"
+    "    Exception class, or None. Ignored.\n"
+    "exc : object | None\n"
+    "    Exception instance, or None. Ignored.\n"
+    "tb : object | None\n"
+    "    Traceback object, or None. Ignored.\n" },
   { NULL }
 };
 

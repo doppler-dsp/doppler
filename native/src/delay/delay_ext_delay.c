@@ -14,16 +14,6 @@
 typedef struct
 {
   PyObject_HEAD delay_state_t *handle;
-  double _Complex             *_ptr_buf;     /* pre-allocated output for ptr */
-  size_t                       _ptr_buf_cap; /* allocated capacity for ptr */
-  void                       **_ptr_retired; /* gh-219 deferred free */
-  size_t                       _ptr_retired_n;
-  size_t                       _ptr_retired_cap;
-  double _Complex *_push_ptr_buf;     /* pre-allocated output for push_ptr */
-  size_t           _push_ptr_buf_cap; /* allocated capacity for push_ptr */
-  void           **_push_ptr_retired; /* gh-219 deferred free */
-  size_t           _push_ptr_retired_n;
-  size_t           _push_ptr_retired_cap;
 } DelayCf64Object;
 
 static void
@@ -31,14 +21,6 @@ DelayCf64Obj_dealloc (DelayCf64Object *self)
 {
   if (self->handle)
     delay_destroy (self->handle);
-  free (self->_ptr_buf);
-  for (size_t _i = 0; _i < self->_ptr_retired_n; _i++)
-    free (self->_ptr_retired[_i]);
-  free (self->_ptr_retired);
-  free (self->_push_ptr_buf);
-  for (size_t _i = 0; _i < self->_push_ptr_retired_n; _i++)
-    free (self->_push_ptr_retired[_i]);
-  free (self->_push_ptr_retired);
   Py_TYPE (self)->tp_free ((PyObject *)self);
 }
 
@@ -66,32 +48,6 @@ DelayCf64Obj_init (DelayCf64Object *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_MemoryError, "delay_create returned NULL");
       return -1;
     }
-  {
-    size_t _max = delay_ptr_max_out (self->handle, self->handle->num_taps);
-    if (_max)
-      {
-        self->_ptr_buf = malloc (_max * sizeof (double _Complex));
-        if (!self->_ptr_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_ptr_buf_cap = _max;
-      }
-  }
-  {
-    size_t _max = delay_push_ptr_max_out (self->handle);
-    if (_max)
-      {
-        self->_push_ptr_buf = malloc (_max * sizeof (double _Complex));
-        if (!self->_push_ptr_buf)
-          {
-            PyErr_NoMemory ();
-            return -1;
-          }
-        self->_push_ptr_buf_cap = _max;
-      }
-  }
   return 0;
 }
 
@@ -146,13 +102,6 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* The kwarg is `count` and the default is the whole window. Both are
-   * jm's now, not hand-patches: the manifest's `count_default` (jm
-   * gh-1051) is a C expression evaluated here, which is what lets an
-   * instance-derived default be DECLARED rather than restored after every
-   * regeneration. The name was hand-renamed to `n` for years while every
-   * published face -- the stub, the runtime docstring -- said `count`, so
-   * a caller following either got a TypeError (gh-619). */
   static char *_kwlist[] = { "count", "out", NULL };
   Py_ssize_t   n         = (Py_ssize_t)(self->handle->num_taps);
   PyObject    *out_obj   = NULL;
@@ -160,19 +109,16 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
     return NULL;
   if (out_obj && out_obj != Py_None)
     {
-      /* Require the exact output dtype — no silent cast (a cast writes
-       * into a temp copy instead of the caller's buffer). Hand-written
-       * here because this fragment stays hand-owned; keep in step with
-       * jm's generated form (gh-581). */
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX128
           || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
-          PyErr_SetString (
-              PyExc_TypeError,
-              "out must be a writable, C-contiguous ndarray of the "
-              "output dtype");
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           return NULL;
         }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
@@ -182,9 +128,9 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
         {
           return NULL;
         }
-      size_t _cap  = (size_t)PyArray_SIZE (out_arr);
-      size_t _omax = delay_ptr_max_out (self->handle, self->handle->num_taps);
-      size_t _min_cap = _omax > (size_t)n ? _omax : ((size_t)n);
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = delay_ptr_max_out (self->handle, (size_t)n);
+      size_t _min_cap = _omax;
       if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
@@ -203,49 +149,41 @@ DelayCf64Obj_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
-  if (!self->_ptr_buf || self->_ptr_buf_cap < _need)
+  size_t _cap  = delay_ptr_max_out (self->handle, (size_t)n);
+  (void)_need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX128);
+  if (!arr0)
     {
-      size_t _max = delay_ptr_max_out (self->handle, self->handle->num_taps);
-      if (!_max || _max < _need)
-        _max = _need;
-      if (self->_ptr_buf && self->_ptr_retired_n == self->_ptr_retired_cap)
-        {
-          size_t _rcap
-              = self->_ptr_retired_cap ? self->_ptr_retired_cap * 2 : 4;
-          void **_rt = realloc (self->_ptr_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_ptr_retired     = _rt;
-          self->_ptr_retired_cap = _rcap;
-        }
-      double _Complex *_tmp = malloc (_max * sizeof (double _Complex));
-      if (!_tmp)
-        {
-          PyErr_NoMemory ();
-          return NULL;
-        }
-      if (self->_ptr_buf)
-        self->_ptr_retired[self->_ptr_retired_n++] = self->_ptr_buf;
-      self->_ptr_buf     = _tmp;
-      self->_ptr_buf_cap = _max;
+      return NULL;
     }
-  size_t    n_out = delay_ptr (self->handle, (size_t)n, self->_ptr_buf,
-                               self->_ptr_buf_cap);
-  npy_intp  dim   = (npy_intp)n_out;
-  PyObject *arr
-      = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX128, self->_ptr_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  return arr;
+  double _Complex *_d0
+      = (double _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out = delay_ptr (self->handle, (size_t)n, _d0, _cap);
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -268,10 +206,6 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  /* Hand-patched: push_ptr's sole param (x) is a scalar, not the array
-   * input jm's out= feature (gh-219, gh-thing-single-array-param) covers —
-   * that predicate only recognizes a single *array*-typed param. Mirrors
-   * the same shape/validation jm generates elsewhere by hand. */
   static char *_kwlist[] = { "x", "out", NULL };
   Py_complex   x_raw     = { 0.0, 0.0 };
   PyObject    *out_obj   = NULL;
@@ -279,37 +213,36 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
                                     &out_obj))
     return NULL;
   double _Complex x = x_raw.real + x_raw.imag * I;
-  /* delay_push_ptr() clamps to its max_out (jm gh-138), so out= only has to
-   * be big enough, not exactly num_taps — the same >= rule jm generates for
-   * every other object.  The push itself lands regardless of capacity. */
-  size_t _need = delay_push_ptr_max_out (self->handle);
   if (out_obj && out_obj != Py_None)
     {
-      /* Require the exact output dtype — no silent cast (a cast writes
-       * into a temp copy instead of the caller's buffer). Hand-written
-       * here because this fragment stays hand-owned; keep in step with
-       * jm's generated form (gh-581). */
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX128
           || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
-          PyErr_SetString (
-              PyExc_TypeError,
-              "out must be a writable, C-contiguous ndarray of the "
-              "output dtype");
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           return NULL;
         }
       PyArrayObject *out_arr = (PyArrayObject *)PyArray_FROM_OTF (
           out_obj, NPY_COMPLEX128,
           NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
       if (!out_arr)
-        return NULL;
-      size_t _cap = (size_t)PyArray_SIZE (out_arr);
-      if (_cap < _need)
+        {
+          return NULL;
+        }
+      size_t _cap     = (size_t)PyArray_SIZE (out_arr);
+      size_t _omax    = delay_push_ptr_max_out (self->handle);
+      size_t _min_cap = _omax > delay_push_ptr_max_out (self->handle)
+                            ? _omax
+                            : (delay_push_ptr_max_out (self->handle));
+      if (_cap < _min_cap)
         {
           PyErr_Format (PyExc_ValueError, "out has %zu elements, need >= %zu",
-                        _cap, _need);
+                        _cap, _min_cap);
           Py_DECREF (out_arr);
           return NULL;
         }
@@ -323,50 +256,42 @@ DelayCf64Obj_push_ptr (DelayCf64Object *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
-      return _oview;
-    }
-  if (!self->_push_ptr_buf || self->_push_ptr_buf_cap < _need)
-    {
-      size_t _max = _need;
-      if (self->_push_ptr_buf
-          && self->_push_ptr_retired_n == self->_push_ptr_retired_cap)
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
         {
-          size_t _rcap = self->_push_ptr_retired_cap
-                             ? self->_push_ptr_retired_cap * 2
-                             : 4;
-          void **_rt
-              = realloc (self->_push_ptr_retired, _rcap * sizeof (void *));
-          if (!_rt)
-            {
-              PyErr_NoMemory ();
-              return NULL;
-            }
-          self->_push_ptr_retired     = _rt;
-          self->_push_ptr_retired_cap = _rcap;
-        }
-      double _Complex *_tmp = malloc (_max * sizeof (double _Complex));
-      if (!_tmp)
-        {
-          PyErr_NoMemory ();
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
           return NULL;
         }
-      if (self->_push_ptr_buf)
-        self->_push_ptr_retired[self->_push_ptr_retired_n++]
-            = self->_push_ptr_buf;
-      self->_push_ptr_buf     = _tmp;
-      self->_push_ptr_buf_cap = _max;
+      return _oview;
     }
-  size_t    n_out = delay_push_ptr (self->handle, x, self->_push_ptr_buf,
-                                    self->_push_ptr_buf_cap);
-  npy_intp  dim   = (npy_intp)n_out;
-  PyObject *arr   = PyArray_SimpleNewFromData (1, &dim, NPY_COMPLEX128,
-                                               self->_push_ptr_buf);
-  if (!arr)
-    return NULL;
-  PyArray_SetBaseObject ((PyArrayObject *)arr, (PyObject *)self);
-  Py_INCREF (self);
-  return arr;
+  size_t _need = delay_push_ptr_max_out (self->handle);
+  size_t _cap  = delay_push_ptr_max_out (self->handle);
+  if (!_cap || _cap < _need)
+    _cap = _need;
+  npy_intp  _adim = (npy_intp)_cap;
+  PyObject *arr0  = PyArray_SimpleNew (1, &_adim, NPY_COMPLEX128);
+  if (!arr0)
+    {
+      return NULL;
+    }
+  double _Complex *_d0
+      = (double _Complex *)PyArray_DATA ((PyArrayObject *)arr0);
+  size_t n_out = delay_push_ptr (self->handle, x, _d0, _cap);
+  if ((size_t)n_out == _cap)
+    {
+      return arr0;
+    }
+  npy_intp     _odim = (npy_intp)n_out;
+  PyArray_Dims _rs0  = { &_odim, 1 };
+  PyObject *v0 = PyArray_Resize ((PyArrayObject *)arr0, &_rs0, 0, NPY_CORDER);
+  if (!v0)
+    {
+      Py_DECREF (arr0);
+      return NULL;
+    }
+  Py_DECREF (v0);
+  return arr0;
 }
 
 static PyObject *
@@ -520,11 +445,11 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "push(x) -> None\n"
     "\n"
-    "Advance the write pointer and insert a new sample. The head pointer "
-    "decrements (mod capacity) before the write so that `buf[head]` always "
-    "holds the most recent sample.  The same value is simultaneously written "
-    "at `buf[head + capacity]` to keep the mirror half in sync; this ensures "
-    "any num_taps-length window starting at head is contiguous without an "
+    "Advance the write pointer and insert a new sample. The head pointer\n"
+    "decrements (mod capacity) before the write so that `buf[head]` always\n"
+    "holds the most recent sample. The same value is simultaneously written\n"
+    "at `buf[head + capacity]` to keep the mirror half in sync; this ensures\n"
+    "any num_taps-length window starting at head is contiguous without an\n"
     "extra copy.\n"
     "\n"
     "Parameters\n"
@@ -543,12 +468,13 @@ static PyMethodDef DelayCf64Obj_methods[] = {
   { "ptr", (PyCFunction)(void *)DelayCf64Obj_ptr, METH_VARARGS | METH_KEYWORDS,
     "ptr(count=...) -> ndarray\n"
     "\n"
-    "Return a zero-copy view of the n most recent samples. Copies at most\n"
-    "min(n, num_taps) samples starting from `buf[head]` into out. Because\n"
-    "the dual-buffer layout guarantees contiguity, this is a single memcpy\n"
-    "of up to num_taps elements; no wrap-around logic is needed. The Python\n"
-    "binding returns a NumPy array backed directly by the pre-allocated\n"
-    "output buffer (base object is the DelayCf64 itself).\n"
+    "Snapshot the n most recent samples. Copies at most min(n, num_taps)\n"
+    "samples starting from `buf[head]` into out. Because the dual-buffer\n"
+    "layout guarantees contiguity, this is a single memcpy of up to num_taps\n"
+    "elements; no wrap-around logic is needed. The Python binding returns an\n"
+    "independent NumPy array per call, so an earlier snapshot is never\n"
+    "overwritten by a later one; pass `out=` to fill a caller-owned buffer\n"
+    "instead of allocating.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -599,8 +525,8 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     "Atomically push a sample and snapshot the current window. Equivalent\n"
     "to calling delay_push() then delay_ptr(num_taps), but avoids the\n"
     "overhead of a second function call. Always writes exactly num_taps\n"
-    "samples to out. The Python binding returns a NumPy array backed by the\n"
-    "pre-allocated push_ptr output buffer.\n"
+    "samples to out. The Python binding returns an independent NumPy array\n"
+    "per call; pass `out=` to reuse one buffer across pushes.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -627,8 +553,8 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     "push_ptr_max_out() -> int\n"
     "\n"
     "Return the maximum output capacity for delay_push_ptr(). Returns\n"
-    "num_taps; the Python binding uses this to pre-allocate the output\n"
-    "buffer before calling delay_push_ptr().\n"
+    "num_taps; the Python binding sizes each call's output array with it,\n"
+    "and checks a caller's `out=` buffer against it.\n"
     "\n"
     "Returns\n"
     "-------\n"
@@ -637,10 +563,10 @@ static PyMethodDef DelayCf64Obj_methods[] = {
   { "write", (PyCFunction)DelayCf64Obj_write, METH_VARARGS,
     "write(x) -> None\n"
     "\n"
-    "Alias for delay_push(); insert a sample without reading back. Provided "
-    "for API symmetry with write-then-read patterns where the caller wants to "
-    "decouple sample ingestion from window inspection. Internally delegates "
-    "to delay_push() with no additional overhead.\n"
+    "Alias for delay_push(); insert a sample without reading back.\n"
+    "Provided for API symmetry with write-then-read patterns where the\n"
+    "caller wants to decouple sample ingestion from window inspection.\n"
+    "Internally delegates to delay_push() with no additional overhead.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -707,12 +633,11 @@ static PyMethodDef DelayCf64Obj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)DelayCf64Obj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

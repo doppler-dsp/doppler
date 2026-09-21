@@ -867,12 +867,14 @@ typedef enum
    * chunk -- larger than the ring included -- by looping, draining between   \
    * calls:                                                                   \
    *                                                                          \
+   * @code                                                                    \
    *     while (off < n)                                                      \
    *       {                                                                  \
    *         off += dp_f32_write_some (ab, src + 2 * off, n - off);           \
    *         while ((frame = dp_f32_peek (ab, nfft)))                         \
    *           { process (frame); dp_f32_consume (ab, hop); }                 \
    *       }                                                                  \
+   * @endcode                                                                 \
    *                                                                          \
    * It never touches @c dropped: nothing is refused, so there is nothing to  \
    * count. A return of 0 means the ring is full.                             \
@@ -908,9 +910,11 @@ typedef enum
    * deadlock: the same thread that would produce the samples is the one      \
    * waiting for them. Accumulate until a frame is there, then take it:       \
    *                                                                          \
+   * @code                                                                    \
    *     dp_f32_write_some (ab, x, n);                                        \
    *     if ((frame = dp_f32_peek (ab, N)))                                   \
    *       { process (frame); dp_f32_consume (ab, N); }                       \
+   * @endcode                                                                 \
    *                                                                          \
    * Like wait(), it does not consume: call dp_##name##_consume() with        \
    * however many samples to release, which need not be @p n -- releasing     \

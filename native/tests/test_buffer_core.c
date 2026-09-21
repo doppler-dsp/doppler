@@ -73,6 +73,7 @@ typedef struct
   size_t    missing; /* consumer: peek() said no to available() samples    */
   size_t    wrong;   /* consumer: a sample out of order                     */
   volatile int stop; /* either side gave up: the other must not wait on it  */
+  float *block;      /* producer scratch: 2 * capacity floats, sized by main */
 } sided_arg_t;
 
 /* A count that over-reports makes its side fail EVERY call, so without a
@@ -84,10 +85,11 @@ DP_THREAD_FN (sided_producer, p)
 {
   sided_arg_t *a = (sided_arg_t *)p;
   /* The WHOLE of space(), every time: a block capped below it would leave
-     slack, and an over-report hides in slack. Capacity is 4096 here on
-     every page size (32 KiB of f32 spans a page everywhere). */
-  static float block[2 * 4096];
-  size_t       sent = 0;
+     slack, and an over-report hides in slack. So the scratch is sized from
+     the ring's REAL capacity, which is not the number asked for -- Windows
+     maps at 64 KiB granularity and turns 4096 into 8192. */
+  float *block = a->block;
+  size_t sent  = 0;
   while (sent < SIDED_TOTAL && !a->stop)
     {
       size_t n = dp_f32_space (a->buf);
@@ -871,8 +873,9 @@ main (void)
   {
     dp_f32_t *b = dp_f32_create (4096);
     DP_REQUIRE (b != NULL);
-    DP_REQUIRE (b->capacity == 4096); /* the producer's block is sized to it */
-    sided_arg_t arg = { b, 0, 0, 0, 0 };
+    float *scratch = (float *)calloc (2 * b->capacity, sizeof *scratch);
+    DP_REQUIRE (scratch != NULL);
+    sided_arg_t arg = { b, 0, 0, 0, 0, scratch };
     dp_thread_t prod, cons;
     DP_REQUIRE (dp_thread_create (&cons, sided_consumer, &arg) == 0);
     DP_REQUIRE (dp_thread_create (&prod, sided_producer, &arg) == 0);
@@ -884,6 +887,7 @@ main (void)
     DP_CHECK_MSG (arg.wrong == 0, "and every sample arrived in order");
     DP_CHECK (b->dropped == 0);
     DP_CHECK (dp_f32_available (b) == 0);
+    free (scratch);
     dp_f32_destroy (b);
   }
 

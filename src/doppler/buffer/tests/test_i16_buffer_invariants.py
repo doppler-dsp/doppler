@@ -43,5 +43,3 @@ def test_write_some_speaks_dp_iq16_t():
     wrong = np.zeros(4, dtype=np.float64)
     with pytest.raises((TypeError, ValueError)):
         obj.write_some(wrong)
-
-

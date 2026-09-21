@@ -81,20 +81,23 @@ with Writer(PATH, file_type="blue", sample_type="cf32", fs=FS, total=0) as w:
     for arrival in ARRIVALS:
         chunk = synth.steps(arrival)
         sent.append(chunk)
-        assert tx_ring.write(chunk), "ring overflow — grow the capacity"
 
-        # Drain whole blocks only. `available` is what makes wait() safe:
-        # it never reports a sample that has not landed, and wait() would
-        # spin forever on one that has not.
-        while tx_ring.available >= TX_BLOCK:
-            block = tx_ring.wait(TX_BLOCK)  # contiguous even across the wrap
-            n_written += w.write(block)
-            tx_ring.consume(TX_BLOCK)
+        # Feed what fits, write out every whole block, repeat until the
+        # arrival is gone. write_some() never refuses, so an arrival larger
+        # than the ring is fine; peek() never blocks, so this one thread
+        # can be both producer and consumer.
+        fed = 0
+        while fed < len(chunk):
+            fed += tx_ring.write_some(chunk[fed:])
+            while (block := tx_ring.peek(TX_BLOCK)) is not None:
+                n_written += w.write(block)  # contiguous even across the wrap
+                tx_ring.consume()
 
-    # The stream ended mid-block; flush the remainder.
+    # The stream ended mid-block; flush the remainder. No more is coming, so
+    # this one read of `available` is exact.
     if tail := tx_ring.available:
-        n_written += w.write(tx_ring.wait(tail))
-        tx_ring.consume(tail)
+        n_written += w.write(tx_ring.peek(tail))
+        tx_ring.consume()
 # close() ran here: data_size is now the real count, not the placeholder.
 # --8<-- [end:write]
 
@@ -115,16 +118,16 @@ with Reader(PATH) as r:
         got = r.read(TX_BLOCK)  # short on the final block, then empty
         if len(got) == 0:
             break
-        assert rx_ring.write(got), "ring overflow — grow the capacity"
-
-        while rx_ring.available >= RX_BLOCK:
-            block = rx_ring.wait(RX_BLOCK)
-            received.append(np.array(block))  # copy: consume() invalidates it
-            rx_ring.consume(RX_BLOCK)
+        fed = 0
+        while fed < len(got):
+            fed += rx_ring.write_some(got[fed:])
+            while (block := rx_ring.peek(RX_BLOCK)) is not None:
+                received.append(np.array(block))  # copy: consume() ends it
+                rx_ring.consume()
 
     if tail := rx_ring.available:
-        received.append(np.array(rx_ring.wait(tail)))
-        rx_ring.consume(tail)
+        received.append(np.array(rx_ring.peek(tail)))
+        rx_ring.consume()
 
     # The read loop stopped at the declared payload, not at end-of-file.
     at_end = r.read(TX_BLOCK)

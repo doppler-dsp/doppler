@@ -88,25 +88,18 @@ a consumer with a fixed block size hands the view straight to the next stage
 with no copy and no special case for the wrap.
 
 **Large in, fixed out.** A capture device gives you whatever its driver
-batched; an FFT of length `N` cannot take `N-1`. Write the irregular blocks,
-read exact frames:
+batched; an FFT of length `N` cannot take `N-1`. One thread, five lines: feed
+what fits, take every whole frame, repeat until the block is gone.
+`write_some` never refuses, so there is no room to make first — and no block
+too large: two of these are bigger than the whole ring. `peek` never blocks,
+so the same thread can do both jobs.
 
 ```python
-from doppler.buffer import F32Buffer
-import numpy as np
-
-FFT_N, ring = 1024, F32Buffer(8192)
-cap = ring.capacity
-
-for block in (3000, 5000, 1700, 4096):        # nothing is a multiple of N
-    while cap - ring.available < block:       # backpressure: make room first
-        ring.wait(FFT_N); ring.consume(FFT_N)
-    ring.write(np.zeros(block, dtype=np.complex64))
-    while ring.available >= FFT_N:            # take every whole frame
-        frame = ring.wait(FFT_N)
-        assert len(frame) == FFT_N and frame.flags["C_CONTIGUOUS"]
-        ring.consume(FFT_N)
+--8<-- "src/doppler/examples/ring_chunking_demo.py:setup"
+--8<-- "src/doppler/examples/ring_chunking_demo.py:reblock"
 ```
+
+The ring need only hold one **frame**, not one block.
 
 **Small in, drain when full.** A chatty producer costs one wake-up per write
 unless something batches for it. The consumer asks for a whole batch and
@@ -116,15 +109,15 @@ producer closes the ring, `EOFError` is what tells it the stream ended, and
 count can no longer grow, and whatever is there is the tail.
 
 ```python
---8<-- "src/doppler/examples/ring_chunking_demo.py:setup"
 --8<-- "src/doppler/examples/ring_chunking_demo.py:drip"
 ```
 
 Three things that bite, all of them measurable:
 
 - **`write` is all-or-nothing and never blocks.** A block that does not fit
-    is rejected whole — so check for room first, or check the return value.
-    There is no blocking write; backpressure is the caller's.
+    is rejected whole. For a stream that is the wrong call — use `write_some`,
+    as above. `write` is for a frame that is meaningless in part, and there
+    the producer waits for `space` first; backpressure is the caller's.
 - **`dropped` counts the length of every *rejected call*, not samples lost.**
     A producer that spins on `write` until it succeeds inflates it without
     losing anything: a 60,000-sample run written that way reported 5,960,438

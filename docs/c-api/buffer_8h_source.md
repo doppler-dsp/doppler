@@ -343,14 +343,20 @@ dp__buf_alloc_file (size_t bytes, void **handle_out, const char *path,
 
   /* A file already exactly this long is a ring somebody filled: map it as it
      stands. Anything else -- absent, short, or a different geometry -- is
-     truncated, which both sizes it and zeroes it. */
+     cut to ZERO and regrown, which sizes it AND zeroes it.
+
+     Two truncates, not one. ftruncate() to a LARGER size zeroes only the
+     extension and keeps what was there; to a smaller one it keeps the
+     leading bytes. Either way a ring of a new geometry came back holding
+     the old one's samples while `existed` said 0 -- "created, and zeroed".
+     The Windows branch above has always done it this way. */
   struct stat st;
   if (fstat (fd, &st) == 0 && (size_t)st.st_size == bytes)
     {
       if (existed)
         *existed = 1;
     }
-  else if (ftruncate (fd, (off_t)bytes) == -1)
+  else if (ftruncate (fd, 0) == -1 || ftruncate (fd, (off_t)bytes) == -1)
     {
       close (fd);
       return NULL;

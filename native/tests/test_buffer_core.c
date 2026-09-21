@@ -12,6 +12,7 @@
 #include "dp_test.h"
 #include "dp_thread.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
 /* Advance head and tail to `target` while keeping occupancy near zero, using
@@ -56,6 +57,81 @@ DP_THREAD_FN (eos_consumer, p)
   a->got            = dp_f32_wait (a->buf, 64);
   if (a->got)
     a->first = a->got[0];
+  DP_THREAD_RETURN;
+}
+
+/* The two sides of the "never over-reports" stress below. Each sizes its
+   call ONLY from its own side's count -- space() for the producer,
+   available() for the consumer -- and records the first time the ring
+   disagrees with what that count promised. */
+#define SIDED_TOTAL 2000000u
+
+typedef struct
+{
+  dp_f32_t *buf;
+  size_t    refused; /* producer: write() said no to a space()-sized block */
+  size_t    missing; /* consumer: peek() said no to available() samples    */
+  size_t    wrong;   /* consumer: a sample out of order                     */
+  volatile int stop; /* either side gave up: the other must not wait on it  */
+} sided_arg_t;
+
+/* A count that over-reports makes its side fail EVERY call, so without a
+   bound the stress does not fail, it hangs -- and a test that hangs under
+   the defect it exists to catch is a defect in the test. */
+#define SIDED_GIVE_UP 1000u
+
+DP_THREAD_FN (sided_producer, p)
+{
+  sided_arg_t *a = (sided_arg_t *)p;
+  /* The WHOLE of space(), every time: a block capped below it would leave
+     slack, and an over-report hides in slack. Capacity is 4096 here on
+     every page size (32 KiB of f32 spans a page everywhere). */
+  static float block[2 * 4096];
+  size_t       sent = 0;
+  while (sent < SIDED_TOTAL && !a->stop)
+    {
+      size_t n = dp_f32_space (a->buf);
+      if (n == 0)
+        continue;
+      if (n > SIDED_TOTAL - sent)
+        n = SIDED_TOTAL - sent;
+      for (size_t k = 0; k < n; k++)
+        block[2 * k] = (float)((sent + k) & 0xFFFF);
+      if (dp_f32_write (a->buf, block, n))
+        sent += n;
+      else if (++a->refused >= SIDED_GIVE_UP)
+        a->stop = 1;
+    }
+  dp_f32_close (a->buf);
+  DP_THREAD_RETURN;
+}
+
+DP_THREAD_FN (sided_consumer, p)
+{
+  sided_arg_t *a   = (sided_arg_t *)p;
+  size_t       got = 0;
+  while (got < SIDED_TOTAL && !a->stop)
+    {
+      size_t n = dp_f32_available (a->buf);
+      if (n == 0)
+        {
+          if (dp_f32_closed (a->buf) && dp_f32_available (a->buf) == 0)
+            break;
+          continue;
+        }
+      float *v = dp_f32_peek (a->buf, n);
+      if (!v)
+        {
+          if (++a->missing >= SIDED_GIVE_UP)
+            a->stop = 1;
+          continue;
+        }
+      for (size_t k = 0; k < n; k++)
+        if (v[2 * k] != (float)((got + k) & 0xFFFF))
+          a->wrong++;
+      dp_f32_consume (a->buf, n);
+      got += n;
+    }
   DP_THREAD_RETURN;
 }
 
@@ -605,6 +681,171 @@ main (void)
     DP_CHECK (dp_f64_available (d) == 0 && dp_i16_available (q) == 0);
     dp_f64_destroy (d);
     dp_i16_destroy (q);
+  }
+
+  /* ══ Claims the header makes that nothing above asserted ══════════════
+     Found by the claim inventory (doppler#1438). Each was sabotaged in a
+     copy of buffer.h and seen to fail before being trusted. */
+
+  /* ── a REFUSED write takes nothing and disturbs nothing ───────────────
+     "Nothing is dropped here: the write is REFUSED, whole." The counts were
+     pinned; the CONTENTS were not -- a write that copied as much as fit and
+     then reported false satisfied every assertion above. */
+  {
+    dp_f32_t *b = dp_f32_create (4096);
+    DP_REQUIRE (b != NULL);
+    size_t cap  = b->capacity;
+    float *keep = (float *)calloc (2 * cap, sizeof *keep);
+    float *junk = (float *)calloc (2 * cap, sizeof *junk);
+    DP_REQUIRE (keep != NULL && junk != NULL);
+    for (size_t i = 0; i < 2 * cap; i++)
+      {
+        keep[i] = (float)(i + 1);
+        junk[i] = -1.0f;
+      }
+    /* Advance so the refused block WOULD straddle the wrap, then leave
+       exactly 10 samples of room. */
+    PRIME_TO (f32, float, b, cap - 5);
+    DP_CHECK (dp_f32_write (b, keep, cap - 10));
+    DP_CHECK (dp_f32_space (b) == 10);
+
+    DP_CHECK (!dp_f32_write (b, junk, 11)); /* one too many: refused */
+    DP_CHECK (dp_f32_available (b) == cap - 10);
+    DP_CHECK (dp_f32_space (b) == 10);
+
+    /* Look at the free room BEFORE refilling it. Writing over it first --
+       which this test used to do -- erases exactly what a leaky refusal
+       leaves behind: that version stayed green with write() copying a
+       sample on its way to returning false. The room follows the readable
+       samples contiguously (that is the mirror), and PRIME_TO left zeros. */
+    float *held = dp_f32_peek (b, cap - 10);
+    DP_REQUIRE (held != NULL);
+    size_t touched = 0;
+    for (size_t i = 0; i < 2 * 10; i++)
+      touched += (held[2 * (cap - 10) + i] != 0.0f);
+    DP_CHECK_MSG (touched == 0, "a refused write must not reach the ring");
+
+    /* And what was there is intact: fill the room, read everything back. */
+    DP_CHECK (dp_f32_write (b, keep + 2 * (cap - 10), 10));
+    float *v = dp_f32_peek (b, cap);
+    DP_REQUIRE (v != NULL);
+    size_t bad = 0;
+    for (size_t i = 0; i < 2 * cap; i++)
+      bad += (v[i] != keep[i]);
+    DP_CHECK_MSG (bad == 0, "nor disturb what was already in it");
+    free (keep);
+    free (junk);
+    dp_f32_destroy (b);
+  }
+
+  /* ── reset returns the POSITIONS to zero, not merely the counts ───────
+     "Both positions return to zero." available()==0 and space()==capacity
+     hold for ANY head==tail, so they pinned the counts and not the claim.
+     The position is observable: the next write lands at data[0]. */
+  {
+    dp_f32_t *b = dp_f32_create (4096);
+    DP_REQUIRE (b != NULL);
+    PRIME_TO (f32, float, b, 777); /* anywhere but zero */
+    float one[2] = { 42.0f, -42.0f };
+    dp_f32_reset (b);
+    DP_CHECK (dp_f32_write (b, one, 1));
+    DP_CHECK (b->data[0] == 42.0f && b->data[1] == -42.0f);
+    DP_CHECK (dp_f32_peek (b, 1) == b->data);
+    dp_f32_destroy (b);
+  }
+
+  /* ── a file-backed ring: the samples ARE the file ─────────────────────
+     Nothing here was asserted at the ring's level at all; it was exercised
+     only through burst_capture. */
+  {
+    const char *path = "dp_test_buffer_core_backed.bin";
+    remove (path);
+
+    DP_CHECK (dp_f32_create_backed (1000, path, NULL) == NULL); /* not 2^k */
+    DP_CHECK (dp_f32_create_backed (0, path, NULL) == NULL);
+
+    int       existed = -1;
+    dp_f32_t *b       = dp_f32_create_backed (4096, path, &existed);
+    DP_REQUIRE (b != NULL);
+    DP_CHECK (existed == 0); /* created */
+    size_t cap = b->capacity;
+    DP_CHECK (b->data[0] == 0.0f && b->data[2 * cap - 1] == 0.0f); /* zeroed */
+
+    float *src = (float *)calloc (2 * cap, sizeof *src);
+    DP_REQUIRE (src != NULL);
+    for (size_t i = 0; i < 2 * cap; i++)
+      src[i] = (float)(i + 1);
+    DP_CHECK (dp_f32_write (b, src, cap));
+    dp_f32_sync (b);
+    dp_f32_destroy (b);
+
+    /* "the FILE's size is capacity * sizeof(type) * 2" */
+    FILE *f = fopen (path, "rb");
+    DP_REQUIRE (f != NULL);
+    DP_CHECK (fseek (f, 0, SEEK_END) == 0);
+    DP_CHECK ((size_t)ftell (f) == cap * sizeof (float) * 2);
+    fclose (f);
+
+    /* Same size: mapped AS IT STANDS -- and the positions are not in it. */
+    existed = -1;
+    b       = dp_f32_create_backed (4096, path, &existed);
+    DP_REQUIRE (b != NULL);
+    DP_CHECK (existed == 1);
+    DP_CHECK (b->capacity == cap);
+    DP_CHECK (dp_f32_available (b) == 0);
+    size_t bad = 0;
+    for (size_t i = 0; i < 2 * cap; i++)
+      bad += (b->data[i] != src[i]);
+    DP_CHECK_MSG (bad == 0, "a re-attached ring must hold what was written");
+    /* ...through BOTH mappings: the mirror is rebuilt over the file. */
+    DP_CHECK (b->data[2 * cap] == src[0]);
+    dp_f32_destroy (b);
+
+    /* A different size is NOT that ring: recreated, and zeroed. */
+    existed = -1;
+    b       = dp_f32_create_backed (2 * cap, path, &existed);
+    DP_REQUIRE (b != NULL);
+    DP_CHECK (existed == 0);
+    DP_CHECK (b->capacity == 2 * cap);
+    bad = 0;
+    for (size_t i = 0; i < 4 * cap; i++)
+      bad += (b->data[i] != 0.0f);
+    DP_CHECK_MSG (bad == 0, "a resized file must come back zeroed");
+    dp_f32_destroy (b);
+    remove (path);
+    free (src);
+
+    /* sync() on an anonymous ring is a no-op, not a crash. */
+    dp_f32_t *anon = dp_f32_create (4096);
+    DP_REQUIRE (anon != NULL);
+    dp_f32_sync (anon);
+    DP_CHECK (dp_f32_space (anon) == anon->capacity);
+    dp_f32_destroy (anon);
+  }
+
+  /* ── space() and available() never over-report, with the other side live
+     "a lower bound that never goes stale in the unsafe direction" -- the
+     whole reason a caller may size a block from them. Each side here sizes
+     EVERY call from its own count and nothing else, over a few hundred
+     wraps: a write() refused, or a peek() that comes back NULL, is that
+     count having promised more than was there. */
+  {
+    dp_f32_t *b = dp_f32_create (4096);
+    DP_REQUIRE (b != NULL);
+    DP_REQUIRE (b->capacity == 4096); /* the producer's block is sized to it */
+    sided_arg_t arg = { b, 0, 0, 0, 0 };
+    dp_thread_t prod, cons;
+    DP_REQUIRE (dp_thread_create (&cons, sided_consumer, &arg) == 0);
+    DP_REQUIRE (dp_thread_create (&prod, sided_producer, &arg) == 0);
+    DP_REQUIRE (dp_thread_join (prod) == 0);
+    DP_REQUIRE (dp_thread_join (cons) == 0);
+    DP_CHECK_MSG (arg.refused == 0, "space() promised room write() denied");
+    DP_CHECK_MSG (arg.missing == 0, "available() promised samples peek() "
+                                    "could not give");
+    DP_CHECK_MSG (arg.wrong == 0, "and every sample arrived in order");
+    DP_CHECK (b->dropped == 0);
+    DP_CHECK (dp_f32_available (b) == 0);
+    dp_f32_destroy (b);
   }
 
   DP_TEST_END ("test_buffer_core");

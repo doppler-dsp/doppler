@@ -422,14 +422,20 @@ dp__buf_alloc_file (size_t bytes, void **handle_out, const char *path,
 
   /* A file already exactly this long is a ring somebody filled: map it as it
      stands. Anything else -- absent, short, or a different geometry -- is
-     truncated, which both sizes it and zeroes it. */
+     cut to ZERO and regrown, which sizes it AND zeroes it.
+
+     Two truncates, not one. ftruncate() to a LARGER size zeroes only the
+     extension and keeps what was there; to a smaller one it keeps the
+     leading bytes. Either way a ring of a new geometry came back holding
+     the old one's samples while `existed` said 0 -- "created, and zeroed".
+     The Windows branch above has always done it this way. */
   struct stat st;
   if (fstat (fd, &st) == 0 && (size_t)st.st_size == bytes)
     {
       if (existed)
         *existed = 1;
     }
-  else if (ftruncate (fd, (off_t)bytes) == -1)
+  else if (ftruncate (fd, 0) == -1 || ftruncate (fd, (off_t)bytes) == -1)
     {
       close (fd);
       return NULL;
@@ -643,7 +649,7 @@ typedef enum
    * @param path      File to back the ring with.                             \
    * @param existed   If non-NULL, set to 1 when the file already held a ring \
    *                  of this exact size (its samples are now the ring's).    \
-   * @return Initialised buffer, or NULL on failure (including on Windows).   \
+   * @return Initialised buffer, or NULL on failure.                          \
    */                                                                         \
   static inline dp_##name##_t *dp_##name##_create_backed (                    \
       size_t n_samples, const char *path, int *existed)                       \
@@ -757,7 +763,7 @@ typedef enum
    *   can ever make it true. This one is a caller bug rather than a state, \
    *   and it is checked FIRST: it used to fall through to the spin and hang\
    *   forever at 100% CPU with nothing to read (doppler#1335). Sizing a    \
-   *   block from the producer's chunk rather than from dp_##name##_capacity\
+   *   block from the producer's chunk rather than from the ->capacity field\
    *   is the way in, and capacity is ROUNDED UP from what was requested,   \
    *   so the bound is not the number the caller passed to create().        \
    *                                                                          \

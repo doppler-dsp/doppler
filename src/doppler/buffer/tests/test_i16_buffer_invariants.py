@@ -14,7 +14,6 @@ import pytest
 
 from doppler.buffer import I16Buffer
 
-
 _ELEM_DTYPE = np.dtype([("i", np.int16), ("q", np.int16)])
 
 pytestmark = pytest.mark.skip(

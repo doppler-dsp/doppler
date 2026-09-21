@@ -1,5 +1,5 @@
 # buffer/buffer.pyi — type stubs for the buffer C extension.
-from typing import final
+from typing import Any, final
 import numpy as np
 from numpy.typing import NDArray
 

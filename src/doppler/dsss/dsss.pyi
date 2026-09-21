@@ -1,5 +1,5 @@
 # dsss/dsss.pyi — type stubs for the dsss C extension.
-from typing import final, Literal
+from typing import Any, final, Literal
 import os
 import numpy as np
 from numpy.typing import NDArray

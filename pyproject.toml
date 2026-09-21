@@ -128,7 +128,7 @@ dev = [
     # reuses whatever version happens to be installed as a uv TOOL, which is
     # not "latest" and drifts per machine. Keep in sync with jm_version in
     # just-makeit.toml.
-    "just-makeit==0.82.2",
+    "just-makeit==0.83.0",
     # The lint/format toolchain. It lives HERE, not in
     # .pre-commit-config.yaml's `additional_dependencies`, because that is what
     # makes local and CI resolve identically: the hooks dispatch to
@@ -204,18 +204,16 @@ target-version = "py39"
 # jm-generated type stubs are owned by just-makeit (manifest-drift gate);
 # never reformat them here. vendored third-party is left as upstream ships it.
 # jm generates the re-export `__init__.py` shims; like the .pyi stubs they are
-# owned by the manifest-drift gate. So is `test_<obj>_invariants.py` ("DO NOT
-# EDIT: apply rewrites this file"). As of jm 0.82.2 it is FORMATTER-clean, but
-# not import-sorter-clean: jm leaves two blank lines between the imports and
-# the `_ELEM_DTYPE = ...` that follows, and I001 wants one unless a def/class
-# follows. `ruff check --fix` rewrites it, jm then calls its own file STALE,
-# and the drift gate goes red on a file nobody edited (just-makeit#1432).
-# The user-owned sibling `test_<obj>.py` is NOT excluded.
+# owned by the manifest-drift gate. The generated `test_<obj>_invariants.py`
+# is NOT excluded, and that is the point of having it linted: it is lint-clean
+# as jm renders it since 0.82.3 (just-makeit#1432 -- it was formatter-clean but
+# not import-sorter-clean, so `ruff check --fix` rewrote it and the drift gate
+# went red on a file nobody edited), and excluding it switched off the check
+# that catches an undefined name in it.
 extend-exclude = [
     "*.pyi",
     "vendor",
     "src/doppler/*/__init__.py",
-    "src/doppler/*/tests/test_*_invariants.py",
 ]
 # pre-commit passes files explicitly; force-exclude ensures extend-exclude
 # still applies even when ruff receives a .pyi path on the command line.

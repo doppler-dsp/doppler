@@ -326,7 +326,15 @@ def cmake_targets() -> set[str]:
     """
     names: set[str] = set()
     pat = re.compile(r"add_executable\(\s*([A-Za-z0-9_]+)")
-    for f in [ROOT / "CMakeLists.txt", *ROOT.glob("native/**/CMakeLists.txt")]:
+    # `<name>_extra.cmake` too: it is the hook jm's generated CMakeLists
+    # `include()`s for hand-written targets, so a target declared there is as
+    # real as one beside it. The ring's own C test and benchmark moved into
+    # buffer_extra.cmake when its module became jm-generated (doppler#1436).
+    for f in [
+        ROOT / "CMakeLists.txt",
+        *ROOT.glob("native/**/CMakeLists.txt"),
+        *ROOT.glob("native/**/*_extra.cmake"),
+    ]:
         names |= set(pat.findall(f.read_text(encoding="utf-8")))
     return names
 

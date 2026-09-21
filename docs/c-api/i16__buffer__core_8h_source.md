@@ -32,11 +32,12 @@ typedef dp_i16_t i16_buffer_state_t;
 
 static inline dp_i16_t *dp_i16_create (size_t capacity);
 
-static inline bool dp_i16_write_view (dp_i16_t *state, const dp_iq16_t *x,
-                                      size_t x_len);
+static inline bool
+dp_i16_write_view (dp_i16_t *state, const dp_iq16_t *x, size_t x_len);
 
-static inline size_t dp_i16_write_some_view (dp_i16_t *state, const dp_iq16_t *x,
-                                             size_t x_len);
+static inline size_t
+dp_i16_write_some_view (dp_i16_t *state, const dp_iq16_t *x,
+                        size_t x_len);
 
 static inline dp_iq16_t *dp_i16_wait_view (dp_i16_t *state, size_t n);
 

@@ -26,11 +26,12 @@ typedef dp_f32_t f32_buffer_state_t;
 
 static inline dp_f32_t *dp_f32_create (size_t capacity);
 
-static inline bool dp_f32_write_view (dp_f32_t *state, const float _Complex *x,
-                                      size_t x_len);
+static inline bool
+dp_f32_write_view (dp_f32_t *state, const float _Complex *x, size_t x_len);
 
-static inline size_t dp_f32_write_some_view (dp_f32_t *state, const float _Complex *x,
-                                             size_t x_len);
+static inline size_t
+dp_f32_write_some_view (dp_f32_t *state, const float _Complex *x,
+                        size_t x_len);
 
 static inline float _Complex *dp_f32_wait_view (dp_f32_t *state, size_t n);
 

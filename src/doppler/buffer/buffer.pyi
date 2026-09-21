@@ -113,8 +113,7 @@ class F32Buffer:
         """
 
     def wait(self, n: int) -> NDArray[np.complex64]:
-        """Block until ``n`` samples are available, then return a zero-copy
-        view.
+        """Block until ``n`` samples are available, then lend a zero-copy view.
 
         Spins (releasing the GIL so a producer thread can run concurrently)
         until at least ``n`` samples have been written by the producer. Returns

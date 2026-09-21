@@ -60,29 +60,13 @@ ______________________________________________________________________
 
 ### Producer / consumer (threaded)
 
-<!-- docs-snippet: skip=threaded producer/consumer with infinite loops -->
+From `src/doppler/examples/buffers_demo.py`. `write()` never blocks, so the
+producer waits for `space`; `close()` is how the consumer learns there is no
+more, and it arrives as `EOFError` once the ring is drained.
 
 ```python
-from doppler.buffer import F32Buffer
-import numpy as np
-import threading
-
-buf = F32Buffer(4096)
-
-def producer():
-    for block in iq_source:                         # complex64 arrays
-        buf.write(block)                            # non-blocking
-
-def consumer():
-    while True:
-        view = buf.wait(1024)                       # blocks; zero-copy
-        process(view)
-        buf.consume(1024)
-
-t_prod = threading.Thread(target=producer, daemon=True)
-t_cons = threading.Thread(target=consumer, daemon=True)
-t_prod.start()
-t_cons.start()
+--8<-- "src/doppler/examples/buffers_demo.py:setup"
+--8<-- "src/doppler/examples/buffers_demo.py:threads"
 ```
 
 ### Draining without blocking
@@ -149,15 +133,24 @@ not an array of samples. And a record refuses arithmetic (`view + 1` raises)
 where a packed `int32` would carry across the I/Q boundary and corrupt I
 silently, which is why it is a record.
 
-### Capacity and overflow
+### Capacity, and a full ring
+
+`capacity` is rounded **up** from the request, so read it back. A full ring
+is not an error: `write()` refuses the block and returns `False` — you still
+hold it — and `dropped` counts what was refused.
 
 ```python
 buf = F32Buffer(1024)
-print(buf.capacity)         # 1024 (or next power of two)
+cap = buf.capacity            # >= 1024
 
-ok = buf.write(np.ones(1024, dtype=np.complex64))
-print(ok)                   # True if written, False if refused (retry)
+buf.write(np.ones(cap, dtype=np.complex64))        # True
+buf.write(np.ones(1, dtype=np.complex64))          # False: no room
+buf.dropped                                         # 1 refused, none lost
 ```
+
+The full walk through every refusal is
+`src/doppler/examples/ring_refusals_demo.py`; the rest of the suite is indexed
+on [Ring Buffers](../examples/python-buffers.md).
 
 ______________________________________________________________________
 

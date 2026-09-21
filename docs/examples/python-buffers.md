@@ -4,47 +4,80 @@ Lock-free SPSC (single-producer, single-consumer) ring buffers backed by a
 virtual-memory double-mapping, so the consumer always sees a contiguous
 window across the wrap boundary.
 
-## Producer / consumer pattern
+Every block of code on this page is a region of a script under
+`src/doppler/examples/` that CI runs and that checks its own results, so
+what you read here is what was executed.
 
-`wait(n)` blocks until `n` samples are available and returns a zero-copy
-view. Call `consume(n)` when done to release the slots back to the producer.
+| script                  | what it shows                                         |
+| ----------------------- | ----------------------------------------------------- |
+| `buffers_demo`          | three widths, one shape; the wrap; two threads        |
+| `ring_lifecycle_demo`   | owning a ring, and owning a view of one               |
+| `ring_chunking_demo`    | the producer's block size is not the consumer's       |
+| `ring_nonblocking_demo` | one thread: `peek` / `write_some` / `space` / `reset` |
+| `ring_iq16_demo`        | 16-bit I/Q as a record, without a copy                |
+| `ring_refusals_demo`    | everything a ring says no to, and how it says it      |
+| `ring_interrupt_demo`   | stopping a consumer blocked in `wait()`               |
+
+The C face has its own, under `native/examples/`: `ring_threaded_demo`,
+`ring_write_policy_demo`, `ring_drip_feed_demo`, `ring_chunking_demo`,
+`ring_element_view_demo` and `ring_backed_demo` (a ring whose samples are a
+file, which the Python face does not expose).
+
+## Three widths, one shape
+
+`write()` copies a block in; `wait(n)` **lends** the consumer a view of the
+next `n` samples; `consume()` gives them back. Every count is in samples and
+every view is 1-D, on every width — so this loop is written once:
 
 ```python
-from doppler.buffer import F64Buffer
-import numpy as np
-import threading
-
-buf = F64Buffer(256)
-
-def producer():
-    data = (np.ones(256) + 2j * np.ones(256)).astype(np.complex128)
-    ok = buf.write(data)          # non-blocking; False if full
-    print(f"write ok: {ok}")
-
-def consumer():
-    view = buf.wait(256)          # blocks until 256 samples available
-    print(f"received[:2]: {view[:2]}")
-    buf.consume(256)              # release slots back to producer
-
-t_c = threading.Thread(target=consumer)
-t_p = threading.Thread(target=producer)
-t_c.start()
-t_p.start()
-t_p.join()
-t_c.join()
-
-print(f"dropped: {buf.dropped}")
+--8<-- "src/doppler/examples/buffers_demo.py:setup"
+--8<-- "src/doppler/examples/buffers_demo.py:widths"
 ```
 
-```text
-write ok: True
-received[:2]: [1.+2.j 1.+2.j]
-dropped: 0
+The double mapping is what makes a lent frame contiguous even when it
+straddles the physical end of the ring — no copy, and no special case in
+the consumer:
+
+```python
+--8<-- "src/doppler/examples/buffers_demo.py:wrap"
 ```
 
-Start the consumer before the producer so `wait()` is already blocking when
-data arrives. Always `join()` both threads — the consumer holds a view into
-shared memory and must call `consume()` before the buffer can be reused.
+## Two threads, and an end
+
+`wait()` releases the GIL while it spins, so a producer thread runs.
+`write()` never blocks — it refuses — so backpressure is the producer's:
+wait for `space`. And an empty ring cannot tell a slow producer from a
+finished one, so the producer says so with `close()`, which ends the
+consumer's `wait()` in `EOFError` once the ring is drained:
+
+```python
+--8<-- "src/doppler/examples/buffers_demo.py:threads"
+```
+
+## Owning a ring, and a view of one
+
+A ring is a mapping, so `with` is the spelling that cannot leak it; after
+it, every member raises rather than touching memory that is gone:
+
+```python
+--8<-- "src/doppler/examples/ring_lifecycle_demo.py:setup"
+--8<-- "src/doppler/examples/ring_lifecycle_demo.py:ring"
+```
+
+A view is a loan: zero-copy, read-only, and it keeps the ring alive.
+`consume()` with no argument releases exactly what was lent, so the count
+is written once. Copy anything you want to keep *before* releasing it:
+
+```python
+--8<-- "src/doppler/examples/ring_lifecycle_demo.py:view"
+```
+
+Releasing **less** than was lent keeps the rest, which is how overlapped
+frames are read:
+
+```python
+--8<-- "src/doppler/examples/ring_lifecycle_demo.py:overlap"
+```
 
 ## The producer's block size is not the consumer's
 
@@ -144,6 +177,93 @@ deriving `capacity - available`. From Python this pair is also the cheaper
 one per frame: `wait` releases and retakes the GIL, `peek` has no reason
 to. Time it with the benchmarks in `src/doppler/buffer/benchmarks/`.
 
+## 16-bit I/Q: a record, not a pair of columns
+
+numpy has no complex-integer dtype, so `I16Buffer` speaks a record — one
+element per sample, like its siblings, and exactly the four bytes the
+hardware delivered:
+
+```python
+--8<-- "src/doppler/examples/ring_iq16_demo.py:setup"
+--8<-- "src/doppler/examples/ring_iq16_demo.py:record"
+```
+
+Fields, the interleaved form and the record are three views of the same
+bytes; none of these lines copies:
+
+```python
+--8<-- "src/doppler/examples/ring_iq16_demo.py:read"
+```
+
+To floating point with doppler's own converter:
+
+```python
+--8<-- "src/doppler/examples/ring_iq16_demo.py:convert"
+```
+
+A record rather than two `int16` packed into an `int32`, because arithmetic
+on the packed form carries across the I/Q boundary and corrupts I silently.
+A record refuses instead — and so does the ring, given a bare `int16` array:
+
+```python
+--8<-- "src/doppler/examples/ring_iq16_demo.py:refused"
+```
+
+## What a ring says no to
+
+Each refusal is a distinct exception, raised before anything is copied. A
+ring exists to avoid copies, so an input that would need casting,
+flattening or compacting is refused rather than quietly fixed:
+
+```python
+--8<-- "src/doppler/examples/ring_refusals_demo.py:setup"
+--8<-- "src/doppler/examples/ring_refusals_demo.py:inputs"
+```
+
+**Full is not an error.** `write()` says `False`, `write_some()` says how
+much it took. `dropped` adds up *refused* samples — the caller still holds
+them, so it is a loss count only if they are then thrown away:
+
+```python
+--8<-- "src/doppler/examples/ring_refusals_demo.py:full"
+```
+
+A request nothing could ever satisfy is a caller bug, and says so with both
+numbers instead of waiting forever. "Not yet" and "never" are different
+answers — `None` and `EOFError`:
+
+```python
+--8<-- "src/doppler/examples/ring_refusals_demo.py:never"
+--8<-- "src/doppler/examples/ring_refusals_demo.py:eos"
+```
+
+Which is why a producer closes the ring in `finally`. If it raises, the
+consumer's `wait()` ends instead of spinning:
+
+```python
+--8<-- "src/doppler/examples/ring_refusals_demo.py:threads"
+```
+
+## Stopping a blocked `wait()`
+
+`wait()` spins in C with the GIL released, so nothing in that loop is
+running Python and an ordinary flag cannot stop it. `doppler.interrupt` is
+the stop it listens to — process-wide, so a guard made anywhere reaches a
+wait blocked anywhere — and `Interrupt([signal.SIGINT])` is how Ctrl-C is
+wired to it:
+
+```python
+--8<-- "src/doppler/examples/ring_interrupt_demo.py:setup"
+--8<-- "src/doppler/examples/ring_interrupt_demo.py:stop"
+--8<-- "src/doppler/examples/ring_interrupt_demo.py:resume"
+```
+
+A consumer loop usually wants both endings:
+
+```python
+--8<-- "src/doppler/examples/ring_interrupt_demo.py:loop"
+```
+
 ______________________________________________________________________
 
 ## Buffer types
@@ -159,30 +279,3 @@ ______________________________________________________________________
     These are the minima on a 4 KiB-page system (x86_64). The mmap-backed ring
     sizes to a whole page, so on 16 KiB-page systems (e.g. macOS arm64) the
     minima double — `F32Buffer` 1024, `F64Buffer` 512, `I16Buffer` 2048.
-
-```python
-from doppler.buffer import F32Buffer, I16Buffer
-
-# F32 — half the memory footprint of F64
-buf32 = F32Buffer(512)
-
-# I16 — raw SDR output; one (i, q) int16 record per sample
-buf16 = I16Buffer(1024)
-```
-
-## Overflow detection
-
-`buf.dropped` adds up the length of every **refused** `write` — the caller
-still holds those samples, so it is a loss count only if they are then
-discarded. `write_some` never refuses, so it never moves it:
-
-```python
-buf = F64Buffer(256)
-buf.write(np.zeros(256, dtype=np.complex128))
-buf.write(np.zeros(256, dtype=np.complex128))  # refused whole: no room
-print(f"dropped: {buf.dropped}")
-```
-
-```text
-dropped: 256
-```

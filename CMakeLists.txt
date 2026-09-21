@@ -21,10 +21,25 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # Defined for every target here, which is the only place the ordering is
 # guaranteed. `scripts/check_installed_headers.py` keeps a header from
 # growing one back.
+#
+# Named ONCE, because it has three consumers and they drifted: this build, the
+# exported target (doppler#986) and doppler.pc. The third was never given it,
+# so `find_package` compiled the installed headers and `pkg-config --cflags`
+# did not -- 33 of 159 of them, at a strict -std=c99 on glibc 2.28, the
+# umbrella doppler.h included (doppler#1451). A .pc file cannot hold a
+# generator expression, so the platform is resolved here, at configure time;
+# CMAKE_SYSTEM_NAME is the TARGET system, so a cross build names the right one.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_compile_definitions(_GNU_SOURCE)
+    set(DOPPLER_FEATURE_DEF _GNU_SOURCE)
 elseif(APPLE)
-    add_compile_definitions(_DARWIN_C_SOURCE) # MAP_ANON
+    set(DOPPLER_FEATURE_DEF _DARWIN_C_SOURCE) # MAP_ANON
+else()
+    set(DOPPLER_FEATURE_DEF "")
+endif()
+set(DOPPLER_PC_FEATURE_CFLAGS "")
+if(DOPPLER_FEATURE_DEF)
+    add_compile_definitions(${DOPPLER_FEATURE_DEF})
+    set(DOPPLER_PC_FEATURE_CFLAGS " -D${DOPPLER_FEATURE_DEF}")
 endif()
 
 # doppler is pure C: every first-party source is C99 and the core libdoppler
@@ -259,9 +274,7 @@ foreach(_t doppler_lib doppler_lib_static)
     # real, undocumented, and silently unmet. PUBLIC, not PRIVATE: it is the
     # CONSUMER's compile line that needs it, since the header is theirs to
     # include.
-    target_compile_definitions(${_t} PUBLIC
-        $<$<PLATFORM_ID:Linux>:_GNU_SOURCE>
-        $<$<PLATFORM_ID:Darwin>:_DARWIN_C_SOURCE>)
+    target_compile_definitions(${_t} PUBLIC ${DOPPLER_FEATURE_DEF})
     set_target_properties(${_t} PROPERTIES OUTPUT_NAME doppler)
 endforeach()
 # One OUTPUT_NAME for both is unambiguous everywhere doppler ships and
@@ -363,7 +376,16 @@ else()
     set(DP_MATH_LIBRARY "")
 endif()
 
-target_link_libraries(doppler_lib        PRIVATE ${DP_MATH_LIBRARY} Threads::Threads)
+# PUBLIC on the SHARED library too, which is unusual and deliberate
+# (doppler#1450). A shared library's own dependencies are normally PRIVATE:
+# the consumer never names them. But doppler's headers DEFINE code -- every
+# step() is forced inline, dp_thread.h and the ring buffer are header-only --
+# so `fminf` and `pthread_join` are undefined symbols in the CONSUMER's object,
+# and ld has not resolved those through a dependency's NEEDED entries since
+# binutils 2.22. libm and threads are part of the link INTERFACE. Measured on
+# published packages: an inline agc_step() failed to link on almalinux:8 and
+# debian:stable, dp_thread.h on almalinux:8 (glibc < 2.34).
+target_link_libraries(doppler_lib        PUBLIC  ${DP_MATH_LIBRARY} Threads::Threads)
 target_link_libraries(doppler_lib_static PUBLIC  ${DP_MATH_LIBRARY} Threads::Threads)
 
 # The core ships weak no-op stubs for the wfm_stream_sink_* symbols wfmgen

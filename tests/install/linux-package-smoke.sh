@@ -13,6 +13,9 @@
 #   4. a consumer builds with no path of ours on its command line --
 #      find_package (shared + static) and pkg-config, against /usr;
 #   5. /usr/include gained exactly one entry, doppler/ (doppler#1408).
+#   6. pkg-config's Cflags are sufficient -- every installed header compiles at
+#      a strict -std=c99 from them alone (doppler#1451); meaningful on the
+#      glibc 2.28 leg, where the missing feature macro is an error.
 #
 # Usage: linux-package-smoke.sh <dir holding the built packages>
 set -euo pipefail
@@ -94,4 +97,36 @@ cc "$SRC/example-projects/consumer/main.c" -o "$work/pc" \
     $(pkg-config --cflags --libs doppler) || die "pkg-config consumer"
 "$work/pc" >/dev/null || die "pkg-config consumer did not run"
 say "find_package (shared + static) and pkg-config consumers build and run"
+
+# ── 6. the .pc's Cflags are SUFFICIENT: every installed header compiles at a
+#       strict -std=c99 with nothing but what pkg-config reports (doppler#1451).
+# That is the contract a .pc file IS, and it went unasserted: doppler.pc
+# lacked the feature-test macro the exported CMake target carried, so 33 of
+# 159 headers -- the umbrella doppler.h among them -- did not compile for a
+# pkg-config consumer. Asked of the WHOLE installed set, so a new header is
+# covered the day it ships, and asked HERE because the answer depends on the
+# C library: on glibc >= 2.34 the same compile only warns and this passes
+# with the bug live. almalinux:8 (2.28) is the distro in the list that makes
+# it a real check.
+#
+# Two kinds of header are not standalone by design, recognised by what they
+# say rather than by name: one whose #error is an INCLUDE-ORDER guard
+# ("Include x before y"), and one that needs Python.h, which no C consumer
+# has. The pattern is that narrow on purpose: buffer.h and dp_complex.h carry
+# a compiler-capability #error, and buffer.h is the header this check exists
+# for -- "any #error" skipped it.
+inc="$(pkg-config --variable=includedir doppler)/doppler"
+n=0; bad=""
+while IFS= read -r h; do
+    grep -qE '^[[:space:]]*#[[:space:]]*(error[[:space:]]+"Include |include[[:space:]]*<Python\.h>)' \
+        "$inc/$h" && continue
+    n=$((n + 1))
+    printf '#include "%s"\nint main (void) { return 0; }\n' "$h" >"$work/h.c"
+    # shellcheck disable=SC2046
+    cc -std=c99 -fsyntax-only $(pkg-config --cflags doppler) "$work/h.c" \
+        >/dev/null 2>&1 || bad="$bad $h"
+done < <(cd "$inc" && find . -name '*.h' | sed 's|^\./||' | sort)
+[ "$n" -gt 100 ] || die "only $n installed headers found under $inc -- the walk is broken"
+[ -z "$bad" ] || die "not compilable at -std=c99 with pkg-config's own Cflags:$bad"
+say "all $n standalone installed headers compile at strict -std=c99 from pkg-config --cflags"
 echo "   PASS ($fmt)"

@@ -13,11 +13,24 @@ includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
 Name: doppler
 Description: doppler C library
 Version: @PROJECT_VERSION@
-Libs: -L${libdir} -ldoppler
-# libdoppler is pure C and links -lm and -lpthread (rs.c derives the CCSDS
-# field tables under pthread_once; on glibc < 2.34 pthread is a separate
-# library and a static link needs it named). The optional NATS stream layer
-# has its own module: `pkg-config --cflags --libs doppler_stream` gives the
-# complete streaming link line (it Requires: this core module).
-Libs.private: -lm -lpthread
-Cflags: -I${includedir}/doppler
+# -lm and -lpthread are in Libs, NOT Libs.private, and that is deliberate
+# (doppler#1450). Private is for what only libdoppler itself calls. doppler's
+# headers define code -- every step() is inline, dp_thread.h and the ring are
+# header-only -- so libm and pthread symbols are undefined in the CONSUMER's
+# object, and a shared link does not resolve those through libdoppler.so's own
+# NEEDED entries. With them private, `cc main.c $(pkg-config --cflags --libs
+# doppler)` failed on an inline agc_step() everywhere, and on dp_thread.h
+# wherever glibc < 2.34 keeps pthread in its own library. The same two serve
+# the static link, so there is nothing left to list as private.
+#
+# The optional NATS stream layer has its own module: `pkg-config --cflags
+# --libs doppler_stream` gives the complete streaming link line (it Requires:
+# this core module, and inherits these through it).
+Libs: -L${libdir} -ldoppler -lm -lpthread
+# The feature-test macro is part of the contract, not a convenience: the
+# installed headers call syscall()/ftruncate() and name MAP_ANONYMOUS, which a
+# strict -std=c99 hides on glibc < 2.34 unless it is defined BEFORE libc is
+# first reached -- so it has to be on the compile line, and only this file can
+# put it there for a pkg-config consumer (doppler#1451). Substituted from the
+# one declaration the build and the exported CMake target also read.
+Cflags: -I${includedir}/doppler@DOPPLER_PC_FEATURE_CFLAGS@

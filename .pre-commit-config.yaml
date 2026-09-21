@@ -290,9 +290,9 @@ repos:
       # looks. See scripts/conflict-check.sh.
       - id: end-of-file-fixer
         # generated glue is byte-owned by jm; don't let whitespace fixers drift it
-        exclude: '\.pyi$|(^|/)native/inc/|_ext\.c$|(^|/)native/src/[^/]+/CMakeLists\.txt$'
+        exclude: '\.pyi$|(^|/)native/inc/|_ext\.c$|(^|/)native/src/[^/]+/CMakeLists\.txt$|/tests/test_[^/]+_invariants\.py$'
       - id: trailing-whitespace
-        exclude: '\.pyi$|(^|/)native/inc/|_ext\.c$|(^|/)native/src/[^/]+/CMakeLists\.txt$'
+        exclude: '\.pyi$|(^|/)native/inc/|_ext\.c$|(^|/)native/src/[^/]+/CMakeLists\.txt$|/tests/test_[^/]+_invariants\.py$'
 
   - repo: local
     hooks:

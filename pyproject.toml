@@ -204,8 +204,16 @@ target-version = "py39"
 # jm-generated type stubs are owned by just-makeit (manifest-drift gate);
 # never reformat them here. vendored third-party is left as upstream ships it.
 # jm generates the re-export `__init__.py` shims; like the .pyi stubs they are
-# owned by the manifest-drift gate.
-extend-exclude = ["*.pyi", "vendor", "src/doppler/*/__init__.py"]
+# owned by the manifest-drift gate. So is `test_<obj>_invariants.py` (jm 0.79+,
+# "DO NOT EDIT: apply rewrites this file"): ruff strips jm's blank lines, jm
+# then reports its own file STALE, and the drift gate goes red on a file
+# nobody edited. The user-owned sibling `test_<obj>.py` is NOT excluded.
+extend-exclude = [
+    "*.pyi",
+    "vendor",
+    "src/doppler/*/__init__.py",
+    "src/doppler/*/tests/test_*_invariants.py",
+]
 # pre-commit passes files explicitly; force-exclude ensures extend-exclude
 # still applies even when ruff receives a .pyi path on the command line.
 force-exclude = true

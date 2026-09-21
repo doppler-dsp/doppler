@@ -46,9 +46,8 @@ main (void)
 }
 ```
 
-`delay_ptr` is worth singling out: despite the name, and despite its Python
-docstring describing a "zero-copy view", the C function fills your buffer like
-every other one.
+`delay_ptr` is worth singling out: despite the name, the C function fills
+your buffer like every other one.
 
 This means there is **no lifetime contract to observe**. The memory is yours.
 Hold it as long as you like, hand it to another thread, free it whenever. A
@@ -134,10 +133,9 @@ for _ in range(10_000):
     documented below the way it is: the retention existed to make the plain
     form "as fast as" `out=`, and the fix was to stop trying.
 
-    Three components — `DelayCf64`, `Farrow` and `FFT` — still carry the old
-    path pending a hand-port, because their bindings hold methods the manifest
-    cannot express yet. Their public contract is unchanged; only the retention
-    differs.
+    One component — `Farrow` — still carries the old path, because its
+    binding holds a method the manifest cannot express yet. Its public
+    contract is unchanged; only the retention differs.
 
 ### `out=`: placement and determinism, not throughput
 

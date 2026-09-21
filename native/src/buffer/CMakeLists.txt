@@ -23,6 +23,7 @@ target_link_libraries(buffer PRIVATE
     f32_buffer_core
     f64_buffer_core
     i16_buffer_core
+    dp_interrupt_guard_core
     Python3::NumPy)
 target_include_directories(buffer PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(buffer PROPERTIES

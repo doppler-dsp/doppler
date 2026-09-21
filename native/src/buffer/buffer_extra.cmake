@@ -25,11 +25,3 @@ target_include_directories(test_dp_parallel
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_dp_parallel COMMAND test_dp_parallel)
-
-# TEMPORARY (just-buildit/just-makeit#1432): the ring objects cannot declare
-# `depends_on dp_interrupt_guard` while they are header_only, so the symbols
-# buffer.h calls are embedded by hand. Delete with the TODO in
-# just-makeit.toml's [module.buffer].
-if(TARGET buffer)
-  target_sources(buffer PRIVATE $<TARGET_OBJECTS:dp_interrupt_obj>)
-endif()

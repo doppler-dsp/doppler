@@ -22,6 +22,9 @@ create_fn = "dp_i16_create"
 create_error = "ValueError"
 create_error_message = "capacity must be a power of two (and the mapping must succeed)"
 
+[[i16_buffer.depends_on]]
+name = "dp_interrupt_guard"
+
 [[i16_buffer.init_params]]
 name = "capacity"
 type = "size_t"

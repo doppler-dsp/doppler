@@ -18,12 +18,15 @@ add_library(f32_buffer_core INTERFACE)
 target_include_directories(
   f32_buffer_core INTERFACE ${CMAKE_SOURCE_DIR}/native/inc
                             ${CMAKE_SOURCE_DIR}/native/inc/f32_buffer)
+target_link_libraries(f32_buffer_core INTERFACE
+    dp_interrupt_guard_core)
 
 add_executable(test_f32_buffer_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_f32_buffer_core.c
                ${CMAKE_SOURCE_DIR}/native/tests/test_f32_buffer_symbols.c)
 target_link_libraries(test_f32_buffer_core
-                      PRIVATE f32_buffer_core ${JM_MATH_LIBRARY})
+                      PRIVATE f32_buffer_core dp_interrupt_guard_core
+    ${JM_MATH_LIBRARY})
 target_include_directories(test_f32_buffer_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 add_test(NAME test_f32_buffer_core COMMAND test_f32_buffer_core)
@@ -32,7 +35,8 @@ add_executable(
   bench_f32_buffer_core
   ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_f32_buffer_core.c)
 target_link_libraries(bench_f32_buffer_core
-                      PRIVATE f32_buffer_core ${JM_MATH_LIBRARY})
+                      PRIVATE f32_buffer_core dp_interrupt_guard_core
+    ${JM_MATH_LIBRARY})
 target_include_directories(
   bench_f32_buffer_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
                                    ${CMAKE_SOURCE_DIR}/native/benchmarks)

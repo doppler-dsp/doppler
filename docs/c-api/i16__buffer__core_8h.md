@@ -207,6 +207,7 @@ Advances the consumer tail pointer by `n`, making that space available for the p
 **Parameters:**
 
 
+* `state` The ring. Must be non-NULL. 
 * `n` Number of samples to release. Defaults to the count of the outstanding :meth:`wait` / :meth:`peek` view.
 
 
@@ -341,6 +342,7 @@ Peeking does not consume. Follow it with :meth:`consume`; a `consume(k)` with `k
 **Parameters:**
 
 
+* `state` The ring. Must be non-NULL. 
 * `n` Number of samples wanted. Must be positive and not larger than :attr:`capacity`.
 
 
@@ -447,6 +449,7 @@ Spins with the GIL released until the producer has written at least `n` samples.
 **Parameters:**
 
 
+* `state` The ring. Must be non-NULL. 
 * `n` Number of IQ sample pairs to wait for.
 
 
@@ -511,7 +514,9 @@ The partial-write twin of :meth:`write`. Where :meth:`write` refuses a block tha
 **Parameters:**
 
 
-* `x` Samples to write: 1-D, C-contiguous, dtype `[("i", "<i2"), ("q", "<i2")]`.
+* `state` The ring. Must be non-NULL. 
+* `x` Samples to write: 1-D, C-contiguous, dtype `[("i", "<i2"), ("q", "<i2")]`. 
+* `x_len` Length of `x`, in samples.
 
 
 
@@ -570,7 +575,9 @@ A bare int16 array is refused with `TypeError`, flat or `(n, 2)`: it is not an a
 **Parameters:**
 
 
-* `x` IQ samples to write: 1-D, C-contiguous, dtype `[("i", "<i2"), ("q", "<i2")]`.
+* `state` The ring. Must be non-NULL. 
+* `x` IQ samples to write: 1-D, C-contiguous, dtype `[("i", "<i2"), ("q", "<i2")]`. 
+* `x_len` Length of `x`, in samples.
 
 
 

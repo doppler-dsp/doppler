@@ -83,7 +83,9 @@ static inline dp_f32_t *dp_f32_create (size_t capacity);
  * you discard it; the refusal is counted in :attr:`dropped`, which is
  * not a loss count. The array must be 1-D and C-contiguous.
  *
+ * @param state The ring. Must be non-NULL.
  * @param x Samples to write.  Must be 1-D and C-contiguous.
+ * @param x_len Length of ``x``, in samples.
  *
  * @return ``True`` if all samples were written; ``False`` if the ring had no
  *         room and the call was refused (``x`` untouched).
@@ -115,7 +117,9 @@ dp_f32_write_view (dp_f32_t *state, const float _Complex *x, size_t x_len);
  * the ring: loop, advancing by the return value, draining in
  * between.
  *
+ * @param state The ring. Must be non-NULL.
  * @param x Samples to write.  Must be 1-D and C-contiguous.
+ * @param x_len Length of ``x``, in samples.
  *
  * @return Samples accepted, ``0 <= k <= len(x)``.  The caller still owns
  *         ``x[k:]``.
@@ -154,6 +158,7 @@ dp_f32_write_some_view (dp_f32_t *state, const float _Complex *x,
  * ``wait``.  Using the returned array after ``consume`` is undefined
  * behaviour; the producer may overwrite it at any time.
  *
+ * @param state The ring. Must be non-NULL.
  * @param n Number of complex samples to wait for.  Must be positive and not
  *          larger than :attr:`capacity`.
  *
@@ -204,6 +209,7 @@ static inline float _Complex *dp_f32_wait_view (dp_f32_t *state, size_t n);
  * ``consume(k)`` with ``k < n`` advances by a hop smaller than
  * the frame, which is how overlapped frames are read.
  *
+ * @param state The ring. Must be non-NULL.
  * @param n Number of samples wanted.  Must be positive and not larger than
  *          :attr:`capacity`.
  *
@@ -247,6 +253,7 @@ static inline float _Complex *dp_f32_peek_view (dp_f32_t *state, size_t n);
  * number is written once.  ``n`` smaller than the view is how overlapped
  * frames are read: release a hop, keep the rest.
  *
+ * @param state The ring. Must be non-NULL.
  * @param n Number of samples to release.  Defaults to the count of the
  *          outstanding :meth:`wait` / :meth:`peek` view.
  *

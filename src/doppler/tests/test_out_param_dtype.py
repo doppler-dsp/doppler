@@ -23,6 +23,11 @@ Asserted for every entry:
 2. **A correct-dtype ``out=`` is actually written**, so the guard cannot be
    "passed" by an implementation that rejects everything, or that ignores
    ``out=`` and returns a fresh array instead.
+3. **A strided ``out=`` is refused or genuinely filled**, never skipped: the
+   same hidden copy, reached through contiguity instead of dtype
+   (doppler#1440). `scripts/check_out_param_guard.py` reads every binding
+   for the same thing, because this matrix is a list and a list is only the
+   types somebody remembered.
 
 Examples
 --------
@@ -33,7 +38,7 @@ Examples
 >>> f.execute(np.ones(64, dtype=np.complex64), out=buf)
 Traceback (most recent call last):
     ...
-TypeError: out must be a writable ndarray of the output dtype
+TypeError: out must be a writable, C-contiguous ndarray of the output dtype
 """
 
 from __future__ import annotations
@@ -289,3 +294,43 @@ def test_correct_out_dtype_is_written(
     sentinel = np.full(n, 7, dtype=dt)
     invoke(obj, sentinel)
     assert not np.all(sentinel == 7), f"{name} did not write the caller's out="
+
+
+@pytest.mark.parametrize(_PARAMS, _CASES, ids=_IDS)
+def test_strided_out_is_refused_or_written_never_skipped(
+    name: str,
+    make: Callable[[], Any],
+    invoke: _Invoke,
+    dt: Any,
+    max_out_attr: str,
+    floor: int,
+) -> None:
+    """The same failure as a wrong dtype, reached by the other door.
+
+    A correct-dtype ``out=`` that is not C-contiguous -- every other element
+    of a larger array, say -- cannot be handed to a C kernel as it stands.
+    ``PyArray_FROM_OTF(out, ..., C_CONTIGUOUS | WRITEABLE)`` "fixes" that by
+    making a contiguous COPY, the kernel fills the copy, and the caller's
+    buffer is never touched: nothing raises, and a fresh array comes back.
+    15 fragments did exactly that (doppler#1440), found by just-makeit
+    0.82.2 noticing they predated the contiguity half of its ``out=`` guard.
+
+    Either honest answer is accepted -- refuse it, or genuinely fill it --
+    because the contract is only that ``out=`` is never silently ignored.
+    """
+    obj = make()
+    n = _out_len(obj, max_out_attr, floor)
+    backing = np.full(2 * n, 7, dtype=dt)
+    strided = backing[::2]
+    assert not strided.flags["C_CONTIGUOUS"], "the premise of this test"
+    try:
+        invoke(obj, strided)
+    except (TypeError, ValueError):
+        return  # refused: the caller is told
+    assert not np.all(strided == 7), (
+        f"{name} accepted a strided out= and never wrote it"
+    )
+    assert np.all(backing[1::2] == 7), (
+        f"{name} wrote BETWEEN the strided elements: it treated the view as "
+        "contiguous"
+    )

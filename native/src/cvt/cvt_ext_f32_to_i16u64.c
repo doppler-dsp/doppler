@@ -106,11 +106,13 @@ F32ToI16U64_steps (F32ToI16U64Object *self, PyObject *args, PyObject *kwds)
        * into a temp copy instead of the caller's buffer). */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_UINT64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
           PyErr_SetString (
               PyExc_TypeError,
-              "out must be a writable ndarray of the output dtype");
+              "out must be a writable, C-contiguous ndarray of the "
+              "output dtype");
           Py_DECREF (in_arr);
           return NULL;
         }

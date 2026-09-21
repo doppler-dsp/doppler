@@ -123,11 +123,13 @@ ResamplerObj_execute (ResamplerObject *self, PyObject *args, PyObject *kwds)
        * jm's generated form (gh-581). */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
           PyErr_SetString (
               PyExc_TypeError,
-              "out must be a writable ndarray of the output dtype");
+              "out must be a writable, C-contiguous ndarray of the "
+              "output dtype");
           Py_DECREF (x_arr);
           return NULL;
         }
@@ -257,11 +259,13 @@ ResamplerObj_execute_ctrl (ResamplerObject *self, PyObject *args,
        * jm's generated form (gh-581). */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
+          || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
           PyErr_SetString (
               PyExc_TypeError,
-              "out must be a writable ndarray of the output dtype");
+              "out must be a writable, C-contiguous ndarray of the "
+              "output dtype");
           Py_DECREF (x_arr);
           Py_DECREF (ctrl_arr);
           return NULL;

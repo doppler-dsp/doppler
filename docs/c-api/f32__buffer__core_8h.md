@@ -62,7 +62,7 @@ _The complex64 ring as the component just-makeit binds._ [More...](#detailed-des
 | Type | Name |
 | ---: | :--- |
 |  void | [**dp\_f32\_close**](#function-dp_f32_close) (dp\_f32\_t \* state) <br>_Say that no more data is coming._  |
-|  void | [**dp\_f32\_consume**](#function-dp_f32_consume) (dp\_f32\_t \* state, size\_t n) <br>_Release_ `n` _samples back to the producer._ |
+|  int | [**dp\_f32\_consume**](#function-dp_f32_consume) (dp\_f32\_t \* state, size\_t n) <br>_Release_ `n` _samples back to the producer._ |
 |  dp\_f32\_t \* | [**dp\_f32\_create**](#function-dp_f32_create) (size\_t capacity) <br>_Lock-free SPSC ring buffer for complex64 (CF32) samples._  |
 |  void | [**dp\_f32\_destroy**](#function-dp_f32_destroy) (dp\_f32\_t \* state) <br>_Unmap the double-mapped region and free the buffer struct._  |
 |  float \_Complex \* | [**dp\_f32\_peek\_view**](#function-dp_f32_peek_view) (dp\_f32\_t \* state, size\_t n) <br>_:meth:_ `wait` _that never blocks: a view, or None for not yet._ |
@@ -186,7 +186,7 @@ EOFError: end of stream: the producer closed the ring
 
 _Release_ `n` _samples back to the producer._
 ```C++
-static inline void dp_f32_consume (
+static inline int dp_f32_consume (
     dp_f32_t * state,
     size_t n
 ) 
@@ -207,9 +207,17 @@ Advances the consumer tail pointer by `n`, making that space available for the p
 
 
 
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID when `n` exceeds what is readable.
+
+
+
+
 **Exception:**
 
 
+* `ValueError` `n` exceeds :attr:`available`. Nothing is released: past that point the ring's counts would stop describing it. 
 * `RuntimeError` `n` was omitted and nothing is outstanding  no view was lent since the last release, so there is no count to default to.
 
 

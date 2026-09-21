@@ -73,3 +73,44 @@ red. **One survived the first pass:** `write_some` counting a drop on a full
 ring left the suite green, because `dropped` was asserted *before* the
 full-ring call rather than after it. The assertion was added and the sabotage
 then failed at `test_buffer_core.c:441`.
+
+## 6. `consume()` is bounded after all, and two threads (2026-09-21)
+
+§6 of the design page used to list "no bounds check in `consume()`" among the
+things the ring deliberately does not do. This is why it no longer does.
+
+Both were listed as unknown. They were one question: the bound reads the
+producer's index on the consumer's release path, which is a cross-core cache
+line — *if* the consumer does not already hold it.
+
+It does. The `wait()` or `peek()` that precedes every release has just loaded
+`head`, so the bound re-reads a line the core pulled a few instructions ago.
+
+Measured as an A/B on one header, producer and consumer on **separate cores**
+(`taskset` 4 and 2), `wait` + `consume` at a **64-sample frame** — the
+release-heaviest shape, where memcpy cannot hide a per-call cost — 200 M
+samples per run, alternating builds, five each:
+
+| `consume()`                | min ns/frame | the five runs                     |
+| -------------------------- | ------------ | --------------------------------- |
+| unbounded                  | 53.30        | 56.36, 53.30, 54.85, 54.84, 53.88 |
+| bounded (`n <= available`) | 53.32        | 53.46, 53.32, 53.72, 53.64, 53.39 |
+
+No difference; the run-to-run spread (±1.5 ns) is fifty times the gap. One
+thread says the same: `write_wait_consume[f32,chunk=1024]` 85.9 → 85.9 µs over
+six alternations. So `consume()` is bounded, in the header, as the one
+implementation ([#1424](https://github.com/doppler-dsp/doppler/issues/1424)).
+
+It was not an optimisation question in the end. Unbounded, the tail could pass
+the head; `space()` then exceeds `capacity`, `write()` believed it, and copied
+past the mapping. From the Python face that was two lines —
+`buf.consume(1_000_000)` then a large `write()` — and a SIGSEGV. `write()` and
+`write_some()` now also refuse to copy more than `capacity` whatever the
+indices claim: one compare against a field already loaded, measured at no
+cost over five alternations.
+
+**The two-thread row** is `two_thread_write_wait_consume[f32,frame=64]` in
+`bench_buffer_core`: **17.9 ns/frame, ~3.6 GSa/s** unpinned. That is three
+times faster than the pinned A/B above, and the difference is *placement*:
+left alone the scheduler puts the pair on SMT siblings that share a cache,
+while cores 2 and 4 do not. Quote either number only with its placement.

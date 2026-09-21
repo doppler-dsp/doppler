@@ -246,9 +246,16 @@ class F32Buffer:
 
         Raises
         ------
+        ValueError
+            ``n`` exceeds :attr:`available`. Nothing is released: past that
+            point the ring's counts would stop describing it.
         RuntimeError
             ``n`` was omitted and nothing is outstanding -- no view was lent
             since the last release, so there is no count to default to.
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``consume(n): n exceeds the samples available; nothing was
+            released``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -617,9 +624,16 @@ class F64Buffer:
 
         Raises
         ------
+        ValueError
+            ``n`` exceeds :attr:`available`. Nothing is released: past that
+            point the ring's counts would stop describing it.
         RuntimeError
             ``n`` was omitted and nothing is outstanding -- no view was lent
             since the last release, so there is no count to default to.
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``consume(n): n exceeds the samples available; nothing was
+            released``, with the return code appended (gh-869).
 
         Examples
         --------
@@ -1003,9 +1017,16 @@ class I16Buffer:
 
         Raises
         ------
+        ValueError
+            ``n`` exceeds :attr:`available`. Nothing is released: past that
+            point the ring's counts would stop describing it.
         RuntimeError
             ``n`` was omitted and nothing is outstanding -- no view was lent
             since the last release, so there is no count to default to.
+        ValueError
+            If the C call returns a non-zero status. The exception message is
+            ``consume(n): n exceeds the samples available; nothing was
+            released``, with the return code appended (gh-869).
 
         Examples
         --------

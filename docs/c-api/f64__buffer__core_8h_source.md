@@ -37,7 +37,7 @@ static inline double _Complex *dp_f64_wait_view (dp_f64_t *state, size_t n);
 
 static inline double _Complex *dp_f64_peek_view (dp_f64_t *state, size_t n);
 
-static inline void dp_f64_consume (dp_f64_t *state, size_t n);
+static inline int dp_f64_consume (dp_f64_t *state, size_t n);
 
 static inline void dp_f64_close (dp_f64_t *state);
 

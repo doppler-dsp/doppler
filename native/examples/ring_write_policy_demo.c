@@ -12,7 +12,9 @@
  * than the ring.
  *
  * dp_f32_space() is the room a write is guaranteed to find, so a producer
- * that sizes its block from it is never refused at all. And
+ * that sizes its block from it is never refused at all. dp_f32_consume()
+ * is bounded the same way from the other side: it will not release more
+ * than is readable. And
  * dp_f32_wait_status() answers "why can I not have n samples?" without
  * blocking, in one call, for a caller that wants to say so.
  *
@@ -64,7 +66,13 @@ main (void)
   /* Why can I not have n samples? Asked without blocking. */
   CHECK (dp_f32_wait_status (ring, cap) == DP_WAIT_OK);
   CHECK (dp_f32_wait_status (ring, cap + 1) == DP_WAIT_TOO_LARGE);
-  dp_f32_consume (ring, cap);
+
+  /* The release is bounded the same way: more than is there is refused,
+     and releases nothing. A caller that gives back only what wait() or
+     peek() lent never meets this, and may ignore the return. */
+  CHECK (dp_f32_consume (ring, cap + 1) == DP_ERR_INVALID);
+  CHECK (dp_f32_available (ring) == cap);
+  CHECK (dp_f32_consume (ring, cap) == DP_OK);
   CHECK (dp_f32_wait_status (ring, 1) == DP_WAIT_PENDING); /* just not yet */
 
   /* A producer that sizes from space() is never refused. */

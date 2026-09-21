@@ -601,6 +601,29 @@ class TestNonBlockingSurface:
         assert buf.peek(1) is None  # PENDING again, not EOF
         assert buf.write_some(cast(_ramp(5))) == 5
 
+    def test_consume_refuses_more_than_is_there(self, cls, cast):
+        """consume(n > available) raises and releases NOTHING.
+
+        It used to be unbounded, and the consequence was not subtle: the
+        read position passed the write position, `space` came out larger
+        than `capacity`, `write()` believed it, and copied past the
+        mapping. `consume(1_000_000)` then a large `write()` was a SIGSEGV
+        from two lines of Python.
+        """
+        buf = cls(1024)
+        cap = buf.capacity
+        assert buf.write_some(cast(_ramp(10))) == 10
+        with pytest.raises(ValueError, match="exceeds"):
+            buf.consume(11)
+        assert (buf.available, buf.space) == (10, cap - 10)
+        with pytest.raises(ValueError):
+            buf.consume(1_000_000)
+        assert buf.space <= cap, "the counts still describe a ring"
+        # The write that used to crash is refused like any other too-large one.
+        assert buf.write(cast(_ramp(4 * cap))) is False
+        buf.consume(10)
+        assert buf.available == 0
+
     def test_write_some_validates_like_write(self, cls, cast):
         """Both refuse a wrong dtype, the same way, and take nothing.
 

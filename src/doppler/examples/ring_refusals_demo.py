@@ -8,7 +8,8 @@ them, because the useful part of an error is knowing which one to catch.
   TypeError     the array is not the ring's element type
   ValueError    the array is the wrong shape or not contiguous; or the
                 request can never be satisfied (n > capacity, a size the
-                ring cannot map)
+                ring cannot map); or consume(n) asks to release more than
+                is there
   EOFError      the producer closed the ring and fewer than n remain --
                 the NORMAL end of a stream, which a consumer loop catches
   RuntimeError  the ring is destroyed; or consume() with nothing on loan
@@ -71,6 +72,17 @@ msg = refusal(ValueError, lambda: buf.wait(cap + 1))
 assert str(cap + 1) in msg and str(cap) in msg
 refusal(ValueError, lambda: buf.peek(cap + 1))
 # --8<-- [end:never]
+
+# --8<-- [start:release]
+# Releasing more than is there is refused too, and releases NOTHING. The
+# ring's two positions are all it knows about itself: let the read position
+# pass the write position and every later count would describe a ring that
+# does not exist.
+buf.write(np.zeros(10, dtype=np.complex64))
+msg = refusal(ValueError, lambda: buf.consume(11))
+assert buf.available == 10 and buf.space == cap - 10, "still a ring"
+buf.consume(10)
+# --8<-- [end:release]
 
 # --8<-- [start:eos]
 # "Not yet" and "never" are different answers. peek() says None for the

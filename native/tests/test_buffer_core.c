@@ -823,6 +823,45 @@ main (void)
     dp_f32_destroy (anon);
   }
 
+  /* ── consume() refuses what is not there; write() stays in the mapping ─
+     consume() used to be unbounded, so a caller COULD push the tail past the
+     head -- and then the room computed from the two indices is larger than
+     the ring. write() believed it and copied past the mapping: from the
+     Python face, consume(1e6) then write(5e5 samples) was a SIGSEGV. Two
+     independent guards now, each pinned here on its own. */
+  {
+    dp_f32_t *b = dp_f32_create (4096);
+    DP_REQUIRE (b != NULL);
+    size_t cap = b->capacity;
+    float *big = (float *)calloc (2 * (cap + 1), sizeof *big);
+    DP_REQUIRE (big != NULL);
+
+    /* 1. The release refuses, and releases NOTHING when it does. */
+    DP_CHECK (dp_f32_write (b, big, 100));
+    DP_CHECK (dp_f32_consume (b, 101) == DP_ERR_INVALID);
+    DP_CHECK (dp_f32_available (b) == 100); /* not 0, and not -1 */
+    DP_CHECK (dp_f32_space (b) == cap - 100);
+    DP_CHECK (dp_f32_consume (b, 100) == DP_OK);
+    DP_CHECK (dp_f32_available (b) == 0);
+    DP_CHECK (dp_f32_consume (b, 0) == DP_OK);          /* a no-op      */
+    DP_CHECK (dp_f32_consume (b, 1) == DP_ERR_INVALID); /* empty ring   */
+    DP_CHECK (dp_f32_consume (b, (size_t)-1) == DP_ERR_INVALID);
+    DP_CHECK (dp_f32_space (b) == cap); /* the counts still describe a ring */
+
+    /* 2. A memcpy must not depend on (1). Put the indices in the state the
+          old consume() could reach -- by hand, since the API no longer can
+          -- and ask for more than the ring could ever hold. Under ASan an
+          overrun here is a report; without it, the refusal is observable. */
+    b->tail = b->head + 1000;
+    DP_CHECK (dp_f32_space (b) > cap); /* the premise: the count is a lie */
+    size_t before = b->dropped;
+    DP_CHECK (!dp_f32_write (b, big, cap + 1));
+    DP_CHECK (b->dropped == before + cap + 1);
+    DP_CHECK (dp_f32_write_some (b, big, cap + 1) <= cap);
+    free (big);
+    dp_f32_destroy (b);
+  }
+
   /* ── space() and available() never over-report, with the other side live
      "a lower bound that never goes stale in the unsafe direction" -- the
      whole reason a caller may size a block from them. Each side here sizes

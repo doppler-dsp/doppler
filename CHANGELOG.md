@@ -13,6 +13,37 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.54.1] - 2026-09-21
+
+### Changed
+
+- **just-makeit pin 0.82.2 → 0.83.0.** Three generated stubs (`buffer`,
+    `dsss`, `telemetry`) used `Any` without importing it — a type checker
+    saw an undefined name — and now import it; `wfm_reader.pyi` loses an
+    import it never used. It also brings `jm adopt --check`, the read-only
+    survey of which binding fragments could become fully generated
+    ([#1446](https://github.com/doppler-dsp/doppler/issues/1446)), and lets
+    the generated ring invariants test be linted again instead of excluded.
+
+### Fixed
+
+- **A program that calls doppler's inline C API links against the shared
+    library.** `pkg-config --libs doppler` and `doppler::doppler` handed out
+    `-ldoppler` alone, but every `step()`, `dp_thread.h` and the ring buffer
+    are inline, so their libm and pthread calls land in *your* object: an
+    inline `agc_step()` failed with `DSO missing from command line` on every
+    distro, `dp_thread.h` wherever glibc < 2.34. Both are now in the link
+    interface ([#1450](https://github.com/doppler-dsp/doppler/issues/1450)).
+
+- **`pkg-config --cflags doppler` is enough to compile the installed headers.**
+    It lacked the feature-test macro the CMake target carries, so at a strict
+    `-std=c99` on glibc 2.28, 33 of 159 headers — `doppler.h` included — failed
+    on `MAP_ANONYMOUS` for a pkg-config consumer while `find_package` worked.
+    The macro is now declared once and feeds the build, the exported target
+    and `doppler.pc`; the package smoke compiles every installed header from
+    pkg-config's flags alone
+    ([#1451](https://github.com/doppler-dsp/doppler/issues/1451)).
+
 ## [0.54.0] - 2026-09-21
 
 ### Breaking
@@ -14259,8 +14290,9 @@ ______________________________________________________________________
 [0.52.0]: https://github.com/doppler-dsp/doppler/compare/v0.51.1...v0.52.0
 [0.53.0]: https://github.com/doppler-dsp/doppler/compare/v0.52.0...v0.53.0
 [0.54.0]: https://github.com/doppler-dsp/doppler/compare/v0.53.0...v0.54.0
+[0.54.1]: https://github.com/doppler-dsp/doppler/compare/v0.54.0...v0.54.1
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.54.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.54.1...HEAD

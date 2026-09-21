@@ -97,6 +97,13 @@ still drains); *closed* wins over *interrupted*.
 counts samples in *refused calls*, not samples lost: a producer that retries
 keeps its data and still moves the counter. `write_some()` never touches it.
 
+Both policies, `space()`, and the answers `wait_status()` gives, in one
+program:
+
+```c
+--8<-- "native/examples/ring_write_policy_demo.c"
+```
+
 ## 4. The two patterns
 
 ### Drip-feed until a frame is there, then take it
@@ -140,6 +147,14 @@ empties the ring and **reopens** it (`closed` is cleared; `dropped` is a
 lifetime count and is kept). It writes both indices, so it is for the
 single-threaded user and for between runs.
 
+The two-thread shape whole — backpressure from `space()`, and an end said
+with `close()`, after which `wait()` returns `NULL` and `wait_status()`
+says why:
+
+```c
+--8<-- "native/examples/ring_threaded_demo.c"
+```
+
 ## 6. What the ring deliberately does not do
 
 - **No thread, no timeout.** `wait()` spins; it is for a consumer that has a
@@ -151,3 +166,29 @@ single-threaded user and for between runs.
 - **No ownership of the pointer's lifetime.** A pointer from `wait()` or
     `peek()` is valid until those samples are consumed; after that the
     producer may overwrite them. Zero-copy means exactly that.
+
+## 7. The element-typed face
+
+The ring stores scalars, two per complex sample. `DECLARE_DP_BUFFER_VIEW`
+stamps the same four calls typed as one **element** per sample —
+`float _Complex`, `double _Complex`, and for 16-bit I/Q the record
+`dp_iq16_t {i, q}`, since C has no complex integer. Each is a cast: every
+count in the header is already in samples, so the two faces cannot disagree
+about a length. It is the face the Python binding is generated over.
+
+```c
+--8<-- "native/examples/ring_element_view_demo.c"
+```
+
+## 8. A ring whose samples are a file
+
+`dp_<t>_create_backed()` is `create()` over a path. The mapping is shared, so
+the ring's samples **are** the file's contents — no write-to-disk step, no
+copy, nothing to disagree. `existed` says whether the file already held a
+ring of this size; `dp_<t>_sync()` is the checkpoint. What persists is the
+samples: the positions live in the struct, so resuming from them is the
+caller's bookkeeping.
+
+```c
+--8<-- "native/examples/ring_backed_demo.c"
+```

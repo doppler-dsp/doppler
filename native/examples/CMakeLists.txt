@@ -7,7 +7,8 @@ cmake_minimum_required(VERSION 3.16)
 foreach(_ex nco_demo fir_demo hbdecim_demo fft_demo agc_demo corr_demo cic_demo rate_converter_demo
              ccsds_link_demo dsss_burst_receiver_demo burst_capture_demo
              wfmgen_demo wfmgen_frame_demo
-             ring_drip_feed_demo ring_chunking_demo)
+             ring_drip_feed_demo ring_chunking_demo
+             ring_write_policy_demo ring_element_view_demo)
     add_executable(${_ex} ${_ex}.c)
     target_include_directories(${_ex} PRIVATE
         ${CMAKE_SOURCE_DIR}/native/inc
@@ -25,7 +26,9 @@ if(NOT WIN32)
     find_package(Threads REQUIRED)
     # The pool runs its receivers and the searcher's tiles across threads
     # (dp_parallel.h); glibc < 2.34 needs -lpthread on the final link.
-    foreach(_ex async_dsss_pool_demo)
+    # ring_threaded_demo is a producer thread against a blocking wait();
+    # ring_backed_demo maps a FILE, which create_backed() refuses on Windows.
+    foreach(_ex async_dsss_pool_demo ring_threaded_demo ring_backed_demo)
         add_executable(${_ex} ${_ex}.c)
         target_include_directories(${_ex} PRIVATE
             ${CMAKE_SOURCE_DIR}/native/inc

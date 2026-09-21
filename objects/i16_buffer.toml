@@ -17,10 +17,10 @@ opaque_state = "true"
 header_only = "true"
 class_name = "I16Buffer"
 create_fn = "dp_i16_create"
-# NULL from create() is a bad size (not a power of two, or the mapping
-# failed), which is the caller's to fix -- not an allocation failure.
+# NULL from create() is a capacity of 0, one too large to map, or a mapping
+# the OS refused -- the caller's to fix, not an allocation failure.
 create_error = "ValueError"
-create_error_message = "capacity must be a power of two (and the mapping must succeed)"
+create_error_message = "capacity must be at least 1, and small enough to map"
 
 [[i16_buffer.depends_on]]
 name = "dp_interrupt_guard"

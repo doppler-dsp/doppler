@@ -59,9 +59,8 @@ WIDTHS = [
 
 for cls, dtype, ramp in WIDTHS:
     with cls(1024) as buf:
-        # Rounded UP to what the mapping needs: read it back, never assume.
         cap = buf.capacity
-        assert cap >= 1024 and cap & (cap - 1) == 0
+        assert cap == 1024, "exactly what was asked, on every machine"
 
         assert buf.write(ramp(100))
         assert (buf.available, buf.space) == (100, cap - 100)
@@ -76,19 +75,20 @@ for cls, dtype, ramp in WIDTHS:
 
 # --8<-- [start:wrap]
 # The point of the double mapping: a frame that straddles the end of the
-# ring still comes back as ONE contiguous array. Advance to 100 samples
-# short of the end, then ask for 256.
-with F32Buffer(1024) as buf:
-    cap = buf.capacity
-    buf.write(np.zeros(cap - 100, dtype=np.complex64))
-    buf.wait(cap - 100)
-    buf.consume()
-
-    buf.write(np.arange(256, dtype=np.complex64))  # wraps after 100
-    frame = buf.wait(256)
-    assert frame.flags["C_CONTIGUOUS"]
-    assert np.array_equal(frame, np.arange(256))
-    buf.consume()
+# ring's memory still comes back as ONE contiguous array. Any capacity will
+# do -- 1000 here, not a power of two -- and a 256-sample frame taken at a
+# hop of 100 lands across the end sooner or later, wherever the end is.
+with F32Buffer(1000) as buf:
+    assert buf.capacity == 1000
+    for pos in range(40):  # frame k starts at stream position k
+        buf.write_some(np.arange(pos, pos + 256, dtype=np.complex64))
+        frame = buf.peek(256)
+        assert frame.flags["C_CONTIGUOUS"]
+        assert np.array_equal(frame, np.arange(pos, pos + 256))
+        buf.consume()
+        buf.write_some(np.zeros(100, dtype=np.complex64))  # move on by 100
+        buf.peek(100)
+        buf.consume()
 # --8<-- [end:wrap]
 
 # --8<-- [start:threads]

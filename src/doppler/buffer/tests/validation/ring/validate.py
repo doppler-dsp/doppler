@@ -151,40 +151,47 @@ def section_object() -> None:
 
 
 def _capacity(d: Data) -> None:
-    R.md("### 2.1 Capacity: what you ask for and what you get (C §sizes)")
+    R.md("### 2.1 Capacity is what you asked for, on every machine (C §sizes)")
     R.md()
     d.page = os.sysconf("SC_PAGESIZE")
-    asks = (1, 64, 512, 1024, 4096, 65536)
+    asks = (1, 3, 96, 511, 1000, 1024, 1025, 65537)
     rows = []
     for w in WIDTHS:
         ok = True
         for ask in asks:
             with w.cls(ask) as b:
-                cap = b.capacity
-            pow2 = cap & (cap - 1) == 0
-            spans = cap * w.nbytes >= d.page
-            minimal = cap == ask or cap * w.nbytes == d.page
-            ok = ok and pow2 and cap >= ask and spans and minimal
-            rows.append(
-                [w.name, f"{ask:,}", f"{cap:,}", f"{cap * w.nbytes:,}"]
-            )
+                cap, room = b.capacity, b.space
+                # The slack in the mapping is never room: fill it, and one
+                # more sample is refused.
+                took = b.write_some(w.ramp(0, ask + 7))
+                full = b.write(w.ramp(0, 1)) is False
+            ok = ok and cap == ask and room == ask and took == ask and full
             d.cap_rows.append((w.name, ask, cap))
         d.cap_ok[w.name] = ok
+        rows.append(
+            [w.name, ", ".join(f"{a:,}" for a in asks), "yes" if ok else "NO"]
+        )
         refused = 0
-        for bad in (0, 3, 1000, 1025):
+        for bad in (0,):
             try:
                 w.cls(bad)
             except ValueError:
                 refused += 1
-        d.bad_sizes_refused[w.name] = refused == 4
-    R.table(["width", "asked", "capacity", "mapping (bytes)"], rows)
+        d.bad_sizes_refused[w.name] = refused == 1
+    R.table(
+        ["width", "capacities asked", "each is exactly what it holds"], rows
+    )
     R.md()
     R.md(
-        f"Page size on this machine: {d.page:,} bytes. A request whose "
-        "mapping would be smaller than one page is rounded **up** to the "
-        "smallest power of two that spans it, and no further; a request "
-        "that already spans a page is returned as asked. So `capacity` is "
-        "the number to size a block from, never the constructor argument."
+        f"Page size on this machine: {d.page:,} bytes — and it does not "
+        "appear in the table, which is the point. Any size from 1 up is a "
+        "ring of exactly that many samples; a power of two is not "
+        "required. What is rounded is the **mapping** behind it, up to a "
+        "power of two (indexing is a mask) and to whole pages (the mirror "
+        "is built from them), and that slack is address space, never "
+        "room: a ring of 1,000 takes 1,000 and refuses the next sample. "
+        "The mapping itself is not visible from this face; its size, its "
+        "minimality and the unmap are pinned in C (§sizes, §destroy)."
     )
     R.md()
 
@@ -728,13 +735,13 @@ def limits(d: Data) -> None:
         n = w.name
         R.limit(
             d.cap_ok[n],
-            f"{n}: capacity is a power of two, at least what was asked, "
-            f"spans a page, and is rounded up no further than that",
+            f"{n}: capacity is exactly what was asked, for sizes from 1 to "
+            f"65,537 including ones that are not a power of two, and the "
+            f"ring holds that many samples and not one more",
         )
         R.limit(
             d.bad_sizes_refused[n],
-            f"{n}: a size the ring cannot map (0, or not a power of two) "
-            f"is a ValueError, not a smaller ring",
+            f"{n}: a ring of nothing (capacity 0) is a ValueError",
         )
     for w in WIDTHS:
         n = w.name
@@ -818,10 +825,12 @@ def build(write: bool = True) -> Report:
     R.executive(
         "The ring buffer",
         [
-            "**Size every block from `capacity`, never from what you asked "
-            "for.** It is rounded up to a page, so the number you passed is "
-            "a floor; a request past it is a `ValueError` naming both "
-            "numbers rather than a wait that never ends (§2.1, §2.5).",
+            "**`capacity` is the number you passed, on every machine.** Any "
+            "size from 1 up, a power of two or not; the rounding a mask and "
+            "a page mirror need happens in the mapping, where it costs "
+            "address space and nothing per call. A request past it is a "
+            "`ValueError` naming both numbers rather than a wait that never "
+            "ends (§2.1, §2.5).",
             "**The contract holds against a model, not just against "
             "itself**: 20,000 random operations per width, hundreds of "
             "wraps, zero disagreements in counts, refusals, `dropped` or "

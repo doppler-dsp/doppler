@@ -47,8 +47,7 @@ F32BufferObj_init (F32BufferObject *self, PyObject *args, PyObject *kwds)
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "capacity must be a power of two (and the mapping "
-                       "must succeed)");
+                       "capacity must be at least 1, and small enough to map");
       return -1;
     }
   return 0;
@@ -763,29 +762,28 @@ static PyTypeObject F32BufferObjType = {
     "Parameters\n"
     "----------\n"
     "capacity : int\n"
-    "    Requested buffer size in complex samples. Must be a power of two. "
-    "The\n"
-    "    VM mirror is built at page granularity, so ``capacity * 8`` must "
-    "span a\n"
-    "    whole page; a sub-page request is rounded **up** to the smallest\n"
-    "    power-of-two that does (minimum 512 on 4 KiB pages, 2048 on 16 KiB\n"
-    "    pages such as macOS arm64). Read :attr:`capacity` back for the size\n"
-    "    actually allocated.\n"
+    "    How many samples the ring holds: any size from 1 up, and\n"
+    "    :attr:`capacity` is exactly this number on every machine. What is\n"
+    "    rounded is the MAPPING behind it -- up to a power of two, because\n"
+    "    indexing is a mask, and up to a whole page -- so a capacity that is "
+    "not\n"
+    "    a power of two costs some address space (under 2x) and nothing per\n"
+    "    call.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    If construction fails. The exception message is ``capacity must be "
-    "a\n"
-    "    power of two (and the mapping must succeed)``.\n"
+    "at\n"
+    "    least 1, and small enough to map``.\n"
     "\n"
     "Examples\n"
     "--------\n"
     ">>> from doppler.buffer import F32Buffer\n"
     ">>> import numpy as np\n"
     ">>> buf = F32Buffer(1024)\n"
-    ">>> buf.capacity >= 1024\n"
-    "True\n"
+    ">>> buf.capacity\n"
+    "1024\n"
     ">>> buf.write(np.ones(512, dtype=np.complex64))\n"
     "True\n",
   .tp_methods = F32BufferObj_methods,

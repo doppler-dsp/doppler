@@ -270,15 +270,15 @@ A record rather than a packed `int32` on purpose: both are one element per sampl
 **Parameters:**
 
 
-* `capacity` Requested buffer size in IQ sample pairs. Must be a power of two. `capacity * 4` must span a whole page; a sub-page request is rounded **up** to the smallest power-of-two that does (minimum 1024 on 4 KiB pages, 4096 on 16 KiB pages). Read :attr:`capacity` back for the size actually allocated.
+* `capacity` How many samples the ring holds: any size from 1 up, and :attr:`capacity` is exactly this number on every machine. What is rounded is the MAPPING behind it  up to a power of two, because indexing is a mask, and up to a whole page  so a capacity that is not a power of two costs some address space (under 2x) and nothing per call.
 
 
 ```C++
 >>> from doppler.buffer import I16Buffer
 >>> import numpy as np
 >>> buf = I16Buffer(1024)
->>> buf.capacity >= 1024
-True
+>>> buf.capacity
+1024
 >>> IQ16 = np.dtype([("i", "<i2"), ("q", "<i2")])
 >>> adc = np.array([10, 20, 30, 40], dtype=np.int16)   # I, Q, I, Q
 >>> buf.write(adc.view(IQ16))
@@ -669,14 +669,14 @@ static inline size_t i16_buffer_get_capacity (
 
 
 
-Read-only. The _actual_ allocated size: a sub-page request rounds up to the page-spanning minimum (1024 on 4 KiB pages, 4096 on 16 KiB pages), so it may exceed the requested value.
+Read-only. Exactly the number passed to the constructor, whatever the machine's page size; the mapping behind it is larger when that number is not a power of two or spans less than a page, and that slack is never room.
 
 
 
 ```C++
 >>> from doppler.buffer import I16Buffer
->>> I16Buffer(1024).capacity >= 1024
-True
+>>> I16Buffer(1024).capacity, I16Buffer(1000).capacity
+(1024, 1000)
 ```
  
 

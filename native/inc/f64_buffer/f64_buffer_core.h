@@ -45,11 +45,13 @@ typedef dp_f64_t f64_buffer_state_t;
  * head/tail layout are the same.  The GIL is released inside
  * :meth:`wait` so a producer thread can run concurrently.
  *
- * @param capacity Requested buffer size in complex samples.  Must be a power
- *                 of two. ``capacity * 16`` must span a whole page; a sub-page
- *                 request is rounded **up** to the smallest power-of-two that
- *                 does (minimum 256 on 4 KiB pages, 1024 on 16 KiB pages).
- *                 Read :attr:`capacity` back for the size actually allocated.
+ * @param capacity How many samples the ring holds: any size from 1 up, and
+ *                 :attr:`capacity` is exactly this number on every machine.
+ *                 What is rounded is the MAPPING behind it -- up to a
+ *                 power of two, because indexing is a mask, and up to a
+ *                 whole page -- so a capacity that is not a power of two
+ *                 costs some address space (under 2x) and nothing per
+ *                 call.
  *
  * @code
  * >>> from doppler.buffer import F64Buffer
@@ -332,9 +334,10 @@ static inline void dp_f64_destroy (dp_f64_t *state);
 /**
  * @brief Buffer capacity in complex samples.
  *
- * Read-only.  The *actual* allocated size: a sub-page request rounds up
- * to the page-spanning minimum (256 on 4 KiB pages, 1024 on 16 KiB
- * pages), so it may exceed the requested value.
+ * Read-only.  Exactly the number passed to the constructor, whatever
+ * the machine's page size; the mapping behind it is larger when that
+ * number is not a power of two or spans less than a page, and that
+ * slack is never room.
  *
  * @code
  * >>> from doppler.buffer import F64Buffer

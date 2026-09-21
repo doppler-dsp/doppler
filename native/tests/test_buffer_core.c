@@ -142,11 +142,13 @@ main (void)
 {
   size_t page = dp__page_size ();
 
-  /* ── invalid sizes are rejected ─────────────────────────────────── */
+  /* ── the one invalid size is none at all ─────────────────────────── */
   {
-    DP_CHECK (dp_f32_create (0) == NULL);  /* zero */
-    DP_CHECK (dp_f32_create (3) == NULL);  /* not a power of two */
-    DP_CHECK (dp_f32_create (96) == NULL); /* not a power of two */
+    DP_CHECK (dp_f32_create (0) == NULL);
+    DP_CHECK (dp_f64_create (0) == NULL);
+    DP_CHECK (dp_i16_create (0) == NULL);
+    /* ...and one too large to round up to a power of two. */
+    DP_CHECK (dp_f32_create ((size_t)-1) == NULL);
   }
 
   /* ── an unsatisfiable wait returns instead of spinning (#1335) ───── */
@@ -177,83 +179,179 @@ main (void)
     dp_i16_destroy (c);
   }
 
-  /* ── sub-page request rounds up to a whole, power-of-two page ────── */
+  /* ── capacity is what was ASKED; only the mapping is rounded ─────────
+     Any size from 1 up. ->capacity is the number passed to create(), on
+     every machine; ->mask + 1 is how many samples are MAPPED behind it --
+     a power of two because indexing is a mask, a whole number of pages
+     because the mirror is built from them, and no larger than both need.
+     It used to be the capacity that was rounded, which made it depend on
+     the page size: 512 asked was 512 on Linux x86, 2048 on macOS arm64
+     and 8192 on Windows. */
   {
-    /* elem = bytes per complex sample: f32=8, f64=16, i16=4. */
-    dp_f32_t *a = dp_f32_create (1);
-    DP_CHECK (a != NULL);
-    DP_CHECK ((a->capacity & (a->capacity - 1)) == 0);
-    DP_CHECK (a->capacity * 8 >= page);
-    DP_CHECK ((a->capacity * 8) % page == 0);
-    dp_f32_destroy (a);
+    static const size_t asks[]
+        = { 1, 2, 3, 96, 511, 512, 1000, 1024, 1025, 4096, 65537 };
+    for (size_t k = 0; k < sizeof asks / sizeof asks[0]; k++)
+      {
+        size_t    ask = asks[k];
+        dp_f32_t *a   = dp_f32_create (ask);
+        dp_f64_t *b   = dp_f64_create (ask);
+        dp_i16_t *c   = dp_i16_create (ask);
+        DP_REQUIRE (a != NULL && b != NULL && c != NULL);
+        DP_CHECK (a->capacity == ask && b->capacity == ask
+                  && c->capacity == ask);
 
-    dp_f64_t *b = dp_f64_create (1);
-    DP_CHECK (b != NULL);
-    DP_CHECK ((b->capacity & (b->capacity - 1)) == 0);
-    DP_CHECK (b->capacity * 16 >= page);
-    DP_CHECK ((b->capacity * 16) % page == 0);
-    dp_f64_destroy (b);
-
-    dp_i16_t *c = dp_i16_create (1);
-    DP_CHECK (c != NULL);
-    DP_CHECK ((c->capacity & (c->capacity - 1)) == 0);
-    DP_CHECK (c->capacity * 4 >= page);
-    DP_CHECK ((c->capacity * 4) % page == 0);
-    dp_i16_destroy (c);
+        /* elem = bytes per complex sample: f32 = 8, f64 = 16, i16 = 4. */
+        size_t m[3]    = { a->mask + 1, b->mask + 1, c->mask + 1 };
+        size_t elem[3] = { 8, 16, 4 };
+        for (int w = 0; w < 3; w++)
+          {
+            DP_CHECK ((m[w] & (m[w] - 1)) == 0);     /* a power of two    */
+            DP_CHECK (m[w] >= ask);                  /* holds the request */
+            DP_CHECK ((m[w] * elem[w]) % page == 0); /* whole pages       */
+            /* ...and minimal: half of it would miss one of the two. */
+            DP_CHECK (m[w] / 2 < ask || (m[w] / 2) * elem[w] < page);
+          }
+        dp_f32_destroy (a);
+        dp_f64_destroy (b);
+        dp_i16_destroy (c);
+      }
   }
 
-  /* ── a request that already spans a page is NOT over-rounded ─────── */
+  /* ── the CAPACITY is the limit, not the mapping ──────────────────────
+     1000 asked, 1024 mapped: the 24 samples of slack are address space,
+     never room. */
   {
-    /* page/8 complex samples is exactly one page for f32; page and elem are
-     * powers of two, so this is itself a power of two and must pass through
-     * unchanged. */
-    size_t    exact = page / 8;
-    dp_f32_t *a     = dp_f32_create (exact);
-    DP_CHECK (a != NULL);
-    DP_CHECK (a->capacity == exact);
-    dp_f32_destroy (a);
-
-    /* Two pages — also unchanged. */
-    dp_f32_t *b = dp_f32_create (exact * 2);
-    DP_CHECK (b != NULL);
-    DP_CHECK (b->capacity == exact * 2);
+    dp_f32_t *b = dp_f32_create (1000);
+    DP_REQUIRE (b != NULL);
+    DP_REQUIRE (b->mask + 1 > b->capacity); /* the premise: there IS slack */
+    float *src = (float *)calloc (2 * 1200, sizeof *src);
+    DP_REQUIRE (src != NULL);
+    DP_CHECK (dp_f32_space (b) == 1000);
+    DP_CHECK (!dp_f32_write (b, src, 1001));             /* refused */
+    DP_CHECK (dp_f32_write_some (b, src, 1200) == 1000); /* not 1024 */
+    DP_CHECK (dp_f32_space (b) == 0);
+    DP_CHECK (dp_f32_write_some (b, src, 1) == 0);
+    DP_CHECK (dp_f32_peek (b, 1000) != NULL);
+    DP_CHECK (dp_f32_peek (b, 1001) == NULL);
+    DP_CHECK (dp_f32_wait_status (b, 1001) == DP_WAIT_TOO_LARGE);
+    DP_CHECK (dp_f32_wait (b, 1001) == NULL); /* returns; does not spin */
+    free (src);
     dp_f32_destroy (b);
   }
 
-  /* ── mirror wraps correctly after rounding (f32) ─────────────────── */
+  /* ── a frame across the PHYSICAL end is contiguous (f32) ─────────────
+     The wrap is at the mapped size, not the capacity -- and with 1000 over
+     1024 every position of the head is reached, so the straddle is at a
+     place no power-of-two capacity ever put it. */
   {
-    dp_f32_t *buf = dp_f32_create (1); /* rounds up to the page minimum */
-    DP_CHECK (buf != NULL);
-    size_t cap = buf->capacity;
+    dp_f32_t *buf = dp_f32_create (1000);
+    DP_REQUIRE (buf != NULL);
+    size_t mapped = buf->mask + 1;
 
-    PRIME_TO (f32, float, buf, cap - 2); /* head = tail = cap - 2 */
+    PRIME_TO (f32, float, buf, mapped - 2); /* head = tail = mapped - 2 */
 
-    /* Four interleaved I/Q samples written at index cap-2 straddle the wrap
-     * at `cap`; the double-mapping must hand them back contiguously. */
+    /* Four interleaved I/Q samples written at index mapped-2 straddle the
+     * physical end; the double-mapping must hand them back contiguously. */
     float in[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
     DP_CHECK (dp_f32_write (buf, in, 4) == true);
     float *view = dp_f32_wait (buf, 4);
+    DP_REQUIRE (view != NULL);
+    DP_CHECK (view == &buf->data[2 * (mapped - 2)]); /* it DID straddle */
     for (int i = 0; i < 8; i++)
       DP_CHECK (view[i] == in[i]);
     dp_f32_consume (buf, 4);
     dp_f32_destroy (buf);
   }
 
-  /* ── mirror wraps correctly after rounding (i16 IQ path) ─────────── */
+  /* ── a frame across the physical end is contiguous (i16 IQ path) ───── */
   {
-    dp_i16_t *buf = dp_i16_create (1);
-    DP_CHECK (buf != NULL);
-    size_t cap = buf->capacity;
+    dp_i16_t *buf = dp_i16_create (1000);
+    DP_REQUIRE (buf != NULL);
+    size_t mapped = buf->mask + 1;
 
-    PRIME_TO (i16, int16_t, buf, cap - 2);
+    PRIME_TO (i16, int16_t, buf, mapped - 2);
 
     int16_t in[8] = { 10, 11, 20, 21, 30, 31, 40, 41 };
     DP_CHECK (dp_i16_write (buf, in, 4) == true);
     int16_t *view = dp_i16_wait (buf, 4);
+    DP_REQUIRE (view != NULL);
     for (int i = 0; i < 8; i++)
       DP_CHECK (view[i] == in[i]);
     dp_i16_consume (buf, 4);
     dp_i16_destroy (buf);
+  }
+
+  /* ── destroy() returns the whole MAPPING, not the capacity's worth ────
+     The two differ now, and the one place that is easy to get wrong in
+     silence is the unmap: sized from ->capacity it frees about half of a
+     non-power-of-two ring and leaks the rest, and nothing fails -- the
+     process only grows. So measure that: 65537 samples of f32 is a 1 MiB
+     mapping, mirrored; half-freed, 200 cycles is ~200 MiB of address
+     space. /proc is Linux's, and one platform is enough to pin arithmetic
+     that is the same on all of them. */
+#if defined(__linux__)
+  {
+    long  before = 0, after = 0;
+    FILE *f = fopen ("/proc/self/statm", "r");
+    DP_REQUIRE (f != NULL && fscanf (f, "%ld", &before) == 1);
+    fclose (f);
+    for (int k = 0; k < 200; k++)
+      {
+        dp_f32_t *b = dp_f32_create (65537);
+        DP_REQUIRE (b != NULL);
+        dp_f32_destroy (b);
+      }
+    f = fopen ("/proc/self/statm", "r");
+    DP_REQUIRE (f != NULL && fscanf (f, "%ld", &after) == 1);
+    fclose (f);
+    long grew_mib = (after - before) * (long)page / (1024 * 1024);
+    DP_CHECK_MSG (grew_mib < 8, "destroy() must unmap the whole mapping: "
+                                "200 create/destroy cycles grew the process");
+  }
+#endif
+
+  /* ── against a model, where capacity and mapping DIFFER ──────────────
+     The ring's arithmetic never had to tell the two apart before. A
+     seeded walk of write_some / peek + consume beside two integers:
+     counts, partial writes and sample order, over thousands of wraps. */
+  {
+    dp_f32_t *b = dp_f32_create (1000);
+    DP_REQUIRE (b != NULL);
+    static float blk[2 * 1300];
+    size_t       w = 0, rd = 0, bad = 0;
+    unsigned     s = 7u;
+    for (int op = 0; op < 200000; op++)
+      {
+        s        = s * 1103515245u + 12345u;
+        size_t n = 1 + (s >> 8) % 1250, room = 1000 - (w - rd);
+        if ((s >> 3) & 1u)
+          {
+            for (size_t k = 0; k < n; k++)
+              blk[2 * k] = (float)((w + k) & 0xFFFF);
+            size_t k = dp_f32_write_some (b, blk, n);
+            bad += k != (n < room ? n : room);
+            w += k;
+          }
+        else
+          {
+            if (n > 1000)
+              n = 1000;
+            float *v = dp_f32_peek (b, n);
+            bad += (v == NULL) != (n > w - rd);
+            if (v)
+              {
+                for (size_t k = 0; k < n; k++)
+                  bad += v[2 * k] != (float)((rd + k) & 0xFFFF);
+                bad += dp_f32_consume (b, n) != DP_OK;
+                rd += n;
+              }
+          }
+        bad += dp_f32_available (b) + dp_f32_space (b) != 1000;
+      }
+    DP_CHECK_MSG (bad == 0, "a 1000-sample ring over a 1024 mapping must "
+                            "agree with a two-integer model");
+    DP_CHECK (w / 1000 > 1000); /* not vacuous: thousands of wraps */
+    dp_f32_destroy (b);
   }
 
   /* ── full-then-overflow drops and counts ─────────────────────────── */
@@ -763,7 +861,6 @@ main (void)
     const char *path = "dp_test_buffer_core_backed.bin";
     remove (path);
 
-    DP_CHECK (dp_f32_create_backed (1000, path, NULL) == NULL); /* not 2^k */
     DP_CHECK (dp_f32_create_backed (0, path, NULL) == NULL);
 
     int       existed = -1;
@@ -781,11 +878,12 @@ main (void)
     dp_f32_sync (b);
     dp_f32_destroy (b);
 
-    /* "the FILE's size is capacity * sizeof(type) * 2" */
-    FILE *f = fopen (path, "rb");
+    /* "the FILE is (->mask + 1) * sizeof(type) * 2 bytes" -- the mapping */
+    size_t mapped = cap; /* 4096 asked: read back below, not assumed */
+    FILE  *f      = fopen (path, "rb");
     DP_REQUIRE (f != NULL);
     DP_CHECK (fseek (f, 0, SEEK_END) == 0);
-    DP_CHECK ((size_t)ftell (f) == cap * sizeof (float) * 2);
+    long fsize = ftell (f);
     fclose (f);
 
     /* Same size: mapped AS IT STANDS -- and the positions are not in it. */
@@ -794,23 +892,36 @@ main (void)
     DP_REQUIRE (b != NULL);
     DP_CHECK (existed == 1);
     DP_CHECK (b->capacity == cap);
+    mapped = b->mask + 1;
+    DP_CHECK ((size_t)fsize == mapped * sizeof (float) * 2);
     DP_CHECK (dp_f32_available (b) == 0);
     size_t bad = 0;
     for (size_t i = 0; i < 2 * cap; i++)
       bad += (b->data[i] != src[i]);
     DP_CHECK_MSG (bad == 0, "a re-attached ring must hold what was written");
     /* ...through BOTH mappings: the mirror is rebuilt over the file. */
-    DP_CHECK (b->data[2 * cap] == src[0]);
+    DP_CHECK (b->data[2 * mapped] == src[0]);
     dp_f32_destroy (b);
 
-    /* A different size is NOT that ring: recreated, and zeroed. */
+    /* A file is recognised by its MAPPED size and does not record the
+       capacity, so a request that rounds to the same mapping re-attaches
+       it -- with the capacity the CALLER asked for this time. */
     existed = -1;
-    b       = dp_f32_create_backed (2 * cap, path, &existed);
+    b       = dp_f32_create_backed (mapped - 7, path, &existed);
+    DP_REQUIRE (b != NULL);
+    DP_CHECK (existed == 1);
+    DP_CHECK (b->capacity == mapped - 7 && b->mask + 1 == mapped);
+    DP_CHECK (b->data[0] == src[0]);
+    dp_f32_destroy (b);
+
+    /* A different MAPPING is not that ring: recreated, and zeroed. */
+    existed = -1;
+    b       = dp_f32_create_backed (2 * mapped, path, &existed);
     DP_REQUIRE (b != NULL);
     DP_CHECK (existed == 0);
-    DP_CHECK (b->capacity == 2 * cap);
+    DP_CHECK (b->capacity == 2 * mapped);
     bad = 0;
-    for (size_t i = 0; i < 4 * cap; i++)
+    for (size_t i = 0; i < 4 * mapped; i++)
       bad += (b->data[i] != 0.0f);
     DP_CHECK_MSG (bad == 0, "a resized file must come back zeroed");
     dp_f32_destroy (b);

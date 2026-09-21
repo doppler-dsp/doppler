@@ -51,9 +51,15 @@ write_wait_consume[f32,chunk=1024]   0.328 ns/sample     (never straddles)
 write_wait_consume[f32,chunk=1000]   0.329 ns/sample     (usually does)     1.00x
 ```
 
-Capacity is a power of two (indexing is a mask, not a modulo) and is
-**rounded up** to a whole page, so read `->capacity` back rather than
-assuming the number you asked for.
+**The capacity is whatever was asked for; the mapping is what gets
+rounded.** Indexing is a mask, not a modulo, so `->mask + 1` samples are
+mapped — a power of two — and the mirror is built from whole pages, so at
+least one. `->capacity` stays the caller's number and every guard uses it:
+the slack between the two is address space, never room. It costs nothing per
+call, because the two were already separate fields, and it makes the capacity
+the same on every machine — it used to be the *capacity* that was rounded, so
+`512` asked was 512 on Linux x86, 2048 on macOS arm64 and 8192 on Windows
+([measurements §7](ring-buffer-measurements.md#7-any-capacity-and-what-it-costs-2026-09-21)).
 
 ## 2. Two ways to read, one way to release
 

@@ -47,8 +47,7 @@ F64BufferObj_init (F64BufferObject *self, PyObject *args, PyObject *kwds)
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "capacity must be a power of two (and the mapping "
-                       "must succeed)");
+                       "capacity must be at least 1, and small enough to map");
       return -1;
     }
   return 0;
@@ -753,20 +752,20 @@ static PyTypeObject F64BufferObjType = {
     "Parameters\n"
     "----------\n"
     "capacity : int\n"
-    "    Requested buffer size in complex samples. Must be a power of two.\n"
-    "    ``capacity * 16`` must span a whole page; a sub-page request is "
-    "rounded\n"
-    "    **up** to the smallest power-of-two that does (minimum 256 on 4 KiB\n"
-    "    pages, 1024 on 16 KiB pages). Read :attr:`capacity` back for the "
-    "size\n"
-    "    actually allocated.\n"
+    "    How many samples the ring holds: any size from 1 up, and\n"
+    "    :attr:`capacity` is exactly this number on every machine. What is\n"
+    "    rounded is the MAPPING behind it -- up to a power of two, because\n"
+    "    indexing is a mask, and up to a whole page -- so a capacity that is "
+    "not\n"
+    "    a power of two costs some address space (under 2x) and nothing per\n"
+    "    call.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    If construction fails. The exception message is ``capacity must be "
-    "a\n"
-    "    power of two (and the mapping must succeed)``.\n"
+    "at\n"
+    "    least 1, and small enough to map``.\n"
     "\n"
     "Examples\n"
     "--------\n"

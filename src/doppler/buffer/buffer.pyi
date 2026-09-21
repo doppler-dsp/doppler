@@ -10,26 +10,26 @@ class F32Buffer:
     Parameters
     ----------
     capacity : int
-        Requested buffer size in complex samples. Must be a power of two. The
-        VM mirror is built at page granularity, so ``capacity * 8`` must span a
-        whole page; a sub-page request is rounded **up** to the smallest
-        power-of-two that does (minimum 512 on 4 KiB pages, 2048 on 16 KiB
-        pages such as macOS arm64). Read :attr:`capacity` back for the size
-        actually allocated.
+        How many samples the ring holds: any size from 1 up, and
+        :attr:`capacity` is exactly this number on every machine. What is
+        rounded is the MAPPING behind it -- up to a power of two, because
+        indexing is a mask, and up to a whole page -- so a capacity that is not
+        a power of two costs some address space (under 2x) and nothing per
+        call.
 
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``capacity must be a
-        power of two (and the mapping must succeed)``.
+        If construction fails. The exception message is ``capacity must be at
+        least 1, and small enough to map``.
 
     Examples
     --------
     >>> from doppler.buffer import F32Buffer
     >>> import numpy as np
     >>> buf = F32Buffer(1024)
-    >>> buf.capacity >= 1024
-    True
+    >>> buf.capacity
+    1024
     >>> buf.write(np.ones(512, dtype=np.complex64))
     True
 
@@ -399,17 +399,18 @@ class F64Buffer:
     Parameters
     ----------
     capacity : int
-        Requested buffer size in complex samples. Must be a power of two.
-        ``capacity * 16`` must span a whole page; a sub-page request is rounded
-        **up** to the smallest power-of-two that does (minimum 256 on 4 KiB
-        pages, 1024 on 16 KiB pages). Read :attr:`capacity` back for the size
-        actually allocated.
+        How many samples the ring holds: any size from 1 up, and
+        :attr:`capacity` is exactly this number on every machine. What is
+        rounded is the MAPPING behind it -- up to a power of two, because
+        indexing is a mask, and up to a whole page -- so a capacity that is not
+        a power of two costs some address space (under 2x) and nothing per
+        call.
 
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``capacity must be a
-        power of two (and the mapping must succeed)``.
+        If construction fails. The exception message is ``capacity must be at
+        least 1, and small enough to map``.
 
     Examples
     --------
@@ -777,25 +778,26 @@ class I16Buffer:
     Parameters
     ----------
     capacity : int
-        Requested buffer size in IQ sample pairs. Must be a power of two.
-        ``capacity * 4`` must span a whole page; a sub-page request is rounded
-        **up** to the smallest power-of-two that does (minimum 1024 on 4 KiB
-        pages, 4096 on 16 KiB pages). Read :attr:`capacity` back for the size
-        actually allocated.
+        How many samples the ring holds: any size from 1 up, and
+        :attr:`capacity` is exactly this number on every machine. What is
+        rounded is the MAPPING behind it -- up to a power of two, because
+        indexing is a mask, and up to a whole page -- so a capacity that is not
+        a power of two costs some address space (under 2x) and nothing per
+        call.
 
     Raises
     ------
     ValueError
-        If construction fails. The exception message is ``capacity must be a
-        power of two (and the mapping must succeed)``.
+        If construction fails. The exception message is ``capacity must be at
+        least 1, and small enough to map``.
 
     Examples
     --------
     >>> from doppler.buffer import I16Buffer
     >>> import numpy as np
     >>> buf = I16Buffer(1024)
-    >>> buf.capacity >= 1024
-    True
+    >>> buf.capacity
+    1024
     >>> IQ16 = np.dtype([("i", "<i2"), ("q", "<i2")])
     >>> adc = np.array([10, 20, 30, 40], dtype=np.int16)   # I, Q, I, Q
     >>> buf.write(adc.view(IQ16))

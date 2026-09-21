@@ -52,20 +52,20 @@ typedef dp_f32_t f32_buffer_state_t;
  * On x86-64 the spin-wait loop in :meth:`wait` uses ``PAUSE`` to
  * reduce power consumption and avoid branch-predictor pollution.
  *
- * @param capacity Requested buffer size in complex samples.  Must be a power
- *                 of two. The VM mirror is built at page granularity, so
- *                 ``capacity * 8`` must span a whole page; a sub-page request
- *                 is rounded **up** to the smallest power-of-two that does
- *                 (minimum 512 on 4 KiB pages, 2048 on 16 KiB pages such as
- *                 macOS arm64).  Read :attr:`capacity` back for the size
- *                 actually allocated.
+ * @param capacity How many samples the ring holds: any size from 1 up, and
+ *                 :attr:`capacity` is exactly this number on every machine.
+ *                 What is rounded is the MAPPING behind it -- up to a
+ *                 power of two, because indexing is a mask, and up to a
+ *                 whole page -- so a capacity that is not a power of two
+ *                 costs some address space (under 2x) and nothing per
+ *                 call.
  *
  * @code
  * >>> from doppler.buffer import F32Buffer
  * >>> import numpy as np
  * >>> buf = F32Buffer(1024)
- * >>> buf.capacity >= 1024
- * True
+ * >>> buf.capacity
+ * 1024
  * >>> buf.write(np.ones(512, dtype=np.complex64))
  * True
  * @endcode
@@ -353,15 +353,15 @@ static inline void dp_f32_destroy (dp_f32_t *state);
 /**
  * @brief Buffer capacity in complex samples.
  *
- * Read-only.  Set at construction time and never changes.  This is the
- * *actual* allocated size: a sub-page request is rounded up to the
- * page-spanning minimum (512 on 4 KiB pages, 2048 on 16 KiB pages), so
- * it may exceed the value passed to the constructor.
+ * Read-only.  Exactly the number passed to the constructor, whatever
+ * the machine's page size; the mapping behind it is larger when that
+ * number is not a power of two or spans less than a page, and that
+ * slack is never room.
  *
  * @code
  * >>> from doppler.buffer import F32Buffer
- * >>> F32Buffer(1024).capacity >= 1024
- * True
+ * >>> F32Buffer(1024).capacity, F32Buffer(1000).capacity
+ * (1024, 1000)
  * @endcode
  */
 static inline size_t

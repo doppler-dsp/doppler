@@ -24,12 +24,9 @@ def iq16(flat):
 
 class TestF32Buffer:
     def test_capacity(self):
-        # On 4 KB-page systems capacity == request; on 16 KB pages a sub-page
-        # request (f32(1024) = 8 KiB) rounds up to one page. Either way the
-        # buffer holds at least what was asked and stays a power of two.
-        buf = F32Buffer(1024)
-        assert buf.capacity >= 1024
-        assert buf.capacity & (buf.capacity - 1) == 0
+        # Exactly what was asked, on every page size. It is the MAPPING
+        # behind it that is rounded, and that is not the caller's business.
+        assert F32Buffer(1024).capacity == 1024
 
     def test_initial_dropped_zero(self):
         buf = F32Buffer(1024)
@@ -297,48 +294,6 @@ class TestI16Buffer:
 # ── Page-aware sizing (regression for the 16 KB-page mirror bug) ─────────────
 
 
-import mmap  # noqa: E402  (kept local to this regression section)
-
-PAGE = mmap.PAGESIZE
-
-
-class TestPageRounding:
-    """A sub-page request must round up to a working, page-mirrored buffer.
-
-    Reproduces the macOS arm64 failure (#66): on 16 KB pages an ``f32(1024)``
-    buffer is 8 KiB — below one page — so the VM mirror cannot be built. The
-    fix rounds the capacity up to the smallest power-of-two that spans a whole
-    page; these tests pin both the rounded size and that the mirror still wraps
-    correctly afterwards.
-    """
-
-    @pytest.mark.parametrize(
-        "cls, bytes_per_sample",
-        [(F32Buffer, 8), (F64Buffer, 16), (I16Buffer, 4)],
-    )
-    def test_subpage_request_rounds_up_to_page(self, cls, bytes_per_sample):
-        # Ask for a single sample — guaranteed sub-page on any real system.
-        buf = cls(1)
-        cap = buf.capacity
-        assert cap & (cap - 1) == 0, "capacity must stay a power of two"
-        assert cap * bytes_per_sample >= PAGE
-        assert (cap * bytes_per_sample) % PAGE == 0
-
-    def test_mirror_wraps_after_rounding(self):
-        # Fill near the top, consume, then write a block that straddles the
-        # wrap boundary; the double-mapping must return it contiguously.
-        buf = F32Buffer(1)  # rounds up to the page minimum
-        cap = buf.capacity
-        prime = cap - 2
-        buf.write(np.zeros(prime, dtype=np.complex64))
-        buf.consume(prime)  # advance head and tail to cap-2
-        straddle = np.arange(4, dtype=np.complex64) + 1j
-        assert buf.write(straddle) is True  # indices [cap-2 .. cap+1] wrap
-        view = buf.wait(4)
-        np.testing.assert_array_equal(view, straddle)
-        buf.consume(4)
-
-
 # ── the unsatisfiable wait (doppler#1335) ────────────────────────────────────
 
 
@@ -393,9 +348,8 @@ class TestWaitBeyondCapacity:
         over = buf.capacity + 1
         exc = self._call_with_deadline(lambda: buf.wait(over))
         assert isinstance(exc, ValueError), f"expected ValueError, got {exc!r}"
-        # The message must name BOTH numbers: the bound is `capacity`, which
-        # is rounded UP from the constructor argument, so a caller reasoning
-        # about the number they passed cannot work it out from `n` alone.
+        # The message must name BOTH numbers, so the caller sees the bound
+        # it crossed and not only the request that crossed it.
         assert str(over) in str(exc) and str(buf.capacity) in str(exc), (
             f"message names neither n nor capacity: {exc}"
         )
@@ -638,3 +592,65 @@ class TestNonBlockingSurface:
         with pytest.raises(TypeError, match="float32"):
             buf.write(wrong)
         assert buf.available == 0 and buf.dropped == 0
+
+
+# ── any size, and the capacity is the request ───────────────────────────────
+#
+# After the helpers above, which it shares with the non-blocking surface.
+
+
+class TestAnySize:
+    """`capacity` is what was asked for, whatever the size and the machine.
+
+    It used to be rounded UP -- to a power of two's worth of pages -- and
+    reported, so `F32Buffer(512).capacity` was 512 on Linux x86, 2048 on
+    macOS arm64 and 8192 on Windows, and a size that was not a power of two
+    was refused. The rounding moved to where it belongs: the mapping behind
+    the ring (a mask needs a power of two; a mirror needs whole pages),
+    which the caller never sees. macOS arm64's #66 -- a sub-page ring whose
+    mirror could not be built -- is covered by the same code from the other
+    side: a request of ONE sample still gets a working mirror.
+    """
+
+    @pytest.mark.parametrize("cls", [F32Buffer, F64Buffer, I16Buffer])
+    @pytest.mark.parametrize(
+        "ask", [1, 2, 3, 96, 511, 1000, 1024, 1025, 65537]
+    )
+    def test_capacity_is_the_request(self, cls, ask):
+        buf = cls(ask)
+        assert (buf.capacity, buf.space, buf.available) == (ask, ask, 0)
+
+    @pytest.mark.parametrize("cls", [F32Buffer, F64Buffer, I16Buffer])
+    def test_zero_is_the_only_bad_size(self, cls):
+        with pytest.raises(ValueError, match="at least 1"):
+            cls(0)
+
+    @pytest.mark.parametrize("cls, cast", _WIDTHS)
+    def test_the_slack_is_never_room(self, cls, cast):
+        """1000 asked: the mapping is larger, and none of that is usable."""
+        buf = cls(1000)
+        assert buf.write(cast(_ramp(1001))) is False
+        assert buf.write_some(cast(_ramp(1200))) == 1000
+        assert (buf.space, buf.available) == (0, 1000)
+        assert buf.write_some(cast(_ramp(1))) == 0
+        with pytest.raises(ValueError, match="1001"):
+            buf.peek(1001)
+
+    @pytest.mark.parametrize("cls, cast", _WIDTHS)
+    def test_every_head_position_lends_a_contiguous_frame(self, cls, cast):
+        """The wrap is at the MAPPED size, which this face cannot see.
+
+        So visit every position: advance one sample at a time for more
+        than two mappings' worth, lending a 4-sample frame at each. One of
+        them straddles the physical end wherever it is, and a ring of 1000
+        over 1024 puts it somewhere no power-of-two capacity ever did.
+        """
+        buf = cls(1000)
+        for pos in range(2500):
+            assert buf.write_some(cast(_ramp(4, pos))) == 4
+            view = buf.peek(4)
+            assert view.flags["C_CONTIGUOUS"] and len(view) == 4
+            np.testing.assert_array_equal(_pos(view), np.arange(pos, pos + 4))
+            buf.consume(1)  # advance by ONE
+            assert buf.peek(3) is not None
+            buf.consume(3)

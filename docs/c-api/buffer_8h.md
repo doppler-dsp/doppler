@@ -20,6 +20,7 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 * `#include "jm_perf.h"`
+* `#include "util/util_core.h"`
 * `#include <stdlib.h>`
 * `#include <string.h>`
 

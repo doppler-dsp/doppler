@@ -202,6 +202,7 @@ Advances the consumer tail pointer by `n`, making that space available for the p
 **Parameters:**
 
 
+* `state` The ring. Must be non-NULL. 
 * `n` Number of samples to release. Defaults to the count of the outstanding :meth:`wait` / :meth:`peek` view.
 
 
@@ -328,6 +329,7 @@ Peeking does not consume. Follow it with :meth:`consume`; a `consume(k)` with `k
 **Parameters:**
 
 
+* `state` The ring. Must be non-NULL. 
 * `n` Number of samples wanted. Must be positive and not larger than :attr:`capacity`.
 
 
@@ -435,6 +437,7 @@ The caller **must** call :meth:`consume` before the next call to `wait`. Using t
 **Parameters:**
 
 
+* `state` The ring. Must be non-NULL. 
 * `n` Number of complex samples to wait for. Must be positive and not larger than :attr:`capacity`.
 
 
@@ -498,7 +501,9 @@ The partial-write twin of :meth:`write`. Where :meth:`write` refuses a block tha
 **Parameters:**
 
 
-* `x` Samples to write. Must be 1-D and C-contiguous.
+* `state` The ring. Must be non-NULL. 
+* `x` Samples to write. Must be 1-D and C-contiguous. 
+* `x_len` Length of `x`, in samples.
 
 
 
@@ -553,7 +558,9 @@ Copies the complex64 array into the ring buffer in a single `memcpy`. If there i
 **Parameters:**
 
 
-* `x` Samples to write. Must be 1-D and C-contiguous.
+* `state` The ring. Must be non-NULL. 
+* `x` Samples to write. Must be 1-D and C-contiguous. 
+* `x_len` Length of `x`, in samples.
 
 
 

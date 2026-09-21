@@ -104,8 +104,10 @@ static inline dp_i16_t *dp_i16_create (size_t capacity);
  * it is not an array of samples. ``flat.view(IQ16)`` makes it one, with
  * no copy.
  *
+ * @param state The ring. Must be non-NULL.
  * @param x IQ samples to write: 1-D, C-contiguous, dtype
  *          ``[("i", "<i2"), ("q", "<i2")]``.
+ * @param x_len Length of ``x``, in samples.
  *
  * @return ``True`` if all samples were written; ``False`` if the ring had no
  *         room and the call was refused (``x`` untouched).
@@ -138,8 +140,10 @@ dp_i16_write_view (dp_i16_t *state, const dp_iq16_t *x, size_t x_len);
  * the ring: loop, advancing by the return value, draining in
  * between.
  *
+ * @param state The ring. Must be non-NULL.
  * @param x Samples to write: 1-D, C-contiguous, dtype
  *          ``[("i", "<i2"), ("q", "<i2")]``.
+ * @param x_len Length of ``x``, in samples.
  *
  * @return Samples accepted, ``0 <= k <= len(x)``.  The caller still owns
  *         ``x[k:]``.
@@ -174,6 +178,7 @@ dp_i16_write_some_view (dp_i16_t *state, const dp_iq16_t *x,
  * Q channel, each a strided int16 view with no copy.  Caller must call
  * :meth:`consume` before the next ``wait``.
  *
+ * @param state The ring. Must be non-NULL.
  * @param n Number of IQ sample pairs to wait for.
  *
  * @return Zero-copy view of the next ``n`` samples, one record each.
@@ -224,6 +229,7 @@ static inline dp_iq16_t *dp_i16_wait_view (dp_i16_t *state, size_t n);
  * ``consume(k)`` with ``k < n`` advances by a hop smaller than
  * the frame, which is how overlapped frames are read.
  *
+ * @param state The ring. Must be non-NULL.
  * @param n Number of samples wanted.  Must be positive and not larger than
  *          :attr:`capacity`.
  *
@@ -268,6 +274,7 @@ static inline dp_iq16_t *dp_i16_peek_view (dp_i16_t *state, size_t n);
  * number is written once.  ``n`` smaller than the view is how overlapped
  * frames are read: release a hop, keep the rest.
  *
+ * @param state The ring. Must be non-NULL.
  * @param n Number of samples to release.  Defaults to the count of the
  *          outstanding :meth:`wait` / :meth:`peek` view.
  *

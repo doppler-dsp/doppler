@@ -202,6 +202,7 @@ Advances the consumer tail pointer by `n`, making that space available for the p
 **Parameters:**
 
 
+* `state` The ring. Must be non-NULL. 
 * `n` Number of samples to release. Defaults to the count of the outstanding :meth:`wait` / :meth:`peek` view.
 
 
@@ -325,6 +326,7 @@ Peeking does not consume. Follow it with :meth:`consume`; a `consume(k)` with `k
 **Parameters:**
 
 
+* `state` The ring. Must be non-NULL. 
 * `n` Number of samples wanted. Must be positive and not larger than :attr:`capacity`.
 
 
@@ -429,6 +431,7 @@ Spins with the GIL released until the producer has written at least `n` samples.
 **Parameters:**
 
 
+* `state` The ring. Must be non-NULL. 
 * `n` Number of complex samples to wait for.
 
 
@@ -492,7 +495,9 @@ The partial-write twin of :meth:`write`. Where :meth:`write` refuses a block tha
 **Parameters:**
 
 
-* `x` Samples to write. Must be 1-D and C-contiguous.
+* `state` The ring. Must be non-NULL. 
+* `x` Samples to write. Must be 1-D and C-contiguous. 
+* `x_len` Length of `x`, in samples.
 
 
 
@@ -547,7 +552,9 @@ Copies the entire array in a single `memcpy`. Rejects the write atomically if th
 **Parameters:**
 
 
-* `x` Samples to write. Must be 1-D and C-contiguous.
+* `state` The ring. Must be non-NULL. 
+* `x` Samples to write. Must be 1-D and C-contiguous. 
+* `x_len` Length of `x`, in samples.
 
 
 

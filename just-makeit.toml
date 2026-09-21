@@ -1780,13 +1780,6 @@ True
 """
 objects = ["f32_buffer", "f64_buffer", "i16_buffer"]
 
-# TODO(just-buildit/just-makeit#1432): buffer.h's wait() consults the interrupt
-# flag, and `dp_interrupt_guard` is `process_global` -- so the ring objects
-# must `depends_on` it for jm to generate the capsule rendezvous (doppler#976).
-# They cannot yet: a `header_only` core renders the dependency as PUBLIC on an
-# INTERFACE library, which does not configure. Until that ships the symbols
-# come from buffer_extra.cmake and the rendezvous is MISSING.
-
 [module.telemetry]
 doc = """
 Telemetry: lightweight in-band probes (Telemetry) that record loop internals -- error, control, lock -- to a sink for offline analysis, and the run's events (EventLog) as SigMF annotations beside them.

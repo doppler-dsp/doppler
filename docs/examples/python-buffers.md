@@ -109,16 +109,15 @@ for block in (3000, 5000, 1700, 4096):        # nothing is a multiple of N
 ```
 
 **Small in, drain when full.** A chatty producer costs one wake-up per write
-unless something batches for it. Let the backlog build, then take it in one
-go:
+unless something batches for it. The consumer asks for a whole batch and
+`wait()` is what tells it one is ready — it never polls `available`. When the
+producer closes the ring, `EOFError` is what tells it the stream ended, and
+*that* is the one moment to read `available`: the ring is closed, so the
+count can no longer grow, and whatever is there is the tail.
 
 ```python
-BATCH, drip = 2048, F32Buffer(4096)
-for _ in range(64):                            # a drip of small writes
-    drip.write(np.zeros(32, dtype=np.complex64))
-while drip.available >= BATCH:
-    view = drip.wait(BATCH)                    # one wake-up, not 64
-    drip.consume(BATCH)
+--8<-- "src/doppler/examples/ring_chunking_demo.py:setup"
+--8<-- "src/doppler/examples/ring_chunking_demo.py:drip"
 ```
 
 Three things that bite, all of them measurable:

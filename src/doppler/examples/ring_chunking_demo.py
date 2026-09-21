@@ -37,6 +37,7 @@ Run:
   python ring_chunking_demo.py
 """
 
+# --8<-- [start:setup]
 import threading
 
 import numpy as np
@@ -51,6 +52,9 @@ from doppler.spectral import FFT
 def stream(start: int, n: int) -> np.ndarray:
     idx = np.arange(start, start + n)
     return (idx + 1j * idx).astype(np.complex64)
+
+
+# --8<-- [end:setup]
 
 
 # ── A. large irregular blocks in, exact FFT frames out ──────────────────
@@ -146,10 +150,10 @@ print(
 
 # ── B. a drip in, one big batch out whenever the backlog is worth it ────
 
+# --8<-- [start:drip]
 BATCH = 2048
-assert RING.capacity >= BATCH, "a larger ask raises: compare to capacity"
-
 drip = F32Buffer(4096)
+assert drip.capacity >= BATCH, "a larger ask raises: compare to capacity"
 DRIP_BLOCKS = [16, 48, 32, 9, 64, 24, 100, 7]
 TOTAL = 60_000
 
@@ -201,8 +205,12 @@ while True:
 t.join()
 
 # The tail under one batch is still in the ring: close() does not discard it,
-# and a consumer that only ever asks for BATCH will never see it. That is a
-# real consequence of this pattern, not a bug -- drain it explicitly.
+# and a consumer that only ever asks for BATCH will never see it.
+#
+# EOFError is what says WHEN to look. The consumer never polls `available`:
+# wait() is the notification while the stream runs, and EOFError is the
+# notification that it ended. After it the ring is closed, so the count
+# can no longer grow -- this one read is exact, and it is the only one.
 tail = drip.available
 if tail:
     view = drip.wait(tail)
@@ -210,6 +218,7 @@ if tail:
     drip.consume(tail)
     received += tail
 
+# --8<-- [end:drip]
 assert received == TOTAL, f"{received} received != {TOTAL} sent"
 assert drip.dropped == 0, f"{drip.dropped} dropped -- the producer raced"
 assert len(batches) == TOTAL // BATCH, "one wake-up per batch, no more"

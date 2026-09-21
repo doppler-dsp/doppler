@@ -2,7 +2,7 @@
 
 Run directly to regenerate `results.md` and the CSVs:
 
-    uv run python src/doppler/buffer/tests/validation/ring/validate.py
+    uv run python src/doppler/buffer/tests/validation/buffer/validate.py
 
 `--check` re-renders in memory and diffs against the committed bytes;
 `make validate` writes, `make validate-check` checks. Every limit this

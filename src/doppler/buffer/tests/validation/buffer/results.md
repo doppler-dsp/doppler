@@ -93,7 +93,7 @@ A ring exists to avoid copies, so an input that would need casting, flattening o
 | width | samples across | frames wrong | refused | MSa/s |
 |---|---|---|---|---|
 | f32 | 409,600 | 0 | 0 | 0.1 |
-| f64 | 409,600 | 0 | 0 | 0.1 |
+| f64 | 409,600 | 0 | 0 | 0.0 |
 | i16 | 409,600 | 0 | 0 | 0.1 |
 
 
@@ -103,7 +103,7 @@ The producer waits for `space` and closes in `finally`; the consumer blocks in `
 
 | trials | ended in KeyboardInterrupt | worst latency after the ask |
 |---|---|---|
-| 5 | 5 | 0.4 ms |
+| 5 | 5 | 0.5 ms |
 
 
 `wait()` spins in C with the GIL released, so no Python flag can end it; the process-wide interrupt can, from a guard constructed in a *different* module. The ring is usable afterwards.

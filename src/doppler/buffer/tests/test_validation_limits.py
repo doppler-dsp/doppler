@@ -24,11 +24,11 @@ from __future__ import annotations
 
 import pytest
 
-from doppler.buffer.tests.validation.ring import validate as ring_validate
+from doppler.buffer.tests.validation.buffer import validate as buffer_validate
 from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
-    "ring": ring_validate,
+    "buffer": buffer_validate,
 }
 
 

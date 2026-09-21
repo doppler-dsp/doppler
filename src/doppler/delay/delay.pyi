@@ -78,12 +78,13 @@ class DelayCf64:
         count: int = ...,
         out: NDArray[np.complex128] | None = None,
     ) -> NDArray[np.complex128]:
-        """Return a zero-copy view of the n most recent samples. Copies at most
-        min(n, num_taps) samples starting from `buf[head]` into out. Because
-        the dual-buffer layout guarantees contiguity, this is a single memcpy
-        of up to num_taps elements; no wrap-around logic is needed. The Python
-        binding returns a NumPy array backed directly by the pre-allocated
-        output buffer (base object is the DelayCf64 itself).
+        """Snapshot the n most recent samples. Copies at most min(n, num_taps)
+        samples starting from `buf[head]` into out. Because the dual-buffer
+        layout guarantees contiguity, this is a single memcpy of up to num_taps
+        elements; no wrap-around logic is needed. The Python binding returns an
+        independent NumPy array per call, so an earlier snapshot is never
+        overwritten by a later one; pass `out=` to fill a caller-owned buffer
+        instead of allocating.
 
         Parameters
         ----------
@@ -138,8 +139,8 @@ class DelayCf64:
         """Atomically push a sample and snapshot the current window. Equivalent
         to calling delay_push() then delay_ptr(num_taps), but avoids the
         overhead of a second function call. Always writes exactly num_taps
-        samples to out. The Python binding returns a NumPy array backed by the
-        pre-allocated push_ptr output buffer.
+        samples to out. The Python binding returns an independent NumPy array
+        per call; pass `out=` to reuse one buffer across pushes.
 
         Parameters
         ----------
@@ -166,8 +167,8 @@ class DelayCf64:
 
     def push_ptr_max_out(self) -> int:
         """Return the maximum output capacity for delay_push_ptr(). Returns
-        num_taps; the Python binding uses this to pre-allocate the output
-        buffer before calling delay_push_ptr().
+        num_taps; the Python binding sizes each call's output array with it,
+        and checks a caller's `out=` buffer against it.
 
         Returns
         -------

@@ -119,6 +119,36 @@ def test_ptr_out_undersized_raises():
         obj.ptr(out=out)
 
 
+def test_ptr_out_needs_only_the_count_asked_for():
+    # The bound an out= buffer is checked against is ptr_max_out(count),
+    # not num_taps: a short request fits a short buffer. The hand-kept
+    # binding demanded num_taps whatever was asked (gh-607 tightened the
+    # C bound and the binding never received it -- gh-1446).
+    obj = DelayCf64(4)
+    for v in (1, 2, 3, 4):
+        obj.push(v + 0j)
+    out = np.zeros(2, dtype=np.complex128)
+    win = obj.ptr(count=2, out=out)
+    assert np.shares_memory(win, out)
+    np.testing.assert_array_equal(win, [4 + 0j, 3 + 0j])
+
+
+def test_a_snapshot_survives_the_next_one():
+    # Each ptr()/push_ptr() result owns its data. While the binding handed
+    # back a view of one object-owned buffer, a second call rewrote the
+    # first call's result in the caller's hands.
+    obj = DelayCf64(2)
+    first = obj.push_ptr(1 + 0j)
+    second = obj.push_ptr(2 + 0j)
+    assert not np.shares_memory(first, second)
+    np.testing.assert_array_equal(first, [1 + 0j, 0j])
+    a = obj.ptr()
+    obj.push(3 + 0j)
+    b = obj.ptr()
+    np.testing.assert_array_equal(a, [2 + 0j, 1 + 0j])
+    np.testing.assert_array_equal(b, [3 + 0j, 2 + 0j])
+
+
 def test_ptr_max_out_is_a_per_call_bound():
     # gh-761 gave *_max_out the arity its C prototype declares:
     # delay_ptr_max_out(state, n) is per-call, min(n, num_taps), so it

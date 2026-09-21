@@ -121,7 +121,9 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
       in_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS);
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   Py_ssize_t n = PyArray_SIZE (in_arr);
   if (out_obj && out_obj != Py_None)
     {
@@ -169,7 +171,13 @@ InterpolatedTableObj_execute (InterpolatedTableObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -323,12 +331,11 @@ static PyMethodDef InterpolatedTableObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)InterpolatedTableObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

@@ -125,7 +125,8 @@ NPRMeasureObj_analyze (NPRMeasureObject *self, PyObject *args, PyObject *kwds)
     }
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
-   * object per stream). */
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
   npr_meas_t _r;
   Py_BEGIN_ALLOW_THREADS
     _r = nprmeas_analyze (self->handle, x, x_len, active_lo, active_hi,
@@ -227,7 +228,13 @@ NPRMeasureObj_spectrum_dbfs (NPRMeasureObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
@@ -299,8 +306,8 @@ NPRMeasure_getprop_rbw (NPRMeasureObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->enbw * self->handle->fs
-                             / (double)self->handle->n);
+  return PyFloat_FromDouble (
+      (self->handle->enbw * self->handle->fs / (double)self->handle->n));
 }
 
 static PyGetSetDef NPRMeasure_getset[]
@@ -456,12 +463,11 @@ static PyMethodDef NPRMeasureObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)NPRMeasureObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

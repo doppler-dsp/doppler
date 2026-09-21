@@ -124,7 +124,9 @@ ToneMeasureObj_analyze (ToneMeasureObject *self, PyObject *args)
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
       in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   size_t n_in = (size_t)PyArray_SIZE (in_arr);
   if (!ToneMeasureObj_analyze_type)
     {
@@ -138,7 +140,8 @@ ToneMeasureObj_analyze (ToneMeasureObject *self, PyObject *args)
     }
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
-   * object per stream). */
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
   const float *_ng0 = (const float *)PyArray_DATA (in_arr);
   tone_meas_t  _r;
   Py_BEGIN_ALLOW_THREADS
@@ -225,7 +228,9 @@ ToneMeasureObj_analyze_complex (ToneMeasureObject *self, PyObject *args)
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
       in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   size_t n_in = (size_t)PyArray_SIZE (in_arr);
   if (!ToneMeasureObj_analyze_complex_type)
     {
@@ -239,7 +244,8 @@ ToneMeasureObj_analyze_complex (ToneMeasureObject *self, PyObject *args)
     }
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
-   * object per stream). */
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
   const float _Complex *_ng0 = (const float _Complex *)PyArray_DATA (in_arr);
   tone_meas_t           _r;
   Py_BEGIN_ALLOW_THREADS
@@ -308,7 +314,9 @@ ToneMeasureObj_time_stats (ToneMeasureObject *self, PyObject *args)
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
       in_obj, NPY_FLOAT, NPY_ARRAY_C_CONTIGUOUS);
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   size_t n_in = (size_t)PyArray_SIZE (in_arr);
   if (!ToneMeasureObj_time_stats_type)
     {
@@ -414,7 +422,13 @@ ToneMeasureObj_spectrum_dbfs (ToneMeasureObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
@@ -530,8 +544,8 @@ ToneMeasure_getprop_rbw (ToneMeasureObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->enbw * self->handle->fs
-                             / (double)self->handle->n);
+  return PyFloat_FromDouble (
+      (self->handle->enbw * self->handle->fs / (double)self->handle->n));
 }
 static PyObject *
 ToneMeasure_getprop_bin_hz (ToneMeasureObject *self, void *Py_UNUSED (closure))
@@ -541,7 +555,7 @@ ToneMeasure_getprop_bin_hz (ToneMeasureObject *self, void *Py_UNUSED (closure))
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (self->handle->fs / (double)self->handle->nfft);
+  return PyFloat_FromDouble ((self->handle->fs / (double)self->handle->nfft));
 }
 static PyObject *
 ToneMeasure_getprop_proc_gain_db (ToneMeasureObject *self,
@@ -552,7 +566,8 @@ ToneMeasure_getprop_proc_gain_db (ToneMeasureObject *self,
       PyErr_SetString (PyExc_RuntimeError, "destroyed");
       return NULL;
     }
-  return PyFloat_FromDouble (10.0 * log10 ((double)self->handle->nfft / 2.0));
+  return PyFloat_FromDouble (
+      (10.0 * log10 ((double)self->handle->nfft / 2.0)));
 }
 
 static PyGetSetDef ToneMeasure_getset[]
@@ -760,12 +775,11 @@ static PyMethodDef ToneMeasureObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)ToneMeasureObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

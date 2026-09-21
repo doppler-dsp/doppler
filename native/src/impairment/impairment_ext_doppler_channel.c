@@ -150,7 +150,13 @@ DopplerChannelObj_execute (DopplerChannelObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
@@ -317,6 +323,18 @@ DopplerChannel_getprop_elapsed_s (DopplerChannelObject *self,
   return PyFloat_FromDouble (doppler_channel_get_elapsed_s (self->handle));
 }
 static PyObject *
+DopplerChannel_getprop_delay_samples (DopplerChannelObject *self,
+                                      void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (doppler_channel_get_delay_samples (self->handle));
+}
+static PyObject *
 DopplerChannel_getprop_offset_hz (DopplerChannelObject *self,
                                   void                 *Py_UNUSED (closure))
 {
@@ -329,19 +347,6 @@ DopplerChannel_getprop_offset_hz (DopplerChannelObject *self,
   return PyFloat_FromDouble (doppler_channel_get_offset_hz (self->handle));
 }
 
-static PyObject *
-DopplerChannel_getprop_delay_samples (DopplerChannelObject *self,
-                                      void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  /* <<IMPLEMENT: return the computed or stored value>> */
-  return PyFloat_FromDouble (doppler_channel_get_delay_samples (self->handle));
-}
-
 static PyGetSetDef DopplerChannel_getset[] = {
   { "fs", (getter)DopplerChannel_getprop_fs, NULL, "Fs.\n", NULL },
   { "carrier_hz", (getter)DopplerChannel_getprop_carrier_hz, NULL,
@@ -351,21 +356,21 @@ static PyGetSetDef DopplerChannel_getset[] = {
   { "doppler_rate_ppm_s", (getter)DopplerChannel_getprop_doppler_rate_ppm_s,
     NULL, "Doppler rate ppm s.\n", NULL },
   { "elapsed_s", (getter)DopplerChannel_getprop_elapsed_s, NULL,
-    "Receive time in seconds consumed so far, the `t` every Doppler "
-    "quantity is evaluated at. Advances by `n/fs` per `execute(x)` call "
-    "and is zeroed by `reset()`.\n",
-    NULL },
-  { "offset_hz", (getter)DopplerChannel_getprop_offset_hz, NULL,
-    "Instantaneous carrier offset `fc * d(t)` in Hz at the current "
-    "`elapsed_s` -- the frequency a receiver would have to tune out "
-    "right now. Read-only diagnostic; with a non-zero "
-    "`doppler_rate_ppm_s` it ramps as the stream advances.\n",
+    "Receive time in seconds consumed so far, the `t` every Doppler quantity "
+    "is evaluated at. Advances by `n/fs` per `execute(x)` call and is zeroed "
+    "by `reset()`.\n",
     NULL },
   { "delay_samples", (getter)DopplerChannel_getprop_delay_samples, NULL,
     "The resampler's group delay in samples (10.5 for the built-in bank), "
     "constant and in addition to the dilation: output `k` at receive time `t "
     "= k/fs` carries the input at `t + excess(t) - delay_samples/fs`. A "
     "receiver started at the input's phase is this far from the peak.\n",
+    NULL },
+  { "offset_hz", (getter)DopplerChannel_getprop_offset_hz, NULL,
+    "Instantaneous carrier offset `fc * d(t)` in Hz at the current "
+    "`elapsed_s` -- the frequency a receiver would have to tune out right "
+    "now. Read-only diagnostic; with a non-zero `doppler_rate_ppm_s` it ramps "
+    "as the stream advances.\n",
     NULL },
   { NULL }
 };
@@ -530,12 +535,11 @@ static PyMethodDef DopplerChannelObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)DopplerChannelObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -550,9 +554,8 @@ static PyMethodDef DopplerChannelObj_methods[] = {
     "Exit a context manager, releasing the DopplerChannel.\n"
     "\n"
     "Equivalent to calling `destroy()`. Returns ``None``, so an exception\n"
-    "raised inside the `with` body propagates normally; this never "
-    "suppresses\n"
-    "one.\n"
+    "raised inside the `with` body propagates normally; this never\n"
+    "suppresses one.\n"
     "\n"
     "Parameters\n"
     "----------\n"

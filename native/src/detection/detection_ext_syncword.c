@@ -116,7 +116,8 @@ SyncFinderObj_find (SyncFinderObject *self, PyObject *args, PyObject *kwds)
     }
   /* nogil: GIL released across the pure-C kernel — sound only when
    * this object is not shared across threads concurrently (one
-   * object per stream). */
+   * object per stream); the kernel touches only this object's
+   * state/buffers and the caller's input. */
   syncword_hit_t _r;
   Py_BEGIN_ALLOW_THREADS
     _r = syncword_find (self->handle, bits, bits_len, max_errors);

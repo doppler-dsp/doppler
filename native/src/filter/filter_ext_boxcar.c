@@ -94,17 +94,16 @@ MovingAverage_steps (MovingAverageObject *self, PyObject *args, PyObject *kwds)
 
   if (out_obj && out_obj != Py_None)
     {
-      /* Require the exact output dtype — no silent cast (a cast writes
-       * into a temp copy instead of the caller's buffer). */
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
           || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
-          PyErr_SetString (
-              PyExc_TypeError,
-              "out must be a writable, C-contiguous ndarray of the "
-              "output dtype");
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           Py_DECREF (in_arr);
           return NULL;
         }
@@ -298,9 +297,8 @@ static PyMethodDef MovingAverageObj_methods[] = {
     "\n"
     "Slide the window by one sample; return the gained moving average.\n"
     "\n"
-    "O(1): add x, drop the sample leaving the window, return `acc · scale` "
-    "(=\n"
-    "`gain · acc / len`) — one multiply.\n"
+    "O(1): add x, drop the sample leaving the window, return `acc · scale`\n"
+    "(= `gain · acc / len`) — one multiply.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -326,12 +324,10 @@ static PyMethodDef MovingAverageObj_methods[] = {
     "Filter a block: write the gained moving average of each sample.\n"
     "\n"
     "Applies boxcar_step() to each input sample in turn, so the window sum\n"
-    "and ring carry across the block exactly as they would sample by sample "
-    "—\n"
-    "a stream can be processed in frames of any size with no seam.\n"
-    "Immediately after a reset the first len-1 outputs average over a "
-    "partial\n"
-    "(still filling) window and ramp in.\n"
+    "and ring carry across the block exactly as they would sample by sample\n"
+    "— a stream can be processed in frames of any size with no seam.\n"
+    "Immediately after a reset the first len-1 outputs average over a\n"
+    "partial (still filling) window and ramp in.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -356,15 +352,14 @@ static PyMethodDef MovingAverageObj_methods[] = {
   { "reset", (PyCFunction)MovingAverageObj_reset, METH_NOARGS,
     "reset() -> None\n"
     "\n"
-    "Clear the window (zero the ring and the running sum); keep the "
+    "Clear the window (zero the ring and the running sum); keep the\n"
     "configured length and gain.\n"
     "\n"
-    "Returns the filter to its just-constructed state: the delay ring and "
-    "the\n"
-    "running window sum are zeroed while len and gain are preserved, so the\n"
-    "next len-1 outputs ramp in over a partial window exactly as they did on\n"
-    "a fresh instance. Call it at a segment boundary so samples from one\n"
-    "capture do not average into an unrelated next one.\n"
+    "Returns the filter to its just-constructed state: the delay ring and\n"
+    "the running window sum are zeroed while len and gain are preserved, so\n"
+    "the next len-1 outputs ramp in over a partial window exactly as they\n"
+    "did on a fresh instance. Call it at a segment boundary so samples from\n"
+    "one capture do not average into an unrelated next one.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -430,12 +425,11 @@ static PyMethodDef MovingAverageObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)MovingAverageObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

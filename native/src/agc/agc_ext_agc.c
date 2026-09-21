@@ -105,17 +105,16 @@ AGC_steps (AGCObject *self, PyObject *args, PyObject *kwds)
 
   if (out_obj && out_obj != Py_None)
     {
-      /* Require the exact output dtype — no silent cast (a cast writes
-       * into a temp copy instead of the caller's buffer). */
+      /* Require the exact dtype AND C-contiguity — either mismatch makes
+       * the marshal write into a temp copy, not the caller's buffer. */
       if (!PyArray_Check (out_obj)
           || PyArray_TYPE ((PyArrayObject *)out_obj) != NPY_COMPLEX64
           || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)out_obj)
           || !PyArray_ISWRITEABLE ((PyArrayObject *)out_obj))
         {
-          PyErr_SetString (
-              PyExc_TypeError,
-              "out must be a writable, C-contiguous ndarray of the "
-              "output dtype");
+          PyErr_SetString (PyExc_TypeError,
+                           "out must be a writable, C-contiguous"
+                           " ndarray of the output dtype");
           Py_DECREF (in_arr);
           return NULL;
         }
@@ -194,7 +193,8 @@ AGCObj_set_telemetry (AGCObject *self, PyObject *args, PyObject *kwds)
   int      _rc   = agc_set_telemetry (self->handle, tlm, prefix, decim);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "set_telemetry failed (rc=%d)", _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_telemetry failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -508,19 +508,19 @@ static PyMethodDef AGCObj_methods[] = {
   { "step", (PyCFunction)AGC_step, METH_VARARGS,
     "step(x) -> float _Complex\n"
     "\n"
-    "Process one complex sample through the per-sample AGC loop. Applies the "
-    "current gain, measures the output power via the EMA detector, advances "
-    "the loop-filter integrator, then square-clips the returned sample to "
-    "clip_db.  The clip is applied after the detector update, so clipping "
-    "never disturbs convergence.  With the default gain_update_period == 1 "
-    "this is the exact per-sample reference path; with gain_update_period P > "
-    "1 the detector and gain-apply still run every sample but the loop-filter "
-    "command (and the exp10/log10 it needs) refreshes once per P samples — a "
-    "zero-order hold on the gain that amortises the transcendentals on a "
-    "sample-rate hot loop, the streaming analogue of agc_steps()' decimation. "
-    "agc_steps() is the faster block equivalent; neither is bit-identical to "
-    "the P == 1 loop once decimated, but both converge to the same steady "
-    "state.\n"
+    "Process one complex sample through the per-sample AGC loop. Applies\n"
+    "the current gain, measures the output power via the EMA detector,\n"
+    "advances the loop-filter integrator, then square-clips the returned\n"
+    "sample to clip_db. The clip is applied after the detector update, so\n"
+    "clipping never disturbs convergence. With the default\n"
+    "gain_update_period == 1 this is the exact per-sample reference path;\n"
+    "with gain_update_period P > 1 the detector and gain-apply still run\n"
+    "every sample but the loop-filter command (and the exp10/log10 it needs)\n"
+    "refreshes once per P samples — a zero-order hold on the gain that\n"
+    "amortises the transcendentals on a sample-rate hot loop, the streaming\n"
+    "analogue of agc_steps()' decimation. agc_steps() is the faster block\n"
+    "equivalent; neither is bit-identical to the P == 1 loop once decimated,\n"
+    "but both converge to the same steady state.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -545,17 +545,18 @@ static PyMethodDef AGCObj_methods[] = {
     ">>> agc2.step(4.0+0.0j)  # 12 dB loud; first sample at unity gain\n"
     "(4+0j)\n"
     ">>> round(agc2.gain_db, 6)  # loop starts driving gain negative\n"
-    "-0.024276\n" },
+    "-0.024276\n"
+    "\n" },
   { "steps", (PyCFunction)(void *)AGC_steps, METH_VARARGS | METH_KEYWORDS,
     "steps(x[, out]) -> ndarray\n"
     "\n"
-    "Process a block of complex samples through the decimated AGC loop. "
-    "Splits the input into chunks of decim samples.  Within each chunk the "
-    "gain is linearly interpolated from the previous chunk's end value to the "
-    "new loop-filter output (a first-order hold) so there is no inter-chunk "
-    "gain staircase.  The detector and loop filter run once per chunk on the "
-    "chunk's mean power — O(n/decim) control-loop work versus O(n) for "
-    "agc_step().  The output array may alias the input (in-place).\n"
+    "Process a block of complex samples through the decimated AGC loop.\n"
+    "Splits the input into chunks of decim samples. Within each chunk the\n"
+    "gain is linearly interpolated from the previous chunk's end value to\n"
+    "the new loop-filter output (a first-order hold) so there is no\n"
+    "inter-chunk gain staircase. The detector and loop filter run once per\n"
+    "chunk on the chunk's mean power — O(n/decim) control-loop work versus\n"
+    "O(n) for agc_step(). The output array may alias the input (in-place).\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -701,12 +702,11 @@ static PyMethodDef AGCObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)AGCObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

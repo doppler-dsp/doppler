@@ -131,7 +131,13 @@ AWGNObj_generate (AWGNObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -366,9 +372,9 @@ static PyMethodDef AWGNObj_methods[] = {
     METH_VARARGS | METH_KEYWORDS,
     "reseed(seed) -> None\n"
     "\n"
-    "Reseed the RNG and reset all xoshiro256++ state. Equivalent to "
-    "calling awgn_destroy() and awgn_create(seed, amplitude) but reuses "
-    "the existing allocation.  amplitude is unchanged.\n"
+    "Reseed the RNG and reset all xoshiro256++ state. Equivalent to\n"
+    "calling awgn_destroy() and awgn_create(seed, amplitude) but reuses the\n"
+    "existing allocation. amplitude is unchanged.\n"
     "\n"
     "Parameters\n"
     "----------\n"
@@ -439,12 +445,11 @@ static PyMethodDef AWGNObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)AWGNObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"

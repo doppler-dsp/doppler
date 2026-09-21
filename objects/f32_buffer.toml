@@ -1,0 +1,151 @@
+# The f32 ring (buffer/buffer.h) as a jm component. The C does not change:
+# `fn` binds the symbols DECLARE_DP_BUFFER / DECLARE_DP_BUFFER_VIEW already
+# emit, `header_only` says there is no _core.c, and the state type is a typedef
+# of dp_f32_t in native/inc/f32_buffer/f32_buffer_core.h -- which is also where every
+# docstring below the class line comes from.
+#
+# Its two siblings differ only in the element. They are three files until
+# just-makeit#1310 (a manifest template) can say that once.
+[f32_buffer]
+arg_type = "void"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+no_reset = "true"
+opaque_state = "true"
+header_only = "true"
+class_name = "F32Buffer"
+create_fn = "dp_f32_create"
+# NULL from create() is a bad size (not a power of two, or the mapping
+# failed), which is the caller's to fix -- not an allocation failure.
+create_error = "ValueError"
+create_error_message = "capacity must be a power of two (and the mapping must succeed)"
+
+[[f32_buffer.init_params]]
+name = "capacity"
+type = "size_t"
+required = true
+
+# `strict`: a ring exists to avoid copies, so a wrong dtype, rank or stride is
+# REFUSED rather than cast, copied and flattened.
+[[f32_buffer.methods]]
+name = "write"
+arg_type = "float _Complex[]"
+return_type = "bool"
+strict = true
+fn = "dp_f32_write_view"
+
+[[f32_buffer.methods]]
+name = "write_some"
+arg_type = "float _Complex[]"
+return_type = "size_t"
+strict = true
+fn = "dp_f32_write_some_view"
+
+# wait() BLOCKS, so `nogil` is correctness: with the GIL held a Python producer
+# could never run and a threaded pair would hang. One status table, shared
+# with peek(); dp_f32_wait_status() owns the precedence in C.
+[[f32_buffer.methods]]
+name = "wait"
+arg_type = "void"
+return_type = "float _Complex"
+nogil = true
+fn = "dp_f32_wait_view"
+borrow = true
+status_fn = "dp_f32_wait_status"
+
+[[f32_buffer.methods.params]]
+name = "n"
+type = "size_t"
+
+[[f32_buffer.methods.status_errors]]
+status = "DP_WAIT_TOO_LARGE"
+error = "ValueError"
+message = "wait({n}) can never be satisfied: the ring holds {capacity}"
+
+[[f32_buffer.methods.status_errors]]
+status = "DP_WAIT_CLOSED"
+error = "EOFError"
+message = "end of stream: the producer closed the ring"
+
+[[f32_buffer.methods.status_errors]]
+status = "DP_WAIT_INTERRUPTED"
+error = "KeyboardInterrupt"
+message = "interrupted"
+
+# DP_WAIT_PENDING has no row, so peek() falls through to `none_on_empty`:
+# None means NOT YET and nothing else.
+[[f32_buffer.methods]]
+name = "peek"
+arg_type = "void"
+return_type = "float _Complex"
+fn = "dp_f32_peek_view"
+none_on_empty = true
+borrow = true
+status_fn = "dp_f32_wait_status"
+
+[[f32_buffer.methods.params]]
+name = "n"
+type = "size_t"
+
+[[f32_buffer.methods.status_errors]]
+status = "DP_WAIT_TOO_LARGE"
+error = "ValueError"
+message = "peek({n}) can never be satisfied: the ring holds {capacity}"
+
+[[f32_buffer.methods.status_errors]]
+status = "DP_WAIT_CLOSED"
+error = "EOFError"
+message = "end of stream: the producer closed the ring"
+
+[[f32_buffer.methods.status_errors]]
+status = "DP_WAIT_INTERRUPTED"
+error = "KeyboardInterrupt"
+message = "interrupted"
+
+# The two releases. consume(n) defaults n to the outstanding borrow's count;
+# reset() takes none and just invalidates it.
+[[f32_buffer.methods]]
+name = "consume"
+arg_type = "void"
+return_type = "void"
+fn = "dp_f32_consume"
+releases = ["wait", "peek"]
+
+[[f32_buffer.methods.params]]
+name = "n"
+type = "size_t"
+
+[[f32_buffer.methods]]
+name = "close"
+arg_type = "void"
+return_type = "void"
+fn = "dp_f32_close"
+
+[[f32_buffer.methods]]
+name = "reset"
+arg_type = "void"
+return_type = "void"
+fn = "dp_f32_reset"
+releases = ["wait", "peek"]
+
+[[f32_buffer.properties]]
+name = "capacity"
+type = "size_t"
+
+[[f32_buffer.properties]]
+name = "available"
+type = "size_t"
+
+[[f32_buffer.properties]]
+name = "space"
+type = "size_t"
+
+[[f32_buffer.properties]]
+name = "dropped"
+type = "size_t"
+
+[[f32_buffer.properties]]
+name = "closed"
+type = "bool"

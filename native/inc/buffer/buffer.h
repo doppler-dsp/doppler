@@ -974,6 +974,80 @@ typedef enum
     DP_STORE_REL (&ab->tail, t + n);                                          \
   }
 
+/* -------------------------------------------------------------------------
+ * The element-typed face
+ * ---------------------------------------------------------------------- */
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define DP_ASSERT_2X(tag, elem, type)                                         \
+  _Static_assert (sizeof (elem) == 2 * sizeof (type),                         \
+                  "view element must span two stored scalars")
+#else
+#define DP_ASSERT_2X(tag, elem, type)                                         \
+  typedef char dp_assert_2x_##tag[sizeof (elem) == 2 * sizeof (type) ? 1 : -1]
+#endif
+
+/**
+ * @def DECLARE_DP_BUFFER_VIEW(name, type, elem)
+ * @brief Declares the element-typed face of the @p name ring.
+ *
+ * The ring stores SCALARS (`type *data`, two per complex sample); a caller
+ * that thinks in samples -- the Python binding above all -- wants one
+ * ELEMENT per sample. `dp_<name>_wait_view()`, `_peek_view()`,
+ * `_write_view()` and `_write_some_view()` are the same four calls
+ * addressed that way. Each is a cast and nothing else: every count in this
+ * header is already in samples, so no length arithmetic is introduced that
+ * could disagree with the scalar face, and the view stays zero-copy.
+ *
+ * Siblings rather than a change to the scalar face, because the scalar face
+ * is what every C consumer addresses. One macro rather than three pairs,
+ * because a cast written three times is three places for the element type
+ * to drift -- which is what doppler#1346 was.
+ *
+ * It is instantiated by the header that owns the element type
+ * (`f32_buffer/f32_buffer_core.h` and its two siblings), not here: the
+ * complex element is spelled through the portability header those include,
+ * and this file stays free of it.
+ *
+ * @param name  Ring instance suffix, as passed to #DECLARE_DP_BUFFER.
+ * @param type  Stored scalar type (`float`, `int16_t`, ...).
+ * @param elem  Element type spanning exactly two scalars.
+ *
+ * @code
+ * dp_f32_t *ab = dp_f32_create (1024);
+ * float _Complex x[4] = { 1, 2, 3, 4 };
+ * dp_f32_write_some_view (ab, x, 4);              // 4 samples
+ * float _Complex *v = dp_f32_peek_view (ab, 4);   // 4 samples, not 8 floats
+ * dp_f32_consume (ab, 4);
+ * dp_f32_destroy (ab);
+ * @endcode
+ */
+#define DECLARE_DP_BUFFER_VIEW(name, type, elem)                              \
+                                                                              \
+  DP_ASSERT_2X (name, elem, type);                                            \
+                                                                              \
+  static inline elem *dp_##name##_wait_view (dp_##name##_t *ab, size_t n)     \
+  {                                                                           \
+    return (elem *)dp_##name##_wait (ab, n);                                  \
+  }                                                                           \
+                                                                              \
+  static inline elem *dp_##name##_peek_view (dp_##name##_t *ab, size_t n)     \
+  {                                                                           \
+    return (elem *)dp_##name##_peek (ab, n);                                  \
+  }                                                                           \
+                                                                              \
+  static inline bool dp_##name##_write_view (dp_##name##_t *ab,               \
+                                             const elem *src, size_t n)       \
+  {                                                                           \
+    return dp_##name##_write (ab, (const type *)src, n);                      \
+  }                                                                           \
+                                                                              \
+  static inline size_t dp_##name##_write_some_view (                          \
+      dp_##name##_t *ab, const elem *src, size_t n)                           \
+  {                                                                           \
+    return dp_##name##_write_some (ab, (const type *)src, n);                 \
+  }
+
 /* --- Type instantiations --- */
 
 DECLARE_DP_BUFFER (f32, float)  /**< 32-bit float  complex (8 bytes/sample)  */

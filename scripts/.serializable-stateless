@@ -82,3 +82,13 @@ tonemeas
 uq15_to_f32
 wfm_reader
 wfm_writer
+# The ring itself -- a live cross-thread SPSC handle over a double-mapped
+# region: two atomics, an mmap and whatever a producer has in flight. There is
+# no quiescent point a blob could describe (the producer is on another
+# thread), and the mapping cannot cross a process boundary by value. What
+# persists a ring is its BACKING (the file-backed form re-attaches by path),
+# not a dp_state triplet. Same argument as the telemetry ring above, which is
+# this type.
+f32_buffer
+f64_buffer
+i16_buffer

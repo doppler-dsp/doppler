@@ -49,6 +49,9 @@
 * `#include "nprmeas/nprmeas_core.h"`
 * `#include "imdmeas/imdmeas_core.h"`
 * `#include "dp_interrupt_guard/dp_interrupt_guard_core.h"`
+* `#include "f32_buffer/f32_buffer_core.h"`
+* `#include "f64_buffer/f64_buffer_core.h"`
+* `#include "i16_buffer/i16_buffer_core.h"`
 * `#include "dp_tlm/dp_tlm_core.h"`
 * `#include "dp_tlm_capture/dp_tlm_capture_core.h"`
 * `#include "dp_event_log/dp_event_log_core.h"`

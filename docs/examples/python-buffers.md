@@ -142,17 +142,17 @@ stream:
 `space` is the room a `write` is guaranteed to find — use it instead of
 deriving `capacity - available`. From Python this pair is also the cheaper
 one per frame: `wait` releases and retakes the GIL, `peek` has no reason
-to. Time it with `src/doppler/buffer/benchmarks/bench_buffer.py`.
+to. Time it with the benchmarks in `src/doppler/buffer/benchmarks/`.
 
 ______________________________________________________________________
 
 ## Buffer types
 
-| Type        | Import           | NumPy dtype          | Min capacity | Notes                |
-| ----------- | ---------------- | -------------------- | ------------ | -------------------- |
-| `F32Buffer` | `doppler.buffer` | `complex64`          | 512          | CF32 IQ pairs        |
-| `F64Buffer` | `doppler.buffer` | `complex128`         | 256          | CF64 IQ pairs        |
-| `I16Buffer` | `doppler.buffer` | `int16, shape=(n,2)` | 1024         | col 0 = I, col 1 = Q |
+| Type        | Import           | NumPy dtype           | Min capacity | Notes                    |
+| ----------- | ---------------- | --------------------- | ------------ | ------------------------ |
+| `F32Buffer` | `doppler.buffer` | `complex64`           | 512          | CF32 IQ pairs            |
+| `F64Buffer` | `doppler.buffer` | `complex128`          | 256          | CF64 IQ pairs            |
+| `I16Buffer` | `doppler.buffer` | `(i, q)` int16 record | 1024         | `view["i"]`, `view["q"]` |
 
 !!! note "Min capacity is page-size dependent"
 
@@ -166,7 +166,7 @@ from doppler.buffer import F32Buffer, I16Buffer
 # F32 — half the memory footprint of F64
 buf32 = F32Buffer(512)
 
-# I16 — raw SDR output; wait() returns shape (n, 2)
+# I16 — raw SDR output; one (i, q) int16 record per sample
 buf16 = I16Buffer(1024)
 ```
 

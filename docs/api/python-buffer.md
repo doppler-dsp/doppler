@@ -11,11 +11,11 @@ ______________________________________________________________________
 
 ## Buffer types
 
-| Class       | NumPy dtype              | Bytes/sample | Min (4 KiB page) | Min (16 KiB page) |
-| ----------- | ------------------------ | ------------ | ---------------- | ----------------- |
-| `F32Buffer` | `complex64`              | 8            | 512 samples      | 2048 samples      |
-| `F64Buffer` | `complex128`             | 16           | 256 samples      | 1024 samples      |
-| `I16Buffer` | `int16` (shape `(n, 2)`) | 4            | 1024 samples     | 4096 samples      |
+| Class       | NumPy dtype                 | Bytes/sample | Min (4 KiB page) | Min (16 KiB page) |
+| ----------- | --------------------------- | ------------ | ---------------- | ----------------- |
+| `F32Buffer` | `complex64`                 | 8            | 512 samples      | 2048 samples      |
+| `F64Buffer` | `complex128`                | 16           | 256 samples      | 1024 samples      |
+| `I16Buffer` | `[('i','<i2'),('q','<i2')]` | 4            | 1024 samples     | 4096 samples      |
 
 `n_samples` must be a power of two. The double-mapping trick builds the mirror
 at page granularity, so the buffer must span at least one whole page — a
@@ -121,23 +121,33 @@ frame against the input:
 
 ### I16Buffer — raw ADC samples
 
-`I16Buffer` stores interleaved int16 IQ pairs. The returned array from
-`wait` has shape `(n, 2)`: column 0 is I, column 1 is Q.
+numpy has no complex-integer dtype, so one q15 sample is a **record**,
+`[("i", "<i2"), ("q", "<i2")]`. Both faces speak it, which keeps the ring 1-D
+with one element per sample like its float siblings. The storage underneath
+is still interleaved int16, so `.view()` converts either way with no copy.
 
 ```python
 from doppler.buffer import I16Buffer
 import numpy as np
 
+IQ16 = np.dtype([("i", "<i2"), ("q", "<i2")])
+
 buf = I16Buffer(4096)
 adc_bytes = np.zeros(2048 * 2, dtype=np.int16).tobytes()   # ADC byte stream
-raw = np.frombuffer(adc_bytes, dtype=np.int16).reshape(-1, 2)
+raw = np.frombuffer(adc_bytes, dtype=IQ16)                  # zero-copy
 buf.write(raw)
 
-view = buf.wait(1024)       # shape (1024, 2), dtype int16
-I = view[:, 0]
-Q = view[:, 1]
-buf.consume(1024)
+view = buf.wait(1024)       # shape (1024,), dtype IQ16
+I = view["i"]               # strided int16 views, no copy
+Q = view["q"]
+flat = view.view(np.int16)  # interleaved I, Q, I, Q, ... — also no copy
+buf.consume()
 ```
+
+A bare `int16` array — flat or `(n, 2)` — is refused with `TypeError`: it is
+not an array of samples. And a record refuses arithmetic (`view + 1` raises)
+where a packed `int32` would carry across the I/Q boundary and corrupt I
+silently, which is why it is a record.
 
 ### Capacity and overflow
 

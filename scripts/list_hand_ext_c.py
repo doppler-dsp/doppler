@@ -2,7 +2,7 @@
 """List the ``<mod>_ext.c`` files that are hand-written, one per line.
 
 ``make lint-clang-format`` drops every ``_ext.c`` because a module's
-aggregator is jm-generated and jm formats its own output. Two are not:
+aggregator is jm-generated and jm formats its own output. Some are not:
 a ``no_generate = "true"`` module's binding is written by hand, so that
 exclusion left it formatted by nobody -- until ``jm apply``, whose
 ``c_style`` pass walks all of ``native/src`` and rewrote it under whoever
@@ -14,7 +14,6 @@ migrated its ``no_generate`` key goes, and it leaves this set by itself.
 Examples
 --------
     $ python scripts/list_hand_ext_c.py
-    native/src/buffer/buffer_ext.c
     native/src/stream/stream_ext.c
 """
 

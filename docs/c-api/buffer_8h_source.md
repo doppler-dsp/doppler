@@ -652,6 +652,45 @@ typedef enum
     DP_STORE_REL (&ab->tail, t + n);                                          \
   }
 
+/* -------------------------------------------------------------------------
+ * The element-typed face
+ * ---------------------------------------------------------------------- */
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define DP_ASSERT_2X(tag, elem, type)                                         \
+  _Static_assert (sizeof (elem) == 2 * sizeof (type),                         \
+                  "view element must span two stored scalars")
+#else
+#define DP_ASSERT_2X(tag, elem, type)                                         \
+  typedef char dp_assert_2x_##tag[sizeof (elem) == 2 * sizeof (type) ? 1 : -1]
+#endif
+
+#define DECLARE_DP_BUFFER_VIEW(name, type, elem)                              \
+                                                                              \
+  DP_ASSERT_2X (name, elem, type);                                            \
+                                                                              \
+  static inline elem *dp_##name##_wait_view (dp_##name##_t *ab, size_t n)     \
+  {                                                                           \
+    return (elem *)dp_##name##_wait (ab, n);                                  \
+  }                                                                           \
+                                                                              \
+  static inline elem *dp_##name##_peek_view (dp_##name##_t *ab, size_t n)     \
+  {                                                                           \
+    return (elem *)dp_##name##_peek (ab, n);                                  \
+  }                                                                           \
+                                                                              \
+  static inline bool dp_##name##_write_view (dp_##name##_t *ab,               \
+                                             const elem *src, size_t n)       \
+  {                                                                           \
+    return dp_##name##_write (ab, (const type *)src, n);                      \
+  }                                                                           \
+                                                                              \
+  static inline size_t dp_##name##_write_some_view (                          \
+      dp_##name##_t *ab, const elem *src, size_t n)                           \
+  {                                                                           \
+    return dp_##name##_write_some (ab, (const type *)src, n);                 \
+  }
+
 /* --- Type instantiations --- */
 
 DECLARE_DP_BUFFER (f32, float)  

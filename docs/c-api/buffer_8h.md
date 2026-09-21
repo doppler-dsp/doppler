@@ -105,7 +105,9 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 | Type | Name |
 | ---: | :--- |
 | define  | [**DECLARE\_DP\_BUFFER**](buffer_8h.md#define-declare_dp_buffer) (name, type) <br>_Generates a type-specific circular buffer implementation._  |
+| define  | [**DECLARE\_DP\_BUFFER\_VIEW**](buffer_8h.md#define-declare_dp_buffer_view) (name, type, elem) `/* multi line expression */`<br>_Declares the element-typed face of the_ `name` _ring._ |
 | define  | [**DP\_ALIGN**](buffer_8h.md#define-dp_align) (n) `\_\_attribute\_\_ ((aligned (n)))`<br> |
+| define  | [**DP\_ASSERT\_2X**](buffer_8h.md#define-dp_assert_2x) (tag, elem, type) `typedef char dp\_assert\_2x\_##tag[sizeof (elem) == 2 \* sizeof (type) ? 1 : -1]`<br> |
 | define  | [**DP\_ASSERT\_PWR2**](buffer_8h.md#define-dp_assert_pwr2) (n) `typedef char dp\_assert\_pwr2\_##n[((n) & ((n) - 1)) == 0 ? 1 : -1]`<br> |
 | define  | [**DP\_CACHELINE**](buffer_8h.md#define-dp_cacheline)  `64`<br>_Standard x86-64 cache-line size (64 bytes)._  |
 | define  | [**DP\_SPIN\_HINT**](buffer_8h.md#define-dp_spin_hint) () `((void)0)`<br> |
@@ -391,12 +393,78 @@ _Generates a type-specific circular buffer implementation._
 
 
 
+### define DECLARE\_DP\_BUFFER\_VIEW 
+
+_Declares the element-typed face of the_ `name` _ring._
+```C++
+#define DECLARE_DP_BUFFER_VIEW (
+    name,
+    type,
+    elem
+) `/* multi line expression */`
+```
+
+
+
+The ring stores SCALARS (`type *data`, two per complex sample); a caller that thinks in samples  the Python binding above all  wants one ELEMENT per sample. `dp_<name>_wait_view()`, `_peek_view()`, `_write_view()` and `_write_some_view()` are the same four calls addressed that way. Each is a cast and nothing else: every count in this header is already in samples, so no length arithmetic is introduced that could disagree with the scalar face, and the view stays zero-copy.
+
+
+Siblings rather than a change to the scalar face, because the scalar face is what every C consumer addresses. One macro rather than three pairs, because a cast written three times is three places for the element type to drift  which is what doppler#1346 was.
+
+
+It is instantiated by the header that owns the element type (`f32_buffer/f32_buffer_core.h` and its two siblings), not here: the complex element is spelled through the portability header those include, and this file stays free of it.
+
+
+
+
+**Parameters:**
+
+
+* `name` Ring instance suffix, as passed to [**DECLARE\_DP\_BUFFER**](buffer_8h.md#define-declare_dp_buffer). 
+* `type` Stored scalar type (`float`, `int16_t`, ...). 
+* `elem` Element type spanning exactly two scalars.
+
+
+```C++
+dp_f32_t *ab = dp_f32_create (1024);
+float _Complex x[4] = { 1, 2, 3, 4 };
+dp_f32_write_some_view (ab, x, 4);              // 4 samples
+float _Complex *v = dp_f32_peek_view (ab, 4);   // 4 samples, not 8 floats
+dp_f32_consume (ab, 4);
+dp_f32_destroy (ab);
+```
+ 
+
+
+        
+
+<hr>
+
+
+
 ### define DP\_ALIGN 
 
 ```C++
 #define DP_ALIGN (
     n
 ) `__attribute__ ((aligned (n)))`
+```
+
+
+
+
+<hr>
+
+
+
+### define DP\_ASSERT\_2X 
+
+```C++
+#define DP_ASSERT_2X (
+    tag,
+    elem,
+    type
+) `typedef char dp_assert_2x_##tag[sizeof (elem) == 2 * sizeof (type) ? 1 : -1]`
 ```
 
 

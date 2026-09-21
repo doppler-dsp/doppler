@@ -9,6 +9,7 @@
  * wrap correctly afterwards.
  */
 #include "buffer/buffer.h"
+#include "dp_rng_test.h"
 #include "dp_test.h"
 #include "dp_thread.h"
 #include <stdio.h>
@@ -319,12 +320,12 @@ main (void)
     DP_REQUIRE (b != NULL);
     static float blk[2 * 1300];
     size_t       w = 0, rd = 0, bad = 0;
-    unsigned     s = 7u;
+    uint32_t     s = 7u;
     for (int op = 0; op < 200000; op++)
       {
-        s        = s * 1103515245u + 12345u;
-        size_t n = 1 + (s >> 8) % 1250, room = 1000 - (w - rd);
-        if ((s >> 3) & 1u)
+        uint32_t r = dp_xs32 (&s);
+        size_t   n = 1 + (r >> 8) % 1250, room = 1000 - (w - rd);
+        if (r & 1u)
           {
             for (size_t k = 0; k < n; k++)
               blk[2 * k] = (float)((w + k) & 0xFFFF);

@@ -151,17 +151,10 @@ dp_tlm_resize (dp_tlm_t *t, size_t records)
   if (records <= t->ring->capacity)
     return DP_OK; /* already big enough — the common boundary re-check */
 
-  /* buffer.h demands a power of two (and rounds sub-page requests up to the
-   * page minimum itself, so we need not model the page size here). */
-  size_t want = 1;
-  while (want < records)
-    {
-      if (want > SIZE_MAX / 2)
-        return DP_ERR_INVALID;
-      want *= 2;
-    }
-
-  dp_tlmr_t *fresh = dp_tlmr_create (want);
+  /* Exactly what was asked: the ring takes any size and rounds its own
+   * MAPPING. This used to round up to a power of two here, a private copy
+   * of a rule buffer.h no longer has. */
+  dp_tlmr_t *fresh = dp_tlmr_create (records);
   if (!fresh)
     return DP_ERR_INVALID; /* old ring still intact and still attached */
   dp_tlmr_destroy (t->ring);

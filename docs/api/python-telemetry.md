@@ -16,9 +16,8 @@ ______________________________________________________________________
 
 ## `Telemetry`
 
-`Telemetry(ring_records=16384)` — ring capacity in records, a power of
-two; a sub-page request is rounded up, so read the real size back from
-`.capacity`.
+`Telemetry(ring_records=16384)` — ring capacity in records. Any size from 1
+up, and `.capacity` is exactly that number.
 
 | Member                    | Purpose                                                                                     |
 | ------------------------- | ------------------------------------------------------------------------------------------- |

@@ -65,8 +65,14 @@ main (void)
   /* ── create/destroy: invalid sizes rejected, NULL-safe destroy ───── */
   {
     DP_CHECK (dp_tlm_create (0) == NULL);
-    DP_CHECK (dp_tlm_create (3) == NULL); /* not a power of two */
-    dp_tlm_destroy (NULL);                /* must not crash */
+    {
+      /* Any size from 1 up, and it holds exactly that many: the ring rounds
+         its mapping, not its capacity. */
+      dp_tlm_t *odd = dp_tlm_create (3);
+      DP_CHECK (odd != NULL && dp_tlm_capacity (odd) == 3);
+      dp_tlm_destroy (odd);
+    }
+    dp_tlm_destroy (NULL); /* must not crash */
 
     dp_tlm_t *t = dp_tlm_create (256);
     DP_CHECK (t != NULL);
@@ -385,11 +391,13 @@ main (void)
     DP_CHECK (dp_tlm_resize (t, cap0 / 2) == DP_OK);
     DP_CHECK (dp_tlm_capacity (t) == cap0);
 
-    /* Growth rounds a non-power-of-two request UP; buffer.h demands pow2. */
+    /* Growth gives exactly what was asked -- the ring takes any size. */
     DP_CHECK (dp_tlm_resize (t, cap0 + 1) == DP_OK);
-    DP_CHECK (dp_tlm_capacity (t) >= cap0 + 1);
-    size_t cap1 = dp_tlm_capacity (t);
-    DP_CHECK ((cap1 & (cap1 - 1)) == 0);
+    DP_CHECK (dp_tlm_capacity (t) == cap0 + 1);
+    /* ...so asking again is the no-op the boundary re-check relies on: an
+       odd size does not keep re-allocating because it "is not big enough". */
+    DP_CHECK (dp_tlm_resize (t, cap0 + 1) == DP_OK);
+    DP_CHECK (dp_tlm_capacity (t) == cap0 + 1);
 
     DP_CHECK (dp_tlm_resize (NULL, 16) == DP_ERR_INVALID);
 

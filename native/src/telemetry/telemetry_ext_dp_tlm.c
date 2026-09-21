@@ -48,9 +48,8 @@ TelemetryObj_init (TelemetryObject *self, PyObject *args, PyObject *kwds)
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "ring_records must be a power of two (and at least "
-                       "the page minimum); read the granted size back from "
-                       "Telemetry.capacity");
+                       "ring_records must be at least 1, and small enough to "
+                       "map");
       return -1;
     }
   return 0;
@@ -518,9 +517,8 @@ static PyGetSetDef Telemetry_getset[]
           "record's `probe` field back to a name.\n",
           NULL },
         { "capacity", (getter)Telemetry_getprop_capacity, NULL,
-          "Ring capacity in records, after buffer.h rounds the requested size "
-          "up to a power of two and the page minimum. Read this rather than "
-          "assuming the constructor's argument was granted verbatim.\n",
+          "Ring capacity in records: exactly the number passed to the "
+          "constructor, on every machine.\n",
           NULL },
         { "dropped", (getter)Telemetry_getprop_dropped, NULL,
           "Records lost to ring overrun over this context's lifetime, "
@@ -1001,19 +999,17 @@ static PyTypeObject TelemetryObjType = {
     "Parameters\n"
     "----------\n"
     "ring_records : int, default 16384\n"
-    "    Requested ring capacity in records. MUST be a power of 2. Sub-page\n"
-    "    requests are rounded up to the page minimum (buffer.h semantics) — "
-    "read\n"
-    "    the authoritative value back with dp_tlm_capacity().\n"
+    "    Ring capacity in records: any size from 1 up, and dp_tlm_capacity() "
+    "is\n"
+    "    exactly this number (buffer.h rounds the MAPPING behind it, not the\n"
+    "    capacity).\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    If construction fails. The exception message is ``ring_records must "
     "be\n"
-    "    a power of two (and at least the page minimum); read the granted "
-    "size\n"
-    "    back from Telemetry.capacity``.\n"
+    "    at least 1, and small enough to map``.\n"
     "\n"
     "Examples\n"
     "--------\n"

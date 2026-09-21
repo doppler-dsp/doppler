@@ -38,8 +38,9 @@ def test_create_rejects_bad_sizes():
         Telemetry(0)
     with pytest.raises(ValueError):
         Telemetry(-4)
-    with pytest.raises(ValueError):
-        Telemetry(3)  # not a power of two
+    # Any size from 1 up is a ring of exactly that many records; it need
+    # not be a power of two (the ring rounds its mapping, not its capacity).
+    assert Telemetry(3).capacity == 3
 
 
 def test_probe_registry():

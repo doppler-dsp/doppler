@@ -833,6 +833,39 @@ jobs:
         run: make release-smoke VERSION="${{ needs.verify-version.outputs.version }}"
 
   # ------------------------------------------------------------------
+  # Post-release package smoke: download THIS arch's .deb/.rpm from the
+  # release just published and install each with the distro's own package
+  # manager in four distros (glibc 2.28 floor included), then build the
+  # consumer from /usr with find_package and pkg-config.
+  #
+  # ci.yml's linux-packages job runs the same script on every PR, but on
+  # packages it just BUILT, x86_64 only. Until this, nothing installed a
+  # published package on any arch, and no aarch64 package had ever been
+  # installed at all (doppler#1413). Like smoke-c it gates the RELEASE, not
+  # the upload.
+  # ------------------------------------------------------------------
+  smoke-packages:
+    name: Post-release package smoke (${{ matrix.arch.tag }})
+    needs:
+      - verify-version
+      - github-release
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - { tag: x86_64, runner: ubuntu-latest }
+          - { tag: aarch64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.arch.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install the published packages in each distro
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: make release-smoke-packages VERSION="${{ needs.verify-version.outputs.version }}"
+
+  # ------------------------------------------------------------------
   # Post-release Python smoke: install doppler-dsp FROM PyPI and run the
   # same end-to-end that smoke-wheel runs before the upload.
   #

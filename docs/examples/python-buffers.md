@@ -132,8 +132,8 @@ Three things that bite, all of them measurable:
 - **Size a block from `capacity`, not from the producer's chunk.** `wait(n)`
     with `n > capacity` can never be satisfied — the ring cannot hold that many
     — so it raises `ValueError` naming both numbers rather than waiting for
-    something that cannot arrive. Read `capacity` back to compare against: it is
-    *rounded up* from what you asked the constructor for.
+    something that cannot arrive. `capacity` is exactly what you passed the
+    constructor, and it can be any size: pick the one your largest frame needs.
 
 The runnable version of both directions, with the assertions that keep it
 honest, is `src/doppler/examples/ring_chunking_demo.py`.
@@ -274,14 +274,12 @@ ______________________________________________________________________
 
 ## Buffer types
 
-| Type        | Import           | NumPy dtype           | Min capacity | Notes                    |
-| ----------- | ---------------- | --------------------- | ------------ | ------------------------ |
-| `F32Buffer` | `doppler.buffer` | `complex64`           | 512          | CF32 IQ pairs            |
-| `F64Buffer` | `doppler.buffer` | `complex128`          | 256          | CF64 IQ pairs            |
-| `I16Buffer` | `doppler.buffer` | `(i, q)` int16 record | 1024         | `view["i"]`, `view["q"]` |
+| Type        | Import           | NumPy dtype           | Notes                    |
+| ----------- | ---------------- | --------------------- | ------------------------ |
+| `F32Buffer` | `doppler.buffer` | `complex64`           | CF32 IQ pairs            |
+| `F64Buffer` | `doppler.buffer` | `complex128`          | CF64 IQ pairs            |
+| `I16Buffer` | `doppler.buffer` | `(i, q)` int16 record | `view["i"]`, `view["q"]` |
 
-!!! note "Min capacity is page-size dependent"
-
-    These are the minima on a 4 KiB-page system (x86_64). The mmap-backed ring
-    sizes to a whole page, so on 16 KiB-page systems (e.g. macOS arm64) the
-    minima double — `F32Buffer` 1024, `F64Buffer` 512, `I16Buffer` 2048.
+Any capacity from 1 up, a power of two or not, and `capacity` is exactly what
+you asked for on every machine. The mapping behind it is rounded up to a power
+of two and to whole pages — address space, never room.

@@ -30,8 +30,7 @@ frames is the input stream in order, sample for sample.
 **Size a block from `capacity`, not from the producer's chunk.** `wait(n)`
 with `n > capacity` can never be satisfied — the ring holds at most that many
 — and raises `ValueError` rather than waiting for something that cannot
-arrive. `capacity` is also rounded UP from the constructor argument, so it is
-the number to read back and compare against, not the one you passed in.
+arrive. `capacity` is exactly the number passed to the constructor.
 
 Run:
   python ring_chunking_demo.py

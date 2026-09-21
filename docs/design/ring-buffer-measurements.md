@@ -114,3 +114,42 @@ cost over five alternations.
 times faster than the pinned A/B above, and the difference is *placement*:
 left alone the scheduler puts the pair on SMT siblings that share a cache,
 while cores 2 and 4 do not. Quote either number only with its placement.
+
+## 7. Any capacity, and what it costs (2026-09-21)
+
+The ring required a power-of-two capacity and rounded a sub-page one **up**,
+reporting the larger number. Both were the mapping's constraints leaking into
+the contract: a mask needs a power of two and a page mirror needs whole pages,
+but neither is about how many samples the caller wants held.
+
+`capacity` and `mask` were already separate fields and every guard already
+used `capacity`, so honouring the request needed **no change to the index
+arithmetic** — only `create()` deciding the two numbers separately, and
+`sync()` / `destroy()` sizing the mapping from `mask + 1` rather than from
+`capacity`.
+
+Measured before writing it, with a 1024 mapping whose capacity was set to 1000
+by hand:
+
+|                                                                  |                     |
+| ---------------------------------------------------------------- | ------------------- |
+| model walk, 2 M `write_some` / `peek` + `consume`, 273,388 wraps | **0** disagreements |
+| two threads, frame 250, capacity 1024 (min of 4)                 | 98.77 ns/frame      |
+| two threads, frame 250, capacity **1000** over the same mapping  | 98.70 ns/frame      |
+
+So the cost is address space alone: under 2× in the worst case (a capacity one
+past a power of two), 2.4% for 1000, none for a power of two that spans a
+page. `next_pow_two` is doppler's own (`util/util_core.h`), called once in
+`create()`.
+
+Two consequences worth recording. A **file-backed** ring is recognised by its
+*mapped* size and the file does not record the capacity, so two requests that
+round to one mapping re-attach the same file — the caller knows how much of it
+was in use. And `detector`'s state blob is sized from `ring->capacity`, so it
+used to depend on the page size of the machine that wrote it; it no longer
+does.
+
+The unmap was the one place this could go wrong in silence — sized from
+`capacity` it frees about half of a non-power-of-two ring and nothing fails —
+so the C test cycles a 65,537-sample ring 200 times and checks the process did
+not grow. That sabotage was invisible to every other test.

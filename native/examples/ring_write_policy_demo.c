@@ -42,8 +42,8 @@ main (void)
 {
   dp_f32_t *ring = dp_f32_create (1024);
   CHECK (ring != NULL);
-  size_t cap = ring->capacity; /* rounded UP from the request */
-  CHECK (cap >= 1024);
+  size_t cap = ring->capacity;
+  CHECK (cap == 1024); /* exactly what was asked, on every machine */
 
   float *block = calloc (2 * (cap + 1), sizeof *block); /* I/Q interleaved */
   CHECK (block != NULL);

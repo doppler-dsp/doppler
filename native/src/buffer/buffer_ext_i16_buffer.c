@@ -47,8 +47,7 @@ I16BufferObj_init (I16BufferObject *self, PyObject *args, PyObject *kwds)
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "capacity must be a power of two (and the mapping "
-                       "must succeed)");
+                       "capacity must be at least 1, and small enough to map");
       return -1;
     }
   return 0;
@@ -989,29 +988,28 @@ static PyTypeObject I16BufferObjType = {
     "Parameters\n"
     "----------\n"
     "capacity : int\n"
-    "    Requested buffer size in IQ sample pairs. Must be a power of two.\n"
-    "    ``capacity * 4`` must span a whole page; a sub-page request is "
-    "rounded\n"
-    "    **up** to the smallest power-of-two that does (minimum 1024 on 4 "
-    "KiB\n"
-    "    pages, 4096 on 16 KiB pages). Read :attr:`capacity` back for the "
-    "size\n"
-    "    actually allocated.\n"
+    "    How many samples the ring holds: any size from 1 up, and\n"
+    "    :attr:`capacity` is exactly this number on every machine. What is\n"
+    "    rounded is the MAPPING behind it -- up to a power of two, because\n"
+    "    indexing is a mask, and up to a whole page -- so a capacity that is "
+    "not\n"
+    "    a power of two costs some address space (under 2x) and nothing per\n"
+    "    call.\n"
     "\n"
     "Raises\n"
     "------\n"
     "ValueError\n"
     "    If construction fails. The exception message is ``capacity must be "
-    "a\n"
-    "    power of two (and the mapping must succeed)``.\n"
+    "at\n"
+    "    least 1, and small enough to map``.\n"
     "\n"
     "Examples\n"
     "--------\n"
     ">>> from doppler.buffer import I16Buffer\n"
     ">>> import numpy as np\n"
     ">>> buf = I16Buffer(1024)\n"
-    ">>> buf.capacity >= 1024\n"
-    "True\n"
+    ">>> buf.capacity\n"
+    "1024\n"
     ">>> IQ16 = np.dtype([(\"i\", \"<i2\"), (\"q\", \"<i2\")])\n"
     ">>> adc = np.array([10, 20, 30, 40], dtype=np.int16)   # I, Q, I, Q\n"
     ">>> buf.write(adc.view(IQ16))\n"

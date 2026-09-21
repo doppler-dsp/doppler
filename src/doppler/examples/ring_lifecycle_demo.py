@@ -31,8 +31,7 @@ from doppler.buffer import F32Buffer
 
 # --8<-- [start:ring]
 with F32Buffer(capacity=1024) as buf:
-    # The size is rounded UP to what the mapping needs, so read it back.
-    assert buf.capacity >= 1024
+    assert buf.capacity == 1024  # exactly what was asked for
     buf.write(np.arange(8, dtype=np.complex64))
 
 # Out of the block the mapping is gone, and the object says so.
@@ -43,10 +42,12 @@ except RuntimeError:
     pass
 buf.destroy()  # again, by hand: harmless
 
-# A size the ring cannot map is refused up front, as a ValueError.
+# Any size from 1 up is a ring of exactly that many samples; it need not be
+# a power of two. A ring of nothing is refused up front, as a ValueError.
+assert F32Buffer(1000).capacity == 1000
 try:
-    F32Buffer(1000)  # not a power of two
-    raise AssertionError("a ring of 1000 was mapped")
+    F32Buffer(0)
+    raise AssertionError("a ring of nothing was mapped")
 except ValueError:
     pass
 # --8<-- [end:ring]

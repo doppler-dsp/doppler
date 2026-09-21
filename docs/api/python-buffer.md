@@ -11,19 +11,22 @@ ______________________________________________________________________
 
 ## Buffer types
 
-| Class       | NumPy dtype                 | Bytes/sample | Min (4 KiB page) | Min (16 KiB page) |
-| ----------- | --------------------------- | ------------ | ---------------- | ----------------- |
-| `F32Buffer` | `complex64`                 | 8            | 512 samples      | 2048 samples      |
-| `F64Buffer` | `complex128`                | 16           | 256 samples      | 1024 samples      |
-| `I16Buffer` | `[('i','<i2'),('q','<i2')]` | 4            | 1024 samples     | 4096 samples      |
+| Class       | NumPy dtype                 | Bytes/sample |
+| ----------- | --------------------------- | ------------ |
+| `F32Buffer` | `complex64`                 | 8            |
+| `F64Buffer` | `complex128`                | 16           |
+| `I16Buffer` | `[('i','<i2'),('q','<i2')]` | 4            |
 
-`n_samples` must be a power of two. The double-mapping trick builds the mirror
-at page granularity, so the buffer must span at least one whole page — a
-sub-page request is rounded **up** to the smallest power-of-two that does. The
-minimum therefore depends on the system mapping granularity (4 KiB on Linux
-x86-64, 16 KiB on macOS arm64, and the 64 KiB allocation granularity on
-Windows — so the Windows minimums are 16× the 4 KiB column). Always read the
-real size back from `.capacity`; it may exceed what you asked for.
+**Any capacity from 1 up, and `capacity` is exactly the number you passed —
+on every machine.** It need not be a power of two.
+
+What *is* rounded is the mapping behind the ring: up to a power of two,
+because indexing is a mask, and up to a whole number of pages, because the
+double mapping is built from them (4 KiB on Linux x86-64, 16 KiB on macOS
+arm64, 64 KiB allocation granularity on Windows). That is address space, not
+room — a ring of 1,000 holds 1,000 and refuses the next sample — and it costs
+nothing per call. A capacity just past a power of two maps nearly twice what
+it holds; one that *is* a power of two and spans a page maps exactly itself.
 
 ______________________________________________________________________
 
@@ -133,15 +136,14 @@ not an array of samples. And a record refuses arithmetic (`view + 1` raises)
 where a packed `int32` would carry across the I/Q boundary and corrupt I
 silently, which is why it is a record.
 
-### Capacity, and a full ring
+### A full ring
 
-`capacity` is rounded **up** from the request, so read it back. A full ring
-is not an error: `write()` refuses the block and returns `False` — you still
+A full ring is not an error: `write()` refuses the block and returns `False` — you still
 hold it — and `dropped` counts what was refused.
 
 ```python
-buf = F32Buffer(1024)
-cap = buf.capacity            # >= 1024
+buf = F32Buffer(1000)          # any size; not a power of two here
+cap = buf.capacity            # 1000
 
 buf.write(np.ones(cap, dtype=np.complex64))        # True
 buf.write(np.ones(1, dtype=np.complex64))          # False: no room

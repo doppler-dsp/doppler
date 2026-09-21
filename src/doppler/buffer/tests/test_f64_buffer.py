@@ -11,11 +11,13 @@ import pytest
 from doppler.buffer import F64Buffer
 
 
-def test_create_refuses_a_size_the_ring_cannot_map():
+def test_create_refuses_a_ring_of_nothing():
     # NULL from create() is a bad size, so it is a ValueError -- not the
-    # MemoryError a blanket NULL check would raise.
-    with pytest.raises(ValueError, match="power of two"):
-        F64Buffer(1000)
+    # MemoryError a blanket NULL check would raise. Zero is the only one:
+    # any size from 1 up is a ring of exactly that many samples.
+    with pytest.raises(ValueError, match="at least 1"):
+        F64Buffer(0)
+    assert F64Buffer(1000).capacity == 1000
 
 
 def test_context_manager_destroys_on_exit():

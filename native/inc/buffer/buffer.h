@@ -69,6 +69,7 @@
 #include <stdint.h>
 
 #include "jm_perf.h" /* JM_FORCEINLINE */
+#include "util/util_core.h" /* next_pow_two */
 
 /* macOS uses MAP_ANON, Linux uses MAP_ANONYMOUS. Normalize to MAP_ANONYMOUS.
  */
@@ -552,8 +553,8 @@ typedef enum
   typedef struct                                                              \
   {                                                                           \
     type *data;      /**< Double-mapped memory address. */                    \
-    size_t mask;     /**< Bitmask for power-of-two indexing. */               \
-    size_t capacity; /**< Total capacity in complex samples. */               \
+    size_t mask;     /**< MAPPED samples - 1: a power of two, for indexing. */\
+    size_t capacity; /**< Samples the ring holds: what was asked for. */      \
     void *_handle;   /**< Platform handle (Win32: HANDLE, POSIX: NULL). */    \
     DP_ALIGN (DP_CACHELINE) volatile size_t head;    /**< Producer idx. */    \
     /* Shares the producer's line on purpose: the producer writes both, \
@@ -575,58 +576,69 @@ typedef enum
    * bare-allocation count against a ratchet that may only shrink.            \
    */                                                                         \
   static inline dp_##name##_t *dp_##name##_wrap_ (                            \
-      void *addr, size_t n_samples, void *handle)                             \
+      void *addr, size_t capacity, size_t mapped, void *handle)               \
   {                                                                           \
-    dp_##name##_t *ab = (dp_##name##_t *)calloc (1, sizeof (dp_##name##_t)); \
+    dp_##name##_t *ab = (dp_##name##_t *)calloc (1, sizeof (dp_##name##_t));  \
     if (!ab)                                                                  \
       {                                                                       \
-        dp__buf_free (addr, n_samples * sizeof (type) * 2, handle);           \
+        dp__buf_free (addr, mapped * sizeof (type) * 2, handle);              \
         return NULL;                                                          \
       }                                                                       \
     ab->data = (type *)addr;                                                  \
-    ab->capacity = n_samples;                                                 \
-    ab->mask = n_samples - 1;                                                 \
+    ab->capacity = capacity;                                                  \
+    ab->mask = mapped - 1;                                                    \
     ab->_handle = handle;                                                     \
     return ab;                                                                \
+  }                                                                           \
+                                                                              \
+  /**                                                                         \
+   * @brief How many samples to MAP for a ring that holds @p n_samples.       \
+   *                                                                          \
+   * Indexing is a mask, so the mapping is a power of two; and the mirror is  \
+   * built from whole pages, so it spans at least one. The smallest size      \
+   * that is both. The ring's CAPACITY stays exactly what was asked for --    \
+   * this is only how much address space stands behind it.                    \
+   *                                                                          \
+   * @return Samples to map, or 0 if @p n_samples is 0 or too large to round. \
+   */                                                                         \
+  static inline size_t dp_##name##_mapped_for_ (size_t n_samples)             \
+  {                                                                           \
+    size_t mapped = n_samples ? next_pow_two (n_samples) : 0;                 \
+    size_t page   = dp__page_size ();                                         \
+    size_t elem   = sizeof (type) * 2;                                        \
+    /* elem and page are powers of two and so is `mapped`, so doubling until  \
+       the unit reaches a page lands on an exact page multiple. */            \
+    while (mapped && mapped * elem < page)                                    \
+      mapped <<= 1;                                                           \
+    return mapped;                                                            \
   }                                                                           \
                                                                               \
   /**                                                                         \
    * @brief Creates a double-mapped circular buffer.                          \
    *                                                                          \
    * Uses virtual memory mirroring so reads/writes that cross the buffer      \
-   * boundary wrap transparently — zero-copy, branchless.                   \
+   * boundary wrap transparently — zero-copy, branchless.                     \
    *                                                                          \
-   * @param n_samples Requested buffer size in complex samples. MUST be a     \
-   *                  power of 2. The VM-mirror maps the sample region twice  \
-   *                  at adjacent addresses, and mmap works at page           \
-   *                  granularity, so the mirror unit                         \
-   *                  (n_samples * sizeof(type) * 2 bytes) must be a          \
-   *                  whole-page multiple. When the request is sub-page       \
-   *                  (e.g. f32(1024) = 8 KiB on a 16 KiB-page system), the   \
-   *                  capacity is rounded UP to the smallest power-of-two     \
-   *                  whose byte size is one page — read it back from the     \
-   *                  ->capacity field, which is authoritative.               \
+   * @param n_samples Capacity in complex samples: ANY size from 1 up, and the\
+   *                  ring holds exactly that many -- ->capacity is the number\
+   *                  passed here, on every machine. What is rounded is the   \
+   *                  MAPPING behind it: up to a power of two, because        \
+   *                  indexing is a mask, and up to a whole page, because the \
+   *                  mirror is built from pages (->mask + 1 samples). A      \
+   *                  capacity that is not a power of two costs address       \
+   *                  space, under 2x, and nothing per call.                  \
    * @return Pointer to an initialised dp_##name##_t, or NULL on failure.     \
    */                                                                         \
   static inline dp_##name##_t *dp_##name##_create (size_t n_samples)          \
   {                                                                           \
-    if (n_samples == 0 || (n_samples & (n_samples - 1)) != 0)                 \
+    size_t mapped = dp_##name##_mapped_for_ (n_samples);                      \
+    if (!mapped)                                                              \
       return NULL;                                                            \
-    /* sizeof(type)*2 (bytes per complex sample) and the page size are both   \
-       powers of two, and n_samples is a power of two, so the mirror unit is  \
-       a power of two. Rounding n_samples up until the unit reaches one page  \
-       therefore lands on an exact page multiple — capacity stays a power of  \
-       two. */                                                                \
-    size_t page = dp__page_size ();                                           \
-    size_t elem = sizeof (type) * 2;                                          \
-    while (n_samples * elem < page)                                           \
-      n_samples <<= 1;                                                        \
-    size_t bytes = n_samples * elem;                                          \
     void *handle = NULL;                                                      \
-    void *addr = dp__buf_alloc (bytes, &handle);                              \
+    void *addr = dp__buf_alloc (mapped * sizeof (type) * 2, &handle);         \
     if (!addr)                                                                \
       return NULL;                                                            \
-    return dp_##name##_wrap_ (addr, n_samples, handle);                       \
+    return dp_##name##_wrap_ (addr, n_samples, mapped, handle);               \
   }                                                                           \
                                                                               \
   /**                                                                         \
@@ -641,11 +653,14 @@ typedef enum
    * head/tail positions and the history is already there. Anything else is   \
    * created or truncated, which sizes and zeroes it.                         \
    *                                                                          \
-   * The capacity rounds up to a whole page exactly as dp_##name##_create()   \
-   * does, so the FILE's size is `capacity * sizeof(type) * 2` -- read        \
-   * ->capacity back rather than assuming the requested value.                \
+   * The mapping is sized exactly as dp_##name##_create() sizes it, so the    \
+   * FILE is `(->mask + 1) * sizeof(type) * 2` bytes -- the MAPPED samples,   \
+   * not the capacity. A file is recognised by that size alone, and it does   \
+   * not record the capacity: two requests that round to one mapping          \
+   * re-attach the same file, and it is the caller who knows how much of it   \
+   * was in use.                                                              \
    *                                                                          \
-   * @param n_samples Requested capacity, a power of two.                     \
+   * @param n_samples Capacity in complex samples, any size from 1 up.        \
    * @param path      File to back the ring with.                             \
    * @param existed   If non-NULL, set to 1 when the file already held a ring \
    *                  of this exact size (its samples are now the ring's).    \
@@ -654,18 +669,15 @@ typedef enum
   static inline dp_##name##_t *dp_##name##_create_backed (                    \
       size_t n_samples, const char *path, int *existed)                       \
   {                                                                           \
-    if (n_samples == 0 || (n_samples & (n_samples - 1)) != 0)                 \
+    size_t mapped = dp_##name##_mapped_for_ (n_samples);                      \
+    if (!mapped)                                                              \
       return NULL;                                                            \
-    size_t page = dp__page_size ();                                           \
-    size_t elem = sizeof (type) * 2;                                          \
-    while (n_samples * elem < page)                                           \
-      n_samples <<= 1;                                                        \
-    size_t bytes = n_samples * elem;                                          \
     void *handle = NULL;                                                      \
-    void *addr = dp__buf_alloc_file (bytes, &handle, path, existed);          \
+    void *addr = dp__buf_alloc_file (mapped * sizeof (type) * 2, &handle,     \
+                                     path, existed);                          \
     if (!addr)                                                                \
       return NULL;                                                            \
-    return dp_##name##_wrap_ (addr, n_samples, handle);                       \
+    return dp_##name##_wrap_ (addr, n_samples, mapped, handle);               \
   }                                                                           \
                                                                               \
   /**                                                                         \
@@ -677,13 +689,14 @@ typedef enum
    */                                                                         \
   static inline void dp_##name##_sync (dp_##name##_t *ab)                     \
   {                                                                           \
-    dp__buf_sync (ab->data, ab->capacity * sizeof (type) * 2);                \
+    dp__buf_sync (ab->data, (ab->mask + 1) * sizeof (type) * 2);              \
   }                                                                           \
                                                                               \
   /** @brief Destroys the buffer and releases virtual memory. */              \
   static inline void dp_##name##_destroy (dp_##name##_t *ab)                  \
   {                                                                           \
-    dp__buf_free (ab->data, ab->capacity * sizeof (type) * 2, ab->_handle);   \
+    dp__buf_free (ab->data, (ab->mask + 1) * sizeof (type) * 2,               \
+                  ab->_handle);                                               \
     free (ab);                                                                \
   }                                                                           \
                                                                               \

@@ -26,20 +26,6 @@ target_include_directories(test_dp_parallel
                                    ${CMAKE_SOURCE_DIR}/native/tests)
 add_test(NAME test_dp_parallel COMMAND test_dp_parallel)
 
-# Benchmark — same story as the test above: header-only, so there is no
-# component core to link, and this CMakeLists is hand-owned (the module is
-# no_generate), so the target is written here rather than by `jm apply`.
-add_executable(bench_buffer_core
-               ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_buffer_core.c
-               $<TARGET_OBJECTS:dp_interrupt_obj>)
-# libm because jm_bench.h's stats take a sqrt for the standard deviation.
-# A Release build folds that call away and links without it; a Debug one
-# (make test-tsan, make test-ubsan) does not, which is where this surfaced.
-target_link_libraries(bench_buffer_core PRIVATE ${DP_MATH_LIBRARY})
-target_include_directories(bench_buffer_core
-                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
-                                   ${CMAKE_SOURCE_DIR}/native/benchmarks)
-
 # TEMPORARY (just-buildit/just-makeit#1432): the ring objects cannot declare
 # `depends_on dp_interrupt_guard` while they are header_only, so the symbols
 # buffer.h calls are embedded by hand. Delete with the TODO in

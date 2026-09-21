@@ -888,6 +888,20 @@ target_link_libraries(bench_util_core PRIVATE util_core ${DP_MATH_LIBRARY})
 target_include_directories(bench_util_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 
+# The ring's benchmark, registered here for the same reason util's is: the
+# ring is `buffer/buffer.h`, a header rather than a jm component (the three
+# `<w>_buffer` components are its Python faces and carry their own benches),
+# so jm generates no target for it. HERE rather than in buffer_extra.cmake:
+# jm's "compiled by no build file" check reads CMakeLists.txt only, and that
+# verdict fails `jm status --check` (just-buildit/just-makeit#1432, item 4).
+add_executable(bench_buffer_core
+               ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_buffer_core.c
+               $<TARGET_OBJECTS:dp_interrupt_obj>)
+target_link_libraries(bench_buffer_core PRIVATE ${DP_MATH_LIBRARY})
+target_include_directories(bench_buffer_core
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/benchmarks)
+
 # ── function-only modules: benchmarks jm does not generate (yet) ─────────
 # arith, detection, filter, measure, resample, spectral and wfm carry their
 # surface as free functions in <module>_core.c with no object of their own,

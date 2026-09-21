@@ -13,6 +13,161 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-09-21
+
+### Breaking
+
+- **A ring buffer can be any size, and `capacity` is exactly what you asked
+    for — on every machine.** A power of two is no longer required, and a
+    sub-page request is no longer rounded **up** and reported: `F32Buffer(512)`
+    was 512 on Linux x86, 2048 on macOS arm64 and 8192 on Windows. The
+    rounding a mask and a page mirror need now happens in the mapping
+    (`->mask + 1`), where it costs address space (under 2×) and nothing per
+    call — measured. Code that asked for `1` to get "the page minimum", or
+    indexed with `capacity - 1`, must use the size it wants and `->mask`.
+    A file-backed ring's file is sized by the mapping, not the capacity
+    ([measurements §7](docs/design/ring-buffer-measurements.md)).
+
+- **`I16Buffer` speaks a record, and the ring's Python binding is generated.**
+    `wait()` / `peek()` lend — and `write()` / `write_some()` take — a 1-D
+    `[("i", "<i2"), ("q", "<i2")]` array, one element per sample like
+    `F32Buffer` / `F64Buffer`, instead of `int16` of shape `(n, 2)`
+    ([#1346](https://github.com/doppler-dsp/doppler/issues/1346)); convert
+    either way with `.view()`, no copy. Also: a wrong-dtype or non-contiguous
+    input is refused on every width rather than cast, a bare `consume()` with
+    no view outstanding raises `RuntimeError`, and the array keyword is `x`.
+    1,900 hand-written lines become three manifests
+    ([#1358](https://github.com/doppler-dsp/doppler/pull/1358)).
+
+### Added
+
+- **The ring buffer is certified** — 34 limits across all three widths, the
+    contract checked against a two-integer model over 20,000 random operations
+    per width, and the claims the Python face cannot reach named and pinned in
+    C. The work found the two ring defects fixed in this release.
+    [Report](src/doppler/buffer/tests/validation/buffer/results.md)
+    ([#1438](https://github.com/doppler-dsp/doppler/issues/1438)).
+
+- **An example suite for the ring buffer, on both faces.** Seven Python
+    scripts (start at `buffers_demo`: three widths, one shape) and six C
+    programs cover every call — lifecycle and lent views, block-size
+    conversion, the single-threaded surface, 16-bit I/Q as a record, every
+    refusal, stopping a blocked `wait()`, the element-typed face, and a
+    file-backed ring. Each checks its own results, and
+    [Ring Buffers](docs/examples/python-buffers.md) is built from their
+    regions, so the page is what was executed.
+
+- **The ring buffer gains its non-blocking surface:** `dp_*_peek`
+    (`wait()` that never blocks), `dp_*_write_some` (takes what fits — the
+    only way to feed a chunk larger than the ring), `dp_*_space`,
+    `dp_*_reset` and `dp_*_wait_status`. Every C consumer was rebuilding
+    these from the struct by hand. ~3% over `write`+`wait` at a 1024 frame.
+    See [The Ring Buffer](docs/design/ring-buffer.md).
+
+- **The ring's non-blocking surface reaches Python:** `peek(n)` (the view
+    `wait(n)` would return, or `None` for *not yet* — a closed ring raises
+    `EOFError` instead), `write_some(arr)`, `space` and `reset()` on
+    `F32Buffer` / `F64Buffer` / `I16Buffer`. A single-threaded caller could
+    not use the ring at all: `wait` deadlocks it. ~174 ns per 1024-sample
+    frame against ~240 ns for `write`+`wait`. See
+    [Ring Buffers](docs/examples/python-buffers.md)
+    ([#1427](https://github.com/doppler-dsp/doppler/issues/1427)).
+
+### Changed
+
+- **just-makeit pin 0.78.1 → 0.79.1.** Pure tooling: `jm apply` changes no
+    generated file. It brings the capability the ring-buffer migration was
+    blocked on — a record declared once per component and taken *in* as
+    well as returned (`--arg-type 'iq16_t[]'`, jm gh-1405, doppler-driven),
+    with 0.79.1 fixing the manifest-first `apply` path doppler uses
+    (gh-1411).
+
+- **just-makeit pin 0.79.1 → 0.81.0.** Pure tooling: `jm apply` changes no
+    generated file. A borrowed view now honours `nogil` and `none_on_empty`
+    and says *why* it returned NULL (`status_fn` + `status_errors`, jm
+    gh-1418, doppler-driven) — enough to generate the ring's binding to
+    66 of its 72 tests; the last three gaps are
+    [just-makeit#1426](https://github.com/just-buildit/just-makeit/issues/1426).
+
+- **just-makeit pin 0.81.0 → 0.82.0.** Pure tooling: `jm apply` changes no
+    generated file. It completes what the ring's generated binding needs
+    ([just-makeit#1426](https://github.com/just-buildit/just-makeit/issues/1426),
+    doppler-driven): a borrow names its release call (`releases`), an array
+    input can be refused instead of coerced (`strict`), and a status message
+    can carry `{n}` / `{capacity}`. The ring's tests run 71 of 72 against it.
+
+- **just-makeit pin 0.82.0 → 0.82.1.** Pure tooling: `jm apply` changes no
+    generated file. A `header_only` component can now declare a dependency
+    (its link line said `PUBLIC` on an `INTERFACE` library and did not
+    configure), which is what lets the ring's generated binding join the
+    process-wide interrupt; and jm's generated element-contract test can run
+    ([just-makeit#1432](https://github.com/just-buildit/just-makeit/issues/1432),
+    doppler-driven).
+
+- **just-makeit pin 0.82.1 → 0.82.2.** jm's generated element-contract test
+    no longer ends in stray blank lines, so the pre-commit whitespace fixers
+    stop rewriting a jm-owned file; and an edit to a declared feature after
+    its binding was first rendered is now reported instead of silently
+    ignored ([just-makeit#1432](https://github.com/just-buildit/just-makeit/issues/1432),
+    doppler-driven).
+
+- **The ring's single-threaded examples teach the pattern, not the
+    workaround.** `ring_chunking_demo` (part A), `wfm_stream_demo` and the
+    ring docs polled `available` to make a blocking `wait()` safe and drained
+    twice to make room for an all-or-nothing `write()` — idioms that predate
+    `peek` / `write_some`. They are now the five-line loop: feed what fits,
+    take every whole frame, repeat. It also handles a block larger than the
+    ring, which the old shape could not.
+
+### Fixed
+
+- **A hand-written `_ext.c` is formatted by the gate, not by whoever runs
+    `jm apply` next.** `make lint-clang-format` skipped every `_ext.c` as
+    jm's; `buffer_ext.c` and `stream_ext.c` are not, so `jm apply` rewrote
+    the former under the next person to apply. The set is derived from
+    `no_generate` in the manifest.
+
+- **A non-contiguous `out=` is refused instead of silently ignored.** On 19
+    methods across 17 objects — `AGC.steps`, every `cvt` converter,
+    `DelayCf64.ptr` / `push_ptr`, `LockDet.steps`, `MovingAverage.steps`,
+    `Resampler.execute` / `execute_ctrl`, `Farrow.delay` — a strided `out=`
+    was copied, the copy was filled, and the caller's array was never
+    written; a fresh array came back and nothing raised. Now `TypeError`,
+    like a wrong dtype, with a gate that reads every binding
+    ([#1440](https://github.com/doppler-dsp/doppler/issues/1440)).
+
+- **A file-backed ring recreated at a new size is really zeroed.** On POSIX a
+    wrong-size file was resized with one `ftruncate()`, which keeps the old
+    bytes — so `dp_*_create_backed()` reported `existed = 0` ("created, and
+    zeroed") over the previous ring's samples. Now cut to zero and regrown, as
+    the Windows path always did. Found by the ring's claim inventory
+    ([#1438](https://github.com/doppler-dsp/doppler/issues/1438)).
+
+- **`consume()` is bounded, and two lines of Python can no longer crash the
+    interpreter.** Releasing more than was readable pushed the ring's read
+    position past its write position; `space` then exceeded `capacity`,
+    `write()` believed it, and copied past the mapping —
+    `buf.consume(1_000_000)` then a large `write()` was a SIGSEGV.
+    `dp_*_consume()` now returns `DP_ERR_INVALID` and releases nothing (Python:
+    `ValueError`), and `write()` / `write_some()` never copy more than
+    `capacity` whatever the indices say. Measured free, one thread and two
+    ([#1424](https://github.com/doppler-dsp/doppler/issues/1424),
+    [measurements](docs/design/ring-buffer-measurements.md)).
+
+- **37 Python bindings receive the generator fixes they had been missing.**
+    A per-object binding file is rendered once and never refreshed, so these
+    had drifted from their manifests. Visible effects: `DelayCf64.ptr()` /
+    `push_ptr()` return an array that owns its data (a later call no longer
+    rewrites an earlier result) and `ptr(count=k, out=...)` needs only `k`
+    elements; the accumulators' `madd`/`add2d`/`madd2d` accept keywords
+    ([#1446](https://github.com/doppler-dsp/doppler/issues/1446)).
+
+- **A hand-owned `.pyi` can no longer lag its extension silently.** A
+    registration-free gate compares every class's runtime members to its
+    stub (122 classes); `buffer.pyi` had been missed twice. One existing gap,
+    `Push.send_eos`, is ratcheted
+    ([#1431](https://github.com/doppler-dsp/doppler/issues/1431)).
+
 ## [0.53.0] - 2026-09-20
 
 ### Breaking
@@ -14103,8 +14258,9 @@ ______________________________________________________________________
 [0.51.1]: https://github.com/doppler-dsp/doppler/compare/v0.51.0...v0.51.1
 [0.52.0]: https://github.com/doppler-dsp/doppler/compare/v0.51.1...v0.52.0
 [0.53.0]: https://github.com/doppler-dsp/doppler/compare/v0.52.0...v0.53.0
+[0.54.0]: https://github.com/doppler-dsp/doppler/compare/v0.53.0...v0.54.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.53.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.54.0...HEAD

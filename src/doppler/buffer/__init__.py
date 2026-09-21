@@ -1,3 +1,15 @@
+"""Sample buffering: lock-free ring buffers for handing IQ blocks between producer and consumer stages.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.buffer import F32Buffer
+>>> b = F32Buffer(16)
+>>> b.write(np.ones(4, np.complex64))
+True
+>>> b.wait(4).shape
+(4,)"""
+
 # buffer/__init__.py — re-export all types from the C extension.
 import os as _os
 import sys as _sys

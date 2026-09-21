@@ -1778,8 +1778,14 @@ True
 (4,)
 
 """
-no_generate = "true"
-no_generate_reason = "Not migrated yet: a 674-line hand-written binding (buffer_ext.c), tracked with the other hand-owned surfaces on doppler#900."
+objects = ["f32_buffer", "f64_buffer", "i16_buffer"]
+
+# TODO(just-buildit/just-makeit#1432): buffer.h's wait() consults the interrupt
+# flag, and `dp_interrupt_guard` is `process_global` -- so the ring objects
+# must `depends_on` it for jm to generate the capsule rendezvous (doppler#976).
+# They cannot yet: a `header_only` core renders the dependency as PUBLIC on an
+# INTERFACE library, which does not configure. Until that ships the symbols
+# come from buffer_extra.cmake and the rendezvous is MISSING.
 
 [module.telemetry]
 doc = """

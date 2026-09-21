@@ -67,6 +67,7 @@ Here is a list of all files with brief descriptions:
             * **file** [**boxcar\_core.h**](boxcar__core_8h.md) _Boxcar (rectangular) moving-average filter — cf32, fixed window._     
         * **dir** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md)     
             * **file** [**buffer.h**](buffer_8h.md) _High-performance x86-64 Circular Buffer for RF Streaming._     
+            * **file** [**buffer\_core.h**](buffer__core_8h.md) _Buffer module — public C API._ 
         * **dir** [**burst\_acq**](dir_d3ec06985dce876581dd948705a4d1da.md)     
             * **file** [**burst\_acq\_core.h**](burst__acq__core_8h.md) _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._     
         * **dir** [**burst\_capture**](dir_8eab18aa96a66319f16718502165a0b6.md)     
@@ -137,6 +138,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md) _DsssBurstReceiver — the burst chain composed in C._     
         * **dir** [**dsss\_receiver**](dir_39e39d42b234cb6483b3a80e996300fe.md)     
             * **file** [**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md) _Composed continuous DSSS receiver: Acquisition -&gt; Costas(bn\_fll) pre-despread carrier wipeoff -&gt; Dll(segments) -&gt; RateConverter -&gt; MpskReceiver, one object._     
+        * **dir** [**f32\_buffer**](dir_73bc8939a0d066ce4b56550e20e88de7.md)     
+            * **file** [**f32\_buffer\_core.h**](f32__buffer__core_8h.md) _The complex64 ring as the component just-makeit binds._     
         * **dir** [**f32\_to\_i16**](dir_e25c96329f88166d8f87eefdc2ba64fa.md)     
             * **file** [**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md) _Scale-and-saturate float-to-int16 converter._     
         * **dir** [**f32\_to\_i16u32**](dir_5361bfc3c658147f85e2e18e4bfef9b4.md)     
@@ -149,6 +152,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**f32\_to\_i8\_core.h**](f32__to__i8__core_8h.md) _Scale-and-saturate float-to-int8 converter._     
         * **dir** [**f32\_to\_uq15**](dir_4e8c99e54919bb49218552fb8f2fb678.md)     
             * **file** [**f32\_to\_uq15\_core.h**](f32__to__uq15__core_8h.md) _Scale-and-saturate float-to-UQ15 (offset-binary uint16) converter._     
+        * **dir** [**f64\_buffer**](dir_5630daeef65defa73cbccdb3de4b4d2a.md)     
+            * **file** [**f64\_buffer\_core.h**](f64__buffer__core_8h.md) _The complex128 ring as the component just-makeit binds._     
         * **dir** [**farrow**](dir_3474bb67440308cdab2155867b5160e7.md)     
             * **file** [**farrow\_core.h**](farrow__core_8h.md) _Farrow fractional-delay interpolator — linear / parabolic / cubic._     
         * **dir** [**fft**](dir_5dc24668fb1cbe963321608da9e9d4ca.md)     
@@ -170,6 +175,8 @@ Here is a list of all files with brief descriptions:
             * **file** [**hbdecim\_r2c\_core.h**](hbdecim__r2c__core_8h.md) _Real-to-complex halfband 2:1 decimator (Architecture D2)._     
         * **dir** [**hbdecim\_q15**](dir_93499f550a23db63d09661ee916a0767.md)     
             * **file** [**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md) _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._     
+        * **dir** [**i16\_buffer**](dir_214119e05624f58881fdbfa30e65f3ff.md)     
+            * **file** [**i16\_buffer\_core.h**](i16__buffer__core_8h.md) _The int16 I/Q pair ring as the component just-makeit binds._     
         * **dir** [**i16\_to\_f32**](dir_5ec56354373793af7b5bc8e9296f5472.md)     
             * **file** [**i16\_to\_f32\_core.h**](i16__to__f32__core_8h.md) _int16-to-float converter with configurable inverse scale._     
         * **dir** [**i16u32\_to\_f32**](dir_a216b988e44f4b34f41ebc1122731aa5.md)     

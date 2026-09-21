@@ -9,6 +9,16 @@ import pytest
 
 from doppler.buffer import F32Buffer, F64Buffer, I16Buffer
 
+# One q15 complex sample. numpy has no complex-integer dtype, so the i16
+# ring speaks a record -- 1-D, one element per SAMPLE, like its siblings.
+IQ16 = np.dtype([("i", "<i2"), ("q", "<i2")])
+
+
+def iq16(flat):
+    """Interleaved int16 I/Q -> the i16 ring's element, zero-copy."""
+    return np.ascontiguousarray(flat, dtype=np.int16).reshape(-1).view(IQ16)
+
+
 # ── F32Buffer (complex64) ────────────────────────────────────────────────────
 
 
@@ -102,7 +112,7 @@ class TestAvailable:
         [
             (F32Buffer, lambda n: np.zeros(n, dtype=np.complex64)),
             (F64Buffer, lambda n: np.zeros(n, dtype=np.complex128)),
-            (I16Buffer, lambda n: np.zeros((n, 2), dtype=np.int16)),
+            (I16Buffer, lambda n: np.zeros(n, dtype=IQ16)),
         ],
     )
     def test_tracks_write_and_consume(self, cls, make):
@@ -211,20 +221,40 @@ class TestI16Buffer:
         assert buf.capacity >= 1024
         assert buf.capacity & (buf.capacity - 1) == 0
 
-    def test_roundtrip_flat_iq(self):
+    def test_roundtrip_iq(self):
         buf = I16Buffer(1024)
         flat = np.array([1, 2, 3, 4, 5, 6], dtype=np.int16)
-        buf.write(flat)
+        buf.write(iq16(flat))
         view = buf.wait(3)
-        assert view.shape == (3, 2)
-        assert view.dtype == np.int16
-        np.testing.assert_array_equal(view.ravel(), flat)
+        assert view.shape == (3,)
+        assert view.dtype == IQ16
+        np.testing.assert_array_equal(view["i"], [1, 3, 5])
+        np.testing.assert_array_equal(view["q"], [2, 4, 6])
+        # Zero-copy over the ring's interleaved int16 storage.
+        np.testing.assert_array_equal(view.view(np.int16), flat)
         buf.consume()
 
-    def test_write_odd_length_raises(self):
+    def test_arithmetic_is_refused_not_corrupted(self):
+        """Why a record and not a packed int32 (doppler#1346).
+
+        Both are 1-D with one element per sample, but `packed + 1` carries
+        across the I/Q boundary and increments I only, silently. A record
+        refuses instead.
+        """
         buf = I16Buffer(1024)
-        with pytest.raises(ValueError):
-            buf.write(np.zeros(3, dtype=np.int16))
+        buf.write(iq16([1, 2, 3, 4]))
+        with pytest.raises(TypeError):
+            _ = buf.wait(2) + 1
+
+    def test_write_flat_int16_raises(self):
+        """The old faces are refused, not reinterpreted: a flat or (n, 2)
+        int16 array is not an array of samples."""
+        buf = I16Buffer(1024)
+        with pytest.raises(TypeError):
+            buf.write(np.zeros(4, dtype=np.int16))
+        with pytest.raises(TypeError):
+            buf.write(np.zeros((2, 2), dtype=np.int16))
+        assert buf.available == 0
 
     def test_write_wrong_dtype_raises(self):
         buf = I16Buffer(1024)
@@ -233,9 +263,9 @@ class TestI16Buffer:
 
     def test_full_then_overflow(self):
         buf = I16Buffer(1024)
-        cap = buf.capacity  # IQ pairs; flat int16 length is 2 * cap
-        assert buf.write(np.zeros(2 * cap, dtype=np.int16)) is True
-        assert buf.write(np.zeros(2, dtype=np.int16)) is False
+        cap = buf.capacity  # in SAMPLES, like every other count here
+        assert buf.write(np.zeros(cap, dtype=IQ16)) is True
+        assert buf.write(np.zeros(1, dtype=IQ16)) is False
 
     def test_threaded_producer_consumer(self):
         N = 256
@@ -243,12 +273,19 @@ class TestI16Buffer:
         flat = np.arange(N * 2, dtype=np.int16)
 
         def producer():
-            buf.write(flat)
+            # close() in `finally`: if write() raises, the consumer's wait()
+            # ends in EOFError instead of spinning forever. This test HUNG
+            # when the element type changed under it; a test that hangs
+            # under a defect is a defect in the test.
+            try:
+                buf.write(iq16(flat))
+            finally:
+                buf.close()
 
         t = threading.Thread(target=producer)
         t.start()
         view = buf.wait(N)
-        np.testing.assert_array_equal(view.ravel(), flat)
+        np.testing.assert_array_equal(view.view(np.int16), flat)
         buf.consume()
         t.join()
 
@@ -391,13 +428,11 @@ class TestWaitBeyondCapacity:
 
 
 # ── the shape invariant the three instantiations share (doppler#1346) ────────
-# `wait(n)` hands back one element per SAMPLE on f32/f64 and an I/Q pair ROW
-# on i16, so `len()` agrees across the three while the ELEMENT does not.
-# Anything generic over them -- a helper, a benchmark, a consumer written
-# against one width and pointed at another -- then means something different
-# without saying so. The fix is upstream: the ring becomes a jm-generated
-# template (just-makeit#1310) returning `[('i','<i2'),('q','<i2')]` for i16,
-# which is what buffer_ext.c's own header comment has claimed all along.
+# `wait(n)` hands back one element per SAMPLE on every width. It did not
+# always: i16 used to lend an I/Q pair ROW, shape (n, 2), so `len()` agreed
+# across the three while the ELEMENT did not -- and anything generic over
+# them meant something different without saying so. i16 now lends a record,
+# `[('i','<i2'),('q','<i2')]`, which is what makes these hold.
 
 
 class TestTheThreeInstantiationsAgree:
@@ -411,7 +446,7 @@ class TestTheThreeInstantiationsAgree:
             return np.zeros(n, dtype=np.complex64)
         if cls is F64Buffer:
             return np.zeros(n, dtype=np.complex128)
-        return np.zeros((n, 2), dtype=np.int16)
+        return np.zeros(n, dtype=IQ16)
 
     @pytest.mark.parametrize("cls", [F32Buffer, F64Buffer, I16Buffer])
     def test_len_is_the_sample_count(self, cls):
@@ -427,19 +462,6 @@ class TestTheThreeInstantiationsAgree:
         assert len(view) == 64
         buf.consume(64)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "doppler#1346: I16Buffer.wait() returns 2-D (n, 2) while f32/f64 "
-            "return 1-D, and buffer_ext.c's header comment already promises a "
-            "structured array. The fix is just-buildit/just-makeit#1310, "
-            "which makes the ring a generated template returning "
-            "[('i','<i2'),('q','<i2')] -- 1-D, one element per sample. STRICT "
-            "on purpose: xfail_strict is not set repo-wide, so a bare marker "
-            "would XPASS in silence. Strict makes the adoption announce "
-            "itself -- CI goes red until this marker is removed."
-        ),
-    )
     def test_rank_agrees_across_widths(self):
         """Rank is the invariant that silently broke.
 
@@ -469,7 +491,7 @@ _WIDTHS = [
     pytest.param(F64Buffer, lambda a: a.astype(np.complex128), id="f64"),
     pytest.param(
         I16Buffer,
-        lambda a: np.stack([a.real, a.imag], axis=1).astype(np.int16),
+        lambda a: iq16(np.stack([a.real, a.imag], axis=1).astype(np.int16)),
         id="i16",
     ),
 ]
@@ -484,7 +506,7 @@ def _ramp(n, start=0):
 def _pos(view):
     """Stream position of each sample in a view, whatever the width."""
     v = np.asarray(view)
-    return (v[:, 0] if v.ndim == 2 else v.real).astype(np.int64)
+    return (v["i"] if v.dtype.names else v.real).astype(np.int64)
 
 
 @pytest.mark.parametrize(("cls", "cast"), _WIDTHS)
@@ -580,10 +602,16 @@ class TestNonBlockingSurface:
         assert buf.write_some(cast(_ramp(5))) == 5
 
     def test_write_some_validates_like_write(self, cls, cast):
-        """One validator behind both, so they cannot disagree."""
+        """Both refuse a wrong dtype, the same way, and take nothing.
+
+        The generated binding says what it GOT (``got dtype('float32')``),
+        which is more use than the hand binding's naming of the method --
+        the traceback already has the method.
+        """
         buf = cls(1024)
         wrong = np.zeros(8, dtype=np.float32)
-        with pytest.raises(TypeError, match=r"write_some\(\)"):
+        with pytest.raises(TypeError, match="float32"):
             buf.write_some(wrong)
-        with pytest.raises(TypeError, match=r"write\(\)"):
+        with pytest.raises(TypeError, match="float32"):
             buf.write(wrong)
+        assert buf.available == 0 and buf.dropped == 0

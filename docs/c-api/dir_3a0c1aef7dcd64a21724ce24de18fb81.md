@@ -22,6 +22,7 @@
 | Type | Name |
 | ---: | :--- |
 | file | [**buffer.h**](buffer_8h.md) <br>_High-performance x86-64 Circular Buffer for RF Streaming._  |
+| file | [**buffer\_core.h**](buffer__core_8h.md) <br>_Buffer module — public C API._  |
 
 
 

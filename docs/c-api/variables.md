@@ -56,6 +56,8 @@
 
 ## f
 
+* **f32\_buffer\_state\_t** ([**f32\_buffer\_core.h**](f32__buffer__core_8h.md))
+* **f64\_buffer\_state\_t** ([**f64\_buffer\_core.h**](f64__buffer__core_8h.md))
 * **farrow\_\_core\_8h\_1a06fc87d81c62e9abb8790b6e5713c55b** ([**farrow\_core.h**](farrow__core_8h.md))
 * **FTYPE\_NAMES** ([**wfm\_names.h**](wfm__names_8h.md))
 
@@ -69,6 +71,11 @@
 
 * **HalfbandDecimator\_state\_t** ([**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md))
 * **hbdecim\_r2c\_state\_t** ([**hbdecim\_r2c\_core.h**](hbdecim__r2c__core_8h.md))
+
+
+## i
+
+* **i16\_buffer\_state\_t** ([**i16\_buffer\_core.h**](i16__buffer__core_8h.md))
 
 
 ## j

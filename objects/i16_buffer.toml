@@ -1,0 +1,167 @@
+# The i16 ring (buffer/buffer.h) as a jm component. The C does not change:
+# `fn` binds the symbols DECLARE_DP_BUFFER / DECLARE_DP_BUFFER_VIEW already
+# emit, `header_only` says there is no _core.c, and the state type is a typedef
+# of dp_i16_t in native/inc/i16_buffer/i16_buffer_core.h -- which is also where every
+# docstring below the class line comes from.
+#
+# Its two siblings differ only in the element. They are three files until
+# just-makeit#1310 (a manifest template) can say that once.
+[i16_buffer]
+arg_type = "void"
+return_type = "float _Complex"
+mutable = "false"
+no_state = "true"
+no_step = "true"
+no_reset = "true"
+opaque_state = "true"
+header_only = "true"
+class_name = "I16Buffer"
+create_fn = "dp_i16_create"
+# NULL from create() is a bad size (not a power of two, or the mapping
+# failed), which is the caller's to fix -- not an allocation failure.
+create_error = "ValueError"
+create_error_message = "capacity must be a power of two (and the mapping must succeed)"
+
+[[i16_buffer.init_params]]
+name = "capacity"
+type = "size_t"
+required = true
+
+# numpy has no complex-integer dtype, so a q15 sample crosses as a record:
+# 1-D, one element per SAMPLE, zero-copy both ways (doppler#1346).
+[[i16_buffer.records]]
+name = "dp_iq16_t"
+doc = "One complex q15 sample: in-phase and quadrature, int16 each."
+
+[[i16_buffer.records.fields]]
+name = "i"
+type = "int16_t"
+
+[[i16_buffer.records.fields]]
+name = "q"
+type = "int16_t"
+
+# `strict`: a ring exists to avoid copies, so a wrong dtype, rank or stride is
+# REFUSED rather than cast, copied and flattened.
+[[i16_buffer.methods]]
+name = "write"
+arg_type = "dp_iq16_t[]"
+return_type = "bool"
+strict = true
+fn = "dp_i16_write_view"
+
+[[i16_buffer.methods]]
+name = "write_some"
+arg_type = "dp_iq16_t[]"
+return_type = "size_t"
+strict = true
+fn = "dp_i16_write_some_view"
+
+# wait() BLOCKS, so `nogil` is correctness: with the GIL held a Python producer
+# could never run and a threaded pair would hang. One status table, shared
+# with peek(); dp_i16_wait_status() owns the precedence in C.
+[[i16_buffer.methods]]
+name = "wait"
+arg_type = "void"
+return_type = "float _Complex"
+record_dtype = "dp_iq16_t"
+nogil = true
+fn = "dp_i16_wait_view"
+borrow = true
+status_fn = "dp_i16_wait_status"
+
+[[i16_buffer.methods.params]]
+name = "n"
+type = "size_t"
+
+[[i16_buffer.methods.status_errors]]
+status = "DP_WAIT_TOO_LARGE"
+error = "ValueError"
+message = "wait({n}) can never be satisfied: the ring holds {capacity}"
+
+[[i16_buffer.methods.status_errors]]
+status = "DP_WAIT_CLOSED"
+error = "EOFError"
+message = "end of stream: the producer closed the ring"
+
+[[i16_buffer.methods.status_errors]]
+status = "DP_WAIT_INTERRUPTED"
+error = "KeyboardInterrupt"
+message = "interrupted"
+
+# DP_WAIT_PENDING has no row, so peek() falls through to `none_on_empty`:
+# None means NOT YET and nothing else.
+[[i16_buffer.methods]]
+name = "peek"
+arg_type = "void"
+return_type = "float _Complex"
+record_dtype = "dp_iq16_t"
+fn = "dp_i16_peek_view"
+none_on_empty = true
+borrow = true
+status_fn = "dp_i16_wait_status"
+
+[[i16_buffer.methods.params]]
+name = "n"
+type = "size_t"
+
+[[i16_buffer.methods.status_errors]]
+status = "DP_WAIT_TOO_LARGE"
+error = "ValueError"
+message = "peek({n}) can never be satisfied: the ring holds {capacity}"
+
+[[i16_buffer.methods.status_errors]]
+status = "DP_WAIT_CLOSED"
+error = "EOFError"
+message = "end of stream: the producer closed the ring"
+
+[[i16_buffer.methods.status_errors]]
+status = "DP_WAIT_INTERRUPTED"
+error = "KeyboardInterrupt"
+message = "interrupted"
+
+# The two releases. consume(n) defaults n to the outstanding borrow's count;
+# reset() takes none and just invalidates it.
+[[i16_buffer.methods]]
+name = "consume"
+arg_type = "void"
+return_type = "void"
+fn = "dp_i16_consume"
+releases = ["wait", "peek"]
+
+[[i16_buffer.methods.params]]
+name = "n"
+type = "size_t"
+
+[[i16_buffer.methods]]
+name = "close"
+arg_type = "void"
+return_type = "void"
+fn = "dp_i16_close"
+
+[[i16_buffer.methods]]
+name = "reset"
+arg_type = "void"
+return_type = "void"
+fn = "dp_i16_reset"
+releases = ["wait", "peek"]
+
+[[i16_buffer.properties]]
+name = "capacity"
+type = "size_t"
+
+[[i16_buffer.properties]]
+name = "available"
+type = "size_t"
+
+[[i16_buffer.properties]]
+name = "space"
+type = "size_t"
+
+[[i16_buffer.properties]]
+name = "dropped"
+type = "size_t"
+
+[[i16_buffer.properties]]
+name = "closed"
+type = "bool"

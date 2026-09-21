@@ -434,6 +434,7 @@
 * **inv\_upd** ([**dll\_state\_t**](structdll__state__t.md))
 * **id\_rate** ([**dll\_tlm\_t**](structdll__tlm__t.md), [**ratesync\_tlm\_t**](structratesync__tlm__t.md), [**symsync\_tlm\_t**](structsymsync__tlm__t.md))
 * **index** ([**dp\_chunk\_t**](structdp__chunk__t.md))
+* **i** ([**dp\_iq16\_t**](structdp__iq16__t.md))
 * **inverted** ([**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md), [**syncword\_hit\_t**](structsyncword__hit__t.md))
 * **iscale** ([**i16\_to\_f32\_state\_t**](structi16__to__f32__state__t.md), [**i16u32\_to\_f32\_state\_t**](structi16u32__to__f32__state__t.md), [**i16u64\_to\_f32\_state\_t**](structi16u64__to__f32__state__t.md), [**i32\_to\_f32\_state\_t**](structi32__to__f32__state__t.md), [**i8\_to\_f32\_state\_t**](structi8__to__f32__state__t.md), [**uq15\_to\_f32\_state\_t**](structuq15__to__f32__state__t.md))
 * **imd2\_dbc** ([**imd\_meas\_t**](structimd__meas__t.md))
@@ -726,7 +727,7 @@
 
 ## q
 
-* **q** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md))
+* **q** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md), [**dp\_iq16\_t**](structdp__iq16__t.md))
 * **q\_cap** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md))
 * **q\_head** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md))
 

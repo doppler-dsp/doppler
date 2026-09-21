@@ -84,6 +84,7 @@
 * [**doppler\_channel\_state\_t**](structdoppler__channel__state__t.md)
 * [**dp\_chunk\_t**](structdp__chunk__t.md)
 * [**dp\_header\_t**](structdp__header__t.md)
+* [**dp\_iq16\_t**](structdp__iq16__t.md)
 * [**dp\_peak\_t**](structdp__peak__t.md)
 * [**dp\_pf\_shared\_t**](structdp__pf__shared__t.md)
 * [**dp\_pool\_t**](structdp__pool__t.md)

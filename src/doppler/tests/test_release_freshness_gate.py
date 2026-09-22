@@ -207,3 +207,109 @@ def test_a_c_line_that_only_looks_like_a_comment_counts(
     _git(repo, "commit", "-qam", "add z")
     r = _run(repo, "1.0.1")
     assert r.returncode != 0
+
+
+# ── waivers: answering the gate in writing (doppler#1457's release) ─────────
+#
+# The gate is path-granular, so it cannot see that a change is confined to a
+# platform this release does not measure. A waiver names ONE item, carries a
+# reason, and is printed -- the cases below are the ones that decide whether
+# it is a record or a bypass.
+
+
+def _waive(repo: Path, version: str, body: str) -> None:
+    d = repo / "release-waivers"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"v{version}.md").write_text(body, encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "waiver")
+
+
+def test_a_waiver_clears_the_named_gallery_script(tmp_path: Path) -> None:
+    repo = _fixture(tmp_path)
+    (repo / GALLERY).write_text("print('plot v2')\n")
+    _git(repo, "commit", "-qam", "tweak the plot script")
+    _waive(
+        repo, "1.0.1", f"- gallery: {GALLERY} -- windows-only, art identical\n"
+    )
+    r = _run(repo, "1.0.1")
+    assert r.returncode == 0, r.stdout
+    # Printed, so a skipped check appears in the release log.
+    assert "WAIVED gallery" in r.stdout
+    assert "art identical" in r.stdout
+
+
+def test_a_waiver_clears_the_named_perf_path(tmp_path: Path) -> None:
+    repo = _fixture(tmp_path)
+    (repo / "native/src/k.c").write_text("int k(void){return 1;}\n")
+    _git(repo, "commit", "-qam", "tweak the kernel")
+    _waive(
+        repo, "1.0.1", "- benchmarks: native/src/k.c -- inside #ifdef _WIN32\n"
+    )
+    r = _run(repo, "1.0.1")
+    assert r.returncode == 0, r.stdout
+    assert "WAIVED benchmarks native/src/k.c" in r.stdout
+
+
+def test_a_waiver_for_one_item_does_not_clear_another(tmp_path: Path) -> None:
+    """The point of naming the item: it cannot widen into a blanket skip."""
+    repo = _fixture(tmp_path)
+    (repo / GALLERY).write_text("print('plot v2')\n")
+    (repo / "native/src/k.c").write_text("int k(void){return 1;}\n")
+    _git(repo, "commit", "-qam", "tweak both")
+    _waive(repo, "1.0.1", f"- gallery: {GALLERY} -- windows-only\n")
+    r = _run(repo, "1.0.1")
+    assert r.returncode != 0
+    assert "perf-relevant code changed" in r.stdout
+
+
+def test_a_waiver_without_a_reason_waives_nothing(tmp_path: Path) -> None:
+    repo = _fixture(tmp_path)
+    (repo / GALLERY).write_text("print('plot v2')\n")
+    _git(repo, "commit", "-qam", "tweak the plot script")
+    _waive(repo, "1.0.1", f"- gallery: {GALLERY}\n")
+    r = _run(repo, "1.0.1")
+    assert r.returncode != 0
+    assert "gallery script(s) changed" in r.stdout
+
+
+def test_a_waiver_matching_nothing_stale_is_refused(tmp_path: Path) -> None:
+    """A waiver that outlives its reason is how one widens unnoticed."""
+    repo = _fixture(tmp_path)
+    (repo / "benchmarks/published/v1.0.1").mkdir(parents=True)
+    (repo / "benchmarks/published/v1.0.1/portable.json").write_text("{}\n")
+    _waive(repo, "1.0.1", "- benchmarks: native/src/k.c -- stale waiver\n")
+    r = _run(repo, "1.0.1")
+    assert r.returncode != 0
+    assert "match nothing stale" in r.stdout
+
+
+def test_a_waiver_for_another_version_is_not_read(tmp_path: Path) -> None:
+    repo = _fixture(tmp_path)
+    (repo / GALLERY).write_text("print('plot v2')\n")
+    _git(repo, "commit", "-qam", "tweak the plot script")
+    _waive(repo, "9.9.9", f"- gallery: {GALLERY} -- other release\n")
+    r = _run(repo, "1.0.1")
+    assert r.returncode != 0
+    assert "gallery script(s) changed" in r.stdout
+
+
+def test_a_wrapped_reason_is_printed_whole(tmp_path: Path) -> None:
+    """mdformat reflows the waiver file, so a long reason arrives wrapped.
+    Printing only its first line would make the record look like a shrug."""
+    repo = _fixture(tmp_path)
+    (repo / GALLERY).write_text("print('plot v2')\n")
+    _git(repo, "commit", "-qam", "tweak the plot script")
+    _waive(
+        repo,
+        "1.0.1",
+        f"- gallery: {GALLERY} -- windows-only early return,\n"
+        "  and the art re-renders byte-identically\n",
+    )
+    r = _run(repo, "1.0.1")
+    assert r.returncode == 0, r.stdout
+    assert "byte-identically" in r.stdout
+    # One line, not a fragment followed by an orphaned continuation.
+    waived = [ln for ln in r.stdout.splitlines() if "WAIVED" in ln]
+    assert len(waived) == 1
+    assert waived[0].endswith("byte-identically")

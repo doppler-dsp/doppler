@@ -333,7 +333,10 @@ PRs never touch the same line ([Release](../release.md) owns the format and
 the assembly). A commit must also say what it closes, `Closes #N`, or say
 that it closes nothing, `No-issue:`; `make issue-link-check` refuses the
 silence between the two, because silence is how fixed work stays open in the
-backlog. Anything found and deliberately not fixed gets **filed as an issue
+backlog. It reads only the branch's OWN commits: one that is a base commit
+under a new hash (the same author, date and subject), which is what an
+`--amend` after a hook-blocked commit produces, fails outright rather than
+lending the branch that commit's declaration. Anything found and deliberately not fixed gets **filed as an issue
 before the PR merges**, never explained in a docstring — a carve-out written
 into a comment is invisible to everyone who did not already know to look for
 it.

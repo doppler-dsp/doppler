@@ -3,7 +3,11 @@
 # the cp39 wheel builds against numpy 2.0.x — its stable 2.x ABI means the wheel
 # still runs against newer numpy at import time.
 requires = [
-    "just-buildit",
+    # >=0.6.1 for the Windows wheel: earlier backends looked for Python's
+    # import library beside the build venv's python.exe instead of under
+    # sys.base_prefix, so every isolated Windows build failed with
+    # "Could not find Python 3.X import library" (just-buildit#47).
+    "just-buildit>=0.6.1",
     "numpy; python_version >= '3.11'",
     "numpy<2.3; python_version == '3.10'",
     "numpy<2.1; python_version == '3.9'",

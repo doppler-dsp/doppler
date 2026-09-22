@@ -233,6 +233,54 @@ jobs:
           path: dist/*.whl
 
   # ------------------------------------------------------------------
+  # Build Python wheels (Windows x64, clang-cl)
+  #
+  # The same `make wheel` as build-macos, on the toolchain ci.yml's Windows
+  # job builds and tests the extensions with on every PR: clang-cl + Ninja
+  # under the MSVC environment. just-buildit's repair step is
+  # `delvewheel repair` on Windows, which bundles any non-system DLL and
+  # stamps win_amd64. The wheel ships without the wfmgen CLI and StreamSink,
+  # which are POSIX-only by decision (doppler#1364, doppler#1457).
+  # ------------------------------------------------------------------
+  build-windows:
+    name: Build wheels (Windows x64)
+    needs: verify-version
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Read by pyext's configure, which `make wheel` reaches through
+      # just-buildit's `make just-build`: the same flags ci.yml passes.
+      CMAKE_ARGS: -G Ninja -DCMAKE_C_COMPILER=clang-cl
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: MSVC developer environment (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install uv + Python ${{ matrix.python }}
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Build wheel (Python ${{ matrix.python }})
+        run: make wheel
+
+      - name: Upload wheel (Python ${{ matrix.python }})
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-dist-windows-${{ matrix.python }}
+          path: dist/*.whl
+
+  # ------------------------------------------------------------------
   # Build sdist (source distribution for PyPI)
   # ------------------------------------------------------------------
   build-sdist:
@@ -419,15 +467,19 @@ jobs:
   # ------------------------------------------------------------------
   smoke-wheel:
     name: Smoke-test the built wheel (${{ matrix.arch.tag }})
-    needs: build-python
+    needs: [build-python, build-windows]
     runs-on: ${{ matrix.arch.runner }}
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
         arch:
-          - { tag: x86_64, runner: ubuntu-latest }
-          - { tag: aarch64, runner: ubuntu-24.04-arm }
+          - { tag: x86_64, runner: ubuntu-latest, artifact: python-dist-cp312-x86_64 }
+          - { tag: aarch64, runner: ubuntu-24.04-arm, artifact: python-dist-cp312-aarch64 }
+          - { tag: win_amd64, runner: windows-latest, artifact: python-dist-windows-3.12 }
     steps:
       - uses: actions/checkout@v7
 
@@ -443,7 +495,7 @@ jobs:
       - name: Download the cp312 wheel
         uses: actions/download-artifact@v8
         with:
-          name: python-dist-cp312-${{ matrix.arch.tag }}
+          name: ${{ matrix.arch.artifact }}
           path: dist/
 
       - name: Install the built wheel + run the e2e from a clean dir
@@ -457,7 +509,7 @@ jobs:
 
   publish-python:
     name: Publish to PyPI
-    needs: [verify-version, verify-ci, smoke-wheel, build-sdist, build-python, build-macos]
+    needs: [verify-version, verify-ci, smoke-wheel, build-sdist, build-python, build-macos, build-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: pypi
@@ -890,8 +942,12 @@ jobs:
         arch:
           - { tag: x86_64, runner: ubuntu-latest }
           - { tag: aarch64, runner: ubuntu-24.04-arm }
+          - { tag: win_amd64, runner: windows-latest }
     runs-on: ${{ matrix.arch.runner }}
     timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 

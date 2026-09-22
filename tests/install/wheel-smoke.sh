@@ -50,7 +50,12 @@ trap 'rc=$?; rm -rf "$work"; \
       exit "$rc"' EXIT
 
 uv venv --quiet "$work/venv"
-py="$work/venv/bin/python"
+# A Windows venv keeps its interpreter and console scripts in Scripts/, a POSIX
+# one in bin/. Derived from what uv just made, not from the OS name, so it is
+# right under any bash on Windows (Git Bash, MSYS2) without a second list.
+bindir="$work/venv/bin"
+[ -d "$bindir" ] || bindir="$work/venv/Scripts"
+py="$bindir/python"
 
 # ── obtain and install the artifact ──────────────────────────────────────────
 if [ "$MODE" = "wheel" ]; then
@@ -97,6 +102,6 @@ if [ "$MODE" = "pypi" ] && [ "$got" != "$ARG" ]; then
 fi
 
 echo ">> end-to-end ($(basename "$E2E"))"
-( cd "$work" && PATH="$work/venv/bin:$PATH" "$py" "$E2E" )
+( cd "$work" && PATH="$bindir:$PATH" "$py" "$E2E" )
 
 echo "wheel-smoke: OK — $PKG $got via --$MODE"

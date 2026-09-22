@@ -10,11 +10,17 @@
 
     The wheel bundles all native dependencies — the streaming extension
     statically links a vendored copy of `nats.c`. `pip install` works
-    out of the box on Linux and macOS (Python 3.9+). There are no Windows
-    wheels: on Windows, install under
-    [WSL2](https://learn.microsoft.com/windows/wsl/), a VM, or a container.
-    (The C library does build natively on Windows; see
-    [Build from Source](source.md#windows).)
+    out of the box on Linux (x86_64, aarch64), macOS (arm64) and Windows
+    (x64), for Python 3.9+.
+
+!!! note "What the Windows wheel leaves out"
+
+    The NATS stream layer is not ported to Windows yet, so the Windows
+    wheel has no `doppler.stream`, no `doppler.wfm.StreamSink` and no
+    `wfmgen` command (it prints that it is not available on this platform).
+    Everything else, including `doppler.wfm.Composer`, `Writer` and
+    `Reader`, is the same as on Linux and macOS. Tracked on
+    [#1364](https://github.com/doppler-dsp/doppler/issues/1364).
 
 ## Verify
 

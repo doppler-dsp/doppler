@@ -319,9 +319,10 @@ optional stream component, which vendors `nats.c`, are both pure C99).
         [Build from Source → Windows](install/source.md#windows) for the
         commands and what the Windows build leaves out, or download the
         pre-built zip: [Install the C library → Windows](install/c.md#windows).
-        There are no Windows wheels; for Python, use
-        [WSL2](https://learn.microsoft.com/windows/wsl/), a VM, or a
-        container and follow the Ubuntu / Debian steps.
+        For Python, `pip install doppler-dsp` installs the Windows wheel;
+        it leaves out the NATS stream layer (`doppler.stream`,
+        `StreamSink`, the `wfmgen` command), which is not ported yet
+        ([#1364](https://github.com/doppler-dsp/doppler/issues/1364)).
 
 See [Build from Source](install/source.md) for CMake options, Docker, and
 platform-specific notes.

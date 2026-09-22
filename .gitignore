@@ -95,3 +95,7 @@ native/tests/jm_test.h
 # LLVM coverage artifacts
 *.profraw
 *.profdata
+# CMakePresets.json builds under out/build/<preset> (an IDE configure, never
+# make's build/); a developer's own presets go in CMakeUserPresets.json.
+out/
+CMakeUserPresets.json

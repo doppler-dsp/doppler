@@ -280,7 +280,8 @@ acq_scan_surface (acq_state_t *st, const float *surf, int magnitude)
 /* The list over a surface, after acq_scan_surface() has run the decide
  * pass on it: the working mask holds the band mask, the slots the band's
  * first maxima. The gate is `eta` in the surface's units, the zone one
- * Doppler row (`interp` surface rows) by one chip (`spc` columns); every
+ * Doppler row (`interp` surface rows) by the mainlobe (`shape.zone`
+ * columns -- one chip for a code); every
  * pick after the first is one fanned scan of the working mask. When
  * nothing crosses the gate the strongest cell is still taken for the
  * inspection fields, as the classic detector always reported its maximum
@@ -300,7 +301,7 @@ acq_list_peaks (acq_state_t *st, const float *surf, float gate)
       if (st->n_peaks == st->max_peaks)
         break;
       det_peak_zone (st->peak_mask, rows, nx, best / nx, best % nx, st->interp,
-                     st->spc);
+                     st->shape.zone);
       dp_pool_run (st->pool, st->window_bins, acq_tile_pick, &sc);
       best = acq_merge_best (st, surf);
     }
@@ -546,7 +547,7 @@ acq_report_peaks (acq_state_t *st, const float *surf,
           size_t d = c > listed_col[j] ? c - listed_col[j] : listed_col[j] - c;
           if (d > nx / 2)
             d = nx - d;
-          twin = d <= st->spc;
+          twin = d <= st->shape.zone;
         }
       if (twin)
         {
@@ -557,7 +558,7 @@ acq_report_peaks (acq_state_t *st, const float *surf,
                                              : st->twin_col[k] - c;
               if (d > nx / 2)
                 d = nx - d;
-              still = st->twin_row[k] == (uint32_t)r && d <= st->spc;
+              still = st->twin_row[k] == (uint32_t)r && d <= st->shape.zone;
             }
           if (!still)
             continue; /* held: seen this dwell, listed next if it stays */
@@ -672,8 +673,9 @@ acq_mean_sinc (double umax)
  *    u spans +/- sb/(2*D) — this is the band-edge loss that dominates a
  *    full-span search (sinc(1/2) = -3.9 dB at the edge);
  *  - code-phase straddle: the true code phase lands up to half a sample
- *    off the grid, 1/(2*spc) chips, losing the triangular-autocorrelation
- *    factor (1 - delta_chip); mean = 1 - 1/(4*spc).
+ *    off the grid, losing whatever the preamble's autocorrelation gives up
+ *    over that offset -- the shape's delay_loss_mean (for a PN code, the
+ *    triangle's 1 - 1/(4*spc); acq_shape_of_chips).
  */
 /* Intra-segment rotation range: the residual u = f*code_bins spans the
  * TIGHTER of the searched band (sb bins of width 2*span/D) and the
@@ -740,14 +742,14 @@ acq_block_row (size_t r, size_t tiles, size_t i, size_t dI)
 }
 
 static double
-acq_straddle_loss (size_t D, size_t sb, size_t spc, double du, double span,
-                   size_t interp)
+acq_straddle_loss (size_t D, size_t sb, const acq_shape_t *sh, double du,
+                   double span, size_t interp)
 {
   /* Half of the bin the peak search actually samples: the slow-time axis is
      interpolated, so the worst straddle is half an INTERPOLATED bin. */
   double l_scallop = (D > 1) ? acq_mean_sinc (0.5 / (double)interp) : 1.0;
   double l_intra   = acq_mean_sinc (acq_intra_umax (D, sb, du, span));
-  double l_code    = 1.0 - 1.0 / (4.0 * (double)spc);
+  double l_code    = sh->delay_loss_mean;
   return l_scallop * l_intra * l_code;
 }
 
@@ -764,10 +766,10 @@ acq_sinc (double u)
  * path only; each factor is symmetric, so half-ranges suffice). nc == 1
  * evaluates the coherent path, nc > 1 the non-coherent one. */
 static double
-acq_mean_pd (double snr, size_t D, double umax, size_t spc, int n, double eta,
-             int nc, size_t interp)
+acq_mean_pd (double snr, size_t D, double umax, const acq_shape_t *sh, int n,
+             double eta, int nc, size_t interp)
 {
-  const int    nd = 8, nu = 8, nk = 4;
+  const int    nd = 8, nu = 8, nk = ACQ_DELAY_LOSS_NODES;
   const double half_bin = 0.5 / (double)interp; /* the SAMPLED bin */
   double       acc      = 0.0;
   for (int i = 0; i < nd; i++)
@@ -780,9 +782,7 @@ acq_mean_pd (double snr, size_t D, double umax, size_t spc, int n, double eta,
           double li = acq_sinc (umax * ((double)j + 0.5) / (double)nu);
           for (int k = 0; k < nk; k++)
             {
-              double lc
-                  = 1.0 - (0.5 / (double)spc) * ((double)k + 0.5) / (double)nk;
-              double se = snr * ls * li * lc;
+              double se = snr * ls * li * sh->delay_loss[k];
               acc += (nc > 1) ? det_pd_noncoherent (se, n, nc, eta)
                               : det_pd (se, n, eta);
             }
@@ -833,7 +833,7 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
   st->doppler_res_hz = st->chip_rate / ((double)st->sf * (double)D);
   st->pfa_cell = 1.0 - pow (1.0 - pfa, 1.0 / (double)(st->searched_bins * cb));
   double umax  = acq_intra_umax (D, st->searched_bins, du, span);
-  st->straddle_loss = acq_straddle_loss (D, st->searched_bins, st->spc, du,
+  st->straddle_loss = acq_straddle_loss (D, st->searched_bins, &st->shape, du,
                                          span, st->interp);
   st->eta           = (float)det_threshold (st->pfa_cell);
 
@@ -852,8 +852,8 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
     }
   if (snr > 0.0)
     {
-      st->pd_predicted = acq_mean_pd (snr, D, umax, st->spc, (int)st->n, gate,
-                                      (int)nc, st->interp);
+      st->pd_predicted = acq_mean_pd (snr, D, umax, &st->shape, (int)st->n,
+                                      gate, (int)nc, st->interp);
       st->underpowered = (uint8_t)(st->pd_predicted < pd);
     }
   else
@@ -879,12 +879,12 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
  * target. */
 static size_t
 acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
-                     double pd, size_t spc, double du, double span)
+                     double pd, const acq_shape_t *sh, double du, double span)
 {
   const size_t interp = acq_interp_for (D, 1);
   const double umax   = acq_intra_umax (D, sb, du, span);
   const double pc     = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
-  const double sloss  = acq_straddle_loss (D, sb, spc, du, span, interp);
+  const double sloss  = acq_straddle_loss (D, sb, sh, du, span, interp);
 
   int    k  = det_n_noncoh (snr * sloss, (int)(D * cb), pd, pc,
                             (int)ACQ_N_NONCOH_SAFETY_CEILING);
@@ -893,7 +893,7 @@ acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
     {
       double e = (nc > 1) ? det_threshold_noncoherent (pc, (int)nc)
                           : det_threshold (pc);
-      if (acq_mean_pd (snr, D, umax, spc, (int)(D * cb), e, (int)nc, interp)
+      if (acq_mean_pd (snr, D, umax, sh, (int)(D * cb), e, (int)nc, interp)
           >= pd)
         break;
       nc++;
@@ -1013,7 +1013,7 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
       double umax = acq_intra_umax (D, sb, du, span);
       double pc   = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
       double eta  = det_threshold (pc);
-      if (acq_mean_pd (snr, D, umax, st->spc, (int)(D * cb), eta, 1,
+      if (acq_mean_pd (snr, D, umax, &st->shape, (int)(D * cb), eta, 1,
                        acq_interp_for (D, 1))
           >= pd)
         {
@@ -1043,8 +1043,8 @@ acq_auto_config_continuous (const acq_state_t *st, size_t D, double pfa,
 
   *out_window_bins = window_bins;
   /* The searched Doppler cells are the tiles times the rows inside each. */
-  *out_nc = acq_ascend_n_noncoh (snr, D, window_bins * D, cb, pfa, pd, st->spc,
-                                 du, span);
+  *out_nc = acq_ascend_n_noncoh (snr, D, window_bins * D, cb, pfa, pd,
+                                 &st->shape, du, span);
 }
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
@@ -1142,7 +1142,7 @@ acq_tiles_alloc (acq_state_t *st, size_t tiles, size_t cb, size_t dI)
 
 static int
 acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
-            size_t new_freq_bins, const uint8_t *code, size_t code_len)
+            size_t new_freq_bins, const float _Complex *replica)
 {
   const size_t cb           = st->code_bins;
   const size_t new_n        = new_db * new_freq_bins * cb;
@@ -1178,22 +1178,15 @@ acq_regrid (acq_state_t *st, size_t new_db, size_t new_nc,
   float _Complex *new_blk_raw       = NULL;
   if (grid_changed)
     {
-      /* Single-row oversampled BPSK reference: row 0 (indices [0, cb))
-       * carries the replica (chip 0 -> +1, chip 1 -> -1, each held for spc
-       * samples), the rest of the (possibly wideband-enlarged) buffer
-       * zero. */
+      /* Single-row reference: row 0 (indices [0, cb)) carries one period
+       * of the replica -- the constructor's on the first grid, the one
+       * already held on every regrid after it -- the rest of the (possibly
+       * wideband-enlarged) buffer zero. */
       new_ref = (float _Complex *)calloc (new_n_surf, sizeof (float _Complex));
       if (!new_ref)
         goto fail;
-      if (code)
-        for (size_t c = 0; c < code_len; c++)
-          {
-            float sign = (code[c] & 1u) ? -1.0f : 1.0f;
-            for (size_t s = 0; s < st->spc; s++)
-              new_ref[c * st->spc + s] = sign;
-          }
-      else
-        memcpy (new_ref, st->ref, cb * sizeof (float _Complex));
+      memcpy (new_ref, replica ? replica : st->ref,
+              cb * sizeof (float _Complex));
 
       /* The correlator works on the INTERPOLATED row count: its single-row
          fast path runs one length-cb FFT per row and never touches the row
@@ -1391,17 +1384,42 @@ fail:
   return -1;
 }
 
+/* The correlation shape of a PN code held `spc` samples per chip: its
+ * autocorrelation is a triangle one chip wide, so peaks within a chip of
+ * each other are one emitter, and a peak `delta` samples off the grid keeps
+ * `1 - delta/spc` of its amplitude -- `1 - 1/(4*spc)` on average over the
+ * half-sample prior. Each node is written in the one form the Pd model has
+ * always evaluated it in, so a code engine sizes exactly as before. */
+static acq_shape_t
+acq_shape_of_chips (size_t spc)
+{
+  acq_shape_t sh     = { 0 };
+  const int   nk     = ACQ_DELAY_LOSS_NODES;
+  sh.zone            = spc;
+  sh.delay_loss_mean = 1.0 - 1.0 / (4.0 * (double)spc);
+  for (int k = 0; k < nk; k++)
+    sh.delay_loss[k]
+        = 1.0 - (0.5 / (double)spc) * ((double)k + 0.5) / (double)nk;
+  return sh;
+}
+
 /* Shared builder: allocates and configures the engine, dropping straight
  * into whichever auto-sizer `continuous` selects.  Not declared in the
  * header -- acq_create_burst()/acq_create_continuous() are the only public
  * entry points, each fixing @p reps/@p symbol_rate/`continuous` to its own
- * mode, never a per-call knob (see the file doc comment). */
+ * mode, never a per-call knob (see the file doc comment).
+ *
+ * It knows the waveform only as one period of @p replica (`sf * spc`
+ * samples) and its correlation @p shape: the unit the rates are counted in
+ * is a chip for a code, and the arithmetic is the same whatever that unit
+ * is. */
 static acq_state_t *
-acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
-                     size_t spc, double chip_rate, double symbol_rate,
-                     double cn0_dbhz, double doppler_uncertainty, double pfa,
-                     double pd, int noise_mode, int continuous,
-                     size_t code_only_epochs, double doppler_rate)
+acq_acq_create_impl (const float _Complex *replica, size_t sf,
+                     const acq_shape_t *shape, size_t reps, size_t spc,
+                     double chip_rate, double symbol_rate, double cn0_dbhz,
+                     double doppler_uncertainty, double pfa, double pd,
+                     int noise_mode, int continuous, size_t code_only_epochs,
+                     double doppler_rate)
 {
   /* Validate: bad arguments yield NULL (the binding maps this to a clear
    * MemoryError) rather than undefined behaviour downstream.  chip_rate > 0
@@ -1411,12 +1429,11 @@ acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
    * continuous engine has no such sizing -- non-coherent looks are its only
    * sensitivity lever and they cannot be chosen without a target -- so it
    * still requires one. */
-  const size_t sf   = code_len; /* sf is inferred from the code length */
   const double span = (sf > 0) ? chip_rate / (2.0 * (double)sf) : 0.0;
   /* doppler_uncertainty > span is not rejected: it engages wideband mode
    * (see the file doc comment's "Wideband window-tiling mode" section)
    * instead of being an out-of-range error. */
-  if (!code || code_len < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
+  if (!replica || sf < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
       || !(continuous ? cn0_dbhz > 0.0 : cn0_dbhz >= 0.0)
       || !isfinite (cn0_dbhz) || !(pfa > 0.0 && pfa < 1.0)
       || !(pd > 0.0 && pd < 1.0) || doppler_uncertainty < 0.0
@@ -1430,6 +1447,7 @@ acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
 
   st->sf                  = sf;
   st->spc                 = spc;
+  st->shape               = *shape;
   st->reps                = reps;
   st->code_bins           = sf * spc;
   st->chip_rate           = chip_rate;
@@ -1463,7 +1481,7 @@ acq_acq_create_impl (const uint8_t *code, size_t code_len, size_t reps,
     acq_auto_config_burst (st, pfa, pd, snr, doppler_uncertainty, &best_d,
                            &best_nc, &best_window_bins);
 
-  if (acq_regrid (st, best_d, best_nc, best_window_bins, code, code_len) != 0)
+  if (acq_regrid (st, best_d, best_nc, best_window_bins, replica) != 0)
     goto fail;
   acq_commit_thresholds (st, pfa, pd, snr, doppler_uncertainty);
   if (acq_set_max_peaks (st, 1) != 0)
@@ -1481,16 +1499,45 @@ fail:
   return NULL;
 }
 
+/* A PN code as the builder's waveform: one period of oversampled BPSK
+ * (chip 0 -> +1, chip 1 -> -1, each held for `spc` samples) and the
+ * triangle's shape. sf is the code length. */
+static acq_state_t *
+acq_create_from_chips (const uint8_t *code, size_t code_len, size_t reps,
+                       size_t spc, double chip_rate, double symbol_rate,
+                       double cn0_dbhz, double doppler_uncertainty, double pfa,
+                       double pd, int noise_mode, int continuous,
+                       size_t code_only_epochs, double doppler_rate)
+{
+  if (!code || code_len < 1 || spc < 1)
+    return NULL;
+  float _Complex *replica
+      = (float _Complex *)dp_xmalloc (code_len * spc * sizeof *replica);
+  for (size_t c = 0; c < code_len; c++)
+    {
+      float sign = (code[c] & 1u) ? -1.0f : 1.0f;
+      for (size_t s = 0; s < spc; s++)
+        replica[c * spc + s] = sign;
+    }
+  const acq_shape_t shape = acq_shape_of_chips (spc);
+  acq_state_t      *st    = acq_acq_create_impl (
+      replica, code_len, &shape, reps, spc, chip_rate, symbol_rate, cn0_dbhz,
+      doppler_uncertainty, pfa, pd, noise_mode, continuous, code_only_epochs,
+      doppler_rate);
+  free (replica);
+  return st;
+}
+
 acq_state_t *
 acq_create_burst (const uint8_t *code, size_t code_len, size_t reps,
                   size_t spc, double chip_rate, double cn0_dbhz,
                   double doppler_uncertainty, double pfa, double pd,
                   int noise_mode)
 {
-  return acq_acq_create_impl (code, code_len, reps, spc, chip_rate,
-                              /* symbol_rate= */ 0.0, cn0_dbhz,
-                              doppler_uncertainty, pfa, pd, noise_mode,
-                              /* continuous= */ 0, 1, 0.0);
+  return acq_create_from_chips (code, code_len, reps, spc, chip_rate,
+                                /* symbol_rate= */ 0.0, cn0_dbhz,
+                                doppler_uncertainty, pfa, pd, noise_mode,
+                                /* continuous= */ 0, 1, 0.0);
 }
 
 acq_state_t *
@@ -1500,10 +1547,10 @@ acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
                        int noise_mode, size_t code_only_epochs,
                        double doppler_rate)
 {
-  return acq_acq_create_impl (code, code_len, /* reps= */ 1, spc, chip_rate,
-                              symbol_rate, cn0_dbhz, doppler_uncertainty, pfa,
-                              pd, noise_mode, /* continuous= */ 1,
-                              code_only_epochs, doppler_rate);
+  return acq_create_from_chips (
+      code, code_len, /* reps= */ 1, spc, chip_rate, symbol_rate, cn0_dbhz,
+      doppler_uncertainty, pfa, pd, noise_mode,
+      /* continuous= */ 1, code_only_epochs, doppler_rate);
 }
 
 int
@@ -1517,7 +1564,7 @@ acq_configure_search_raw (acq_state_t *st, size_t doppler_bins,
   /* This escape hatch always pins the NATIVE (doppler_bins, n_noncoh) grid
    * -- it exits wideband mode (window_bins back to 1) if that was active,
    * matching its documented contract of pinning the classic grid directly. */
-  if (acq_regrid (st, doppler_bins, n_noncoh, 1, NULL, 0) != 0)
+  if (acq_regrid (st, doppler_bins, n_noncoh, 1, NULL) != 0)
     return -1;
 
   const double snr = acq_design_snr (st->cn0_dbhz, st->fs);

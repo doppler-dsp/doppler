@@ -204,6 +204,8 @@
 * **doppler\_hz\_est** ([**acq\_handoff\_t**](structacq__handoff__t.md), [**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md), [**burst\_capture\_event\_t**](structburst__capture__event__t.md), [**burst\_capture\_state\_t**](structburst__capture__state__t.md), [**dsss\_br\_event\_t**](structdsss__br__event__t.md), [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md), [**dsss\_receiver\_extra\_t**](structdsss__receiver__extra__t.md), [**dsss\_receiver\_state\_t**](structdsss__receiver__state__t.md))
 * **doppler\_res\_hz** ([**acq\_handoff\_t**](structacq__handoff__t.md), [**acq\_state\_t**](structacq__state__t.md), [**burst\_capture\_event\_t**](structburst__capture__event__t.md), [**burst\_capture\_state\_t**](structburst__capture__state__t.md), [**dsss\_br\_event\_t**](structdsss__br__event__t.md), [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md))
 * **doppler\_bin** ([**acq\_result\_t**](structacq__result__t.md))
+* **delay\_loss** ([**acq\_shape\_t**](structacq__shape__t.md))
+* **delay\_loss\_mean** ([**acq\_shape\_t**](structacq__shape__t.md))
 * **doppler\_rate** ([**acq\_state\_t**](structacq__state__t.md), [**wfm\_draw\_t**](structwfm__draw__t.md), [**wfm\_source\_t**](structwfm__source__t.md))
 * **doppler\_span\_hz** ([**acq\_state\_t**](structacq__state__t.md))
 * **doppler\_uncertainty** ([**acq\_state\_t**](structacq__state__t.md))
@@ -820,6 +822,7 @@
 * **samples\_consumed** ([**acq\_extra\_t**](structacq__extra__t.md), [**acq\_handoff\_t**](structacq__handoff__t.md), [**acq\_result\_t**](structacq__result__t.md), [**acq\_state\_t**](structacq__state__t.md), [**async\_dsss\_pool\_state\_t**](structasync__dsss__pool__state__t.md))
 * **searched\_bins** ([**acq\_state\_t**](structacq__state__t.md))
 * **sf** ([**acq\_state\_t**](structacq__state__t.md), [**burst\_despreader\_state\_t**](structburst__despreader__state__t.md), [**dll\_state\_t**](structdll__state__t.md))
+* **shape** ([**acq\_state\_t**](structacq__state__t.md))
 * **sink** ([**acq\_state\_t**](structacq__state__t.md))
 * **sink\_ctx** ([**acq\_state\_t**](structacq__state__t.md))
 * **sink\_decim** ([**acq\_state\_t**](structacq__state__t.md))
@@ -1019,6 +1022,7 @@
 
 ## z
 
+* **zone** ([**acq\_shape\_t**](structacq__shape__t.md))
 * **zeta** ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md), [**carrier\_nda\_state\_t**](structcarrier__nda__state__t.md), [**costas\_state\_t**](structcostas__state__t.md), [**dll\_state\_t**](structdll__state__t.md), [**loop\_filter\_state\_t**](structloop__filter__state__t.md), [**mpsk\_rx\_loops\_t**](structmpsk__rx__loops__t.md), [**ratesync\_loop\_t**](structratesync__loop__t.md), [**symsync\_state\_t**](structsymsync__state__t.md))
 * **zcol** ([**corr2d\_state\_t**](structcorr2d__state__t.md))
 * **zcolout** ([**corr2d\_state\_t**](structcorr2d__state__t.md))

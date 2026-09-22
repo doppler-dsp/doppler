@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.85.0"
+jm_version = "0.86.0"
 name = "doppler"
 version = "0.54.1"
 build = "cmake"
@@ -569,6 +569,10 @@ default = "0.0"
 
 [module.wfm_sink]
 kind            = "handle"
+# POSIX-only: it embeds stream_core_obj and the vendored nats.c, neither of
+# which is built on Windows (doppler#1364). Elsewhere StreamSink is absent
+# from doppler.wfm rather than present and broken (jm gh-1463).
+platforms       = ["linux", "macos"]
 backing         = "wfm_stream_sink"
 handle_type     = "wfm_stream_sink_t"
 header          = "wfm/wfm_sink.h"

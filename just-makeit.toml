@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.84.0"
+jm_version = "0.85.0"
 name = "doppler"
 version = "0.54.1"
 build = "cmake"
@@ -147,8 +147,16 @@ c_deps = ["hbdecim", "resamp", "wfmcompose", "ccsds_tm", "conv", "rs"]
 # `#include "jm_test.h"` and not compile here until it is converted to
 # DP_CHECK / DP_REQUIRE. tests-ssot fails it on the way past, so the
 # conversion is prompted rather than discovered. Tracked as #730.
+# CMakePresets.json is taken over (jm 0.85.0, gh-1376): its base preset adds
+# BUILD_PYTHON=ON. jm's preset assumes jm's top-level CMake, which defaults
+# it ON; doppler's hand-owned one defaults it OFF (a bare `cmake -B` is the C
+# library), so the render as shipped gives an IDE a build with no Python
+# extensions. The file is create-only either way -- jm never rewrites it --
+# so this entry records the ownership rather than changing what apply does.
+#
 status_allow = [
     "zensical.toml",
+    "CMakePresets.json",
     "native/src/resample/resample_ext_Resampler.c",
     "native/src/wfm/wfm_ext_wfm_synth.c",
     "native/tests/jm_test.h",

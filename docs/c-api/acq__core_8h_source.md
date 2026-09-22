@@ -66,6 +66,15 @@ extern "C"
     size_t best; 
   } acq_part_t;
 
+#define ACQ_DELAY_LOSS_NODES 4
+
+  typedef struct
+  {
+    size_t zone; 
+    double delay_loss_mean; 
+    double delay_loss[ACQ_DELAY_LOSS_NODES]; 
+  } acq_shape_t;
+
   typedef struct
   {
     corr2d_state_t *corr; 
@@ -99,6 +108,7 @@ extern "C"
     size_t frame_n; 
     size_t sf;      
     size_t spc;     
+    acq_shape_t shape; 
     size_t reps;    
     size_t
         searched_bins; 

@@ -96,6 +96,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  uint64\_t | [**samples\_consumed**](#variable-samples_consumed)  <br> |
 |  size\_t | [**searched\_bins**](#variable-searched_bins)  <br> |
 |  size\_t | [**sf**](#variable-sf)  <br> |
+|  [**acq\_shape\_t**](structacq__shape__t.md) | [**shape**](#variable-shape)  <br> |
 |  [**acq\_surface\_sink\_fn**](acq__core_8h.md#typedef-acq_surface_sink_fn) | [**sink**](#variable-sink)  <br> |
 |  void \* | [**sink\_ctx**](#variable-sink_ctx)  <br> |
 |  uint32\_t | [**sink\_decim**](#variable-sink_decim)  <br> |
@@ -1221,6 +1222,23 @@ size_t acq_state_t::sf;
 
 Chips per PN segment (= len(code)). 
  
+
+
+        
+
+<hr>
+
+
+
+### variable shape 
+
+```C++
+acq_shape_t acq_state_t::shape;
+```
+
+
+
+The preamble's correlation shape (zone, delay straddle); config, filled by the constructor. 
 
 
         

@@ -250,6 +250,40 @@ extern "C"
                       `n_surf` when it has none.                           */
   } acq_part_t;
 
+/** Quadrature nodes the Pd model averages the delay straddle over. */
+#define ACQ_DELAY_LOSS_NODES 4
+
+  /**
+   * @brief What the engine knows about the SHAPE of the repeated preamble,
+   *        beyond its samples (doppler#1470).
+   *
+   * The engine's framing, slow-time transform and wideband tiling hold for
+   * any periodic reference; only two things read the waveform's
+   * correlation shape, and they read it from here rather than from the
+   * chip count:
+   *
+   * - the width of the correlation mainlobe, which sets the peak list's
+   *   exclusion zone and the twin rule's reach (@ref zone);
+   * - the amplitude a peak keeps when the true delay falls between two
+   *   samples, which the Pd model averages over a uniform half-sample prior
+   *   (@ref delay_loss, @ref delay_loss_mean).
+   *
+   * The constructor that owns the waveform fills it once. A PN code of
+   * `spc` samples per chip has a triangular autocorrelation one chip wide,
+   * so its descriptor is analytic: `zone = spc`, and a peak `delta` samples
+   * off the grid keeps `1 - delta/spc`.
+   */
+  typedef struct
+  {
+    size_t zone; /**< Correlation mainlobe half-width, samples: peaks
+                      closer than this in delay are one emitter.       */
+    double delay_loss_mean; /**< Mean amplitude kept over a uniform delay
+                                 straddle of 0 to 1/2 sample.          */
+    double delay_loss[ACQ_DELAY_LOSS_NODES]; /**< Amplitude kept at the
+                                 midpoint nodes (k + 1/2)/nodes of that
+                                 half-sample range, k = 0 … nodes-1.  */
+  } acq_shape_t;
+
   /**
    * @brief Streaming acquisition-engine state.
    *
@@ -315,6 +349,8 @@ extern "C"
                           ONE shared epoch, not from consuming more input).  */
     size_t sf;      /**< Chips per PN segment (= len(code)).              */
     size_t spc;     /**< Samples per chip (chip-rate oversample factor).  */
+    acq_shape_t shape; /**< The preamble's correlation shape (zone, delay
+                            straddle); config, filled by the constructor. */
     size_t reps;    /**< Max coherent code repetitions (the ceiling); always
                          1 for an engine built via acq_create_continuous().*/
     size_t

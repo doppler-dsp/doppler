@@ -44,6 +44,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 | struct | [**acq\_handoff\_t**](structacq__handoff__t.md) <br>_Wire-ready hand-off record built from one_ [_**acq\_result\_t**_](structacq__result__t.md) _hit._ |
 | struct | [**acq\_part\_t**](structacq__part__t.md) <br>_One tile's share of a decided surface (design §2.3): the surface is cut into_ `window_bins` _chunks of whole rows, and the per-cell passes after the fan_ _the magnitude, the CFAR reference, the mask copy, each scan of the peak list_ _run per chunk into one of these, merged serially in tile order. The merge is bit-identical at any thread count because the chunks never move._ |
 | struct | [**acq\_result\_t**](structacq__result__t.md) <br>_One acquisition detection event._  |
+| struct | [**acq\_shape\_t**](structacq__shape__t.md) <br>_What the engine knows about the SHAPE of the repeated preamble, beyond its samples (doppler#1470)._  |
 | struct | [**acq\_state\_t**](structacq__state__t.md) <br>_Streaming acquisition-engine state._  |
 | struct | [**acq\_tlm\_t**](structacq__tlm__t.md) <br>_Telemetry attachment: a borrowed context + this engine's probe ids (design §2.4). NULL ctx (the default) means detached — the one probe site is then a single predicted-not-taken branch per decided dwell. Never in a state blob; preserved across_ [_**acq\_set\_state()**_](acq__core_8h.md#function-acq_set_state) _like the borrowed code._ |
 
@@ -131,6 +132,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 | Type | Name |
 | ---: | :--- |
 | define  | [**ACQ\_COL\_CHUNK**](acq__core_8h.md#define-acq_col_chunk)  `32u`<br> |
+| define  | [**ACQ\_DELAY\_LOSS\_NODES**](acq__core_8h.md#define-acq_delay_loss_nodes)  `4`<br> |
 | define  | [**ACQ\_MAX\_PEAKS**](acq__core_8h.md#define-acq_max_peaks)  `64u`<br> |
 | define  | [**ACQ\_N\_NONCOH\_SAFETY\_CEILING**](acq__core_8h.md#define-acq_n_noncoh_safety_ceiling)  `256u`<br>_Internal safety-valve ceiling on auto-selected non-coherent looks_  _not a public knob (no caller-facing equivalent of the retired_`max_noncoh` _parameter)._ |
 | define  | [**ACQ\_STATE\_MAGIC**](acq__core_8h.md#define-acq_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('A', 'C', 'Q', 'R')`<br> |
@@ -1313,6 +1315,23 @@ True
 
 
 Columns the block-end transform gathers per pass (design §2.3, #1243): a cache line holds 8 cf32 cells, so a chunk of 32 columns reads four lines per slow-time row of the block and writes four per surface row, where a column at a time read and wrote one line per CELL. 
+
+
+        
+
+<hr>
+
+
+
+### define ACQ\_DELAY\_LOSS\_NODES 
+
+```C++
+#define ACQ_DELAY_LOSS_NODES `4`
+```
+
+
+
+Quadrature nodes the Pd model averages the delay straddle over. 
 
 
         

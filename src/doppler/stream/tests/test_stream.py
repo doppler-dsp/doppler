@@ -60,6 +60,70 @@ pytestmark = pytest.mark.skipif(
 # ------------------------------------------------------------------ #
 
 
+# The broker's monitoring endpoint (scripts/start-nats.sh passes -m 8222).
+# Read ONLY when a readiness probe has already failed, so a broker without
+# it costs nothing and the probes behave exactly as before.
+_MONITOR_URL = "http://127.0.0.1:8222/jsz?streams=1&consumers=1"
+
+
+def _broker_state(endpoint: str) -> str:
+    """What the broker says about the work queue behind *endpoint*.
+
+    A timed-out probe cannot tell three very different failures apart: the
+    frame is still in the stream and nothing delivered it, it WAS delivered
+    and is waiting for an ack, or the stream is gone. The broker knows all
+    three, so a failure asks it (doppler#1463) and quotes the answer.
+
+    Returns a one-line summary, or why it could not be obtained. Never
+    raises: this runs on the failure path of a test that has already
+    failed, and an error here must not replace that test's message.
+    """
+    base = endpoint.rsplit("/", 1)[-1]
+    try:
+        import json
+        import urllib.request
+
+        with urllib.request.urlopen(_MONITOR_URL, timeout=2) as r:
+            jsz = json.load(r)
+    except Exception as exc:
+        return f"broker state unavailable ({type(exc).__name__}: {exc})"
+
+    streams = [
+        st
+        for acc in jsz.get("account_details", [])
+        for st in acc.get("stream_detail", [])
+        if st.get("name") == f"DP_WORK_{base}"
+    ]
+    if not streams:
+        names = sorted(
+            st.get("name", "?")
+            for acc in jsz.get("account_details", [])
+            for st in acc.get("stream_detail", [])
+        )
+        return f"no stream DP_WORK_{base} on the broker; it has {names}"
+
+    st = streams[0]
+    state = st.get("state", {})
+    parts = [
+        f"stream DP_WORK_{base}: messages={state.get('messages')}"
+        f" first_seq={state.get('first_seq')}"
+        f" last_seq={state.get('last_seq')}"
+    ]
+    consumers = st.get("consumer_detail", []) or []
+    if not consumers:
+        parts.append("NO consumer bound")
+    for c in consumers:
+        parts.append(
+            f"consumer {c.get('name')}: num_pending={c.get('num_pending')}"
+            f" num_ack_pending={c.get('num_ack_pending')}"
+            f" num_waiting={c.get('num_waiting')}"
+            f" num_redelivered={c.get('num_redelivered')}"
+            f" delivered={(c.get('delivered') or {}).get('stream_seq')}"
+            f" ack_floor={(c.get('ack_floor') or {}).get('stream_seq')}"
+        )
+    return "; ".join(parts)
+
+
 def _unique_endpoint(hint: str = "ep") -> str:
     """Use a random subject so tests don't collide with each other or a
     concurrent run on the same broker."""
@@ -72,7 +136,7 @@ def _unique_endpoint(hint: str = "ep") -> str:
 _READY_DEADLINE_S = 10.0
 
 
-def _ready_queue(sender, receiver, probe) -> None:
+def _ready_queue(sender, receiver, probe, endpoint: str) -> None:
     """Block until a work-queue endpoint demonstrably carries a frame.
 
     Replaces a fixed ``time.sleep``. How long JetStream takes to provision
@@ -101,7 +165,8 @@ def _ready_queue(sender, receiver, probe) -> None:
         except Exception as exc:
             last = exc
     raise AssertionError(
-        f"work queue not ready after {_READY_DEADLINE_S:.0f}s; last: {last!r}"
+        f"work queue not ready after {_READY_DEADLINE_S:.0f}s; "
+        f"last: {last!r}; {_broker_state(endpoint)}"
     )
 
 
@@ -237,7 +302,7 @@ def push_pull_cf64():
     ep = _unique_endpoint()
     push = Push(ep, CF64)
     pull = Pull(ep)
-    _ready_queue(push, pull, np.zeros(1, dtype=np.complex128))
+    _ready_queue(push, pull, np.zeros(1, dtype=np.complex128), ep)
     yield push, pull
     # A work queue keeps every frame no consumer ACKED, in a file-backed
     # stream nothing else deletes -- 40 GB of it, from repeated runs
@@ -332,7 +397,7 @@ def test_push_pull_cf32_roundtrip():
     # and check the values survive the round-trip at float precision.
     push = Push(ep, CF64)
     pull = Pull(ep)
-    _ready_queue(push, pull, np.zeros(1, dtype=np.complex128))
+    _ready_queue(push, pull, np.zeros(1, dtype=np.complex128), ep)
     x = np.array([1 + 2j, -3 - 4j], dtype=np.complex128)
     push.send(x)
     samples, _ = pull.recv(timeout_ms=2000)
@@ -350,7 +415,7 @@ def test_push_pull_ci32_roundtrip():
     ep = _unique_endpoint()
     push = Push(ep, CI32)
     pull = Pull(ep)
-    _ready_queue(push, pull, np.zeros(2, dtype=np.int32))
+    _ready_queue(push, pull, np.zeros(2, dtype=np.int32), ep)
     # CI32 send expects int32, interleaved [I0, Q0, I1, Q1, ...];
     # recv returns a flat int32 array of the same layout.
     x = np.array([1, 2, 3, 4], dtype=np.int32)  # 2 IQ pairs
@@ -388,7 +453,7 @@ def test_pub_sub_cf64_roundtrip():
 def test_push_context_manager():
     ep = _unique_endpoint()
     with Push(ep, CF64) as push, Pull(ep) as pull:
-        _ready_queue(push, pull, np.zeros(1, dtype=np.complex128))
+        _ready_queue(push, pull, np.zeros(1, dtype=np.complex128), ep)
         x = np.ones(4, dtype=np.complex128)
         push.send(x)
         samples, _ = pull.recv(timeout_ms=2000)
@@ -776,7 +841,7 @@ def test_requester_reply_timeout_raises():
 def test_pull_context_manager():
     ep = _unique_endpoint()
     with Push(ep, CF64) as push, Pull(ep) as pull:
-        _ready_queue(push, pull, np.zeros(1, dtype=np.complex128))
+        _ready_queue(push, pull, np.zeros(1, dtype=np.complex128), ep)
         x = np.ones(4, dtype=np.complex128)
         push.send(x)
         samples, _ = pull.recv(timeout_ms=2000)

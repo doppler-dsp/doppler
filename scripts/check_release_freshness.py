@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import re
 import subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -47,6 +48,27 @@ SNAPSHOTS = "benchmarks/published"
 
 #: Regenerated plots land here.
 ASSETS = "docs/assets"
+
+#: A release may WAIVE an item here, one file per version. OUTSIDE docs/:
+#: every page under docs/ must be linked from the index nearest it
+#: (check_nav_index), and a per-release record would add nav churn for
+#: something no reader browses to. The gate is
+#: path-granular by design (see `code_changed` for the one narrowing it
+#: already makes), so it cannot see that a change is confined to a platform
+#: this release does not measure -- v0.55.0's `dp_complex.h` edit lives
+#: entirely inside `#ifdef _WIN32`, and its gallery script gained a
+#: Windows-only early return that re-renders byte-identically.
+#:
+#: A waiver is NOT a bypass: it names one item, carries a reason, is
+#: committed beside the release, and is PRINTED by the gate, so a skipped
+#: check appears in the release log rather than vanishing. An unused waiver
+#: fails too -- a file that outlives its reason would silently widen.
+WAIVERS = "release-waivers"
+
+#: `- gallery: <path> -- <reason>` / `- benchmarks: <path> -- <reason>`
+WAIVER_RE = re.compile(
+    r"^-\s*(gallery|benchmarks)\s*:\s*(\S+)\s*(?:--|\u2014)\s*(\S.*)$"
+)
 
 
 def _git(*args: str, cwd: pathlib.Path) -> str:
@@ -140,6 +162,48 @@ def stale_benchmarks(
     return moved
 
 
+def waivers(version: str, cwd: pathlib.Path) -> dict[tuple[str, str], str]:
+    """``{(kind, path): reason}`` declared for *version*, or ``{}``.
+
+    A line without a reason is not a waiver and is ignored, so the file
+    cannot waive anything by accident: the reason is the point.
+    """
+    path = cwd / WAIVERS / f"v{version}.md"
+    if not path.is_file():
+        return {}
+    out: dict[tuple[str, str], str] = {}
+    key: tuple[str, str] | None = None
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        m = WAIVER_RE.match(raw.strip())
+        if m:
+            key = (m.group(1), m.group(2))
+            out[key] = m.group(3).strip()
+            continue
+        # A wrapped reason: mdformat reflows this file like any other
+        # markdown, so a reason longer than the line width arrives as
+        # indented continuations. Without joining them the gate would print
+        # the first few words and call that the record.
+        if key and raw[:1].isspace() and raw.strip():
+            out[key] = f"{out[key]} {raw.strip()}"
+        elif not raw.strip():
+            key = None
+    return out
+
+
+def apply_waivers(
+    kind: str, items: list[str], declared: dict[tuple[str, str], str]
+) -> tuple[list[str], list[tuple[str, str]]]:
+    """Split *items* into (still stale, waived) for one *kind*."""
+    stale, waived = [], []
+    for item in items:
+        reason = declared.get((kind, item))
+        if reason is None:
+            stale.append(item)
+        else:
+            waived.append((item, reason))
+    return stale, waived
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--version", required=True, metavar="X.Y.Z")
@@ -161,7 +225,14 @@ def main(argv: list[str] | None = None) -> int:
     changed = changed_since(ref, cwd)
 
     rc = 0
+    declared = waivers(args.version, cwd)
+    used: set[tuple[str, str]] = set()
+
     gal = stale_gallery(changed, args.scripts)
+    gal, waived_gal = apply_waivers("gallery", gal, declared)
+    for item, reason in waived_gal:
+        used.add(("gallery", item))
+        print(f"release-freshness: WAIVED gallery {item} — {reason}")
     if gal:
         rc = 1
         print(
@@ -177,6 +248,10 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     bench = stale_benchmarks(changed, args.version, cwd)
+    bench, waived_bench = apply_waivers("benchmarks", bench, declared)
+    for item, reason in waived_bench:
+        used.add(("benchmarks", item))
+        print(f"release-freshness: WAIVED benchmarks {item} — {reason}")
     if bench:
         rc = 1
         print(
@@ -188,6 +263,20 @@ def main(argv: list[str] | None = None) -> int:
             "  release.md §2b: measure both builds interleaved on the\n"
             "  representative machine, then `make bench-publish`. Skipping\n"
             "  is only correct when no perf-relevant code moved — it did."
+        )
+
+    unused = sorted(set(declared) - used)
+    if unused:
+        rc = 1
+        print(
+            f"release-freshness: {len(unused)} waiver(s) in "
+            f"{WAIVERS}/v{args.version}.md match nothing stale:"
+        )
+        for kind, item in unused:
+            print(f"    {kind}: {item}")
+        print(
+            "  A waiver outliving its reason is how one silently widens\n"
+            "  into a blanket skip. Delete the line, or name what is stale."
         )
 
     if rc == 0:

@@ -62,6 +62,29 @@ in the Makefile before running `make gallery`.
 
 ______________________________________________________________________
 
+## 2a. When freshness asks for work that is not there
+
+`make release-freshness-check` asks whether a gallery script or a
+perf-relevant path moved since the last tag. It cannot see *what* moved
+inside one, so a change confined to a platform this release does not
+measure — Windows, for doppler's Linux-measured benchmarks and art — still
+reads as stale.
+
+Answer it in writing rather than with a re-render that changes nothing:
+add `release-waivers/v<ver>.md` (repo root) with one line per item,
+
+```text
+- gallery: path/to/script.py -- why this needs no re-render
+- benchmarks: native/inc/header.h -- why the numbers still describe the tree
+```
+
+Each line waives exactly that item, must carry a reason, and is **printed**
+by the gate while it runs, so a skipped check lands in the release log. A
+line that matches nothing stale fails the gate, so a waiver cannot outlive
+its reason. `v0.55.0.md` is the worked example: four Windows-only items.
+
+______________________________________________________________________
+
 ## 2b. Refresh the benchmarks page
 
 The published [Benchmarks](../benchmarks.md) page is rendered from committed

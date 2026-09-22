@@ -1,4 +1,4 @@
-if(BUILD_PYTHON)
+if(BUILD_PYTHON AND (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR APPLE))
 
 # wfm_sink — handle extension: typed `StreamSink` over `wfm_stream_sink` (gh-306).
 # The resource logic lives in the backing _core.c; this is pure generated glue.

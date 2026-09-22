@@ -17,9 +17,14 @@ del _os, _sys
 from .wfm import PN, bpsk_map, qpsk_map, wfm_awgn_amplitude, wfm_ebno_to_snr_db, _SynthEngine, mls_poly, rrc_taps, dsss_spread, crc16, Gold, rrc_h, rc_h, Frame, FrameDesc, FrameLayout, FrameCheck  # noqa: E402
 from .stage_kinds import STAGE_CRC16, STAGE_RS, STAGE_RANDOMISE, STAGE_CONV, STAGE_INTERLEAVE, STAGE_USER  # noqa: E402
 from .sample_clock import SampleClock  # noqa: E402
-from .wfm_sink import StreamSink  # noqa: E402
 from .wfm_reader import Reader  # noqa: E402
 from .wfm_writer import Writer, write_blue_header  # noqa: E402
 from .compose import Synth, tone, bpsk, qpsk, pn, noise, Segment, Timeline, Composer, bits, chirp, Plan, prepare, PlanFromBlob, PlanFromFile, draws  # noqa: E402
 
-__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "rrc_taps", "dsss_spread", "crc16", "Gold", "Writer", "Reader", "StreamSink", "SampleClock", "write_blue_header", "rrc_h", "rc_h", "Frame", "FrameDesc", "FrameLayout", "FrameCheck", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "bits", "chirp", "Plan", "prepare", "PlanFromBlob", "PlanFromFile", "draws", "STAGE_CRC16", "STAGE_RS", "STAGE_RANDOMISE", "STAGE_CONV", "STAGE_INTERLEAVE", "STAGE_USER"]
+__all__ = ["PN", "bpsk_map", "qpsk_map", "wfm_awgn_amplitude", "wfm_ebno_to_snr_db", "_SynthEngine", "mls_poly", "rrc_taps", "dsss_spread", "crc16", "Gold", "Writer", "Reader", "SampleClock", "write_blue_header", "rrc_h", "rc_h", "Frame", "FrameDesc", "FrameLayout", "FrameCheck", "Synth", "tone", "bpsk", "qpsk", "pn", "noise", "Segment", "Timeline", "Composer", "bits", "chirp", "Plan", "prepare", "PlanFromBlob", "PlanFromFile", "draws", "STAGE_CRC16", "STAGE_RS", "STAGE_RANDOMISE", "STAGE_CONV", "STAGE_INTERLEAVE", "STAGE_USER"]
+
+# jm:platforms wfm_sink -- built on linux, macos only (gh-1463)
+if __import__("sys").platform in ("linux", "darwin"):
+    from .wfm_sink import StreamSink  # noqa: E402
+
+    __all__ += ["StreamSink"]

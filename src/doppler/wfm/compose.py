@@ -42,6 +42,7 @@ Examples
 from __future__ import annotations
 
 import json as _json
+from importlib.util import find_spec as _find_spec
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -83,7 +84,15 @@ from .wfm_plan import (
     PlanFromFile as _PlanFromFile,
 )
 from .wfm_reader import Reader  # noqa: F401  (re-export)
-from .wfm_sink import StreamSink  # noqa: F401  (re-export)
+
+# StreamSink is built only where [module.wfm_sink] platforms says (linux,
+# macos: it embeds the POSIX-only stream core, doppler#1364), and
+# doppler.wfm leaves it out elsewhere. Keyed on whether the extension was
+# BUILT, not on a second copy of that platform list. That is safe: where it
+# should exist, doppler/wfm/__init__.py's own guarded import runs first and
+# fails loudly on a broken build, so this cannot hide one.
+if _find_spec(f"{__package__}.wfm_sink") is not None:
+    from .wfm_sink import StreamSink  # noqa: F401  (re-export)
 from .wfm_writer import Writer  # noqa: F401  (re-export)
 
 # write_blue_header is now a generated wfm_writer module function (path + enum

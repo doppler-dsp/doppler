@@ -71,7 +71,8 @@ every push to `main` and on pull requests that touch the C. The clang-cl
 build is **binding** (`ci.yml`'s Windows job) and is what every release
 publishes as `doppler-<version>-windows-x86_64.zip` — see
 [Install the C library → Windows](c.md#windows) to use it without building.
-There are no Windows wheels yet. On Windows the static library is
+For Python on Windows, `pip install doppler-dsp` installs a pre-built wheel;
+see [Install for Python](python.md). On Windows the static library is
 `doppler_static.lib`, because `doppler.lib` is already the DLL's import
 library. The CMake target names (`doppler::doppler`, `doppler::doppler-static`)
 are the same on every platform.
@@ -82,10 +83,9 @@ out of a Windows build rather than failing:
 - the NATS stream layer (`libdoppler_stream`, `dp_pub_*` / `dp_sub_*`), and
     everything built on it: the wfm `StreamSink`, the `wfmgen` CLI and
     `doppler_wfmgen`, and the streaming examples;
-- the Python extensions and the Rust crate, which are built and tested on
-    Linux and macOS only. For Python on Windows, use
-    [WSL2](https://learn.microsoft.com/windows/wsl/), a Linux VM, or a
-    container, and follow the Ubuntu / Debian steps above;
+- the Rust crate, which is built and tested on Linux and macOS only. (The
+    Python extensions do build on Windows, without `doppler.stream` and
+    `StreamSink`; CI builds and tests them with clang-cl on every PR.)
 - a few tests of POSIX-only behaviour (signal chaining in `dp_interrupt`, a
     memory soak that reads `getrusage`).
 

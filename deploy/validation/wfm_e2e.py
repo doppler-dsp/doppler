@@ -73,6 +73,17 @@ EXPECTED_SYMBOLS = {
     "SampleClock",
 }
 
+# Absent from a Windows wheel BY DECISION, not by accident: StreamSink and the
+# wfmgen CLI both embed the POSIX-only stream client (doppler#1364), so
+# `[module.wfm_sink] platforms` and `doppler.wfm.cli.AVAILABLE` leave them out
+# there. Stated here rather than read back from the package, because a check
+# that asked the artifact what to expect could not catch the artifact being
+# wrong.
+POSIX_ONLY_SYMBOLS = {"StreamSink"}
+ON_WINDOWS = sys.platform == "win32"
+if ON_WINDOWS:
+    EXPECTED_SYMBOLS -= POSIX_ONLY_SYMBOLS
+
 results: list[tuple[str, bool, str]] = []
 
 
@@ -94,12 +105,29 @@ def check(name: str) -> Callable[[Check], Check]:
 def _surface() -> str:
     missing = EXPECTED_SYMBOLS - set(w.__all__)
     assert not missing, f"missing from __all__: {sorted(missing)}"
+    if ON_WINDOWS:
+        # Absent, not present-and-broken: the name must not be exported.
+        leaked = POSIX_ONLY_SYMBOLS & set(w.__all__)
+        assert not leaked, f"POSIX-only symbols exported: {sorted(leaked)}"
     for s in w.__all__:
         assert hasattr(w, s), f"{s} not importable"
     return f"{len(w.__all__)} symbols"
 
 
-@check("wfmgen console: json-template")
+def _wfmgen_refuses() -> str:
+    """On Windows the console script exists and must refuse CLEARLY: a
+    non-zero exit naming the platform, not a traceback or a missing file."""
+    p = subprocess.run(["wfmgen", "json-template"], capture_output=True)
+    err = p.stderr.decode(errors="replace")
+    assert p.returncode != 0, "wfmgen ran on a platform it is not built for"
+    assert "not available on this platform" in err, err.strip()[-200:]
+    return "refuses: not built on Windows (doppler#1364)"
+
+
+if ON_WINDOWS:
+    check("wfmgen console: refuses on Windows")(_wfmgen_refuses)
+
+
 def _cli_template() -> str:
     out = subprocess.run(
         ["wfmgen", "json-template"], check=True, capture_output=True
@@ -109,7 +137,6 @@ def _cli_template() -> str:
     return "parses as JSON"
 
 
-@check("wfmgen console: render to file")
 def _cli_render() -> str:
     with tempfile.TemporaryDirectory() as d:
         out = Path(d) / "tone.iq"
@@ -133,6 +160,11 @@ def _cli_render() -> str:
         x = np.fromfile(out, dtype=np.complex64)
     assert len(x) == 256, f"got {len(x)} samples"
     return "256 cf32 samples"
+
+
+if not ON_WINDOWS:
+    check("wfmgen console: json-template")(_cli_template)
+    check("wfmgen console: render to file")(_cli_render)
 
 
 @check("generate every waveform type")

@@ -49,7 +49,7 @@ def _stub_members(cls: ast.ClassDef) -> set[str]:
 def _cases():
     for pyi in sorted(ROOT.glob("*/*.pyi")):
         mod = f"doppler.{pyi.parent.name}.{pyi.stem}"
-        for node in ast.parse(pyi.read_text()).body:
+        for node in ast.parse(pyi.read_text(encoding="utf-8")).body:
             if isinstance(node, ast.ClassDef) and node.name[0] != "_":
                 yield pytest.param(mod, node, id=f"{mod}.{node.name}")
 

@@ -283,7 +283,7 @@ def test_the_record_carries_the_frame_and_rebuilds_it(tmp_path):
     )
     assert p.returncode == 0, p.stderr
 
-    seg = json.loads(rec.read_text())["segments"][0]
+    seg = json.loads(rec.read_text(encoding="utf-8"))["segments"][0]
     assert seg["acq_code"] == _bits(ACQ)
     assert seg["acq_reps"] == REPS
     assert seg["sync"] == _bits(SYNC)
@@ -304,7 +304,7 @@ def test_an_unframed_record_stays_unframed(tmp_path):
     )
     assert p.returncode == 0, p.stderr
 
-    seg = json.loads(rec.read_text())["segments"][0]
+    seg = json.loads(rec.read_text(encoding="utf-8"))["segments"][0]
     assert "acq_code" not in seg and "sync" not in seg and "crc" not in seg
 
     p2, out2 = _cli(["--from-file", str(rec)], tmp_path, "b.dat")

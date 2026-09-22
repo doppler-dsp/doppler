@@ -16,10 +16,15 @@ import tempfile
 import pytest
 
 from doppler.examples import dsss_burst_pipeline_demo as demo
+from doppler.tests._platform import requires_wfmgen
 
-pytestmark = pytest.mark.skipif(
-    demo.wfmgen_available() is None, reason="wfmgen CLI not built / on PATH"
-)
+pytestmark = [
+    requires_wfmgen,
+    pytest.mark.skipif(
+        demo.wfmgen_available() is None,
+        reason="wfmgen CLI not built / on PATH",
+    ),
+]
 
 
 def _generate():

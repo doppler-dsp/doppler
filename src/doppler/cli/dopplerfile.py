@@ -164,7 +164,7 @@ def load(path: Path) -> type[Block]:
     KeyError
         If the dopplerfile is missing a required field.
     """
-    doc = yaml.safe_load(path.read_text())
+    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
     return _make_block(
         name=doc["name"],
         role=doc["role"],

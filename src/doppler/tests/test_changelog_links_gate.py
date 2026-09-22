@@ -100,7 +100,9 @@ def test_the_first_release_points_at_its_tag(tmp_path: Path) -> None:
     """
     c = _write(tmp_path, THREE)
     _run(c, "--write")
-    assert f"[0.1.0]: {BASE}/releases/tag/v0.1.0" in c.read_text()
+    assert f"[0.1.0]: {BASE}/releases/tag/v0.1.0" in c.read_text(
+        encoding="utf-8"
+    )
 
 
 def test_a_new_release_chains_to_the_previous_one(tmp_path: Path) -> None:
@@ -111,7 +113,7 @@ def test_a_new_release_chains_to_the_previous_one(tmp_path: Path) -> None:
     c = _write(tmp_path, body)
     assert _run(c, "--check").returncode == 1
     _run(c, "--write")
-    text = c.read_text()
+    text = c.read_text(encoding="utf-8")
     assert f"[0.4.0]: {BASE}/compare/v0.3.0...v0.4.0" in text
     # and unreleased now compares against the NEW newest, not the old one
     assert f"[unreleased]: {BASE}/compare/v0.4.0...HEAD" in text
@@ -131,7 +133,7 @@ def test_an_intermediate_release_is_not_chained_past(tmp_path: Path) -> None:
     )
     c = _write(tmp_path, body)
     _run(c, "--write")
-    text = c.read_text()
+    text = c.read_text(encoding="utf-8")
     assert f"[0.2.5]: {BASE}/compare/v0.2.0...v0.2.5" in text
     assert f"[0.3.0]: {BASE}/compare/v0.2.5...v0.3.0" in text
     assert f"{BASE}/compare/v0.2.0...v0.3.0" not in text
@@ -150,7 +152,7 @@ def test_no_headings_refuses_rather_than_emptying_the_block(
     r = _run(c, "--write")
     assert r.returncode == 1
     assert "no `## [version]` headings" in r.stderr
-    assert "no headings here" in c.read_text()
+    assert "no headings here" in c.read_text(encoding="utf-8")
 
 
 def test_the_real_changelog_is_consistent() -> None:

@@ -35,7 +35,7 @@ def _record(tmp_path: Path, *flags: str) -> dict:
         capture_output=True,
     )
     assert p.returncode == 0, p.stderr.decode()
-    return json.loads(rec.read_text())
+    return json.loads(rec.read_text(encoding="utf-8"))
 
 
 def test_freq_range_records_as_array(tmp_path):
@@ -106,7 +106,9 @@ def _sigmf(tmp_path, *flags):
     assert p.returncode == 0, p.stderr.decode()
     data = tmp_path / "cap.sigmf-data.sigmf-data"
     meta = tmp_path / "cap.sigmf-data.sigmf-meta"
-    return np.fromfile(data, dtype=np.complex64), json.loads(meta.read_text())
+    return np.fromfile(data, dtype=np.complex64), json.loads(
+        meta.read_text(encoding="utf-8")
+    )
 
 
 def test_sigmf_annotation_reports_the_drawn_value_not_the_range_lo(tmp_path):

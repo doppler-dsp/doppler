@@ -39,7 +39,9 @@ _SCHEMA_PATH = repo_root(__file__) / "docs/schema/wfmgen.schema.json"
 def validator():
     from jsonschema import Draft202012Validator
 
-    return Draft202012Validator(json.loads(_SCHEMA_PATH.read_text()))
+    return Draft202012Validator(
+        json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +61,7 @@ def _record(tmp_path: Path, *flags: str) -> dict[str, Any]:
         capture_output=True,
     )
     assert p.returncode == 0, p.stderr.decode()
-    return json.loads(rec.read_text())
+    return json.loads(rec.read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -399,7 +401,7 @@ def test_from_file_record_validates(validator, tmp_path):
         capture_output=True,
     )
     assert p.returncode == 0, p.stderr.decode()
-    validator.validate(json.loads(rec.read_text()))
+    validator.validate(json.loads(rec.read_text(encoding="utf-8")))
 
 
 # ---------------------------------------------------------------------------

@@ -245,7 +245,9 @@ class TestTheClockIsNullable:
         cap = Capture(tlm, BLOCK, path, None)
         tlm.emit(pid, 2.0)
         cap.close()
-        meta = json.loads((tmp_path / "cap.tlm16-meta").read_text())
+        meta = json.loads(
+            (tmp_path / "cap.tlm16-meta").read_text(encoding="utf-8")
+        )
         # Not fabricated: absent, not a confident zero.
         assert "fs" not in meta
         assert "epoch_real_ns" not in meta

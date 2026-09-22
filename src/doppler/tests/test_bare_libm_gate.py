@@ -130,10 +130,9 @@ def test_a_separate_project_is_left_alone(tmp_path: Path) -> None:
     r = _run(root)
     assert r.returncode == 0, r.stdout + r.stderr
     r = _run(root, "--fix")
-    assert (
-        "PRIVATE m)"
-        in (root / "example-projects/demo/CMakeLists.txt").read_text()
-    )
+    assert "PRIVATE m)" in (
+        root / "example-projects/demo/CMakeLists.txt"
+    ).read_text(encoding="utf-8")
 
 
 def test_fix_rewrites_every_form_and_then_passes(tmp_path: Path) -> None:
@@ -144,7 +143,7 @@ def test_fix_rewrites_every_form_and_then_passes(tmp_path: Path) -> None:
     )
     root = _seed(tmp_path, _sub(body))
     assert _run(root, "--fix").returncode == 0
-    text = (root / "native/src/a/CMakeLists.txt").read_text()
+    text = (root / "native/src/a/CMakeLists.txt").read_text(encoding="utf-8")
     assert text.count("${DP_MATH_LIBRARY}") == 3, text
     r = _run(root)
     assert r.returncode == 0, r.stdout + r.stderr

@@ -18,7 +18,17 @@ import time
 import numpy as np
 import pytest
 
-from doppler.stream import CF32, Publisher, Pull, Push, Subscriber
+from doppler.tests._platform import skip_module_without_stream
+
+skip_module_without_stream()
+
+from doppler.stream import (  # noqa: E402  (after the Windows skip)
+    CF32,
+    Publisher,
+    Pull,
+    Push,
+    Subscriber,
+)
 
 
 def _broker_reachable(host: str = "127.0.0.1", port: int = 4222) -> bool:

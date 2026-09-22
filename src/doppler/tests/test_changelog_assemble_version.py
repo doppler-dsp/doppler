@@ -64,7 +64,7 @@ def test_renames_and_opens_a_fresh_unreleased(tmp_path: Path) -> None:
     script = _scratch(tmp_path)
     r = _run(script, "--version", "1.2.3")
     assert r.returncode == 0, r.stderr
-    out = (tmp_path / "CHANGELOG.md").read_text()
+    out = (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "## [Unreleased]" in out
     assert "## [1.2.3] - " in out
     # The fresh Unreleased sits ABOVE the cut release.
@@ -84,7 +84,7 @@ def test_promotes_and_renames_in_one_run(tmp_path: Path) -> None:
     _fragment(tmp_path, "added", "thing.md", "- **A thing** landed.\n")
     r = _run(script, "--version", "9.9.9")
     assert r.returncode == 0, r.stderr
-    out = (tmp_path / "CHANGELOG.md").read_text()
+    out = (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
     assert out.index("## [9.9.9]") < out.index("**A thing**")
     assert not (tmp_path / "changelog.d" / "added" / "thing.md").exists()
 
@@ -93,11 +93,11 @@ def test_a_version_already_cut_is_refused(tmp_path: Path) -> None:
     """Re-running must not open a second section for the same release."""
     script = _scratch(tmp_path)
     assert _run(script, "--version", "1.2.3").returncode == 0
-    before = (tmp_path / "CHANGELOG.md").read_text()
+    before = (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
     r = _run(script, "--version", "1.2.3")
     assert r.returncode != 0
     assert "already has a" in r.stderr
-    assert (tmp_path / "CHANGELOG.md").read_text() == before, (
+    assert (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8") == before, (
         "a refused run must leave the file byte-identical"
     )
 
@@ -116,7 +116,7 @@ def test_check_and_version_together_are_refused(tmp_path: Path) -> None:
     r = _run(script, "--check", "--version", "1.2.3")
     assert r.returncode != 0
     assert "opposites" in r.stderr
-    assert (tmp_path / "CHANGELOG.md").read_text() == HEAD
+    assert (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8") == HEAD
 
 
 def test_renames_even_with_no_fragments(tmp_path: Path) -> None:
@@ -124,7 +124,9 @@ def test_renames_even_with_no_fragments(tmp_path: Path) -> None:
     script = _scratch(tmp_path)
     r = _run(script, "--version", "0.1.0")
     assert r.returncode == 0, r.stderr
-    assert "## [0.1.0] - " in (tmp_path / "CHANGELOG.md").read_text()
+    assert "## [0.1.0] - " in (tmp_path / "CHANGELOG.md").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_assembled_changelog_is_already_mdformat_clean(

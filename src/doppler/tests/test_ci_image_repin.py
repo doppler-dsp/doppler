@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from doppler.tests._platform import skip_without_posix_shell
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -58,6 +59,7 @@ def _pin(tmp_path: Path, name: str, **over: str) -> Path:
 
 def _run(pending: Path, pinned: Path) -> subprocess.CompletedProcess[str]:
     """Run the gate over a (rebuilt, committed) pair of pin blocks."""
+    skip_without_posix_shell("the CI-image repin gate")
     return subprocess.run(
         [str(SCRIPT), str(pending), str(pinned)],
         capture_output=True,

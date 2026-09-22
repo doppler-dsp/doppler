@@ -58,7 +58,9 @@ class TestPersistence:
 
         monkeypatch.setattr(state_mod, "_CHAINS_DIR", tmp_path)
         _make_chain().save()
-        data = json.loads((tmp_path / "abc123.json").read_text())
+        data = json.loads(
+            (tmp_path / "abc123.json").read_text(encoding="utf-8")
+        )
         assert data["id"] == "abc123"
         assert len(data["blocks"]) == 2
 
@@ -195,7 +197,8 @@ class TestStopChain:
         chain.save()
         stop_chain(chain, kill=True)
 
-        assert all(sig == signal.SIGKILL for _, sig in signals_sent)
+        assert signals_sent
+        assert all(sig == state_mod.KILL_SIGNAL for _, sig in signals_sent)
 
     def test_dead_pids_skipped(self, tmp_path, monkeypatch):
         from doppler.cli import state as state_mod

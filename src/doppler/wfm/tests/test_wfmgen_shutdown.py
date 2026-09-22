@@ -41,12 +41,17 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from doppler.tests._platform import requires_wfmgen
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 REPO = repo_root(__file__)
+
+# wfmgen is not built on Windows (doppler#1364); these also signal a process
+# group, which is POSIX anyway.
+pytestmark = requires_wfmgen
 WFMGEN = REPO / "build" / "native" / "src" / "wfmcompose" / "wfmgen"
 
 #: How long the interrupted process may take to exit. Generous next to the

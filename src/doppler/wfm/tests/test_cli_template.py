@@ -39,7 +39,7 @@ def test_json_template_to_file(tmp_path):
     )
     assert p.returncode == 0
     assert p.stdout == b""  # nothing on stdout when a path is given
-    spec = json.loads(out.read_text())
+    spec = json.loads(out.read_text(encoding="utf-8"))
     assert spec["version"] == 1
 
 

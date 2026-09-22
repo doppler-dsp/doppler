@@ -36,7 +36,7 @@ def _init(tmp_path, monkeypatch, blocks):
     monkeypatch.setattr(compose_mod, "_CHAINS_DIR", tmp_path)
     monkeypatch.setattr(ports_mod, "_CHAINS_DIR", tmp_path)
     path = compose_mod.init(blocks)
-    return path, yaml.safe_load(path.read_text())
+    return path, yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ class TestComposeInit:
         monkeypatch.setattr(compose_mod, "_CHAINS_DIR", tmp_path)
         monkeypatch.setattr(ports_mod, "_CHAINS_DIR", tmp_path)
         path = compose_mod.init(["tone", "specan"], name="filter-test")
-        doc = yaml.safe_load(path.read_text())
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
         assert doc["id"] == "filter-test"
         assert path.name == "filter-test.yml"
 
@@ -183,7 +183,7 @@ def _tail_log(block, n: int = 4000) -> str:
     if not block.log_file:
         return "(no log file)"
     try:
-        text = Path(block.log_file).read_text()
+        text = Path(block.log_file).read_text(encoding="utf-8")
     except OSError as e:
         return f"(could not read {block.log_file}: {e})"
     return text[-n:]

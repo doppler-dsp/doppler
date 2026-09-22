@@ -20,6 +20,7 @@ from __future__ import annotations
 import subprocess
 from typing import TYPE_CHECKING
 
+from doppler.tests._platform import posix_only
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -53,12 +54,16 @@ def test_ordinary_names_pass(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stdout + r.stderr
 
 
+@posix_only("seeds a file name NTFS forbids (it holds '>')")
 def test_a_shell_fragment_name_fails(tmp_path: Path) -> None:
     r = _run(_repo(tmp_path, ["src/a.py", "x (self->h);,+25p"]))
     assert r.returncode == 1, r.stdout + r.stderr
     assert "outside [A-Za-z0-9._/-]" in r.stderr
 
 
+@posix_only(
+    "seeds two names differing only in case, which NTFS folds into one"
+)
 def test_names_differing_only_in_case_fail(tmp_path: Path) -> None:
     names = ["tests/test_Resampler.py", "tests/test_resampler.py"]
     r = _run(_repo(tmp_path, [*names, "tests/test_cic.py"]))
@@ -69,12 +74,18 @@ def test_names_differing_only_in_case_fail(tmp_path: Path) -> None:
     assert "test_cic.py" not in r.stderr
 
 
+@posix_only(
+    "seeds two names differing only in case, which NTFS folds into one"
+)
 def test_a_directory_case_collision_fails(tmp_path: Path) -> None:
     """The same file under two spellings of one DIRECTORY collides too."""
     r = _run(_repo(tmp_path, ["Docs/a.md", "docs/a.md"]))
     assert r.returncode == 1, r.stdout + r.stderr
 
 
+@posix_only(
+    "seeds two names differing only in case, which NTFS folds into one"
+)
 def test_the_collision_is_seen_when_handed_one_path(tmp_path: Path) -> None:
     """pre-commit hands the script only the staged names; a collision is a
     relation between two, so it must still be found against the tree."""

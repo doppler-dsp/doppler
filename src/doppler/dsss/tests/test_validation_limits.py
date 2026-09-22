@@ -48,6 +48,7 @@ from doppler.dsss.tests.validation.dsss_burst_receiver import (
 from doppler.dsss.tests.validation.ppe import (
     validate as ppe_validate,
 )
+from doppler.tests._platform import WINDOWS
 from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
@@ -62,7 +63,25 @@ OBJECTS = {
 }
 
 
-@pytest.fixture(scope="module", params=sorted(OBJECTS))
+#: The soak harness behind async_dsss_pool is not built on Windows: it times
+#: itself with getrusage/clock_gettime, which the UCRT lacks -- recorded as a
+#: carve-out on doppler#1364 at native/validation/CMakeLists.txt, where the
+#: target is created only under if(NOT WIN32).
+_NOT_ON_WINDOWS = {
+    "async_dsss_pool": pytest.mark.skipif(
+        WINDOWS,
+        reason="its soak harness is not built on Windows (doppler#1364)",
+    ),
+}
+
+
+@pytest.fixture(
+    scope="module",
+    params=[
+        pytest.param(k, marks=_NOT_ON_WINDOWS.get(k, ()))
+        for k in sorted(OBJECTS)
+    ],
+)
 def report(request):
     """One object's measured report, built once and shared."""
     return OBJECTS[request.param].build(write=False)

@@ -18,6 +18,7 @@ import numpy as np
 import pytest
 
 from doppler.interrupt import Interrupt
+from doppler.tests._platform import HARMLESS_SIGNAL
 
 
 @pytest.fixture
@@ -48,9 +49,8 @@ def test_interrupt_and_resume(benchmark, guard):
 
 def test_arm_disarm(benchmark):
     """Constructing a guard: two sigaction calls, on the signal path."""
-    import signal
 
-    sigs = np.array([signal.SIGUSR1], dtype=np.int32)
+    sigs = np.array([HARMLESS_SIGNAL], dtype=np.int32)
 
     def cycle():
         with Interrupt(sigs):

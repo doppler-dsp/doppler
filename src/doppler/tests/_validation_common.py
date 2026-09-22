@@ -812,7 +812,7 @@ def read_capture(path: Path) -> dict:
         }
     )
     rec = np.fromfile(path, dtype=dt)
-    meta = json.loads(Path(str(path) + "-meta").read_text())
+    meta = json.loads(Path(str(path) + "-meta").read_text(encoding="utf-8"))
     names = meta.get("probes", meta.get("probe_names", {}))
     if isinstance(names, list):
         names = {p["name"]: p.get("id", i) for i, p in enumerate(names)}
@@ -911,7 +911,7 @@ def cli(build, here: Path) -> int:
     out = here / "results.md"
 
     if check:
-        current = out.read_text() if out.exists() else ""
+        current = out.read_text(encoding="utf-8") if out.exists() else ""
         fresh = report.render()
         if _structural(current) != _structural(fresh):
             # SAY WHAT DIFFERS. "STALE" alone costs a round trip to answer

@@ -75,7 +75,7 @@ _DECIM_CALL = re.compile(r"\bema_alpha_decim\s*\(")
 
 def _code(path: Path) -> str:
     """The file's code with comments removed."""
-    return _COMMENTS.sub(" ", path.read_text())
+    return _COMMENTS.sub(" ", path.read_text(encoding="utf-8"))
 
 
 def adopters() -> dict[str, bool]:

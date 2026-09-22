@@ -27,7 +27,7 @@ three and the report says where they differ (nowhere it should).
 
 from __future__ import annotations
 
-import os
+import mmap
 import sys
 import threading
 import time
@@ -153,7 +153,9 @@ def section_object() -> None:
 def _capacity(d: Data) -> None:
     R.md("### 2.1 Capacity is what you asked for, on every machine (C §sizes)")
     R.md()
-    d.page = os.sysconf("SC_PAGESIZE")
+    # mmap.PAGESIZE is sysconf(_SC_PAGESIZE) on POSIX and dwPageSize on
+    # Windows, where os.sysconf does not exist.
+    d.page = mmap.PAGESIZE
     asks = (1, 3, 96, 511, 1000, 1024, 1025, 65537)
     rows = []
     for w in WIDTHS:

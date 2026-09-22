@@ -30,6 +30,7 @@ import sys
 import textwrap
 from typing import TYPE_CHECKING
 
+from doppler.tests._platform import posix_only
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -37,6 +38,11 @@ if TYPE_CHECKING:
 
 REPO = repo_root(__file__)
 SCRIPT = REPO / "scripts" / "check_workflow_syntax.py"
+
+
+#: `bash -n` is the gate. On Windows a bare `bash` is System32's WSL
+#: launcher, not a shell, and this gate's home is make lint on Linux CI.
+_NEEDS_BASH = posix_only("runs bash -n (System32's bash is the WSL launcher)")
 
 
 def _check(tmp_path: Path, body: str, name: str = "wf.yml"):
@@ -47,6 +53,7 @@ def _check(tmp_path: Path, body: str, name: str = "wf.yml"):
     )
 
 
+@_NEEDS_BASH
 def test_the_real_v0_43_0_block_is_rejected(tmp_path: Path) -> None:
     """The exact shape that broke the release, verbatim."""
     r = _check(
@@ -74,6 +81,7 @@ def test_the_real_v0_43_0_block_is_rejected(tmp_path: Path) -> None:
     assert "manylinux container" in r.stdout
 
 
+@_NEEDS_BASH
 def test_the_heredoc_fix_passes(tmp_path: Path) -> None:
     """A quoted heredoc makes the same comments inert."""
     r = _check(
@@ -96,6 +104,7 @@ def test_the_heredoc_fix_passes(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stdout
 
 
+@_NEEDS_BASH
 def test_a_gha_expression_is_not_a_syntax_error(tmp_path: Path) -> None:
     """`${{ }}` is substituted before the shell runs, so it must not trip."""
     r = _check(
@@ -128,6 +137,7 @@ def test_a_non_bash_shell_is_skipped(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stdout
 
 
+@_NEEDS_BASH
 def test_the_live_workflows_pass(tmp_path: Path) -> None:
     """The gate's own tree must be clean, or it is reporting nothing."""
     r = subprocess.run(

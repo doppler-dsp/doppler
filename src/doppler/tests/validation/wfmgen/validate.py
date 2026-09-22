@@ -27,11 +27,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from doppler.tests._repo import build_dir
+from doppler.tests._repo import build_dir, exe
 from doppler.tests._validation_common import Report, cli
 
 HERE = Path(__file__).resolve().parent
-HARNESS = build_dir(__file__) / "native/validation/validate_wfmgen_certify"
+HARNESS = exe(
+    build_dir(__file__) / "native/validation/validate_wfmgen_certify"
+)
 
 R = Report()
 

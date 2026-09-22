@@ -14,10 +14,15 @@ import numpy as np
 import pytest
 
 from doppler.examples import dsss_realtime_file_demod as demo
+from doppler.tests._platform import requires_wfmgen
 
-pytestmark = pytest.mark.skipif(
-    demo.wfmgen_available() is None, reason="wfmgen CLI not built / on PATH"
-)
+pytestmark = [
+    requires_wfmgen,
+    pytest.mark.skipif(
+        demo.wfmgen_available() is None,
+        reason="wfmgen CLI not built / on PATH",
+    ),
+]
 
 
 def test_tailing_pipeline_decodes_every_burst():

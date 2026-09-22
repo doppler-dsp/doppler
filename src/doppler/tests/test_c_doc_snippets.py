@@ -88,7 +88,10 @@ def _iter_fences(text):
 
 def _has_fences(path):
     try:
-        return next(_iter_fences(path.read_text()), None) is not None
+        return (
+            next(_iter_fences(path.read_text(encoding="utf-8")), None)
+            is not None
+        )
     except OSError:
         return False
 
@@ -110,7 +113,7 @@ def _load_ignore():
     if not IGNORE_FILE.exists():
         return set()
     out = set()
-    for line in IGNORE_FILE.read_text().splitlines():
+    for line in IGNORE_FILE.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             out.add(line)
@@ -123,7 +126,9 @@ GATED_PAGES = sorted(set(ALL_PAGES) - IGNORED)
 
 
 def _page_fence_count(page):
-    return sum(1 for _ in _iter_fences((DOCS / page).read_text()))
+    return sum(
+        1 for _ in _iter_fences((DOCS / page).read_text(encoding="utf-8"))
+    )
 
 
 # One parametrized case per (page, block index) — a page with N fences is N
@@ -290,7 +295,7 @@ def _run_one(blockid, marker, code, tmp_path):
 )
 def test_c_doc_page_snippet(page, index, tmp_path):
     """Compile + run one C fence; fail naming the exact block."""
-    text = (DOCS / page).read_text()
+    text = (DOCS / page).read_text(encoding="utf-8")
     marker, code = list(_iter_fences(text))[index]
     _run_one(f"{page}#block{index}", marker, code, tmp_path)
 
@@ -325,7 +330,7 @@ def test_ignored_pages_have_no_inline_markers():
     the ignore list instead."""
     offenders = []
     for page in sorted(IGNORED & set(ALL_PAGES)):
-        text = (DOCS / page).read_text()
+        text = (DOCS / page).read_text(encoding="utf-8")
         if any(marker is not None for marker, _ in _iter_fences(text)):
             offenders.append(page)
     assert not offenders, (

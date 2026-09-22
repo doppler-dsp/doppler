@@ -13,6 +13,78 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-09-22
+
+### Added
+
+- **A Windows wheel.** `pip install doppler-dsp` now installs a pre-built
+    `win_amd64` wheel for Python 3.9–3.14, built with clang-cl and repaired
+    by delvewheel, and smoke-tested before the upload and again from PyPI
+    after it. It leaves out the NATS stream layer, which is not ported yet
+    (`doppler.stream`, `doppler.wfm.StreamSink`, the `wfmgen` command;
+    [#1364](https://github.com/doppler-dsp/doppler/issues/1364)).
+
+### Changed
+
+- **just-makeit pin 0.83.0 → 0.84.0.** No generated file changes. It
+    brings `fragment = "generated"`, which lets a binding fragment become
+    fully jm-owned
+    ([#1446](https://github.com/doppler-dsp/doppler/issues/1446)). A first
+    render is refused while the fragment still holds hand-written code:
+    checked on `wfm_writer` and `pn`, where `apply` refused and wrote
+    nothing. `jm apply`'s false `out=` contiguity warnings are gone: 76
+    warnings on 0.83.0, 36 now, and the 2 contiguity warnings left are
+    real (`HalfbandDecimator`, `hbdecim_q15`).
+
+- **just-makeit pin 0.84.0 → 0.85.0.** No generated code changes. It
+    adds a `CMakePresets.json`, so Visual Studio and VS Code's CMake Tools
+    configure doppler through `cmake --preset` into `out/build/`. doppler's
+    copy also turns on `BUILD_PYTHON`, because doppler's CMake defaults it
+    off and an IDE build would otherwise have no Python extensions.
+
+- **just-makeit pin 0.85.0 → 0.86.0, and `wfm_sink` declares its
+    platforms.** `[module.wfm_sink] platforms = ["linux", "macos"]` (jm
+    gh-1463): on Windows the extension's CMake no longer names
+    `stream_core_obj`, which stopped the whole configure, and
+    `doppler.wfm` imports without `StreamSink` rather than failing on it.
+    `doppler.wfm.compose` re-exports `StreamSink` only where it was built.
+    Nothing changes on Linux or macOS.
+
+- **A release can answer the freshness gate in writing.**
+    `release-freshness-check` is path-granular, so a change confined to a
+    platform the release does not measure still read as a stale plot or
+    stale benchmarks. `release-waivers/v<ver>.md` now waives one
+    named item per line, each with a reason the gate prints as it runs; a
+    waiver that matches nothing stale fails the gate, so it cannot outlive
+    its reason.
+
+- **A stalled stream test says what the broker thinks.** When a `nats://`
+    work-queue readiness probe times out, the failure now quotes the
+    broker's own view of that queue — messages held, and each consumer's
+    pending, ack-pending, waiting and redelivered counts — so a rare
+    stall ([#1463](https://github.com/doppler-dsp/doppler/issues/1463))
+    says whether the frame was never delivered, delivered and unacked, or
+    gone. Test-side only: the broker's loopback monitoring port, read
+    after a failure.
+
+### Fixed
+
+- **The `doppler` CLI and config loaders on Windows.** `doppler stop`
+    checked whether a pipeline block was alive with `os.kill(pid, 0)`,
+    which on Windows is `TerminateProcess`: the check itself killed the
+    process. It now asks through a query-only handle, and `doppler kill` sends
+    the signal Windows has. Dopplerfiles, compose YAML, chain state and
+    specan's page were read with the locale codec (cp1252 on Windows) and
+    failed on the first non-ASCII byte; every read names UTF-8, and a lint
+    gate keeps it that way.
+
+- **The Python extensions get further under clang-cl on Windows.**
+    `dp_complex.h` now coexists with the UCRT `<complex.h>`, which numpy
+    includes on every MSVC build: the first Windows `make pyext` failed with
+    `conflicting types for 'cabsf'` and `float * _Fcomplex`. The stream
+    extension is skipped where its core is not built. Step 1 of
+    [#1457](https://github.com/doppler-dsp/doppler/issues/1457).
+
 ## [0.54.1] - 2026-09-21
 
 ### Changed
@@ -14291,8 +14363,9 @@ ______________________________________________________________________
 [0.53.0]: https://github.com/doppler-dsp/doppler/compare/v0.52.0...v0.53.0
 [0.54.0]: https://github.com/doppler-dsp/doppler/compare/v0.53.0...v0.54.0
 [0.54.1]: https://github.com/doppler-dsp/doppler/compare/v0.54.0...v0.54.1
+[0.55.0]: https://github.com/doppler-dsp/doppler/compare/v0.54.1...v0.55.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.54.1...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.55.0...HEAD

@@ -17,7 +17,7 @@ def _in_use() -> set[int]:
         return ports
     for f in _CHAINS_DIR.glob("*.json"):
         try:
-            state = json.loads(f.read_text())
+            state = json.loads(f.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             continue
         for block in state.get("blocks", []):

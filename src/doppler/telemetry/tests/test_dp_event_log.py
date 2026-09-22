@@ -18,7 +18,7 @@ from doppler.telemetry import EventLog
 
 
 def _read(path):
-    return json.loads(Path(path).read_text())
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def test_pathlike_and_round_trip(tmp_path):
@@ -94,7 +94,7 @@ def test_context_manager_closes(tmp_path):
     with EventLog(path) as log:
         log.append(1, "seeded")
         log.append(2, "released")
-    assert len(path.read_text().splitlines()) == 2
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 2
 
 
 def test_append_to_a_closed_log_raises(tmp_path):
@@ -115,7 +115,7 @@ def test_an_event_at_the_line_ceiling_raises(tmp_path):
         assert log.count == 0
         log.append(1, "x" * 1000)
         assert log.count == 1
-    assert len(path.read_text().splitlines()) == 1
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 1
 
 
 def test_unopenable_path_raises(tmp_path):

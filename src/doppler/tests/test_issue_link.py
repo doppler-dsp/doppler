@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from doppler.tests._platform import skip_without_posix_shell
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -29,6 +30,7 @@ SCRIPT = REPO / "scripts" / "issue-link-check.sh"
 
 def _run(msg: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
     """Run the gate over one seeded commit message."""
+    skip_without_posix_shell("scripts/issue-link-check.sh")
     f = tmp_path / "msg.txt"
     f.write_text(msg)
     return subprocess.run(

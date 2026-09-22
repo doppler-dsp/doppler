@@ -8,40 +8,19 @@ type's quantization. Reader is the C reader that superseded the old pure-Python
 helper returned a zero-copy ``complex128`` view).
 """
 
-import os
-import shutil
 import subprocess
 
 import numpy as np
 import pytest
 
-from doppler.tests._repo import repo_root
-from doppler.wfm import Reader
-
-
-def _wfmgen_bin():
-    """The one C CLI: on PATH, else the CMake build tree, else None."""
-    p = shutil.which("wfmgen")
-    if p:
-        return p
-    root = repo_root(__file__)
-    for cand in root.glob("build*/**/wfmgen"):
-        if cand.is_file() and os.access(cand, os.X_OK):
-            return str(cand)
-    return None
-
-
-_WFMGEN = _wfmgen_bin()
-pytestmark = pytest.mark.skipif(
-    _WFMGEN is None, reason="wfmgen CLI not built / on PATH"
-)
+from doppler.wfm import Reader, cli
 
 
 def _gen(tmp_path, sample_type, endian="le", n=2000):
     out = tmp_path / f"cap_{sample_type}_{endian}.iq"
     subprocess.run(
         [
-            _WFMGEN,
+            cli._runnable(),
             "--type",
             "tone",
             "--fs",

@@ -19,14 +19,14 @@ import time
 import numpy as np
 import pytest
 
-from doppler.tests._repo import build_dir
+from doppler.tests._platform import WINDOWS
+from doppler.tests._repo import build_dir, exe
 from doppler.wfm import cli, dsss_spread, mls_poly, rrc_taps, write_blue_header
 from doppler.wfm.compose import (
     Composer,
     Reader,
     SampleClock,
     Segment,
-    StreamSink,
     Synth,
     Timeline,
     Writer,
@@ -36,6 +36,13 @@ from doppler.wfm.compose import (
     qpsk,
     tone,
 )
+
+# StreamSink exists only where [module.wfm_sink] platforms builds it: absent
+# on Windows by decision (doppler#1364). Imported only there, so a Linux or
+# macOS build that lost it still fails here, loudly; every test that uses it
+# carries `_needs_stream_sink`.
+if not WINDOWS:
+    from doppler.wfm.compose import StreamSink
 
 
 def _read_all(r):
@@ -87,9 +94,9 @@ def _nats_available() -> bool:
 
 
 _needs_stream_sink = pytest.mark.skipif(
-    sys.platform == "win32" or not _nats_available(),
-    reason="StreamSink not available on this platform, or no nats-server "
-    "on 127.0.0.1:4222 (run `nats-server -js`)",
+    WINDOWS or not _nats_available(),
+    reason="StreamSink is not built on Windows (doppler#1364), or no "
+    "nats-server on 127.0.0.1:4222 (run `nats-server -js`)",
 )
 _needs_clock = pytest.mark.skipif(
     sys.platform == "win32",
@@ -143,7 +150,9 @@ def test_byte_parity_vs_wfmgen(tmp_path, wtype, stype):
     assert _md5(py) == _md5(cli), f"{wtype}/{stype} diverged from wfmgen"
 
 
-_C_HARNESS = build_dir(__file__) / "native/validation/validate_wfmgen_certify"
+_C_HARNESS = exe(
+    build_dir(__file__) / "native/validation/validate_wfmgen_certify"
+)
 
 
 @pytest.mark.parametrize("wtype", ["tone", "noise", "pn", "bpsk", "qpsk"])

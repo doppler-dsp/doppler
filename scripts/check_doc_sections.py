@@ -266,7 +266,7 @@ def main(argv: list[str] | None = None) -> int:
         for name, sec, title, at in citations(text, f):
             doc = resolve(name, f, root)
             line = text.count("\n", 0, at) + 1
-            where = f"{f.relative_to(root)}:{line}"
+            where = f"{f.relative_to(root).as_posix()}:{line}"
             if doc not in cache:
                 cache[doc] = headings(doc)
             heads = cache[doc]

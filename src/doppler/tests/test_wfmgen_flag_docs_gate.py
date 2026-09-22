@@ -174,7 +174,9 @@ def test_broken_flag_discovery_is_not_a_pass(tmp_path: Path) -> None:
     """
     root = _seed(tmp_path, ["--asm"], {"coding.md": ANCHOR_DOCS})
     src = root / "native" / "src" / "app" / "wfmgen.c"
-    src.write_text(src.read_text().replace(".name  =", ".flagname ="))
+    src.write_text(
+        src.read_text(encoding="utf-8").replace(".name  =", ".flagname =")
+    )
     r = _run(root)
     assert r.returncode != 0
     assert "flag discovery is broken" in r.stdout + r.stderr

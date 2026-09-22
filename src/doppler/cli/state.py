@@ -6,6 +6,7 @@ import contextlib
 import json
 import os
 import signal
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -59,7 +60,7 @@ class ChainState:
         path = _CHAINS_DIR / f"{chain_id}.json"
         if not path.exists():
             raise KeyError(f"No chain with id {chain_id!r}")
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         blocks = [
             BlockState(
                 name=b["name"],
@@ -90,7 +91,33 @@ def list_chains() -> list[ChainState]:
     return chains
 
 
+#: The signal ``stop_chain(kill=True)`` sends. POSIX has SIGKILL. Windows
+#: has no uncatchable signal: ``os.kill`` there calls ``TerminateProcess``
+#: for any signal but the two console events, which is already the hard stop
+#: SIGKILL means, so SIGTERM is the portable spelling of it.
+KILL_SIGNAL: int = getattr(signal, "SIGKILL", signal.SIGTERM)
+
+
 def pid_alive(pid: int) -> bool:
+    """Whether a process with this PID exists, without disturbing it.
+
+    POSIX asks with signal 0, which checks the PID and delivers nothing.
+    Windows has no such probe: ``os.kill(pid, 0)`` there is
+    ``TerminateProcess(pid, 0)``, so the POSIX spelling would kill the very
+    process it asks about. It opens a query-only handle instead and reads
+    the exit code, which is ``STILL_ACTIVE`` while the process runs.
+
+    A PID this user may not touch reads as not ours, on both platforms.
+
+    Examples
+    --------
+    >>> import os
+    >>> from doppler.cli.state import pid_alive
+    >>> pid_alive(os.getpid())
+    True
+    """
+    if sys.platform == "win32":
+        return _win_pid_alive(pid)
     try:
         os.kill(pid, 0)
         return True
@@ -98,9 +125,29 @@ def pid_alive(pid: int) -> bool:
         return False
 
 
+def _win_pid_alive(pid: int) -> bool:
+    import ctypes
+    from ctypes import wintypes
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.OpenProcess.restype = wintypes.HANDLE
+    k32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    process_query_limited_information = 0x1000
+    still_active = 259
+    h = k32.OpenProcess(process_query_limited_information, False, pid)
+    if not h:
+        return False  # no such process, or not one this user may query
+    try:
+        code = wintypes.DWORD()
+        ok = k32.GetExitCodeProcess(h, ctypes.byref(code))
+        return bool(ok) and code.value == still_active
+    finally:
+        k32.CloseHandle(h)
+
+
 def stop_chain(chain: ChainState, kill: bool = False) -> None:
-    """Send SIGTERM (or SIGKILL) to all block processes."""
-    sig = signal.SIGKILL if kill else signal.SIGTERM
+    """Send SIGTERM (or :data:`KILL_SIGNAL`) to all block processes."""
+    sig = KILL_SIGNAL if kill else signal.SIGTERM
     for block in chain.blocks:
         if pid_alive(block.pid):
             with contextlib.suppress(ProcessLookupError):

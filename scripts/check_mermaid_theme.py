@@ -100,7 +100,7 @@ def main() -> int:
         text = page.read_text(encoding="utf-8")
         n_diagrams += len(_FENCE.findall(text))
         if bad := violations(text):
-            found[str(page.relative_to(root))] = bad
+            found[page.relative_to(root).as_posix()] = bad
 
     # Fail closed, the way the sibling doc gates do. Zero diagrams means the
     # fence syntax changed or the docs moved, and printing OK over nothing

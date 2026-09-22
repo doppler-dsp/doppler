@@ -6,12 +6,11 @@ copy-not-alias, no-aliasing-across-calls regression, no-leak-in-a-loop
 regression.
 """
 
-import resource
-
 import numpy as np
 import pytest
 
 from doppler.interp import InterpolatedTable
+from doppler.tests._platform import posix_only
 
 
 def test_create():
@@ -121,6 +120,7 @@ def test_execute_no_aliasing_across_calls():
     np.testing.assert_array_equal(first, first_snapshot)
 
 
+@posix_only("measures peak RSS with resource.getrusage")
 def test_execute_no_leak_in_tight_loop():
     t = InterpolatedTable(
         np.array([10.0, 20.0, 30.0], dtype=np.complex128), "linear"
@@ -128,6 +128,8 @@ def test_execute_no_leak_in_tight_loop():
     x = np.array([0.25, 1.5, 2.75])
     for _ in range(2000):
         _ = t.execute(x)
+    import resource  # POSIX-only module; see the marker
+
     start_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     for _ in range(50_000):
         _ = t.execute(x)

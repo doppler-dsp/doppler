@@ -186,8 +186,8 @@ def test_update_baseline_records_what_is_there(tmp_path: Path) -> None:
     a = _seed(tmp_path, {"native/src/x/x_core.c": BARE * 2}, allow="")
     r = _run(tmp_path, a, "--update-baseline")
     assert r.returncode == 0, r.stdout
-    assert "native/src/x/x_core.c 2" in a.read_text()
-    assert "MAY ONLY SHRINK" in a.read_text()
+    assert "native/src/x/x_core.c 2" in a.read_text(encoding="utf-8")
+    assert "MAY ONLY SHRINK" in a.read_text(encoding="utf-8")
     # and the tree it just recorded now passes
     assert _run(tmp_path, a).returncode == 0
 

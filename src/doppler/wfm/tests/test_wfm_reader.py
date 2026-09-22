@@ -569,7 +569,9 @@ def test_unstated_rate_is_omitted_from_the_sigmf_sidecar(tmp_path):
     p = tmp_path / "norate.sigmf-data"
     with Writer(p, file_type="sigmf", sample_type="cf32", fs=0.0) as w:
         w.write(np.zeros(8, dtype=np.complex64))
-    meta = json.loads((tmp_path / "norate.sigmf-meta").read_text())
+    meta = json.loads(
+        (tmp_path / "norate.sigmf-meta").read_text(encoding="utf-8")
+    )
     assert "core:sample_rate" not in meta["global"]
     assert meta["global"]["core:datatype"] == "cf32_le"  # still valid SigMF
 
@@ -578,7 +580,9 @@ def test_unstated_rate_is_omitted_from_the_sigmf_sidecar(tmp_path):
     q = tmp_path / "rate.sigmf-data"
     with Writer(q, file_type="sigmf", sample_type="cf32", fs=2.5e6) as w:
         w.write(np.zeros(8, dtype=np.complex64))
-    meta = json.loads((tmp_path / "rate.sigmf-meta").read_text())
+    meta = json.loads(
+        (tmp_path / "rate.sigmf-meta").read_text(encoding="utf-8")
+    )
     assert meta["global"]["core:sample_rate"] == pytest.approx(2.5e6)
 
 
@@ -593,7 +597,9 @@ def test_t0_becomes_sigmf_core_datetime(tmp_path):
         p, file_type="sigmf", sample_type="cf32", fs=1e6, t0=1785903330.0
     ) as w:
         w.write(np.zeros(8, dtype=np.complex64))
-    meta = json.loads((tmp_path / "when.sigmf-meta").read_text())
+    meta = json.loads(
+        (tmp_path / "when.sigmf-meta").read_text(encoding="utf-8")
+    )
     assert (
         meta["captures"][0]["core:datetime"] == "2026-08-05T04:15:30.000000Z"
     )
@@ -602,7 +608,9 @@ def test_t0_becomes_sigmf_core_datetime(tmp_path):
     q = tmp_path / "nowhen.sigmf-data"
     with Writer(q, file_type="sigmf", sample_type="cf32", fs=1e6) as w:
         w.write(np.zeros(8, dtype=np.complex64))
-    meta = json.loads((tmp_path / "nowhen.sigmf-meta").read_text())
+    meta = json.loads(
+        (tmp_path / "nowhen.sigmf-meta").read_text(encoding="utf-8")
+    )
     assert "core:datetime" not in meta["captures"][0]
 
 

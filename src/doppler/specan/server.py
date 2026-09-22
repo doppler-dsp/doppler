@@ -50,7 +50,7 @@ _cfg = None
 
 @app.get("/", response_class=HTMLResponse)
 async def index() -> str:
-    return (_STATIC / "index.html").read_text()
+    return (_STATIC / "index.html").read_text(encoding="utf-8")
 
 
 @app.get("/state")
@@ -250,7 +250,10 @@ def _next_frame() -> SpectrumFrame | None:
 
 def _is_wsl() -> bool:
     try:
-        return "microsoft" in Path("/proc/version").read_text().lower()
+        return (
+            "microsoft"
+            in Path("/proc/version").read_text(encoding="utf-8").lower()
+        )
     except OSError:
         return False
 

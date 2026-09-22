@@ -126,7 +126,7 @@ LINT_TOOLS   = conflict tracked-paths ruff ruff-format mdformat clang-format \
                retired-names ci-pipefail rust-abi header-example-arity \
                wfm-enum-tables fmod-fold lgamma-reentrant full-scale \
                bench-timer bare-libm gnu-flags workflow-tag-triggers \
-               version-literals
+               version-literals text-encoding
 FORMAT_TOOLS = ruff-format ruff mdformat clang-format
 
 # ruff reads its own excludes from pyproject's [tool.ruff] extend-exclude
@@ -302,6 +302,12 @@ LINT_gnu-flags = $(UV) run python scripts/check_gnu_flags.py
 # threads (#1260). dp_lgamma() in clib_common.h wraps lgamma_r() once; a
 # bare lgamma in library C is the next race. No allowlist.
 LINT_lgamma-reentrant = $(UV) run python scripts/check_lgamma_sites.py
+
+# Path.read_text() without an encoding decodes with the locale codec, which
+# is cp1252 on Windows: the first Windows run of the suite lost three test
+# modules to it at collection, and 68 such reads sat in the package, library
+# code included (doppler#1457). Every one was made explicit; no allowlist.
+LINT_text-encoding = $(UV) run python scripts/check_text_encoding.py
 
 # A trusted internal allocation goes through clib_common.h's abort-on-OOM
 # helpers, because the alternative is an unwind path no test can reach --

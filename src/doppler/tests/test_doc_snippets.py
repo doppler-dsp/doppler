@@ -72,7 +72,10 @@ def _iter_fences(text):
 
 def _has_fences(path):
     try:
-        return next(_iter_fences(path.read_text()), None) is not None
+        return (
+            next(_iter_fences(path.read_text(encoding="utf-8")), None)
+            is not None
+        )
     except OSError:
         return False
 
@@ -96,7 +99,7 @@ def _load_ignore():
     if not IGNORE_FILE.exists():
         return set()
     out = set()
-    for line in IGNORE_FILE.read_text().splitlines():
+    for line in IGNORE_FILE.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             out.add(line)
@@ -236,7 +239,7 @@ def _run_one(blockid, marker, code, ns):
 @pytest.mark.parametrize("page", GATED_PAGES)
 def test_doc_page_snippets(page, tmp_path):
     """Run a page's fences as one notebook; fail naming the exact block."""
-    text = (DOCS / page).read_text()
+    text = (DOCS / page).read_text(encoding="utf-8")
     ns = {}
     try:
         import numpy
@@ -294,7 +297,7 @@ def test_ignored_pages_have_no_inline_markers():
     page off the ignore list instead."""
     offenders = []
     for page in sorted(IGNORED & set(ALL_PAGES)):
-        text = (DOCS / page).read_text()
+        text = (DOCS / page).read_text(encoding="utf-8")
         if any(marker is not None for marker, _ in _iter_fences(text)):
             offenders.append(page)
     assert not offenders, (

@@ -165,7 +165,7 @@ def check_header(path: Path, root: Path) -> list[tuple[str, str, str]]:
     checkable = {k for k, v in decls.items() if v is not None}
     if not checkable:
         return []
-    rel = path.relative_to(root)
+    rel = path.relative_to(root).as_posix()
     problems: list[tuple[str, str, str]] = []
     for block in _CODE_BLOCK.finditer(src):
         line = src[: block.start()].count("\n") + 1

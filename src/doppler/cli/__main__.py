@@ -193,7 +193,7 @@ def main() -> None:
 
             import doppler.cli.blocks as _reg
 
-            doc = yaml.safe_load(compose_file.read_text())
+            doc = yaml.safe_load(compose_file.read_text(encoding="utf-8"))
             for section in ("source", "sink"):
                 entry = doc.get(section, {})
                 btype = entry.get("type")

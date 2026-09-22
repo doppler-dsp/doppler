@@ -28,6 +28,7 @@ import numpy as np
 import pytest
 
 import doppler.wfm as w
+from doppler.tests._platform import WINDOWS, requires_stream
 
 # --------------------------------------------------------------------------- #
 # Coverage registry — every name in __all__ must appear here, mapped to the
@@ -90,6 +91,12 @@ COVERAGE: dict[str, str] = {
     "SampleClock": "TestStreamSinkAndClock",
 }
 
+#: Registry entries this platform does not build, by decision rather than
+#: by loss: StreamSink is absent on Windows ([module.wfm_sink] platforms,
+#: doppler#1364). Empty everywhere else, so on Linux and macOS a registered
+#: symbol missing from ``__all__`` is still a stale entry.
+ABSENT_HERE: set[str] = {"StreamSink"} if WINDOWS else set()
+
 ENUMS = {
     "type": ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits"],
     "snr_mode": ["auto", "fs", "ebno", "esno"],
@@ -102,21 +109,39 @@ ENUMS = {
 }
 
 
+def cli_available() -> bool:
+    """Whether this platform builds wfmgen (``doppler.wfm.cli.AVAILABLE``)."""
+    from doppler.wfm import cli
+
+    return cli.AVAILABLE
+
+
 def _find_wfmgen() -> str | None:
     """Locate the ``wfmgen`` C binary. Prefer the one the package bundles
     (``doppler/wfm/_bin/wfmgen``, resolved + made executable by the console
     shim) so the CLI face-parity tests run from any install — venv, wheel, or
     another machine — not just when ``wfmgen`` happens to be on ``PATH``."""
-    try:
-        from doppler.wfm.cli import _runnable
+    from doppler.wfm import cli
 
-        return _runnable()
-    except (ImportError, FileNotFoundError, OSError):
+    try:
+        return cli._runnable()
+    except cli.UnavailableError:
+        # Not built on this platform at all (doppler#1364). The `wfmgen` on
+        # PATH is then the console shim alone, which cannot exec anything.
+        return None
+    except (FileNotFoundError, OSError):
         return shutil.which("wfmgen")
 
 
 WFMGEN = _find_wfmgen()
-needs_cli = pytest.mark.skipif(WFMGEN is None, reason="wfmgen not found")
+needs_cli = pytest.mark.skipif(
+    WFMGEN is None,
+    reason=(
+        "wfmgen not found"
+        if cli_available()
+        else "the wfmgen CLI is not built on Windows (doppler#1364)"
+    ),
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -133,7 +158,7 @@ class TestSurfaceCompleteness:
         )
 
     def test_no_stale_registry_entries(self) -> None:
-        stale = sorted(set(COVERAGE) - set(w.__all__))
+        stale = sorted(set(COVERAGE) - set(w.__all__) - ABSENT_HERE)
         assert not stale, (
             f"coverage registry references dropped symbols: {stale}"
         )
@@ -569,6 +594,7 @@ _requires_nats = pytest.mark.skipif(
 )
 
 
+@requires_stream
 @_requires_nats
 class TestStreamSinkAndClock:
     @staticmethod
@@ -818,7 +844,9 @@ class TestCLI:
             check=True,
             capture_output=True,
         )
-        assert json.loads(rec.read_text())  # a resolved spec record
+        assert json.loads(
+            rec.read_text(encoding="utf-8")
+        )  # a resolved spec record
 
     def test_output_dash_is_stdout(self, tmp_path) -> None:
         # Docs (guide/wfmgen.md) say '-' prints to stdout (#192).

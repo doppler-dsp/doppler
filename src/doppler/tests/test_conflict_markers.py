@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from doppler.tests._platform import skip_without_posix_shell
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -43,6 +44,7 @@ SCRIPT = REPO / "scripts" / "conflict-check.sh"
 
 def _run(*args: str | Path) -> subprocess.CompletedProcess[str]:
     """Run the gate on explicit paths, capturing both streams."""
+    skip_without_posix_shell("the conflict-marker gate")
     return subprocess.run(
         [str(SCRIPT), *map(str, args)],
         capture_output=True,

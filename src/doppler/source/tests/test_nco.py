@@ -5,11 +5,10 @@ phase continuity, nmax scaling, overflow carry flag, property accessors,
 ctrl-port FM shift.
 """
 
-import resource
-
 import numpy as np
 
 from doppler.source import NCO
+from doppler.tests._platform import posix_only
 
 # ── Lifecycle ────────────────────────────────────────────────────────
 
@@ -223,6 +222,7 @@ def test_steps_u32_ctrl_output_length():
     assert out.dtype == np.uint32
 
 
+@posix_only("measures peak RSS with resource.getrusage")
 def test_steps_u32_ctrl_no_leak_in_tight_loop():
     """Regression: jm's default cached-buffer + gh-437 weakref-gated
     retire template leaks unboundedly under `x = obj.method(...)` in a
@@ -237,6 +237,8 @@ def test_steps_u32_ctrl_no_leak_in_tight_loop():
     ctrl = np.full(2046, 1e-7, dtype=np.float64)
     for _ in range(2000):
         _ = nco.steps_u32_ctrl(ctrl)
+    import resource  # POSIX-only module; see the marker
+
     start_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     for _ in range(50_000):
         _ = nco.steps_u32_ctrl(ctrl)

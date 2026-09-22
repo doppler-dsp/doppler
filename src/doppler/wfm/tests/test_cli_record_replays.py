@@ -186,7 +186,9 @@ def test_the_flag_path_records_it_too(tmp_path, mode):
         capture_output=True,
         check=True,
     )
-    assert json.loads(record.read_text())["seed_advance"] == mode
+    assert (
+        json.loads(record.read_text(encoding="utf-8"))["seed_advance"] == mode
+    )
 
 
 def test_a_default_run_records_no_seed_advance_key(tmp_path):
@@ -214,7 +216,7 @@ def test_a_default_run_records_no_seed_advance_key(tmp_path):
         capture_output=True,
         check=True,
     )
-    assert "seed_advance" not in json.loads(record.read_text())
+    assert "seed_advance" not in json.loads(record.read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("mode", ["noise", "all"])
@@ -291,7 +293,7 @@ def test_interleave_survives_a_record_round_trip(
     first = _run_to(tmp_path, "a.iq", *args, "--record", str(record))
     again = _run_to(tmp_path, "b.iq", "--from-file", str(record))
 
-    spec = json.loads(record.read_text())["segments"][0]
+    spec = json.loads(record.read_text(encoding="utf-8"))["segments"][0]
     assert spec["interleave"] == depth
     assert spec["interleave_unit"] == unit
     assert again == first, (

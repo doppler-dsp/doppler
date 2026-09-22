@@ -46,7 +46,7 @@ def resolve_snippets(code, _seen=frozenset()):
         src = REPO / rel
         assert src.exists(), f"snippet source not found: {rel}"
         assert (rel, sec) not in _seen, f"recursive include: {rel}:{sec}"
-        text = src.read_text()
+        text = src.read_text(encoding="utf-8")
         text = _snippet_section(text, sec) if sec else text
         return resolve_snippets(text, _seen | {(rel, sec)})
 

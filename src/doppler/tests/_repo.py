@@ -21,9 +21,10 @@ machine is a real possibility.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
-__all__ = ["build_dir", "repo_root"]
+__all__ = ["build_dir", "exe", "repo_root"]
 
 
 def repo_root(start: Path | str | None = None) -> Path:
@@ -107,3 +108,34 @@ def build_dir(start: Path | str | None = None) -> Path:
     if env:
         return Path(env)
     return repo_root(start) / "build"
+
+
+def exe(path: Path | str) -> Path:
+    """A built executable's path, with this platform's suffix.
+
+    CMake names an executable ``<target>`` on POSIX and ``<target>.exe`` on
+    Windows. A gate that spells the bare name finds nothing on Windows and
+    reports "not built" about a binary sitting right there -- which is what
+    every validator did on the first Windows run of the suite.
+
+    Parameters
+    ----------
+    path : Path or str
+        The executable as CMake names the TARGET, without any suffix.
+
+    Returns
+    -------
+    Path
+        ``path`` on POSIX, ``path.exe`` on Windows.
+
+    Examples
+    --------
+    >>> import sys
+    >>> from doppler.tests._repo import exe
+    >>> exe("build/validate_rs").name == (
+    ...     "validate_rs.exe" if sys.platform == "win32" else "validate_rs"
+    ... )
+    True
+    """
+    p = Path(path)
+    return p.with_name(p.name + ".exe") if sys.platform == "win32" else p

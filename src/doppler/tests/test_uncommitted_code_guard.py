@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from doppler.tests._platform import skip_without_posix_shell
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -47,6 +48,7 @@ def _repo(tmp_path: Path) -> Path:
 
 
 def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    skip_without_posix_shell("the uncommitted-code guard")
     return subprocess.run(
         [str(GUARD), *args], capture_output=True, text=True, cwd=cwd
     )

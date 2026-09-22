@@ -147,6 +147,15 @@ repos:
         pass_filenames: false
         types_or: [c]
 
+      # read_text() names utf-8: without it Windows decodes with cp1252 and
+      # fails on the first non-ASCII byte (doppler#1457).
+      - id: text-encoding
+        name: read_text() names its encoding
+        entry: make -s lint-text-encoding
+        language: system
+        pass_filenames: false
+        types_or: [python]
+
       # libm is ${DP_MATH_LIBRARY} in a link line, never a bare `m`: on
       # Windows `m` means m.lib, which does not exist (#1364).
       - id: bare-libm

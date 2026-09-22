@@ -23,6 +23,7 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
+from doppler.tests._platform import skip_without_posix_shell
 from doppler.tests._repo import repo_root
 
 if TYPE_CHECKING:
@@ -211,6 +212,7 @@ NOTES = REPO / "scripts" / "release-notes.sh"
 
 def _notes(tmp_path: Path, section: str, name: str = "CHANGELOG.md"):
     """Render the release body for 0.43.0 from a seeded changelog."""
+    skip_without_posix_shell("scripts/release-notes.sh")
     cl = tmp_path / name
     cl.write_text(
         f"# Changelog\n\n## [0.43.0] — 2026-08-22\n\n{section}\n",

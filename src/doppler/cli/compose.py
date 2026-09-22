@@ -123,7 +123,7 @@ def up(compose_file: Path) -> ChainState:
 
     Returns the ChainState (also persisted to ~/.doppler/chains/).
     """
-    doc = yaml.safe_load(compose_file.read_text())
+    doc = yaml.safe_load(compose_file.read_text(encoding="utf-8"))
     chain_id: str = doc.get("id") or secrets.token_hex(3)
 
     source_doc = doc["source"]

@@ -131,6 +131,46 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(mark)
 
 
+def _skip_if_absent_by_decision(exc: BaseException) -> None:
+    """Skip, rather than fail, on a tool this platform does not build.
+
+    One mechanism instead of a marker on every test that shells out to
+    ``wfmgen``: those tests reach it through ``doppler.wfm.cli._runnable``,
+    which raises ``cli.UnavailableError`` only where ``cli.AVAILABLE`` says the
+    platform has no wfmgen (Windows, doppler#1364). Keyed on that type and
+    nothing broader, so a Linux or macOS build that lost the binary raises a
+    plain FileNotFoundError and still FAILS. Registration-free: a new test
+    that needs the CLI is covered the moment it calls the canonical locator.
+    """
+    import sys
+
+    import pytest
+
+    cli = sys.modules.get("doppler.wfm.cli")
+    if cli is not None and isinstance(exc, cli.UnavailableError):
+        pytest.skip(str(exc))
+
+
+def _absent_by_decision_wrapper():
+    """A new-style hook wrapper applying `_skip_if_absent_by_decision`."""
+    import pytest
+
+    @pytest.hookimpl(wrapper=True)
+    def hook(item):
+        try:
+            return (yield)
+        except Exception as exc:
+            _skip_if_absent_by_decision(exc)
+            raise
+
+    return hook
+
+
+# Setup too, not only the call: a fixture may be what locates the binary.
+pytest_runtest_setup = _absent_by_decision_wrapper()
+pytest_runtest_call = _absent_by_decision_wrapper()
+
+
 def _display_name(fullname: str, name: str) -> str:
     """Short, unique label -- same disambiguation as scripts/bench_report.py's
     _display_name(). Raw pytest-benchmark ``name``s collide across modules

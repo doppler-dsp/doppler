@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 
 from doppler.interrupt import Interrupt
+from doppler.tests._platform import HARMLESS_SIGNAL, WINDOWS, posix_only
 
 #: A guard that arms nothing. `np.zeros(1)` -- the scaffold's default -- is
 #: signal 0, which cannot be installed, so it raises rather than measuring
@@ -50,6 +51,11 @@ def test_two_guards_observe_one_flag() -> None:
         b.resume()
 
 
+@posix_only(
+    "raises SIGUSR1 at itself and reads the handler back with getsignal; "
+    "Windows delivers console events, not raised signals, to the guard "
+    "(the C twin is #ifndef _WIN32 too)"
+)
 def test_context_manager_arms_and_restores() -> None:
     sig = np.array([signal.SIGUSR1], dtype=np.int32)
     before = signal.getsignal(signal.SIGUSR1)
@@ -72,13 +78,21 @@ def test_leaving_the_block_does_not_swallow_the_interrupt() -> None:
     outer.resume()
 
 
+#: A signal the platform refuses to arm. POSIX: SIGKILL, which cannot be
+#: caught. Windows: any signal outside doppler's console-event map
+#: (dp_win_sig_map, native/src/dp_interrupt.c) -- SIGABRT is one -- which
+#: dp_interrupt_on_signal refuses rather than accepting an install that can
+#: never fire.
+UNARMABLE = signal.SIGABRT if WINDOWS else signal.SIGKILL  # type: ignore[attr-defined]
+
+
 def test_an_unarmable_signal_raises() -> None:
-    """SIGKILL cannot be caught, and create says so rather than half-arming."""
+    """An unarmable signal is refused, rather than half-armed."""
     with pytest.raises(OSError):
-        Interrupt(np.array([signal.SIGKILL], dtype=np.int32))
+        Interrupt(np.array([UNARMABLE], dtype=np.int32))
 
 
 def test_more_signals_than_slots_is_refused() -> None:
-    too_many = np.full(9, signal.SIGUSR1, dtype=np.int32)
+    too_many = np.full(9, HARMLESS_SIGNAL, dtype=np.int32)
     with pytest.raises(OSError):
         Interrupt(too_many)

@@ -177,7 +177,16 @@ def write_scene(path, *, snr_db=SNR_DB):
 
 
 def wfmgen_available():
-    """Path to the wfmgen CLI (PATH, else the CMake build tree), or None."""
+    """Path to the wfmgen CLI (PATH, else the CMake build tree), or None.
+
+    None, too, where the platform does not build wfmgen at all
+    (``doppler.wfm.cli.AVAILABLE``, doppler#1364): on Windows the ``wfmgen``
+    on PATH is only the console shim, which has no binary to hand off to.
+    """
+    from doppler.wfm import cli
+
+    if not cli.AVAILABLE:
+        return None
     exe = shutil.which("wfmgen")
     if exe:
         return exe

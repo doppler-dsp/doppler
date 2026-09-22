@@ -8,10 +8,15 @@ refuses it; piping/redirecting and the text CSV format stay allowed.
 from __future__ import annotations
 
 import os
-import pty
 import subprocess
 
-from doppler.wfm import cli
+from doppler.tests._platform import skip_module_without_wfmgen
+
+skip_module_without_wfmgen()
+
+import pty  # noqa: E402  (after the skip: Windows has no pty module)
+
+from doppler.wfm import cli  # noqa: E402
 
 
 def _bin() -> str:

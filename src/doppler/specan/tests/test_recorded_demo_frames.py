@@ -45,7 +45,7 @@ GEOMETRY = ("fft_size", "fs_out", "center_freq", "span", "rbw")
 
 @pytest.fixture(scope="module")
 def committed() -> list[dict]:
-    return json.loads(FRAMES.read_text())
+    return json.loads(FRAMES.read_text(encoding="utf-8"))
 
 
 @pytest.fixture(scope="module")

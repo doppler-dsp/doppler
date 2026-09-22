@@ -30,6 +30,7 @@ Two checks, deliberately different in kind:
 
 from __future__ import annotations
 
+import importlib.machinery
 import pathlib
 import re
 import subprocess
@@ -76,15 +77,26 @@ def _capsule_name() -> bytes:
         pytest.skip(f"{hdr} absent: run `make jm-apply`")
     m = re.search(
         r'#define\s+DP_INTERRUPT_GUARD_PG_CAPSULE\s+"([^"]+)"',
-        hdr.read_text(),
+        hdr.read_text(encoding="utf-8"),
     )
     assert m, f"no PG_CAPSULE define in {hdr} — jm's contract moved"
     return m.group(1).encode()
 
 
 def _extensions() -> list[pathlib.Path]:
-    """Every built doppler extension, discovered rather than listed."""
-    return sorted(_PKG.glob("*/*.so"))
+    """Every built doppler extension, discovered rather than listed.
+
+    By the interpreter's own extension suffixes, not a spelled ``.so``: on
+    Windows an extension is a ``.pyd``, and a ``*.so`` glob found nothing
+    there, so this reported "no extension carries the primitive" about a
+    tree full of them.
+    """
+    suffixes = tuple(importlib.machinery.EXTENSION_SUFFIXES)
+    return sorted(
+        p
+        for p in _PKG.glob("*/*")
+        if p.is_file() and p.name.endswith(suffixes)
+    )
 
 
 # --------------------------------------------------------------------- #

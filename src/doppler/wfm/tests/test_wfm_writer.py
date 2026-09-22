@@ -24,6 +24,7 @@ import textwrap
 import numpy as np
 import pytest
 
+from doppler.tests._platform import posix_only
 from doppler.wfm import Composer, Reader, Segment, Writer
 
 
@@ -181,6 +182,9 @@ def _run_under_fsize_limit(body: str) -> subprocess.CompletedProcess:
     )
 
 
+@posix_only(
+    "forces a short write with resource.setrlimit(RLIMIT_FSIZE) and SIGXFSZ"
+)
 def test_a_failed_capture_propagates_out_of_a_with_block():
     """The whole point of `close()` reporting: a `with` block must still raise.
 
@@ -208,6 +212,9 @@ def test_a_failed_capture_propagates_out_of_a_with_block():
     )
 
 
+@posix_only(
+    "forces a short write with resource.setrlimit(RLIMIT_FSIZE) and SIGXFSZ"
+)
 def test_short_write_is_reported():
     """`write()` returns the count that landed, independently of close().
 
@@ -251,7 +258,7 @@ def test_sigmf_writer_emits_its_sidecar(tmp_path):
 
     meta = tmp_path / "cap.sigmf-meta"
     assert meta.exists(), "the half that carries the datatype"
-    doc = json.loads(meta.read_text())
+    doc = json.loads(meta.read_text(encoding="utf-8"))
     assert doc["global"]["core:datatype"] == "ci16_le"
     assert doc["global"]["core:sample_rate"] == 2e6
     assert doc["captures"][0]["core:frequency"] == 1.2e9
@@ -296,7 +303,7 @@ def test_raw_and_csv_keep_their_metadata_in_a_sidecar(tmp_path, suffix):
     assert meta.exists()
     assert not (tmp_path / "cap.sigmf-meta").exists()
 
-    doc = json.loads(meta.read_text())
+    doc = json.loads(meta.read_text(encoding="utf-8"))
     assert doc["global"]["core:sample_rate"] == 2.4e6
     assert doc["captures"][0]["core:frequency"] == 1.2e9
     assert doc["captures"][0]["core:datetime"] == "2026-08-05T04:15:30.000000Z"
@@ -310,7 +317,9 @@ def test_the_sidecar_claims_only_what_was_stated(tmp_path):
     with Writer(p, fs=0.0) as w:  # nothing known but the datatype
         w.write(np.zeros(4, dtype=np.complex64))
 
-    doc = json.loads((tmp_path / "bare.raw.sigmf-meta").read_text())
+    doc = json.loads(
+        (tmp_path / "bare.raw.sigmf-meta").read_text(encoding="utf-8")
+    )
     assert "core:sample_rate" not in doc["global"]
     assert "core:frequency" not in doc["captures"][0]
     assert "core:datetime" not in doc["captures"][0]
@@ -352,10 +361,14 @@ def test_a_raw_capture_cannot_clobber_a_sigmf_pairs_metadata(tmp_path):
     with Writer(tmp_path / "cap.raw", fs=7e6) as w:
         w.write(x)
 
-    pair = json.loads((tmp_path / "cap.sigmf-meta").read_text())
+    pair = json.loads(
+        (tmp_path / "cap.sigmf-meta").read_text(encoding="utf-8")
+    )
     assert pair["global"]["core:sample_rate"] == 5e6
     assert pair["global"]["core:datatype"] == "ci16_le", "not retyped"
-    raw = json.loads((tmp_path / "cap.raw.sigmf-meta").read_text())
+    raw = json.loads(
+        (tmp_path / "cap.raw.sigmf-meta").read_text(encoding="utf-8")
+    )
     assert raw["global"]["core:sample_rate"] == 7e6
 
 
@@ -484,7 +497,7 @@ def test_sigmf_names_real_types_with_its_own_prefix(tmp_path):
     p = tmp_path / "cap.sigmf-data"
     with Writer(p, file_type="sigmf", sample_type="f32", fs=48e3) as w:
         w.write(np.zeros(8, np.complex64))
-    doc = json.loads((tmp_path / "cap.sigmf-meta").read_text())
+    doc = json.loads((tmp_path / "cap.sigmf-meta").read_text(encoding="utf-8"))
     assert doc["global"]["core:datatype"] == "rf32_le"
 
 

@@ -56,12 +56,17 @@ if command -v nats-server >/dev/null 2>&1; then
     exit 1
   fi
   mkdir -p "$store"
-  nats-server -a 127.0.0.1 -p 4222 -js -sd "$store" \
+  # -m 8222 is the monitoring endpoint, and it is a DIAGNOSTIC, not a
+  # feature: when a readiness probe times out, the test helper reads
+  # /jsz to say whether the frame is still in the stream, delivered and
+  # waiting for an ack, or gone (doppler#1463). Loopback-only, same as
+  # the client port, so it exposes nothing the tests do not already.
+  nats-server -a 127.0.0.1 -p 4222 -m 8222 -js -sd "$store" \
       >"${TMPDIR:-/tmp}/doppler-nats.log" 2>&1 &
   echo $! >"$PIDFILE"
   how="nats-server $(nats-server --version | awk '{print $NF}') (binary)"
 elif command -v docker >/dev/null 2>&1; then
-  docker run -d --name nats -p 4222:4222 nats:2.10 -js
+  docker run -d --name nats -p 4222:4222 -p 8222:8222 nats:2.10 -js -m 8222
   how="nats:2.10 (docker)"
 else
   echo "start-nats: neither nats-server nor docker is available, so no" >&2

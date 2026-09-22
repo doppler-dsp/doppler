@@ -61,6 +61,49 @@ else
         echo "  fetch it (CI needs fetch-depth: 0) or set ISSUE_BASE."
         exit 1
     }
+    # The branch's commits must be its OWN before any of their declarations
+    # count. `git commit --amend` after a commit that a hook blocked rewrites
+    # whatever HEAD was, and on a fresh branch that is the base's tip: the
+    # base commit comes back under a new hash with its author, its author
+    # date and its whole message -- trailers included -- and the branch's work
+    # folded in. Hit three times; on doppler#1472 it was pushed, and this gate
+    # PASSED it on the `No-issue:` that base commit had declared.
+    #
+    # The signature is exact: same author, same author date, same subject,
+    # different hash. A new commit gets a new date, so a bot that reuses one
+    # subject every run (the image repin) is never matched. The base's whole
+    # history is searched, not just what it gained since the fork: a CI
+    # checkout is a merge commit whose merge base IS the base, and the
+    # rewritten original sits below it.
+    rewritten=$(
+        {
+            git log --no-merges --date=raw \
+                --format='B%x09%h%x09%an <%ae>%x09%ad%x09%s' "$base"..HEAD
+            git log --no-merges --date=raw \
+                --format='M%x09%h%x09%an <%ae>%x09%ad%x09%s' "$BASE"
+        } | awk -F'\t' '
+            { k = $3 FS $4 FS $5 }
+            $1 == "B" { mine[k] = $2; next }
+            (k in mine) { printf "    %s rewrites %s  %s\n", mine[k], $2, $5 }'
+    )
+    if [ -n "$rewritten" ]; then
+        echo "issue-link-check: a commit on this branch is a base commit"
+        echo "  rewritten -- FAIL"
+        echo ""
+        echo "$rewritten"
+        echo ""
+        echo "  Same author, author date and subject as a commit already on"
+        echo "  $BASE, under a different hash. Either an --amend landed on the"
+        echo "  base's commit (a hook blocked the commit before it), or the"
+        echo "  branch predates that commit's merge. Check which:"
+        echo ""
+        echo "    git log -1 --format=%s     is it YOUR subject?"
+        echo ""
+        echo "  amend:  git reset --soft <base commit>, then commit afresh"
+        echo "  stale:  git rebase $BASE"
+        exit 1
+    fi
+
     files=$(git diff --name-only "$base"..HEAD)
     if [ -z "$files" ]; then
         # Inert is only honest when there is nothing to be inert ABOUT.

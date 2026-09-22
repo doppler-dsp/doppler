@@ -39,6 +39,7 @@ import textwrap
 
 import pytest
 
+from doppler.tests._platform import posix_only
 from doppler.tests._repo import repo_root
 
 _PKG = pathlib.Path(__file__).resolve().parents[1]
@@ -167,6 +168,11 @@ def test_a_stop_in_one_module_reaches_a_wait_in_another() -> None:
 # --------------------------------------------------------------------- #
 
 
+@posix_only(
+    "finds carriers by the name of a static C variable, which an ELF or "
+    "Mach-O binary keeps and a PE .pyd does not (it lives in the .pdb); the "
+    "behavioural twin above runs on Windows"
+)
 def test_every_module_carrying_the_flag_joins_the_rendezvous() -> None:
     """A module that links the primitive must share the one state.
 

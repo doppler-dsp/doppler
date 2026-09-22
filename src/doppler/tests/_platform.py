@@ -32,11 +32,11 @@ from doppler.wfm import cli as _wfmgen_cli
 
 __all__ = [
     "HARMLESS_SIGNAL",
+    "STREAM_MODULES",
     "WINDOWS",
     "posix_only",
     "requires_stream",
     "requires_wfmgen",
-    "skip_module_without_stream",
     "skip_module_without_wfmgen",
     "skip_without_posix_shell",
 ]
@@ -69,17 +69,10 @@ def skip_module_without_wfmgen() -> None:
 _STREAM_ABSENT = "doppler.stream (NATS) is not built on Windows (doppler#1364)"
 requires_stream = pytest.mark.skipif(WINDOWS, reason=_STREAM_ABSENT)
 
-
-def skip_module_without_stream() -> None:
-    """Skip the calling test MODULE where ``doppler.stream`` is not built.
-
-    For a module that imports ``doppler.stream`` at the top, where a marker
-    is too late: the import itself fails at collection. Call it before that
-    import. Keyed on the platform, not on the import failing, so a Linux or
-    macOS build missing the extension still errors at collection.
-    """
-    if WINDOWS:
-        pytest.skip(_STREAM_ABSENT, allow_module_level=True)
+#: The extension modules not built on Windows, by decision (doppler#1364):
+#: the stream layer, and the sink that embeds it ([module.wfm_sink]
+#: platforms). A test that walks every stub or extension marks these.
+STREAM_MODULES = frozenset({"doppler.stream.stream", "doppler.wfm.wfm_sink"})
 
 
 #: A signal a test may arm and raise without side effects. POSIX has

@@ -27,12 +27,8 @@ import time
 import numpy as np
 import pytest
 
-from doppler.tests._platform import skip_module_without_stream
-
-skip_module_without_stream()
-
-import doppler.stream  # noqa: E402  (after the Windows skip)
-from doppler.stream import (  # noqa: E402
+import doppler.stream
+from doppler.stream import (
     CF64,
     CI32,
     Publisher,

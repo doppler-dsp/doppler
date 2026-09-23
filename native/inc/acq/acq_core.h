@@ -694,6 +694,70 @@ extern "C"
                                       size_t code_only_epochs,
                                       double doppler_rate);
 
+  /**
+   * @brief Create a burst-mode engine for ANY repeated complex preamble --
+   *        a chirp, a Zadoff-Chu sequence, shaped PSK -- rather than a PN
+   *        code (doppler#1470).
+   *
+   * The engine's framing, circular correlation per repetition, slow-time
+   * transform and wideband tiling hold for any periodic reference; a PN
+   * code is the case whose samples come from chips. Here the preamble IS
+   * its samples: one period of @p n complex samples at @p fs, repeated up
+   * to @p reps times. Everything acq_create_burst() documents applies, read
+   * with one chip = one sample -- `sf = n`, `spc = 1`, `chip_rate = fs`, so
+   * the native Doppler span is `+/- fs/(2n)` and `code_phase` is the delay
+   * into the repetition, in samples.
+   *
+   * What a code knows analytically, a template's own correlation gives
+   * numerically, from one FFT at construction (acq_shape_t):
+   *
+   * - the peak zone (the twin rule's reach and the exclusion around each
+   *   listed peak) is the autocorrelation's first null, the lag of the
+   *   first local minimum of |R(k)| -- one chip of samples for a code;
+   * - the delay straddle the Pd model averages is the band-limited
+   *   autocorrelation over a half-sample offset.
+   *
+   * The within-repetition rotation loss keeps the engine's `sinc` model:
+   * it is the zero-delay cut of the ambiguity function, which a periodic
+   * template's envelope does not move -- measured within 0.007 dB of sinc
+   * for RRC-shaped QPSK at 4.7 dB peak-to-average.
+   *
+   * @p tmpl is scaled to unit RMS (a copy -- the caller's buffer is only
+   * read), the scale a code's +/-1 reference has, so `peak_mag` and
+   * `noise_est` come out in the signal's units whatever the template's
+   * amplitude. C/N0 is the preamble's mean power.
+   *
+   * @param tmpl        One period of the preamble, @p n samples; not all
+   *                    zero, every sample finite.
+   * @param n           Samples per repetition (>= 1).
+   * @param reps        Max coherent repetitions (>= 1).
+   * @param fs          Sample rate in Hz (> 0).
+   * @param cn0_dbhz    Design carrier-to-noise density in dB-Hz, of the
+   *                    preamble's mean power (>= 0; 0 = no design point).
+   * @param doppler_uncertainty  One-sided Doppler search half-range in Hz;
+   *                    beyond `fs/(2n)` engages wideband mode.
+   * @param pfa         Target system false-alarm probability (0,1).
+   * @param pd          Target detection probability (0,1).
+   * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+   * @return Heap-allocated state, or NULL on bad arguments / allocation
+   *         failure.
+   * @code
+   * // 127-sample Zadoff-Chu preamble at 1 MS/s, up to 8 repetitions
+   * float _Complex zc[127];
+   * for (int k = 0; k < 127; k++)
+   *   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
+   * acq_state_t *a = acq_create_burst_template (zc, 127, 8, 1.0e6, 50.0, 0.0,
+   *                                             1e-3, 0.9, 0);
+   * acq_destroy (a);
+   * @endcode
+   */
+  acq_state_t *acq_create_burst_template (const float _Complex *tmpl,
+                                          size_t n, size_t reps, double fs,
+                                          double cn0_dbhz,
+                                          double doppler_uncertainty,
+                                          double pfa, double pd,
+                                          int noise_mode);
+
   /** @brief Destroy and free an engine.  @param state May be NULL. */
   void acq_destroy (acq_state_t *state);
 

@@ -1403,6 +1403,110 @@ acq_shape_of_chips (size_t spc)
   return sh;
 }
 
+/* Amplitude a periodic template's correlation keeps at a fractional lag
+ * `delta` (samples), relative to lag 0 -- the autocorrelation evaluated
+ * band-limited from the power spectrum P: sum_k P_k e^{j 2 pi f_k delta / n}
+ * over the SIGNED bin f_k, with an even n's Nyquist bin taking only its real
+ * part, cos(pi delta), because it belongs to both halves. */
+static double
+acq_lag_amplitude (const double *P, size_t n, double delta, double p_sum)
+{
+  double re = 0.0, im = 0.0;
+  for (size_t k = 0; k < n; k++)
+    {
+      if ((n & 1u) == 0 && k == n / 2)
+        {
+          re += P[k] * cos (M_PI * delta);
+          continue;
+        }
+      double f = (k <= n / 2) ? (double)k : (double)k - (double)n;
+      double a = 2.0 * M_PI * f * delta / (double)n;
+      re += P[k] * cos (a);
+      im += P[k] * sin (a);
+    }
+  return hypot (re, im) / p_sum;
+}
+
+/* The correlation shape of an arbitrary periodic template (doppler#1470),
+ * from one FFT: everything the engine asks of the waveform is a function
+ * of its power spectrum P.
+ *
+ * - The zone is the autocorrelation's first null: the first lag m >= 1
+ *   where |R(m)| stops falling -- the next lag is not smaller by more than
+ *   1e-6 of R(0). R is the inverse transform of P. For a chip held spc
+ *   samples R is a triangle whose floor starts at m = spc, so this lands
+ *   where the analytic shape puts it; a perfect sequence (Zadoff-Chu) is
+ *   null at 1. The tolerance is what makes both work: a floor is flat, and
+ *   a perfect sequence's off-peak lags are rounding noise (~3e-9 of R(0)
+ *   for a float 127-sample Zadoff-Chu), so an exact comparison would put
+ *   the minimum wherever the FFT's last digit fell.
+ *   A short code can reach its floor BEFORE one chip: CODE7's floor is 1/7,
+ *   and its sampled triangle is already 1/7 at lag 3 of 4 -- the first null
+ *   is then honestly 3, and meets the analytic "one chip" only once the
+ *   floor sits below the triangle's last step (a 31-chip code: 0.226, then
+ *   0.032).
+ * - The delay straddle is acq_lag_amplitude() at the Pd model's nodes and
+ *   averaged over [0, 1/2] sample (64-interval Simpson, as acq_mean_sinc).
+ */
+static void
+acq_shape_of_template (const float _Complex *t, size_t n, acq_shape_t *sh)
+{
+  double _Complex *buf   = dp_xmalloc (n * sizeof *buf);
+  double _Complex *spec  = dp_xmalloc (n * sizeof *spec);
+  double          *P     = dp_xmalloc (n * sizeof *P);
+  fft_state_t     *fwd   = dp_xnn (fft_create (n, -1, 1));
+  fft_state_t     *inv   = dp_xnn (fft_create (n, +1, 1));
+  double           p_sum = 0.0;
+
+  for (size_t i = 0; i < n; i++)
+    buf[i] = (double)crealf (t[i]) + I * (double)cimagf (t[i]);
+  fft_execute_cf64 (fwd, buf, n, spec, n);
+  for (size_t k = 0; k < n; k++)
+    {
+      P[k] = creal (spec[k]) * creal (spec[k])
+             + cimag (spec[k]) * cimag (spec[k]);
+      p_sum += P[k];
+      buf[k] = P[k];
+    }
+  fft_execute_cf64 (inv, buf, n, spec, n); /* spec now holds n * R(m) */
+
+  const double r0   = cabs (spec[0]);
+  const size_t half = n / 2;
+  size_t       zone = half > 0 ? half : 1;
+  const double tol  = 1e-6 * r0;
+  for (size_t m = 1; m <= half; m++)
+    {
+      double here = cabs (spec[m]);
+      if (m < half && cabs (spec[m + 1]) > here - tol)
+        {
+          zone = m;
+          break;
+        }
+    }
+  sh->zone = zone;
+
+  const int nk = ACQ_DELAY_LOSS_NODES;
+  for (int k = 0; k < nk; k++)
+    sh->delay_loss[k] = acq_lag_amplitude (
+        P, n, 0.5 * ((double)k + 0.5) / (double)nk, p_sum);
+
+  const int    ns = 64;
+  const double h  = 0.5 / (double)ns;
+  double       s  = 1.0; /* acq_lag_amplitude(0) */
+  for (int i = 1; i <= ns; i++)
+    {
+      double v = acq_lag_amplitude (P, n, h * (double)i, p_sum);
+      s += (i == ns) ? v : ((i & 1) ? 4.0 : 2.0) * v;
+    }
+  sh->delay_loss_mean = s * h / (3.0 * 0.5);
+
+  fft_destroy (fwd);
+  fft_destroy (inv);
+  free (P);
+  free (spec);
+  free (buf);
+}
+
 /* Shared builder: allocates and configures the engine, dropping straight
  * into whichever auto-sizer `continuous` selects.  Not declared in the
  * header -- acq_create_burst()/acq_create_continuous() are the only public
@@ -1551,6 +1655,45 @@ acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
       code, code_len, /* reps= */ 1, spc, chip_rate, symbol_rate, cn0_dbhz,
       doppler_uncertainty, pfa, pd, noise_mode,
       /* continuous= */ 1, code_only_epochs, doppler_rate);
+}
+
+acq_state_t *
+acq_create_burst_template (const float _Complex *tmpl, size_t n, size_t reps,
+                           double fs, double cn0_dbhz,
+                           double doppler_uncertainty, double pfa, double pd,
+                           int noise_mode)
+{
+  if (!tmpl || n < 1)
+    return NULL;
+  /* Unit RMS, the scale a code's +/-1 reference has: `peak_mag` and
+     `noise_est` are then in the signal's units whatever the template's
+     amplitude. (The thresholds, test_stat and the C/N0 estimate are CFAR
+     ratios and would not move either way.) A template with no energy, or a
+     non-finite sample, has no shape to search for. */
+  double e = 0.0;
+  for (size_t i = 0; i < n; i++)
+    {
+      double re = (double)crealf (tmpl[i]), im = (double)cimagf (tmpl[i]);
+      e += re * re + im * im;
+    }
+  /* One test covers all three: no energy fails `e > 0`, a NaN sample makes
+     the sum NaN (which fails it too), an infinite one makes it infinite. */
+  if (!(e > 0.0) || !isfinite (e))
+    return NULL;
+  const float     g       = (float)sqrt ((double)n / e);
+  float _Complex *replica = dp_xmalloc (n * sizeof *replica);
+  for (size_t i = 0; i < n; i++)
+    replica[i] = tmpl[i] * g;
+
+  acq_shape_t shape;
+  acq_shape_of_template (replica, n, &shape);
+  /* One chip = one sample: sf = n, spc = 1, chip_rate = fs. */
+  acq_state_t *st = acq_acq_create_impl (
+      replica, n, &shape, reps, /* spc= */ 1, fs, /* symbol_rate= */ 0.0,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
+      /* continuous= */ 0, 1, 0.0);
+  free (replica);
+  return st;
 }
 
 int

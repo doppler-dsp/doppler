@@ -235,6 +235,13 @@ extern "C"
                                       size_t code_only_epochs,
                                       double doppler_rate);
 
+  acq_state_t *acq_create_burst_template (const float _Complex *tmpl,
+                                          size_t n, size_t reps, double fs,
+                                          double cn0_dbhz,
+                                          double doppler_uncertainty,
+                                          double pfa, double pd,
+                                          int noise_mode);
+
   void acq_destroy (acq_state_t *state);
 
   void acq_reset (acq_state_t *state);

@@ -75,6 +75,7 @@
 * **acq\_build\_handoff** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_configure\_search\_raw** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_create\_burst** ([**acq\_core.h**](acq__core_8h.md))
+* **acq\_create\_burst\_template** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_create\_continuous** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_destroy** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_get\_state** ([**acq\_core.h**](acq__core_8h.md))

@@ -747,6 +747,246 @@ acq_obs_sink (void *ctx, const float *s, size_t rows, size_t cols, uint64_t at)
   c->last_max = m;
 }
 
+/* ── the template constructor (doppler#1470 phase 2) ─────────────────────
+ * Any repeated complex preamble, not only a code. Each claim is checked
+ * against something the constructor did not compute: the analytic chip
+ * shape, a closed form, an unscaled twin, or where the signal was put. */
+
+/* |sin(pi d) / (n sin(pi d / n))|: the autocorrelation of any sequence
+   whose power spectrum is FLAT, at fractional lag d -- a Zadoff-Chu
+   sequence is one, so this is its delay straddle in closed form. */
+static double
+_dirichlet (double d, size_t n)
+{
+  return fabs (sin (M_PI * d) / ((double)n * sin (M_PI * d / (double)n)));
+}
+
+/* x[i] = amp * t[(i - delay) mod n] * e^{j 2 pi f i}, `len` samples. */
+static void
+_tile (float _Complex *x, size_t len, const float _Complex *t, size_t n,
+       size_t delay, double f, float amp)
+{
+  for (size_t i = 0; i < len; i++)
+    x[i] = amp * t[(i + n - delay % n) % n]
+           * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
+}
+
+static int
+_acq_template_check (void)
+{
+  const double fs   = 1.0e6;
+  const size_t reps = 8;
+
+  /* Rejects: no template, no samples, no energy, a non-finite sample, and
+     (through the shared builder) no sample rate. */
+  {
+    float _Complex z[4]    = { 0 };
+    float _Complex nan4[4] = { 1, 1, NAN, 1 };
+    float _Complex inf4[4] = { 1, 1, INFINITY, 1 };
+    DP_CHECK (
+        acq_create_burst_template (NULL, 4, reps, fs, 0.0, 0.0, 1e-3, 0.9, 0)
+        == NULL);
+    DP_CHECK (
+        acq_create_burst_template (z, 0, reps, fs, 0.0, 0.0, 1e-3, 0.9, 0)
+        == NULL);
+    DP_CHECK (
+        acq_create_burst_template (z, 4, reps, fs, 0.0, 0.0, 1e-3, 0.9, 0)
+        == NULL);
+    DP_CHECK (
+        acq_create_burst_template (nan4, 4, reps, fs, 0.0, 0.0, 1e-3, 0.9, 0)
+        == NULL);
+    DP_CHECK (
+        acq_create_burst_template (inf4, 4, reps, fs, 0.0, 0.0, 1e-3, 0.9, 0)
+        == NULL);
+    z[0] = 1.0f;
+    DP_CHECK (
+        acq_create_burst_template (z, 4, reps, 0.0, 0.0, 0.0, 1e-3, 0.9, 0)
+        == NULL);
+  }
+
+  /* The numeric shape recovers the analytic one: a 31-chip code's chips
+     held 4 samples, handed over as SAMPLES, find the triangle's floor at
+     one chip -- the zone acq_create_burst() writes down without looking.
+     31 chips, not CODE7: a 7-chip code's floor (1/7) already equals its
+     sampled triangle at lag 3, so its first null is honestly 3 (see
+     acq_shape_of_template). PN(mls_poly(5), seed=1). */
+  {
+    static const uint8_t CODE31[31]
+        = { 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1,
+            1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0 };
+    const size_t spc = 4, n = 31 * spc;
+    float _Complex t[124];
+    for (size_t i = 0; i < n; i++)
+      t[i] = (CODE31[i / spc] & 1u) ? -1.0f : 1.0f;
+    acq_state_t *tp
+        = acq_create_burst_template (t, n, reps, fs, 0.0, 0.0, 1e-3, 0.9, 0);
+    acq_state_t *cp = acq_create_burst (CODE31, 31, reps, spc, fs / 4.0, 0.0,
+                                        0.0, 1e-3, 0.9, 0);
+    DP_REQUIRE (tp != NULL && cp != NULL);
+    DP_CHECK (tp->shape.zone == spc);
+    DP_CHECK (tp->shape.zone == cp->shape.zone);
+    DP_CHECK (tp->code_bins == cp->code_bins && tp->fs == cp->fs);
+    acq_destroy (tp);
+    acq_destroy (cp);
+  }
+
+  /* Zadoff-Chu: a flat spectrum, so a perfect autocorrelation (null at the
+     first lag) and a Dirichlet straddle, in closed form. */
+  {
+    enum
+    {
+      N = 127
+    };
+    float _Complex zc[N];
+    for (size_t k = 0; k < N; k++)
+      zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k
+                                    * (double)(k + 1) / (double)N);
+    acq_state_t *a
+        = acq_create_burst_template (zc, N, reps, fs, 0.0, 0.0, 1e-3, 0.9, 0);
+    DP_REQUIRE (a != NULL);
+    DP_CHECK (a->shape.zone == 1);
+    const int nk   = ACQ_DELAY_LOSS_NODES;
+    double    mean = 0.0;
+    for (int k = 0; k < nk; k++)
+      {
+        double d = 0.5 * ((double)k + 0.5) / (double)nk;
+        DP_CHECK_NEAR (a->shape.delay_loss[k], _dirichlet (d, N), 1e-6);
+      }
+    /* the mean, by an independent quadrature (fine midpoint) */
+    for (int i = 0; i < 4000; i++)
+      mean += _dirichlet (0.5 * ((double)i + 0.5) / 4000.0, N) / 4000.0;
+    DP_CHECK_NEAR (a->shape.delay_loss_mean, mean, 1e-6);
+    acq_destroy (a);
+  }
+
+  /* The same for an EVEN length, whose Nyquist bin belongs to both halves
+     of the spectrum and contributes only cos(pi d): the band-limited
+     kernel is then |sin(pi d) cot(pi d / n)| / n, not the odd Dirichlet.
+     An even Zadoff-Chu is flat-spectrum too. */
+  {
+    enum
+    {
+      N = 128
+    };
+    float _Complex zc[N];
+    for (size_t k = 0; k < N; k++)
+      zc[k] = (float _Complex)cexp (-I * M_PI * 3.0 * (double)(k * k)
+                                    / (double)N);
+    acq_state_t *a
+        = acq_create_burst_template (zc, N, reps, fs, 0.0, 0.0, 1e-3, 0.9, 0);
+    DP_REQUIRE (a != NULL);
+    DP_CHECK (a->shape.zone == 1);
+    for (int k = 0; k < ACQ_DELAY_LOSS_NODES; k++)
+      {
+        double d    = 0.5 * ((double)k + 0.5) / (double)ACQ_DELAY_LOSS_NODES;
+        double want = fabs (sin (M_PI * d) / tan (M_PI * d / N)) / N;
+        DP_CHECK_NEAR (a->shape.delay_loss[k], want, 1e-6);
+      }
+    acq_destroy (a);
+  }
+
+  /* Amplitude is not shape: the template x 7 is the same engine -- the
+     same grid and thresholds exactly, and the same prediction and
+     detections to float rounding (t*g and 7t*g' round differently in the
+     last bit, so bit-equality is not the claim). */
+  {
+    enum
+    {
+      N = 64
+    };
+    float _Complex c[N], c7[N], x[N * 30];
+    for (size_t k = 0; k < N; k++)
+      {
+        c[k]  = (float _Complex)cexp (I * M_PI * (double)(k * k) / (double)N);
+        c7[k] = 7.0f * c[k];
+      }
+    acq_state_t *a
+        = acq_create_burst_template (c, N, reps, fs, 45.0, 0.0, 1e-3, 0.9, 0);
+    acq_state_t *b
+        = acq_create_burst_template (c7, N, reps, fs, 45.0, 0.0, 1e-3, 0.9, 0);
+    DP_REQUIRE (a != NULL && b != NULL);
+    DP_CHECK (a->coherent_bins == b->coherent_bins);
+    DP_CHECK (a->threshold == b->threshold && a->eta == b->eta);
+    DP_CHECK_NEAR (a->pd_predicted, b->pd_predicted, 1e-6);
+    DP_CHECK_NEAR (a->straddle_loss, b->straddle_loss, 1e-6);
+    _tile (x, N * 30, c, N, 23, 0.0, 1.0f);
+    acq_result_t ha[16], hb[16];
+    size_t       na = acq_push (a, x, N * 30, ha, 16);
+    size_t       nb = acq_push (b, x, N * 30, hb, 16);
+    DP_CHECK (na > 0 && na == nb);
+    for (size_t i = 0; i < na && i < nb; i++)
+      {
+        DP_CHECK (ha[i].code_phase == hb[i].code_phase);
+        DP_CHECK_NEAR (ha[i].test_stat, hb[i].test_stat,
+                       1e-5 * ha[i].test_stat);
+        DP_CHECK_NEAR (ha[i].cn0_dbhz_est, hb[i].cn0_dbhz_est, 1e-4);
+        /* the one output unit-RMS scaling decides: the raw peak is in the
+           SIGNAL's units, not the template's (x 7 here without it) */
+        DP_CHECK_NEAR (ha[i].peak_mag, hb[i].peak_mag, 1e-5 * ha[i].peak_mag);
+      }
+    DP_CHECK (na > 0 && ha[0].code_phase == 23 && ha[0].doppler_bin == 0);
+    acq_destroy (a);
+    acq_destroy (b);
+  }
+
+  /* Found where it was put, on three kinds of preamble. No design C/N0, so
+     the whole preamble is one coherent look (coherent_bins = reps) and a
+     Doppler of `bin` slow-time bins is `bin / (n * reps)` cycles/sample.
+     Doppler is tested on random-phase QPSK, whose ambiguity is a thumbtack;
+     a chirp and a Zadoff-Chu sequence couple delay to Doppler by design, so
+     they are held at zero Doppler here. */
+  {
+    enum
+    {
+      N = 96
+    };
+    float _Complex q[N], ch[N], shaped[N], x[N * 30];
+    uint32_t st = 1471u;
+    for (size_t k = 0; k < N; k++)
+      {
+        q[k]  = (float _Complex)cexp (I * M_PI / 2.0
+                                      * (double)(dp_xs32 (&st) >> 30));
+        ch[k] = (float _Complex)cexp (I * M_PI * (double)(k * k) / (double)N);
+      }
+    /* shaped QPSK: the QPSK above, periodically low-passed by a 5-tap
+       window, so its envelope varies */
+    const double w[5] = { 0.1, 0.25, 0.3, 0.25, 0.1 };
+    for (size_t k = 0; k < N; k++)
+      {
+        float _Complex acc = 0;
+        for (int j = 0; j < 5; j++)
+          acc += (float)w[j] * q[(k + N + (size_t)j - 2) % N];
+        shaped[k] = acc;
+      }
+    struct
+    {
+      const float _Complex *t;
+      size_t                delay;
+      long                  bin;
+    } cases[4]
+        = { { q, 41, 0 }, { q, 7, 3 }, { ch, 55, 0 }, { shaped, 90, 0 } };
+    for (int c = 0; c < 4; c++)
+      {
+        acq_state_t *a = acq_create_burst_template (cases[c].t, N, reps, fs,
+                                                    0.0, 0.0, 1e-3, 0.9, 0);
+        DP_REQUIRE (a != NULL);
+        DP_CHECK (a->coherent_bins == reps);
+        double f = (double)cases[c].bin / (double)(N * reps);
+        _tile (x, N * 30, cases[c].t, N, cases[c].delay, f, 1.0f);
+        acq_result_t h[16];
+        size_t       nh = acq_push (a, x, N * 30, h, 16);
+        DP_CHECK (nh > 0);
+        if (nh > 0)
+          {
+            DP_CHECK (h[0].code_phase == cases[c].delay);
+            DP_CHECK (h[0].doppler_bin == (size_t)cases[c].bin);
+          }
+        acq_destroy (a);
+      }
+  }
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1037,6 +1277,7 @@ main (void)
 
   (void)_acq_cn0_calibration ();
   (void)_acq_configure_search_raw_check ();
+  (void)_acq_template_check ();
   (void)_acq_half_bin_check ();
   (void)_acq_band_edge_check ();
   (void)_acq_band_mask_check ();

@@ -273,6 +273,23 @@ ______________________________________________________________________
 Written down first, so a later sweep measures them rather than confirming a
 decision already made.
 
+- **Does a dwell that runs into the data cost the capture Pd? — MEASURED, and
+    the burst Pd model is wrong in both directions.** A burst engine's dwells
+    of D repetitions are aligned to the stream, not the burst. Measured on
+    Zadoff-Chu 127 × R = 8 followed by QPSK data, each depth at the C/N0 where
+    the engine predicts 0.6 (`native/validation/capture_dwell_pd.c`, 1000
+    trials a row). Delivered Pd falls from 0.945 at D = 1 to 0.837 at D = 4,
+    0.653 at D = 6 and 0.402 at D = 8.
+
+    - Up to D = (R + 1)/2 a whole dwell fits at every alignment. The capture
+        delivers far more than predicted, because a burst offers about R/D
+        dwells and the model credits one.
+    - Past that it is optimistic, −0.08 at D = 7 and −0.21 at D = 8. The
+        detecting dwell straddles noise or data.
+    - A hard cap at (R + 1)/2 would give up about 1.5 dB of real
+        sensitivity, so the fix is a Pd model over the burst's alignment
+        ([#1498](https://github.com/doppler-dsp/doppler/issues/1498)).
+
 - **Does the per-burst copy cost anything? — MEASURED at the test geometry,
     and no.** §5.1 chose a copy over a lifetime contract.
     `bench_burst_capture_core`, 64k blocks, minimum of 30 rounds, `ACQ_SF=31`,

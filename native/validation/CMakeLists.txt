@@ -501,6 +501,19 @@ dp_gnu_compile_options(validate_acq_template_pd PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_acq_template_pd
          COMMAND validate_acq_template_pd --check)
 
+# The Pd a burst CAPTURE delivers as its coherent depth grows past half the
+# preamble (doppler#1470 phase 5): a dwell that can straddle the preamble's
+# edge against the pd_predicted that assumes a whole one.
+add_executable(validate_capture_dwell_pd
+               ${CMAKE_CURRENT_SOURCE_DIR}/capture_dwell_pd.c)
+target_include_directories(validate_capture_dwell_pd
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_capture_dwell_pd PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_capture_dwell_pd PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_capture_dwell_pd
+         COMMAND validate_capture_dwell_pd --check)
+
 # The pool's lifecycle soak: emitters from the shipped synth with its
 # window, each through the shipped doppler_channel at its own Doppler,
 # arriving and leaving at the sum; one AsyncDsssPool at the operating point

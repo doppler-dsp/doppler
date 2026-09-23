@@ -115,6 +115,66 @@ The methods differ only in **how they sweep Doppler** and **how they handle
 non-constant phase** (dynamics). They are not competing algorithms; they are
 decompositions of one surface, each efficient in a different regime.
 
+### 3.1 Any repeated preamble, not only a code
+
+Nothing in the burst engine's surface is specific to a PN code. It frames the
+stream by one period of the reference, correlates each repetition
+circularly, transforms the slow-time axis, and tiles wide uncertainty by
+whole-bin spectral rolls. All of that holds for **any periodic complex
+reference**. A code is the case whose samples come from chips.
+`acq_create_burst_template()` takes the samples themselves (#1470, #1478):
+one chip is one sample (`sf = n`, `spc = 1`, `chip_rate = fs`), so every path
+above runs unchanged, and `code_phase` is the delay into the repetition in
+samples.
+
+**What the engine asks of the waveform** is two numbers about its
+autocorrelation `R`. A code has both analytically, from the triangle one chip
+wide. A template gets both from one FFT at construction (`acq_shape_t`):
+
+| quantity       | used for                                            | a code      | a template                                                                       |
+| -------------- | --------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| `zone`         | the peak list's exclusion and the twin rule's reach | `spc`       | the first null: the first lag where `\|R\|` stops falling by more than 1e-6·R(0) |
+| delay straddle | the Pd model's half-sample prior                    | `1 − δ/spc` | band-limited `\|R(δ)\|/R(0)`; an even length's Nyquist bin contributes `cos(πδ)` |
+
+The two agree where they should. A 31-chip code handed over as samples gets
+zone 4 = `spc`. A 7-chip code honestly gets 3, because its sidelobe floor
+(1/7) reaches the sampled triangle a lag early. The tolerance exists because
+a floor is flat and a perfect sequence's off-peak lags are rounding (≈3e-9 of
+R(0) for a float Zadoff-Chu). Without it the minimum lands wherever the
+FFT's last digit fell.
+
+**The rotation loss keeps its `sinc`.** Rotation within one repetition is the
+zero-delay cut of the ambiguity function, `|Σ|s|²e^{j2πun/N}| / Σ|s|²`. For a
+constant envelope it is exactly the Dirichlet. For a shaped one it was
+measured against `sinc(u)` over `u ∈ [0, ½]`: 0.000 dB for rectangular QPSK
+and a chirp, 0.000 dB for RRC QPSK at β = 0.35, and 0.007 dB at β = 0.2 (PAPR
+4.7 dB). A periodic template's power has no low-frequency content, so no
+rotation table is kept.
+
+**Scale.** The template is scaled to unit RMS, the scale a code's ±1
+reference has, so `peak_mag` and `noise_est` are in the signal's units.
+`cn0_dbhz` is the preamble's mean power over `fs`. At `fs = 1`, normalized
+units, it is the per-sample SNR in dB and Doppler is in cycles/sample.
+
+**What is not claimed yet:**
+
+- **`pd_predicted` for a template is a model, not a measurement.** Its inputs
+    are verified against closed forms (Zadoff-Chu, odd and even length), but
+    Pd over noise has not been measured per template class. That is the
+    validation's next phase.
+- **Delay–Doppler coupling.** A chirp or Zadoff-Chu moves its correlation
+    peak along the ambiguity ridge under Doppler, biasing `code_phase` by
+    roughly `f·T/B` samples. This is unmeasured; the tests hold those
+    templates at zero Doppler and test Doppler on random-phase QPSK, whose
+    ambiguity is a thumbtack.
+- **Time compression is not compensated on the native burst path** (#1481),
+    and it bites wideband templates hardest.
+- **The burst constructors take no Doppler rate** (#1482), so a long
+    preamble under acceleration is sized past what it can integrate.
+- **Which repetition** the burst starts in is the capture's to resolve, not
+    the detector's (`BurstCapture`). So is a dwell that runs into the data after
+    the preamble ([burst-capture](burst-capture.md)).
+
 ______________________________________________________________________
 
 ## 4. Computational decompositions — placement verdicts

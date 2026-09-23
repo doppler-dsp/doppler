@@ -130,7 +130,7 @@ static burst_capture_state_t *
 make (void)
 {
   return burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
-                               1.0e6, 0.0, 0.0, 1e-3, 0.9, 0);
+                               1.0e6, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0);
 }
 
 /**
@@ -243,9 +243,9 @@ test_create_rejects_bad_parameters (void)
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 0.0, 55.0,
                                   0.0, 1e-3, 0.9, 0)
             == NULL);
-  DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, -1.0,
-                                  0.0, 1e-3, 0.9, 0)
-            == NULL); /* a design C/N0 below zero; 0 itself means "none" */
+  DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
+                                  INFINITY, 0.0, 1e-3, 0.9, 0)
+            == NULL); /* no design point is infinite; NaN means "none" */
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0,
                                   0.0, 0.0, 0.9, 0)
             == NULL);
@@ -785,7 +785,7 @@ test_one_look_and_the_design_point_is_optional (void)
   /* No design point: the whole preamble, one look, nothing to be under. */
   burst_capture_state_t *s
       = burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
-                              0.0, 0.0, 1e-3, 0.9, 0);
+                              ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0);
   DP_REQUIRE (s != NULL);
   DP_CHECK (s->acq->engine->n_noncoh == 1u);
   DP_CHECK (s->acq->engine->coherent_bins == REPS);
@@ -831,10 +831,19 @@ test_one_look_and_the_design_point_is_optional (void)
     }
   burst_capture_destroy (low);
 
-  /* Negative is still an argument error; 0 is the documented "none". */
+  /* An infinite C/N0 is an argument error -- refused by the ENGINE, whose
+     rule this composer no longer copies (doppler#1484) -- and a negative one
+     is a design point, however hopeless. */
   DP_CHECK (burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
-                                  1.0e6, -1.0, 0.0, 1e-3, 0.9, 0)
+                                  1.0e6, -INFINITY, 0.0, 1e-3, 0.9, 0)
             == NULL);
+  {
+    burst_capture_state_t *neg
+        = burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
+                                1.0e6, -1.0, 0.0, 1e-3, 0.9, 0);
+    DP_CHECK (neg != NULL && neg->underpowered);
+    burst_capture_destroy (neg);
+  }
   return 0;
 }
 
@@ -950,7 +959,7 @@ test_release_gives_back_a_shadowed_burst (void)
     const size_t           LONG_LEN = 4u * BURST_LEN, DECOY_LEAD = 3000u;
     burst_capture_state_t *s
         = burst_capture_create (acq_code (), ACQ_SF, LONG_LEN, REPS, SPC,
-                                1.0e6, 0.0, 0.0, 1e-3, 0.9, 0);
+                                1.0e6, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0);
     DP_REQUIRE (s != NULL);
     DP_REQUIRE (DECOY_LEAD >= s->refine_span
                 && DECOY_LEAD < LONG_LEN); /* the premise */

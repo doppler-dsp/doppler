@@ -51,7 +51,7 @@ DsssBurstReceiverObj_init (DsssBurstReceiverObject *self, PyObject *args,
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
   unsigned long long frame_syms_raw      = 64;
-  double             cn0_dbhz            = 0.0;
+  double             cn0_dbhz            = ACQ_CN0_NONE;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
@@ -1409,9 +1409,10 @@ static PyTypeObject DsssBurstReceiverObjType = {
     "    Chip rate in Hz (> 0).\n"
     "frame_syms : int, default 64\n"
     "    Frame symbols per burst (>= 1) — what push() returns, bit for bit.\n"
-    "cn0_dbhz : float, default 0.0\n"
-    "    Carrier-to-noise density in dB-Hz (> 0), sizing the acquisition "
-    "search.\n"
+    "cn0_dbhz : float\n"
+    "    Carrier-to-noise density in dB-Hz sizing the acquisition search: "
+    "any\n"
+    "    finite value, or NaN (ACQ_CN0_NONE) for no design point.\n"
     "doppler_uncertainty : float, default 0.0\n"
     "    One-sided Doppler half-range, Hz.\n"
     "pfa : float, default 1e-3\n"
@@ -1432,9 +1433,9 @@ static PyTypeObject DsssBurstReceiverObjType = {
     "``DsssBurstReceiver:\n"
     "    invalid parameter (need non-empty acq_code/data_code/sync, reps >= "
     "1,\n"
-    "    spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz >= 0, 0 < pfa < "
-    "1, 0\n"
-    "    < pd < 1)``.\n"
+    "    spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz finite or NaN, 0 "
+    "<\n"
+    "    pfa < 1, 0 < pd < 1)``.\n"
     "\n"
     "Examples\n"
     "--------\n"

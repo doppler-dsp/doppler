@@ -53,7 +53,8 @@ extern "C"
    * @param reps  Max coherent code repetitions (>= 1).
    * @param spc  Samples per chip (>= 1).
    * @param chip_rate  Chip rate in Hz (> 0).
-   * @param cn0_dbhz  Carrier-to-noise density in dB-Hz (> 0).
+   * @param cn0_dbhz  Carrier-to-noise density in dB-Hz: any finite value,
+   *                  or NaN (ACQ_CN0_NONE) for no design point.
    * @param doppler_uncertainty  One-sided Doppler search half-range in Hz.
    * @param pfa  Target system false-alarm probability (0,1).
    * @param pd  Target detection probability (0,1).

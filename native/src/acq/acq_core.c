@@ -794,14 +794,16 @@ acq_mean_pd (double snr, size_t D, double umax, const acq_shape_t *sh, int n,
 /* C/N0 (dB-Hz) -> per-sample amplitude SNR: power SNR = (C/N0)/fs, and the
  * detection model's non-centrality is a = sqrt(2M)*snr (amplitude).
  *
- * ZERO means "no design point" (burst mode only; see acq_create_burst).
- * Returned as 0.0 rather than the sqrt(1/fs) a literal 0 dB-Hz would give,
- * so every consumer can test `snr > 0.0` for "was a design C/N0 given" and
- * nothing sizes against a signal nobody specified. */
+ * ACQ_CN0_NONE (NaN) means "no design point" (burst mode only; see
+ * acq_create_burst). Every finite C/N0 is a design point, negative included:
+ * at fs = 1 it IS the per-sample SNR, negative wherever acquisition is hard
+ * (doppler#1484). "None" is returned as 0.0 -- no finite C/N0 maps there --
+ * so every consumer can still test `snr > 0.0` for "was a design C/N0
+ * given" and nothing sizes against a signal nobody specified. */
 static double
 acq_design_snr (double cn0_dbhz, double fs)
 {
-  return cn0_dbhz > 0.0 ? sqrt (pow (10.0, cn0_dbhz / 10.0) / fs) : 0.0;
+  return isnan (cn0_dbhz) ? 0.0 : sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
 }
 
 /* Derive and commit the threshold ladder (searched_bins / pfa_cell / eta /
@@ -1528,21 +1530,21 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
   /* Validate: bad arguments yield NULL (the binding maps this to a clear
    * MemoryError) rather than undefined behaviour downstream.  chip_rate > 0
    * acts as the required sentinel (its toml placeholder default is valid,
-   * but an explicit 0 is rejected).  cn0_dbhz is the DESIGN C/N0: a burst
-   * engine takes 0 as "none given" and sizes for the whole preamble; a
-   * continuous engine has no such sizing -- non-coherent looks are its only
+   * but an explicit 0 is rejected).  cn0_dbhz is the DESIGN C/N0, any
+   * finite value (doppler#1484): a burst engine also takes ACQ_CN0_NONE
+   * (NaN) as "none given" and sizes for the whole preamble; a continuous
+   * engine has no such sizing -- non-coherent looks are its only
    * sensitivity lever and they cannot be chosen without a target -- so it
-   * still requires one. */
+   * requires a finite one. An infinite C/N0 is no design point either. */
   const double span = (sf > 0) ? chip_rate / (2.0 * (double)sf) : 0.0;
   /* doppler_uncertainty > span is not rejected: it engages wideband mode
    * (see the file doc comment's "Wideband window-tiling mode" section)
    * instead of being an out-of-range error. */
   if (!replica || sf < 1 || spc < 1 || reps < 1 || !(chip_rate > 0.0)
-      || !(continuous ? cn0_dbhz > 0.0 : cn0_dbhz >= 0.0)
-      || !isfinite (cn0_dbhz) || !(pfa > 0.0 && pfa < 1.0)
-      || !(pd > 0.0 && pd < 1.0) || doppler_uncertainty < 0.0
-      || code_only_epochs < 1 || !(doppler_rate >= 0.0)
-      || !isfinite (doppler_rate))
+      || !(isfinite (cn0_dbhz) || (!continuous && isnan (cn0_dbhz)))
+      || !(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0)
+      || doppler_uncertainty < 0.0 || code_only_epochs < 1
+      || !(doppler_rate >= 0.0) || !isfinite (doppler_rate))
     return NULL;
 
   acq_state_t *st = (acq_state_t *)calloc (1, sizeof (*st));

@@ -270,7 +270,7 @@ The look-back buffer is NOT a parameter. Its span is derived from the geometry h
 * `spc` Samples per chip (&gt;= 1). 
 * `chip_rate` Chip rate in Hz (&gt; 0). 
 * `frame_syms` Frame symbols per burst (&gt;= 1) — what push() returns, bit for bit. 
-* `cn0_dbhz` Carrier-to-noise density in dB-Hz (&gt; 0), sizing the acquisition search. 
+* `cn0_dbhz` Carrier-to-noise density in dB-Hz sizing the acquisition search: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
 * `doppler_uncertainty` One-sided Doppler half-range, Hz. 
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 

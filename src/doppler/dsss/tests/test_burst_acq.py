@@ -184,3 +184,41 @@ def test_cross_class_state_rejection():
     burst2 = _burst_acq()
     burst2.set_state(blob_burst)
     assert burst2.doppler_bins == burst.doppler_bins
+
+
+# ── the design C/N0: NaN is "none", every finite value is one (#1484) ──────
+
+
+def test_no_design_point_is_the_default():
+    """Omitted, cn0_dbhz is NaN: the whole preamble in one look, no target
+    to be under, and so no warning."""
+    import math
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        b = BurstAcquisition(CODE, reps=8, spc=SPC, chip_rate=CHIP_RATE)
+    assert math.isnan(b.cn0_dbhz) and math.isnan(b.pd_predicted)
+    assert not b.underpowered and b.doppler_bins == 8
+
+
+def test_a_negative_design_point_is_a_design_point():
+    """0 used to mean "none", so a per-sample SNR -- negative wherever
+    acquisition is hard -- could not be stated. Any finite value is now a
+    real, if hopeless, design point: it sizes, predicts and warns."""
+    with pytest.warns(UserWarning, match="under-powered"):
+        b = BurstAcquisition(
+            CODE, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=-5.0
+        )
+    assert b.cn0_dbhz == -5.0 and b.underpowered
+    assert not np.isnan(b.pd_predicted)
+
+
+def test_an_infinite_design_point_is_refused():
+    """An infinite C/N0 is no design point: the constructor returns NULL.
+    It surfaces as MemoryError because BurstAcquisition declares no
+    create_error yet (#1486); tighten to ValueError with that fix."""
+    with pytest.raises(MemoryError):
+        BurstAcquisition(
+            CODE, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=np.inf
+        )

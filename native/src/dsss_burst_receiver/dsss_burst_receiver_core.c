@@ -68,9 +68,10 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
    * objects/). */
   if (!acq_code || acq_code_len == 0 || !data_code || data_code_len == 0
       || !sync || sync_len == 0 || reps < 1 || spc < 1 || chip_rate <= 0.0
-      || frame_syms < 1 || cn0_dbhz < 0.0 || pfa <= 0.0 || pfa >= 1.0
-      || pd <= 0.0 || pd >= 1.0)
+      || frame_syms < 1 || pfa <= 0.0 || pfa >= 1.0 || pd <= 0.0 || pd >= 1.0)
     return NULL;
+  /* cn0_dbhz: the acquisition engine's rule, checked there (doppler#1484;
+     see burst_capture_create). */
 
   dsss_burst_receiver_state_t *s = calloc (1, sizeof *s);
   if (!s)

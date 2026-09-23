@@ -559,6 +559,19 @@ extern "C"
    */
 #define ACQ_N_NONCOH_SAFETY_CEILING 256u
 
+/**
+ * @brief The design C/N0 that means "none given" (doppler#1484): a burst
+ *        engine then sizes for the whole preamble, its `pd_predicted` is NaN
+ *        and it is never `underpowered`.
+ *
+ * NaN, because every finite value is a real design point -- including a
+ * negative one: at `fs = 1` (normalized units) the C/N0 IS the per-sample
+ * SNR in dB, which is negative wherever acquisition is hard. It used to be
+ * 0, which made exactly 0 dB unreachable and a negative per-sample SNR
+ * unstatable. Test with isnan(), never ==.
+ */
+#define ACQ_CN0_NONE NAN
+
   /**
    * @brief Create a burst-mode acquisition engine: coherent multi-epoch
    *        combining, up to @p reps deep (today's classic behavior).
@@ -600,8 +613,9 @@ extern "C"
    * (>=1).
    * @param spc         Samples per chip (>= 1).
    * @param chip_rate   Chip rate in Hz (> 0).
-   * @param cn0_dbhz    Design carrier-to-noise density in dB-Hz (>= 0; 0 =
-   * no design point, size for the whole preamble).
+   * @param cn0_dbhz    Design carrier-to-noise density in dB-Hz: any finite
+   * value, negative included, or @ref ACQ_CN0_NONE (NaN) for no design
+   * point -- size for the whole preamble.
    * @param doppler_uncertainty  One-sided Doppler search half-range in Hz; 0
    * uses the full native span +/- chip_rate/(2*sf).  A value greater than the
    * native span engages wideband mode (see the file doc comment above):
@@ -650,7 +664,9 @@ extern "C"
    *                    acq_state_t::epochs_per_symbol), doesn't feed
    *                    sizing: this engine never coherently combines
    *                    regardless of the data-modulation clock.
-   * @param cn0_dbhz    Carrier-to-noise density in dB-Hz (> 0).
+   * @param cn0_dbhz    Carrier-to-noise density in dB-Hz: any finite value.
+   *                    A continuous engine needs one -- its non-coherent
+   *                    looks cannot be chosen without a target.
    * @param doppler_uncertainty  One-sided Doppler search half-range in Hz; 0
    * uses the full native span +/- chip_rate/(2*sf) (still window-tiled, at
    * window_bins=1).
@@ -733,7 +749,9 @@ extern "C"
    * @param reps        Max coherent repetitions (>= 1).
    * @param fs          Sample rate in Hz (> 0).
    * @param cn0_dbhz    Design carrier-to-noise density in dB-Hz, of the
-   *                    preamble's mean power (>= 0; 0 = no design point).
+   *                    preamble's mean power: any finite value (at fs = 1
+   *                    the per-sample SNR, usually negative), or
+   *                    @ref ACQ_CN0_NONE (NaN) for no design point.
    * @param doppler_uncertainty  One-sided Doppler search half-range in Hz;
    *                    beyond `fs/(2n)` engages wideband mode.
    * @param pfa         Target system false-alarm probability (0,1).

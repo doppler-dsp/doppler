@@ -132,6 +132,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**ACQ\_CN0\_NONE**](acq__core_8h.md#define-acq_cn0_none)  `NAN`<br>_The design C/N0 that means "none given" (doppler#1484): a burst engine then sizes for the whole preamble, its_ `pd_predicted` _is NaN and it is never_`underpowered` _._ |
 | define  | [**ACQ\_COL\_CHUNK**](acq__core_8h.md#define-acq_col_chunk)  `32u`<br> |
 | define  | [**ACQ\_DELAY\_LOSS\_NODES**](acq__core_8h.md#define-acq_delay_loss_nodes)  `4`<br> |
 | define  | [**ACQ\_MAX\_PEAKS**](acq__core_8h.md#define-acq_max_peaks)  `64u`<br> |
@@ -480,7 +481,7 @@ A tighter `doppler_uncertainty` narrows the scanned Doppler band, lowering the p
 * `reps` Max coherent code repetitions, the coherence ceiling (&gt;=1). 
 * `spc` Samples per chip (&gt;= 1). 
 * `chip_rate` Chip rate in Hz (&gt; 0). 
-* `cn0_dbhz` Design carrier-to-noise density in dB-Hz (&gt;= 0; 0 = no design point, size for the whole preamble). 
+* `cn0_dbhz` Design carrier-to-noise density in dB-Hz: any finite value, negative included, or [**ACQ\_CN0\_NONE**](acq__core_8h.md#define-acq_cn0_none) (NaN) for no design point  size for the whole preamble. 
 * `doppler_uncertainty` One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip\_rate/(2\*sf). A value greater than the native span engages wideband mode (see the file doc comment above): coherent\_bins is forced to 1 and the uncertainty is tiled with parallel frequency-window hypotheses instead. 
 * `pfa` Target system (max-of-N) false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1); a sizing target only when `cn0_dbhz` is given. 
@@ -549,7 +550,7 @@ The within-repetition rotation loss keeps the engine's `sinc` model: it is the z
 * `n` Samples per repetition (&gt;= 1). 
 * `reps` Max coherent repetitions (&gt;= 1). 
 * `fs` Sample rate in Hz (&gt; 0). 
-* `cn0_dbhz` Design carrier-to-noise density in dB-Hz, of the preamble's mean power (&gt;= 0; 0 = no design point). 
+* `cn0_dbhz` Design carrier-to-noise density in dB-Hz, of the preamble's mean power: any finite value (at fs = 1 the per-sample SNR, usually negative), or [**ACQ\_CN0\_NONE**](acq__core_8h.md#define-acq_cn0_none) (NaN) for no design point. 
 * `doppler_uncertainty` One-sided Doppler search half-range in Hz; beyond `fs/(2n)` engages wideband mode. 
 * `pfa` Target system false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1). 
@@ -616,7 +617,7 @@ Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_
 * `spc` Samples per chip (&gt;= 1). 
 * `chip_rate` Chip rate in Hz (&gt; 0). 
 * `symbol_rate` Continuous data-symbol rate in Hz; &lt;= 0 means no known clock. Diagnostic only (exposed via [**acq\_state\_t::epochs\_per\_symbol**](structacq__state__t.md#variable-epochs_per_symbol)), doesn't feed sizing: this engine never coherently combines regardless of the data-modulation clock. 
-* `cn0_dbhz` Carrier-to-noise density in dB-Hz (&gt; 0). 
+* `cn0_dbhz` Carrier-to-noise density in dB-Hz: any finite value. A continuous engine needs one  its non-coherent looks cannot be chosen without a target. 
 * `doppler_uncertainty` One-sided Doppler search half-range in Hz; 0 uses the full native span +/- chip\_rate/(2\*sf) (still window-tiled, at window\_bins=1). 
 * `pfa` Target system (max-of-N) false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1). 
@@ -1383,6 +1384,24 @@ True
 ## Macro Definition Documentation
 
 
+
+
+
+### define ACQ\_CN0\_NONE 
+
+_The design C/N0 that means "none given" (doppler#1484): a burst engine then sizes for the whole preamble, its_ `pd_predicted` _is NaN and it is never_`underpowered` _._
+```C++
+#define ACQ_CN0_NONE `NAN`
+```
+
+
+
+NaN, because every finite value is a real design point  including a negative one: at `fs = 1` (normalized units) the C/N0 IS the per-sample SNR in dB, which is negative wherever acquisition is hard. It used to be 0, which made exactly 0 dB unreachable and a negative per-sample SNR unstatable. Test with isnan(), never ==. 
+
+
+        
+
+<hr>
 
 
 

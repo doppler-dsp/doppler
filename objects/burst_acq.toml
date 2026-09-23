@@ -52,7 +52,8 @@ default = "1000000.0"
 [[burst_acq.init_params]]
 name = "cn0_dbhz"
 type = "double"
-default = "0.0"
+# NaN = no design point (doppler#1484): any finite C/N0 is a real one.
+default_raw = "ACQ_CN0_NONE"
 
 [[burst_acq.init_params]]
 name = "doppler_uncertainty"

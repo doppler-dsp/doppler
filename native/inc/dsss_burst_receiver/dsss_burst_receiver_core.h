@@ -192,8 +192,9 @@ typedef struct {
  * @param chip_rate  Chip rate in Hz (> 0).
  * @param frame_syms   Frame symbols per burst (>= 1) — what push()
  *                     returns, bit for bit.
- * @param cn0_dbhz  Carrier-to-noise density in dB-Hz (> 0), sizing the
- *                  acquisition search.
+ * @param cn0_dbhz  Carrier-to-noise density in dB-Hz sizing the
+ *                  acquisition search: any finite value, or NaN
+ *                  (ACQ_CN0_NONE) for no design point.
  * @param doppler_uncertainty  One-sided Doppler half-range, Hz.
  * @param pfa  Target false-alarm probability, in (0, 1).
  * @param pd  Target detection probability, in (0, 1).

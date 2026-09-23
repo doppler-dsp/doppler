@@ -46,7 +46,7 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
   unsigned long long reps_raw            = 1;
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
-  double             cn0_dbhz            = 0.0;
+  double             cn0_dbhz            = ACQ_CN0_NONE;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
@@ -926,8 +926,9 @@ static PyTypeObject BurstAcquisitionObjType = {
     "    Samples per chip (>= 1).\n"
     "chip_rate : float, default 1000000.0\n"
     "    Chip rate in Hz (> 0).\n"
-    "cn0_dbhz : float, default 0.0\n"
-    "    Carrier-to-noise density in dB-Hz (> 0).\n"
+    "cn0_dbhz : float\n"
+    "    Carrier-to-noise density in dB-Hz: any finite value, or NaN\n"
+    "    (ACQ_CN0_NONE) for no design point.\n"
     "doppler_uncertainty : float, default 0.0\n"
     "    One-sided Doppler search half-range in Hz.\n"
     "pfa : float, default 1e-3\n"

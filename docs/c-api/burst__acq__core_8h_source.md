@@ -24,6 +24,7 @@ extern "C"
   typedef struct
   {
     acq_state_t *engine;
+    uint8_t underpowered;
   } burst_acq_state_t;
 
   burst_acq_state_t *burst_acq_create (const uint8_t *code, size_t code_len,
@@ -31,6 +32,24 @@ extern "C"
                                        double chip_rate, double cn0_dbhz,
                                        double doppler_uncertainty, double pfa,
                                        double pd, int noise_mode);
+
+  burst_acq_state_t *burst_acq_create_template (
+      const float _Complex *tmpl, size_t n, size_t reps, double fs,
+      double cn0_dbhz, double doppler_uncertainty, double pfa, double pd,
+      int noise_mode);
+
+  burst_acq_state_t *burst_acq_bind_code (const uint8_t *code,
+                                          size_t code_len, size_t reps,
+                                          size_t spc, double chip_rate,
+                                          double cn0_dbhz,
+                                          double doppler_uncertainty,
+                                          double pfa, double pd,
+                                          int noise_mode, double fs);
+
+  burst_acq_state_t *burst_acq_bind_template (
+      const float _Complex *tmpl, size_t n, size_t reps, size_t spc,
+      double chip_rate, double cn0_dbhz, double doppler_uncertainty,
+      double pfa, double pd, int noise_mode, double fs);
 
   void burst_acq_destroy (burst_acq_state_t *state);
 

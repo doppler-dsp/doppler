@@ -6,14 +6,17 @@ no_state = "true"
 no_step = "true"
 class_name = "BurstAcquisition"
 serializable = "true"
-# NOTE: no `warnings` block here, unlike its sibling objects/acq.toml. The
-# under-powered UserWarning is the one thing in this object that cannot be
-# declared: `warnings.condition` must be a bare C identifier naming a bool
-# field on the state struct, while a property `expr` takes arbitrary C. Every
-# property below has to reach through `engine->` because burst_acq_state_t
-# holds nothing but that pointer, so the same reach is exactly what the
-# condition needs and cannot have. Filed upstream; the warning is a documented
-# hand-patch in native/src/dsss/dsss_ext_burst_acq.c until that lands.
+# A NULL create() is an ARGUMENT error, never an allocation one (doppler#1486)
+# -- the same shape as objects/burst_capture.toml's. Before this, an infinite
+# cn0_dbhz or a pfa of 1 surfaced as MemoryError.
+create_error = "ValueError"
+create_error_message = "BurstAcquisition: invalid parameter (need a non-empty code, reps >= 1, spc >= 1, chip_rate > 0, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >= 0, 0 < pfa < 1, 0 < pd < 1; a preamble needs finite, non-zero energy)"
+# The under-powered UserWarning is declared (gh-481): its condition is a
+# bool field of burst_acq_state_t, which mirrors the engine's at
+# construction -- the same warning objects/acq.toml declares.
+warnings = [
+  { after = "__init__", condition = "underpowered", category = "UserWarning", message = "BurstAcquisition is under-powered: pd_predicted < pd at this reps/cn0_dbhz. Raise reps or cn0_dbhz, or narrow doppler_uncertainty." },
+]
 # Composes acq's shared engine (acq_state_t/acq_core.c) -- this class is the
 # BURST front door (see docs/design/async-dsss-receiver.md's Acquisition/
 # BurstAcquisition split); today's existing pre-split Acquisition behavior,
@@ -23,6 +26,14 @@ serializable = "true"
 # (below) is a thin forwarder onto acq_create_burst()/acq_push()/etc -- the
 # entire algorithm lives in acq_core.c exactly once.
 depends_on = [{ name = "acq", link = true }]
+# One Python constructor, two C ones (doppler#1470): a uint8 `code` is a PN
+# code (burst_acq_create), a complex64 one is any repeated preamble's samples
+# (burst_acq_create_template). jm's dtype dispatch calls both branches with
+# the SAME arguments, so the pair it calls are burst_acq_bind_code /
+# burst_acq_bind_template -- each takes the full list and ignores the other
+# branch's half (spc/chip_rate for samples, fs for chips). C callers use the
+# two natural constructors.
+create_fn = "burst_acq_bind_code"
 
 # ── Construction: physics in, grid out ───────────────────────────────────────
 # Today's existing (pre-split) Acquisition signature, minus symbol_rate
@@ -33,6 +44,8 @@ depends_on = [{ name = "acq", link = true }]
 [[burst_acq.init_params]]
 name = "code"
 type = "uint8_t[]"
+real_type = "float _Complex[]"
+real_create_fn = "burst_acq_bind_template"
 
 [[burst_acq.init_params]]
 name = "reps"
@@ -74,6 +87,13 @@ default = "0.9"
 name = "noise_mode"
 type = "string_enum:mean,median,min,max"
 default = "mean"
+
+# A preamble's sample rate; a code ignores it. 1 is normalized units:
+# Doppler in cycles/sample, cn0_dbhz the per-sample SNR in dB.
+[[burst_acq.init_params]]
+name = "fs"
+type = "double"
+default = "1.0"
 
 [[burst_acq.methods]]
 name = "push"
@@ -123,7 +143,7 @@ doc = "The peak list's capacity per dwell (1 = the classic gated maximum); set w
 name = "code_bins"
 type = "size_t"
 expr = "self->handle->engine->code_bins"
-doc = "Code-phase hypotheses searched (= sf*spc, one code period)."
+doc = "Delay hypotheses searched: one repetition in samples (= sf*spc; a preamble's length)."
 
 [[burst_acq.properties]]
 name = "doppler_bins"
@@ -135,13 +155,13 @@ doc = "Coherent depth chosen: the slow-time FFT length in code reps (<= reps), u
 name = "sf"
 type = "size_t"
 expr = "self->handle->engine->sf"
-doc = "Chips per PN segment, inferred from len(code)."
+doc = "Chips per repetition, from len(code); for a preamble, its length in samples (one chip is one sample)."
 
 [[burst_acq.properties]]
 name = "spc"
 type = "size_t"
 expr = "self->handle->engine->spc"
-doc = "Samples per chip (chip-rate oversample factor)."
+doc = "Samples per chip (chip-rate oversample factor); 1 for a preamble."
 
 [[burst_acq.properties]]
 name = "reps"
@@ -213,13 +233,13 @@ doc = "Mean amplitude derating of the correlation peak from grid straddle (slow-
 name = "fs"
 type = "double"
 expr = "self->handle->engine->fs"
-doc = "Sample rate (Hz) = chip_rate * spc."
+doc = "Sample rate (Hz) = chip_rate * spc; for a preamble, the fs it was given."
 
 [[burst_acq.properties]]
 name = "chip_rate"
 type = "double"
 expr = "self->handle->engine->chip_rate"
-doc = "Chip rate (Hz)."
+doc = "Chip rate (Hz); for a preamble, equal to fs."
 
 [[burst_acq.properties]]
 name = "cn0_dbhz"

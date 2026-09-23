@@ -23,7 +23,8 @@ __attribute__((used))
 #endif
 #endif
 const jm_any_fn jm_bound_symbols_burst_acq[] = {
-    (jm_any_fn)burst_acq_create,
+    (jm_any_fn)burst_acq_bind_code,
+    (jm_any_fn)burst_acq_bind_template,
     (jm_any_fn)burst_acq_destroy,
     (jm_any_fn)burst_acq_reset,
     (jm_any_fn)burst_acq_push,

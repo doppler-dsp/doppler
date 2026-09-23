@@ -23,6 +23,7 @@ the CFAR statistics are `detection`'s. Neither is re-derived here.
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -35,10 +36,18 @@ from doppler.dsss.tests._acq_pfa import (
     pfa_sigma,
     realized_pfa,
 )
+from doppler.tests._repo import build_dir, exe, repo_root
 from doppler.tests._validation_common import Report, cli
 from doppler.wfm import PN, mls_poly
 
 HERE = Path(__file__).resolve().parent
+ROOT = repo_root(__file__)
+#: The template Monte-Carlo (§2.10, §2.11) is C's: one trial loop, one set
+#: of templates and one band-limited delay, in the harness. This report
+#: renders its rows and decides in limits().
+TEMPLATE_PD = exe(
+    build_dir(__file__) / "native/validation/validate_acq_template_pd"
+)
 R = Report()
 
 SF = 31
@@ -115,6 +124,10 @@ class Data:
     pd_trials: int = 0
     pd_model_conservative: bool = False
     pd_model_close: bool = False
+    tmpl_meta: list[str] = field(default_factory=list)
+    tmpl_rows: list[dict[str, str]] = field(default_factory=list)
+    drift_meta: list[str] = field(default_factory=list)
+    drift_rows: list[dict[str, str]] = field(default_factory=list)
 
 
 # ── 1. the object ─────────────────────────────────────────────────────
@@ -224,6 +237,25 @@ def section_object() -> None:
                 "§2.9",
             ],
             ["the state triplet round-trips", "C + Python", "§2.9"],
+            [
+                "`acq_create_burst_template` searches any repeated preamble "
+                "by its samples; the zone and the delay straddle come from "
+                "its own correlation",
+                "C, against closed forms (chirp, Zadoff-Chu, QPSK, RRC)",
+                "§2.10",
+            ],
+            [
+                "`pd_predicted` holds for a template as for a code",
+                "**was nothing** — the inputs were pinned, never the "
+                "output over noise",
+                "§2.10",
+            ],
+            [
+                "`doppler_rate` caps the burst depth at "
+                "`f_epoch/sqrt(2*rate)`",
+                "C, both constructors, sabotage-proven",
+                "§2.11",
+            ],
         ],
     )
 
@@ -246,7 +278,169 @@ def characterise() -> Data:
     _sec_cn0(d)
     _sec_noisemode(d)
     _sec_lifecycle(d)
+    _template_harness(d)
+    _sec_templates(d)
+    _sec_drift(d)
     return d
+
+
+def _template_harness(d: Data) -> None:
+    """Run the template Monte-Carlo and parse its two CSV blocks.
+
+    A missing binary is a hard failure rather than a skip: a skipped
+    measurement is indistinguishable from a passing one in a log, and
+    §2.10-§2.11 come from nowhere else. `make build` builds it, and CI
+    builds before it runs any Python.
+    """
+    if not TEMPLATE_PD.exists():
+        raise SystemExit(
+            f"acq: {TEMPLATE_PD.relative_to(ROOT)} is not built — run "
+            f"`make build` first. §2.10-§2.11 are its measurements."
+        )
+    out = subprocess.run(
+        [str(TEMPLATE_PD), "--emit"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    block: list[dict[str, str]] = []
+    header: list[str] = []
+    for line in out.splitlines():
+        if line.startswith("# pd "):
+            d.tmpl_meta, block, header = line[5:].split(","), d.tmpl_rows, []
+        elif line.startswith("# drift "):
+            d.drift_meta, block, header = line[8:].split(","), d.drift_rows, []
+        elif not header:
+            header = line.split(",")
+        else:
+            block.append(dict(zip(header, line.split(","))))
+
+
+def _pd_verdict(r: dict[str, str]) -> tuple[bool, float]:
+    """(never optimistic, measured - predicted): §2.6's two bounds read."""
+    pred, meas, se = float(r["pred"]), float(r["meas"]), float(r["se"])
+    return meas >= pred - 2.0 * se, meas - pred
+
+
+def _sec_templates(d: Data) -> None:
+    """Does `pd_predicted` hold for a preamble that is not a code?"""
+    D, trials, pfa = d.tmpl_meta
+    R.md("### 2.10 Any repeated preamble: the Pd a template delivers")
+    R.md()
+    R.md(
+        "`acq_create_burst_template()` searches a preamble by its samples "
+        "(doppler#1470). What a code knows analytically -- the peak zone, "
+        "the delay straddle -- comes from the template's own correlation, "
+        "and `test_acq_core.c` pins those inputs against closed forms. "
+        "This measures the OUTPUT: §2.6's method, one frame of "
+        f"D = {D} repetitions per trial with the grid pinned, Doppler "
+        "uniform over the span, a continuous band-limited delay, AWGN from "
+        f"the shipped `awgn`, pfa {pfa}, {trials} trials a row. Each "
+        "template runs at the C/N0 where the engine itself predicts 0.3, "
+        "0.6 and 0.9, so a wrong slope shows. The code runs through the "
+        "same harness as the control and lands on §2.6, so any gap in the "
+        "other rows is the engine's. Measured by "
+        "`native/validation/acq_template_pd.c`; `|delay err|` is the mean "
+        "distance of the reported delay from the injected one, in samples."
+    )
+    R.md()
+    rows = []
+    for r in d.tmpl_rows:
+        ok, gap = _pd_verdict(r)
+        rows.append(
+            [
+                r["preamble"],
+                f"{float(r['cn0']):.2f}",
+                f"{float(r['pred']):.3f}",
+                f"{float(r['meas']):.3f}",
+                f"{float(r['se']):.3f}",
+                f"{gap:+.3f}",
+                f"{float(r['delay_err']):.2f}",
+                "yes" if ok else "**no**",
+            ]
+        )
+    R.table(
+        [
+            "preamble",
+            "C/N0",
+            "`pd_predicted`",
+            "measured",
+            "+/- (1 sigma)",
+            "gap",
+            "|delay err|",
+            "never optimistic?",
+        ],
+        rows,
+    )
+    R.md()
+    R.md(
+        "QPSK sits on the model. Zadoff-Chu is conservative by ~0.03 and "
+        "the chirp by up to ~0.1: a chirp's correlation peak slides along "
+        "its delay-Doppler ridge (~0.3 samples) instead of shrinking, so "
+        "the zero-delay rotation loss the model charges overstates it. The "
+        "SHAPED QPSK -- the same symbols through a 5-tap low-pass -- is "
+        "optimistic by 0.02-0.03 at up to 3 sigma, while its unshaped twin "
+        "sits on the model, so the cause is the shaping (F8, doppler#1483). "
+        "Zadoff-Chu's delay error is whole samples at 0.9 because its "
+        "Doppler sensitivity moves the peak: the capture's refine, not the "
+        "detector, owns the exact start."
+    )
+    R.md()
+
+
+def _sec_drift(d: Data) -> None:
+    """Does a Doppler rate keep the prediction honest?"""
+    name, reps, rate, trials = d.drift_meta
+    R.md("### 2.11 A Doppler rate caps the coherent depth")
+    R.md()
+    R.md(
+        "A Doppler rate moves the carrier during a block and smears it "
+        "across slow-time rows, a loss the Pd model does not carry. The "
+        "burst constructors take `doppler_rate` (doppler#1482) and cap the "
+        "depth at `f_epoch/sqrt(2*rate)` -- the drift rule the continuous "
+        "engine already applies to its block depth. Measured on "
+        f"{reps} repetitions of {name} at 1 MS/s (`f_epoch` = 7874 Hz) "
+        f"under a {float(rate) / 1e6:.1f} MHz/s ramp, sized by the engine "
+        f"at a C/N0 where it alone wants a deep block, {trials} trials a "
+        "row. The ramp-free row is the control."
+    )
+    R.md()
+    rows = []
+    for r in d.drift_rows:
+        ok, gap = _pd_verdict(r)
+        rows.append(
+            [
+                r["row"],
+                r["depth"],
+                f"{float(r['pred']):.3f}",
+                f"{float(r['meas']):.3f}",
+                f"{float(r['se']):.3f}",
+                f"{gap:+.3f}",
+                "yes" if ok else "**no**",
+            ]
+        )
+    R.table(
+        [
+            "engine",
+            "D",
+            "`pd_predicted`",
+            "measured",
+            "+/- (1 sigma)",
+            "gap",
+            "never optimistic?",
+        ],
+        rows,
+    )
+    R.md()
+    R.md(
+        "Not told the rate, the engine is sized at the depth the Pd target "
+        "alone picks and promises a Pd the ramp takes away. Told it, the "
+        "depth is capped, the engine reports `underpowered`, and it "
+        "predicts the Pd it delivers. A caller learns at construction that "
+        "this link cannot be closed coherently, instead of from a quiet "
+        "stream."
+    )
+    R.md()
 
 
 def _sec_modes(d: Data) -> None:
@@ -974,8 +1168,32 @@ def review(d: Data) -> None:
         "doppler#1064.",
     )
 
-
-# ── 4. limits ─────────────────────────────────────────────────────────
+    # ── 4. limits ─────────────────────────────────────────────────────────
+    R.find(
+        "F8",
+        "CONFIRMED",
+        "**A shaped template's `pd_predicted` is optimistic.** QPSK "
+        "through a 5-tap low-pass delivers 0.02-0.03 less Pd than it "
+        'predicts, at up to 3 sigma of 3000 trials, against the "never '
+        'optimistic" contract every other template class keeps (§2.10). '
+        "The same symbols unshaped sit on the model, so the cause is the "
+        "shaping: a varying envelope that the band-limited delay straddle "
+        "or the rotation loss under-charges. Small, but on the wrong side "
+        "for sizing. Ratcheted at 0.05 below; doppler#1483 lists the "
+        "candidates.",
+    )
+    R.find(
+        "F9",
+        "FIXED",
+        "**The burst sizer ignored a Doppler rate.** It picked the "
+        "coherent depth up to `reps` whatever the platform was doing, so "
+        "a long preamble under acceleration was sized on a Pd the drift "
+        "takes away: 0.92 promised, 0.65 delivered in §2.11. The burst "
+        "constructors now take `doppler_rate` and cap the depth by the "
+        "drift rule the continuous engine already used, from one helper "
+        "(doppler#1482). Sabotage-proven in `test_acq_core.c` and in the "
+        "harness's spot check.",
+    )
 
 
 def limits(d: Data) -> None:
@@ -1072,6 +1290,46 @@ def limits(d: Data) -> None:
         len(d.mode_rows) >= 8,
         "all four CFAR noise modes are exercised, not only the default",
     )
+    ctl = [r for r in d.tmpl_rows if "(ctl)" in r["preamble"]]
+    held = [
+        r
+        for r in d.tmpl_rows
+        if "(ctl)" not in r["preamble"] and "shaped" not in r["preamble"]
+    ]
+    shaped = [r for r in d.tmpl_rows if "shaped" in r["preamble"]]
+    R.limit(
+        len(ctl) == 1
+        and all(ok and gap <= 0.15 for ok, gap in map(_pd_verdict, ctl)),
+        "the template harness reproduces §2.6 on the code: its control "
+        "row is never optimistic and within 0.15, so a gap in a template "
+        "row is the engine's (§2.10)",
+    )
+    R.limit(
+        len(held) == 9
+        and all(ok and gap <= 0.15 for ok, gap in map(_pd_verdict, held)),
+        "`pd_predicted` holds for a Zadoff-Chu, a chirp and a QPSK "
+        "preamble at Pd 0.3, 0.6 and 0.9: never optimistic (2 sigma), "
+        "never more than 0.15 pessimistic (§2.10)",
+    )
+    R.limit(
+        len(shaped) == 3
+        and all(gap >= -0.05 for _, gap in map(_pd_verdict, shaped)),
+        "a shaped QPSK preamble is optimistic by no more than 0.05 -- a "
+        "RATCHET, not a bound: it sits at ~0.03 today (F8, doppler#1483) "
+        "and may only shrink",
+    )
+    by = {r["row"]: r for r in d.drift_rows}
+    told = by.get("ramp (rate given)")
+    blind = by.get("ramp (rate not given)")
+    still = by.get("no ramp (control)")
+    R.limit(
+        bool(told and blind and still)
+        and _pd_verdict(still)[0]
+        and _pd_verdict(told)[0]
+        and int(told["depth"]) < int(blind["depth"]),
+        "given a Doppler rate, the burst engine caps its depth and "
+        "predicts the Pd it delivers under that ramp (§2.11)",
+    )
 
 
 # ── build ─────────────────────────────────────────────────────────────
@@ -1111,6 +1369,12 @@ def build(write: bool = True) -> Report:
             "Even with no uncertainty prior it reports `doppler_bins = 1`; "
             "a multi-epoch coherent axis aliases a data-modulated stream's "
             "transitions across the whole Doppler axis (§2.1, F4).",
+            "**Any repeated preamble works; give a long one its Doppler "
+            "rate.** Zadoff-Chu, chirp and QPSK meet `pd_predicted` at "
+            "every design point; a shaped preamble is optimistic by ~0.03 "
+            "(§2.10, F8). Without `doppler_rate` a long preamble is sized "
+            "at a depth the drift takes away, 0.92 promised and 0.65 "
+            "delivered (§2.11, F9).",
         ],
     )
     R.summary(

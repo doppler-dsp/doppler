@@ -80,7 +80,8 @@ main (void)
      no max_noncoh: non-coherent looks are auto-selected against the
      internal ACQ_N_NONCOH_SAFETY_CEILING.) */
   acq_state_t *(*create_burst) (const uint8_t *, size_t, size_t, size_t,
-                                double, double, double, double, double, int)
+                                double, double, double, double, double, int,
+                                double)
       = acq_create_burst;
   acq_state_t *(*create_cont) (const uint8_t *, size_t, size_t, double,
                                double, double, double, double, double, int,

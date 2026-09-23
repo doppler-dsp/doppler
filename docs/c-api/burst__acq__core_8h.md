@@ -59,11 +59,11 @@ _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._ [More...
 
 | Type | Name |
 | ---: | :--- |
-|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_bind\_code**](#function-burst_acq_bind_code) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double fs) <br>_Build a BurstAcquisition from a PN code OR a preamble's samples_  _the one Python constructor, dispatched on the first array's dtype._ |
-|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_bind\_template**](#function-burst_acq_bind_template) (const float \_Complex \* tmpl, size\_t n, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double fs) <br>_The complex64 branch of_ [_**burst\_acq\_bind\_code()**_](burst__acq__core_8h.md#function-burst_acq_bind_code) _: forwards to_[_**burst\_acq\_create\_template()**_](burst__acq__core_8h.md#function-burst_acq_create_template) _, ignoring_`spc` _and_`chip_rate` _._ |
+|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_bind\_code**](#function-burst_acq_bind_code) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double fs, double doppler\_rate) <br>_Build a BurstAcquisition from a PN code OR a preamble's samples_  _the one Python constructor, dispatched on the first array's dtype._ |
+|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_bind\_template**](#function-burst_acq_bind_template) (const float \_Complex \* tmpl, size\_t n, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double fs, double doppler\_rate) <br>_The complex64 branch of_ [_**burst\_acq\_bind\_code()**_](burst__acq__core_8h.md#function-burst_acq_bind_code) _: forwards to_[_**burst\_acq\_create\_template()**_](burst__acq__core_8h.md#function-burst_acq_create_template) _, ignoring_`spc` _and_`chip_rate` _._ |
 |  int | [**burst\_acq\_configure\_search\_raw**](#function-burst_acq_configure_search_raw) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing the auto-sizing search._  |
-|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_create**](#function-burst_acq_create) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine for a PN code (forwards to_ [_**acq\_create\_burst()**_](acq__core_8h.md#function-acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._ |
-|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_create\_template**](#function-burst_acq_create_template) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine for ANY repeated complex preamble_  _a chirp, a Zadoff-Chu sequence, shaped PSK_ _by its samples (forwards to_[_**acq\_create\_burst\_template()**_](acq__core_8h.md#function-acq_create_burst_template) _; doppler#1470)._ |
+|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_create**](#function-burst_acq_create) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for a PN code (forwards to_ [_**acq\_create\_burst()**_](acq__core_8h.md#function-acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._ |
+|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_create\_template**](#function-burst_acq_create_template) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for ANY repeated complex preamble_  _a chirp, a Zadoff-Chu sequence, shaped PSK_ _by its samples (forwards to_[_**acq\_create\_burst\_template()**_](acq__core_8h.md#function-acq_create_burst_template) _; doppler#1470)._ |
 |  void | [**burst\_acq\_destroy**](#function-burst_acq_destroy) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state) <br>_Destroy and free an instance._  |
 |  void | [**burst\_acq\_get\_state**](#function-burst_acq_get_state) (const [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**burst\_acq\_push**](#function-burst_acq_push) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
@@ -109,7 +109,7 @@ Composes [**acq\_state\_t**](structacq__state__t.md) ([**native/inc/acq/acq\_cor
 ```C++
 uint8_t code[7] = { 1, 1, 1, 0, 1, 0, 0 };
 burst_acq_state_t *obj = burst_acq_create(code, 7, 8, 4, 1000000.0, 50.0,
-                                          0.0, 1e-3, 0.9, 0);
+                                          0.0, 1e-3, 0.9, 0, 0.0);
 acq_result_t hits[64];
 size_t nh = burst_acq_push(obj, samples, n_samples, hits, 64);
 burst_acq_destroy(obj);
@@ -138,7 +138,8 @@ burst_acq_state_t * burst_acq_bind_code (
     double pfa,
     double pd,
     int noise_mode,
-    double fs
+    double fs,
+    double doppler_rate
 ) 
 ```
 
@@ -166,6 +167,7 @@ This and [**burst\_acq\_bind\_template()**](burst__acq__core_8h.md#function-burs
 * `pd` Target detection probability (0,1). 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
 * `fs` Sample rate in Hz (&gt; 0); a preamble's samples only. 
+* `doppler_rate` Doppler rate in Hz/s (&gt;= 0) that caps the coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. 
 
 
 
@@ -225,7 +227,8 @@ burst_acq_state_t * burst_acq_bind_template (
     double pfa,
     double pd,
     int noise_mode,
-    double fs
+    double fs,
+    double doppler_rate
 ) 
 ```
 
@@ -247,6 +250,7 @@ burst_acq_state_t * burst_acq_bind_template (
 * `pd` Target detection probability. 
 * `noise_mode` CFAR mode index. 
 * `fs` Sample rate in Hz. 
+* `doppler_rate` Doppler rate in Hz/s bounding the depth. 
 
 
 
@@ -337,7 +341,8 @@ burst_acq_state_t * burst_acq_create (
     double doppler_uncertainty,
     double pfa,
     double pd,
-    int noise_mode
+    int noise_mode,
+    double doppler_rate
 ) 
 ```
 
@@ -358,6 +363,7 @@ burst_acq_state_t * burst_acq_create (
 * `pfa` Target system false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1). 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
+* `doppler_rate` Doppler rate in Hz/s (&gt;= 0) that caps the coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. 
 
 
 
@@ -388,7 +394,8 @@ burst_acq_state_t * burst_acq_create_template (
     double doppler_uncertainty,
     double pfa,
     double pd,
-    int noise_mode
+    int noise_mode,
+    double doppler_rate
 ) 
 ```
 
@@ -411,6 +418,7 @@ One chip is one sample: `sf = n`, `spc = 1`, `chip_rate = fs`, and `code_phase` 
 * `pfa` Target system false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1). 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
+* `doppler_rate` Doppler rate in Hz/s (&gt;= 0) that caps the coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. 
 
 
 

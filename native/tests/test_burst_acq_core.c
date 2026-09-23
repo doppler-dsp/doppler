@@ -23,15 +23,15 @@ main (void)
 
   /* NULL/zero-length code is rejected, same as acq_create_burst() itself. */
   DP_CHECK (
-      burst_acq_create (NULL, 0, 1, 4, 1000000.0, 50.0, 0.0, 1e-3, 0.9, 0)
+      burst_acq_create (NULL, 0, 1, 4, 1000000.0, 50.0, 0.0, 1e-3, 0.9, 0, 0.0)
       == NULL);
 
   const size_t spc   = 2;
   const size_t nx    = 7 * spc; /* code_bins = sf*spc = 14 */
   const double crate = 1.0e6;
 
-  burst_acq_state_t *obj
-      = burst_acq_create (CODE7, 7, 8, spc, crate, 65.0, 0.0, 1e-2, 0.9, 0);
+  burst_acq_state_t *obj = burst_acq_create (CODE7, 7, 8, spc, crate, 65.0,
+                                             0.0, 1e-2, 0.9, 0, 0.0);
   DP_CHECK (obj != NULL);
   if (!obj)
     return 1;

@@ -74,7 +74,7 @@ main (void)
           code[i] = (uint8_t)(((i * 2246822519u) >> 31) & 1u);
 
         burst_acq_state_t *a = burst_acq_create (code, sf, 8, spc, CHIP_RATE,
-                                                 65.0, 0.0, 1e-2, 0.9, 0);
+                                                 65.0, 0.0, 1e-2, 0.9, 0, 0.0);
         if (!a)
           {
             (void)fprintf (stderr,

@@ -27,7 +27,7 @@
  * @param spc           Samples per chip.
  * @param chip_rate     Chip rate, Hz.
  * @param cn0_dbhz      Design (minimum) C/N0 the search is sized for,
- *                      dB-Hz; 0 = no design point (see acq_create_burst).
+ *                      dB-Hz; NaN = no design point (see acq_create_burst).
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
@@ -210,7 +210,8 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
    * noise_mode 0 = mean, matching burst_acq's own default. */
   s->acq
       = burst_acq_create (s->acq_code, acq_code_len, reps, spc, chip_rate,
-                          cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode);
+                          cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
+                          /* doppler_rate= */ 0.0 /* doppler#1490 */);
   if (!s->acq)
     goto fail;
 

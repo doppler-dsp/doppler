@@ -40,13 +40,22 @@
  * model's zero-delay rotation loss overstates it; the SHAPED QPSK is -0.02..
  * -0.03 optimistic at 3 sigma, an open finding (doppler#1483).
  *
+ * A Doppler RATE is measured last (doppler#1482): a long Zadoff-Chu
+ * preamble, sized by the engine, under a ramp -- once with the rate
+ * withheld (the sizer picks D = 12 and promises a Pd the drift takes away)
+ * and once with it given (the depth caps at f_epoch/sqrt(2 rate) = 4 and
+ * the prediction holds). Measured 2026-09-23 at 3000 trials: 0.921
+ * promised, 0.648 delivered; told, 0.325 promised, 0.329 delivered.
+ *
  * Usage:
  *   validate_acq_template_pd            every template, every design point:
  *                                       reports each row's verdict, decides
  *                                       nothing (the certification does)
  *   validate_acq_template_pd --check    the spot checks CTest runs, which
- *                                       ARE asserted: the control, and
- *                                       Zadoff-Chu at the 0.6 design point
+ *                                       ARE asserted: the control,
+ *                                       Zadoff-Chu at the 0.6 design point,
+ *                                       and the three drift rows at 500
+ *                                       trials
  */
 #include "acq/acq_core.h"
 #include "awgn/awgn_core.h"
@@ -174,27 +183,49 @@ pin (acq_state_t *a)
 typedef struct
 {
   double cn0, pred, meas, se, delay_err;
+  size_t depth;
   int    ok;
 } row_t;
 
+/* The drift experiment (doppler#1482): how the engine is built and what
+   the signal does. `reps` is the preamble; `pinned` pins the grid at D
+   (the Pd rows) or leaves the auto-sizer's depth (the drift rows, where the
+   bound acts THROUGH the sizer); `ramp` is the signal's Doppler rate in
+   Hz/s, centred on the trial's frequency; `rate_arg` is the rate the
+   constructor is told; `trials` per row. */
+typedef struct
+{
+  size_t reps;
+  int    pinned;
+  double ramp, rate_arg;
+  int    trials;
+} geom_t;
+
+static const geom_t PINNED = { D, 1, 0.0, 0.0, TRIALS };
+
 /* Measure one design point. `code` != NULL runs the CONTROL: acq's §2.6,
-   an oversampled chip train delayed in quarter-sample steps. */
+   an oversampled chip train delayed in quarter-sample steps. A trial is
+   one frame -- coherent_bins repetitions. */
 static row_t
-measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed)
+measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
+         const geom_t *gm)
 {
   const size_t spc = 4, os = 4;
   const size_t n  = code ? 31 * spc : tp->n;
   const double fs = code ? 1.0e6 * (double)spc : FS_T;
   acq_state_t *a  = dp_xnn (
-      code ? acq_create_burst (code, 31, D, spc, 1.0e6, cn0, 0.0, PFA, 0.9, 0)
-           : acq_create_burst_template (tp->t, n, D, fs, cn0, 0.0, PFA, 0.9,
-                                        0));
-  pin (a);
+      code ? acq_create_burst (code, 31, gm->reps, spc, 1.0e6, cn0, 0.0, PFA,
+                               0.9, 0, gm->rate_arg)
+           : acq_create_burst_template (tp->t, n, gm->reps, fs, cn0, 0.0, PFA,
+                                        0.9, 0, gm->rate_arg));
+  if (gm->pinned)
+    pin (a);
   row_t r = { 0 };
   r.cn0   = cn0;
   r.pred  = a->pd_predicted;
+  r.depth = a->coherent_bins;
 
-  const size_t    len  = D * n;
+  const size_t    len  = a->coherent_bins * n;
   float _Complex *x    = dp_xmalloc (len * sizeof *x);
   float _Complex *per  = dp_xmalloc (n * sizeof *per);
   float _Complex *nz   = dp_xmalloc (len * sizeof *nz);
@@ -206,7 +237,7 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed)
   double          derr = 0.0;
   acq_result_t    h[16];
 
-  for (int trial = 0; trial < TRIALS; trial++)
+  for (int trial = 0; trial < gm->trials; trial++)
     {
       double f   = (2.0 * dp_uni (&st) - 1.0) * span;
       double tau = dp_uni (&st) * (double)n;
@@ -225,9 +256,19 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed)
         }
       else
         shift (tp->t, n, tau, per);
-      for (size_t i = 0; i < len; i++)
-        x[i] = per[i % n]
-               * (float _Complex)cexp (I * 2.0 * M_PI * f / fs * (double)i);
+      if (gm->ramp == 0.0)
+        for (size_t i = 0; i < len; i++)
+          x[i] = per[i % n]
+                 * (float _Complex)cexp (I * 2.0 * M_PI * f / fs * (double)i);
+      else
+        /* f at the frame's centre, sweeping at `ramp` Hz/s through it */
+        for (size_t i = 0; i < len; i++)
+          {
+            double t = ((double)i - 0.5 * (double)len) / fs;
+            x[i] = per[i % n]
+                   * (float _Complex)cexp (I * 2.0 * M_PI
+                                           * (f * t + 0.5 * gm->ramp * t * t));
+          }
       awgn_generate (g, len, nz, len);
       for (size_t i = 0; i < len; i++)
         x[i] += nz[i];
@@ -242,8 +283,8 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed)
           derr += d;
         }
     }
-  r.meas      = (double)hits / TRIALS;
-  r.se        = sqrt (fmax (r.meas * (1.0 - r.meas), 1e-9) / TRIALS);
+  r.meas      = (double)hits / gm->trials;
+  r.se        = sqrt (fmax (r.meas * (1.0 - r.meas), 1e-9) / gm->trials);
   r.delay_err = hits ? derr / hits : NAN;
   r.ok        = r.meas >= r.pred - 2.0 * r.se && r.meas - r.pred <= 0.15;
   awgn_destroy (g);
@@ -263,7 +304,7 @@ cn0_for (const tmpl_t *tp, double target)
     {
       double       c = 30.0 + 0.25 * (double)step;
       acq_state_t *a = dp_xnn (acq_create_burst_template (
-          tp->t, tp->n, D, FS_T, c, 0.0, PFA, 0.9, 0));
+          tp->t, tp->n, D, FS_T, c, 0.0, PFA, 0.9, 0, 0.0));
       pin (a);
       double p = a->pd_predicted;
       acq_destroy (a);
@@ -280,6 +321,75 @@ print_row (const char *name, const row_t *r)
           r->pred, r->meas, r->se, r->delay_err, r->ok ? "inside" : "OUTSIDE");
 }
 
+/* doppler#1482: a Doppler RATE smears the carrier across slow-time rows
+   during a block, a loss the Pd model does not carry. A long preamble (16
+   repetitions of Zadoff-Chu 127 at 1 MS/s: f_epoch = 7874 Hz) is sized at
+   a C/N0 where the sizer alone wants a deep block, then measured under a
+   ramp twice: told nothing (rate 0, no bound) and told the rate (the bound
+   caps the depth at floor(f_epoch / sqrt(2 rate)) = 4). A ramp-free row is
+   the control: the model holds without drift. */
+static int
+drift_rows (const tmpl_t *zc, int check)
+{
+  const size_t reps = 16;
+  const double rate = 1.5e6; /* Hz/s */
+  double       cn0  = NAN;
+  for (int step = 0; step <= 160; step++)
+    {
+      double       c    = 70.0 - 0.25 * (double)step;
+      acq_state_t *a    = dp_xnn (acq_create_burst_template (
+          zc->t, zc->n, reps, FS_T, c, 0.0, PFA, 0.9, 0, 0.0));
+      int          deep = a->coherent_bins >= 12 && !a->underpowered;
+      acq_destroy (a);
+      if (deep)
+        {
+          cn0 = c;
+          break;
+        }
+    }
+  DP_REQUIRE (!isnan (cn0));
+
+  /* The spot check needs far fewer trials than the table: the blind row
+     misses its promise by ~0.27, 13 sigma at 500. */
+  const int    nt    = check ? 500 : TRIALS;
+  const geom_t still = { reps, 0, 0.0, 0.0, nt };
+  const geom_t blind = { reps, 0, rate, 0.0, nt };
+  const geom_t told  = { reps, 0, rate, rate, nt };
+  row_t        r0    = measure (zc, NULL, cn0, 1482u, &still);
+  row_t        r1    = measure (zc, NULL, cn0, 1483u, &blind);
+  row_t        r2    = measure (zc, NULL, cn0, 1484u, &told);
+
+  printf ("\nDoppler rate %.3g Hz/s, %zu repetitions of %s, sized by the "
+          "engine (D is its coherent depth), %d trials per row\n",
+          rate, reps, zc->name, nt);
+  printf ("%-24s %7s  %3s  %6s  %6s  %5s  %s\n", "", "C/N0", "D", "pred",
+          "meas", "1sig", "never optimistic?");
+  const struct
+  {
+    const char  *name;
+    const row_t *r;
+  } rows[3] = { { "no ramp (control)", &r0 },
+                { "ramp, rate not given", &r1 },
+                { "ramp, rate given", &r2 } };
+  for (size_t i = 0; i < 3; i++)
+    {
+      const row_t *r = rows[i].r;
+      printf ("%-24s %7.2f  %3zu  %6.3f  %6.3f  %5.3f  %s\n", rows[i].name,
+              r->cn0, r->depth, r->pred, r->meas, r->se,
+              r->meas >= r->pred - 2.0 * r->se ? "yes" : "NO");
+    }
+  if (check)
+    {
+      /* The control holds, the blind engine promises a Pd the ramp takes
+         away, and the told one keeps its promise at the capped depth. */
+      DP_CHECK (r0.meas >= r0.pred - 2.0 * r0.se);
+      DP_CHECK (r1.meas < r1.pred - 2.0 * r1.se);
+      DP_CHECK (r2.depth == 4);
+      DP_CHECK (r2.meas >= r2.pred - 2.0 * r2.se);
+    }
+  return 0;
+}
+
 int
 main (int argc, char **argv)
 {
@@ -294,7 +404,7 @@ main (int argc, char **argv)
           "meas", "1sig", "|dly|");
 
   /* the control: acq's §2.6 point, through this harness */
-  row_t ctl = measure (NULL, CODE31, 50.0, 1183u);
+  row_t ctl = measure (NULL, CODE31, 50.0, 1183u, &PINNED);
   print_row ("code 31 x4 (ctl)", &ctl);
   if (check)
     DP_CHECK (ctl.ok);
@@ -307,10 +417,12 @@ main (int argc, char **argv)
           continue;
         double c = cn0_for (&tp[i], targets[j]);
         DP_REQUIRE (!isnan (c));
-        row_t r = measure (&tp[i], NULL, c, (uint32_t)(1470u + 7u * i + j));
+        row_t r = measure (&tp[i], NULL, c, (uint32_t)(1470u + 7u * i + j),
+                           &PINNED);
         print_row (tp[i].name, &r);
         if (check)
           DP_CHECK (r.ok);
       }
+  (void)drift_rows (&tp[0], check);
   DP_TEST_END ("validate_acq_template_pd");
 }

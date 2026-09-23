@@ -10,7 +10,7 @@ serializable = "true"
 # -- the same shape as objects/burst_capture.toml's. Before this, an infinite
 # cn0_dbhz or a pfa of 1 surfaced as MemoryError.
 create_error = "ValueError"
-create_error_message = "BurstAcquisition: invalid parameter (need a non-empty code, reps >= 1, spc >= 1, chip_rate > 0, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >= 0, 0 < pfa < 1, 0 < pd < 1; a preamble needs finite, non-zero energy)"
+create_error_message = "BurstAcquisition: invalid parameter (need a non-empty code, reps >= 1, spc >= 1, chip_rate > 0, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >= 0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1; a preamble needs finite, non-zero energy)"
 # The under-powered UserWarning is declared (gh-481): its condition is a
 # bool field of burst_acq_state_t, which mirrors the engine's at
 # construction -- the same warning objects/acq.toml declares.
@@ -94,6 +94,13 @@ default = "mean"
 name = "fs"
 type = "double"
 default = "1.0"
+
+# Hz/s; caps the coherent depth at f_epoch/sqrt(2*rate) (doppler#1482).
+# 0 = no bound. Appended last, so no positional call moves.
+[[burst_acq.init_params]]
+name = "doppler_rate"
+type = "double"
+default = "0.0"
 
 [[burst_acq.methods]]
 name = "push"
@@ -234,6 +241,12 @@ name = "fs"
 type = "double"
 expr = "self->handle->engine->fs"
 doc = "Sample rate (Hz) = chip_rate * spc; for a preamble, the fs it was given."
+
+[[burst_acq.properties]]
+name = "doppler_rate"
+type = "double"
+expr = "self->handle->engine->doppler_rate"
+doc = "Doppler rate (Hz/s) the coherent depth is bounded against: coherent_bins <= f_epoch/sqrt(2*doppler_rate). 0 is no bound."
 
 [[burst_acq.properties]]
 name = "chip_rate"

@@ -2091,6 +2091,10 @@ class BurstAcquisition:
         CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
     fs : float, default 1.0
         Sample rate in Hz (> 0); a preamble's samples only.
+    doppler_rate : float, default 0.0
+        Doppler rate in Hz/s (>= 0) that caps the coherent depth at
+        `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no
+        bound.
 
     Raises
     ------
@@ -2098,8 +2102,8 @@ class BurstAcquisition:
         If construction fails. The exception message is ``BurstAcquisition:
         invalid parameter (need a non-empty code, reps >= 1, spc >= 1,
         chip_rate > 0, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >=
-        0, 0 < pfa < 1, 0 < pd < 1; a preamble needs finite, non-zero
-        energy)``.
+        0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1; a preamble needs finite,
+        non-zero energy)``.
 
     Warns
     -----
@@ -2149,6 +2153,7 @@ class BurstAcquisition:
         pd: float = 0.9,
         noise_mode: Literal["mean", "median", "min", "max"] = "mean",
         fs: float = 1.0,
+        doppler_rate: float = 0.0,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -2462,6 +2467,12 @@ class BurstAcquisition:
     def fs(self) -> float:
         """Sample rate (Hz) = chip_rate * spc; for a preamble, the fs it was
         given.
+        """
+
+    @property
+    def doppler_rate(self) -> float:
+        """Doppler rate (Hz/s) the coherent depth is bounded against:
+        coherent_bins <= f_epoch/sqrt(2*doppler_rate). 0 is no bound.
         """
 
     @property

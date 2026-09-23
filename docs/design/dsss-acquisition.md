@@ -190,8 +190,15 @@ normalized units a design point cannot be stated yet (#1484).
 - **Time compression is not compensated on the native burst path** (#1481),
     and it bites wideband templates hardest.
 
-- **The burst constructors take no Doppler rate** (#1482), so a long
-    preamble under acceleration is sized past what it can integrate.
+- **A Doppler rate caps the coherent depth** (#1482). The burst
+    constructors take `doppler_rate` (Hz/s, 0 = no bound) and size at most
+    `f_epoch / sqrt(2 * doppler_rate)` repetitions, the drift rule the
+    continuous engine already applies to its block depth. A depth past it
+    smears the carrier across slow-time rows, which the Pd model does not
+    carry. Measured on 16 repetitions of Zadoff-Chu 127 under a 1.5 MHz/s
+    ramp (`native/validation/acq_template_pd.c`): an engine told nothing is
+    sized at D = 12, predicts 0.92 and delivers 0.65. Told the rate, it caps
+    at D = 4, reports under-powered, and predicts the 0.33 it delivers.
 
 - **Which repetition** the burst starts in is the capture's to resolve, not
     the detector's (`BurstCapture`). So is a dwell that runs into the data after

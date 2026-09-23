@@ -126,7 +126,7 @@
  * // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
  * uint8_t code[31] = { 0 };   // ... fill with PN chips (0/1) ...
  * acq_state_t *a = acq_create_burst(code, 31, 16, 4, 1.0e6, 45.0,
- *                                   0.0, 1e-3, 0.9, 0);
+ *                                   0.0, 1e-3, 0.9, 0, 0.0);
  * acq_result_t hits[64];
  * size_t nh = acq_push(a, samples, n_samples, hits, 64);
  * for (size_t i = 0; i < nh; i++)
@@ -625,13 +625,19 @@ extern "C"
    * @param pd          Target detection probability (0,1); a sizing target
    * only when @p cn0_dbhz is given.
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+   * @param doppler_rate  Doppler rate in Hz/s (>= 0) the coherent depth is
+   * bounded against: at most `f_epoch/sqrt(2*doppler_rate)` repetitions
+   * (`f_epoch = chip_rate/sf`, the repetition rate), so
+   * the carrier's drift over one block stays inside half a slow-time row
+   * (doppler#1482). 0 is no bound: the depth is sized up to @p reps.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    * failure.
    */
   acq_state_t *acq_create_burst (const uint8_t *code, size_t code_len,
                                  size_t reps, size_t spc, double chip_rate,
                                  double cn0_dbhz, double doppler_uncertainty,
-                                 double pfa, double pd, int noise_mode);
+                                 double pfa, double pd, int noise_mode,
+                                 double doppler_rate);
 
   /**
    * @brief Create a continuous-mode acquisition engine: always wideband
@@ -757,6 +763,8 @@ extern "C"
    * @param pfa         Target system false-alarm probability (0,1).
    * @param pd          Target detection probability (0,1).
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+   * @param doppler_rate  Doppler rate in Hz/s (>= 0) bounding the coherent
+   *                    depth, as acq_create_burst(); 0 is no bound.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    *         failure.
    * @code
@@ -765,7 +773,7 @@ extern "C"
    * for (int k = 0; k < 127; k++)
    *   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
    * acq_state_t *a = acq_create_burst_template (zc, 127, 8, 1.0e6, 50.0, 0.0,
-   *                                             1e-3, 0.9, 0);
+   *                                             1e-3, 0.9, 0, 0.0);
    * acq_destroy (a);
    * @endcode
    */
@@ -774,7 +782,8 @@ extern "C"
                                           double cn0_dbhz,
                                           double doppler_uncertainty,
                                           double pfa, double pd,
-                                          int noise_mode);
+                                          int noise_mode,
+                                          double doppler_rate);
 
   /** @brief Destroy and free an engine.  @param state May be NULL. */
   void acq_destroy (acq_state_t *state);

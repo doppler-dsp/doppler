@@ -708,16 +708,16 @@ acq_interp_for (size_t D, size_t window_bins)
   return D <= 1 ? 1u : ACQ_DOPPLER_INTERP;
 }
 
-/* The block-coherent depth a continuous engine runs inside every tile
- * (docs/design/async-dsss-receiver.md §2.1): the larger of one and the
- * smaller of two bounds -- a whole block always fits in the window
- * (non-overlapping blocks at an unknown window phase need W >= 2D - 1), and
- * the drift over one block stays inside half a slow-time row
- * (rate * D * T_epoch <= f_epoch / (2 D)). */
+/* The deepest coherent block a Doppler rate allows, capped at `d_max`: the
+ * drift over one block stays inside half a slow-time row (rate * D *
+ * T_epoch <= f_epoch / (2 D), so D <= f_epoch / sqrt(2 rate)), and at least
+ * 1. A rate of 0 is no bound. The ONE home of the drift rule: the
+ * continuous engine's block depth and the burst sizer's ceiling both read
+ * it (doppler#1482). */
 static size_t
-acq_block_depth (double f_epoch, size_t code_only_epochs, double doppler_rate)
+acq_drift_depth (double f_epoch, double doppler_rate, size_t d_max)
 {
-  size_t d = (code_only_epochs + 1) / 2;
+  size_t d = d_max;
   if (doppler_rate > 0.0)
     {
       double dr = floor (f_epoch / sqrt (2.0 * doppler_rate));
@@ -725,6 +725,17 @@ acq_block_depth (double f_epoch, size_t code_only_epochs, double doppler_rate)
         d = dr < 1.0 ? 1 : (size_t)dr;
     }
   return d < 1 ? 1 : d;
+}
+
+/* The block-coherent depth a continuous engine runs inside every tile
+ * (docs/design/async-dsss-receiver.md §2.1): the larger of one and the
+ * smaller of two bounds -- a whole block always fits in the window
+ * (non-overlapping blocks at an unknown window phase need W >= 2D - 1), and
+ * the drift bound, acq_drift_depth(). */
+static size_t
+acq_block_depth (double f_epoch, size_t code_only_epochs, double doppler_rate)
+{
+  return acq_drift_depth (f_epoch, doppler_rate, (code_only_epochs + 1) / 2);
 }
 
 /* The surface row of slow-time row `i` (of `dI = D * interp`, in FFT order)
@@ -970,11 +981,15 @@ acq_cover_window_bins (double du, double span)
  * and *out_window_bins = ceil(du/span) tiles the requested uncertainty
  * instead.
  *
- * du <= span: picks the smallest coherent depth D in [1, reps] whose
+ * du <= span: picks the smallest coherent depth D in [1, d_max] whose
  * D*code_bins coherent samples meet Pd at the (doppler_uncertainty-shrunk)
  * Bonferroni threshold (minimum latency for a strong signal); if the full
  * coherent ceiling still falls short, D is the ceiling and the engine is
- * underpowered. */
+ * underpowered. The ceiling d_max is `reps`, lowered by the Doppler rate's
+ * drift bound (acq_drift_depth(), doppler#1482): a block deeper than that
+ * smears the carrier across more than half a slow-time row, a loss the Pd
+ * model does not carry, so a deeper D would be sized on a Pd it cannot
+ * deliver. */
 static void
 acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
                        double snr, double du, size_t *out_d, size_t *out_nc,
@@ -990,7 +1005,9 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
       *out_window_bins = acq_cover_window_bins (du, span);
       return;
     }
-  *out_window_bins = 1;
+  *out_window_bins   = 1;
+  const size_t d_max = acq_drift_depth (st->chip_rate / (double)st->sf,
+                                        st->doppler_rate, st->reps);
 
   /* No design C/N0: integrate the whole preamble. The smallest-depth search
      below trades sensitivity for latency against a stated signal; with no
@@ -998,7 +1015,7 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
      there is to integrate. */
   if (!(snr > 0.0))
     {
-      *out_d = st->reps;
+      *out_d = d_max;
       return;
     }
 
@@ -1008,8 +1025,8 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
    * on-grid best case would under-size the search (real Pd, averaged over
    * random Doppler/code phase, would miss the target — the gap the
    * Monte-Carlo characterization measures). */
-  size_t best_d = st->reps;
-  for (size_t D = 1; D <= st->reps; D++)
+  size_t best_d = d_max;
+  for (size_t D = 1; D <= d_max; D++)
     {
       size_t sb   = acq_searched_bins (D, du, span);
       double umax = acq_intra_umax (D, sb, du, span);
@@ -1638,12 +1655,12 @@ acq_state_t *
 acq_create_burst (const uint8_t *code, size_t code_len, size_t reps,
                   size_t spc, double chip_rate, double cn0_dbhz,
                   double doppler_uncertainty, double pfa, double pd,
-                  int noise_mode)
+                  int noise_mode, double doppler_rate)
 {
   return acq_create_from_chips (code, code_len, reps, spc, chip_rate,
                                 /* symbol_rate= */ 0.0, cn0_dbhz,
                                 doppler_uncertainty, pfa, pd, noise_mode,
-                                /* continuous= */ 0, 1, 0.0);
+                                /* continuous= */ 0, 1, doppler_rate);
 }
 
 acq_state_t *
@@ -1663,7 +1680,7 @@ acq_state_t *
 acq_create_burst_template (const float _Complex *tmpl, size_t n, size_t reps,
                            double fs, double cn0_dbhz,
                            double doppler_uncertainty, double pfa, double pd,
-                           int noise_mode)
+                           int noise_mode, double doppler_rate)
 {
   if (!tmpl || n < 1)
     return NULL;
@@ -1693,7 +1710,7 @@ acq_create_burst_template (const float _Complex *tmpl, size_t n, size_t reps,
   acq_state_t *st = acq_acq_create_impl (
       replica, n, &shape, reps, /* spc= */ 1, fs, /* symbol_rate= */ 0.0,
       cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
-      /* continuous= */ 0, 1, 0.0);
+      /* continuous= */ 0, 1, doppler_rate);
   free (replica);
   return st;
 }

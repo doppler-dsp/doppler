@@ -227,7 +227,8 @@ extern "C"
   acq_state_t *acq_create_burst (const uint8_t *code, size_t code_len,
                                  size_t reps, size_t spc, double chip_rate,
                                  double cn0_dbhz, double doppler_uncertainty,
-                                 double pfa, double pd, int noise_mode);
+                                 double pfa, double pd, int noise_mode,
+                                 double doppler_rate);
 
   acq_state_t *acq_create_continuous (const uint8_t *code, size_t code_len,
                                       size_t spc, double chip_rate,
@@ -242,7 +243,8 @@ extern "C"
                                           double cn0_dbhz,
                                           double doppler_uncertainty,
                                           double pfa, double pd,
-                                          int noise_mode);
+                                          int noise_mode,
+                                          double doppler_rate);
 
   void acq_destroy (acq_state_t *state);
 

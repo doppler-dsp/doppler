@@ -82,8 +82,8 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  size\_t | [**acq\_block\_raw**](#function-acq_block_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last whole block's raw samples, as pushed._  |
 |  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._ |
 |  int | [**acq\_configure\_search\_raw**](#function-acq_configure_search_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
-|  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst**](#function-acq_create_burst) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine: coherent multi-epoch combining, up to_ `reps` _deep (today's classic behavior)._ |
-|  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst\_template**](#function-acq_create_burst_template) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode engine for ANY repeated complex preamble_  _a chirp, a Zadoff-Chu sequence, shaped PSK_ _rather than a PN code (doppler#1470)._ |
+|  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst**](#function-acq_create_burst) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine: coherent multi-epoch combining, up to_ `reps` _deep (today's classic behavior)._ |
+|  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst\_template**](#function-acq_create_burst_template) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode engine for ANY repeated complex preamble_  _a chirp, a Zadoff-Chu sequence, shaped PSK_ _rather than a PN code (doppler#1470)._ |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_continuous**](#function-acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
 |  void | [**acq\_destroy**](#function-acq_destroy) ([**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Destroy and free an engine._  |
 |  void | [**acq\_get\_state**](#function-acq_get_state) (const [**acq\_state\_t**](structacq__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**acq\_state\_bytes()**_](acq__core_8h.md#function-acq_state_bytes) _long). Call between pushes (no partial dump pending)._ |
@@ -179,7 +179,7 @@ Both convert C/N0 to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / 
 // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
 uint8_t code[31] = { 0 };   // ... fill with PN chips (0/1) ...
 acq_state_t *a = acq_create_burst(code, 31, 16, 4, 1.0e6, 45.0,
-                                  0.0, 1e-3, 0.9, 0);
+                                  0.0, 1e-3, 0.9, 0, 0.0);
 acq_result_t hits[64];
 size_t nh = acq_push(a, samples, n_samples, hits, 64);
 for (size_t i = 0; i < nh; i++)
@@ -456,7 +456,8 @@ acq_state_t * acq_create_burst (
     double doppler_uncertainty,
     double pfa,
     double pd,
-    int noise_mode
+    int noise_mode,
+    double doppler_rate
 ) 
 ```
 
@@ -486,6 +487,7 @@ A tighter `doppler_uncertainty` narrows the scanned Doppler band, lowering the p
 * `pfa` Target system (max-of-N) false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1); a sizing target only when `cn0_dbhz` is given. 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
+* `doppler_rate` Doppler rate in Hz/s (&gt;= 0) the coherent depth is bounded against: at most `f_epoch/sqrt(2*doppler_rate)` repetitions (`f_epoch = chip_rate/sf`, the repetition rate), so the carrier's drift over one block stays inside half a slow-time row (doppler#1482). 0 is no bound: the depth is sized up to `reps`. 
 
 
 
@@ -516,7 +518,8 @@ acq_state_t * acq_create_burst_template (
     double doppler_uncertainty,
     double pfa,
     double pd,
-    int noise_mode
+    int noise_mode,
+    double doppler_rate
 ) 
 ```
 
@@ -555,6 +558,7 @@ The within-repetition rotation loss keeps the engine's `sinc` model: it is the z
 * `pfa` Target system false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1). 
 * `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
+* `doppler_rate` Doppler rate in Hz/s (&gt;= 0) bounding the coherent depth, as [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst); 0 is no bound. 
 
 
 
@@ -567,7 +571,7 @@ float _Complex zc[127];
 for (int k = 0; k < 127; k++)
   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
 acq_state_t *a = acq_create_burst_template (zc, 127, 8, 1.0e6, 50.0, 0.0,
-                                            1e-3, 0.9, 0);
+                                            1e-3, 0.9, 0, 0.0);
 acq_destroy (a);
 ```
  

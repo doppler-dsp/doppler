@@ -309,3 +309,39 @@ def test_an_argument_error_is_a_value_error(make):
     allocation failure, so both branches raise ValueError (#1486)."""
     with pytest.raises(ValueError, match="BurstAcquisition: invalid"):
         make()
+
+
+# ── a Doppler rate caps the coherent depth (doppler#1482) ─────────────────
+
+
+def test_doppler_rate_defaults_to_no_bound():
+    """Omitted, the rate is 0 and the whole preamble is integrated."""
+    b = BurstAcquisition(_ZC, reps=8)
+    assert b.doppler_rate == 0.0 and b.doppler_bins == 8
+
+
+@pytest.mark.parametrize("fs", [1.0, 1.0e6])
+def test_doppler_rate_caps_the_depth(fs):
+    """At most floor(f_epoch / sqrt(2 * rate)) repetitions, f_epoch = fs/n,
+    so the carrier drifts less than half a slow-time row per block. Stated
+    as a fraction of f_epoch^2 so it reads the same in any units."""
+    f_epoch = fs / _ZC.size
+    rate = f_epoch**2 / (2 * 3.5**2)  # a ceiling of 3
+    b = BurstAcquisition(_ZC, reps=8, fs=fs, doppler_rate=rate)
+    assert b.doppler_rate == rate and b.doppler_bins == 3
+
+
+def test_a_code_reads_the_same_rule():
+    """A code's f_epoch is chip_rate / sf."""
+    f_epoch = CHIP_RATE / CODE.size
+    rate = f_epoch**2 / (2 * 2.5**2)  # a ceiling of 2
+    b = BurstAcquisition(
+        CODE, reps=8, spc=SPC, chip_rate=CHIP_RATE, doppler_rate=rate
+    )
+    assert b.doppler_bins == 2
+
+
+@pytest.mark.parametrize("rate", [-1.0, np.nan, np.inf])
+def test_a_bad_doppler_rate_is_a_value_error(rate):
+    with pytest.raises(ValueError, match="doppler_rate >= 0"):
+        BurstAcquisition(_ZC, reps=8, doppler_rate=rate)

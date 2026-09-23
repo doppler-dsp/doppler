@@ -13,7 +13,7 @@
  * @code
  * uint8_t code[7] = { 1, 1, 1, 0, 1, 0, 0 };
  * burst_acq_state_t *obj = burst_acq_create(code, 7, 8, 4, 1000000.0, 50.0,
- *                                           0.0, 1e-3, 0.9, 0);
+ *                                           0.0, 1e-3, 0.9, 0, 0.0);
  * acq_result_t hits[64];
  * size_t nh = burst_acq_push(obj, samples, n_samples, hits, 64);
  * burst_acq_destroy(obj);
@@ -63,6 +63,9 @@ extern "C"
    * @param pfa  Target system false-alarm probability (0,1).
    * @param pd  Target detection probability (0,1).
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+   * @param doppler_rate  Doppler rate in Hz/s (>= 0) that caps the coherent
+   *                  depth at `f_epoch/sqrt(2*doppler_rate)` repetitions
+   *                  (doppler#1482); 0 is no bound.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    *         failure.
    */
@@ -70,7 +73,8 @@ extern "C"
                                        size_t reps, size_t spc,
                                        double chip_rate, double cn0_dbhz,
                                        double doppler_uncertainty, double pfa,
-                                       double pd, int noise_mode);
+                                       double pd, int noise_mode,
+                                       double doppler_rate);
 
   /**
    * @brief Create a burst-mode acquisition engine for ANY repeated complex
@@ -89,13 +93,16 @@ extern "C"
    * @param pfa  Target system false-alarm probability (0,1).
    * @param pd  Target detection probability (0,1).
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+   * @param doppler_rate  Doppler rate in Hz/s (>= 0) that caps the coherent
+   *                  depth at `f_epoch/sqrt(2*doppler_rate)` repetitions
+   *                  (doppler#1482); 0 is no bound.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    *         failure.
    */
   burst_acq_state_t *burst_acq_create_template (
       const float _Complex *tmpl, size_t n, size_t reps, double fs,
       double cn0_dbhz, double doppler_uncertainty, double pfa, double pd,
-      int noise_mode);
+      int noise_mode, double doppler_rate);
 
   /**
    * @brief Build a BurstAcquisition from a PN code OR a preamble's samples
@@ -126,6 +133,9 @@ extern "C"
    * @param pd  Target detection probability (0,1).
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
    * @param fs  Sample rate in Hz (> 0); a preamble's samples only.
+   * @param doppler_rate  Doppler rate in Hz/s (>= 0) that caps the coherent
+   *                  depth at `f_epoch/sqrt(2*doppler_rate)` repetitions
+   *                  (doppler#1482); 0 is no bound.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
    *         failure.
    * @code
@@ -162,7 +172,8 @@ extern "C"
                                           double cn0_dbhz,
                                           double doppler_uncertainty,
                                           double pfa, double pd,
-                                          int noise_mode, double fs);
+                                          int noise_mode, double fs,
+                                          double doppler_rate);
 
   /**
    * @brief The complex64 branch of burst_acq_bind_code(): forwards to
@@ -179,12 +190,14 @@ extern "C"
    * @param pd  Target detection probability.
    * @param noise_mode  CFAR mode index.
    * @param fs  Sample rate in Hz.
+   * @param doppler_rate  Doppler rate in Hz/s bounding the depth.
    * @return Heap-allocated state, or NULL.
    */
   burst_acq_state_t *burst_acq_bind_template (
       const float _Complex *tmpl, size_t n, size_t reps, size_t spc,
       double chip_rate, double cn0_dbhz, double doppler_uncertainty,
-      double pfa, double pd, int noise_mode, double fs);
+      double pfa, double pd, int noise_mode, double fs,
+      double doppler_rate);
 
   /** @brief Destroy and free an instance.  @param state May be NULL. */
   void burst_acq_destroy (burst_acq_state_t *state);

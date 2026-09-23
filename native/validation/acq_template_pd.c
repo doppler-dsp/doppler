@@ -51,6 +51,10 @@
  *   validate_acq_template_pd            every template, every design point:
  *                                       reports each row's verdict, decides
  *                                       nothing (the certification does)
+ *   validate_acq_template_pd --emit     the full sweep as CSV blocks, for
+ *                                       acq's validate.py -- the report
+ *                                       renders them and its limits()
+ *                                       decide
  *   validate_acq_template_pd --check    the spot checks CTest runs, which
  *                                       ARE asserted: the control,
  *                                       Zadoff-Chu at the 0.6 design point,
@@ -314,11 +318,20 @@ cn0_for (const tmpl_t *tp, double target)
   return NAN;
 }
 
+/* --emit: CSV blocks for acq's validate.py, which renders the report and
+   holds every threshold. The table and the CSV print the same rows. */
+static int g_emit;
+
 static void
-print_row (const char *name, const row_t *r)
+print_row (const char *name, double target, const row_t *r)
 {
-  printf ("%-16s %7.2f  %6.3f  %6.3f  %5.3f  %5.2f  %s\n", name, r->cn0,
-          r->pred, r->meas, r->se, r->delay_err, r->ok ? "inside" : "OUTSIDE");
+  if (g_emit)
+    printf ("%s,%.2f,%.4f,%.6f,%.6f,%.6f,%.4f\n", name, target, r->cn0,
+            r->pred, r->meas, r->se, r->delay_err);
+  else
+    printf ("%-16s %7.2f  %6.3f  %6.3f  %5.3f  %5.2f  %s\n", name, r->cn0,
+            r->pred, r->meas, r->se, r->delay_err,
+            r->ok ? "inside" : "OUTSIDE");
 }
 
 /* doppler#1482: a Doppler RATE smears the carrier across slow-time rows
@@ -359,24 +372,34 @@ drift_rows (const tmpl_t *zc, int check)
   row_t        r1    = measure (zc, NULL, cn0, 1483u, &blind);
   row_t        r2    = measure (zc, NULL, cn0, 1484u, &told);
 
-  printf ("\nDoppler rate %.3g Hz/s, %zu repetitions of %s, sized by the "
-          "engine (D is its coherent depth), %d trials per row\n",
-          rate, reps, zc->name, nt);
-  printf ("%-24s %7s  %3s  %6s  %6s  %5s  %s\n", "", "C/N0", "D", "pred",
-          "meas", "1sig", "never optimistic?");
+  if (g_emit)
+    printf ("# drift %s,%zu,%.6g,%d\nrow,cn0,depth,pred,meas,se\n", zc->name,
+            reps, rate, nt);
+  else
+    {
+      printf ("\nDoppler rate %.3g Hz/s, %zu repetitions of %s, sized by "
+              "the engine (D is its coherent depth), %d trials per row\n",
+              rate, reps, zc->name, nt);
+      printf ("%-24s %7s  %3s  %6s  %6s  %5s  %s\n", "", "C/N0", "D", "pred",
+              "meas", "1sig", "never optimistic?");
+    }
   const struct
   {
     const char  *name;
     const row_t *r;
   } rows[3] = { { "no ramp (control)", &r0 },
-                { "ramp, rate not given", &r1 },
-                { "ramp, rate given", &r2 } };
+                { "ramp (rate not given)", &r1 },
+                { "ramp (rate given)", &r2 } };
   for (size_t i = 0; i < 3; i++)
     {
       const row_t *r = rows[i].r;
-      printf ("%-24s %7.2f  %3zu  %6.3f  %6.3f  %5.3f  %s\n", rows[i].name,
-              r->cn0, r->depth, r->pred, r->meas, r->se,
-              r->meas >= r->pred - 2.0 * r->se ? "yes" : "NO");
+      if (g_emit)
+        printf ("%s,%.4f,%zu,%.6f,%.6f,%.6f\n", rows[i].name, r->cn0, r->depth,
+                r->pred, r->meas, r->se);
+      else
+        printf ("%-24s %7.2f  %3zu  %6.3f  %6.3f  %5.3f  %s\n", rows[i].name,
+                r->cn0, r->depth, r->pred, r->meas, r->se,
+                r->meas >= r->pred - 2.0 * r->se ? "yes" : "NO");
     }
   if (check)
     {
@@ -393,19 +416,27 @@ drift_rows (const tmpl_t *zc, int check)
 int
 main (int argc, char **argv)
 {
-  int    check = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  int check = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  g_emit    = (argc > 1 && strcmp (argv[1], "--emit") == 0);
   tmpl_t tp[4];
   size_t nt = templates (tp);
 
-  printf ("D = %u, one look, %d trials per row, pfa %g; bounds: measured "
-          ">= predicted - 2 sigma, measured - predicted <= 0.15\n\n",
-          D, TRIALS, PFA);
-  printf ("%-16s %7s  %6s  %6s  %5s  %5s\n", "preamble", "C/N0", "pred",
-          "meas", "1sig", "|dly|");
+  if (g_emit)
+    printf ("# pd %u,%d,%g\npreamble,target,cn0,pred,meas,se,delay_err\n", D,
+            TRIALS, PFA);
+  else
+    {
+      printf ("D = %u, one look, %d trials per row, pfa %g; bounds: "
+              "measured >= predicted - 2 sigma, measured - predicted <= "
+              "0.15\n\n",
+              D, TRIALS, PFA);
+      printf ("%-16s %7s  %6s  %6s  %5s  %5s\n", "preamble", "C/N0", "pred",
+              "meas", "1sig", "|dly|");
+    }
 
   /* the control: acq's §2.6 point, through this harness */
   row_t ctl = measure (NULL, CODE31, 50.0, 1183u, &PINNED);
-  print_row ("code 31 x4 (ctl)", &ctl);
+  print_row ("code 31 x4 (ctl)", 0.0, &ctl);
   if (check)
     DP_CHECK (ctl.ok);
 
@@ -419,10 +450,12 @@ main (int argc, char **argv)
         DP_REQUIRE (!isnan (c));
         row_t r = measure (&tp[i], NULL, c, (uint32_t)(1470u + 7u * i + j),
                            &PINNED);
-        print_row (tp[i].name, &r);
+        print_row (tp[i].name, targets[j], &r);
         if (check)
           DP_CHECK (r.ok);
       }
   (void)drift_rows (&tp[0], check);
+  if (g_emit)
+    return 0; /* stdout is data: DP_TEST_END's banner would corrupt it */
   DP_TEST_END ("validate_acq_template_pd");
 }

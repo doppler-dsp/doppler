@@ -40,10 +40,10 @@ _bind_snr_data_aided_db (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *sign_bits     = (const uint8_t *)PyArray_DATA (sign_bits_arr);
   size_t         sign_bits_len = (size_t)PyArray_SIZE (sign_bits_arr);
+  double _r = snr_data_aided_db (soft, soft_len, sign_bits, sign_bits_len);
   Py_DECREF (soft_arr);
   Py_DECREF (sign_bits_arr);
-  return PyFloat_FromDouble (
-      snr_data_aided_db (soft, soft_len, sign_bits, sign_bits_len));
+  return PyFloat_FromDouble (_r);
 }
 
 static PyObject *
@@ -62,8 +62,9 @@ _bind_snr_m2m4_db (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *x     = (const float _Complex *)PyArray_DATA (x_arr);
   size_t                x_len = (size_t)PyArray_SIZE (x_arr);
+  double                _r    = snr_m2m4_db (x, x_len);
   Py_DECREF (x_arr);
-  return PyFloat_FromDouble (snr_m2m4_db (x, x_len));
+  return PyFloat_FromDouble (_r);
 }
 
 static PyObject *

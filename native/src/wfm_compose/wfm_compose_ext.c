@@ -709,7 +709,16 @@ static PyObject *
 Synth_get_type (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyUnicode_FromString (_enum_wfm_type[self->src.type]);
+  long _v = (long)(self->src.type);
+  if (_v < 0 || _v >= 9)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "type holds out-of-range wfm_type value %ld"
+                    " (valid: 0..8)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_wfm_type[_v]);
 }
 static int
 Synth_set_type (SynthObject *self, PyObject *value, void *closure)
@@ -792,7 +801,16 @@ static PyObject *
 Synth_get_snr_mode (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyUnicode_FromString (_enum_snr_mode[self->src.snr_mode]);
+  long _v = (long)(self->src.snr_mode);
+  if (_v < 0 || _v >= 4)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "snr_mode holds out-of-range snr_mode value %ld"
+                    " (valid: 0..3)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_snr_mode[_v]);
 }
 static int
 Synth_set_snr_mode (SynthObject *self, PyObject *value, void *closure)
@@ -876,7 +894,16 @@ static PyObject *
 Synth_get_lfsr (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyUnicode_FromString (_enum_wfm_lfsr[self->src.lfsr]);
+  long _v = (long)(self->src.lfsr);
+  if (_v < 0 || _v >= 2)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "lfsr holds out-of-range wfm_lfsr value %ld"
+                    " (valid: 0..1)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_wfm_lfsr[_v]);
 }
 static int
 Synth_set_lfsr (SynthObject *self, PyObject *value, void *closure)
@@ -1060,8 +1087,17 @@ static PyObject *
 Synth_get_doppler_lifetime (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyUnicode_FromString (
-      _enum_doppler_lifetime[self->src.doppler_lifetime]);
+  long _v = (long)(self->src.doppler_lifetime);
+  if (_v < 0 || _v >= 2)
+    {
+      PyErr_Format (
+          PyExc_ValueError,
+          "doppler_lifetime holds out-of-range doppler_lifetime value %ld"
+          " (valid: 0..1)",
+          _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_doppler_lifetime[_v]);
 }
 static int
 Synth_set_doppler_lifetime (SynthObject *self, PyObject *value, void *closure)
@@ -1103,7 +1139,16 @@ static PyObject *
 Synth_get_modulation (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyUnicode_FromString (_enum_bitmod[self->src.modulation]);
+  long _v = (long)(self->src.modulation);
+  if (_v < 0 || _v >= 3)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "modulation holds out-of-range bitmod value %ld"
+                    " (valid: 0..2)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_bitmod[_v]);
 }
 static int
 Synth_set_modulation (SynthObject *self, PyObject *value, void *closure)
@@ -1126,7 +1171,16 @@ static PyObject *
 Synth_get_pulse (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyUnicode_FromString (_enum_wfm_pulse[self->src.pulse]);
+  long _v = (long)(self->src.pulse);
+  if (_v < 0 || _v >= 2)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "pulse holds out-of-range wfm_pulse value %ld"
+                    " (valid: 0..1)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_wfm_pulse[_v]);
 }
 static int
 Synth_set_pulse (SynthObject *self, PyObject *value, void *closure)
@@ -1270,7 +1324,16 @@ static PyObject *
 Synth_get_crc (SynthObject *self, void *closure)
 {
   (void)closure;
-  return PyUnicode_FromString (_enum_crc[self->src.crc]);
+  long _v = (long)(self->src.crc);
+  if (_v < 0 || _v >= 2)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "crc holds out-of-range crc value %ld"
+                    " (valid: 0..1)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_crc[_v]);
 }
 static int
 Synth_set_crc (SynthObject *self, PyObject *value, void *closure)
@@ -2094,7 +2157,16 @@ static PyObject *
 Segment_get_gap_noise (SegmentObject *self, void *closure)
 {
   (void)closure;
-  return PyUnicode_FromString (_enum_gap_noise[self->gap_noise]);
+  long _v = (long)(self->gap_noise);
+  if (_v < 0 || _v >= 2)
+    {
+      PyErr_Format (PyExc_ValueError,
+                    "gap_noise holds out-of-range gap_noise value %ld"
+                    " (valid: 0..1)",
+                    _v);
+      return NULL;
+    }
+  return PyUnicode_FromString (_enum_gap_noise[_v]);
 }
 static int
 Segment_set_gap_noise (SegmentObject *self, PyObject *value, void *closure)

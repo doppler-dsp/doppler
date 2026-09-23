@@ -59,8 +59,11 @@ _BurstAcquisition — thin forwarder onto acq\_core.c's shared engine._ [More...
 
 | Type | Name |
 | ---: | :--- |
+|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_bind\_code**](#function-burst_acq_bind_code) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double fs) <br>_Build a BurstAcquisition from a PN code OR a preamble's samples_  _the one Python constructor, dispatched on the first array's dtype._ |
+|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_bind\_template**](#function-burst_acq_bind_template) (const float \_Complex \* tmpl, size\_t n, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double fs) <br>_The complex64 branch of_ [_**burst\_acq\_bind\_code()**_](burst__acq__core_8h.md#function-burst_acq_bind_code) _: forwards to_[_**burst\_acq\_create\_template()**_](burst__acq__core_8h.md#function-burst_acq_create_template) _, ignoring_`spc` _and_`chip_rate` _._ |
 |  int | [**burst\_acq\_configure\_search\_raw**](#function-burst_acq_configure_search_raw) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing the auto-sizing search._  |
-|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_create**](#function-burst_acq_create) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine (forwards to_ [_**acq\_create\_burst()**_](acq__core_8h.md#function-acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._ |
+|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_create**](#function-burst_acq_create) (const uint8\_t \* code, size\_t code\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine for a PN code (forwards to_ [_**acq\_create\_burst()**_](acq__core_8h.md#function-acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._ |
+|  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**burst\_acq\_create\_template**](#function-burst_acq_create_template) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst-mode acquisition engine for ANY repeated complex preamble_  _a chirp, a Zadoff-Chu sequence, shaped PSK_ _by its samples (forwards to_[_**acq\_create\_burst\_template()**_](acq__core_8h.md#function-acq_create_burst_template) _; doppler#1470)._ |
 |  void | [**burst\_acq\_destroy**](#function-burst_acq_destroy) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state) <br>_Destroy and free an instance._  |
 |  void | [**burst\_acq\_get\_state**](#function-burst_acq_get_state) (const [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, void \* blob) <br> |
 |  size\_t | [**burst\_acq\_push**](#function-burst_acq_push) ([**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
@@ -117,6 +120,147 @@ burst_acq_destroy(obj);
     
 ## Public Functions Documentation
 
+
+
+
+### function burst\_acq\_bind\_code 
+
+_Build a BurstAcquisition from a PN code OR a preamble's samples_  _the one Python constructor, dispatched on the first array's dtype._
+```C++
+burst_acq_state_t * burst_acq_bind_code (
+    const uint8_t * code,
+    size_t code_len,
+    size_t reps,
+    size_t spc,
+    double chip_rate,
+    double cn0_dbhz,
+    double doppler_uncertainty,
+    double pfa,
+    double pd,
+    int noise_mode,
+    double fs
+) 
+```
+
+
+
+A `uint8` code (chips 0/1) searches the code held `spc` samples per chip at `chip_rate`, and `fs` is ignored. A `complex64` preamble is searched by its own samples at `fs`, and `spc` and `chip_rate` are ignored. `fs` defaults to 1: normalized units, where Doppler is in cycles/sample and `cn0_dbhz` is the per-sample SNR in dB.
+
+
+This and [**burst\_acq\_bind\_template()**](burst__acq__core_8h.md#function-burst_acq_bind_template) share one argument list because jm's dtype dispatch calls both branches with the same arguments; C callers want [**burst\_acq\_create()**](burst__acq__core_8h.md#function-burst_acq_create) / [**burst\_acq\_create\_template()**](burst__acq__core_8h.md#function-burst_acq_create_template).
+
+
+
+
+**Parameters:**
+
+
+* `code` The preamble: PN chips (uint8, 0/1) or its samples (complex64), one period. 
+* `code_len` Its length (chips, or samples). 
+* `reps` Max coherent repetitions (&gt;= 1). 
+* `spc` Samples per chip (&gt;= 1); a code only. 
+* `chip_rate` Chip rate in Hz (&gt; 0); a code only. 
+* `cn0_dbhz` Design carrier-to-noise density in dB-Hz: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point  size for the whole preamble. 
+* `doppler_uncertainty` One-sided Doppler search half-range in Hz. 
+* `pfa` Target system false-alarm probability (0,1). 
+* `pd` Target detection probability (0,1). 
+* `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
+* `fs` Sample rate in Hz (&gt; 0); a preamble's samples only. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL on bad arguments / allocation failure. 
+```C++
+>>> import numpy as np
+>>> from doppler.dsss import BurstAcquisition
+>>> from doppler.wfm import PN, mls_poly
+>>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
+...                      length=5).generate(31)).astype(np.uint8)
+>>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+...     np.complex64)
+>>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
+>>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
+...                      cn0_dbhz=50.0)
+>>> b.push(burst)[0][:2]      # detects (Doppler bin, code phase)
+(0, 17)
+
+The same object searches any repeated preamble by its samples -- here
+a 127-sample Zadoff-Chu sequence, in normalized units:
+
+>>> k = np.arange(127)
+>>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(
+...     np.complex64)
+>>> z = BurstAcquisition(zc, reps=8)
+>>> z.sf, z.spc                # one chip is one sample
+(127, 1)
+>>> z.push(np.tile(np.roll(zc, 40), 10))[0][:2]
+(0, 40)
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function burst\_acq\_bind\_template 
+
+_The complex64 branch of_ [_**burst\_acq\_bind\_code()**_](burst__acq__core_8h.md#function-burst_acq_bind_code) _: forwards to_[_**burst\_acq\_create\_template()**_](burst__acq__core_8h.md#function-burst_acq_create_template) _, ignoring_`spc` _and_`chip_rate` _._
+```C++
+burst_acq_state_t * burst_acq_bind_template (
+    const float _Complex * tmpl,
+    size_t n,
+    size_t reps,
+    size_t spc,
+    double chip_rate,
+    double cn0_dbhz,
+    double doppler_uncertainty,
+    double pfa,
+    double pd,
+    int noise_mode,
+    double fs
+) 
+```
+
+
+
+
+
+**Parameters:**
+
+
+* `tmpl` One period of the preamble, `n` samples. 
+* `n` Samples per repetition. 
+* `reps` Max coherent repetitions. 
+* `spc` Ignored (a code's argument). 
+* `chip_rate` Ignored (a code's argument). 
+* `cn0_dbhz` Design C/N0, dB-Hz. 
+* `doppler_uncertainty` Doppler search half-range in Hz. 
+* `pfa` Target system false-alarm probability. 
+* `pd` Target detection probability. 
+* `noise_mode` CFAR mode index. 
+* `fs` Sample rate in Hz. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL. 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -181,7 +325,7 @@ Forwards to [**acq\_configure\_search\_raw()**](acq__core_8h.md#function-acq_con
 
 ### function burst\_acq\_create 
 
-_Create a burst-mode acquisition engine (forwards to_ [_**acq\_create\_burst()**_](acq__core_8h.md#function-acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._
+_Create a burst-mode acquisition engine for a PN code (forwards to_ [_**acq\_create\_burst()**_](acq__core_8h.md#function-acq_create_burst) __ _see its doc comment in_[_**acq\_core.h**_](acq__core_8h.md) _for the full physics)._
 ```C++
 burst_acq_state_t * burst_acq_create (
     const uint8_t * code,
@@ -220,21 +364,59 @@ burst_acq_state_t * burst_acq_create (
 **Returns:**
 
 Heap-allocated state, or NULL on bad arguments / allocation failure. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function burst\_acq\_create\_template 
+
+_Create a burst-mode acquisition engine for ANY repeated complex preamble_  _a chirp, a Zadoff-Chu sequence, shaped PSK_ _by its samples (forwards to_[_**acq\_create\_burst\_template()**_](acq__core_8h.md#function-acq_create_burst_template) _; doppler#1470)._
 ```C++
->>> import numpy as np
->>> from doppler.dsss import BurstAcquisition
->>> from doppler.wfm import PN, mls_poly
->>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
-...                      length=5).generate(31)).astype(np.uint8)
->>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
-...     np.complex64)
->>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
->>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
-...                      cn0_dbhz=50.0)
->>> b.push(burst)[0][:2]      # detects (Doppler bin, code phase)
-(0, 17)
+burst_acq_state_t * burst_acq_create_template (
+    const float _Complex * tmpl,
+    size_t n,
+    size_t reps,
+    double fs,
+    double cn0_dbhz,
+    double doppler_uncertainty,
+    double pfa,
+    double pd,
+    int noise_mode
+) 
 ```
- 
+
+
+
+One chip is one sample: `sf = n`, `spc = 1`, `chip_rate = fs`, and `code_phase` is the delay into the repetition in samples.
+
+
+
+
+**Parameters:**
+
+
+* `tmpl` One period of the preamble, `n` samples. 
+* `n` Samples per repetition (&gt;= 1). 
+* `reps` Max coherent repetitions (&gt;= 1). 
+* `fs` Sample rate in Hz (&gt; 0); 1 for normalized units. 
+* `cn0_dbhz` Design C/N0 of the preamble's mean power, dB-Hz. 
+* `doppler_uncertainty` One-sided Doppler search half-range in Hz. 
+* `pfa` Target system false-alarm probability (0,1). 
+* `pd` Target detection probability (0,1). 
+* `noise_mode` CFAR mode index: 0=mean, 1=median, 2=min, 3=max. 
+
+
+
+**Returns:**
+
+Heap-allocated state, or NULL on bad arguments / allocation failure. 
 
 
 

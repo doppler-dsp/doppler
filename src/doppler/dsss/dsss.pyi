@@ -2064,22 +2064,23 @@ class Acquisition:
 
 @final
 class BurstAcquisition:
-    """Create a burst-mode acquisition engine (forwards to acq_create_burst()
-    -- see its doc comment in acq_core.h for the full physics).
+    """Build a BurstAcquisition from a PN code OR a preamble's samples -- the
+    one Python constructor, dispatched on the first array's dtype.
 
     Parameters
     ----------
     code : NDArray[np.uint8]
-        PN chips (0/1), length code_len.
+        The preamble: PN chips (uint8, 0/1) or its samples (complex64), one
+        period.
     reps : int, default 1
-        Max coherent code repetitions (>= 1).
+        Max coherent repetitions (>= 1).
     spc : int, default 4
-        Samples per chip (>= 1).
+        Samples per chip (>= 1); a code only.
     chip_rate : float, default 1000000.0
-        Chip rate in Hz (> 0).
+        Chip rate in Hz (> 0); a code only.
     cn0_dbhz : float
-        Carrier-to-noise density in dB-Hz: any finite value, or NaN
-        (ACQ_CN0_NONE) for no design point.
+        Design carrier-to-noise density in dB-Hz: any finite value, or NaN
+        (ACQ_CN0_NONE) for no design point -- size for the whole preamble.
     doppler_uncertainty : float, default 0.0
         One-sided Doppler search half-range in Hz.
     pfa : float, default 1e-3
@@ -2088,6 +2089,25 @@ class BurstAcquisition:
         Target detection probability (0,1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
+    fs : float, default 1.0
+        Sample rate in Hz (> 0); a preamble's samples only.
+
+    Raises
+    ------
+    ValueError
+        If construction fails. The exception message is ``BurstAcquisition:
+        invalid parameter (need a non-empty code, reps >= 1, spc >= 1,
+        chip_rate > 0, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >=
+        0, 0 < pfa < 1, 0 < pd < 1; a preamble needs finite, non-zero
+        energy)``.
+
+    Warns
+    -----
+    UserWarning
+        Emitted after construction when ``underpowered`` holds:
+        ``BurstAcquisition is under-powered: pd_predicted < pd at this
+        reps/cn0_dbhz. Raise reps or cn0_dbhz, or narrow
+        doppler_uncertainty.``.
 
     Examples
     --------
@@ -2104,6 +2124,18 @@ class BurstAcquisition:
     >>> b.push(burst)[0][:2]      # detects (Doppler bin, code phase)
     (0, 17)
 
+    The same object searches any repeated preamble by its samples -- here
+    a 127-sample Zadoff-Chu sequence, in normalized units:
+
+    >>> k = np.arange(127)
+    >>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(
+    ...     np.complex64)
+    >>> z = BurstAcquisition(zc, reps=8)
+    >>> z.sf, z.spc                # one chip is one sample
+    (127, 1)
+    >>> z.push(np.tile(np.roll(zc, 40), 10))[0][:2]
+    (0, 40)
+
     """
     def __init__(
         self,
@@ -2116,6 +2148,7 @@ class BurstAcquisition:
         pfa: float = 1e-3,
         pd: float = 0.9,
         noise_mode: Literal["mean", "median", "min", "max"] = "mean",
+        fs: float = 1.0,
     ) -> None: ...
 
     def reset(self) -> None:
@@ -2346,7 +2379,9 @@ class BurstAcquisition:
 
     @property
     def code_bins(self) -> int:
-        """Code-phase hypotheses searched (= sf*spc, one code period)."""
+        """Delay hypotheses searched: one repetition in samples (= sf*spc; a
+        preamble's length).
+        """
 
     @property
     def doppler_bins(self) -> int:
@@ -2358,11 +2393,13 @@ class BurstAcquisition:
 
     @property
     def sf(self) -> int:
-        """Chips per PN segment, inferred from len(code)."""
+        """Chips per repetition, from len(code); for a preamble, its length in
+        samples (one chip is one sample).
+        """
 
     @property
     def spc(self) -> int:
-        """Samples per chip (chip-rate oversample factor)."""
+        """Samples per chip (chip-rate oversample factor); 1 for a preamble."""
 
     @property
     def reps(self) -> int:
@@ -2423,11 +2460,13 @@ class BurstAcquisition:
 
     @property
     def fs(self) -> float:
-        """Sample rate (Hz) = chip_rate * spc."""
+        """Sample rate (Hz) = chip_rate * spc; for a preamble, the fs it was
+        given.
+        """
 
     @property
     def chip_rate(self) -> float:
-        """Chip rate (Hz)."""
+        """Chip rate (Hz); for a preamble, equal to fs."""
 
     @property
     def cn0_dbhz(self) -> float:

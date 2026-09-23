@@ -41,7 +41,7 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
   static char *kwlist[] = { "code",      "reps",     "spc",
                             "chip_rate", "cn0_dbhz", "doppler_uncertainty",
                             "pfa",       "pd",       "noise_mode",
-                            NULL };
+                            "fs",        NULL };
   PyObject    *code_obj = NULL;
   unsigned long long reps_raw            = 1;
   unsigned long long spc_raw             = 4;
@@ -51,11 +51,12 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
   const char        *noise_mode_str      = "mean";
+  double             fs                  = 1.0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKddddds", kwlist,
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKdddddsd", kwlist,
                                     &code_obj, &reps_raw, &spc_raw, &chip_rate,
                                     &cn0_dbhz, &doppler_uncertainty, &pfa, &pd,
-                                    &noise_mode_str))
+                                    &noise_mode_str, &fs))
     return -1;
   size_t reps       = (size_t)reps_raw;
   size_t spc        = (size_t)spc_raw;
@@ -76,36 +77,55 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
                     noise_mode_str);
       return -1;
     }
-  PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-  if (!code_arr)
-    {
-      return -1;
-    }
-  size_t code_len = (size_t)PyArray_SIZE (code_arr);
-  self->handle = burst_acq_create ((const uint8_t *)PyArray_DATA (code_arr),
-                                   code_len, reps, spc, chip_rate, cn0_dbhz,
-                                   doppler_uncertainty, pfa, pd, noise_mode);
-  Py_DECREF (code_arr);
+  /* dtype dispatch: float _Complex → burst_acq_bind_template, uint8_t →
+   * burst_acq_create */
+  {
+    PyArrayObject *_code_probe = (PyArrayObject *)PyArray_CheckFromAny (
+        code_obj, NULL, 1, 1, NPY_ARRAY_C_CONTIGUOUS, NULL);
+    int _code_real
+        = _code_probe && (PyArray_TYPE (_code_probe) == NPY_COMPLEX64);
+    Py_XDECREF (_code_probe);
+    if (_code_real)
+      {
+        PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
+            code_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+        if (!code_arr)
+          {
+            return -1;
+          }
+        size_t code_len = (size_t)PyArray_SIZE (code_arr);
+        self->handle    = burst_acq_bind_template (
+            (const float _Complex *)PyArray_DATA (code_arr), code_len, reps,
+            spc, chip_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
+            fs);
+        Py_DECREF (code_arr);
+      }
+    else
+      {
+        PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
+            code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
+        if (!code_arr)
+          {
+            return -1;
+          }
+        size_t code_len = (size_t)PyArray_SIZE (code_arr);
+        self->handle    = burst_acq_bind_code (
+            (const uint8_t *)PyArray_DATA (code_arr), code_len, reps, spc,
+            chip_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, fs);
+        Py_DECREF (code_arr);
+      }
+  }
   if (!self->handle)
     {
-      PyErr_SetString (PyExc_MemoryError, "burst_acq_create returned NULL");
+      PyErr_SetString (PyExc_ValueError,
+                       "BurstAcquisition: invalid parameter (need a "
+                       "non-empty code, reps >= 1, spc >= 1, chip_rate > 0, "
+                       "fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty "
+                       ">= 0, 0 < pfa < 1, 0 < pd < 1; a preamble needs "
+                       "finite, non-zero energy)");
       return -1;
     }
-  /* Hand-patch (sacred fragment): the ONLY non-declarative line in this
-   * file. objects/acq.toml declares the identical warning with a `warnings`
-   * block (gh-481), but `warnings.condition` must be a bare C identifier
-   * naming a bool field on the state struct, and burst_acq_state_t holds
-   * nothing but the engine pointer -- so the reach every property here makes
-   * through `engine->` via `expr` is exactly what the condition needs and
-   * cannot have. Filed upstream; delete this and add the `warnings` block to
-   * objects/burst_acq.toml once the condition accepts an expression.
-   *
-   * C cannot raise a Python warning, so surface an under-powered search
-   * here: the auto-config still built a best-effort grid (bounded by the
-   * internal non-coherent-look safety valve), it just cannot reach the
-   * requested pd. */
-  if (self->handle->engine->underpowered)
+  if (self->handle->underpowered)
     {
       if (PyErr_WarnEx (PyExc_UserWarning,
                         "BurstAcquisition is under-powered: pd_predicted < "
@@ -145,7 +165,9 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
   PyArrayObject *in_arr = (PyArrayObject *)PyArray_FROM_OTF (
       in_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
   if (!in_arr)
-    return NULL;
+    {
+      return NULL;
+    }
   size_t       n_in = (size_t)PyArray_SIZE (in_arr);
   acq_result_t results[64];
   /* nogil: GIL released across the pure-C kernel — sound only when
@@ -164,10 +186,17 @@ BurstAcquisitionObj_push (BurstAcquisitionObject *self, PyObject *args)
   for (size_t i = 0; i < n_out; i++)
     {
       PyObject *tup = Py_BuildValue (
-          "(KKffffK)", (unsigned long long)results[i].doppler_bin,
-          (unsigned long long)results[i].code_phase, results[i].peak_mag,
-          results[i].noise_est, results[i].test_stat, results[i].cn0_dbhz_est,
-          (unsigned long long)results[i].samples_consumed);
+          "(NNNNNNN)",
+          PyLong_FromUnsignedLongLong (
+              (unsigned long long)results[i].doppler_bin),
+          PyLong_FromUnsignedLongLong (
+              (unsigned long long)results[i].code_phase),
+          PyFloat_FromDouble ((double)results[i].peak_mag),
+          PyFloat_FromDouble ((double)results[i].noise_est),
+          PyFloat_FromDouble ((double)results[i].test_stat),
+          PyFloat_FromDouble ((double)results[i].cn0_dbhz_est),
+          PyLong_FromUnsignedLongLong (
+              (unsigned long long)results[i].samples_consumed));
       if (!tup)
         {
           Py_DECREF (lst);
@@ -199,8 +228,32 @@ BurstAcquisitionObj_configure_search_raw (BurstAcquisitionObject *self,
       = burst_acq_configure_search_raw (self->handle, doppler_bins, n_noncoh);
   if (_rc != 0)
     {
-      PyErr_Format (PyExc_ValueError, "configure_search_raw failed (rc=%d)",
-                    _rc);
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)",
+                    "configure_search_raw failed", (long long)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+BurstAcquisitionObj_set_max_peaks (BurstAcquisitionObject *self,
+                                   PyObject *args, PyObject *kwds)
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  static char       *_kwlist[] = { "n", NULL };
+  unsigned long long n_raw     = 0ULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
+    return NULL;
+  size_t n   = (size_t)n_raw;
+  int    _rc = burst_acq_set_max_peaks (self->handle, n);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
+                    (long long)_rc);
       return NULL;
     }
   Py_RETURN_NONE;
@@ -261,260 +314,6 @@ BurstAcquisitionObj_set_state (BurstAcquisitionObject *self, PyObject *arg)
   Py_RETURN_NONE;
 }
 static PyObject *
-BurstAcquisition_getprop_code_bins (BurstAcquisitionObject *self,
-                                    void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->engine->code_bins);
-}
-static PyObject *
-BurstAcquisition_getprop_doppler_bins (BurstAcquisitionObject *self,
-                                       void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)((self->handle->engine->window_bins > 1)
-                               ? self->handle->engine->window_bins
-                               : self->handle->engine->coherent_bins));
-}
-static PyObject *
-BurstAcquisition_getprop_sf (BurstAcquisitionObject *self,
-                             void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->engine->sf);
-}
-static PyObject *
-BurstAcquisition_getprop_spc (BurstAcquisitionObject *self,
-                              void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->engine->spc);
-}
-static PyObject *
-BurstAcquisition_getprop_reps (BurstAcquisitionObject *self,
-                               void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->engine->reps);
-}
-static PyObject *
-BurstAcquisition_getprop_n_noncoh (BurstAcquisitionObject *self,
-                                   void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->engine->n_noncoh);
-}
-static PyObject *
-BurstAcquisition_getprop_ring_cap (BurstAcquisitionObject *self,
-                                   void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->engine->ring_cap);
-}
-static PyObject *
-BurstAcquisition_getprop_noise_lo (BurstAcquisitionObject *self,
-                                   void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->engine->noise_lo);
-}
-static PyObject *
-BurstAcquisition_getprop_noise_hi (BurstAcquisitionObject *self,
-                                   void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)self->handle->engine->noise_hi);
-}
-static PyObject *
-BurstAcquisition_getprop_threshold (BurstAcquisitionObject *self,
-                                    void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble ((double)self->handle->engine->threshold);
-}
-static PyObject *
-BurstAcquisition_getprop_eta (BurstAcquisitionObject *self,
-                              void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble ((double)self->handle->engine->eta);
-}
-static PyObject *
-BurstAcquisition_getprop_eta_nc (BurstAcquisitionObject *self,
-                                 void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble ((double)self->handle->engine->eta_nc);
-}
-static PyObject *
-BurstAcquisition_getprop_pfa_cell (BurstAcquisitionObject *self,
-                                   void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (self->handle->engine->pfa_cell);
-}
-static PyObject *
-BurstAcquisition_getprop_pd_predicted (BurstAcquisitionObject *self,
-                                       void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (self->handle->engine->pd_predicted);
-}
-static PyObject *
-BurstAcquisition_getprop_straddle_loss (BurstAcquisitionObject *self,
-                                        void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (self->handle->engine->straddle_loss);
-}
-static PyObject *
-BurstAcquisition_getprop_fs (BurstAcquisitionObject *self,
-                             void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (self->handle->engine->fs);
-}
-static PyObject *
-BurstAcquisition_getprop_chip_rate (BurstAcquisitionObject *self,
-                                    void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (self->handle->engine->chip_rate);
-}
-static PyObject *
-BurstAcquisition_getprop_cn0_dbhz (BurstAcquisitionObject *self,
-                                   void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (self->handle->engine->cn0_dbhz);
-}
-static PyObject *
-BurstAcquisition_getprop_doppler_span_hz (BurstAcquisitionObject *self,
-                                          void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (self->handle->engine->doppler_span_hz);
-}
-static PyObject *
-BurstAcquisition_getprop_doppler_res_hz (BurstAcquisitionObject *self,
-                                         void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (self->handle->engine->doppler_res_hz);
-}
-static PyObject *
-BurstAcquisition_getprop_pd (BurstAcquisitionObject *self,
-                             void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble (self->handle->engine->pd);
-}
-static PyObject *
-BurstAcquisition_getprop_underpowered (BurstAcquisitionObject *self,
-                                       void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyBool_FromLong ((long)(self->handle->engine->underpowered));
-}
-
-static PyObject *
 BurstAcquisition_getprop_max_peaks (BurstAcquisitionObject *self,
                                     void *Py_UNUSED (closure))
 {
@@ -526,10 +325,269 @@ BurstAcquisition_getprop_max_peaks (BurstAcquisitionObject *self,
   return PyLong_FromUnsignedLongLong (
       (unsigned long long)(self->handle->engine->max_peaks));
 }
+static PyObject *
+BurstAcquisition_getprop_code_bins (BurstAcquisitionObject *self,
+                                    void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->engine->code_bins));
+}
+static PyObject *
+BurstAcquisition_getprop_doppler_bins (BurstAcquisitionObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(((self->handle->engine->window_bins > 1)
+                                ? self->handle->engine->window_bins
+                                : self->handle->engine->coherent_bins)));
+}
+static PyObject *
+BurstAcquisition_getprop_sf (BurstAcquisitionObject *self,
+                             void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->engine->sf));
+}
+static PyObject *
+BurstAcquisition_getprop_spc (BurstAcquisitionObject *self,
+                              void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->engine->spc));
+}
+static PyObject *
+BurstAcquisition_getprop_reps (BurstAcquisitionObject *self,
+                               void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->engine->reps));
+}
+static PyObject *
+BurstAcquisition_getprop_n_noncoh (BurstAcquisitionObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->engine->n_noncoh));
+}
+static PyObject *
+BurstAcquisition_getprop_ring_cap (BurstAcquisitionObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->engine->ring_cap));
+}
+static PyObject *
+BurstAcquisition_getprop_noise_lo (BurstAcquisitionObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->engine->noise_lo));
+}
+static PyObject *
+BurstAcquisition_getprop_noise_hi (BurstAcquisitionObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyLong_FromUnsignedLongLong (
+      (unsigned long long)(self->handle->engine->noise_hi));
+}
+static PyObject *
+BurstAcquisition_getprop_threshold (BurstAcquisitionObject *self,
+                                    void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((double)(self->handle->engine->threshold));
+}
+static PyObject *
+BurstAcquisition_getprop_eta (BurstAcquisitionObject *self,
+                              void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((double)(self->handle->engine->eta));
+}
+static PyObject *
+BurstAcquisition_getprop_eta_nc (BurstAcquisitionObject *self,
+                                 void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((double)(self->handle->engine->eta_nc));
+}
+static PyObject *
+BurstAcquisition_getprop_pfa_cell (BurstAcquisitionObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((self->handle->engine->pfa_cell));
+}
+static PyObject *
+BurstAcquisition_getprop_pd_predicted (BurstAcquisitionObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((self->handle->engine->pd_predicted));
+}
+static PyObject *
+BurstAcquisition_getprop_straddle_loss (BurstAcquisitionObject *self,
+                                        void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((self->handle->engine->straddle_loss));
+}
+static PyObject *
+BurstAcquisition_getprop_fs (BurstAcquisitionObject *self,
+                             void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((self->handle->engine->fs));
+}
+static PyObject *
+BurstAcquisition_getprop_chip_rate (BurstAcquisitionObject *self,
+                                    void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((self->handle->engine->chip_rate));
+}
+static PyObject *
+BurstAcquisition_getprop_cn0_dbhz (BurstAcquisitionObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((self->handle->engine->cn0_dbhz));
+}
+static PyObject *
+BurstAcquisition_getprop_doppler_span_hz (BurstAcquisitionObject *self,
+                                          void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((self->handle->engine->doppler_span_hz));
+}
+static PyObject *
+BurstAcquisition_getprop_doppler_res_hz (BurstAcquisitionObject *self,
+                                         void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((self->handle->engine->doppler_res_hz));
+}
+static PyObject *
+BurstAcquisition_getprop_pd (BurstAcquisitionObject *self,
+                             void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((self->handle->engine->pd));
+}
+static PyObject *
+BurstAcquisition_getprop_underpowered (BurstAcquisitionObject *self,
+                                       void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyBool_FromLong ((long)((self->handle->engine->underpowered)));
+}
 
 static PyGetSetDef BurstAcquisition_getset[] = {
+  { "max_peaks", (getter)BurstAcquisition_getprop_max_peaks, NULL,
+    "The peak list's capacity per dwell (1 = the classic gated maximum); set "
+    "with set_max_peaks().\n",
+    NULL },
   { "code_bins", (getter)BurstAcquisition_getprop_code_bins, NULL,
-    "Code-phase hypotheses searched (= sf*spc, one code period).\n", NULL },
+    "Delay hypotheses searched: one repetition in samples (= sf*spc; a "
+    "preamble's length).\n",
+    NULL },
   { "doppler_bins", (getter)BurstAcquisition_getprop_doppler_bins, NULL,
     "Coherent depth chosen: the slow-time FFT length in code reps (<= reps), "
     "unless doppler_uncertainty exceeds the native span, in which case this "
@@ -537,9 +595,12 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "1 -- see acq_core.h's file doc comment).\n",
     NULL },
   { "sf", (getter)BurstAcquisition_getprop_sf, NULL,
-    "Chips per PN segment, inferred from len(code).\n", NULL },
+    "Chips per repetition, from len(code); for a preamble, its length in "
+    "samples (one chip is one sample).\n",
+    NULL },
   { "spc", (getter)BurstAcquisition_getprop_spc, NULL,
-    "Samples per chip (chip-rate oversample factor).\n", NULL },
+    "Samples per chip (chip-rate oversample factor); 1 for a preamble.\n",
+    NULL },
   { "reps", (getter)BurstAcquisition_getprop_reps, NULL,
     "Max coherent code repetitions (the coherence ceiling).\n", NULL },
   { "n_noncoh", (getter)BurstAcquisition_getprop_n_noncoh, NULL,
@@ -575,9 +636,11 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "amplitude would overstate the mean Pd).\n",
     NULL },
   { "fs", (getter)BurstAcquisition_getprop_fs, NULL,
-    "Sample rate (Hz) = chip_rate * spc.\n", NULL },
+    "Sample rate (Hz) = chip_rate * spc; for a preamble, the fs it was "
+    "given.\n",
+    NULL },
   { "chip_rate", (getter)BurstAcquisition_getprop_chip_rate, NULL,
-    "Chip rate (Hz).\n", NULL },
+    "Chip rate (Hz); for a preamble, equal to fs.\n", NULL },
   { "cn0_dbhz", (getter)BurstAcquisition_getprop_cn0_dbhz, NULL,
     "Carrier-to-noise density used to size the search (dB-Hz).\n", NULL },
   { "doppler_span_hz", (getter)BurstAcquisition_getprop_doppler_span_hz, NULL,
@@ -592,10 +655,6 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "this cn0_dbhz and geometry. The engine still builds a best-effort grid "
     "rather than failing; because C cannot raise a Python warning from a "
     "successful create, construction also emits a UserWarning in this case.\n",
-    NULL },
-  { "max_peaks", (getter)BurstAcquisition_getprop_max_peaks, NULL,
-    "The peak list's capacity per dwell (1 = the classic gated maximum); set "
-    "with set_max_peaks().\n",
     NULL },
   { NULL }
 };
@@ -628,30 +687,6 @@ BurstAcquisitionObj_exit (BurstAcquisitionObject *self, PyObject *args)
     {
       burst_acq_destroy (self->handle);
       self->handle = NULL;
-    }
-  Py_RETURN_NONE;
-}
-
-static PyObject *
-BurstAcquisitionObj_set_max_peaks (BurstAcquisitionObject *self,
-                                   PyObject *args, PyObject *kwds)
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  static char       *_kwlist[] = { "n", NULL };
-  unsigned long long n_raw     = 0ULL;
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "K", _kwlist, &n_raw))
-    return NULL;
-  size_t n   = (size_t)n_raw;
-  int    _rc = burst_acq_set_max_peaks (self->handle, n);
-  if (_rc != 0)
-    {
-      PyErr_Format (PyExc_ValueError, "%s (rc=%lld)", "set_max_peaks failed",
-                    (long long)_rc);
-      return NULL;
     }
   Py_RETURN_NONE;
 }
@@ -771,6 +806,52 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     ">>> burst = np.tile(np.roll(s0, 17), 8).astype(np.complex64)\n"
     ">>> b.push(burst)[0][:2]      # detects at the pinned grid\n"
     "(0, 17)\n" },
+  { "set_max_peaks", (PyCFunction)(void *)BurstAcquisitionObj_set_max_peaks,
+    METH_VARARGS | METH_KEYWORDS,
+    "set_max_peaks(n) -> None\n"
+    "\n"
+    "How many peaks a dwell may report -- the peak list's capacity\n"
+    "(docs/design/async-dsss-receiver.md section 7.1). One (the default) is\n"
+    "the classic gated maximum. More lists every peak above the same gate,\n"
+    "strongest first, with an exclusion zone of one Doppler bin by one chip\n"
+    "around each (one emitter's main lobe, so its own shoulders are not the\n"
+    "next peak) and the two-epoch rule for a peak at an already-listed code\n"
+    "phase (a data transition inside the epoch splits one emitter into twins\n"
+    "at its own code phase on other tiles; such a peak is held for one dwell\n"
+    "and listed only if it is still there, at the same tile, on the next).\n"
+    "Each listed peak is one record from push(), all of a dwell's sharing\n"
+    "samples_consumed and noise_est; a held twin takes one of the n slots\n"
+    "that dwell but is not reported. The threshold does not change with n.\n"
+    "Raises ValueError outside 1..64. Clears the held candidates.\n"
+    "\n"
+    "Forwards to acq_set_max_peaks() on the embedded engine (see its doc\n"
+    "comment in acq_core.h): one is the classic gated maximum; more is the\n"
+    "list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the\n"
+    "same gate, strongest first, an exclusion zone of one Doppler bin by one\n"
+    "chip around each, and the two-epoch rule for a peak at an\n"
+    "already-listed code phase. Each listed peak is one result from push().\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "n : int\n"
+    "    1 … ACQ_MAX_PEAKS.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If the C call returns a non-zero status. The exception message is\n"
+    "    ``set_max_peaks failed``, with the return code appended (gh-869).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.dsss import BurstAcquisition\n"
+    ">>> code = (np.arange(31) * 5 % 2).astype(np.uint8)\n"
+    ">>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,\n"
+    "...                      cn0_dbhz=50.0)\n"
+    ">>> b.set_max_peaks(4)\n"
+    ">>> b.max_peaks\n"
+    "4\n" },
   { "state_bytes", (PyCFunction)BurstAcquisitionObj_state_bytes, METH_NOARGS,
     "Size in bytes of this object's serialized state.\n"
     "\n"
@@ -826,12 +907,11 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "\n"
     "Ordinarily unnecessary: the resources are freed when the object is\n"
     "garbage-collected. Call this to release them at a definite point\n"
-    "instead, or use the object as a context manager, which calls it on "
+    "instead, or use the object as a context manager, which calls it on\n"
     "exit.\n"
     "\n"
-    "Idempotent: calling it again on an already-released object does "
-    "nothing.\n"
-    "Every other method raises ``RuntimeError`` once it has run.\n" },
+    "Idempotent: calling it again on an already-released object does\n"
+    "nothing. Every other method raises ``RuntimeError`` once it has run.\n" },
   { "__enter__", (PyCFunction)BurstAcquisitionObj_enter, METH_NOARGS,
     "Enter a context manager, returning this object.\n"
     "\n"
@@ -858,52 +938,6 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "    Exception instance, or None. Ignored.\n"
     "tb : object | None\n"
     "    Traceback object, or None. Ignored.\n" },
-  { "set_max_peaks", (PyCFunction)(void *)BurstAcquisitionObj_set_max_peaks,
-    METH_VARARGS | METH_KEYWORDS,
-    "set_max_peaks(n) -> None\n"
-    "\n"
-    "How many peaks a dwell may report -- the peak list's capacity\n"
-    "(docs/design/async-dsss-receiver.md section 7.1). One (the default) is\n"
-    "the classic gated maximum. More lists every peak above the same gate,\n"
-    "strongest first, with an exclusion zone of one Doppler bin by one chip\n"
-    "around each (one emitter's main lobe, so its own shoulders are not the\n"
-    "next peak) and the two-epoch rule for a peak at an already-listed code\n"
-    "phase (a data transition inside the epoch splits one emitter into twins\n"
-    "at its own code phase on other tiles; such a peak is held for one dwell\n"
-    "and listed only if it is still there, at the same tile, on the next).\n"
-    "Each listed peak is one record from push(), all of a dwell's sharing\n"
-    "samples_consumed and noise_est; a held twin takes one of the n slots\n"
-    "that dwell but is not reported. The threshold does not change with n.\n"
-    "Raises ValueError outside 1..64. Clears the held candidates.\n"
-    "\n"
-    "Forwards to acq_set_max_peaks() on the embedded engine (see its doc\n"
-    "comment in acq_core.h): one is the classic gated maximum; more is the\n"
-    "list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the\n"
-    "same gate, strongest first, an exclusion zone of one Doppler bin by one\n"
-    "chip around each, and the two-epoch rule for a peak at an\n"
-    "already-listed code phase. Each listed peak is one result from push().\n"
-    "\n"
-    "Parameters\n"
-    "----------\n"
-    "n : int\n"
-    "    1 … ACQ_MAX_PEAKS.\n"
-    "\n"
-    "Raises\n"
-    "------\n"
-    "ValueError\n"
-    "    If the C call returns a non-zero status. The exception message is\n"
-    "    ``set_max_peaks failed``, with the return code appended (gh-869).\n"
-    "\n"
-    "Examples\n"
-    "--------\n"
-    ">>> import numpy as np\n"
-    ">>> from doppler.dsss import BurstAcquisition\n"
-    ">>> code = (np.arange(31) * 5 % 2).astype(np.uint8)\n"
-    ">>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,\n"
-    "...                      cn0_dbhz=50.0)\n"
-    ">>> b.set_max_peaks(4)\n"
-    ">>> b.max_peaks\n"
-    "4\n" },
   { NULL }
 };
 
@@ -913,22 +947,23 @@ static PyTypeObject BurstAcquisitionObjType = {
   .tp_dealloc = (destructor)BurstAcquisitionObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Create a burst-mode acquisition engine (forwards to acq_create_burst()\n"
-    "-- see its doc comment in acq_core.h for the full physics).\n"
+  = "Build a BurstAcquisition from a PN code OR a preamble's samples -- the\n"
+    "one Python constructor, dispatched on the first array's dtype.\n"
     "\n"
     "Parameters\n"
     "----------\n"
     "code : NDArray[np.uint8]\n"
-    "    PN chips (0/1), length code_len.\n"
+    "    The preamble: PN chips (uint8, 0/1) or its samples (complex64), one\n"
+    "    period.\n"
     "reps : int, default 1\n"
-    "    Max coherent code repetitions (>= 1).\n"
+    "    Max coherent repetitions (>= 1).\n"
     "spc : int, default 4\n"
-    "    Samples per chip (>= 1).\n"
+    "    Samples per chip (>= 1); a code only.\n"
     "chip_rate : float, default 1000000.0\n"
-    "    Chip rate in Hz (> 0).\n"
+    "    Chip rate in Hz (> 0); a code only.\n"
     "cn0_dbhz : float\n"
-    "    Carrier-to-noise density in dB-Hz: any finite value, or NaN\n"
-    "    (ACQ_CN0_NONE) for no design point.\n"
+    "    Design carrier-to-noise density in dB-Hz: any finite value, or NaN\n"
+    "    (ACQ_CN0_NONE) for no design point -- size for the whole preamble.\n"
     "doppler_uncertainty : float, default 0.0\n"
     "    One-sided Doppler search half-range in Hz.\n"
     "pfa : float, default 1e-3\n"
@@ -938,6 +973,26 @@ static PyTypeObject BurstAcquisitionObjType = {
     "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
     "\"mean\"\n"
     "    CFAR mode index: 0=mean, 1=median, 2=min, 3=max.\n"
+    "fs : float, default 1.0\n"
+    "    Sample rate in Hz (> 0); a preamble's samples only.\n"
+    "\n"
+    "Raises\n"
+    "------\n"
+    "ValueError\n"
+    "    If construction fails. The exception message is ``BurstAcquisition:\n"
+    "    invalid parameter (need a non-empty code, reps >= 1, spc >= 1,\n"
+    "    chip_rate > 0, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty "
+    ">=\n"
+    "    0, 0 < pfa < 1, 0 < pd < 1; a preamble needs finite, non-zero\n"
+    "    energy)``.\n"
+    "\n"
+    "Warns\n"
+    "-----\n"
+    "UserWarning\n"
+    "    Emitted after construction when ``underpowered`` holds:\n"
+    "    ``BurstAcquisition is under-powered: pd_predicted < pd at this\n"
+    "    reps/cn0_dbhz. Raise reps or cn0_dbhz, or narrow\n"
+    "    doppler_uncertainty.``.\n"
     "\n"
     "Examples\n"
     "--------\n"
@@ -952,7 +1007,19 @@ static PyTypeObject BurstAcquisitionObjType = {
     ">>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,\n"
     "...                      cn0_dbhz=50.0)\n"
     ">>> b.push(burst)[0][:2]      # detects (Doppler bin, code phase)\n"
-    "(0, 17)\n",
+    "(0, 17)\n"
+    "\n"
+    "The same object searches any repeated preamble by its samples -- here\n"
+    "a 127-sample Zadoff-Chu sequence, in normalized units:\n"
+    "\n"
+    ">>> k = np.arange(127)\n"
+    ">>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(\n"
+    "...     np.complex64)\n"
+    ">>> z = BurstAcquisition(zc, reps=8)\n"
+    ">>> z.sf, z.spc                # one chip is one sample\n"
+    "(127, 1)\n"
+    ">>> z.push(np.tile(np.roll(zc, 40), 10))[0][:2]\n"
+    "(0, 40)\n",
   .tp_methods = BurstAcquisitionObj_methods,
   .tp_getset  = BurstAcquisition_getset,
   .tp_new     = BurstAcquisitionObj_new,

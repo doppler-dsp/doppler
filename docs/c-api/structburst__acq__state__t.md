@@ -37,6 +37,7 @@ _BurstAcquisition state: a pure wrapper around one shared_ [_**acq\_state\_t**_]
 | Type | Name |
 | ---: | :--- |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**engine**](#variable-engine)  <br> |
+|  uint8\_t | [**underpowered**](#variable-underpowered)  <br> |
 
 
 
@@ -101,6 +102,23 @@ acq_state_t* burst_acq_state_t::engine;
 
 
 
+
+<hr>
+
+
+
+### variable underpowered 
+
+```C++
+uint8_t burst_acq_state_t::underpowered;
+```
+
+
+
+The engine's `underpowered` at construction  a field of THIS struct because a declared jm warning's condition must be one; it is what raises the under-powered UserWarning after **init**. 
+
+
+        
 
 <hr>
 

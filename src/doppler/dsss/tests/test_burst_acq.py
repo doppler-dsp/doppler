@@ -215,10 +215,97 @@ def test_a_negative_design_point_is_a_design_point():
 
 
 def test_an_infinite_design_point_is_refused():
-    """An infinite C/N0 is no design point: the constructor returns NULL.
-    It surfaces as MemoryError because BurstAcquisition declares no
-    create_error yet (#1486); tighten to ValueError with that fix."""
-    with pytest.raises(MemoryError):
+    """An infinite C/N0 is no design point: the constructor refuses it
+    as the argument error it is, not a MemoryError (#1486)."""
+    with pytest.raises(ValueError, match="cn0_dbhz finite or NaN"):
         BurstAcquisition(
             CODE, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=np.inf
         )
+
+
+# ── any repeated preamble, one constructor (doppler#1470 phase 3) ──────────
+#
+# The first array's dtype picks the constructor: uint8 is a PN code (spc,
+# chip_rate used, fs ignored), complex64 is a preamble's samples (fs used,
+# spc and chip_rate ignored). fs defaults to 1: normalized units.
+
+_K = np.arange(127)
+_ZC = np.exp(-1j * np.pi * 5 * _K * (_K + 1) / 127).astype(np.complex64)
+
+
+def test_a_complex64_preamble_is_searched_by_its_samples():
+    """One chip is one sample, and it is found at the delay it was put."""
+    z = BurstAcquisition(_ZC, reps=8)
+    assert (z.sf, z.spc, z.code_bins) == (127, 1, 127)
+    hits = z.push(np.tile(np.roll(_ZC, 40), 10))
+    assert hits and hits[0][:2] == (0, 40)
+
+
+def test_fs_defaults_to_normalized_units():
+    """No fs is fs = 1: Doppler in cycles/sample, span +/- 1/(2n)."""
+    z = BurstAcquisition(_ZC, reps=8)
+    assert z.fs == 1.0 and z.chip_rate == 1.0
+    assert z.doppler_span_hz == pytest.approx(1.0 / (2 * 127))
+    hz = BurstAcquisition(_ZC, reps=8, fs=2.0e6)
+    assert hz.fs == 2.0e6
+    assert hz.doppler_span_hz == pytest.approx(2.0e6 / (2 * 127))
+
+
+def test_a_preamble_ignores_the_code_arguments():
+    """spc and chip_rate are a code's; a preamble's engine is unmoved."""
+    a = BurstAcquisition(_ZC, reps=8, fs=1.0e6)
+    b = BurstAcquisition(_ZC, reps=8, fs=1.0e6, spc=4, chip_rate=5.0e6)
+    assert (b.spc, b.fs, b.code_bins) == (a.spc, a.fs, a.code_bins)
+    assert b.threshold == a.threshold and b.doppler_bins == a.doppler_bins
+
+
+def test_a_code_ignores_fs():
+    """A code's rate is chip_rate * spc, whatever fs says."""
+    code = CODE
+    a = BurstAcquisition(code, reps=8, spc=4, chip_rate=1.0e6)
+    b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1.0e6, fs=123.0)
+    assert a.fs == b.fs == 4.0e6
+    assert (a.sf, a.spc, a.threshold) == (b.sf, b.spc, b.threshold)
+
+
+def test_complex128_is_refused_not_read_as_chips():
+    """Only complex64 is a preamble. complex128 -- numpy's default --
+    falls to the code branch, whose safe cast refuses it loudly rather
+    than turning a waveform into chips."""
+    with pytest.raises(TypeError):
+        BurstAcquisition(_ZC.astype(np.complex128), reps=8)
+
+
+def test_a_preamble_engine_resumes_from_its_state():
+    """The blob is the engine's either way: split mid-stream, resume."""
+    x = np.tile(np.roll(_ZC, 11), 12).astype(np.complex64)
+    whole = BurstAcquisition(_ZC, reps=8).push(x)
+    a = BurstAcquisition(_ZC, reps=8)
+    first = a.push(x[:500])
+    b = BurstAcquisition(_ZC, reps=8)
+    b.set_state(a.get_state())
+    assert first + b.push(x[500:]) == whole
+
+
+def test_an_underpowered_preamble_warns():
+    """The declared warning reads a field both branches set: a preamble
+    that cannot meet pd at its design C/N0 says so, as a code does."""
+    with pytest.warns(UserWarning, match="under-powered"):
+        z = BurstAcquisition(_ZC, reps=2, fs=1.0e6, cn0_dbhz=30.0)
+    assert z.underpowered
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: BurstAcquisition(CODE, reps=8, pfa=1.0),
+        lambda: BurstAcquisition(CODE, reps=0),
+        lambda: BurstAcquisition(np.zeros(127, np.complex64), reps=8),
+    ],
+    ids=["pfa-of-one", "zero-reps", "silent-preamble"],
+)
+def test_an_argument_error_is_a_value_error(make):
+    """Every NULL from either constructor is a refused argument, never an
+    allocation failure, so both branches raise ValueError (#1486)."""
+    with pytest.raises(ValueError, match="BurstAcquisition: invalid"):
+        make()

@@ -27,6 +27,7 @@ from doppler.dsss.benchmarks._burst_stimulus import (
     packing,
     rate,
 )
+from doppler.dsss.tests._preamble import code_preamble
 
 
 @pytest.fixture(scope="module")
@@ -47,13 +48,13 @@ def _cap(acq_code, path=None):
     kw = {
         "burst_len": BURST_LEN,
         "reps": REPS,
-        "spc": SPC,
-        "chip_rate": CHIP_RATE,
+        "fs": CHIP_RATE * SPC,
         "cn0_dbhz": 60.0,
     }
+    pre = code_preamble(acq_code, SPC)
     if path is None:
-        return BurstCapture(acq_code, **kw)
-    return PersistentBurstCapture(path, acq_code, **kw)
+        return BurstCapture(pre, **kw)
+    return PersistentBurstCapture(path, pre, **kw)
 
 
 def test_bench_push_idle(benchmark, waveform):

@@ -417,17 +417,21 @@ Maps a reported Doppler **bin index** to its **signed** frequency index —
 ```python
 import numpy as np
 
+from doppler.cvt import bin_to_nrz
 from doppler.dsss import BurstAcquisition, bin_to_signed
 from doppler.wfm import PN, mls_poly
 
 code = np.asarray(
     PN(poly=mls_poly(5), seed=1, length=5).generate(31)
 ).astype(np.uint8)
-acq = BurstAcquisition(code, reps=4, spc=4, chip_rate=1e6, cn0_dbhz=55.0)
+# The preamble is its samples: chips by bin_to_nrz, held 4 samples a chip.
+nrz = np.zeros(code.size, np.float32)
+bin_to_nrz(code, nrz)
+preamble = np.repeat(nrz, 4).astype(np.complex64)
+acq = BurstAcquisition(preamble, reps=4, fs=4e6, cn0_dbhz=55.0)
 
 # One repeated-code burst, so push() reports a hit to read the bin off.
-chips = np.where(code & 1, -1.0, 1.0)
-burst = np.tile(np.repeat(chips, 4), 8).astype(np.complex64)
+burst = np.tile(preamble, 8)
 hit_bin = acq.push(burst)[0][0]
 
 f0_hz = bin_to_signed(hit_bin, acq.doppler_bins) * acq.doppler_res_hz

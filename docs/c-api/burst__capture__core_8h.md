@@ -21,6 +21,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 * `#include "fft/fft_core.h"`
 * `#include "detection/detection_core.h"`
 * `#include "pn/pn_core.h"`
+* `#include "cvt/cvt_core.h"`
 
 
 
@@ -71,10 +72,8 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 | Type | Name |
 | ---: | :--- |
 |  int | [**burst\_capture\_configure\_search\_raw**](#function-burst_capture_configure_search_raw) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded acquisition's search grid directly._  |
-|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create**](#function-burst_capture_create) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst capture: acquisition, refine and retention behind one push()._  |
-|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create\_backed**](#function-burst_capture_create_backed) (const char \* path, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a capture whose look-back lives in a FILE._  |
-|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create\_template**](#function-burst_capture_create_template) (const float \_Complex \* tmpl, size\_t n, size\_t burst\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a capture for ANY repeated complex preamble_  _a chirp, a Zadoff-Chu sequence, shaped PSK_ _by its samples (doppler#1470)._ |
-|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create\_template\_backed**](#function-burst_capture_create_template_backed) (const char \* path, const float \_Complex \* tmpl, size\_t n, size\_t burst\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>[_**burst\_capture\_create\_template()**_](burst__capture__core_8h.md#function-burst_capture_create_template) _with the look-back in a FILE, as_[_**burst\_capture\_create\_backed()**_](burst__capture__core_8h.md#function-burst_capture_create_backed) _is to_[_**burst\_capture\_create()**_](burst__capture__core_8h.md#function-burst_capture_create) _._ |
+|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create**](#function-burst_capture_create) (const float \_Complex \* preamble, size\_t preamble\_len, size\_t burst\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst capture: acquisition, refine and retention behind one push()._  |
+|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create\_backed**](#function-burst_capture_create_backed) (const char \* path, const float \_Complex \* preamble, size\_t preamble\_len, size\_t burst\_len, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a capture whose look-back lives in a FILE._  |
 |  void | [**burst\_capture\_destroy**](#function-burst_capture_destroy) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Release a capture and everything it owns. NULL-safe._  |
 |  size\_t | [**burst\_capture\_detections**](#function-burst_capture_detections) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t n, [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md) \* out, size\_t max\_out) <br>_Every hit the search made in the last push(), unfiltered._  |
 |  size\_t | [**burst\_capture\_detections\_max\_out**](#function-burst_capture_detections_max_out) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t n) <br>_Raw detections available from the last push()._ `n` _is ignored._ |
@@ -159,10 +158,15 @@ Lifecycle: create, then push() repeatedly, then destroy. There is no step()/step
 
 
 ```C++
+// a 31-chip code held 4 samples a chip (bin_to_nrz, then the hold)
 uint8_t code[31];
 for (size_t i = 0; i < 31; i++) code[i] = (uint8_t)(i & 1u);
+float nrz[31];
+bin_to_nrz (code, 31, nrz, 31);
+float _Complex pre[124];
+for (size_t i = 0; i < 124; i++) pre[i] = nrz[i / 4];
 burst_capture_state_t *cap = burst_capture_create (
-    code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
+    pre, 124, 4096, 4, 4.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
 float _Complex x[2048] = { 0 };
 float _Complex win[4096];
 size_t n = burst_capture_push (cap, x, 2048, win, 4096);
@@ -206,7 +210,8 @@ DP\_OK, or DP\_ERR\_INVALID if this object or the engine refused the grid.
 >>> import numpy as np
 >>> from doppler.dsss import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
->>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+>>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+>>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
 >>> cap.configure_search_raw(4, 1)   # 4 Doppler bins, coherent only
 ```
  
@@ -223,12 +228,11 @@ DP\_OK, or DP\_ERR\_INVALID if this object or the engine refused the grid.
 _Create a burst capture: acquisition, refine and retention behind one push()._ 
 ```C++
 burst_capture_state_t * burst_capture_create (
-    const uint8_t * acq_code,
-    size_t acq_code_len,
+    const float _Complex * preamble,
+    size_t preamble_len,
     size_t burst_len,
     size_t reps,
-    size_t spc,
-    double chip_rate,
+    double fs,
     double cn0_dbhz,
     double doppler_uncertainty,
     double pfa,
@@ -240,10 +244,13 @@ burst_capture_state_t * burst_capture_create (
 
 
 
-Give it the preamble code and the geometry, say how long a burst is, and stream samples in. It searches blindly, recovers the exact preamble start, and hands back the burst's samples once they have all arrived.
+Give it the preamble  one period of its SAMPLES  and the geometry, say how long a burst is, and stream samples in. It searches blindly, recovers the exact preamble start, and hands back the burst's samples once they have all arrived.
 
 
 The look-back buffer is NOT a parameter. Its span is derived from the geometry here (detection lag + refine search + the burst itself), because every term is already known and a caller asked to size a history buffer is a caller handed a way to lose bursts silently.
+
+
+Any repeated preamble: a chirp, a Zadoff-Chu sequence, shaped PSK, or a PN code mapped by [**bin\_to\_nrz()**](cvt__core_8h.md#function-bin_to_nrz) and held `spc` samples a chip (at `fs = chip_rate*spc`). One chip is one sample: a period is `preamble_len` samples. Refine correlates each candidate position against the acquisition engine's own reference row  the preamble at unit RMS  so there is one replica of it (doppler#1470).
 
 
 
@@ -251,13 +258,12 @@ The look-back buffer is NOT a parameter. Its span is derived from the geometry h
 **Parameters:**
 
 
-* `acq_code` Preamble PN chips (0/1), length `acq_code_len`. 
-* `acq_code_len` Preamble code length, chips. 
+* `preamble` One period of the preamble, `preamble_len` samples; not all zero, every sample finite. Read, not kept. 
+* `preamble_len` Samples per repetition (&gt;= 1). 
 * `burst_len` Samples in one burst  what gets captured. 
-* `reps` Preamble code repetitions. 
-* `spc` Samples per chip. 
-* `chip_rate` Chip rate, Hz. 
-* `cn0_dbhz` C/N0 the search is sized for, dB-Hz: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
+* `reps` Preamble repetitions (&gt;= 1). 
+* `fs` Sample rate, Hz (&gt; 0); 1 for normalized units. 
+* `cn0_dbhz` C/N0 the search is sized for, dB-Hz, of the preamble's mean power: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
 * `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 
@@ -276,7 +282,8 @@ Heap state, or NULL if any parameter is out of range.
 >>> import numpy as np
 >>> from doppler.dsss import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
->>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+>>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+>>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
 >>> cap.burst_len
 512
 >>> cap.retain_span == cap.refine_span + cap.burst_len
@@ -297,12 +304,11 @@ _Create a capture whose look-back lives in a FILE._
 ```C++
 burst_capture_state_t * burst_capture_create_backed (
     const char * path,
-    const uint8_t * acq_code,
-    size_t acq_code_len,
+    const float _Complex * preamble,
+    size_t preamble_len,
     size_t burst_len,
     size_t reps,
-    size_t spc,
-    double chip_rate,
+    double fs,
     double cn0_dbhz,
     double doppler_uncertainty,
     double pfa,
@@ -339,12 +345,11 @@ A blob from a backed capture does NOT restore into an in-RAM one, or the reverse
 
 
 * `path` File to back the ring with; not NULL and not empty. 
-* `acq_code` Preamble PN chips (0/1), length `acq_code_len`. 
-* `acq_code_len` Preamble code length, chips. 
+* `preamble` One period of the preamble, `preamble_len` samples. 
+* `preamble_len` Samples per repetition (&gt;= 1). 
 * `burst_len` Samples in one burst  what gets captured. 
-* `reps` Preamble code repetitions. 
-* `spc` Samples per chip. 
-* `chip_rate` Chip rate, Hz. 
+* `reps` Preamble repetitions (&gt;= 1). 
+* `fs` Sample rate, Hz (&gt; 0). 
 * `cn0_dbhz` C/N0 the search is sized for, dB-Hz: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
 * `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
 * `pfa` Target false-alarm probability, in (0, 1). 
@@ -364,10 +369,11 @@ Heap state, or NULL if a parameter is out of range or the file could not be open
 >>> import numpy as np, tempfile, os
 >>> from doppler.dsss import BurstCapture, PersistentBurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+>>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
 >>> path = os.path.join(tempfile.mkdtemp(), "ring.cf32")
->>> cap = PersistentBurstCapture(path, code, burst_len=512,
-...                             reps=4, spc=2)
->>> ram = BurstCapture(code, burst_len=512, reps=4, spc=2)
+>>> cap = PersistentBurstCapture(path, pre, burst_len=512,
+...                             reps=4, fs=2e6)
+>>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
 >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
 >>> # the look-back is in the file, so the blob stops carrying it
 >>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8
@@ -376,129 +382,6 @@ True
 True
 ```
  
-
-
-        
-
-<hr>
-
-
-
-### function burst\_capture\_create\_template 
-
-_Create a capture for ANY repeated complex preamble_  _a chirp, a Zadoff-Chu sequence, shaped PSK_ _by its samples (doppler#1470)._
-```C++
-burst_capture_state_t * burst_capture_create_template (
-    const float _Complex * tmpl,
-    size_t n,
-    size_t burst_len,
-    size_t reps,
-    double fs,
-    double cn0_dbhz,
-    double doppler_uncertainty,
-    double pfa,
-    double pd,
-    int noise_mode,
-    double doppler_rate
-) 
-```
-
-
-
-The same object as [**burst\_capture\_create()**](burst__capture__core_8h.md#function-burst_capture_create), read with one chip = one sample: `spc = 1`, `chip_rate = fs`, and a code period is `n` samples. The acquisition is [**acq\_create\_burst\_template()**](acq__core_8h.md#function-acq_create_burst_template); refine correlates each candidate preamble position against the engine's own reference row  the template at unit RMS  so there is one replica of the preamble whichever kind it is. Everything else (the ring, the claim rule, the slow-time Doppler search, the window) is shape-agnostic already.
-
-
-
-
-**Parameters:**
-
-
-* `tmpl` One period of the preamble, `n` samples; not all zero, every sample finite. Read, not kept. 
-* `n` Samples per repetition (&gt;= 1). 
-* `burst_len` Samples in one burst  what gets captured. 
-* `reps` Preamble repetitions (&gt;= 1). 
-* `fs` Sample rate, Hz (&gt; 0); 1 for normalized units. 
-* `cn0_dbhz` C/N0 the search is sized for, dB-Hz, of the preamble's mean power: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
-* `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
-* `pfa` Target false-alarm probability, in (0, 1). 
-* `pd` Target detection probability, in (0, 1). 
-* `noise_mode` CFAR reference: 0=mean, 1=median, 2=min, 3=max. 
-* `doppler_rate` Doppler rate, Hz/s (&gt;= 0), capping the coherent depth; 0 is no bound. 
-
-
-
-**Returns:**
-
-Heap state, or NULL if any parameter is out of range.
-
-
-
-```C++
-// 127-sample Zadoff-Chu preamble, 8 repetitions, normalized units
-float _Complex zc[127];
-for (int k = 0; k < 127; k++)
-  zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
-burst_capture_state_t *cap = burst_capture_create_template (
-    zc, 127, 4096, 8, 1.0, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
-burst_capture_destroy (cap);
-```
- 
-
-
-        
-
-<hr>
-
-
-
-### function burst\_capture\_create\_template\_backed 
-
-[_**burst\_capture\_create\_template()**_](burst__capture__core_8h.md#function-burst_capture_create_template) _with the look-back in a FILE, as_[_**burst\_capture\_create\_backed()**_](burst__capture__core_8h.md#function-burst_capture_create_backed) _is to_[_**burst\_capture\_create()**_](burst__capture__core_8h.md#function-burst_capture_create) _._
-```C++
-burst_capture_state_t * burst_capture_create_template_backed (
-    const char * path,
-    const float _Complex * tmpl,
-    size_t n,
-    size_t burst_len,
-    size_t reps,
-    double fs,
-    double cn0_dbhz,
-    double doppler_uncertainty,
-    double pfa,
-    double pd,
-    int noise_mode,
-    double doppler_rate
-) 
-```
-
-
-
-
-
-**Parameters:**
-
-
-* `path` File to back the ring with; not NULL and not empty. 
-* `tmpl` One period of the preamble, `n` samples. 
-* `n` Samples per repetition (&gt;= 1). 
-* `burst_len` Samples in one burst. 
-* `reps` Preamble repetitions (&gt;= 1). 
-* `fs` Sample rate, Hz (&gt; 0). 
-* `cn0_dbhz` Design C/N0, dB-Hz, or NaN for none. 
-* `doppler_uncertainty` Doppler search half-range, Hz. 
-* `pfa` Target false-alarm probability, in (0, 1). 
-* `pd` Target detection probability, in (0, 1). 
-* `noise_mode` CFAR reference: 0=mean, 1=median, 2=min, 3=max. 
-* `doppler_rate` Doppler rate, Hz/s, capping the depth; 0 is no bound. 
-
-
-
-**Returns:**
-
-Heap state, or NULL on a bad parameter or a file that could not be opened, sized or mapped. 
-
-
-
 
 
         
@@ -545,7 +428,8 @@ BEFORE the claim rule and the suppression window: several rows can name one prea
 >>> import numpy as np
 >>> from doppler.dsss import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
->>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+>>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+>>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
 >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
 >>> # what the search found, against what became a burst
 >>> len(cap.detections()) >= len(cap.events())
@@ -616,7 +500,8 @@ Row `i` describes the window at `i*burst_len`. Valid until the next push(), rese
 >>> import numpy as np
 >>> from doppler.dsss import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
->>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+>>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+>>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
 >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
 >>> len(cap.events()) == win.size // cap.burst_len
 True
@@ -970,7 +855,8 @@ Samples written  always a multiple of `burst_len`.
 >>> import numpy as np
 >>> from doppler.dsss import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
->>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+>>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+>>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
 >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
 >>> win.size % cap.burst_len        # whole windows, never a partial
 0
@@ -1060,7 +946,8 @@ DP\_OK, or DP\_ERR\_INVALID if `i` is not a window of the last push().
 >>> import numpy as np
 >>> from doppler.dsss import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
->>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+>>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+>>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
 >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
 >>> cap.release(0)   # no window 0 in a quiet push
 Traceback (most recent call last):
@@ -1095,7 +982,8 @@ Resets the embedded acquisition, rewinds the history ring, clears every queued d
 >>> import numpy as np
 >>> from doppler.dsss import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
->>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+>>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+>>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
 >>> cap.push(np.zeros(4096, dtype=np.complex64)).size
 0
 >>> cap.reset()

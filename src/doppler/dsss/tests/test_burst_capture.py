@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from doppler.dsss import BurstCapture, PersistentBurstCapture
+from doppler.dsss.tests._preamble import code_preamble
 from doppler.wfm import PN
 
 ACQ_SF, DATA_SF, REPS, SPC = 31, 8, 4, 4
@@ -69,11 +70,10 @@ def make() -> BurstCapture:
     dB-Hz used to sit here and was "met" only through a second look the
     burst could not fill (doppler#1181)."""
     return BurstCapture(
-        acq_code(),
+        code_preamble(acq_code(), SPC),
         burst_len=BURST_LEN,
         reps=REPS,
-        spc=SPC,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPC,
     )
 
 
@@ -97,10 +97,19 @@ def test_a_bad_parameter_names_itself():
     """create_error turns the NULL into a ValueError naming the constraint,
     not the blanket MemoryError an unnamed failure would surface as."""
     with pytest.raises(ValueError):
-        BurstCapture(acq_code(), burst_len=0, reps=REPS, spc=SPC)
+        BurstCapture(
+            code_preamble(acq_code(), SPC),
+            burst_len=0,
+            reps=REPS,
+            fs=1e6 * SPC,
+        )
     with pytest.raises(ValueError):
         BurstCapture(
-            acq_code(), burst_len=BURST_LEN, reps=REPS, spc=SPC, pd=1.0
+            code_preamble(acq_code(), SPC),
+            burst_len=BURST_LEN,
+            reps=REPS,
+            fs=1e6 * SPC,
+            pd=1.0,
         )
 
 
@@ -205,11 +214,10 @@ def test_context_manager_releases_it():
 def make_persistent(path) -> PersistentBurstCapture:
     return PersistentBurstCapture(
         path,
-        acq_code(),
+        code_preamble(acq_code(), SPC),
         burst_len=BURST_LEN,
         reps=REPS,
-        spc=SPC,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPC,
         cn0_dbhz=55.0,
     )
 
@@ -345,11 +353,10 @@ def test_the_search_is_visible():
     # buying looks that would move the anchor past refine's reach.
     with pytest.warns(UserWarning):
         weak = BurstCapture(
-            acq_code(),
+            code_preamble(acq_code(), SPC),
             burst_len=BURST_LEN,
             reps=REPS,
-            spc=SPC,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPC,
             cn0_dbhz=40.0,
         )
     assert weak.n_noncoh == 1 and weak.underpowered
@@ -370,11 +377,10 @@ def test_an_impossible_pd_says_so_rather_than_failing_quietly():
     """
     with pytest.warns(UserWarning, match="cannot meet the requested pd"):
         cap = BurstCapture(
-            acq_code(),
+            code_preamble(acq_code(), SPC),
             burst_len=BURST_LEN,
             reps=REPS,
-            spc=SPC,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPC,
             cn0_dbhz=20.0,
             pd=0.99,
         )
@@ -391,11 +397,10 @@ def test_the_cfar_mode_is_a_caller_choice():
     """
     mean = make()
     median = BurstCapture(
-        acq_code(),
+        code_preamble(acq_code(), SPC),
         burst_len=BURST_LEN,
         reps=REPS,
-        spc=SPC,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPC,
         cn0_dbhz=55.0,
         noise_mode="median",
     )
@@ -404,7 +409,12 @@ def test_the_cfar_mode_is_a_caller_choice():
     # is refused -- the binding claim. Which mode wins where is acq's.
     assert median.eta > 0.0 and median.code_bins == mean.code_bins
     with pytest.raises((ValueError, TypeError)):
-        BurstCapture(acq_code(), burst_len=BURST_LEN, noise_mode="nonsense")
+        BurstCapture(
+            code_preamble(acq_code(), 4),
+            burst_len=BURST_LEN,
+            noise_mode="nonsense",
+            fs=1e6 * 4,
+        )
 
 
 # ── The sizing contract, over the depths a link actually uses ──────────────
@@ -462,11 +472,10 @@ def test_no_design_point_refines_exactly_at_any_depth(reps):
         x[a : a + burst_len] += burst
 
     cap = BurstCapture(
-        acq_code(),
+        code_preamble(acq_code(), SPC),
         burst_len=burst_len,
         reps=reps,
-        spc=SPC,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPC,
     )
     assert cap.doppler_bins == reps and cap.n_noncoh == 1
     assert not cap.underpowered and math.isnan(cap.pd_predicted)
@@ -485,16 +494,21 @@ _RATE_CAP_2 = (CHIP_RATE / ACQ_SF) ** 2 / (2 * 2.5**2)
 
 
 def test_doppler_rate_defaults_to_no_bound():
-    cap = BurstCapture(acq_code(), burst_len=BURST_LEN, reps=REPS, spc=SPC)
+    cap = BurstCapture(
+        code_preamble(acq_code(), SPC),
+        burst_len=BURST_LEN,
+        reps=REPS,
+        fs=1e6 * SPC,
+    )
     assert cap.doppler_rate == 0.0 and cap.doppler_bins == REPS
 
 
 def test_doppler_rate_caps_the_depth():
     cap = BurstCapture(
-        acq_code(),
+        code_preamble(acq_code(), SPC),
         burst_len=BURST_LEN,
         reps=REPS,
-        spc=SPC,
+        fs=1e6 * SPC,
         doppler_rate=_RATE_CAP_2,
     )
     assert cap.doppler_rate == _RATE_CAP_2 and cap.doppler_bins == 2
@@ -503,10 +517,10 @@ def test_doppler_rate_caps_the_depth():
 def test_persistent_takes_the_doppler_rate(tmp_path):
     cap = PersistentBurstCapture(
         tmp_path / "ring.cf32",
-        acq_code(),
+        code_preamble(acq_code(), SPC),
         burst_len=BURST_LEN,
         reps=REPS,
-        spc=SPC,
+        fs=1e6 * SPC,
         doppler_rate=_RATE_CAP_2,
     )
     assert cap.doppler_bins == 2
@@ -516,5 +530,9 @@ def test_persistent_takes_the_doppler_rate(tmp_path):
 def test_a_bad_doppler_rate_is_a_value_error(rate):
     with pytest.raises(ValueError, match="doppler_rate >= 0"):
         BurstCapture(
-            acq_code(), burst_len=BURST_LEN, reps=REPS, doppler_rate=rate
+            code_preamble(acq_code(), 4),
+            burst_len=BURST_LEN,
+            reps=REPS,
+            doppler_rate=rate,
+            fs=1e6 * 4,
         )

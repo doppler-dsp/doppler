@@ -79,7 +79,7 @@ main (void)
      repetitions, continuous never does. (There is no bare acq_create, and
      no max_noncoh: non-coherent looks are auto-selected against the
      internal ACQ_N_NONCOH_SAFETY_CEILING.) */
-  acq_state_t *(*create_burst) (const uint8_t *, size_t, size_t, size_t,
+  acq_state_t *(*create_burst) (const float _Complex *, size_t, size_t,
                                 double, double, double, double, double, int,
                                 double)
       = acq_create_burst;

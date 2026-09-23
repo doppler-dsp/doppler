@@ -75,6 +75,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from doppler.cvt import bin_to_nrz
 from doppler.ddc import DDC
 from doppler.dsss import (
     BurstAcquisition,
@@ -183,10 +184,15 @@ class CoarseChannel:
             # richer object -- which is the whole reason it publishes them
             # (doppler#1174). Without one, the channel is a detector, exactly
             # as before.
+            # The burst objects take the preamble as its SAMPLES: the code's
+            # chips by the library's rule (bin_to_nrz), each held `spc`
+            # samples, at fs = chip_rate * spc (doppler#1470).
+            nrz = np.zeros(len(code), dtype=np.float32)
+            bin_to_nrz(np.asarray(code, dtype=np.uint8), nrz)
+            preamble = np.repeat(nrz, spc).astype(np.complex64)
             kw = {
                 "reps": reps,
-                "spc": spc,
-                "chip_rate": chip_rate,
+                "fs": chip_rate * spc,
                 "cn0_dbhz": cn0_dbhz,
                 "doppler_uncertainty": 0.0,
                 "pfa": pfa,
@@ -196,13 +202,13 @@ class CoarseChannel:
             if burst_len:
                 self._acq = (
                     PersistentBurstCapture(
-                        ring_path, code, burst_len=burst_len, **kw
+                        ring_path, preamble, burst_len=burst_len, **kw
                     )
                     if ring_path
-                    else BurstCapture(code, burst_len=burst_len, **kw)
+                    else BurstCapture(preamble, burst_len=burst_len, **kw)
                 )
             else:
-                self._acq = BurstAcquisition(code, **kw)
+                self._acq = BurstAcquisition(preamble, **kw)
             # Pin n_noncoh=1 explicitly: process() reports a hit per single
             # push() call (one block = one decision), which only holds for
             # coherent-only detection. With no caller-facing max_noncoh knob

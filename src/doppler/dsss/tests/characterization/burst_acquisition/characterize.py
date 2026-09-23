@@ -116,6 +116,7 @@ from doppler.dsss.tests._acq_pfa import (
     pfa_sigma,
     realized_pfa,
 )
+from doppler.dsss.tests._preamble import code_preamble
 from doppler.wfm import PN, Synth, dsss_spread, mls_poly
 
 if TYPE_CHECKING:
@@ -194,10 +195,9 @@ def make_engine() -> BurstAcquisition:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         a = BurstAcquisition(
-            ACQ_CODE,
+            code_preamble(ACQ_CODE, SPC),
             reps=ACQ_REPS,
-            spc=SPC,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPC,
             cn0_dbhz=CN0_SIZE,
             doppler_uncertainty=0.0,  # search the full capture range
             pfa=PFA,

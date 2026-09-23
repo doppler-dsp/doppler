@@ -77,6 +77,7 @@ target_link_libraries(dsss PRIVATE
     wfm_cjson_core
     wfm_keywords_core
     wfm_draw_core
+    cvt_core
     Python3::NumPy)
 target_include_directories(dsss PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(dsss PROPERTIES
@@ -151,6 +152,7 @@ target_link_libraries(test_dsss_core PRIVATE
     wfm_cjson_core
     wfm_keywords_core
     wfm_draw_core
+    cvt_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_dsss_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -217,6 +219,7 @@ target_link_libraries(bench_dsss_core PRIVATE
     wfm_cjson_core
     wfm_keywords_core
     wfm_draw_core
+    cvt_core
     ${JM_MATH_LIBRARY})
 target_include_directories(bench_dsss_core
     PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

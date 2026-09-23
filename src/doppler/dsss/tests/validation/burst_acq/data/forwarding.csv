@@ -1,8 +1,9 @@
 case,n_moved,fields
 reps 8 -> 16,1,reps
-spc 4 -> 8,5,code_bins eta fs pfa_cell spc
-chip_rate 1 -> 2 MHz,5,doppler_bins doppler_span_hz eta fs pfa_cell
+preamble held 4 -> 8 samples a chip,3,code_bins doppler_bins doppler_span_hz
+fs 4 -> 8 MHz,5,doppler_bins doppler_span_hz eta fs pfa_cell
 cn0_dbhz 55 -> 60,4,cn0_dbhz doppler_bins eta pfa_cell
 doppler_uncertainty 0 -> 40 kHz,4,doppler_bins eta pfa_cell underpowered
 pfa 1e-3 -> 1e-6,3,doppler_bins eta pfa_cell
 pd 0.9 -> 0.99,4,doppler_bins eta pd pfa_cell
+doppler_rate 0 -> 42 MHz/s,5,doppler_bins doppler_rate eta pfa_cell underpowered

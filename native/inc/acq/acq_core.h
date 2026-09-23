@@ -125,7 +125,12 @@
  * @code
  * // 31-chip PN, 4x oversample, up to 16 coherent reps; 1 MHz chips, 45 dB-Hz
  * uint8_t code[31] = { 0 };   // ... fill with PN chips (0/1) ...
- * acq_state_t *a = acq_create_burst(code, 31, 16, 4, 1.0e6, 45.0,
+ * float nrz[31];
+ * bin_to_nrz(code, 31, nrz, 31);           // chip 0 -> +1, chip 1 -> -1
+ * float _Complex pre[124];
+ * for (size_t i = 0; i < 124; i++)
+ *   pre[i] = nrz[i / 4];                   // each chip held 4 samples
+ * acq_state_t *a = acq_create_burst(pre, 124, 16, 4.0e6, 45.0,
  *                                   0.0, 1e-3, 0.9, 0, 0.0);
  * acq_result_t hits[64];
  * size_t nh = acq_push(a, samples, n_samples, hits, 64);
@@ -151,6 +156,7 @@
 #include "fft2d/fft2d_core.h"
 #include "dp_parallel.h"
 #include "dp_tlm/dp_tlm_core.h"
+#include "cvt/cvt_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -573,12 +579,17 @@ extern "C"
 #define ACQ_CN0_NONE NAN
 
   /**
-   * @brief Create a burst-mode acquisition engine: coherent multi-epoch
-   *        combining, up to @p reps deep (today's classic behavior).
+   * @brief Create a burst-mode acquisition engine for a repeated preamble:
+   *        coherent multi-repetition combining, up to @p reps deep.
    *
-   * Builds the single-row oversampled BPSK reference from @p code, infers
-   * sf = @p code_len, converts @p cn0_dbhz to a per-sample amplitude SNR
-   * (snr = sqrt(10^(cn0_dbhz/10) / (chip_rate*spc))), and picks the
+   * Takes the preamble as its SAMPLES: one period of @p n complex samples at
+   * @p fs, repeated up to @p reps times. A PN code is one such preamble --
+   * pass its chips mapped by bin_to_nrz() and held `spc` samples each, at
+   * `fs = chip_rate * spc`. The engine sees one chip = one sample: `sf = n`,
+   * `spc = 1`, `chip_rate = fs`, the native Doppler span is `+/- fs/(2n)`,
+   * and `code_phase` is the delay into the repetition, in samples. It
+   * converts @p cn0_dbhz to a per-sample amplitude SNR
+   * (snr = sqrt(10^(cn0_dbhz/10) / fs)), and picks the
    * *smallest* coherent depth `coherent_bins` in `[1, reps]` whose
    * coherent_bins*code_bins coherent samples meet @p pd at the Bonferroni
    * threshold (minimum latency for a strong signal).  If the full ceiling
@@ -593,50 +604,86 @@ extern "C"
    * data is a structural aliasing mislock, not a tunable SNR trade-off --
    * see the file doc comment).
    *
-   * @p cn0_dbhz is the DESIGN (minimum) C/N0 and is optional: 0 means none
-   * was given, and the engine then integrates the whole preamble
+   * @p cn0_dbhz is the DESIGN (minimum) C/N0 and is optional: NaN
+   * (@ref ACQ_CN0_NONE) means none was given, and the engine then integrates the whole preamble
    * (`coherent_bins = reps`) with the threshold set by @p pfa alone.  @p pd
    * is a sizing target only when a design C/N0 is given; without one
    * `pd_predicted` is NAN and `underpowered` is never set.
    *
    * A tighter @p doppler_uncertainty narrows the scanned Doppler band,
    * lowering the per-cell threshold (more sensitive).  When
-   * @p doppler_uncertainty exceeds the native span `chip_rate/(2*sf)`,
+   * @p doppler_uncertainty exceeds the native span `fs/(2n)`,
    * falls back to the wideband window-tiling mechanism (see the file doc
    * comment) instead -- coherent depth structurally can't cover more than
    * one native span, regardless of @p reps.  Use acq_configure_search_raw()
    * to pin the grid directly instead of relying on this auto-sizer.
    *
-   * @param code        PN chips (0/1), length @p code_len.
-   * @param code_len    Number of chips supplied (= sf, the spreading factor).
-   * @param reps        Max coherent code repetitions, the coherence ceiling
-   * (>=1).
-   * @param spc         Samples per chip (>= 1).
-   * @param chip_rate   Chip rate in Hz (> 0).
-   * @param cn0_dbhz    Design carrier-to-noise density in dB-Hz: any finite
-   * value, negative included, or @ref ACQ_CN0_NONE (NaN) for no design
-   * point -- size for the whole preamble.
+   * What a code once knew analytically, the preamble's own correlation
+   * gives numerically, from one FFT at construction (acq_shape_t):
+   *
+   * - the peak zone (the twin rule's reach and the exclusion around each
+   *   listed peak) is the autocorrelation's first null, the lag of the
+   *   first local minimum of |R(k)| -- one chip of samples for a code;
+   * - the delay straddle the Pd model averages is the band-limited
+   *   autocorrelation over a half-sample offset.
+   *
+   * For a PN code the numeric model is the more accurate one: against a
+   * rectangular-chip signal it stays conservative (never optimistic) and
+   * sits 0.01-0.08 below the measured Pd at spc 2-4, where the analytic
+   * triangle sat 0.03-0.21 below (doppler#1470).
+   *
+   * The within-repetition rotation loss keeps the engine's `sinc` model:
+   * it is the zero-delay cut of the ambiguity function, which a periodic
+   * preamble's envelope does not move -- measured within 0.007 dB of sinc
+   * for RRC-shaped QPSK at 4.7 dB peak-to-average.
+   *
+   * @p tmpl is scaled to unit RMS (a copy -- the caller's buffer is only
+   * read), so `peak_mag` and `noise_est` come out in the signal's units
+   * whatever the preamble's amplitude. C/N0 is the preamble's mean power.
+   *
+   * @param tmpl        One period of the preamble, @p n samples; not all
+   *                    zero, every sample finite.
+   * @param n           Samples per repetition (>= 1).
+   * @param reps        Max coherent repetitions, the coherence ceiling
+   *                    (>= 1).
+   * @param fs          Sample rate in Hz (> 0); 1 for normalized units.
+   * @param cn0_dbhz    Design carrier-to-noise density in dB-Hz, of the
+   *                    preamble's mean power: any finite value (at fs = 1
+   *                    the per-sample SNR, usually negative), or
+   *                    @ref ACQ_CN0_NONE (NaN) for no design point -- size
+   *                    for the whole preamble.
    * @param doppler_uncertainty  One-sided Doppler search half-range in Hz; 0
-   * uses the full native span +/- chip_rate/(2*sf).  A value greater than the
-   * native span engages wideband mode (see the file doc comment above):
-   * coherent_bins is forced to 1 and the uncertainty is tiled with parallel
-   * frequency-window hypotheses instead.
+   *                    uses the full native span +/- fs/(2n). A value greater
+   *                    than the native span engages wideband mode (see the
+   *                    file doc comment above): coherent_bins is forced to 1
+   *                    and the uncertainty is tiled with parallel
+   *                    frequency-window hypotheses instead.
    * @param pfa         Target system (max-of-N) false-alarm probability (0,1).
    * @param pd          Target detection probability (0,1); a sizing target
-   * only when @p cn0_dbhz is given.
+   *                    only when @p cn0_dbhz is given.
    * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
    * @param doppler_rate  Doppler rate in Hz/s (>= 0) the coherent depth is
-   * bounded against: at most `f_epoch/sqrt(2*doppler_rate)` repetitions
-   * (`f_epoch = chip_rate/sf`, the repetition rate), so
-   * the carrier's drift over one block stays inside half a slow-time row
-   * (doppler#1482). 0 is no bound: the depth is sized up to @p reps.
+   *                    bounded against: at most `f_epoch/sqrt(2*doppler_rate)`
+   *                    repetitions (`f_epoch = fs/n`, the repetition rate), so
+   *                    the carrier's drift over one block stays inside half a
+   *                    slow-time row (doppler#1482). 0 is no bound: the depth
+   *                    is sized up to @p reps.
    * @return Heap-allocated state, or NULL on bad arguments / allocation
-   * failure.
+   *         failure.
+   * @code
+   * // 127-sample Zadoff-Chu preamble at 1 MS/s, up to 8 repetitions
+   * float _Complex zc[127];
+   * for (int k = 0; k < 127; k++)
+   *   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
+   * acq_state_t *a = acq_create_burst (zc, 127, 8, 1.0e6, 50.0, 0.0, 1e-3,
+   *                                    0.9, 0, 0.0);
+   * acq_destroy (a);
+   * @endcode
    */
-  acq_state_t *acq_create_burst (const uint8_t *code, size_t code_len,
-                                 size_t reps, size_t spc, double chip_rate,
-                                 double cn0_dbhz, double doppler_uncertainty,
-                                 double pfa, double pd, int noise_mode,
+  acq_state_t *acq_create_burst (const float _Complex *tmpl, size_t n,
+                                 size_t reps, double fs, double cn0_dbhz,
+                                 double doppler_uncertainty, double pfa,
+                                 double pd, int noise_mode,
                                  double doppler_rate);
 
   /**
@@ -715,75 +762,6 @@ extern "C"
                                       double pd, int noise_mode,
                                       size_t code_only_epochs,
                                       double doppler_rate);
-
-  /**
-   * @brief Create a burst-mode engine for ANY repeated complex preamble --
-   *        a chirp, a Zadoff-Chu sequence, shaped PSK -- rather than a PN
-   *        code (doppler#1470).
-   *
-   * The engine's framing, circular correlation per repetition, slow-time
-   * transform and wideband tiling hold for any periodic reference; a PN
-   * code is the case whose samples come from chips. Here the preamble IS
-   * its samples: one period of @p n complex samples at @p fs, repeated up
-   * to @p reps times. Everything acq_create_burst() documents applies, read
-   * with one chip = one sample -- `sf = n`, `spc = 1`, `chip_rate = fs`, so
-   * the native Doppler span is `+/- fs/(2n)` and `code_phase` is the delay
-   * into the repetition, in samples.
-   *
-   * What a code knows analytically, a template's own correlation gives
-   * numerically, from one FFT at construction (acq_shape_t):
-   *
-   * - the peak zone (the twin rule's reach and the exclusion around each
-   *   listed peak) is the autocorrelation's first null, the lag of the
-   *   first local minimum of |R(k)| -- one chip of samples for a code;
-   * - the delay straddle the Pd model averages is the band-limited
-   *   autocorrelation over a half-sample offset.
-   *
-   * The within-repetition rotation loss keeps the engine's `sinc` model:
-   * it is the zero-delay cut of the ambiguity function, which a periodic
-   * template's envelope does not move -- measured within 0.007 dB of sinc
-   * for RRC-shaped QPSK at 4.7 dB peak-to-average.
-   *
-   * @p tmpl is scaled to unit RMS (a copy -- the caller's buffer is only
-   * read), the scale a code's +/-1 reference has, so `peak_mag` and
-   * `noise_est` come out in the signal's units whatever the template's
-   * amplitude. C/N0 is the preamble's mean power.
-   *
-   * @param tmpl        One period of the preamble, @p n samples; not all
-   *                    zero, every sample finite.
-   * @param n           Samples per repetition (>= 1).
-   * @param reps        Max coherent repetitions (>= 1).
-   * @param fs          Sample rate in Hz (> 0).
-   * @param cn0_dbhz    Design carrier-to-noise density in dB-Hz, of the
-   *                    preamble's mean power: any finite value (at fs = 1
-   *                    the per-sample SNR, usually negative), or
-   *                    @ref ACQ_CN0_NONE (NaN) for no design point.
-   * @param doppler_uncertainty  One-sided Doppler search half-range in Hz;
-   *                    beyond `fs/(2n)` engages wideband mode.
-   * @param pfa         Target system false-alarm probability (0,1).
-   * @param pd          Target detection probability (0,1).
-   * @param noise_mode  CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
-   * @param doppler_rate  Doppler rate in Hz/s (>= 0) bounding the coherent
-   *                    depth, as acq_create_burst(); 0 is no bound.
-   * @return Heap-allocated state, or NULL on bad arguments / allocation
-   *         failure.
-   * @code
-   * // 127-sample Zadoff-Chu preamble at 1 MS/s, up to 8 repetitions
-   * float _Complex zc[127];
-   * for (int k = 0; k < 127; k++)
-   *   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
-   * acq_state_t *a = acq_create_burst_template (zc, 127, 8, 1.0e6, 50.0, 0.0,
-   *                                             1e-3, 0.9, 0, 0.0);
-   * acq_destroy (a);
-   * @endcode
-   */
-  acq_state_t *acq_create_burst_template (const float _Complex *tmpl,
-                                          size_t n, size_t reps, double fs,
-                                          double cn0_dbhz,
-                                          double doppler_uncertainty,
-                                          double pfa, double pd,
-                                          int noise_mode,
-                                          double doppler_rate);
 
   /** @brief Destroy and free an engine.  @param state May be NULL. */
   void acq_destroy (acq_state_t *state);

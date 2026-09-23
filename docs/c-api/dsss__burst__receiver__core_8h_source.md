@@ -48,6 +48,7 @@ typedef struct
 #include "rs/rs_core.h"
 #include "gold/gold_core.h"
 #include "mpsk/mpsk_core.h"
+#include "cvt/cvt_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

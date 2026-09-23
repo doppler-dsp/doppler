@@ -38,11 +38,8 @@ _BurstCapture state._ [More...](#detailed-description)
 | ---: | :--- |
 |  [**burst\_acq\_state\_t**](structburst__acq__state__t.md) \* | [**acq**](#variable-acq)  <br> |
 |  size\_t | [**acq\_blob\_max**](#variable-acq_blob_max)  <br> |
-|  uint8\_t \* | [**acq\_code**](#variable-acq_code)  <br> |
-|  size\_t | [**acq\_code\_len**](#variable-acq_code_len)  <br> |
 |  int | [**backed**](#variable-backed)  <br> |
 |  size\_t | [**burst\_len**](#variable-burst_len)  <br> |
-|  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  size\_t | [**chunk\_max**](#variable-chunk_max)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  size\_t | [**code\_period**](#variable-code_period)  <br> |
@@ -78,7 +75,6 @@ _BurstCapture state._ [More...](#detailed-description)
 |  float \_Complex \* | [**slow\_in**](#variable-slow_in)  <br> |
 |  size\_t | [**slow\_n**](#variable-slow_n)  <br> |
 |  float \_Complex \* | [**slow\_out**](#variable-slow_out)  <br> |
-|  size\_t | [**spc**](#variable-spc)  <br> |
 |  uint64\_t | [**suppress\_base**](#variable-suppress_base)  <br> |
 |  uint64\_t | [**suppress\_until**](#variable-suppress_until)  <br> |
 |  int | [**underpowered**](#variable-underpowered)  <br> |
@@ -176,42 +172,6 @@ Fixed upper bound on the acquisition child's blob. state\_bytes() must be a pure
 
 
 
-### variable acq\_code 
-
-```C++
-uint8_t* burst_capture_state_t::acq_code;
-```
-
-
-
-Preamble code, owned copy. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable acq\_code\_len 
-
-```C++
-size_t burst_capture_state_t::acq_code_len;
-```
-
-
-
-Preamble code length, chips. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable backed 
 
 ```C++
@@ -239,24 +199,6 @@ size_t burst_capture_state_t::burst_len;
 
 
 Samples in one emitted window. Acquisition has no notion of this  [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst) takes search parameters only  which is exactly why it is a parameter HERE: for a capture, the burst length is what gets captured. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable chip\_rate 
-
-```C++
-double burst_capture_state_t::chip_rate;
-```
-
-
-
-Chip rate, Hz. 
  
 
 
@@ -794,7 +736,7 @@ size_t burst_capture_state_t::reps;
 
 
 
-Preamble code repetitions. 
+Preamble repetitions. The preamble itself is not kept: the acquisition engine holds it, at unit RMS, as its reference row, and that is all refine reads. 
  
 
 
@@ -902,24 +844,6 @@ float _Complex* burst_capture_state_t::slow_out;
 
 
 Its transform. Peak magnitude is the score. 
-
-
-        
-
-<hr>
-
-
-
-### variable spc 
-
-```C++
-size_t burst_capture_state_t::spc;
-```
-
-
-
-Samples per chip. 
- 
 
 
         

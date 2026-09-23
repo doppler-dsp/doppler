@@ -134,21 +134,20 @@ forward what a capture caller actually needs.
 
 ### 4.1 Any repeated preamble, and one replica of it
 
-`burst_capture_create_template()` captures a burst whose preamble is any
-repeated complex sequence (a chirp, Zadoff-Chu, shaped PSK), given as its
-samples ([#1470](https://github.com/doppler-dsp/doppler/issues/1470)). It is
-the same object read with one chip = one sample: `spc = 1`,
-`chip_rate = fs`, a period of `n` samples. The engine is
-`acq_create_burst_template()`. Nothing downstream of the engine reads chips:
-the ring, CLAIM, the slow-time Doppler search and the window all work in
-periods and samples.
+`burst_capture_create()` takes the preamble as its **samples**: one period
+of any repeated complex sequence (a chirp, Zadoff-Chu, shaped PSK), at `fs`
+([#1470](https://github.com/doppler-dsp/doppler/issues/1470)). A PN code is one
+such preamble -- its chips by `bin_to_nrz()`, each held `spc` samples, at
+`fs = chip_rate · spc` -- and `DsssBurstReceiver` builds it that way from the
+code it is given. The engine is `acq_create_burst()`. Nothing downstream of
+it reads chips: the ring, CLAIM, the slow-time Doppler search and the window
+all work in periods and samples.
 
 Refine correlates each candidate position against the **engine's own
-reference row**: the chips held `spc` samples for a code, the unit-RMS
-samples for a template. It used to expand the chips a second time, by its
-own rule. That copy could drift from the one acquisition searches with, and
-it could not describe a template at all. So the engine is built first, and
-the capture reads its reference.
+reference row**, the preamble at unit RMS. It used to expand PN chips a
+second time, by its own rule. That copy could drift from the one acquisition
+searches with, and it could not describe anything but a code. So the engine
+is built first, and the capture reads its reference.
 
 A preamble repeated every `P` samples is sampled once a period in slow time,
 so its Doppler is defined only **modulo `1/P`**: `+span` and `-span` are one

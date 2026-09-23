@@ -16,6 +16,7 @@
  * Timing is MIN over rounds, not mean, after a WARMUP_S settle.
  */
 #include "burst_acq/burst_acq_core.h"
+#include "cvt/cvt_core.h"
 #include "dp_complex.h"
 #include "jm_bench.h"
 #include <math.h>
@@ -73,8 +74,15 @@ main (void)
         for (size_t i = 0; i < sf; i++)
           code[i] = (uint8_t)(((i * 2246822519u) >> 31) & 1u);
 
-        burst_acq_state_t *a = burst_acq_create (code, sf, 8, spc, CHIP_RATE,
-                                                 65.0, 0.0, 1e-2, 0.9, 0, 0.0);
+        /* The preamble is the code's samples: bin_to_nrz, held spc. */
+        static float nrz[64];
+        static float _Complex pre[64 * 4];
+        (void)bin_to_nrz (code, sf, nrz, 64);
+        for (size_t i = 0; i < sf * spc; i++)
+          pre[i] = nrz[i / spc];
+        burst_acq_state_t *a
+            = burst_acq_create (pre, sf * spc, 8, CHIP_RATE * (double)spc,
+                                65.0, 0.0, 1e-2, 0.9, 0, 0.0);
         if (!a)
           {
             (void)fprintf (stderr,

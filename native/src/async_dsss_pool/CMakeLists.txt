@@ -27,6 +27,7 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     fft_core
     detection_core
     dp_tlm_core
+    cvt_core
     carrier_acq_core
     dll_core
     loop_filter_core
@@ -74,6 +75,7 @@ target_link_libraries(test_async_dsss_pool_core
     fft_core
     detection_core
     dp_tlm_core
+    cvt_core
     carrier_acq_core
     dll_core
     loop_filter_core
@@ -125,6 +127,7 @@ target_link_libraries(bench_async_dsss_pool_core
     fft_core
     detection_core
     dp_tlm_core
+    cvt_core
     carrier_acq_core
     dll_core
     loop_filter_core

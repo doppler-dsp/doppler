@@ -36,6 +36,7 @@ from doppler.dsss.tests._acq_pfa import (
     pfa_sigma,
     realized_pfa,
 )
+from doppler.dsss.tests._preamble import code_preamble
 from doppler.tests._repo import build_dir, exe, repo_root
 from doppler.tests._validation_common import Report, cli
 from doppler.wfm import PN, mls_poly
@@ -452,13 +453,19 @@ def _sec_modes(d: Data) -> None:
         (
             "burst, strong signal",
             BurstAcquisition(
-                code, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=70.0
+                code_preamble(code, SPC),
+                reps=8,
+                fs=CHIP_RATE * SPC,
+                cn0_dbhz=70.0,
             ),
         ),
         (
             "burst, weak signal",
             BurstAcquisition(
-                code, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=30.0
+                code_preamble(code, SPC),
+                reps=8,
+                fs=CHIP_RATE * SPC,
+                cn0_dbhz=30.0,
             ),
         ),
         (
@@ -497,10 +504,10 @@ def _sec_modes(d: Data) -> None:
     )
     d.mode_rows = rows
     strong = BurstAcquisition(
-        code, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=70.0
+        code_preamble(code, SPC), reps=8, fs=CHIP_RATE * SPC, cn0_dbhz=70.0
     )
     weak = BurstAcquisition(
-        code, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=30.0
+        code_preamble(code, SPC), reps=8, fs=CHIP_RATE * SPC, cn0_dbhz=30.0
     )
     d.burst_uses_coherent = strong.doppler_bins < weak.doppler_bins
     cont = Acquisition(
@@ -534,10 +541,9 @@ def _sec_span(d: Data) -> None:
     for mult in (0.5, 0.95, 2.0, 4.0):
         unc = mult * span
         a = BurstAcquisition(
-            code,
+            code_preamble(code, SPC),
             reps=8,
-            spc=SPC,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPC,
             cn0_dbhz=60.0,
             doppler_uncertainty=unc,
         )
@@ -602,7 +608,7 @@ def _sec_anchor(d: Data) -> None:
     R.md()
     code = _code()
     a = BurstAcquisition(
-        code, reps=4, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=60.0
+        code_preamble(code, SPC), reps=4, fs=CHIP_RATE * SPC, cn0_dbhz=60.0
     )
     a.configure_search_raw(doppler_bins=4, n_noncoh=1)
     hits = a.push(_burst(code, 24))
@@ -629,7 +635,7 @@ def _sec_anchor(d: Data) -> None:
     ok = True
     for roll in (0, 5, 17, SF * SPC - 3):
         b = BurstAcquisition(
-            code, reps=4, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=60.0
+            code_preamble(code, SPC), reps=4, fs=CHIP_RATE * SPC, cn0_dbhz=60.0
         )
         b.configure_search_raw(doppler_bins=4, n_noncoh=1)
         h = b.push(_burst(code, 8, roll))
@@ -664,10 +670,9 @@ def _sec_threshold(d: Data) -> None:
     etas = []
     for mult in (0.25, 0.5, 1.0, 2.0, 4.0):
         a = BurstAcquisition(
-            code,
+            code_preamble(code, SPC),
             reps=8,
-            spc=SPC,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPC,
             cn0_dbhz=45.0,
             doppler_uncertainty=mult * span,
         )
@@ -694,10 +699,10 @@ def _sec_threshold(d: Data) -> None:
     )
     R.md()
     weak = BurstAcquisition(
-        code, reps=2, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=10.0
+        code_preamble(code, SPC), reps=2, fs=CHIP_RATE * SPC, cn0_dbhz=10.0
     )
     strong = BurstAcquisition(
-        code, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=70.0
+        code_preamble(code, SPC), reps=8, fs=CHIP_RATE * SPC, cn0_dbhz=70.0
     )
     d.underpowered_honest = bool(weak.underpowered) and not bool(
         strong.underpowered
@@ -734,7 +739,11 @@ def _sec_measured_pd(d: Data) -> None:
     R.md()
     cn0, D, trials = 50.0, 8, 300
     a = BurstAcquisition(
-        _code(), reps=D, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=cn0, pfa=1e-3
+        code_preamble(_code(), SPC),
+        reps=D,
+        fs=CHIP_RATE * SPC,
+        cn0_dbhz=cn0,
+        pfa=1e-3,
     )
     a.configure_search_raw(D, 1)
     code = _code()
@@ -818,7 +827,7 @@ def _sec_cn0(d: Data) -> None:
             np.complex64
         )
         a = BurstAcquisition(
-            code, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=cn0
+            code_preamble(code, SPC), reps=8, fs=CHIP_RATE * SPC, cn0_dbhz=cn0
         )
         a.configure_search_raw(doppler_bins=8, n_noncoh=1)
         h = a.push(x)
@@ -859,10 +868,9 @@ def _sec_noisemode(d: Data) -> None:
     stats = {}
     for mode in ("mean", "median", "min", "max"):
         a = BurstAcquisition(
-            code,
+            code_preamble(code, SPC),
             reps=8,
-            spc=SPC,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPC,
             cn0_dbhz=55.0,
             noise_mode=mode,
         )
@@ -893,7 +901,7 @@ def _sec_lifecycle(d: Data) -> None:
     R.md()
     code = _code()
     a = BurstAcquisition(
-        code, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=60.0
+        code_preamble(code, SPC), reps=8, fs=CHIP_RATE * SPC, cn0_dbhz=60.0
     )
     before = (a.doppler_bins, a.n_noncoh)
     rows = []
@@ -935,13 +943,13 @@ def _sec_lifecycle(d: Data) -> None:
     )
     R.md()
     b = BurstAcquisition(
-        code, reps=4, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=60.0
+        code_preamble(code, SPC), reps=4, fs=CHIP_RATE * SPC, cn0_dbhz=60.0
     )
     b.configure_search_raw(doppler_bins=4, n_noncoh=1)
     b.push(_burst(code, 3)[: SF * SPC // 2])
     b.reset()
     fresh = BurstAcquisition(
-        code, reps=4, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=60.0
+        code_preamble(code, SPC), reps=4, fs=CHIP_RATE * SPC, cn0_dbhz=60.0
     )
     fresh.configure_search_raw(doppler_bins=4, n_noncoh=1)
     x = _burst(code, 8)
@@ -949,13 +957,13 @@ def _sec_lifecycle(d: Data) -> None:
         h[:2] for h in fresh.push(x)
     ]
     s = BurstAcquisition(
-        code, reps=4, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=60.0
+        code_preamble(code, SPC), reps=4, fs=CHIP_RATE * SPC, cn0_dbhz=60.0
     )
     s.configure_search_raw(doppler_bins=4, n_noncoh=1)
     s.push(_burst(code, 2))
     blob = s.get_state()
     t = BurstAcquisition(
-        code, reps=4, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=60.0
+        code_preamble(code, SPC), reps=4, fs=CHIP_RATE * SPC, cn0_dbhz=60.0
     )
     t.configure_search_raw(doppler_bins=4, n_noncoh=1)
     t.set_state(blob)
@@ -982,10 +990,9 @@ def _sec_realized_pfa(d: Data) -> None:
 
     def _engine() -> BurstAcquisition:
         a = BurstAcquisition(
-            _code(),
+            code_preamble(_code(), SPC),
             reps=8,
-            spc=SPC,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPC,
             cn0_dbhz=45.0,
         )
         a.configure_search_raw(doppler_bins=8, n_noncoh=1)

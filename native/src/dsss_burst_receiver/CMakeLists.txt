@@ -26,6 +26,7 @@ target_link_libraries(dsss_burst_receiver_core PUBLIC
     fft_core
     detection_core
     dp_tlm_core
+    cvt_core
     pn_core
     burst_demod_core
     ppe_core
@@ -52,6 +53,7 @@ target_link_libraries(test_dsss_burst_receiver_core
     fft_core
     detection_core
     dp_tlm_core
+    cvt_core
     pn_core
     burst_demod_core
     ppe_core
@@ -82,6 +84,7 @@ target_link_libraries(bench_dsss_burst_receiver_core
     fft_core
     detection_core
     dp_tlm_core
+    cvt_core
     pn_core
     burst_demod_core
     ppe_core

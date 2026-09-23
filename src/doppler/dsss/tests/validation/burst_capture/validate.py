@@ -34,6 +34,7 @@ from pathlib import Path
 import numpy as np
 
 from doppler.dsss import BurstCapture, PersistentBurstCapture
+from doppler.dsss.tests._preamble import code_preamble
 from doppler.dsss.tests.characterization.burst_capture.characterize import (
     ACQ_SF,
     BURST_LEN,
@@ -65,11 +66,10 @@ def cap(**kw) -> BurstCapture:
     was "met" only through a second look a burst cannot fill; under the
     honest model that sizing is underpowered at this depth (doppler#1181)."""
     return BurstCapture(
-        acq_code(),
+        code_preamble(acq_code(), SPC),
         burst_len=kw.pop("burst_len", BURST_LEN),
         reps=REPS,
-        spc=SPC,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPC,
         **kw,
     )
 
@@ -352,11 +352,10 @@ def characterise() -> Data:
         ram = cap()
         dsk = PersistentBurstCapture(
             path,
-            acq_code(),
+            code_preamble(acq_code(), SPC),
             burst_len=BURST_LEN,
             reps=REPS,
-            spc=SPC,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPC,
             cn0_dbhz=55.0,
         )
         d.blob_ram = int(ram.state_bytes())
@@ -487,11 +486,10 @@ def characterise() -> Data:
     with _w.catch_warnings(record=True) as caught:
         _w.simplefilter("always")
         c7 = BurstCapture(
-            acq_code(),
+            code_preamble(acq_code(), SPC),
             burst_len=BURST_LEN,
             reps=REPS,
-            spc=SPC,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPC,
             cn0_dbhz=20.0,
             pd=0.99,
         )

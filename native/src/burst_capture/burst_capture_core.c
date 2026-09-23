@@ -20,15 +20,11 @@
  *
  * @param path          NULL for an anonymous ring; a file to back it with
  *                      otherwise.
- * @param acq_code      Preamble PN chips (0/1), length @p acq_code_len; or
- *                      NULL when @p tmpl describes the preamble.
- * @param tmpl          Preamble samples (one period), when @p acq_code is
- *                      NULL: then @p spc is 1 and @p chip_rate is fs.
- * @param acq_code_len  Preamble period, chips (samples, for a template).
+ * @param preamble      One period of the preamble, @p n samples.
+ * @param n             Samples per repetition.
  * @param burst_len     Samples in one burst -- what gets captured.
- * @param reps          Preamble code repetitions.
- * @param spc           Samples per chip.
- * @param chip_rate     Chip rate, Hz.
+ * @param reps          Preamble repetitions.
+ * @param fs            Sample rate, Hz.
  * @param cn0_dbhz      Design (minimum) C/N0 the search is sized for,
  *                      dB-Hz; NaN = no design point (see acq_create_burst).
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
@@ -41,24 +37,22 @@
  *         ring could not be backed with.
  */
 static burst_capture_state_t *
-burst_capture_create_impl (const char *path, const uint8_t *acq_code,
-                           const float _Complex *tmpl, size_t acq_code_len,
-                           size_t burst_len, size_t reps, size_t spc,
-                           double chip_rate, double cn0_dbhz,
-                           double doppler_uncertainty, double pfa, double pd,
-                           int noise_mode, double doppler_rate)
+burst_capture_create_impl (const char *path, const float _Complex *preamble,
+                           size_t n, size_t burst_len, size_t reps, double fs,
+                           double cn0_dbhz, double doppler_uncertainty,
+                           double pfa, double pd, int noise_mode,
+                           double doppler_rate)
 {
   /* Every one of these is an ARGUMENT error, and the manifest's
    * create_error/create_error_message turn a NULL return into a ValueError
    * naming the constraint -- not the blanket MemoryError this would
-   * otherwise surface as. Exactly one of `acq_code` (chips) and `tmpl`
-   * (samples, spc = 1, chip_rate = fs) describes the preamble. */
-  if ((!acq_code && !tmpl) || acq_code_len == 0 || burst_len == 0 || reps < 1
-      || spc < 1 || chip_rate <= 0.0 || pfa <= 0.0 || pfa >= 1.0 || pd <= 0.0
-      || pd >= 1.0)
+   * otherwise surface as. */
+  if (!preamble || n == 0 || burst_len == 0 || reps < 1 || !(fs > 0.0)
+      || pfa <= 0.0 || pfa >= 1.0 || pd <= 0.0 || pd >= 1.0)
     return NULL;
-  /* cn0_dbhz is NOT checked here: what a valid design C/N0 is -- any finite
-     value, or NaN for none (doppler#1484) -- is the engine's rule, and it
+  /* cn0_dbhz and the preamble's energy are NOT checked here: what a valid
+     design C/N0 is -- any finite value, or NaN for none (doppler#1484) --
+     and what a searchable preamble is are the engine's rules, and it
      refuses the rest; burst_acq_create() returns NULL and this unwinds.
      A second copy here is how the old `< 0` outlived the rule it copied. */
 
@@ -69,41 +63,24 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
      size. */
   burst_capture_state_t *s = dp_xcalloc (1, sizeof *s);
 
-  s->reps         = reps;
-  s->spc          = spc;
-  s->chip_rate    = chip_rate;
-  s->acq_code_len = acq_code_len;
-  s->burst_len    = burst_len;
-
-  /* The code outlives the caller's buffer: this object is fed across many
-   * push() calls, so borrowing would be a use-after-free the first time a
-   * caller freed its own array. A template is not kept: the engine holds
-   * its unit-RMS copy as its reference row, and that is all refine reads. */
-  if (acq_code)
-    {
-      s->acq_code = dp_xmalloc (acq_code_len);
-      memcpy (s->acq_code, acq_code, acq_code_len);
-    }
+  s->reps      = reps;
+  s->burst_len = burst_len;
 
   /* ── The composed child, FIRST ──────────────────────────────────────
    * Certified individually; this object owns only the seam around it. It
    * comes first because refine correlates against ITS reference row, the
-   * one replica of the preamble in the tree (below). noise_mode 0 = mean,
-   * matching burst_acq's own default. */
-  s->acq = acq_code
-               ? burst_acq_create (acq_code, acq_code_len, reps, spc,
-                                   chip_rate, cn0_dbhz, doppler_uncertainty,
-                                   pfa, pd, noise_mode, doppler_rate)
-               : burst_acq_create_template (
-                     tmpl, acq_code_len, reps, chip_rate, cn0_dbhz,
-                     doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
+   * one replica of the preamble in the tree (below). The preamble is not
+   * kept here: the engine holds it, at unit RMS. */
+  s->acq
+      = burst_acq_create (preamble, n, reps, fs, cn0_dbhz, doppler_uncertainty,
+                          pfa, pd, noise_mode, doppler_rate);
   if (!s->acq)
     goto fail;
 
   /* code_period: one acquisition code repetition, in samples. This is the
    * modulus every epoch ambiguity in the design doc is stated against --
    * acq's code_phase is exactly `burst_start mod code_period` (§3.1). */
-  s->code_period = acq_code_len * spc;
+  s->code_period = n;
 
   /* ── The history ring (§7.1) ────────────────────────────────────────
    * NOT a caller knob. A detection can fire on the LAST frame inside the
@@ -191,11 +168,11 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
      phase within a period, so refine needs exactly ONE lag of the
      correlation -- which is `corr2d`'s known-lag mode, a plain O(P) sum
      with no transform in either direction. The replica is the ENGINE's
-     reference row -- the chips held `spc` samples for a code, the unit-RMS
-     samples for a template -- so there is one replica of the preamble per
-     capture, whichever kind it is (doppler#1470). This used to expand the
-     chips a second time, by its own rule, free to drift from the one
-     acquisition correlates against, and unable to describe a template. */
+     reference row -- the preamble's samples at unit RMS -- so there is one
+     replica of the preamble per capture (doppler#1470). This used to expand
+     PN chips a second time, by its own rule, free to drift from the one
+     acquisition correlates against, and unable to describe anything but a
+     code. */
   {
     /* ny = 1: a candidate position is one row, and the positions are fed
        one at a time because how many are reachable varies near the start
@@ -246,56 +223,28 @@ fail:
 }
 
 burst_capture_state_t *
-burst_capture_create (const uint8_t *acq_code, size_t acq_code_len,
-                      size_t burst_len, size_t reps, size_t spc,
-                      double chip_rate, double cn0_dbhz,
-                      double doppler_uncertainty, double pfa, double pd,
-                      int noise_mode, double doppler_rate)
+burst_capture_create (const float _Complex *preamble, size_t preamble_len,
+                      size_t burst_len, size_t reps, double fs,
+                      double cn0_dbhz, double doppler_uncertainty, double pfa,
+                      double pd, int noise_mode, double doppler_rate)
 {
-  return burst_capture_create_impl (
-      NULL, acq_code, NULL, acq_code_len, burst_len, reps, spc, chip_rate,
-      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
+  return burst_capture_create_impl (NULL, preamble, preamble_len, burst_len,
+                                    reps, fs, cn0_dbhz, doppler_uncertainty,
+                                    pfa, pd, noise_mode, doppler_rate);
 }
 
 burst_capture_state_t *
-burst_capture_create_backed (const char *path, const uint8_t *acq_code,
-                             size_t acq_code_len, size_t burst_len,
-                             size_t reps, size_t spc, double chip_rate,
-                             double cn0_dbhz, double doppler_uncertainty,
-                             double pfa, double pd, int noise_mode,
-                             double doppler_rate)
+burst_capture_create_backed (const char *path, const float _Complex *preamble,
+                             size_t preamble_len, size_t burst_len,
+                             size_t reps, double fs, double cn0_dbhz,
+                             double doppler_uncertainty, double pfa, double pd,
+                             int noise_mode, double doppler_rate)
 {
   if (!path || !*path)
     return NULL;
-  return burst_capture_create_impl (
-      path, acq_code, NULL, acq_code_len, burst_len, reps, spc, chip_rate,
-      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
-}
-
-burst_capture_state_t *
-burst_capture_create_template (const float _Complex *tmpl, size_t n,
-                               size_t burst_len, size_t reps, double fs,
-                               double cn0_dbhz, double doppler_uncertainty,
-                               double pfa, double pd, int noise_mode,
-                               double doppler_rate)
-{
-  /* One chip is one sample: spc = 1, chip_rate = fs (acq's convention). */
-  return burst_capture_create_impl (NULL, NULL, tmpl, n, burst_len, reps, 1u,
-                                    fs, cn0_dbhz, doppler_uncertainty, pfa, pd,
-                                    noise_mode, doppler_rate);
-}
-
-burst_capture_state_t *
-burst_capture_create_template_backed (
-    const char *path, const float _Complex *tmpl, size_t n, size_t burst_len,
-    size_t reps, double fs, double cn0_dbhz, double doppler_uncertainty,
-    double pfa, double pd, int noise_mode, double doppler_rate)
-{
-  if (!path || !*path)
-    return NULL;
-  return burst_capture_create_impl (path, NULL, tmpl, n, burst_len, reps, 1u,
-                                    fs, cn0_dbhz, doppler_uncertainty, pfa, pd,
-                                    noise_mode, doppler_rate);
+  return burst_capture_create_impl (path, preamble, preamble_len, burst_len,
+                                    reps, fs, cn0_dbhz, doppler_uncertainty,
+                                    pfa, pd, noise_mode, doppler_rate);
 }
 
 void
@@ -307,7 +256,6 @@ burst_capture_destroy (burst_capture_state_t *state)
     burst_acq_destroy (state->acq);
   if (state->hist)
     dp_f32_destroy (state->hist);
-  free (state->acq_code);
   corr2d_destroy (state->pcorr);
   free (state->corr_buf);
   if (state->slow_fft)

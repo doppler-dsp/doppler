@@ -41,16 +41,14 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
                                 PyObject *args, PyObject *kwds)
 {
   static char *kwlist[]
-      = { "path", "acq_code",  "burst_len",  "reps",
-          "spc",  "chip_rate", "cn0_dbhz",   "doppler_uncertainty",
-          "pfa",  "pd",        "noise_mode", "doppler_rate",
-          NULL };
-  PyObject          *acq_code_obj        = NULL;
+      = { "path", "preamble",   "burst_len",           "reps",
+          "fs",   "cn0_dbhz",   "doppler_uncertainty", "pfa",
+          "pd",   "noise_mode", "doppler_rate",        NULL };
+  PyObject          *preamble_obj        = NULL;
   PyObject          *path                = NULL; /* fspath -> bytes */
   unsigned long long burst_len_raw       = 8192;
   unsigned long long reps_raw            = 5;
-  unsigned long long spc_raw             = 4;
-  double             chip_rate           = 1000000.0;
+  double             fs                  = 1.0;
   double             cn0_dbhz            = ACQ_CN0_NONE;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
@@ -59,17 +57,15 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
   double             doppler_rate        = 0.0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O&O|KKKdddddsd", kwlist, PyUnicode_FSConverter, &path,
-          &acq_code_obj, &burst_len_raw, &reps_raw, &spc_raw, &chip_rate,
-          &cn0_dbhz, &doppler_uncertainty, &pfa, &pd, &noise_mode_str,
-          &doppler_rate))
+          args, kwds, "O&O|KKdddddsd", kwlist, PyUnicode_FSConverter, &path,
+          &preamble_obj, &burst_len_raw, &reps_raw, &fs, &cn0_dbhz,
+          &doppler_uncertainty, &pfa, &pd, &noise_mode_str, &doppler_rate))
     {
       Py_XDECREF (path);
       return -1;
     }
   size_t burst_len  = (size_t)burst_len_raw;
   size_t reps       = (size_t)reps_raw;
-  size_t spc        = (size_t)spc_raw;
   int    noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)
     noise_mode = 0;
@@ -88,27 +84,28 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
       Py_XDECREF (path);
       return -1;
     }
-  PyArrayObject *acq_code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-      acq_code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-  if (!acq_code_arr)
+  PyArrayObject *preamble_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      preamble_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  if (!preamble_arr)
     {
       Py_XDECREF (path);
       return -1;
     }
-  size_t acq_code_len = (size_t)PyArray_SIZE (acq_code_arr);
+  size_t preamble_len = (size_t)PyArray_SIZE (preamble_arr);
   self->handle        = burst_capture_create_backed (
-      PyBytes_AS_STRING (path), (const uint8_t *)PyArray_DATA (acq_code_arr),
-      acq_code_len, burst_len, reps, spc, chip_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
+      PyBytes_AS_STRING (path),
+      (const float _Complex *)PyArray_DATA (preamble_arr), preamble_len,
+      burst_len, reps, fs, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
+      doppler_rate);
   Py_XDECREF (path);
-  Py_DECREF (acq_code_arr);
+  Py_DECREF (preamble_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
-                       "BurstCapture: invalid parameter (need non-empty "
-                       "acq_code, reps >= 1, spc >= 1, chip_rate > 0, "
-                       "burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate "
-                       ">= 0, 0 < pfa < 1, 0 < pd < 1)");
+                       "BurstCapture: invalid parameter (need a non-empty "
+                       "preamble with finite, non-zero energy, reps >= 1, fs "
+                       "> 0, burst_len >= 1, cn0_dbhz finite or NaN, "
+                       "doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)");
       return -1;
     }
   return 0;
@@ -1036,9 +1033,9 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     NULL },
   { "doppler_res_hz", (getter)PersistentBurstCapture_getprop_doppler_res_hz,
     NULL,
-    "Acquisition's native Doppler bin width = chip_rate/(sf*coherent_bins), "
-    "Hz. The width of doppler_hz_est: the estimate is that value +/- half of "
-    "this.\n",
+    "Acquisition's native Doppler bin width = "
+    "fs/(len(preamble)*coherent_bins), Hz. The width of doppler_hz_est: the "
+    "estimate is that value +/- half of this.\n",
     NULL },
   { "cn0_dbhz_est", (getter)PersistentBurstCapture_getprop_cn0_dbhz_est, NULL,
     "Estimated carrier-to-noise density of the most recent window (dB-Hz), "
@@ -1148,8 +1145,8 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "in short dwells has to pin it.\n",
     NULL },
   { "code_bins", (getter)PersistentBurstCapture_getprop_code_bins, NULL,
-    "Code-phase hypotheses per Doppler row: one segment in samples, `sf * "
-    "spc`.\n",
+    "Delay hypotheses per Doppler row: one repetition of the preamble, in "
+    "samples (len(preamble)).\n",
     NULL },
   { "doppler_span_hz", (getter)PersistentBurstCapture_getprop_doppler_span_hz,
     NULL,
@@ -1255,7 +1252,8 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.dsss import BurstCapture\n"
     ">>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)\n"
-    ">>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)\n"
+    ">>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)\n"
+    ">>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)\n"
     ">>> win = cap.push(np.zeros(4096, dtype=np.complex64))\n"
     ">>> win.size % cap.burst_len        # whole windows, never a partial\n"
     "0\n"
@@ -1320,7 +1318,8 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.dsss import BurstCapture\n"
     ">>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)\n"
-    ">>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)\n"
+    ">>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)\n"
+    ">>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)\n"
     ">>> _ = cap.push(np.zeros(4096, dtype=np.complex64))\n"
     ">>> # what the search found, against what became a burst\n"
     ">>> len(cap.detections()) >= len(cap.events())\n"
@@ -1385,7 +1384,8 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.dsss import BurstCapture\n"
     ">>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)\n"
-    ">>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)\n"
+    ">>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)\n"
+    ">>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)\n"
     ">>> win = cap.push(np.zeros(4096, dtype=np.complex64))\n"
     ">>> len(cap.events()) == win.size // cap.burst_len\n"
     "True\n"
@@ -1453,7 +1453,8 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.dsss import BurstCapture\n"
     ">>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)\n"
-    ">>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)\n"
+    ">>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)\n"
+    ">>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)\n"
     ">>> cap.configure_search_raw(4, 1)   # 4 Doppler bins, coherent only\n" },
   { "release", (PyCFunction)(void *)PersistentBurstCaptureObj_release,
     METH_VARARGS | METH_KEYWORDS,
@@ -1501,7 +1502,8 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.dsss import BurstCapture\n"
     ">>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)\n"
-    ">>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)\n"
+    ">>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)\n"
+    ">>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)\n"
     ">>> _ = cap.push(np.zeros(4096, dtype=np.complex64))\n"
     ">>> cap.release(0)   # no window 0 in a quiet push\n"
     "Traceback (most recent call last):\n"
@@ -1525,7 +1527,8 @@ static PyMethodDef PersistentBurstCaptureObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.dsss import BurstCapture\n"
     ">>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)\n"
-    ">>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)\n"
+    ">>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)\n"
+    ">>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)\n"
     ">>> cap.push(np.zeros(4096, dtype=np.complex64)).size\n"
     "0\n"
     ">>> cap.reset()\n"
@@ -1633,16 +1636,14 @@ static PyTypeObject PersistentBurstCaptureObjType = {
     "----------\n"
     "path : str | os.PathLike\n"
     "    File to back the ring with; not NULL and not empty.\n"
-    "acq_code : NDArray[np.uint8]\n"
-    "    Preamble PN chips (0/1), length acq_code_len.\n"
+    "preamble : NDArray[np.complex64]\n"
+    "    One period of the preamble, preamble_len samples.\n"
     "burst_len : int, default 8192\n"
     "    Samples in one burst -- what gets captured.\n"
     "reps : int, default 5\n"
-    "    Preamble code repetitions.\n"
-    "spc : int, default 4\n"
-    "    Samples per chip.\n"
-    "chip_rate : float, default 1000000.0\n"
-    "    Chip rate, Hz.\n"
+    "    Preamble repetitions (>= 1).\n"
+    "fs : float, default 1.0\n"
+    "    Sample rate, Hz (> 0).\n"
     "cn0_dbhz : float\n"
     "    C/N0 the search is sized for, dB-Hz: any finite value, or NaN\n"
     "    (ACQ_CN0_NONE) for no design point.\n"
@@ -1667,10 +1668,11 @@ static PyTypeObject PersistentBurstCaptureObjType = {
     ">>> import numpy as np, tempfile, os\n"
     ">>> from doppler.dsss import BurstCapture, PersistentBurstCapture\n"
     ">>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)\n"
+    ">>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)\n"
     ">>> path = os.path.join(tempfile.mkdtemp(), \"ring.cf32\")\n"
-    ">>> cap = PersistentBurstCapture(path, code, burst_len=512,\n"
-    "...                             reps=4, spc=2)\n"
-    ">>> ram = BurstCapture(code, burst_len=512, reps=4, spc=2)\n"
+    ">>> cap = PersistentBurstCapture(path, pre, burst_len=512,\n"
+    "...                             reps=4, fs=2e6)\n"
+    ">>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)\n"
     ">>> _ = cap.push(np.zeros(4096, dtype=np.complex64))\n"
     ">>> # the look-back is in the file, so the blob stops carrying it\n"
     ">>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8\n"

@@ -33,6 +33,7 @@ from doppler.dsss.benchmarks._burst_stimulus import (
     packing,
     rate,
 )
+from doppler.dsss.tests._preamble import code_preamble
 
 
 @pytest.fixture(scope="module")
@@ -54,7 +55,14 @@ def n_bursts(waveform):
 
 def _acq(acq_code):
     return BurstAcquisition(
-        acq_code, REPS, SPC, CHIP_RATE, 60.0, 0.0, 1e-3, 0.9, "mean"
+        code_preamble(acq_code, SPC),
+        REPS,
+        CHIP_RATE * SPC,
+        60.0,
+        0.0,
+        1e-3,
+        0.9,
+        "mean",
     )
 
 

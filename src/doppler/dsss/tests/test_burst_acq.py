@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 
 from doppler.dsss import Acquisition, BurstAcquisition
+from doppler.dsss.tests._preamble import code_preamble
 from doppler.wfm import PN, mls_poly
 
 SF = 31  # length-31 MLS (5-stage), matches test_acq_continuous.py's CODE
@@ -33,13 +34,12 @@ CN0_DBHZ = 55.0  # powered for both classes at this grid: burst D=6 (0.935),
 
 def _burst_acq(**kw):
     kw.setdefault("reps", 8)
-    kw.setdefault("spc", SPC)
-    kw.setdefault("chip_rate", CHIP_RATE)
+    kw.setdefault("fs", CHIP_RATE * SPC)
     kw.setdefault("cn0_dbhz", CN0_DBHZ)
     kw.setdefault("doppler_uncertainty", 0.0)
     kw.setdefault("pfa", PFA)
     kw.setdefault("pd", PD)
-    return BurstAcquisition(CODE, **kw)
+    return BurstAcquisition(code_preamble(CODE, SPC), **kw)
 
 
 def test_create():
@@ -51,8 +51,7 @@ def test_create():
 
 def test_getter_setter():
     a = _burst_acq()
-    assert a.sf == SF
-    assert a.spc == SPC
+    assert a.code_bins == SF * SPC  # the preamble's samples
     assert a.fs == pytest.approx(CHIP_RATE * SPC)
     assert a.pd == pytest.approx(PD)
     assert a.n_noncoh >= 1
@@ -197,7 +196,9 @@ def test_no_design_point_is_the_default():
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        b = BurstAcquisition(CODE, reps=8, spc=SPC, chip_rate=CHIP_RATE)
+        b = BurstAcquisition(
+            code_preamble(CODE, SPC), reps=8, fs=CHIP_RATE * SPC
+        )
     assert math.isnan(b.cn0_dbhz) and math.isnan(b.pd_predicted)
     assert not b.underpowered and b.doppler_bins == 8
 
@@ -208,7 +209,7 @@ def test_a_negative_design_point_is_a_design_point():
     real, if hopeless, design point: it sizes, predicts and warns."""
     with pytest.warns(UserWarning, match="under-powered"):
         b = BurstAcquisition(
-            CODE, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=-5.0
+            code_preamble(CODE, SPC), reps=8, fs=CHIP_RATE * SPC, cn0_dbhz=-5.0
         )
     assert b.cn0_dbhz == -5.0 and b.underpowered
     assert not np.isnan(b.pd_predicted)
@@ -219,15 +220,17 @@ def test_an_infinite_design_point_is_refused():
     as the argument error it is, not a MemoryError (#1486)."""
     with pytest.raises(ValueError, match="cn0_dbhz finite or NaN"):
         BurstAcquisition(
-            CODE, reps=8, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=np.inf
+            code_preamble(CODE, SPC),
+            reps=8,
+            fs=CHIP_RATE * SPC,
+            cn0_dbhz=np.inf,
         )
 
 
-# ── any repeated preamble, one constructor (doppler#1470 phase 3) ──────────
+# ── any repeated preamble (doppler#1470) ───────────────────────────────────
 #
-# The first array's dtype picks the constructor: uint8 is a PN code (spc,
-# chip_rate used, fs ignored), complex64 is a preamble's samples (fs used,
-# spc and chip_rate ignored). fs defaults to 1: normalized units.
+# The preamble is its samples, at fs; fs defaults to 1, normalized units.
+# A PN code is one such preamble (code_preamble: bin_to_nrz, held spc).
 
 _K = np.arange(127)
 _ZC = np.exp(-1j * np.pi * 5 * _K * (_K + 1) / 127).astype(np.complex64)
@@ -236,7 +239,7 @@ _ZC = np.exp(-1j * np.pi * 5 * _K * (_K + 1) / 127).astype(np.complex64)
 def test_a_complex64_preamble_is_searched_by_its_samples():
     """One chip is one sample, and it is found at the delay it was put."""
     z = BurstAcquisition(_ZC, reps=8)
-    assert (z.sf, z.spc, z.code_bins) == (127, 1, 127)
+    assert z.code_bins == 127
     hits = z.push(np.tile(np.roll(_ZC, 40), 10))
     assert hits and hits[0][:2] == (0, 40)
 
@@ -244,34 +247,27 @@ def test_a_complex64_preamble_is_searched_by_its_samples():
 def test_fs_defaults_to_normalized_units():
     """No fs is fs = 1: Doppler in cycles/sample, span +/- 1/(2n)."""
     z = BurstAcquisition(_ZC, reps=8)
-    assert z.fs == 1.0 and z.chip_rate == 1.0
+    assert z.fs == 1.0
     assert z.doppler_span_hz == pytest.approx(1.0 / (2 * 127))
     hz = BurstAcquisition(_ZC, reps=8, fs=2.0e6)
     assert hz.fs == 2.0e6
     assert hz.doppler_span_hz == pytest.approx(2.0e6 / (2 * 127))
 
 
-def test_a_preamble_ignores_the_code_arguments():
-    """spc and chip_rate are a code's; a preamble's engine is unmoved."""
-    a = BurstAcquisition(_ZC, reps=8, fs=1.0e6)
-    b = BurstAcquisition(_ZC, reps=8, fs=1.0e6, spc=4, chip_rate=5.0e6)
-    assert (b.spc, b.fs, b.code_bins) == (a.spc, a.fs, a.code_bins)
-    assert b.threshold == a.threshold and b.doppler_bins == a.doppler_bins
+def test_a_code_is_its_samples():
+    """A PN code is a preamble like any other: its samples, at
+    chip_rate * spc, find the burst at the delay it was put."""
+    b = BurstAcquisition(
+        code_preamble(CODE, SPC), reps=8, fs=CHIP_RATE * SPC, cn0_dbhz=60.0
+    )
+    burst = np.tile(np.roll(code_preamble(CODE, SPC), 17), 10)
+    hits = b.push(burst)
+    assert hits and hits[0][:2] == (0, 17)
 
 
-def test_a_code_ignores_fs():
-    """A code's rate is chip_rate * spc, whatever fs says."""
-    code = CODE
-    a = BurstAcquisition(code, reps=8, spc=4, chip_rate=1.0e6)
-    b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1.0e6, fs=123.0)
-    assert a.fs == b.fs == 4.0e6
-    assert (a.sf, a.spc, a.threshold) == (b.sf, b.spc, b.threshold)
-
-
-def test_complex128_is_refused_not_read_as_chips():
-    """Only complex64 is a preamble. complex128 -- numpy's default --
-    falls to the code branch, whose safe cast refuses it loudly rather
-    than turning a waveform into chips."""
+def test_a_complex128_preamble_is_refused():
+    """complex64 only: numpy's default complex128 is refused loudly by the
+    safe cast rather than silently narrowed."""
     with pytest.raises(TypeError):
         BurstAcquisition(_ZC.astype(np.complex128), reps=8)
 
@@ -288,8 +284,7 @@ def test_a_preamble_engine_resumes_from_its_state():
 
 
 def test_an_underpowered_preamble_warns():
-    """The declared warning reads a field both branches set: a preamble
-    that cannot meet pd at its design C/N0 says so, as a code does."""
+    """A preamble that cannot meet pd at its design C/N0 says so."""
     with pytest.warns(UserWarning, match="under-powered"):
         z = BurstAcquisition(_ZC, reps=2, fs=1.0e6, cn0_dbhz=30.0)
     assert z.underpowered
@@ -298,15 +293,15 @@ def test_an_underpowered_preamble_warns():
 @pytest.mark.parametrize(
     "make",
     [
-        lambda: BurstAcquisition(CODE, reps=8, pfa=1.0),
-        lambda: BurstAcquisition(CODE, reps=0),
+        lambda: BurstAcquisition(_ZC, reps=8, pfa=1.0),
+        lambda: BurstAcquisition(_ZC, reps=0),
         lambda: BurstAcquisition(np.zeros(127, np.complex64), reps=8),
     ],
     ids=["pfa-of-one", "zero-reps", "silent-preamble"],
 )
 def test_an_argument_error_is_a_value_error(make):
-    """Every NULL from either constructor is a refused argument, never an
-    allocation failure, so both branches raise ValueError (#1486)."""
+    """Every NULL from the constructor is a refused argument, never an
+    allocation failure, so it raises ValueError (#1486)."""
     with pytest.raises(ValueError, match="BurstAcquisition: invalid"):
         make()
 
@@ -336,7 +331,7 @@ def test_a_code_reads_the_same_rule():
     f_epoch = CHIP_RATE / CODE.size
     rate = f_epoch**2 / (2 * 2.5**2)  # a ceiling of 2
     b = BurstAcquisition(
-        CODE, reps=8, spc=SPC, chip_rate=CHIP_RATE, doppler_rate=rate
+        code_preamble(CODE, SPC), reps=8, fs=CHIP_RATE * SPC, doppler_rate=rate
     )
     assert b.doppler_bins == 2
 

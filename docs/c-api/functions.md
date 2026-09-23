@@ -261,6 +261,7 @@
 * **burst\_capture\_get\_code\_bins** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_doppler\_bins** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_doppler\_hz\_est** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
+* **burst\_capture\_get\_doppler\_rate** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_doppler\_res\_hz** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_doppler\_span\_hz** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_dropped** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))

@@ -130,7 +130,7 @@ static burst_capture_state_t *
 make (void)
 {
   return burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
-                               1.0e6, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0);
+                               1.0e6, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
 }
 
 /**
@@ -170,7 +170,7 @@ test_create_copies_and_derives (void)
   for (size_t i = 0; i < ACQ_SF; i++)
     code[i] = (uint8_t)(i & 1u);
   burst_capture_state_t *s = burst_capture_create (
-      code, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
+      code, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (s != NULL);
 
   DP_CHECK (s->acq_code != code);
@@ -206,7 +206,7 @@ test_create_copies_and_derives (void)
   {
     burst_capture_state_t *big
         = burst_capture_create (code, ACQ_SF, 20u * BURST_LEN, REPS, SPC,
-                                1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
+                                1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (big != NULL);
     DP_CHECK (big->q_cap > s->q_cap);
     DP_CHECK (s->q_cap >= 8u); /* ...and the floor still holds */
@@ -224,33 +224,33 @@ test_create_rejects_bad_parameters (void)
 {
   const uint8_t *c = acq_code ();
   DP_CHECK (burst_capture_create (NULL, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
-                                  55.0, 0.0, 1e-3, 0.9, 0)
+                                  55.0, 0.0, 1e-3, 0.9, 0, 0.0)
             == NULL);
   DP_CHECK (burst_capture_create (c, 0, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0,
-                                  1e-3, 0.9, 0)
+                                  1e-3, 0.9, 0, 0.0)
             == NULL);
   /* burst_len is the parameter this object exists to take; zero of it is not
      a capture. */
   DP_CHECK (burst_capture_create (c, ACQ_SF, 0, REPS, SPC, 1.0e6, 55.0, 0.0,
-                                  1e-3, 0.9, 0)
+                                  1e-3, 0.9, 0, 0.0)
             == NULL);
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, 0, SPC, 1.0e6, 55.0,
-                                  0.0, 1e-3, 0.9, 0)
+                                  0.0, 1e-3, 0.9, 0, 0.0)
             == NULL);
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, 0, 1.0e6, 55.0,
-                                  0.0, 1e-3, 0.9, 0)
+                                  0.0, 1e-3, 0.9, 0, 0.0)
             == NULL);
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 0.0, 55.0,
-                                  0.0, 1e-3, 0.9, 0)
+                                  0.0, 1e-3, 0.9, 0, 0.0)
             == NULL);
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
-                                  INFINITY, 0.0, 1e-3, 0.9, 0)
+                                  INFINITY, 0.0, 1e-3, 0.9, 0, 0.0)
             == NULL); /* no design point is infinite; NaN means "none" */
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0,
-                                  0.0, 0.0, 0.9, 0)
+                                  0.0, 0.0, 0.9, 0, 0.0)
             == NULL);
   DP_CHECK (burst_capture_create (c, ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0,
-                                  0.0, 1e-3, 1.0, 0)
+                                  0.0, 1e-3, 1.0, 0, 0.0)
             == NULL);
   return 0;
 }
@@ -785,7 +785,7 @@ test_one_look_and_the_design_point_is_optional (void)
   /* No design point: the whole preamble, one look, nothing to be under. */
   burst_capture_state_t *s
       = burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
-                              ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0);
+                              ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (s != NULL);
   DP_CHECK (s->acq->engine->n_noncoh == 1u);
   DP_CHECK (s->acq->engine->coherent_bins == REPS);
@@ -812,7 +812,7 @@ test_one_look_and_the_design_point_is_optional (void)
      they are, which the escalated grid could not do. */
   burst_capture_state_t *low
       = burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
-                              40.0, 0.0, 1e-3, 0.9, 0);
+                              40.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (low != NULL);
   DP_CHECK (low->acq->engine->n_noncoh == 1u);
   DP_CHECK (low->acq->engine->coherent_bins == REPS);
@@ -835,12 +835,12 @@ test_one_look_and_the_design_point_is_optional (void)
      rule this composer no longer copies (doppler#1484) -- and a negative one
      is a design point, however hopeless. */
   DP_CHECK (burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
-                                  1.0e6, -INFINITY, 0.0, 1e-3, 0.9, 0)
+                                  1.0e6, -INFINITY, 0.0, 1e-3, 0.9, 0, 0.0)
             == NULL);
   {
     burst_capture_state_t *neg
         = burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
-                                1.0e6, -1.0, 0.0, 1e-3, 0.9, 0);
+                                1.0e6, -1.0, 0.0, 1e-3, 0.9, 0, 0.0);
     DP_CHECK (neg != NULL && neg->underpowered);
     burst_capture_destroy (neg);
   }
@@ -959,7 +959,7 @@ test_release_gives_back_a_shadowed_burst (void)
     const size_t           LONG_LEN = 4u * BURST_LEN, DECOY_LEAD = 3000u;
     burst_capture_state_t *s
         = burst_capture_create (acq_code (), ACQ_SF, LONG_LEN, REPS, SPC,
-                                1.0e6, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0);
+                                1.0e6, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (s != NULL);
     DP_REQUIRE (DECOY_LEAD >= s->refine_span
                 && DECOY_LEAD < LONG_LEN); /* the premise */
@@ -1289,7 +1289,7 @@ test_backed_finds_the_same_burst_with_a_smaller_blob (void)
   burst_capture_state_t *ram = make ();
   burst_capture_state_t *dsk = burst_capture_create_backed (
       path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
-      0.9, 0);
+      0.9, 0, 0.0);
   DP_REQUIRE (ram != NULL && dsk != NULL);
   DP_CHECK (dsk->backed == 1);
   DP_CHECK (ram->backed == 0);
@@ -1352,7 +1352,7 @@ test_history_survives_destroying_the_capture (void)
   {
     burst_capture_state_t *a = burst_capture_create_backed (
         path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0,
-        1e-3, 0.9, 0);
+        1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (a != NULL);
     DP_CHECK (a->recovered == 0); /* the file did not exist yet */
     DP_CHECK (burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out)
@@ -1366,7 +1366,7 @@ test_history_survives_destroying_the_capture (void)
 
   burst_capture_state_t *b = burst_capture_create_backed (
       path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
-      0.9, 0);
+      0.9, 0, 0.0);
   DP_REQUIRE (b != NULL);
   /* The file was adopted rather than re-made, which is what carries the
      samples across. */
@@ -1412,7 +1412,7 @@ test_the_live_capture_restores_its_own_checkpoint (void)
 
   burst_capture_state_t *a = burst_capture_create_backed (
       path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
-      0.9, 0);
+      0.9, 0, 0.0);
   DP_REQUIRE (a != NULL);
   DP_CHECK (a->recovered == 0); /* the file did not exist yet */
 
@@ -1477,7 +1477,7 @@ test_a_span_the_ring_wrapped_past_is_refused (void)
 
   burst_capture_state_t *a = burst_capture_create_backed (
       path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
-      0.9, 0);
+      0.9, 0, 0.0);
   DP_REQUIRE (a != NULL);
   static float _Complex out[4 * BURST_LEN];
   burst_capture_push (a, cap, cut, out, sizeof out / sizeof *out);
@@ -1522,7 +1522,7 @@ test_a_blob_without_its_file_is_refused (void)
 
   burst_capture_state_t *a
       = burst_capture_create_backed (src, acq_code (), ACQ_SF, BURST_LEN, REPS,
-                                     SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
+                                     SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (a != NULL);
   static float _Complex out[4 * BURST_LEN];
   burst_capture_push (a, cap, at + 2u * ACQ_SF * SPC, out,
@@ -1538,7 +1538,7 @@ test_a_blob_without_its_file_is_refused (void)
 
   burst_capture_state_t *b
       = burst_capture_create_backed (dst, acq_code (), ACQ_SF, BURST_LEN, REPS,
-                                     SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
+                                     SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   DP_REQUIRE (b != NULL);
   DP_CHECK (b->recovered == 0);
   DP_CHECK (burst_capture_set_state (b, blob) == DP_ERR_INVALID);
@@ -1557,15 +1557,15 @@ test_backed_rejects_a_bad_path (void)
 {
   DP_CHECK (burst_capture_create_backed (NULL, acq_code (), ACQ_SF, BURST_LEN,
                                          REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
-                                         0.9, 0)
+                                         0.9, 0, 0.0)
             == NULL);
   DP_CHECK (burst_capture_create_backed ("", acq_code (), ACQ_SF, BURST_LEN,
                                          REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3,
-                                         0.9, 0)
+                                         0.9, 0, 0.0)
             == NULL);
-  DP_CHECK (burst_capture_create_backed ("/nonexistent-dir-dp/ring.cf32",
-                                         acq_code (), ACQ_SF, BURST_LEN, REPS,
-                                         SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0)
+  DP_CHECK (burst_capture_create_backed (
+                "/nonexistent-dir-dp/ring.cf32", acq_code (), ACQ_SF,
+                BURST_LEN, REPS, SPC, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0)
             == NULL);
   return 0;
 }
@@ -1584,6 +1584,44 @@ test_state_rejects_a_foreign_blob (void)
   DP_CHECK (burst_capture_set_state (s, blob) == DP_ERR_INVALID);
   free (blob);
   burst_capture_destroy (s);
+  return 0;
+}
+
+/** The Doppler rate reaches the embedded engine and caps its coherent
+ *  depth at floor(f_epoch / sqrt(2 * rate)) (doppler#1490), on both
+ *  constructors; a negative one is refused. */
+static int
+test_doppler_rate_caps_the_depth (void)
+{
+  const double f_epoch = 1.0e6 / (double)ACQ_SF;
+  const double rate    = f_epoch * f_epoch / (2.0 * 2.5 * 2.5); /* cap: 2 */
+  burst_capture_state_t *free_
+      = burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
+                              ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
+  burst_capture_state_t *held
+      = burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6,
+                              ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, rate);
+  DP_REQUIRE (free_ != NULL && held != NULL);
+  DP_CHECK (burst_capture_get_doppler_bins (free_) == REPS);
+  DP_CHECK (burst_capture_get_doppler_bins (held) == 2);
+  DP_CHECK (burst_capture_get_doppler_rate (held) == rate);
+  burst_capture_destroy (free_);
+  burst_capture_destroy (held);
+
+  char path[256];
+  scratch_path (path, sizeof path, "rate");
+  remove (path);
+  burst_capture_state_t *dsk = burst_capture_create_backed (
+      path, acq_code (), ACQ_SF, BURST_LEN, REPS, SPC, 1.0e6, ACQ_CN0_NONE,
+      0.0, 1e-3, 0.9, 0, rate);
+  DP_REQUIRE (dsk != NULL);
+  DP_CHECK (burst_capture_get_doppler_bins (dsk) == 2);
+  burst_capture_destroy (dsk);
+  remove (path);
+
+  DP_CHECK (burst_capture_create (acq_code (), ACQ_SF, BURST_LEN, REPS, SPC,
+                                  1.0e6, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, -1.0)
+            == NULL);
   return 0;
 }
 
@@ -1631,6 +1669,8 @@ main (void)
   if (test_release_gives_back_a_shadowed_burst ())
     return 1;
   if (test_destroy_null_is_safe ())
+    return 1;
+  if (test_doppler_rate_caps_the_depth ())
     return 1;
   if (test_state_bytes_does_not_move_with_the_stream ())
     return 1;

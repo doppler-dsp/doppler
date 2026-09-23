@@ -36,10 +36,18 @@ BurstCaptureObj_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 static int
 BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
 {
-  static char *kwlist[]
-      = { "acq_code", "burst_len",           "reps", "spc", "chip_rate",
-          "cn0_dbhz", "doppler_uncertainty", "pfa",  "pd",  "noise_mode",
-          NULL };
+  static char       *kwlist[]            = { "acq_code",
+                                             "burst_len",
+                                             "reps",
+                                             "spc",
+                                             "chip_rate",
+                                             "cn0_dbhz",
+                                             "doppler_uncertainty",
+                                             "pfa",
+                                             "pd",
+                                             "noise_mode",
+                                             "doppler_rate",
+                                             NULL };
   PyObject          *acq_code_obj        = NULL;
   unsigned long long burst_len_raw       = 8192;
   unsigned long long reps_raw            = 5;
@@ -50,11 +58,12 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
   const char        *noise_mode_str      = "mean";
+  double             doppler_rate        = 0.0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O|KKKddddds", kwlist, &acq_code_obj, &burst_len_raw,
+          args, kwds, "O|KKKdddddsd", kwlist, &acq_code_obj, &burst_len_raw,
           &reps_raw, &spc_raw, &chip_rate, &cn0_dbhz, &doppler_uncertainty,
-          &pfa, &pd, &noise_mode_str))
+          &pfa, &pd, &noise_mode_str, &doppler_rate))
     return -1;
   size_t burst_len  = (size_t)burst_len_raw;
   size_t reps       = (size_t)reps_raw;
@@ -85,16 +94,16 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
   size_t acq_code_len = (size_t)PyArray_SIZE (acq_code_arr);
   self->handle        = burst_capture_create (
       (const uint8_t *)PyArray_DATA (acq_code_arr), acq_code_len, burst_len,
-      reps, spc, chip_rate, cn0_dbhz, doppler_uncertainty, pfa, pd,
-      noise_mode);
+      reps, spc, chip_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
+      doppler_rate);
   Py_DECREF (acq_code_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
                        "BurstCapture: invalid parameter (need non-empty "
                        "acq_code, reps >= 1, spc >= 1, chip_rate > 0, "
-                       "burst_len >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0 < pd < "
-                       "1)");
+                       "burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate "
+                       ">= 0, 0 < pfa < 1, 0 < pd < 1)");
       return -1;
     }
   if (self->handle->underpowered)
@@ -203,7 +212,13 @@ BurstCaptureObj_push (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
@@ -394,7 +409,13 @@ BurstCaptureObj_detections (BurstCaptureObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -577,7 +598,13 @@ BurstCaptureObj_events (BurstCaptureObject *self, PyObject *args,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -842,6 +869,18 @@ BurstCapture_getprop_underpowered (BurstCaptureObject *self,
   return PyBool_FromLong ((long)(self->handle->underpowered));
 }
 static PyObject *
+BurstCapture_getprop_doppler_rate (BurstCaptureObject *self,
+                                   void               *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_doppler_rate (self->handle));
+}
+static PyObject *
 BurstCapture_getprop_pd_predicted (BurstCaptureObject *self,
                                    void               *Py_UNUSED (closure))
 {
@@ -1067,6 +1106,11 @@ static PyGetSetDef BurstCapture_getset[] = {
     "best-effort, so the symptom is bursts that are never captured rather "
     "than a failure. Construction also emits a UserWarning; this is the same "
     "fact as a value, for a caller that would rather ask than catch.\n",
+    NULL },
+  { "doppler_rate", (getter)BurstCapture_getprop_doppler_rate, NULL,
+    "Doppler rate (Hz/s) the acquisition's coherent depth is bounded against: "
+    "`doppler_bins <= f_epoch/sqrt(2*doppler_rate)`, so the carrier drifts "
+    "less than half a slow-time row per block. 0 is no bound.\n",
     NULL },
   { "pd_predicted", (getter)BurstCapture_getprop_pd_predicted, NULL,
     "Detection probability the sized grid actually predicts at `cn0_dbhz`. "
@@ -1597,6 +1641,12 @@ static PyTypeObject BurstCaptureObjType = {
     "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
     "\"mean\"\n"
     "    CFAR reference: 0=mean, 1=median, 2=min, 3=max.\n"
+    "doppler_rate : float, default 0.0\n"
+    "    Doppler rate, Hz/s (>= 0), that caps the acquisition's coherent "
+    "depth\n"
+    "    at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is "
+    "no\n"
+    "    bound.\n"
     "\n"
     "Raises\n"
     "------\n"
@@ -1605,7 +1655,9 @@ static PyTypeObject BurstCaptureObjType = {
     "invalid\n"
     "    parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > "
     "0,\n"
-    "    burst_len >= 1, cn0_dbhz finite or NaN, 0 < pfa < 1, 0 < pd < 1)``.\n"
+    "    burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >= 0, 0 < pfa < "
+    "1,\n"
+    "    0 < pd < 1)``.\n"
     "\n"
     "Warns\n"
     "-----\n"

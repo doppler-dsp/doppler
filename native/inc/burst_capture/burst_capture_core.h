@@ -30,7 +30,7 @@
  * uint8_t code[31];
  * for (size_t i = 0; i < 31; i++) code[i] = (uint8_t)(i & 1u);
  * burst_capture_state_t *cap = burst_capture_create (
- *     code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
+ *     code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
  * float _Complex x[2048] = { 0 };
  * float _Complex win[4096];
  * size_t n = burst_capture_push (cap, x, 2048, win, 4096);
@@ -426,6 +426,10 @@ typedef struct
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
  * @param noise_mode    CFAR reference: 0=mean, 1=median, 2=min, 3=max.
+ * @param doppler_rate  Doppler rate, Hz/s (>= 0), that caps the
+ *                      acquisition's coherent depth at
+ *                      `f_epoch/sqrt(2*doppler_rate)` repetitions
+ *                      (doppler#1482); 0 is no bound.
  * @return Heap state, or NULL if any parameter is out of range.
  *
  * @code
@@ -446,7 +450,8 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
                                              double cn0_dbhz,
                                              double doppler_uncertainty,
                                              double pfa, double pd,
-                                             int noise_mode);
+                                             int noise_mode,
+                                             double doppler_rate);
 
 /**
  * @brief Create a capture whose look-back lives in a FILE.
@@ -491,6 +496,10 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
  * @param noise_mode    CFAR reference: 0=mean, 1=median, 2=min, 3=max.
+ * @param doppler_rate  Doppler rate, Hz/s (>= 0), that caps the
+ *                      acquisition's coherent depth at
+ *                      `f_epoch/sqrt(2*doppler_rate)` repetitions
+ *                      (doppler#1482); 0 is no bound.
  * @return Heap state, or NULL if a parameter is out of range or the file
  *         could not be opened, sized or mapped.
  *
@@ -515,7 +524,8 @@ burst_capture_create_backed (const char *path, const uint8_t *acq_code,
                              size_t acq_code_len, size_t burst_len,
                              size_t reps, size_t spc, double chip_rate,
                              double cn0_dbhz, double doppler_uncertainty,
-                             double pfa, double pd, int noise_mode);
+                             double pfa, double pd, int noise_mode,
+                             double doppler_rate);
 
 /** @brief Release a capture and everything it owns. NULL-safe. */
 void burst_capture_destroy (burst_capture_state_t *state);
@@ -741,6 +751,9 @@ double burst_capture_get_eta_nc (const burst_capture_state_t *state);
 double burst_capture_get_straddle_loss (const burst_capture_state_t *state);
 /** @brief Detection probability the sized grid actually predicts. */
 double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
+/** @brief Doppler rate (Hz/s) the coherent depth is bounded against; 0 is
+ *         no bound. */
+double burst_capture_get_doppler_rate (const burst_capture_state_t *state);
 /** @brief Doppler hypotheses searched (the coherent depth). */
 size_t burst_capture_get_doppler_bins (const burst_capture_state_t *state);
 /** @brief Non-coherent looks combined per decision. */

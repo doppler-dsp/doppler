@@ -109,7 +109,7 @@ main (void)
    * buffer is a caller handed a way to lose bursts silently. */
   burst_capture_state_t *cap
       = burst_capture_create (acq_code, ACQ_SF, BURST_LEN, REPS, SPC,
-                              CHIP_RATE, 55.0, 0.0, 1e-3, 0.9, 0);
+                              CHIP_RATE, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   if (!cap)
     {
       fprintf (stderr, "burst_capture_create failed\n");

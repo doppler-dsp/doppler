@@ -43,7 +43,8 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
   static char *kwlist[]
       = { "path", "acq_code",  "burst_len",  "reps",
           "spc",  "chip_rate", "cn0_dbhz",   "doppler_uncertainty",
-          "pfa",  "pd",        "noise_mode", NULL };
+          "pfa",  "pd",        "noise_mode", "doppler_rate",
+          NULL };
   PyObject          *acq_code_obj        = NULL;
   PyObject          *path                = NULL; /* fspath -> bytes */
   unsigned long long burst_len_raw       = 8192;
@@ -55,11 +56,13 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
   const char        *noise_mode_str      = "mean";
+  double             doppler_rate        = 0.0;
 
   if (!PyArg_ParseTupleAndKeywords (
-          args, kwds, "O&O|KKKddddds", kwlist, PyUnicode_FSConverter, &path,
+          args, kwds, "O&O|KKKdddddsd", kwlist, PyUnicode_FSConverter, &path,
           &acq_code_obj, &burst_len_raw, &reps_raw, &spc_raw, &chip_rate,
-          &cn0_dbhz, &doppler_uncertainty, &pfa, &pd, &noise_mode_str))
+          &cn0_dbhz, &doppler_uncertainty, &pfa, &pd, &noise_mode_str,
+          &doppler_rate))
     {
       Py_XDECREF (path);
       return -1;
@@ -96,7 +99,7 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
   self->handle        = burst_capture_create_backed (
       PyBytes_AS_STRING (path), (const uint8_t *)PyArray_DATA (acq_code_arr),
       acq_code_len, burst_len, reps, spc, chip_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, noise_mode);
+      doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
   Py_XDECREF (path);
   Py_DECREF (acq_code_arr);
   if (!self->handle)
@@ -104,8 +107,8 @@ PersistentBurstCaptureObj_init (PersistentBurstCaptureObject *self,
       PyErr_SetString (PyExc_ValueError,
                        "BurstCapture: invalid parameter (need non-empty "
                        "acq_code, reps >= 1, spc >= 1, chip_rate > 0, "
-                       "burst_len >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0 < pd < "
-                       "1)");
+                       "burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate "
+                       ">= 0, 0 < pfa < 1, 0 < pd < 1)");
       return -1;
     }
   return 0;
@@ -203,7 +206,13 @@ PersistentBurstCaptureObj_push (PersistentBurstCaptureObject *self,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)PyArray_SIZE (x_arr);
@@ -397,7 +406,13 @@ PersistentBurstCaptureObj_detections (PersistentBurstCaptureObject *self,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -581,7 +596,13 @@ PersistentBurstCaptureObj_events (PersistentBurstCaptureObject *self,
           Py_DECREF (out_arr);
           return NULL;
         }
-      PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr);
+      if (PyArray_SetBaseObject ((PyArrayObject *)_oview, (PyObject *)out_arr)
+          < 0)
+        {
+          Py_DECREF (out_arr);
+          Py_DECREF (_oview);
+          return NULL;
+        }
       return _oview;
     }
   size_t _need = (size_t)n;
@@ -848,6 +869,18 @@ PersistentBurstCapture_getprop_underpowered (
   return PyBool_FromLong ((long)(self->handle->underpowered));
 }
 static PyObject *
+PersistentBurstCapture_getprop_doppler_rate (
+    PersistentBurstCaptureObject *self, void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_doppler_rate (self->handle));
+}
+static PyObject *
 PersistentBurstCapture_getprop_pd_predicted (
     PersistentBurstCaptureObject *self, void *Py_UNUSED (closure))
 {
@@ -1077,6 +1110,11 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "best-effort, so the symptom is bursts that are never captured rather "
     "than a failure. Construction also emits a UserWarning; this is the same "
     "fact as a value, for a caller that would rather ask than catch.\n",
+    NULL },
+  { "doppler_rate", (getter)PersistentBurstCapture_getprop_doppler_rate, NULL,
+    "Doppler rate (Hz/s) the acquisition's coherent depth is bounded against: "
+    "`doppler_bins <= f_epoch/sqrt(2*doppler_rate)`, so the carrier drifts "
+    "less than half a slow-time row per block. 0 is no bound.\n",
     NULL },
   { "pd_predicted", (getter)PersistentBurstCapture_getprop_pd_predicted, NULL,
     "Detection probability the sized grid actually predicts at `cn0_dbhz`. "
@@ -1617,6 +1655,12 @@ static PyTypeObject PersistentBurstCaptureObjType = {
     "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
     "\"mean\"\n"
     "    CFAR reference: 0=mean, 1=median, 2=min, 3=max.\n"
+    "doppler_rate : float, default 0.0\n"
+    "    Doppler rate, Hz/s (>= 0), that caps the acquisition's coherent "
+    "depth\n"
+    "    at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is "
+    "no\n"
+    "    bound.\n"
     "\n"
     "Examples\n"
     "--------\n"

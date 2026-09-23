@@ -127,9 +127,15 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
    * has no notion of -- and this object is where the frame is known, so it
    * is where the burst length comes from. noise_mode 0 = mean, matching
    * burst_acq's own default. */
+  /* max_rate is the ONE statement of the Doppler rate this receiver
+   * expects: the demod searches +/- max_rate for it, and the acquisition
+   * bounds its coherent depth by it (doppler#1490). It is a frequency slope
+   * in cycles/sample^2 (ppe dechirps by exp(-j pi r m^2)), so in Hz/s it is
+   * max_rate * fs^2. */
+  const double fs = chip_rate * (double)spc;
   s->cap = burst_capture_create (s->acq_code, acq_code_len, s->burst_len, reps,
                                  spc, chip_rate, cn0_dbhz, doppler_uncertainty,
-                                 pfa, pd, 0);
+                                 pfa, pd, 0, max_rate * fs * fs);
   if (!s->cap)
     goto fail;
 

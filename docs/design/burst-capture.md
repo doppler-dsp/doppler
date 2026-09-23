@@ -142,7 +142,8 @@ ______________________________________________________________________
 burst_capture_state_t *burst_capture_create (
     const uint8_t *acq_code, size_t acq_code_len, size_t burst_len,
     size_t reps, size_t spc, double chip_rate, double cn0_dbhz,
-    double doppler_uncertainty, double pfa, double pd);
+    double doppler_uncertainty, double pfa, double pd, int noise_mode,
+    double doppler_rate);
 
 size_t burst_capture_push (burst_capture_state_t *, const float complex *x,
                            size_t x_len, float complex *out, size_t max_out);

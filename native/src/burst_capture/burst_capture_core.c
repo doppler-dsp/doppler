@@ -32,6 +32,8 @@
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
  * @param noise_mode    CFAR reference: 0=mean, 1=median, 2=min, 3=max.
+ * @param doppler_rate  Doppler rate, Hz/s, capping the coherent depth; 0 is
+ *                      no bound.
  * @return Heap state, or NULL on an out-of-range parameter or a file the
  *         ring could not be backed with.
  */
@@ -40,7 +42,7 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
                            size_t acq_code_len, size_t burst_len, size_t reps,
                            size_t spc, double chip_rate, double cn0_dbhz,
                            double doppler_uncertainty, double pfa, double pd,
-                           int noise_mode)
+                           int noise_mode, double doppler_rate)
 {
   /* Every one of these is an ARGUMENT error, and the manifest's
    * create_error/create_error_message turn a NULL return into a ValueError
@@ -208,10 +210,9 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
   /* ── The composed child ─────────────────────────────────────────────
    * Certified individually; this object owns only the seam around it.
    * noise_mode 0 = mean, matching burst_acq's own default. */
-  s->acq
-      = burst_acq_create (s->acq_code, acq_code_len, reps, spc, chip_rate,
-                          cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
-                          /* doppler_rate= */ 0.0 /* doppler#1490 */);
+  s->acq = burst_acq_create (s->acq_code, acq_code_len, reps, spc, chip_rate,
+                             cn0_dbhz, doppler_uncertainty, pfa, pd,
+                             noise_mode, doppler_rate);
   if (!s->acq)
     goto fail;
 
@@ -236,11 +237,11 @@ burst_capture_create (const uint8_t *acq_code, size_t acq_code_len,
                       size_t burst_len, size_t reps, size_t spc,
                       double chip_rate, double cn0_dbhz,
                       double doppler_uncertainty, double pfa, double pd,
-                      int noise_mode)
+                      int noise_mode, double doppler_rate)
 {
-  return burst_capture_create_impl (NULL, acq_code, acq_code_len, burst_len,
-                                    reps, spc, chip_rate, cn0_dbhz,
-                                    doppler_uncertainty, pfa, pd, noise_mode);
+  return burst_capture_create_impl (
+      NULL, acq_code, acq_code_len, burst_len, reps, spc, chip_rate, cn0_dbhz,
+      doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
 }
 
 burst_capture_state_t *
@@ -248,13 +249,14 @@ burst_capture_create_backed (const char *path, const uint8_t *acq_code,
                              size_t acq_code_len, size_t burst_len,
                              size_t reps, size_t spc, double chip_rate,
                              double cn0_dbhz, double doppler_uncertainty,
-                             double pfa, double pd, int noise_mode)
+                             double pfa, double pd, int noise_mode,
+                             double doppler_rate)
 {
   if (!path || !*path)
     return NULL;
-  return burst_capture_create_impl (path, acq_code, acq_code_len, burst_len,
-                                    reps, spc, chip_rate, cn0_dbhz,
-                                    doppler_uncertainty, pfa, pd, noise_mode);
+  return burst_capture_create_impl (
+      path, acq_code, acq_code_len, burst_len, reps, spc, chip_rate, cn0_dbhz,
+      doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
 }
 
 void
@@ -1058,6 +1060,12 @@ double
 burst_capture_get_pd_predicted (const burst_capture_state_t *state)
 {
   return state->acq->engine->pd_predicted;
+}
+
+double
+burst_capture_get_doppler_rate (const burst_capture_state_t *state)
+{
+  return state->acq->engine->doppler_rate;
 }
 
 size_t

@@ -153,14 +153,16 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
                                              double cn0_dbhz,
                                              double doppler_uncertainty,
                                              double pfa, double pd,
-                                             int noise_mode);
+                                             int noise_mode,
+                                             double doppler_rate);
 
 burst_capture_state_t *
 burst_capture_create_backed (const char *path, const uint8_t *acq_code,
                              size_t acq_code_len, size_t burst_len,
                              size_t reps, size_t spc, double chip_rate,
                              double cn0_dbhz, double doppler_uncertainty,
-                             double pfa, double pd, int noise_mode);
+                             double pfa, double pd, int noise_mode,
+                             double doppler_rate);
 
 void burst_capture_destroy (burst_capture_state_t *state);
 
@@ -218,6 +220,7 @@ double burst_capture_get_eta (const burst_capture_state_t *state);
 double burst_capture_get_eta_nc (const burst_capture_state_t *state);
 double burst_capture_get_straddle_loss (const burst_capture_state_t *state);
 double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
+double burst_capture_get_doppler_rate (const burst_capture_state_t *state);
 size_t burst_capture_get_doppler_bins (const burst_capture_state_t *state);
 size_t burst_capture_get_n_noncoh (const burst_capture_state_t *state);
 size_t burst_capture_get_code_bins (const burst_capture_state_t *state);

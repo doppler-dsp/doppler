@@ -143,34 +143,56 @@ a floor is flat and a perfect sequence's off-peak lags are rounding (≈3e-9 of
 R(0) for a float Zadoff-Chu). Without it the minimum lands wherever the
 FFT's last digit fell.
 
-**The rotation loss keeps its `sinc`.** Rotation within one repetition is the
-zero-delay cut of the ambiguity function, `|Σ|s|²e^{j2πun/N}| / Σ|s|²`. For a
-constant envelope it is exactly the Dirichlet. For a shaped one it was
-measured against `sinc(u)` over `u ∈ [0, ½]`: 0.000 dB for rectangular QPSK
-and a chirp, 0.000 dB for RRC QPSK at β = 0.35, and 0.007 dB at β = 0.2 (PAPR
-4.7 dB). A periodic template's power has no low-frequency content, so no
-rotation table is kept.
+**The rotation loss keeps its `sinc`, and for a chirp that is pessimistic.**
+The Pd model derates the peak for rotation within one repetition by
+`sinc(u)`, the ambiguity function's **zero-delay** cut. For a constant
+envelope that cut is exactly the Dirichlet. For a shaped template it was
+measured against `sinc(u)` over `u ∈ [0, ½]`: within 0.007 dB even for RRC
+QPSK at 4.7 dB PAPR, so no rotation table is kept. The detector, however,
+takes the maximum **over delay**. A thumbtack (random-phase QPSK) peaks at
+zero delay and the two agree. A chirp's peak slides along its ridge instead
+of shrinking, so the zero-delay cut overstates its loss. Measured (below),
+that makes the model conservative for a chirp, never optimistic.
 
 **Scale.** The template is scaled to unit RMS, the scale a code's ±1
 reference has, so `peak_mag` and `noise_est` are in the signal's units.
 `cn0_dbhz` is the preamble's mean power over `fs`. At `fs = 1`, normalized
 units, it is the per-sample SNR in dB and Doppler is in cycles/sample.
+That per-sample SNR is negative wherever acquisition is hard, and the burst
+constructors refuse `cn0_dbhz < 0` (0 means "no design point"). So in
+normalized units a design point cannot be stated yet (#1484).
 
 **What is not claimed yet:**
 
-- **`pd_predicted` for a template is a model, not a measurement.** Its inputs
-    are verified against closed forms (Zadoff-Chu, odd and even length), but
-    Pd over noise has not been measured per template class. That is the
-    validation's next phase.
-- **Delay–Doppler coupling.** A chirp or Zadoff-Chu moves its correlation
-    peak along the ambiguity ridge under Doppler, biasing `code_phase` by
-    roughly `f·T/B` samples. This is unmeasured; the tests hold those
-    templates at zero Doppler and test Doppler on random-phase QPSK, whose
-    ambiguity is a thumbtack.
+- **`pd_predicted` is measured, not just modelled**
+    (`native/validation/acq_template_pd.c`, acq report §2.6's method: Doppler
+    uniform over the span, continuous delay, shipped AWGN, D = 8, one look,
+    3000 trials a row, measured − predicted at the C/N0 where the model
+    predicts 0.3 / 0.6 / 0.9):
+
+    | preamble                                                              | Δ Pd                      | mean \|delay error\| | reads as                            |
+    | --------------------------------------------------------------------- | ------------------------- | -------------------- | ----------------------------------- |
+    | code, 31 chips × 4 (control: §2.6 measured 0.740 ± 0.025, this 0.729) | +0.10                     | 0.4 samples          | the harness reproduces §2.6         |
+    | random-phase QPSK, 96                                                 | +0.01 / −0.00 / +0.01     | 0.2–0.3              | on the model                        |
+    | Zadoff-Chu, 127                                                       | +0.03 / +0.04 / +0.04     | 0.9–2.6              | conservative                        |
+    | chirp, 128                                                            | +0.07 / +0.11 / +0.07     | 0.3                  | conservative: the ridge slide above |
+    | QPSK 96, 5-tap low-passed                                             | **−0.03 / −0.01 / −0.02** | 0.4                  | **optimistic, 3σ: open (#1483)**    |
+
+    One class breaks the "never optimistic" contract: a band-limited, shaped
+    template. The same symbols unshaped sit on the model, so the cause is the
+    shaping; #1483 lists the candidates.
+
+- **Delay–Doppler coupling is measured, not corrected.** A hit's reported
+    delay is off by 0.3 samples on average for a chirp and up to 2.6 for
+    Zadoff-Chu, whose Doppler sensitivity moves the peak by whole samples. It
+    is the capture's refine, not the detector, that owns the exact start.
+
 - **Time compression is not compensated on the native burst path** (#1481),
     and it bites wideband templates hardest.
+
 - **The burst constructors take no Doppler rate** (#1482), so a long
     preamble under acceleration is sized past what it can integrate.
+
 - **Which repetition** the burst starts in is the capture's to resolve, not
     the detector's (`BurstCapture`). So is a dwell that runs into the data after
     the preamble ([burst-capture](burst-capture.md)).

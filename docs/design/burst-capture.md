@@ -132,6 +132,29 @@ object that swallows another and republishes a twenty-seventh of its face is
 a split in the wrong place — and the fix was not to move the split but to
 forward what a capture caller actually needs.
 
+### 4.1 Any repeated preamble, and one replica of it
+
+`burst_capture_create_template()` captures a burst whose preamble is any
+repeated complex sequence (a chirp, Zadoff-Chu, shaped PSK), given as its
+samples ([#1470](https://github.com/doppler-dsp/doppler/issues/1470)). It is
+the same object read with one chip = one sample: `spc = 1`,
+`chip_rate = fs`, a period of `n` samples. The engine is
+`acq_create_burst_template()`. Nothing downstream of the engine reads chips:
+the ring, CLAIM, the slow-time Doppler search and the window all work in
+periods and samples.
+
+Refine correlates each candidate position against the **engine's own
+reference row**: the chips held `spc` samples for a code, the unit-RMS
+samples for a template. It used to expand the chips a second time, by its
+own rule. That copy could drift from the one acquisition searches with, and
+it could not describe a template at all. So the engine is built first, and
+the capture reads its reference.
+
+A preamble repeated every `P` samples is sampled once a period in slow time,
+so its Doppler is defined only **modulo `1/P`**: `+span` and `-span` are one
+frequency. A burst near the band edge can be reported at the other edge. The
+tests read it that way.
+
 ______________________________________________________________________
 
 ## 5. The surface, and the two faces of one mechanism

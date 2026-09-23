@@ -1625,6 +1625,196 @@ test_doppler_rate_caps_the_depth (void)
   return 0;
 }
 
+/* ── Any repeated preamble (doppler#1470) ────────────────────────────── */
+
+#define ZC_N 127u
+#define ZC_REPS 8u
+#define ZC_PAYLOAD 2000u
+#define ZC_BURST (ZC_REPS * ZC_N + ZC_PAYLOAD)
+
+static void
+zadoff_chu (float _Complex *zc)
+{
+  for (size_t k = 0; k < ZC_N; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)ZC_N);
+}
+
+/** Noise, then one ZC burst at @p at: ZC_REPS periods and a QPSK payload,
+ *  rotated by @p f cycles/sample. */
+static void
+build_zc_capture (float _Complex *cap, size_t n_cap, size_t at, double f,
+                  uint32_t seed)
+{
+  float _Complex zc[ZC_N];
+  zadoff_chu (zc);
+  uint32_t st = seed;
+  for (size_t i = 0; i < n_cap; i++)
+    {
+      float re = (float)(0.02 * dp_gauss (&st));
+      float im = (float)(0.02 * dp_gauss (&st));
+      cap[i]   = re + im * I;
+    }
+  for (size_t i = 0; i < ZC_BURST && at + i < n_cap; i++)
+    {
+      float _Complex v
+          = i < ZC_REPS * ZC_N
+                ? zc[i % ZC_N]
+                : (float _Complex)cexp (I * M_PI / 2.0
+                                        * (double)(dp_xs32 (&st) >> 30));
+      cap[at + i] += v * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
+    }
+}
+
+static burst_capture_state_t *
+make_zc (double doppler_rate)
+{
+  float _Complex zc[ZC_N];
+  zadoff_chu (zc);
+  /* pfa 1e-6: at 1e-3 the engine's known ~1.5x over-delivery (acq F7)
+     puts a false capture in ~6% of these 39-frame streams, measured over
+     200 seeds -- a property of the configured rate, not of the template. */
+  return burst_capture_create_template (zc, ZC_N, ZC_BURST, ZC_REPS, 1.0,
+                                        ACQ_CN0_NONE, 0.0, 1e-6, 0.9, 0,
+                                        doppler_rate);
+}
+
+/** A Zadoff-Chu burst is captured, and its window starts at the preamble:
+ *  refine resolves the repetition against the engine's own reference row. */
+static int
+test_template_captures_a_zadoff_chu_burst (void)
+{
+  static float _Complex cap[40000];
+  const size_t at = 9001u;
+  build_zc_capture (cap, sizeof cap / sizeof *cap, at, 0.0, 1470u);
+
+  burst_capture_state_t *s = make_zc (0.0);
+  DP_REQUIRE (s != NULL);
+  DP_CHECK (s->code_period == ZC_N);
+  DP_CHECK (s->acq_code == NULL); /* the engine holds the template */
+
+  static float _Complex out[4 * ZC_BURST];
+  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                 sizeof out / sizeof *out);
+  DP_CHECK (n == ZC_BURST);
+  const burst_capture_event_t *ev = burst_capture_event_at (s, 0);
+  DP_REQUIRE (ev != NULL);
+  DP_CHECK (ev->preamble_start == at);
+  burst_capture_destroy (s);
+  return 0;
+}
+
+/** Under Doppler across the native span, the window still starts at the
+ *  preamble, and the reported Doppler is the true one to within its
+ *  resolution -- MODULO 1/P: a preamble repeated every P samples is sampled
+ *  once a period in slow time, so +span and -span are one frequency. */
+static int
+test_template_capture_under_doppler (void)
+{
+  static float _Complex cap[40000];
+  static float _Complex out[4 * ZC_BURST];
+  const size_t at     = 9001u;
+  const double period = 1.0 / (double)ZC_N; /* 1/P, cycles/sample */
+  const double fr[]   = { -0.9, -0.5, 0.25, 0.5, 0.9 };
+  for (size_t j = 0; j < sizeof fr / sizeof *fr; j++)
+    {
+      const double f = fr[j] * period / 2.0;
+      build_zc_capture (cap, sizeof cap / sizeof *cap, at, f,
+                        1471u + (uint32_t)j);
+      burst_capture_state_t *s = make_zc (0.0);
+      DP_REQUIRE (s != NULL);
+      size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                     sizeof out / sizeof *out);
+      const burst_capture_event_t *ev = burst_capture_event_at (s, 0);
+      DP_CHECK (n == ZC_BURST);
+      DP_REQUIRE (ev != NULL);
+      DP_CHECK (ev->preamble_start == at);
+      double e = remainder (ev->doppler_hz_est - f, period);
+      DP_CHECK (fabs (e) <= ev->doppler_res_hz);
+      burst_capture_destroy (s);
+    }
+  return 0;
+}
+
+/** Refused: no template, no samples, no energy. */
+static int
+test_template_rejects_bad_parameters (void)
+{
+  float _Complex z[4] = { 0 };
+  DP_CHECK (burst_capture_create_template (NULL, 4, 64, 4, 1.0, ACQ_CN0_NONE,
+                                           0.0, 1e-3, 0.9, 0, 0.0)
+            == NULL);
+  DP_CHECK (burst_capture_create_template (z, 0, 64, 4, 1.0, ACQ_CN0_NONE, 0.0,
+                                           1e-3, 0.9, 0, 0.0)
+            == NULL);
+  DP_CHECK (burst_capture_create_template (z, 4, 64, 4, 1.0, ACQ_CN0_NONE, 0.0,
+                                           1e-3, 0.9, 0, 0.0)
+            == NULL);
+  return 0;
+}
+
+/** A code's own samples, handed over as a template, capture the same burst
+ *  at the same start as the code does: one engine, two descriptions. */
+static int
+test_a_code_as_samples_matches_the_code (void)
+{
+  static float _Complex cap[80000];
+  const size_t at = 9000u;
+  build_capture (cap, sizeof cap / sizeof *cap, &at, 1u, 0.02, 7u);
+
+  const uint8_t *code = acq_code ();
+  float _Complex t[ACQ_SF * SPC];
+  for (size_t i = 0; i < ACQ_SF * SPC; i++)
+    t[i] = csign (code[i / SPC]);
+  burst_capture_state_t *c = make ();
+  burst_capture_state_t *p = burst_capture_create_template (
+      t, ACQ_SF * SPC, BURST_LEN, REPS, 1.0e6 * SPC, ACQ_CN0_NONE, 0.0, 1e-3,
+      0.9, 0, 0.0);
+  DP_REQUIRE (c != NULL && p != NULL);
+  DP_CHECK (c->code_period == p->code_period);
+
+  static float _Complex oc[4 * BURST_LEN], op[4 * BURST_LEN];
+  size_t nc = burst_capture_push (c, cap, sizeof cap / sizeof *cap, oc,
+                                  sizeof oc / sizeof *oc);
+  size_t np = burst_capture_push (p, cap, sizeof cap / sizeof *cap, op,
+                                  sizeof op / sizeof *op);
+  DP_CHECK (nc == BURST_LEN && np == BURST_LEN);
+  DP_CHECK (c->preamble_start == at && p->preamble_start == at);
+  DP_CHECK (memcmp (oc, op, BURST_LEN * sizeof *oc) == 0);
+  burst_capture_destroy (c);
+  burst_capture_destroy (p);
+  return 0;
+}
+
+/** The template constructor has a file-backed twin, as the code one does. */
+static int
+test_template_backed_captures (void)
+{
+  char path[256];
+  scratch_path (path, sizeof path, "tmpl");
+  remove (path);
+  float _Complex zc[ZC_N];
+  zadoff_chu (zc);
+  burst_capture_state_t *s = burst_capture_create_template_backed (
+      path, zc, ZC_N, ZC_BURST, ZC_REPS, 1.0, ACQ_CN0_NONE, 0.0, 1e-6, 0.9, 0,
+      0.0);
+  DP_REQUIRE (s != NULL);
+  DP_CHECK (s->backed == 1);
+  static float _Complex cap[40000];
+  build_zc_capture (cap, sizeof cap / sizeof *cap, 9001u, 0.0, 1470u);
+  static float _Complex out[4 * ZC_BURST];
+  size_t n = burst_capture_push (s, cap, sizeof cap / sizeof *cap, out,
+                                 sizeof out / sizeof *out);
+  DP_CHECK (n == ZC_BURST && s->preamble_start == 9001u);
+  DP_CHECK (burst_capture_create_template_backed (NULL, zc, ZC_N, ZC_BURST,
+                                                  ZC_REPS, 1.0, ACQ_CN0_NONE,
+                                                  0.0, 1e-3, 0.9, 0, 0.0)
+            == NULL);
+  burst_capture_destroy (s);
+  remove (path);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1671,6 +1861,16 @@ main (void)
   if (test_destroy_null_is_safe ())
     return 1;
   if (test_doppler_rate_caps_the_depth ())
+    return 1;
+  if (test_template_captures_a_zadoff_chu_burst ())
+    return 1;
+  if (test_template_capture_under_doppler ())
+    return 1;
+  if (test_template_rejects_bad_parameters ())
+    return 1;
+  if (test_a_code_as_samples_matches_the_code ())
+    return 1;
+  if (test_template_backed_captures ())
     return 1;
   if (test_state_bytes_does_not_move_with_the_stream ())
     return 1;

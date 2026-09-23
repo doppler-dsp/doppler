@@ -20,8 +20,11 @@
  *
  * @param path          NULL for an anonymous ring; a file to back it with
  *                      otherwise.
- * @param acq_code      Preamble PN chips (0/1), length @p acq_code_len.
- * @param acq_code_len  Preamble code length, chips.
+ * @param acq_code      Preamble PN chips (0/1), length @p acq_code_len; or
+ *                      NULL when @p tmpl describes the preamble.
+ * @param tmpl          Preamble samples (one period), when @p acq_code is
+ *                      NULL: then @p spc is 1 and @p chip_rate is fs.
+ * @param acq_code_len  Preamble period, chips (samples, for a template).
  * @param burst_len     Samples in one burst -- what gets captured.
  * @param reps          Preamble code repetitions.
  * @param spc           Samples per chip.
@@ -39,17 +42,19 @@
  */
 static burst_capture_state_t *
 burst_capture_create_impl (const char *path, const uint8_t *acq_code,
-                           size_t acq_code_len, size_t burst_len, size_t reps,
-                           size_t spc, double chip_rate, double cn0_dbhz,
+                           const float _Complex *tmpl, size_t acq_code_len,
+                           size_t burst_len, size_t reps, size_t spc,
+                           double chip_rate, double cn0_dbhz,
                            double doppler_uncertainty, double pfa, double pd,
                            int noise_mode, double doppler_rate)
 {
   /* Every one of these is an ARGUMENT error, and the manifest's
    * create_error/create_error_message turn a NULL return into a ValueError
    * naming the constraint -- not the blanket MemoryError this would
-   * otherwise surface as. */
-  if (!acq_code || acq_code_len == 0 || burst_len == 0 || reps < 1 || spc < 1
-      || chip_rate <= 0.0 || pfa <= 0.0 || pfa >= 1.0 || pd <= 0.0
+   * otherwise surface as. Exactly one of `acq_code` (chips) and `tmpl`
+   * (samples, spc = 1, chip_rate = fs) describes the preamble. */
+  if ((!acq_code && !tmpl) || acq_code_len == 0 || burst_len == 0 || reps < 1
+      || spc < 1 || chip_rate <= 0.0 || pfa <= 0.0 || pfa >= 1.0 || pd <= 0.0
       || pd >= 1.0)
     return NULL;
   /* cn0_dbhz is NOT checked here: what a valid design C/N0 is -- any finite
@@ -72,9 +77,28 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
 
   /* The code outlives the caller's buffer: this object is fed across many
    * push() calls, so borrowing would be a use-after-free the first time a
-   * caller freed its own array. */
-  s->acq_code = dp_xmalloc (acq_code_len);
-  memcpy (s->acq_code, acq_code, acq_code_len);
+   * caller freed its own array. A template is not kept: the engine holds
+   * its unit-RMS copy as its reference row, and that is all refine reads. */
+  if (acq_code)
+    {
+      s->acq_code = dp_xmalloc (acq_code_len);
+      memcpy (s->acq_code, acq_code, acq_code_len);
+    }
+
+  /* ── The composed child, FIRST ──────────────────────────────────────
+   * Certified individually; this object owns only the seam around it. It
+   * comes first because refine correlates against ITS reference row, the
+   * one replica of the preamble in the tree (below). noise_mode 0 = mean,
+   * matching burst_acq's own default. */
+  s->acq = acq_code
+               ? burst_acq_create (acq_code, acq_code_len, reps, spc,
+                                   chip_rate, cn0_dbhz, doppler_uncertainty,
+                                   pfa, pd, noise_mode, doppler_rate)
+               : burst_acq_create_template (
+                     tmpl, acq_code_len, reps, chip_rate, cn0_dbhz,
+                     doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
+  if (!s->acq)
+    goto fail;
 
   /* code_period: one acquisition code repetition, in samples. This is the
    * modulus every epoch ambiguity in the design doc is stated against --
@@ -166,20 +190,18 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
   /* Refine's per-period correlator. Acquisition has already fixed the code
      phase within a period, so refine needs exactly ONE lag of the
      correlation -- which is `corr2d`'s known-lag mode, a plain O(P) sum
-     with no transform in either direction. Going through the kernel rather
-     than writing that sum out here is what keeps ONE replica of the
-     preamble code in the tree: the hand-rolled version built a second one,
-     spc-expanded by its own rule, free to drift from the oversampled
-     replica acquisition correlates against. */
+     with no transform in either direction. The replica is the ENGINE's
+     reference row -- the chips held `spc` samples for a code, the unit-RMS
+     samples for a template -- so there is one replica of the preamble per
+     capture, whichever kind it is (doppler#1470). This used to expand the
+     chips a second time, by its own rule, free to drift from the one
+     acquisition correlates against, and unable to describe a template. */
   {
-    float _Complex *replica = dp_xcalloc (s->code_period, sizeof *replica);
-    for (size_t i = 0; i < s->code_period; i++)
-      replica[i] = (s->acq_code[(i / spc) % acq_code_len] & 1u) ? -1.0f : 1.0f;
     /* ny = 1: a candidate position is one row, and the positions are fed
        one at a time because how many are reachable varies near the start
        of the stream (the anchor cannot back off past sample 0). */
-    s->pcorr = corr2d_create (replica, 1, s->code_period, 1, 1, 0, 0, 0);
-    free (replica);
+    s->pcorr = corr2d_create (s->acq->engine->ref, 1, s->code_period, 1, 1, 0,
+                              0, 0);
     if (!s->pcorr)
       goto fail;
   }
@@ -207,15 +229,6 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
       goto fail;
   }
 
-  /* ── The composed child ─────────────────────────────────────────────
-   * Certified individually; this object owns only the seam around it.
-   * noise_mode 0 = mean, matching burst_acq's own default. */
-  s->acq = burst_acq_create (s->acq_code, acq_code_len, reps, spc, chip_rate,
-                             cn0_dbhz, doppler_uncertainty, pfa, pd,
-                             noise_mode, doppler_rate);
-  if (!s->acq)
-    goto fail;
-
   /* acq_state_bytes() is ALREADY a pure function of configuration -- it
      sizes its sample region from `ring_cap`, the capacity, not from whatever
      happens to be unconsumed. It is re-read in configure_search_raw(), the
@@ -240,8 +253,8 @@ burst_capture_create (const uint8_t *acq_code, size_t acq_code_len,
                       int noise_mode, double doppler_rate)
 {
   return burst_capture_create_impl (
-      NULL, acq_code, acq_code_len, burst_len, reps, spc, chip_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
+      NULL, acq_code, NULL, acq_code_len, burst_len, reps, spc, chip_rate,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
 }
 
 burst_capture_state_t *
@@ -255,8 +268,34 @@ burst_capture_create_backed (const char *path, const uint8_t *acq_code,
   if (!path || !*path)
     return NULL;
   return burst_capture_create_impl (
-      path, acq_code, acq_code_len, burst_len, reps, spc, chip_rate, cn0_dbhz,
-      doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
+      path, acq_code, NULL, acq_code_len, burst_len, reps, spc, chip_rate,
+      cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
+}
+
+burst_capture_state_t *
+burst_capture_create_template (const float _Complex *tmpl, size_t n,
+                               size_t burst_len, size_t reps, double fs,
+                               double cn0_dbhz, double doppler_uncertainty,
+                               double pfa, double pd, int noise_mode,
+                               double doppler_rate)
+{
+  /* One chip is one sample: spc = 1, chip_rate = fs (acq's convention). */
+  return burst_capture_create_impl (NULL, NULL, tmpl, n, burst_len, reps, 1u,
+                                    fs, cn0_dbhz, doppler_uncertainty, pfa, pd,
+                                    noise_mode, doppler_rate);
+}
+
+burst_capture_state_t *
+burst_capture_create_template_backed (
+    const char *path, const float _Complex *tmpl, size_t n, size_t burst_len,
+    size_t reps, double fs, double cn0_dbhz, double doppler_uncertainty,
+    double pfa, double pd, int noise_mode, double doppler_rate)
+{
+  if (!path || !*path)
+    return NULL;
+  return burst_capture_create_impl (path, NULL, tmpl, n, burst_len, reps, 1u,
+                                    fs, cn0_dbhz, doppler_uncertainty, pfa, pd,
+                                    noise_mode, doppler_rate);
 }
 
 void

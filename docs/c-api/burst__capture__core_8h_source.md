@@ -164,6 +164,16 @@ burst_capture_create_backed (const char *path, const uint8_t *acq_code,
                              double pfa, double pd, int noise_mode,
                              double doppler_rate);
 
+burst_capture_state_t *burst_capture_create_template (
+    const float _Complex *tmpl, size_t n, size_t burst_len, size_t reps,
+    double fs, double cn0_dbhz, double doppler_uncertainty, double pfa,
+    double pd, int noise_mode, double doppler_rate);
+
+burst_capture_state_t *burst_capture_create_template_backed (
+    const char *path, const float _Complex *tmpl, size_t n, size_t burst_len,
+    size_t reps, double fs, double cn0_dbhz, double doppler_uncertainty,
+    double pfa, double pd, int noise_mode, double doppler_rate);
+
 void burst_capture_destroy (burst_capture_state_t *state);
 
 void burst_capture_reset (burst_capture_state_t *state);

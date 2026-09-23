@@ -527,6 +527,74 @@ burst_capture_create_backed (const char *path, const uint8_t *acq_code,
                              double pfa, double pd, int noise_mode,
                              double doppler_rate);
 
+/**
+ * @brief Create a capture for ANY repeated complex preamble -- a chirp, a
+ *        Zadoff-Chu sequence, shaped PSK -- by its samples (doppler#1470).
+ *
+ * The same object as burst_capture_create(), read with one chip = one
+ * sample: `spc = 1`, `chip_rate = fs`, and a code period is @p n samples.
+ * The acquisition is acq_create_burst_template(); refine correlates each
+ * candidate preamble position against the engine's own reference row -- the
+ * template at unit RMS -- so there is one replica of the preamble whichever
+ * kind it is. Everything else (the ring, the claim rule, the slow-time
+ * Doppler search, the window) is shape-agnostic already.
+ *
+ * @param tmpl          One period of the preamble, @p n samples; not all
+ *                      zero, every sample finite. Read, not kept.
+ * @param n             Samples per repetition (>= 1).
+ * @param burst_len     Samples in one burst -- what gets captured.
+ * @param reps          Preamble repetitions (>= 1).
+ * @param fs            Sample rate, Hz (> 0); 1 for normalized units.
+ * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz, of the
+ *                      preamble's mean power: any finite value, or NaN
+ *                      (ACQ_CN0_NONE) for no design point.
+ * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
+ * @param pfa           Target false-alarm probability, in (0, 1).
+ * @param pd            Target detection probability, in (0, 1).
+ * @param noise_mode    CFAR reference: 0=mean, 1=median, 2=min, 3=max.
+ * @param doppler_rate  Doppler rate, Hz/s (>= 0), capping the coherent
+ *                      depth; 0 is no bound.
+ * @return Heap state, or NULL if any parameter is out of range.
+ *
+ * @code
+ * // 127-sample Zadoff-Chu preamble, 8 repetitions, normalized units
+ * float _Complex zc[127];
+ * for (int k = 0; k < 127; k++)
+ *   zc[k] = cexpf (-I * (float)(M_PI * 5.0 * k * (k + 1) / 127.0));
+ * burst_capture_state_t *cap = burst_capture_create_template (
+ *     zc, 127, 4096, 8, 1.0, ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
+ * burst_capture_destroy (cap);
+ * @endcode
+ */
+burst_capture_state_t *burst_capture_create_template (
+    const float _Complex *tmpl, size_t n, size_t burst_len, size_t reps,
+    double fs, double cn0_dbhz, double doppler_uncertainty, double pfa,
+    double pd, int noise_mode, double doppler_rate);
+
+/**
+ * @brief burst_capture_create_template() with the look-back in a FILE, as
+ *        burst_capture_create_backed() is to burst_capture_create().
+ *
+ * @param path          File to back the ring with; not NULL and not empty.
+ * @param tmpl          One period of the preamble, @p n samples.
+ * @param n             Samples per repetition (>= 1).
+ * @param burst_len     Samples in one burst.
+ * @param reps          Preamble repetitions (>= 1).
+ * @param fs            Sample rate, Hz (> 0).
+ * @param cn0_dbhz      Design C/N0, dB-Hz, or NaN for none.
+ * @param doppler_uncertainty  Doppler search half-range, Hz.
+ * @param pfa           Target false-alarm probability, in (0, 1).
+ * @param pd            Target detection probability, in (0, 1).
+ * @param noise_mode    CFAR reference: 0=mean, 1=median, 2=min, 3=max.
+ * @param doppler_rate  Doppler rate, Hz/s, capping the depth; 0 is no bound.
+ * @return Heap state, or NULL on a bad parameter or a file that could not
+ *         be opened, sized or mapped.
+ */
+burst_capture_state_t *burst_capture_create_template_backed (
+    const char *path, const float _Complex *tmpl, size_t n, size_t burst_len,
+    size_t reps, double fs, double cn0_dbhz, double doppler_uncertainty,
+    double pfa, double pd, int noise_mode, double doppler_rate);
+
 /** @brief Release a capture and everything it owns. NULL-safe. */
 void burst_capture_destroy (burst_capture_state_t *state);
 

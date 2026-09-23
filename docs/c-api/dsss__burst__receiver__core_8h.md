@@ -32,6 +32,7 @@ _DsssBurstReceiver — the burst chain composed in C._ [More...](#detailed-descr
 * `#include "rs/rs_core.h"`
 * `#include "gold/gold_core.h"`
 * `#include "mpsk/mpsk_core.h"`
+* `#include "cvt/cvt_core.h"`
 
 
 

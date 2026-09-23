@@ -137,6 +137,7 @@ from pathlib import Path
 
 import numpy as np
 
+from doppler.cvt import bin_to_nrz
 from doppler.dsss import (
     BurstAcquisition,
     BurstDemod,
@@ -378,8 +379,15 @@ def demo_acquisition(rx, acq_code, *, cn0_dbhz=40.0):
     and why this function drives its own overlapping sweep instead of one
     call per known burst."""
     print("\n== BurstAcquisition (alone, continuous blind sweep) ==")
+    # The acquisition takes the preamble as its SAMPLES: the code's chips
+    # by the library's rule (bin_to_nrz: 0 -> +1, 1 -> -1), each held SPC.
+    nrz = np.zeros(acq_code.size, dtype=np.float32)
+    bin_to_nrz(acq_code, nrz)
     acq = BurstAcquisition(
-        acq_code, reps=REPS, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=cn0_dbhz
+        np.repeat(nrz, SPC).astype(np.complex64),
+        reps=REPS,
+        fs=CHIP_RATE * SPC,
+        cn0_dbhz=cn0_dbhz,
     )
     # Pin n_noncoh=1 explicitly: each dwell pushes exactly one frame then
     # reset()s (see below) -- with no caller-facing max_noncoh knob left to

@@ -20,6 +20,7 @@ import warnings
 import numpy as np
 
 from doppler.dsss import BurstAcquisition
+from doppler.dsss.tests._preamble import code_preamble
 from doppler.wfm import PN, mls_poly
 
 
@@ -32,10 +33,9 @@ def _acq(sf, length, *, reps, spc):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         return BurstAcquisition(
-            _code(sf, length),
+            code_preamble(_code(sf, length), spc),
             reps=reps,
-            spc=spc,
-            chip_rate=1.0e6,
+            fs=1.0e6 * spc,
             cn0_dbhz=20.0,
             pfa=1e-3,
             pd=0.9,

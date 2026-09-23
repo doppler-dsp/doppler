@@ -71,7 +71,7 @@ There is no list here to update.
 | [LockDet](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/lockdet/results.md)                  | `detection`  | 22/22  | 6        | none                       |
 | [acq](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/acq/results.md)                               | `dsss`       | 21/21  | 9        | 4 — F3, F6, F7, F8         |
 | [AsyncDsssPool](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_pool/results.md)         | `dsss`       | 15/15  | 10       | 3 — F5, F9, F10            |
-| [BurstAcquisition](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_acq/results.md)            | `dsss`       | 17/17  | 4        | none                       |
+| [BurstAcquisition](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_acq/results.md)            | `dsss`       | 16/16  | 4        | none                       |
 | [BurstCapture](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_capture/results.md)            | `dsss`       | 22/22  | 6        | 1 — F6                     |
 | [BurstDemod](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_demod/results.md)                | `dsss`       | 15/15  | 5        | none                       |
 | [BurstDespreader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_despreader/results.md)      | `dsss`       | 15/15  | 5        | none                       |

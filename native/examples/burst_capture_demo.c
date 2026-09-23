@@ -23,6 +23,7 @@
  */
 
 #include <burst_capture/burst_capture_core.h>
+#include <cvt/cvt_core.h>
 #include <pn/pn_core.h>
 
 #include "dp_complex.h"
@@ -107,9 +108,17 @@ main (void)
    * The look-back is NOT a parameter: its span is derived from the geometry,
    * because every term is known here and a caller asked to size a history
    * buffer is a caller handed a way to lose bursts silently. */
+  /* The capture takes the preamble as its SAMPLES, one period. A PN code
+   * becomes one by the library's chip rule, bin_to_nrz() (0 -> +1,
+   * 1 -> -1), with each chip held SPC samples, at fs = chip_rate * SPC. */
+  float nrz[ACQ_SF];
+  float _Complex pre[ACQ_SF * SPC];
+  (void)bin_to_nrz (acq_code, ACQ_SF, nrz, ACQ_SF);
+  for (size_t i = 0; i < ACQ_SF * SPC; i++)
+    pre[i] = nrz[i / SPC];
   burst_capture_state_t *cap
-      = burst_capture_create (acq_code, ACQ_SF, BURST_LEN, REPS, SPC,
-                              CHIP_RATE, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
+      = burst_capture_create (pre, ACQ_SF * SPC, BURST_LEN, REPS,
+                              CHIP_RATE * SPC, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
   if (!cap)
     {
       fprintf (stderr, "burst_capture_create failed\n");

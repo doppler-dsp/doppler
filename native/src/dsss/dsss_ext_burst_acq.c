@@ -38,29 +38,26 @@ static int
 BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
                           PyObject *kwds)
 {
-  static char *kwlist[] = { "code",      "reps",         "spc",
-                            "chip_rate", "cn0_dbhz",     "doppler_uncertainty",
-                            "pfa",       "pd",           "noise_mode",
-                            "fs",        "doppler_rate", NULL };
-  PyObject    *code_obj = NULL;
+  static char *kwlist[] = {
+    "preamble", "reps", "fs",         "cn0_dbhz",     "doppler_uncertainty",
+    "pfa",      "pd",   "noise_mode", "doppler_rate", NULL
+  };
+  PyObject          *preamble_obj        = NULL;
   unsigned long long reps_raw            = 1;
-  unsigned long long spc_raw             = 4;
-  double             chip_rate           = 1000000.0;
+  double             fs                  = 1.0;
   double             cn0_dbhz            = ACQ_CN0_NONE;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
   const char        *noise_mode_str      = "mean";
-  double             fs                  = 1.0;
   double             doppler_rate        = 0.0;
 
-  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|KKdddddsdd", kwlist,
-                                    &code_obj, &reps_raw, &spc_raw, &chip_rate,
-                                    &cn0_dbhz, &doppler_uncertainty, &pfa, &pd,
-                                    &noise_mode_str, &fs, &doppler_rate))
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O|Kdddddsd", kwlist,
+                                    &preamble_obj, &reps_raw, &fs, &cn0_dbhz,
+                                    &doppler_uncertainty, &pfa, &pd,
+                                    &noise_mode_str, &doppler_rate))
     return -1;
   size_t reps       = (size_t)reps_raw;
-  size_t spc        = (size_t)spc_raw;
   int    noise_mode = 0;
   if (strcmp (noise_mode_str, "mean") == 0)
     noise_mode = 0;
@@ -78,53 +75,25 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
                     noise_mode_str);
       return -1;
     }
-  /* dtype dispatch: float _Complex → burst_acq_bind_template, uint8_t →
-   * burst_acq_create */
-  {
-    PyArrayObject *_code_probe = (PyArrayObject *)PyArray_CheckFromAny (
-        code_obj, NULL, 1, 1, NPY_ARRAY_C_CONTIGUOUS, NULL);
-    int _code_real
-        = _code_probe && (PyArray_TYPE (_code_probe) == NPY_COMPLEX64);
-    Py_XDECREF (_code_probe);
-    if (_code_real)
-      {
-        PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-            code_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
-        if (!code_arr)
-          {
-            return -1;
-          }
-        size_t code_len = (size_t)PyArray_SIZE (code_arr);
-        self->handle    = burst_acq_bind_template (
-            (const float _Complex *)PyArray_DATA (code_arr), code_len, reps,
-            spc, chip_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
-            fs, doppler_rate);
-        Py_DECREF (code_arr);
-      }
-    else
-      {
-        PyArrayObject *code_arr = (PyArrayObject *)PyArray_FROM_OTF (
-            code_obj, NPY_UINT8, NPY_ARRAY_C_CONTIGUOUS);
-        if (!code_arr)
-          {
-            return -1;
-          }
-        size_t code_len = (size_t)PyArray_SIZE (code_arr);
-        self->handle    = burst_acq_bind_code (
-            (const uint8_t *)PyArray_DATA (code_arr), code_len, reps, spc,
-            chip_rate, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, fs,
-            doppler_rate);
-        Py_DECREF (code_arr);
-      }
-  }
+  PyArrayObject *preamble_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      preamble_obj, NPY_COMPLEX64, NPY_ARRAY_C_CONTIGUOUS);
+  if (!preamble_arr)
+    {
+      return -1;
+    }
+  size_t preamble_len = (size_t)PyArray_SIZE (preamble_arr);
+  self->handle        = burst_acq_create (
+      (const float _Complex *)PyArray_DATA (preamble_arr), preamble_len, reps,
+      fs, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode, doppler_rate);
+  Py_DECREF (preamble_arr);
   if (!self->handle)
     {
       PyErr_SetString (PyExc_ValueError,
                        "BurstAcquisition: invalid parameter (need a "
-                       "non-empty code, reps >= 1, spc >= 1, chip_rate > 0, "
-                       "fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty "
-                       ">= 0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1; a "
-                       "preamble needs finite, non-zero energy)");
+                       "non-empty preamble with finite, non-zero energy, "
+                       "reps >= 1, fs > 0, cn0_dbhz finite or NaN, "
+                       "doppler_uncertainty >= 0, doppler_rate >= 0, 0 < pfa "
+                       "< 1, 0 < pd < 1)");
       return -1;
     }
   if (self->handle->underpowered)
@@ -354,30 +323,6 @@ BurstAcquisition_getprop_doppler_bins (BurstAcquisitionObject *self,
                                 : self->handle->engine->coherent_bins)));
 }
 static PyObject *
-BurstAcquisition_getprop_sf (BurstAcquisitionObject *self,
-                             void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)(self->handle->engine->sf));
-}
-static PyObject *
-BurstAcquisition_getprop_spc (BurstAcquisitionObject *self,
-                              void                   *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)(self->handle->engine->spc));
-}
-static PyObject *
 BurstAcquisition_getprop_reps (BurstAcquisitionObject *self,
                                void                   *Py_UNUSED (closure))
 {
@@ -526,17 +471,6 @@ BurstAcquisition_getprop_doppler_rate (BurstAcquisitionObject *self,
   return PyFloat_FromDouble ((self->handle->engine->doppler_rate));
 }
 static PyObject *
-BurstAcquisition_getprop_chip_rate (BurstAcquisitionObject *self,
-                                    void *Py_UNUSED (closure))
-{
-  if (!self->handle)
-    {
-      PyErr_SetString (PyExc_RuntimeError, "destroyed");
-      return NULL;
-    }
-  return PyFloat_FromDouble ((self->handle->engine->chip_rate));
-}
-static PyObject *
 BurstAcquisition_getprop_cn0_dbhz (BurstAcquisitionObject *self,
                                    void                   *Py_UNUSED (closure))
 {
@@ -598,21 +532,14 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "with set_max_peaks().\n",
     NULL },
   { "code_bins", (getter)BurstAcquisition_getprop_code_bins, NULL,
-    "Delay hypotheses searched: one repetition in samples (= sf*spc; a "
-    "preamble's length).\n",
+    "Delay hypotheses searched: one repetition of the preamble, in samples "
+    "(len(preamble)).\n",
     NULL },
   { "doppler_bins", (getter)BurstAcquisition_getprop_doppler_bins, NULL,
     "Coherent depth chosen: the slow-time FFT length in code reps (<= reps), "
     "unless doppler_uncertainty exceeds the native span, in which case this "
     "reports the wideband window-tile count instead (coherent depth forced to "
     "1 -- see acq_core.h's file doc comment).\n",
-    NULL },
-  { "sf", (getter)BurstAcquisition_getprop_sf, NULL,
-    "Chips per repetition, from len(code); for a preamble, its length in "
-    "samples (one chip is one sample).\n",
-    NULL },
-  { "spc", (getter)BurstAcquisition_getprop_spc, NULL,
-    "Samples per chip (chip-rate oversample factor); 1 for a preamble.\n",
     NULL },
   { "reps", (getter)BurstAcquisition_getprop_reps, NULL,
     "Max coherent code repetitions (the coherence ceiling).\n", NULL },
@@ -649,22 +576,18 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "amplitude would overstate the mean Pd).\n",
     NULL },
   { "fs", (getter)BurstAcquisition_getprop_fs, NULL,
-    "Sample rate (Hz) = chip_rate * spc; for a preamble, the fs it was "
-    "given.\n",
-    NULL },
+    "Sample rate (Hz) the preamble was given at.\n", NULL },
   { "doppler_rate", (getter)BurstAcquisition_getprop_doppler_rate, NULL,
     "Doppler rate (Hz/s) the coherent depth is bounded against: coherent_bins "
     "<= f_epoch/sqrt(2*doppler_rate). 0 is no bound.\n",
     NULL },
-  { "chip_rate", (getter)BurstAcquisition_getprop_chip_rate, NULL,
-    "Chip rate (Hz); for a preamble, equal to fs.\n", NULL },
   { "cn0_dbhz", (getter)BurstAcquisition_getprop_cn0_dbhz, NULL,
     "Carrier-to-noise density used to size the search (dB-Hz).\n", NULL },
   { "doppler_span_hz", (getter)BurstAcquisition_getprop_doppler_span_hz, NULL,
-    "Native unambiguous Doppler half-range = +/- chip_rate/(2*sf) Hz.\n",
+    "Native unambiguous Doppler half-range = +/- fs/(2*len(preamble)) Hz.\n",
     NULL },
   { "doppler_res_hz", (getter)BurstAcquisition_getprop_doppler_res_hz, NULL,
-    "Doppler bin width = chip_rate/(sf*doppler_bins) Hz.\n", NULL },
+    "Doppler bin width = fs/(len(preamble)*doppler_bins) Hz.\n", NULL },
   { "pd", (getter)BurstAcquisition_getprop_pd, NULL,
     "Target detection probability.\n", NULL },
   { "underpowered", (getter)BurstAcquisition_getprop_underpowered, NULL,
@@ -727,11 +650,10 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
     "...     np.complex64)\n"
     ">>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)\n"
-    ">>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,\n"
-    "...                      cn0_dbhz=50.0)\n"
+    ">>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)\n"
     ">>> _ = b.push(burst[:100])   # a partial frame, buffered mid-stream\n"
     ">>> b.reset()                 # drop it before it can bias a detection\n"
-    ">>> b.push(burst)[0][:2]      # (Doppler bin, code phase)\n"
+    ">>> b.push(burst)[0][:2]      # (Doppler bin, delay in samples)\n"
     "(0, 17)\n" },
 
   { "push", (PyCFunction)BurstAcquisitionObj_push, METH_VARARGS,
@@ -764,9 +686,8 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
     "...     np.complex64)\n"
     ">>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)\n"
-    ">>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,\n"
-    "...                      cn0_dbhz=50.0)\n"
-    ">>> b.push(burst)[0][:2]      # (Doppler bin, code phase)\n"
+    ">>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)\n"
+    ">>> b.push(burst)[0][:2]      # (Doppler bin, delay in samples)\n"
     "(0, 17)\n" },
   { "configure_search_raw",
     (PyCFunction)(void *)BurstAcquisitionObj_configure_search_raw,
@@ -815,8 +736,7 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     "...                      length=5).generate(31)).astype(np.uint8)\n"
     ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
     "...     np.complex64)\n"
-    ">>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,\n"
-    "...                      cn0_dbhz=50.0)\n"
+    ">>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)\n"
     ">>> b.configure_search_raw(doppler_bins=4, n_noncoh=2)  # pin the grid\n"
     ">>> b.doppler_bins, b.n_noncoh\n"
     "(4, 2)\n"
@@ -864,8 +784,9 @@ static PyMethodDef BurstAcquisitionObj_methods[] = {
     ">>> import numpy as np\n"
     ">>> from doppler.dsss import BurstAcquisition\n"
     ">>> code = (np.arange(31) * 5 % 2).astype(np.uint8)\n"
-    ">>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,\n"
-    "...                      cn0_dbhz=50.0)\n"
+    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
+    "...     np.complex64)\n"
+    ">>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)\n"
     ">>> b.set_max_peaks(4)\n"
     ">>> b.max_peaks\n"
     "4\n" },
@@ -964,23 +885,27 @@ static PyTypeObject BurstAcquisitionObjType = {
   .tp_dealloc = (destructor)BurstAcquisitionObj_dealloc,
   .tp_flags   = Py_TPFLAGS_DEFAULT,
   .tp_doc
-  = "Build a BurstAcquisition from a PN code OR a preamble's samples -- the\n"
-    "one Python constructor, dispatched on the first array's dtype.\n"
+  = "Create a burst-mode acquisition engine for any repeated preamble, given\n"
+    "as its samples (forwards to acq_create_burst() -- see its doc comment "
+    "in\n"
+    "acq_core.h for the full physics).\n"
     "\n"
     "Parameters\n"
     "----------\n"
-    "code : NDArray[np.uint8]\n"
-    "    The preamble: PN chips (uint8, 0/1) or its samples (complex64), one\n"
-    "    period.\n"
+    "preamble : NDArray[np.complex64]\n"
+    "    One period of the preamble, preamble_len samples; not all zero, "
+    "every\n"
+    "    sample finite.\n"
     "reps : int, default 1\n"
     "    Max coherent repetitions (>= 1).\n"
-    "spc : int, default 4\n"
-    "    Samples per chip (>= 1); a code only.\n"
-    "chip_rate : float, default 1000000.0\n"
-    "    Chip rate in Hz (> 0); a code only.\n"
+    "fs : float, default 1.0\n"
+    "    Sample rate in Hz (> 0); 1 for normalized units.\n"
     "cn0_dbhz : float\n"
-    "    Design carrier-to-noise density in dB-Hz: any finite value, or NaN\n"
-    "    (ACQ_CN0_NONE) for no design point -- size for the whole preamble.\n"
+    "    Design carrier-to-noise density in dB-Hz, of the preamble's mean "
+    "power:\n"
+    "    any finite value, or NaN (ACQ_CN0_NONE) for no design point -- size "
+    "for\n"
+    "    the whole preamble.\n"
     "doppler_uncertainty : float, default 0.0\n"
     "    One-sided Doppler search half-range in Hz.\n"
     "pfa : float, default 1e-3\n"
@@ -990,8 +915,6 @@ static PyTypeObject BurstAcquisitionObjType = {
     "noise_mode : Literal[\"mean\", \"median\", \"min\", \"max\"], default "
     "\"mean\"\n"
     "    CFAR mode index: 0=mean, 1=median, 2=min, 3=max.\n"
-    "fs : float, default 1.0\n"
-    "    Sample rate in Hz (> 0); a preamble's samples only.\n"
     "doppler_rate : float, default 0.0\n"
     "    Doppler rate in Hz/s (>= 0) that caps the coherent depth at\n"
     "    `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no\n"
@@ -1001,12 +924,10 @@ static PyTypeObject BurstAcquisitionObjType = {
     "------\n"
     "ValueError\n"
     "    If construction fails. The exception message is ``BurstAcquisition:\n"
-    "    invalid parameter (need a non-empty code, reps >= 1, spc >= 1,\n"
-    "    chip_rate > 0, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty "
-    ">=\n"
-    "    0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1; a preamble needs "
-    "finite,\n"
-    "    non-zero energy)``.\n"
+    "    invalid parameter (need a non-empty preamble with finite, non-zero\n"
+    "    energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, "
+    "doppler_uncertainty\n"
+    "    >= 0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)``.\n"
     "\n"
     "Warns\n"
     "-----\n"
@@ -1019,27 +940,28 @@ static PyTypeObject BurstAcquisitionObjType = {
     "Examples\n"
     "--------\n"
     ">>> import numpy as np\n"
+    ">>> from doppler.cvt import bin_to_nrz\n"
     ">>> from doppler.dsss import BurstAcquisition\n"
     ">>> from doppler.wfm import PN, mls_poly\n"
     ">>> code = np.asarray(PN(poly=mls_poly(5), seed=1,\n"
     "...                      length=5).generate(31)).astype(np.uint8)\n"
-    ">>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(\n"
-    "...     np.complex64)\n"
-    ">>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)\n"
-    ">>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,\n"
-    "...                      cn0_dbhz=50.0)\n"
-    ">>> b.push(burst)[0][:2]      # detects (Doppler bin, code phase)\n"
+    ">>> nrz = np.zeros(31, np.float32)\n"
+    ">>> _ = bin_to_nrz(code & 1, nrz)\n"
+    ">>> s0 = np.repeat(nrz, 4).astype(np.complex64)    # 4 samples a chip\n"
+    ">>> burst = np.tile(np.roll(s0, 17), 24)\n"
+    ">>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)\n"
+    ">>> b.push(burst)[0][:2]      # detects (Doppler bin, delay in samples)\n"
     "(0, 17)\n"
     "\n"
-    "The same object searches any repeated preamble by its samples -- here\n"
-    "a 127-sample Zadoff-Chu sequence, in normalized units:\n"
+    "Any repeated preamble is searched the same way -- here a 127-sample\n"
+    "Zadoff-Chu sequence, in normalized units:\n"
     "\n"
     ">>> k = np.arange(127)\n"
     ">>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(\n"
     "...     np.complex64)\n"
     ">>> z = BurstAcquisition(zc, reps=8)\n"
-    ">>> z.sf, z.spc                # one chip is one sample\n"
-    "(127, 1)\n"
+    ">>> z.code_bins                # samples per repetition\n"
+    "127\n"
     ">>> z.push(np.tile(np.roll(zc, 40), 10))[0][:2]\n"
     "(0, 40)\n",
   .tp_methods = BurstAcquisitionObj_methods,

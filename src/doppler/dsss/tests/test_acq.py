@@ -48,6 +48,7 @@ from doppler.detection import (
     det_threshold,
 )
 from doppler.dsss import Acquisition, BurstAcquisition
+from doppler.dsss.tests._preamble import code_preamble
 from doppler.examples.detector2d_acq_demo import (
     NX,
     NY,
@@ -98,10 +99,9 @@ def _stream_acq(**kw):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         a = BurstAcquisition(
-            CODE,
+            code_preamble(CODE, SPS),
             reps=REPS,
-            spc=SPS,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPS,
             cn0_dbhz=CN0_SIZE,
             pfa=PFA,
             pd=PD,
@@ -199,26 +199,28 @@ def _full_frames(l_pre):
 #
 # The depths moved once (doppler#1183): the model used to derate
 # scalloping over half a NATIVE bin while the peak search samples an
-# interpolated one, so it over-bought depth. Measured margins at the new
-# points — pd_predicted at the chosen depth against one shallower — are
-# 0.965 vs 0.844 (57 dB-Hz, D=3) and 0.937 vs 0.889 (53 dB-Hz, D=7):
-# neither sits on the 0.9 knife-edge where a libm can flip it.
+# interpolated one, so it over-bought depth. They moved again when the
+# preamble became its samples (doppler#1470): the delay straddle is now the
+# band-limited one a sampled chain has, not an ideal pulse's triangle, and
+# 53 dB-Hz needs D=6, not 7. Measured margins -- pd_predicted at the chosen
+# depth against one shallower -- are 0.977 vs 0.879 (57 dB-Hz, D=3) and
+# 0.918 vs 0.848 (53 dB-Hz, D=6): neither sits on the 0.9 knife-edge where a
+# libm can flip it.
 @pytest.mark.parametrize(
-    "cn0_dbhz, want_db", [(65.0, 1), (57.0, 3), (53.0, 7)]
+    "cn0_dbhz, want_db", [(65.0, 1), (57.0, 3), (53.0, 6)]
 )
 def test_config_physics(cn0_dbhz, want_db):
     """C/N0 → snr, smallest coherent depth meeting Pd, and grid math."""
     a = BurstAcquisition(
-        CODE,
+        code_preamble(CODE, SPS),
         reps=16,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPS,
         cn0_dbhz=cn0_dbhz,
         pfa=PFA,
         pd=PD,
     )
     # Physical read-backs.
-    assert a.sf == SF and a.code_bins == NX
+    assert a.code_bins == NX  # the preamble's samples
     assert a.fs == pytest.approx(CHIP_RATE * SPS)
     assert a.doppler_span_hz == pytest.approx(CHIP_RATE / (2 * SF))
     assert a.doppler_res_hz == pytest.approx(CHIP_RATE / (SF * a.doppler_bins))
@@ -256,10 +258,9 @@ def test_config_physics(cn0_dbhz, want_db):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             smaller = BurstAcquisition(
-                CODE,
+                code_preamble(CODE, SPS),
                 reps=db - 1,
-                spc=SPS,
-                chip_rate=CHIP_RATE,
+                fs=CHIP_RATE * SPS,
                 cn0_dbhz=cn0_dbhz,
                 pfa=PFA,
                 pd=PD,
@@ -272,19 +273,17 @@ def test_config_physics(cn0_dbhz, want_db):
 def test_d_selection_monotone():
     """Weaker C/N0 needs a deeper coherent grid (more reps)."""
     strong = BurstAcquisition(
-        CODE,
+        code_preamble(CODE, SPS),
         reps=16,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPS,
         cn0_dbhz=65.0,
         pfa=PFA,
         pd=PD,
     )
     mid = BurstAcquisition(
-        CODE,
+        code_preamble(CODE, SPS),
         reps=16,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPS,
         cn0_dbhz=53.0,
         pfa=PFA,
         pd=PD,
@@ -300,20 +299,18 @@ def test_doppler_uncertainty_sharpens_gate():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         full = BurstAcquisition(
-            CODE,
+            code_preamble(CODE, SPS),
             reps=16,
-            spc=SPS,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPS,
             cn0_dbhz=44.0,
             pfa=PFA,
             pd=PD,
             doppler_uncertainty=0.0,
         )
         narrow = BurstAcquisition(
-            CODE,
+            code_preamble(CODE, SPS),
             reps=16,
-            spc=SPS,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPS,
             cn0_dbhz=44.0,
             pfa=PFA,
             pd=PD,
@@ -330,10 +327,9 @@ def test_doppler_uncertainty_sharpens_gate():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         wide = BurstAcquisition(
-            CODE,
+            code_preamble(CODE, SPS),
             reps=4,
-            spc=SPS,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPS,
             cn0_dbhz=50.0,
             pfa=PFA,
             pd=PD,
@@ -353,10 +349,9 @@ def test_underpowered_warns():
     """An infeasible operating point still builds, but warns + self-flags."""
     with pytest.warns(UserWarning, match="under-powered"):
         a = BurstAcquisition(
-            CODE,
+            code_preamble(CODE, SPS),
             reps=2,
-            spc=SPS,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPS,
             cn0_dbhz=20.0,
             pfa=PFA,
             pd=PD,
@@ -367,10 +362,9 @@ def test_underpowered_warns():
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         b = BurstAcquisition(
-            CODE,
+            code_preamble(CODE, SPS),
             reps=16,
-            spc=SPS,
-            chip_rate=CHIP_RATE,
+            fs=CHIP_RATE * SPS,
             cn0_dbhz=65.0,
             pfa=PFA,
             pd=PD,
@@ -482,10 +476,9 @@ def test_config_burst_never_autosplits():
     cn0 = 42.0  # too weak for 16 coherent reps to reach Pd
     snr = math.sqrt(10.0 ** (cn0 / 10.0) / (CHIP_RATE * SPS))
     a = BurstAcquisition(
-        CODE,
+        code_preamble(CODE, SPS),
         reps=16,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPS,
         cn0_dbhz=cn0,
         pfa=PFA,
         pd=PD,
@@ -504,10 +497,9 @@ def test_config_burst_never_autosplits():
 def test_config_strong_stays_coherent():
     """A strong target needs no looks: pure-coherent path (N_nc == 1)."""
     a = BurstAcquisition(
-        CODE,
+        code_preamble(CODE, SPS),
         reps=16,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPS,
         cn0_dbhz=65.0,
         pfa=PFA,
         pd=PD,
@@ -526,10 +518,9 @@ NC_LOOKS = 2
 
 def _noncoherent_acq():
     a = BurstAcquisition(
-        CODE,
+        code_preamble(CODE, SPS),
         reps=REPS,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPS,
         cn0_dbhz=46.0,
         pfa=PFA,
         pd=PD,
@@ -565,10 +556,9 @@ def test_configure_search_raw_bounds():
     its prior grid; a valid pin changes the grid and re-derives the
     threshold ladder."""
     a = BurstAcquisition(
-        CODE,
+        code_preamble(CODE, SPS),
         reps=8,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPS,
         cn0_dbhz=65.0,
         pfa=PFA,
         pd=PD,
@@ -592,10 +582,9 @@ def test_configure_search_raw_detects():
     -- configure_search_raw doesn't just relabel fields, it rebuilds the
     correlator/FFT/buffers to match."""
     a = BurstAcquisition(
-        CODE,
+        code_preamble(CODE, SPS),
         reps=8,
-        spc=SPS,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPS,
         cn0_dbhz=65.0,
         pfa=PFA,
         pd=PD,
@@ -622,7 +611,7 @@ def test_the_full_band_search_reaches_its_edge():
     caught it: this pins an EVEN depth.
     """
     a = BurstAcquisition(
-        CODE, reps=8, spc=SPS, chip_rate=CHIP_RATE, pfa=PFA, pd=PD
+        code_preamble(CODE, SPS), reps=8, fs=CHIP_RATE * SPS, pfa=PFA, pd=PD
     )
     a.configure_search_raw(8, 1)
     assert a.doppler_bins == 8

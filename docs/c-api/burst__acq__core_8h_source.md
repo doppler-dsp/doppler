@@ -15,6 +15,7 @@
 #include "acq/acq_core.h"
 #include "clib_common.h"
 #include "jm_perf.h"
+#include "cvt/cvt_core.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -27,32 +28,13 @@ extern "C"
     uint8_t underpowered;
   } burst_acq_state_t;
 
-  burst_acq_state_t *burst_acq_create (const uint8_t *code, size_t code_len,
-                                       size_t reps, size_t spc,
-                                       double chip_rate, double cn0_dbhz,
+  burst_acq_state_t *burst_acq_create (const float _Complex *preamble,
+                                       size_t preamble_len, size_t reps,
+                                       double fs,
+                                       double cn0_dbhz,
                                        double doppler_uncertainty, double pfa,
                                        double pd, int noise_mode,
                                        double doppler_rate);
-
-  burst_acq_state_t *burst_acq_create_template (
-      const float _Complex *tmpl, size_t n, size_t reps, double fs,
-      double cn0_dbhz, double doppler_uncertainty, double pfa, double pd,
-      int noise_mode, double doppler_rate);
-
-  burst_acq_state_t *burst_acq_bind_code (const uint8_t *code,
-                                          size_t code_len, size_t reps,
-                                          size_t spc, double chip_rate,
-                                          double cn0_dbhz,
-                                          double doppler_uncertainty,
-                                          double pfa, double pd,
-                                          int noise_mode, double fs,
-                                          double doppler_rate);
-
-  burst_acq_state_t *burst_acq_bind_template (
-      const float _Complex *tmpl, size_t n, size_t reps, size_t spc,
-      double chip_rate, double cn0_dbhz, double doppler_uncertainty,
-      double pfa, double pd, int noise_mode, double fs,
-      double doppler_rate);
 
   void burst_acq_destroy (burst_acq_state_t *state);
 

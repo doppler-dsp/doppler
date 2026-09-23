@@ -21,50 +21,14 @@ burst_acq_wrap (acq_state_t *engine)
 }
 
 burst_acq_state_t *
-burst_acq_create (const uint8_t *code, size_t code_len, size_t reps,
-                  size_t spc, double chip_rate, double cn0_dbhz,
+burst_acq_create (const float _Complex *preamble, size_t preamble_len,
+                  size_t reps, double fs, double cn0_dbhz,
                   double doppler_uncertainty, double pfa, double pd,
                   int noise_mode, double doppler_rate)
 {
-  return burst_acq_wrap (acq_create_burst (
-      code, code_len, reps, spc, chip_rate, cn0_dbhz, doppler_uncertainty, pfa,
-      pd, noise_mode, doppler_rate));
-}
-
-burst_acq_state_t *
-burst_acq_create_template (const float _Complex *tmpl, size_t n, size_t reps,
-                           double fs, double cn0_dbhz,
-                           double doppler_uncertainty, double pfa, double pd,
-                           int noise_mode, double doppler_rate)
-{
-  return burst_acq_wrap (acq_create_burst_template (
-      tmpl, n, reps, fs, cn0_dbhz, doppler_uncertainty, pfa, pd, noise_mode,
-      doppler_rate));
-}
-
-burst_acq_state_t *
-burst_acq_bind_code (const uint8_t *code, size_t code_len, size_t reps,
-                     size_t spc, double chip_rate, double cn0_dbhz,
-                     double doppler_uncertainty, double pfa, double pd,
-                     int noise_mode, double fs, double doppler_rate)
-{
-  (void)fs; /* the template branch's argument */
-  return burst_acq_create (code, code_len, reps, spc, chip_rate, cn0_dbhz,
-                           doppler_uncertainty, pfa, pd, noise_mode,
-                           doppler_rate);
-}
-
-burst_acq_state_t *
-burst_acq_bind_template (const float _Complex *tmpl, size_t n, size_t reps,
-                         size_t spc, double chip_rate, double cn0_dbhz,
-                         double doppler_uncertainty, double pfa, double pd,
-                         int noise_mode, double fs, double doppler_rate)
-{
-  (void)spc; /* the code branch's arguments */
-  (void)chip_rate;
-  return burst_acq_create_template (tmpl, n, reps, fs, cn0_dbhz,
-                                    doppler_uncertainty, pfa, pd, noise_mode,
-                                    doppler_rate);
+  return burst_acq_wrap (acq_create_burst (preamble, preamble_len, reps, fs,
+                                           cn0_dbhz, doppler_uncertainty, pfa,
+                                           pd, noise_mode, doppler_rate));
 }
 
 void

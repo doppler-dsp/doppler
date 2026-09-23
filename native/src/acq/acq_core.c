@@ -1624,7 +1624,8 @@ fail:
 
 /* A PN code as the builder's waveform: one period of oversampled BPSK
  * (chip 0 -> +1, chip 1 -> -1, each held for `spc` samples) and the
- * triangle's shape. sf is the code length. */
+ * triangle's shape. sf is the code length. The CONTINUOUS engine's only:
+ * a burst engine takes its preamble as samples (acq_create_burst()). */
 static acq_state_t *
 acq_create_from_chips (const uint8_t *code, size_t code_len, size_t reps,
                        size_t spc, double chip_rate, double symbol_rate,
@@ -1652,18 +1653,6 @@ acq_create_from_chips (const uint8_t *code, size_t code_len, size_t reps,
 }
 
 acq_state_t *
-acq_create_burst (const uint8_t *code, size_t code_len, size_t reps,
-                  size_t spc, double chip_rate, double cn0_dbhz,
-                  double doppler_uncertainty, double pfa, double pd,
-                  int noise_mode, double doppler_rate)
-{
-  return acq_create_from_chips (code, code_len, reps, spc, chip_rate,
-                                /* symbol_rate= */ 0.0, cn0_dbhz,
-                                doppler_uncertainty, pfa, pd, noise_mode,
-                                /* continuous= */ 0, 1, doppler_rate);
-}
-
-acq_state_t *
 acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
                        double chip_rate, double symbol_rate, double cn0_dbhz,
                        double doppler_uncertainty, double pfa, double pd,
@@ -1677,10 +1666,9 @@ acq_create_continuous (const uint8_t *code, size_t code_len, size_t spc,
 }
 
 acq_state_t *
-acq_create_burst_template (const float _Complex *tmpl, size_t n, size_t reps,
-                           double fs, double cn0_dbhz,
-                           double doppler_uncertainty, double pfa, double pd,
-                           int noise_mode, double doppler_rate)
+acq_create_burst (const float _Complex *tmpl, size_t n, size_t reps, double fs,
+                  double cn0_dbhz, double doppler_uncertainty, double pfa,
+                  double pd, int noise_mode, double doppler_rate)
 {
   if (!tmpl || n < 1)
     return NULL;

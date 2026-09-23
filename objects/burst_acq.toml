@@ -10,7 +10,7 @@ serializable = "true"
 # -- the same shape as objects/burst_capture.toml's. Before this, an infinite
 # cn0_dbhz or a pfa of 1 surfaced as MemoryError.
 create_error = "ValueError"
-create_error_message = "BurstAcquisition: invalid parameter (need a non-empty code, reps >= 1, spc >= 1, chip_rate > 0, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >= 0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1; a preamble needs finite, non-zero energy)"
+create_error_message = "BurstAcquisition: invalid parameter (need a non-empty preamble with finite, non-zero energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >= 0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)"
 # The under-powered UserWarning is declared (gh-481): its condition is a
 # bool field of burst_acq_state_t, which mirrors the engine's at
 # construction -- the same warning objects/acq.toml declares.
@@ -25,42 +25,34 @@ warnings = [
 # native span, regardless of class). The hand-written burst_acq_core.h/.c
 # (below) is a thin forwarder onto acq_create_burst()/acq_push()/etc -- the
 # entire algorithm lives in acq_core.c exactly once.
-depends_on = [{ name = "acq", link = true }]
-# One Python constructor, two C ones (doppler#1470): a uint8 `code` is a PN
-# code (burst_acq_create), a complex64 one is any repeated preamble's samples
-# (burst_acq_create_template). jm's dtype dispatch calls both branches with
-# the SAME arguments, so the pair it calls are burst_acq_bind_code /
-# burst_acq_bind_template -- each takes the full list and ignores the other
-# branch's half (spc/chip_rate for samples, fs for chips). C callers use the
-# two natural constructors.
-create_fn = "burst_acq_bind_code"
-
+depends_on = [
+    { name = "acq", link = true },
+    # cvt: bin_to_nrz(), which the C test and bench build PN preambles with.
+    # Bare -- they need the symbol, the .so does not.
+    { name = "cvt" },
+]
 # ── Construction: physics in, grid out ───────────────────────────────────────
-# Today's existing (pre-split) Acquisition signature, minus symbol_rate
-# (continuous-only) and minus max_noncoh/doppler_resolution/doppler_rate
-# (removed entirely -- n_noncoh is purely auto-selected against an internal
-# safety-valve ceiling now, see ACQ_N_NONCOH_SAFETY_CEILING).
+# The preamble is its SAMPLES (doppler#1470): one period, repeated up to
+# `reps` times, at `fs`. A PN code is one such preamble -- map its chips with
+# doppler.cvt.bin_to_nrz and hold each `spc` samples, at fs = chip_rate*spc.
+# The preamble's own correlation gives the delay straddle and the peak zone,
+# which is the model a sampled, band-limited chain actually has.
 
 [[burst_acq.init_params]]
-name = "code"
-type = "uint8_t[]"
-real_type = "float _Complex[]"
-real_create_fn = "burst_acq_bind_template"
+name = "preamble"
+type = "float _Complex[]"
 
 [[burst_acq.init_params]]
 name = "reps"
 type = "size_t"
 default = "1"
 
+# 1 is normalized units: Doppler in cycles/sample, cn0_dbhz the per-sample
+# SNR in dB.
 [[burst_acq.init_params]]
-name = "spc"
-type = "size_t"
-default = "4"
-
-[[burst_acq.init_params]]
-name = "chip_rate"
+name = "fs"
 type = "double"
-default = "1000000.0"
+default = "1.0"
 
 [[burst_acq.init_params]]
 name = "cn0_dbhz"
@@ -87,13 +79,6 @@ default = "0.9"
 name = "noise_mode"
 type = "string_enum:mean,median,min,max"
 default = "mean"
-
-# A preamble's sample rate; a code ignores it. 1 is normalized units:
-# Doppler in cycles/sample, cn0_dbhz the per-sample SNR in dB.
-[[burst_acq.init_params]]
-name = "fs"
-type = "double"
-default = "1.0"
 
 # Hz/s; caps the coherent depth at f_epoch/sqrt(2*rate) (doppler#1482).
 # 0 = no bound. Appended last, so no positional call moves.
@@ -150,25 +135,13 @@ doc = "The peak list's capacity per dwell (1 = the classic gated maximum); set w
 name = "code_bins"
 type = "size_t"
 expr = "self->handle->engine->code_bins"
-doc = "Delay hypotheses searched: one repetition in samples (= sf*spc; a preamble's length)."
+doc = "Delay hypotheses searched: one repetition of the preamble, in samples (len(preamble))."
 
 [[burst_acq.properties]]
 name = "doppler_bins"
 type = "size_t"
 expr = "((self->handle->engine->window_bins > 1) ? self->handle->engine->window_bins : self->handle->engine->coherent_bins)"
 doc = "Coherent depth chosen: the slow-time FFT length in code reps (<= reps), unless doppler_uncertainty exceeds the native span, in which case this reports the wideband window-tile count instead (coherent depth forced to 1 -- see acq_core.h's file doc comment)."
-
-[[burst_acq.properties]]
-name = "sf"
-type = "size_t"
-expr = "self->handle->engine->sf"
-doc = "Chips per repetition, from len(code); for a preamble, its length in samples (one chip is one sample)."
-
-[[burst_acq.properties]]
-name = "spc"
-type = "size_t"
-expr = "self->handle->engine->spc"
-doc = "Samples per chip (chip-rate oversample factor); 1 for a preamble."
 
 [[burst_acq.properties]]
 name = "reps"
@@ -240,19 +213,13 @@ doc = "Mean amplitude derating of the correlation peak from grid straddle (slow-
 name = "fs"
 type = "double"
 expr = "self->handle->engine->fs"
-doc = "Sample rate (Hz) = chip_rate * spc; for a preamble, the fs it was given."
+doc = "Sample rate (Hz) the preamble was given at."
 
 [[burst_acq.properties]]
 name = "doppler_rate"
 type = "double"
 expr = "self->handle->engine->doppler_rate"
 doc = "Doppler rate (Hz/s) the coherent depth is bounded against: coherent_bins <= f_epoch/sqrt(2*doppler_rate). 0 is no bound."
-
-[[burst_acq.properties]]
-name = "chip_rate"
-type = "double"
-expr = "self->handle->engine->chip_rate"
-doc = "Chip rate (Hz); for a preamble, equal to fs."
 
 [[burst_acq.properties]]
 name = "cn0_dbhz"
@@ -264,13 +231,13 @@ doc = "Carrier-to-noise density used to size the search (dB-Hz)."
 name = "doppler_span_hz"
 type = "double"
 expr = "self->handle->engine->doppler_span_hz"
-doc = "Native unambiguous Doppler half-range = +/- chip_rate/(2*sf) Hz."
+doc = "Native unambiguous Doppler half-range = +/- fs/(2*len(preamble)) Hz."
 
 [[burst_acq.properties]]
 name = "doppler_res_hz"
 type = "double"
 expr = "self->handle->engine->doppler_res_hz"
-doc = "Doppler bin width = chip_rate/(sf*doppler_bins) Hz."
+doc = "Doppler bin width = fs/(len(preamble)*doppler_bins) Hz."
 
 [[burst_acq.properties]]
 name = "pd"

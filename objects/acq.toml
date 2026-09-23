@@ -29,6 +29,10 @@ depends_on = [
     # dp_tlm_probe() is out of line (set_telemetry, a setup path); the emit
     # in the dwell path is the header inline.
     { name = "dp_tlm", link = true },
+    # cvt: bin_to_nrz(), which the C test builds its PN preambles with
+    # (dp_preamble_test.h). Bare -- the test needs the symbol, the .so does
+    # not.
+    { name = "cvt" },
 ]
 # dp_parallel.h's persistent pool is pthreads (the roll per thread, §2.3).
 extra_link_libs = ["Threads::Threads"]

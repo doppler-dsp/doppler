@@ -25,6 +25,7 @@ target_link_libraries(burst_capture_core PUBLIC
     fft_core
     detection_core
     dp_tlm_core
+    cvt_core
     pn_core)
 
 add_executable(test_burst_capture_core
@@ -38,6 +39,7 @@ target_link_libraries(test_burst_capture_core
     fft_core
     detection_core
     dp_tlm_core
+    cvt_core
     pn_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_burst_capture_core
@@ -55,6 +57,7 @@ target_link_libraries(bench_burst_capture_core
     fft_core
     detection_core
     dp_tlm_core
+    cvt_core
     pn_core
     ${JM_MATH_LIBRARY})
 target_include_directories(

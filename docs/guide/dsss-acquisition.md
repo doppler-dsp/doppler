@@ -10,8 +10,10 @@ raw cf32  →  ring  →  reframe (doppler_bins, code_bins)  →  slow-time Dopp
           →  code correlation (corr2d)  →  CFAR gate  →  (Doppler, code-phase) hits
 ```
 
-Construction is **physics-only**: you state the waveform (`code`, `chip_rate`),
-the front end (`spc`), the sensitivity (`cn0_dbhz`), and a target **(Pfa, Pd)**.
+Construction is **physics-only**: you state the waveform (for `BurstAcquisition`
+the preamble's samples and their rate `fs`; for `Acquisition` the `code`,
+`chip_rate` and `spc`), the sensitivity (`cn0_dbhz`), and a target
+**(Pfa, Pd)**.
 The engine sizes its own search grid — coherent depth, threshold, non-coherent
 looks — from the [detection theory](../api/python-detection.md) and streams
 detections. You never pick a bin count or a threshold.
@@ -36,20 +38,27 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
 
     ```python
     import numpy as np
+    from doppler.cvt import bin_to_nrz
     from doppler.dsss import BurstAcquisition
     from doppler.wfm import PN, mls_poly
 
     code = PN(poly=mls_poly(5), seed=1, length=5).generate(31)  # 31-chip PN
 
+    # The engine takes the preamble as its SAMPLES, one period. A PN code
+    # becomes one by the library's chip rule (bin_to_nrz: 0 -> +1, 1 -> -1),
+    # each chip held for the samples per chip -- here 4.
+    nrz = np.zeros(code.size, np.float32)
+    bin_to_nrz(code, nrz)
+    preamble = np.repeat(nrz, 4).astype(np.complex64)   # 124 samples
+
     acq = BurstAcquisition(
-        code,                  # sf = len(code) = 31 (inferred)
-        reps=16,               # up to 16 coherent code repetitions
-        spc=4,                 # samples per chip (fs = chip_rate · spc)
-        chip_rate=1.023e6,     # Hz
+        preamble,              # one period of the preamble's samples
+        reps=16,               # up to 16 coherent repetitions
+        fs=1.023e6 * 4,        # sample rate (Hz): chip_rate · samples/chip
         cn0_dbhz=52,           # sensitivity (carrier-to-noise density, dB-Hz)
         pfa=1e-3, pd=0.9,      # target false-alarm / detection rates
     )
-    # The engine sized the grid: doppler_bins=12, code_bins=124, res≈2750 Hz.
+    # The engine sized the grid: doppler_bins=8, code_bins=124, res≈4125 Hz.
     # Sizing is honest: pd_predicted is the AVERAGE Pd over the straddle
     # priors (random Doppler / code phase across the grid), not the
     # on-grid best case — see acq.straddle_loss for the mean derating.
@@ -57,8 +66,7 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
 
     # demo capture: a real 31-chip DSSS burst in light noise, split into
     # cf32 blocks (any block size works — the engine reframes internally).
-    chip = np.repeat(1 - 2.0 * (code & 1), 4)  # ±1 per chip, ×spc oversample
-    capture = np.tile(chip, 36).astype(np.complex64) * 8.0
+    capture = np.tile(preamble, 36) * 8.0
     capture += (0.1 * (np.random.standard_normal(capture.size)
                 + 1j * np.random.standard_normal(capture.size))
                 ).astype(np.complex64)
@@ -97,13 +105,14 @@ FFTs over the repeated-segment structure. It frames the stream into a
 `(doppler_bins, code_bins)` matrix where **each row is one PN segment — one code
 repetition** — and there are `doppler_bins` of them:
 
-- **fast-time** — *within* one segment (`code_bins = sf·spc` samples). A circular
-    correlation against the known code → the **code-phase** axis.
+- **fast-time** — *within* one segment (`code_bins = len(preamble)` samples). A
+    circular correlation against the known preamble → the **code-phase** (delay)
+    axis, in samples.
 - **slow-time** — *across* the `doppler_bins` segments. An FFT along that axis
     resolves the per-segment carrier phase ramp → the **Doppler** axis.
 
 ```
-            fast-time  (code_bins = sf·spc samples, one segment)
+            fast-time  (code_bins = len(preamble) samples, one segment)
           ┌─────────────────────────────────────────────┐
 slow-time │ rep 0   · · · · · · · · · · · · · · · · · · │
 (rows =   │ rep 1   · · · · · · · · · · · · · · · · · · │   FFT down ──► Doppler
@@ -126,14 +135,15 @@ the slow-time FFT itself, you never pre-transform anything — just `push` IQ.
 
     Two independent quantities, both reported as read-only properties:
 
-    - **resolution** `doppler_res_hz = chip_rate / (sf · doppler_bins)` — set by
-        how many repetitions the engine integrates (deeper → finer bins).
-    - **span** `doppler_span_hz = ±chip_rate / (2·sf)` — the slow-time Nyquist,
-        set by the *code period* (`sf` chips) alone, independent of `spc` and
-        `doppler_bins`.
+    - **resolution** `doppler_res_hz = fs / (n · doppler_bins)` — set by how
+        many repetitions the engine integrates (deeper → finer bins); `n` is the
+        preamble's length in samples.
+    - **span** `doppler_span_hz = ±fs / (2·n)` — the slow-time Nyquist, set by
+        the *repetition period* `n/fs` alone, independent of `doppler_bins`.
 
-    With `sf=31`, `chip_rate=1.023 MHz`, `doppler_bins=12`: bins are ≈2750 Hz
-    apart, spanning ±16.5 kHz. To search *wider* than the native span, sweep a
+    With a 31-chip code at 1.023 Mcps held 4 samples a chip (`n = 124`,
+    `fs = 4.092 MHz`) and `doppler_bins=8`: bins are ≈4125 Hz apart, spanning
+    ±16.5 kHz. To search *wider* than the native span, sweep a
     coarse Doppler grid in front of `Acquisition` — see
     [Widening the Doppler search](#widening-the-doppler-search).
 
@@ -149,7 +159,6 @@ First it converts your sensitivity to the per-sample amplitude SNR the detection
 math uses (noise power = `N0·fs` over the sampled bandwidth):
 
 ```
-fs   = chip_rate · spc
 snr  = sqrt( 10**(cn0_dbhz/10) / fs )      # per-sample amplitude SNR
 ```
 
@@ -171,12 +180,12 @@ threshold    = eta · √(2/π)                        # eta in mean-CFAR units
 The chosen grid is exposed as **read-only** properties:
 
 ```python
-acq = BurstAcquisition(code, reps=16, spc=4, chip_rate=1.023e6, cn0_dbhz=52,
-                        pfa=1e-3, pd=0.9)
+acq = BurstAcquisition(preamble, reps=16, fs=1.023e6 * 4, cn0_dbhz=52,
+                       pfa=1e-3, pd=0.9)
 
-acq.doppler_bins, acq.code_bins   # 12, 124   — the grid the engine chose
-acq.doppler_span_hz, acq.doppler_res_hz   # ±16500 Hz, 2750 Hz
-acq.fs                            # 4.092e6   — chip_rate · spc
+acq.doppler_bins, acq.code_bins   # 8, 124    — the grid the engine chose
+acq.doppler_span_hz, acq.doppler_res_hz   # ±16500 Hz, 4125 Hz
+acq.fs                            # 4.092e6   — the rate given
 acq.pfa_cell                      # per-cell false-alarm prob (Bonferroni)
 acq.eta                           # raw Rayleigh threshold √(-2 ln pfa_cell)
 acq.threshold                     # the CFAR gate actually applied (eta·√(2/π))
@@ -253,7 +262,7 @@ def doppler_hz(dop, acq):
     k = (dop + acq.doppler_bins // 2) % acq.doppler_bins - acq.doppler_bins // 2
     return k * acq.doppler_res_hz
 
-delay_chips = phase / acq.spc          # code phase in chips
+delay_chips = phase / 4                # code phase in samples ÷ samples/chip
 ```
 
 `reset()` drains the ring and the coherent accumulator (use it between
@@ -300,8 +309,8 @@ default. The smallest robust call is:
 
 ```python
 acq = BurstAcquisition(
-    code,                 # the PN replica; sf = len(code) is inferred
-    chip_rate=1.023e6,    # waveform chip rate (Hz)
+    preamble,             # one period of the preamble's samples
+    fs=1.023e6 * 4,       # their sample rate (Hz)
     cn0_dbhz=61,          # your link-budget sensitivity (dB-Hz)
 )
 assert acq.pd_predicted >= acq.pd   # confirm the search can meet the target
@@ -309,12 +318,13 @@ assert acq.pd_predicted >= acq.pd   # confirm the search can meet the target
 
 The tiers:
 
-- **Required — no meaningful default:** `code` (the PN replica), `chip_rate` (the
-    waveform), and `cn0_dbhz` (the sensitivity; its placeholder default sizes a
-    toy grid, so set it to your real link budget).
-- **Set for your front end:** `spc` (samples/chip = `sample_rate / chip_rate`;
-    default 4) and `reps` (how many coherent code repetitions you can afford —
-    the coherence ceiling and your latency budget; default 1).
+- **Required — no meaningful default:** `preamble` (one period of its samples:
+    for a PN code, `bin_to_nrz` held for the samples per chip) and `cn0_dbhz`
+    (the sensitivity; without one the engine integrates the whole preamble
+    with no target to size against).
+- **Set for your front end:** `fs` (the preamble's sample rate; default 1,
+    normalized units) and `reps` (how many coherent repetitions you can afford
+    — the coherence ceiling and your latency budget; default 1).
 - **Safe defaults — leave unless you have a reason:** `pfa=1e-3`, `pd=0.9`,
     `noise_mode="mean"`, `doppler_uncertainty=0` (full native span).
 - **Nothing to opt into for weak signals:** non-coherent looks (`n_noncoh`) are
@@ -322,7 +332,7 @@ The tiers:
     an internal safety-valve ceiling (256 looks) — there is no caller-facing
     cap to raise.
 
-`sf` is **not** a parameter — it is inferred from `len(code)`, so the engine and
+The period is **not** a parameter — it is `len(preamble)`, so the engine and
 your replica can never disagree.
 
 ### Waveform vs. operator knobs
@@ -330,12 +340,14 @@ your replica can never disagree.
 Some inputs describe the **transmitted waveform** — the receiver must match them,
 they are not knobs:
 
-- **`code`** — the PN sequence; its length *is* `sf` (the spreading factor).
-- **`chip_rate`** — the transmitter's chip rate (Hz). With `spc` it sets the
-    sample rate `fs = chip_rate·spc` and the Doppler **span** `±chip_rate/(2·sf)`.
-- **`spc`** — **samples per chip** (chip-rate oversampling; *not* samples per
-    *symbol* — that is `sps`) = your `sample_rate / chip_rate`. You only move it by
-    resampling the front end.
+- **`preamble`** — one period of the transmitted preamble, as samples at your
+    front end's rate. For a PN code: its chips by `bin_to_nrz`, each held for the
+    samples per chip (`sample_rate / chip_rate`; *not* samples per *symbol* —
+    that is `sps`). Its length is the period `n`.
+- **`fs`** — the sample rate (Hz) those samples are at. It sets the Doppler
+    **span** `±fs/(2n)`. You only move it by resampling the front end.
+- (`Acquisition`, the continuous engine, still takes `code`, `chip_rate` and
+    `spc` and builds the samples itself.)
 
 The genuine receiver / operator knobs:
 
@@ -401,7 +413,7 @@ identical mislock, bit for bit.
 
 The failure only shows up once your coherent window spans more than a small
 fraction of a symbol — which is exactly what a naive
-`BurstAcquisition(code, reps=16, ...)` call risks on a signal like this: its
+`BurstAcquisition(preamble, reps=16, ...)` call risks on a signal like this: its
 whole reason for existing is to greedily grow the coherent depth
 (`doppler_bins`) up to `reps` to meet `pd`, with no notion that a
 data-modulated symbol clock might be present at all — `BurstAcquisition` only
@@ -555,8 +567,8 @@ import numpy as np
 chip_rate = 1.0e6
 fs = chip_rate * 2                         # spc = 2
 coarse = np.arange(-100e3, 100e3, 500.0)   # coarse grid (Hz) — see step rule below
-bank = [BurstAcquisition(code, reps=10, spc=2, chip_rate=chip_rate, cn0_dbhz=50,
-                         pfa=1e-3, pd=0.9)
+pre2 = np.repeat(nrz, 2).astype(np.complex64)   # the code at 2 samples/chip
+bank = [BurstAcquisition(pre2, reps=10, fs=fs, cn0_dbhz=50, pfa=1e-3, pd=0.9)
         for _ in coarse]                   # one engine per channel (own state)
 
 n0 = 0

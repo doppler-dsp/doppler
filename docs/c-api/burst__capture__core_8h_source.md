@@ -23,6 +23,7 @@
 #include "fft/fft_core.h"
 #include "detection/detection_core.h"
 #include "pn/pn_core.h"
+#include "cvt/cvt_core.h"
 
 #define BURST_CAPTURE_HITS 16u
 
@@ -64,11 +65,7 @@ typedef struct
 typedef struct
 {
   /* ── Configuration, copied at create() ──────────────────────────────── */
-  uint8_t *acq_code;     
-  size_t   acq_code_len; 
-  size_t   reps;         
-  size_t   spc;          
-  double   chip_rate;    
+  size_t reps; 
   /* ── Derived geometry ───────────────────────────────────────────────── */
   size_t code_period; 
   size_t burst_len;   
@@ -146,23 +143,17 @@ typedef struct
 /*<<property_struct_fields>>*/
 } burst_capture_state_t;
 
-burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
-                                             size_t acq_code_len,
-                                             size_t burst_len, size_t reps,
-                                             size_t spc, double chip_rate,
-                                             double cn0_dbhz,
-                                             double doppler_uncertainty,
-                                             double pfa, double pd,
-                                             int noise_mode,
-                                             double doppler_rate);
+burst_capture_state_t *burst_capture_create (
+    const float _Complex *preamble, size_t preamble_len, size_t burst_len,
+    size_t reps,
+    double fs, double cn0_dbhz, double doppler_uncertainty, double pfa,
+    double pd, int noise_mode, double doppler_rate);
 
-burst_capture_state_t *
-burst_capture_create_backed (const char *path, const uint8_t *acq_code,
-                             size_t acq_code_len, size_t burst_len,
-                             size_t reps, size_t spc, double chip_rate,
-                             double cn0_dbhz, double doppler_uncertainty,
-                             double pfa, double pd, int noise_mode,
-                             double doppler_rate);
+burst_capture_state_t *burst_capture_create_backed (
+    const char *path, const float _Complex *preamble, size_t preamble_len,
+    size_t burst_len, size_t reps, double fs, double cn0_dbhz,
+    double doppler_uncertainty, double pfa, double pd, int noise_mode,
+    double doppler_rate);
 
 void burst_capture_destroy (burst_capture_state_t *state);
 

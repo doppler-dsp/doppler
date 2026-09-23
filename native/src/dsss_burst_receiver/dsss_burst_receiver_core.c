@@ -12,7 +12,10 @@
  * and nothing else.
  */
 #include "dsss_burst_receiver/dsss_burst_receiver_core.h"
+
+#include "cvt/cvt_core.h"
 #include "dp_crc16.h"
+#include "util/util_core.h"
 
 #include <stdbool.h>
 
@@ -131,11 +134,23 @@ dsss_burst_receiver_create (const uint8_t *acq_code, size_t acq_code_len,
    * expects: the demod searches +/- max_rate for it, and the acquisition
    * bounds its coherent depth by it (doppler#1490). It is a frequency slope
    * in cycles/sample^2 (ppe dechirps by exp(-j pi r m^2)), so in Hz/s it is
-   * max_rate * fs^2. */
-  const double fs = chip_rate * (double)spc;
-  s->cap = burst_capture_create (s->acq_code, acq_code_len, s->burst_len, reps,
-                                 spc, chip_rate, cn0_dbhz, doppler_uncertainty,
-                                 pfa, pd, 0, max_rate * fs * fs);
+   * max_rate * fs^2.
+   *
+   * The capture takes its preamble as SAMPLES; this receiver is DSSS end to
+   * end and takes a PN code, so it maps the chips with bin_to_nrz() (the
+   * library's one chip -> +-1 rule) and holds each `spc` samples. */
+  const double    fs  = chip_rate * (double)spc;
+  const size_t    n   = acq_code_len * spc;
+  float          *nrz = dp_xmalloc (acq_code_len * sizeof *nrz);
+  float _Complex *pre = dp_xmalloc (n * sizeof *pre);
+  (void)bin_to_nrz (s->acq_code, acq_code_len, nrz, acq_code_len);
+  for (size_t i = 0; i < n; i++)
+    pre[i] = nrz[i / spc];
+  s->cap = burst_capture_create (pre, n, s->burst_len, reps, fs, cn0_dbhz,
+                                 doppler_uncertainty, pfa, pd, 0,
+                                 max_rate * fs * fs);
+  free (pre);
+  free (nrz);
   if (!s->cap)
     goto fail;
 

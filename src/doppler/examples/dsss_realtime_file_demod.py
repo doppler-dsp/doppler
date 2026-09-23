@@ -45,6 +45,7 @@ from pathlib import Path
 
 import numpy as np
 
+from doppler.cvt import bin_to_nrz
 from doppler.ddc import DDC
 from doppler.dsss import BurstAcquisition, BurstDemod, bin_to_signed
 from doppler.tests._repo import repo_root
@@ -234,8 +235,15 @@ def decode_chunk(chunk, *, nominal_hz=NOMINAL_HZ):
     returned ``code_phase`` is where in the window the preamble landed — the
     per-burst arrival jitter — and ``est_freq_hz`` is the recovered Doppler."""
     base = DDC(norm_freq=-nominal_hz / FS, rate=1.0).execute(chunk)
+    # The acquisition takes the preamble as its SAMPLES: the code's chips
+    # by the library's rule (bin_to_nrz: 0 -> +1, 1 -> -1), each held SPC.
+    nrz = np.zeros(_ACODE.size, dtype=np.float32)
+    bin_to_nrz(_ACODE, nrz)
     acq = BurstAcquisition(
-        _ACODE, reps=REPS, spc=SPC, chip_rate=CHIP_RATE, cn0_dbhz=40.0
+        np.repeat(nrz, SPC).astype(np.complex64),
+        reps=REPS,
+        fs=CHIP_RATE * SPC,
+        cn0_dbhz=40.0,
     )
     # Pin n_noncoh=1: a single push() below must decide immediately: with
     # no caller-facing max_noncoh knob left to default to "coherent-only,"

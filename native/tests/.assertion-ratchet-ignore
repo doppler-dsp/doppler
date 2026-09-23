@@ -73,3 +73,10 @@ test_async_dsss_pool_core.c  -30: the hand-off pool was retired for the
   floor's forwarding went with the method. Nothing the object still does
   stopped being measured; the table's locked-only rule is asserted on the
   lifecycle's positive half and by the soak's double-assignment gate.
+
+test_acq_core.c  -2: the burst engine takes a preamble as its samples only
+  (doppler#1470). The two assertions that went compared a template engine
+  with a code engine built from the same chips (`shape.zone` and
+  `code_bins`/`fs` equal). Both are now the one samples constructor, so the
+  comparison could not fail. What it guarded is still asserted: a 31-chip
+  code held 4 samples a chip gets `zone == spc`.

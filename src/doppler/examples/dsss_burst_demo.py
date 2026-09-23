@@ -327,10 +327,9 @@ def detects(reps: int, snr_db: float, seed: int) -> bool:
     true SNR, so no arm is ever handed the answer it is being tested on.
     """
     acq = BurstAcquisition(
-        ACQ_CODE,
+        pn_reference().astype(np.complex64),  # the preamble's samples
         reps=reps,
-        spc=CHIP_SPS,
-        chip_rate=FS / CHIP_SPS,
+        fs=FS,
         cn0_dbhz=DESIGN_CN0_DBHZ,
         doppler_uncertainty=0.0,  # this demo has no carrier offset
         pfa=1e-3,

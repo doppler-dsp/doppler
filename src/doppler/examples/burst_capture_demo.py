@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from doppler.cvt import bin_to_nrz
 from doppler.dsss import BurstCapture
 from doppler.wfm import PN, Composer, Segment
 
@@ -112,13 +113,19 @@ def scene() -> np.ndarray:
 
 
 def capture() -> BurstCapture:
-    """The look-back is NOT a knob — its span is derived from the geometry."""
+    """The look-back is NOT a knob — its span is derived from the geometry.
+
+    The preamble is its SAMPLES: the code's chips by the library's rule
+    (bin_to_nrz: 0 -> +1, 1 -> -1), each held SPC, at chip_rate * SPC.
+    """
+    code = acq_code()
+    nrz = np.zeros(code.size, dtype=np.float32)
+    bin_to_nrz(code, nrz)
     return BurstCapture(
-        acq_code(),
+        np.repeat(nrz, SPC).astype(np.complex64),
         burst_len=BURST_LEN,
         reps=REPS,
-        spc=SPC,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPC,
         cn0_dbhz=55.0,
     )
 

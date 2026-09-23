@@ -57,6 +57,7 @@ from __future__ import annotations
 import numpy as np
 
 from doppler.dsss import BurstCapture
+from doppler.dsss.tests._preamble import code_preamble
 from doppler.wfm import PN, Composer, Segment
 
 # ── Geometry ────────────────────────────────────────────────────────────────
@@ -165,11 +166,10 @@ def scene(at: list[int], n: int, seed: int, sigma: float = SIGMA):
 
 def capture() -> BurstCapture:
     return BurstCapture(
-        acq_code(),
+        code_preamble(acq_code(), SPC),
         burst_len=BURST_LEN,
         reps=REPS,
-        spc=SPC,
-        chip_rate=CHIP_RATE,
+        fs=CHIP_RATE * SPC,
         cn0_dbhz=55.0,
     )
 

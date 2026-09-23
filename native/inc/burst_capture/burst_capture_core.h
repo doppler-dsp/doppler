@@ -27,10 +27,15 @@
  * step()/steps(): a burst is a frame, not a sample.
  *
  * @code
+ * // a 31-chip code held 4 samples a chip (bin_to_nrz, then the hold)
  * uint8_t code[31];
  * for (size_t i = 0; i < 31; i++) code[i] = (uint8_t)(i & 1u);
+ * float nrz[31];
+ * bin_to_nrz (code, 31, nrz, 31);
+ * float _Complex pre[124];
+ * for (size_t i = 0; i < 124; i++) pre[i] = nrz[i / 4];
  * burst_capture_state_t *cap = burst_capture_create (
- *     code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
+ *     pre, 124, 4096, 4, 4.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
  * float _Complex x[2048] = { 0 };
  * float _Complex win[4096];
  * size_t n = burst_capture_push (cap, x, 2048, win, 4096);
@@ -52,6 +57,7 @@
 #include "fft/fft_core.h"
 #include "detection/detection_core.h"
 #include "pn/pn_core.h"
+#include "cvt/cvt_core.h"
 
 /**
  * @brief Detections collected from acquisition per batch.
@@ -166,11 +172,9 @@ typedef struct
 typedef struct
 {
   /* ── Configuration, copied at create() ──────────────────────────────── */
-  uint8_t *acq_code;     /**< Preamble code, owned copy.                   */
-  size_t   acq_code_len; /**< Preamble code length, chips.                 */
-  size_t   reps;         /**< Preamble code repetitions.                   */
-  size_t   spc;          /**< Samples per chip.                            */
-  double   chip_rate;    /**< Chip rate, Hz.                               */
+  size_t reps; /**< Preamble repetitions. The preamble itself is not kept:
+                    the acquisition engine holds it, at unit RMS, as its
+                    reference row, and that is all refine reads.        */
 
   /* ── Derived geometry ───────────────────────────────────────────────── */
   size_t code_period; /**< One preamble repetition, in SAMPLES. The modulus
@@ -405,8 +409,8 @@ typedef struct
  * @brief Create a burst capture: acquisition, refine and retention behind
  *        one push().
  *
- * Give it the preamble code and the geometry, say how long a burst is, and
- * stream samples in. It searches blindly, recovers the exact preamble start,
+ * Give it the preamble -- one period of its SAMPLES -- and the geometry, say
+ * how long a burst is, and stream samples in. It searches blindly, recovers the exact preamble start,
  * and hands back the burst's samples once they have all arrived.
  *
  * The look-back buffer is NOT a parameter. Its span is derived from the
@@ -414,14 +418,23 @@ typedef struct
  * every term is already known and a caller asked to size a history buffer is
  * a caller handed a way to lose bursts silently.
  *
- * @param acq_code      Preamble PN chips (0/1), length @p acq_code_len.
- * @param acq_code_len  Preamble code length, chips.
+ * Any repeated preamble: a chirp, a Zadoff-Chu sequence, shaped PSK, or a
+ * PN code mapped by bin_to_nrz() and held `spc` samples a chip (at
+ * `fs = chip_rate*spc`). One chip is one sample: a period is
+ * @p preamble_len samples.
+ * Refine correlates each candidate position against the acquisition
+ * engine's own reference row -- the preamble at unit RMS -- so there is
+ * one replica of it (doppler#1470).
+ *
+ * @param preamble      One period of the preamble, @p preamble_len samples;
+ *                      not all zero, every sample finite. Read, not kept.
+ * @param preamble_len  Samples per repetition (>= 1).
  * @param burst_len     Samples in one burst -- what gets captured.
- * @param reps          Preamble code repetitions.
- * @param spc           Samples per chip.
- * @param chip_rate     Chip rate, Hz.
- * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz: any finite
- *                      value, or NaN (ACQ_CN0_NONE) for no design point.
+ * @param reps          Preamble repetitions (>= 1).
+ * @param fs            Sample rate, Hz (> 0); 1 for normalized units.
+ * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz, of the
+ *                      preamble's mean power: any finite value, or NaN
+ *                      (ACQ_CN0_NONE) for no design point.
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
@@ -436,22 +449,19 @@ typedef struct
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
- * >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+ * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+ * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
  * >>> cap.burst_len
  * 512
  * >>> cap.retain_span == cap.refine_span + cap.burst_len
  * True
  * @endcode
  */
-burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
-                                             size_t acq_code_len,
-                                             size_t burst_len, size_t reps,
-                                             size_t spc, double chip_rate,
-                                             double cn0_dbhz,
-                                             double doppler_uncertainty,
-                                             double pfa, double pd,
-                                             int noise_mode,
-                                             double doppler_rate);
+burst_capture_state_t *burst_capture_create (
+    const float _Complex *preamble, size_t preamble_len, size_t burst_len,
+    size_t reps,
+    double fs, double cn0_dbhz, double doppler_uncertainty, double pfa,
+    double pd, int noise_mode, double doppler_rate);
 
 /**
  * @brief Create a capture whose look-back lives in a FILE.
@@ -484,12 +494,11 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
  * for the other would resume a capture whose history was somewhere else.
  *
  * @param path          File to back the ring with; not NULL and not empty.
- * @param acq_code      Preamble PN chips (0/1), length @p acq_code_len.
- * @param acq_code_len  Preamble code length, chips.
+ * @param preamble      One period of the preamble, @p preamble_len samples.
+ * @param preamble_len  Samples per repetition (>= 1).
  * @param burst_len     Samples in one burst -- what gets captured.
- * @param reps          Preamble code repetitions.
- * @param spc           Samples per chip.
- * @param chip_rate     Chip rate, Hz.
+ * @param reps          Preamble repetitions (>= 1).
+ * @param fs            Sample rate, Hz (> 0).
  * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz: any finite
  *                      value, or NaN (ACQ_CN0_NONE) for no design point.
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
@@ -507,10 +516,11 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
  * >>> import numpy as np, tempfile, os
  * >>> from doppler.dsss import BurstCapture, PersistentBurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+ * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> path = os.path.join(tempfile.mkdtemp(), "ring.cf32")
- * >>> cap = PersistentBurstCapture(path, code, burst_len=512,
- * ...                             reps=4, spc=2)
- * >>> ram = BurstCapture(code, burst_len=512, reps=4, spc=2)
+ * >>> cap = PersistentBurstCapture(path, pre, burst_len=512,
+ * ...                             reps=4, fs=2e6)
+ * >>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
  * >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
  * >>> # the look-back is in the file, so the blob stops carrying it
  * >>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8
@@ -519,13 +529,11 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
  * True
  * @endcode
  */
-burst_capture_state_t *
-burst_capture_create_backed (const char *path, const uint8_t *acq_code,
-                             size_t acq_code_len, size_t burst_len,
-                             size_t reps, size_t spc, double chip_rate,
-                             double cn0_dbhz, double doppler_uncertainty,
-                             double pfa, double pd, int noise_mode,
-                             double doppler_rate);
+burst_capture_state_t *burst_capture_create_backed (
+    const char *path, const float _Complex *preamble, size_t preamble_len,
+    size_t burst_len, size_t reps, double fs, double cn0_dbhz,
+    double doppler_uncertainty, double pfa, double pd, int noise_mode,
+    double doppler_rate);
 
 /** @brief Release a capture and everything it owns. NULL-safe. */
 void burst_capture_destroy (burst_capture_state_t *state);
@@ -542,7 +550,8 @@ void burst_capture_destroy (burst_capture_state_t *state);
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
- * >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+ * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+ * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
  * >>> cap.push(np.zeros(4096, dtype=np.complex64)).size
  * 0
  * >>> cap.reset()
@@ -580,7 +589,8 @@ size_t burst_capture_push_max_out (burst_capture_state_t *state,
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
- * >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+ * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+ * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
  * >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
  * >>> win.size % cap.burst_len        # whole windows, never a partial
  * 0
@@ -608,7 +618,8 @@ size_t burst_capture_detections_max_out (burst_capture_state_t *state,
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
- * >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+ * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+ * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
  * >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
  * >>> # what the search found, against what became a burst
  * >>> len(cap.detections()) >= len(cap.events())
@@ -632,7 +643,8 @@ size_t burst_capture_events_max_out (burst_capture_state_t *state, size_t n);
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
- * >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+ * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+ * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
  * >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
  * >>> len(cap.events()) == win.size // cap.burst_len
  * True
@@ -689,7 +701,8 @@ burst_capture_event_at (const burst_capture_state_t *state, size_t i);
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
- * >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+ * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+ * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
  * >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
  * >>> cap.release(0)   # no window 0 in a quiet push
  * Traceback (most recent call last):
@@ -719,7 +732,8 @@ int burst_capture_release (burst_capture_state_t *state, size_t i);
  * >>> import numpy as np
  * >>> from doppler.dsss import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
- * >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+ * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+ * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
  * >>> cap.configure_search_raw(4, 1)   # 4 Doppler bins, coherent only
  * @endcode
  */

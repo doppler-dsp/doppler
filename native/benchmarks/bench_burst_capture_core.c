@@ -13,6 +13,7 @@
  * question the feature has to answer and a claim nobody times is prose.
  */
 #include "burst_capture/burst_capture_core.h"
+#include "cvt/cvt_core.h"
 #include "jm_bench.h"
 #include "pn/pn_core.h"
 
@@ -107,12 +108,19 @@ time_push (jm_bench_t *b, const char *name, const char *path,
   uint64_t t0, t1;
   for (int r = 0; r < ITERATIONS; r++)
     {
+      /* The preamble is the code's samples: bin_to_nrz, held SPC. */
+      static float nrz[ACQ_SF];
+      static float _Complex pre[ACQ_SF * SPC];
+      (void)bin_to_nrz (code, ACQ_SF, nrz, ACQ_SF);
+      for (size_t i = 0; i < ACQ_SF * SPC; i++)
+        pre[i] = nrz[i / SPC];
+      const double           fs = 1.0e6 * SPC;
       burst_capture_state_t *c
-          = path ? burst_capture_create_backed (path, code, ACQ_SF, BURST_LEN,
-                                                REPS, SPC, 1.0e6, 55.0, 0.0,
+          = path ? burst_capture_create_backed (path, pre, ACQ_SF * SPC,
+                                                BURST_LEN, REPS, fs, 55.0, 0.0,
                                                 1e-3, 0.9, 0, 0.0)
-                 : burst_capture_create (code, ACQ_SF, BURST_LEN, REPS, SPC,
-                                         1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
+                 : burst_capture_create (pre, ACQ_SF * SPC, BURST_LEN, REPS,
+                                         fs, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
       if (!c)
         return;
       t0 = jm_bench_now_ns ();

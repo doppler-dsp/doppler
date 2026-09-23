@@ -33,6 +33,7 @@ from pathlib import Path
 import numpy as np
 
 from doppler.dsss import BurstAcquisition
+from doppler.dsss.tests._preamble import code_preamble
 from doppler.tests._validation_common import Report, cli
 from doppler.wfm import PN, mls_poly
 
@@ -44,8 +45,7 @@ SPC = 4
 CHIP_RATE = 1.0e6
 BASE = {
     "reps": 8,
-    "spc": SPC,
-    "chip_rate": CHIP_RATE,
+    "fs": CHIP_RATE * SPC,
     # 55 dB-Hz: a design point the COHERENT ceiling meets at this depth
     # (D=6 of 8 predicts 0.935), so `cn0_dbhz` and `pd` each have somewhere
     # to move the grid. 45 sat here while a burst engine bought non-coherent
@@ -69,17 +69,16 @@ def _burst(code: np.ndarray, n_ep: int, roll: int = 0) -> np.ndarray:
     return np.tile(np.roll(s0, roll), n_ep).astype(np.complex64)
 
 
-def _make(**kw):
+def _make(spc: int = SPC, **kw):
+    """A burst engine over the code's samples, held ``spc`` a chip."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        return BurstAcquisition(_code(), **{**BASE, **kw})
+        return BurstAcquisition(code_preamble(_code(), spc), **{**BASE, **kw})
 
 
 def _derived(a) -> dict[str, object]:
     """Every construction-derived quantity the object publishes."""
     return {
-        "sf": a.sf,
-        "spc": a.spc,
         "fs": a.fs,
         "code_bins": a.code_bins,
         "reps": a.reps,
@@ -96,6 +95,10 @@ def _derived(a) -> dict[str, object]:
         # ladder the same way, and only the stored copy says which arrived.
         "cn0_dbhz": float(a.cn0_dbhz),
         "pd": float(a.pd),
+        # The same reason for the rate: it moves the depth like
+        # doppler_uncertainty does, and only its stored copy tells them
+        # apart (doppler#1482).
+        "doppler_rate": float(a.doppler_rate),
     }
 
 
@@ -127,7 +130,6 @@ class Data:
     warn_fires: bool = False
     warn_silent_when_ok: bool = False
     ident_rows: list[list[str]] = field(default_factory=list)
-    ident_sf: bool = False
     ident_fs: bool = False
     ident_code_bins: bool = False
     ident_span: bool = False
@@ -264,12 +266,17 @@ def _sec_forwarding(d: Data) -> None:
     base = _derived(_make())
     cases = [
         ("reps 8 -> 16", {"reps": 16}),
-        ("spc 4 -> 8", {"spc": 8}),
-        ("chip_rate 1 -> 2 MHz", {"chip_rate": 2.0e6}),
+        ("preamble held 4 -> 8 samples a chip", {"spc": 8}),
+        ("fs 4 -> 8 MHz", {"fs": 8.0e6}),
         ("cn0_dbhz 55 -> 60", {"cn0_dbhz": 60.0}),
         ("doppler_uncertainty 0 -> 40 kHz", {"doppler_uncertainty": 40e3}),
         ("pfa 1e-3 -> 1e-6", {"pfa": 1e-6}),
         ("pd 0.9 -> 0.99", {"pd": 0.99}),
+        # A rate whose drift cap is 3 repetitions (doppler#1482).
+        (
+            "doppler_rate 0 -> 42 MHz/s",
+            {"doppler_rate": (CHIP_RATE / SF) ** 2 / (2 * 3.5**2)},
+        ),
     ]
     rows, csv = [], []
     sigs = []
@@ -287,8 +294,9 @@ def _sec_forwarding(d: Data) -> None:
     d.every_param_moves = all_moved
     d.all_signatures_distinct = len(set(sigs)) == len(sigs)
     R.md(
-        f"All seven move something (**{d.every_param_moves}**), and all "
-        f"seven signatures are distinct (**{d.all_signatures_distinct}**) — "
+        f"All {len(cases)} move something (**{d.every_param_moves}**), and "
+        f"all {len(cases)} signatures are distinct "
+        f"(**{d.all_signatures_distinct}**) — "
         f"so no pair of arguments could be swapped without the table "
         f"changing. `pfa` and `pd` are the pair worth naming: both are "
         f"doubles in (0,1), and they move different things — `pfa` moves "
@@ -397,7 +405,7 @@ def _sec_warning(d: Data) -> None:
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         BurstAcquisition(
-            _code(),
+            code_preamble(_code(), SPC),
             **{**BASE, "reps": 2, "cn0_dbhz": 10.0},
         )
     d.warn_fires = any(
@@ -406,7 +414,7 @@ def _sec_warning(d: Data) -> None:
     with warnings.catch_warnings(record=True) as quiet:
         warnings.simplefilter("always")
         BurstAcquisition(
-            _code(),
+            code_preamble(_code(), SPC),
             **{**BASE, "reps": 8, "cn0_dbhz": 70.0},
         )
     d.warn_silent_when_ok = not any(
@@ -441,19 +449,18 @@ def _sec_identities(d: Data) -> None:
     )
     R.md()
     rows = []
-    sf_ok = fs_ok = cb_ok = span_ok = res_ok = bound_ok = True
+    fs_ok = cb_ok = span_ok = res_ok = bound_ok = True
     for reps, spc, cr in ((8, 4, 1.0e6), (16, 2, 3.0e6), (4, 8, 2.5e6)):
-        a = _make(reps=reps, spc=spc, chip_rate=cr, cn0_dbhz=50.0)
-        sf_ok &= a.sf == SF
-        fs_ok &= abs(a.fs - cr * spc) < 1e-6
-        cb_ok &= a.code_bins == SF * spc
-        span_ok &= abs(a.doppler_span_hz - cr / (2.0 * SF)) < 1e-6
-        res_ok &= abs(a.doppler_res_hz - cr / (SF * a.doppler_bins)) < 1e-6
+        fs, n = cr * spc, SF * spc
+        a = _make(spc=spc, reps=reps, fs=fs, cn0_dbhz=50.0)
+        fs_ok &= abs(a.fs - fs) < 1e-6
+        cb_ok &= a.code_bins == n
+        span_ok &= abs(a.doppler_span_hz - fs / (2.0 * n)) < 1e-6
+        res_ok &= abs(a.doppler_res_hz - fs / (n * a.doppler_bins)) < 1e-6
         bound_ok &= 1 <= a.doppler_bins <= reps
         rows.append(
             [
-                f"reps={reps}, spc={spc}, {cr / 1e6:g} Mcps",
-                str(a.sf),
+                f"reps={reps}, {n} samples, {fs / 1e6:g} MS/s",
                 f"{a.fs / 1e6:g}M",
                 str(a.code_bins),
                 f"{a.doppler_span_hz:.0f}",
@@ -463,7 +470,6 @@ def _sec_identities(d: Data) -> None:
     R.table(
         [
             "geometry",
-            "sf",
             "fs",
             "code_bins",
             "span (Hz)",
@@ -472,14 +478,14 @@ def _sec_identities(d: Data) -> None:
         rows,
     )
     d.ident_rows = rows
-    d.ident_sf, d.ident_fs, d.ident_code_bins = sf_ok, fs_ok, cb_ok
+    d.ident_fs, d.ident_code_bins = fs_ok, cb_ok
     d.ident_span, d.ident_res, d.ident_reps_bound = span_ok, res_ok, bound_ok
     R.md(
-        "`sf` is the code length, `fs` is `chip_rate * spc`, `code_bins` is "
-        "`sf * spc`, the native span is `chip_rate/(2*sf)`, the resolution "
-        "is `chip_rate/(sf * doppler_bins)`, and the coherent depth never "
-        "exceeds `reps`. Six identities over three geometries: a `spc` that "
-        "reached the `reps` slot, or a `chip_rate` that never arrived, "
+        "`fs` is the rate given, `code_bins` is the preamble's length `n`, "
+        "the native span is `fs/(2n)`, the resolution is "
+        "`fs/(n * doppler_bins)`, and the coherent depth never exceeds "
+        "`reps`. Five identities over three geometries: an `fs` that "
+        "reached the `reps` slot, or a preamble length that never arrived, "
         "breaks several of them at once."
     )
     R.md()
@@ -608,7 +614,7 @@ def limits(d: Data) -> None:
         "information",
     )
     R.limit(
-        len(d.fwd_rows) == 7,
+        len(d.fwd_rows) == 8,
         "the forwarding sweep covers every constructor argument, not a "
         "sample of them",
     )
@@ -617,18 +623,18 @@ def limits(d: Data) -> None:
         "every forwarded method has evidence the engine ACTED, not merely "
         "that the call returned",
     )
-    R.limit(d.ident_sf, "sf equals the supplied code length")
-    R.limit(d.ident_fs, "fs equals chip_rate * spc across three geometries")
+    R.limit(d.ident_fs, "fs equals the rate given, across three geometries")
     R.limit(
-        d.ident_code_bins, "code_bins equals sf * spc across three geometries"
+        d.ident_code_bins,
+        "code_bins equals the preamble's length across three geometries",
     )
     R.limit(
         d.ident_span,
-        "doppler_span_hz equals chip_rate/(2*sf) across three geometries",
+        "doppler_span_hz equals fs/(2n) across three geometries",
     )
     R.limit(
         d.ident_res,
-        "doppler_res_hz equals chip_rate/(sf * doppler_bins)",
+        "doppler_res_hz equals fs/(n * doppler_bins)",
     )
     R.limit(
         d.ident_reps_bound,

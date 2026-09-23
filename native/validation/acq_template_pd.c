@@ -3,7 +3,7 @@
  * @brief The Pd a TEMPLATE burst engine delivers, against the Pd it
  *        predicts (doppler#1470 phase 4 of the object lifecycle's Explore).
  *
- * acq_create_burst_template() searches any repeated complex preamble by its
+ * acq_create_burst() searches any repeated complex preamble by its
  * samples, and sizes itself from `pd_predicted` -- a model whose inputs for a
  * template (the zone, the band-limited delay straddle) are pinned against
  * closed forms in test_acq_core.c, but whose OUTPUT had never been measured
@@ -64,6 +64,7 @@
 #include "acq/acq_core.h"
 #include "awgn/awgn_core.h"
 #include "dp_complex.h"
+#include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include "fft/fft_core.h"
@@ -217,11 +218,13 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
   const size_t spc = 4, os = 4;
   const size_t n  = code ? 31 * spc : tp->n;
   const double fs = code ? 1.0e6 * (double)spc : FS_T;
-  acq_state_t *a  = dp_xnn (
-      code ? acq_create_burst (code, 31, gm->reps, spc, 1.0e6, cn0, 0.0, PFA,
-                               0.9, 0, gm->rate_arg)
-           : acq_create_burst_template (tp->t, n, gm->reps, fs, cn0, 0.0, PFA,
-                                        0.9, 0, gm->rate_arg));
+  /* The control's preamble is the code's samples (bin_to_nrz, held spc),
+     the way every burst engine is built now (doppler#1470). */
+  float _Complex *cpre = code ? dp_code_preamble (code, 31, spc) : NULL;
+  acq_state_t    *a
+      = dp_xnn (acq_create_burst (code ? cpre : tp->t, n, gm->reps, fs, cn0,
+                                  0.0, PFA, 0.9, 0, gm->rate_arg));
+  free (cpre);
   if (gm->pinned)
     pin (a);
   row_t r = { 0 };
@@ -307,8 +310,8 @@ cn0_for (const tmpl_t *tp, double target)
   for (int step = 0; step <= 280; step++)
     {
       double       c = 30.0 + 0.25 * (double)step;
-      acq_state_t *a = dp_xnn (acq_create_burst_template (
-          tp->t, tp->n, D, FS_T, c, 0.0, PFA, 0.9, 0, 0.0));
+      acq_state_t *a = dp_xnn (
+          acq_create_burst (tp->t, tp->n, D, FS_T, c, 0.0, PFA, 0.9, 0, 0.0));
       pin (a);
       double p = a->pd_predicted;
       acq_destroy (a);
@@ -349,9 +352,9 @@ drift_rows (const tmpl_t *zc, int check)
   double       cn0  = NAN;
   for (int step = 0; step <= 160; step++)
     {
-      double       c    = 70.0 - 0.25 * (double)step;
-      acq_state_t *a    = dp_xnn (acq_create_burst_template (
-          zc->t, zc->n, reps, FS_T, c, 0.0, PFA, 0.9, 0, 0.0));
+      double       c = 70.0 - 0.25 * (double)step;
+      acq_state_t *a = dp_xnn (acq_create_burst (zc->t, zc->n, reps, FS_T, c,
+                                                 0.0, PFA, 0.9, 0, 0.0));
       int          deep = a->coherent_bins >= 12 && !a->underpowered;
       acq_destroy (a);
       if (deep)

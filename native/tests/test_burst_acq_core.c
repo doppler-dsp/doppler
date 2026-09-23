@@ -10,6 +10,7 @@
  */
 #include "burst_acq/burst_acq_core.h"
 #include "dp_complex.h"
+#include "dp_preamble_test.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>
@@ -21,23 +22,26 @@ int
 main (void)
 {
 
-  /* NULL/zero-length code is rejected, same as acq_create_burst() itself. */
-  DP_CHECK (
-      burst_acq_create (NULL, 0, 1, 4, 1000000.0, 50.0, 0.0, 1e-3, 0.9, 0, 0.0)
-      == NULL);
+  /* A NULL/empty preamble is rejected, same as acq_create_burst() itself. */
+  DP_CHECK (burst_acq_create (NULL, 0, 1, 4.0e6, 50.0, 0.0, 1e-3, 0.9, 0, 0.0)
+            == NULL);
 
   const size_t spc   = 2;
   const size_t nx    = 7 * spc; /* code_bins = sf*spc = 14 */
   const double crate = 1.0e6;
 
-  burst_acq_state_t *obj = burst_acq_create (CODE7, 7, 8, spc, crate, 65.0,
-                                             0.0, 1e-2, 0.9, 0, 0.0);
+  float _Complex    *pre = dp_code_preamble (CODE7, 7, spc);
+  burst_acq_state_t *obj = burst_acq_create (pre, nx, 8, crate * (double)spc,
+                                             65.0, 0.0, 1e-2, 0.9, 0, 0.0);
+  free (pre);
   DP_CHECK (obj != NULL);
   if (!obj)
     return 1;
 
-  /* Noise-free burst at zero Doppler/code-phase -- exercises push()
-   * reaching the embedded engine. */
+  /* Noise-free burst at zero Doppler/code-phase, exactly one frame of it
+   * (coherent_bins periods) -- exercises push() reaching the embedded
+   * engine, one dump, one hit. */
+  const size_t    frame = obj->engine->coherent_bins * nx;
   float _Complex *burst = malloc (2 * nx * sizeof (float _Complex));
   DP_CHECK (burst != NULL);
   if (burst)
@@ -48,7 +52,7 @@ main (void)
           burst[k]     = (chip & 1u) ? -1.0f : 1.0f;
         }
       acq_result_t hits[4];
-      size_t       nh = burst_acq_push (obj, burst, 2 * nx, hits, 4);
+      size_t       nh = burst_acq_push (obj, burst, frame, hits, 4);
       DP_CHECK (nh == 1);
       if (nh == 1)
         {

@@ -134,10 +134,10 @@ The detector delivers **1.45x** the false-alarm rate it was configured for (+2.0
 
 | design point | `pd_predicted` | measured | +/- (1 sigma) | trials |
 |---|---|---|---|---|
-| D=8, 50 dB-Hz, full span | 0.632 | 0.740 | 0.025 | 300 |
+| D=8, 50 dB-Hz, full span | 0.690 | 0.740 | 0.025 | 300 |
 
 
-The model is conservative by +0.108. What remains is the H1 face of F7: the detector takes the maximum over an interpolated surface, and the Marcum form credits the on-grid cell only. That is the right side to err on for sizing, and it is the same mechanism doppler#1064 tracks on H0.
+The model is conservative by +0.050. What remains is the H1 face of F7: the detector takes the maximum over an interpolated surface, and the Marcum form credits the on-grid cell only. That is the right side to err on for sizing, and it is the same mechanism doppler#1064 tracks on H0.
 
 ### 2.7 The reported C/N0 tracks the injected one
 
@@ -159,7 +159,7 @@ Worst **1.92 dB** over three levels. The header is explicit that this saturates 
 |---|---|---|---|
 | mean | 2 | 24.8636 | 39.34 |
 | median | 2 | 17.8828 | 54.70 |
-| min | 2 | 0.4682 | 2089.39 |
+| min | 2 | 0.4682 | 2089.40 |
 | max | 0 | — | no detection |
 
 Dividing by the smallest reference cell is a far more optimistic detector than dividing by the largest, so `min` produces the biggest statistic and `max` the smallest — and at a given signal level `max` can legitimately suppress detection entirely. That is the point of offering the choice, and it is now asserted as an ordering rather than left to the default.
@@ -171,7 +171,7 @@ Dividing by the smallest reference cell is a far more optimistic detector than d
 | (0, 1) | refused |
 | (9, 1) | refused |
 | (4, 0) | refused |
-| grid after the refusals | (2, 1) — unchanged |
+| grid after the refusals | (1, 1) — unchanged |
 |  (4, 2) — in range | (4, 2) |
 
 Out-of-range arguments are refused **and the engine keeps its prior grid** — the failure mode that matters, because a partially reconfigured search would produce detections against a threshold ladder derived for a different cell count.
@@ -184,7 +184,7 @@ A reset mid-frame leaves the engine behaving like a fresh one (**True**), and a 
 
 | preamble | C/N0 | `pd_predicted` | measured | +/- (1 sigma) | gap | \|delay err\| | never optimistic? |
 |---|---|---|---|---|---|---|---|
-| code 31 x4 (ctl) | 50.00 | 0.632 | 0.729 | 0.008 | +0.097 | 0.41 | yes |
+| code 31 x4 (ctl) | 50.00 | 0.690 | 0.729 | 0.008 | +0.038 | 0.41 | yes |
 | Zadoff-Chu 127 | 42.75 | 0.326 | 0.354 | 0.009 | +0.027 | 0.85 | yes |
 | Zadoff-Chu 127 | 44.50 | 0.614 | 0.649 | 0.009 | +0.036 | 1.25 | yes |
 | Zadoff-Chu 127 | 47.00 | 0.911 | 0.947 | 0.004 | +0.035 | 2.61 | yes |
@@ -249,7 +249,7 @@ Claims a caller may rely on. A failure here is a regression, not a new finding. 
 | PASS | the searched reach (doppler_bins * doppler_res_hz / 2) covers the requested uncertainty at 0.5x, 0.95x, 2x and 4x the native span |
 | PASS | the native span is chip_rate/(2*sf), as documented |
 | PASS | the realized false-alarm rate stays inside its ratchet against the configured target -- a RATCHET, not a bound: it sits at ~1.8x today (F7, doppler#1064) and may only shrink |
-| PASS | `pd_predicted` describes the Pd delivered over the uniform prior: measured 0.74 against 0.63 predicted at D=8, 50 dB-Hz -- never optimistic (within 2 sigma of 300 trials), never more than 0.15 pessimistic (§2.6) |
+| PASS | `pd_predicted` describes the Pd delivered over the uniform prior: measured 0.74 against 0.69 predicted at D=8, 50 dB-Hz -- never optimistic (within 2 sigma of 300 trials), never more than 0.15 pessimistic (§2.6) |
 | PASS | the per-cell threshold rises with the searched cell count — a tighter uncertainty prior buys sensitivity, not just runtime |
 | PASS | `underpowered` is set when the link cannot meet the requested pd and clear when it can |
 | PASS | cn0_dbhz_est tracks an injected C/N0 to 1.92 dB across three levels inside the linear region |

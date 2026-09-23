@@ -16,7 +16,7 @@ serializable = "true"
 # rejects a parameter set that cannot build a capture. Same shape as
 # objects/dsss_burst_receiver.toml's.
 create_error = "ValueError"
-create_error_message = "BurstCapture: invalid parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0, burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)"
+create_error_message = "BurstCapture: invalid parameter (need a non-empty preamble with finite, non-zero energy, reps >= 1, fs > 0, burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)"
 # A search that cannot meet the requested `pd` still BUILDS, best-effort, and
 # then captures fewer bursts than arrived -- so the only symptom is a quiet
 # stream. Declared here rather than hand-patched: jm's condition must be a
@@ -40,10 +40,15 @@ depends_on = [
     # with. Bare, not link=true -- the test/bench need the symbol, the .so
     # does not.
     { name = "pn" },
+    # cvt: bin_to_nrz(), which the C test and bench map that code with.
+    { name = "cvt" },
 ]
 
 # ── Construction ─────────────────────────────────────────────────────────────
-# The acquisition geometry, plus the ONE thing acquisition does not have a
+# The preamble is its SAMPLES (doppler#1470): one period, repeated `reps`
+# times, at `fs` -- a chirp, Zadoff-Chu, shaped PSK, or a PN code mapped by
+# doppler.cvt.bin_to_nrz and held `spc` samples a chip (fs = chip_rate*spc).
+# Then the acquisition geometry, plus the ONE thing acquisition does not have a
 # notion of: how long a burst is. `acq_create_burst()` takes search parameters
 # only, and teaching it frame geometry to support refine would be wrong -- but
 # for a capture the burst length IS the parameter, because it is what gets
@@ -54,8 +59,8 @@ depends_on = [
 # look-back buffer is a caller handed a way to lose bursts silently.
 
 [[burst_capture.init_params]]
-name = "acq_code"
-type = "uint8_t[]"
+name = "preamble"
+type = "float _Complex[]"
 
 [[burst_capture.init_params]]
 name = "burst_len"
@@ -67,15 +72,12 @@ name = "reps"
 type = "size_t"
 default = "5"
 
+# 1 is normalized units: Doppler in cycles/sample, cn0_dbhz the per-sample
+# SNR in dB.
 [[burst_capture.init_params]]
-name = "spc"
-type = "size_t"
-default = "4"
-
-[[burst_capture.init_params]]
-name = "chip_rate"
+name = "fs"
 type = "double"
-default = "1000000.0"
+default = "1.0"
 
 [[burst_capture.init_params]]
 name = "cn0_dbhz"
@@ -130,11 +132,10 @@ class_name = "PersistentBurstCapture"
 create_fn = "burst_capture_create_backed"
 init_params = [
   { name = "path", type = "path", required = true },
-  { name = "acq_code", type = "uint8_t[]" },
+  { name = "preamble", type = "float _Complex[]" },
   { name = "burst_len", type = "size_t", default = "8192" },
   { name = "reps", type = "size_t", default = "5" },
-  { name = "spc", type = "size_t", default = "4" },
-  { name = "chip_rate", type = "double", default = "1000000.0" },
+  { name = "fs", type = "double", default = "1.0" },
   { name = "cn0_dbhz", type = "double", default_raw = "ACQ_CN0_NONE" },
   { name = "doppler_uncertainty", type = "double", default = "0.0" },
   { name = "pfa", type = "double", default = "1e-3" },
@@ -236,7 +237,7 @@ doc = "Folded/signed coarse Doppler estimate of the most recent window, Hz. Acqu
 [[burst_capture.properties]]
 name = "doppler_res_hz"
 type = "double"
-doc = "Acquisition's native Doppler bin width = chip_rate/(sf*coherent_bins), Hz. The width of doppler_hz_est: the estimate is that value +/- half of this."
+doc = "Acquisition's native Doppler bin width = fs/(len(preamble)*coherent_bins), Hz. The width of doppler_hz_est: the estimate is that value +/- half of this."
 
 [[burst_capture.properties]]
 name = "cn0_dbhz_est"
@@ -353,7 +354,7 @@ doc = "Non-coherent looks combined per decision. Above 1 the object needs that m
 [[burst_capture.properties]]
 name = "code_bins"
 type = "size_t"
-doc = "Code-phase hypotheses per Doppler row: one segment in samples, `sf * spc`."
+doc = "Delay hypotheses per Doppler row: one repetition of the preamble, in samples (len(preamble))."
 
 [[burst_capture.properties]]
 name = "doppler_span_hz"

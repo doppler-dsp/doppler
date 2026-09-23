@@ -122,10 +122,11 @@ stream by one period of the reference, correlates each repetition
 circularly, transforms the slow-time axis, and tiles wide uncertainty by
 whole-bin spectral rolls. All of that holds for **any periodic complex
 reference**. A code is the case whose samples come from chips.
-`acq_create_burst_template()` takes the samples themselves (#1470, #1478):
-one chip is one sample (`sf = n`, `spc = 1`, `chip_rate = fs`), so every path
-above runs unchanged, and `code_phase` is the delay into the repetition in
-samples.
+`acq_create_burst()` takes the samples themselves (#1470, #1478), and
+only the samples: a PN code is passed as its chips by `bin_to_nrz()`, held
+`spc` samples each. One chip is one sample (`sf = n`, `spc = 1`,
+`chip_rate = fs`), so every path above runs unchanged, and `code_phase` is
+the delay into the repetition in samples.
 
 **What the engine asks of the waveform** is two numbers about its
 autocorrelation `R`. A code has both analytically, from the triangle one chip
@@ -135,6 +136,15 @@ wide. A template gets both from one FFT at construction (`acq_shape_t`):
 | -------------- | --------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
 | `zone`         | the peak list's exclusion and the twin rule's reach | `spc`       | the first null: the first lag where `\|R\|` stops falling by more than 1e-6·R(0) |
 | delay straddle | the Pd model's half-sample prior                    | `1 − δ/spc` | band-limited `\|R(δ)\|/R(0)`; an even length's Nyquist bin contributes `cos(πδ)` |
+
+**A burst engine uses the right-hand column for everything, codes
+included.** The "a code" column is an ideal rectangular pulse's: continuous
+chips correlated against each other. A sampled, band-limited chain never sees
+that, and against acq §2.6's rectangular-chip Monte-Carlo the triangle's
+delay straddle under-predicted Pd by 0.03–0.10 at 4 samples a chip and up to
+0.40 at 1. The samples model sits at +0.00 to +0.08, never optimistic, over
+8000 trials a point. Only the continuous engine, which still takes chips,
+keeps the analytic column (#1495).
 
 The two agree where they should. A 31-chip code handed over as samples gets
 zone 4 = `spc`. A 7-chip code honestly gets 3, because its sidelobe floor

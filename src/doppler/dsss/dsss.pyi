@@ -2064,23 +2064,23 @@ class Acquisition:
 
 @final
 class BurstAcquisition:
-    """Build a BurstAcquisition from a PN code OR a preamble's samples -- the
-    one Python constructor, dispatched on the first array's dtype.
+    """Create a burst-mode acquisition engine for any repeated preamble, given
+    as its samples (forwards to acq_create_burst() -- see its doc comment in
+    acq_core.h for the full physics).
 
     Parameters
     ----------
-    code : NDArray[np.uint8]
-        The preamble: PN chips (uint8, 0/1) or its samples (complex64), one
-        period.
+    preamble : NDArray[np.complex64]
+        One period of the preamble, preamble_len samples; not all zero, every
+        sample finite.
     reps : int, default 1
         Max coherent repetitions (>= 1).
-    spc : int, default 4
-        Samples per chip (>= 1); a code only.
-    chip_rate : float, default 1000000.0
-        Chip rate in Hz (> 0); a code only.
+    fs : float, default 1.0
+        Sample rate in Hz (> 0); 1 for normalized units.
     cn0_dbhz : float
-        Design carrier-to-noise density in dB-Hz: any finite value, or NaN
-        (ACQ_CN0_NONE) for no design point -- size for the whole preamble.
+        Design carrier-to-noise density in dB-Hz, of the preamble's mean power:
+        any finite value, or NaN (ACQ_CN0_NONE) for no design point -- size for
+        the whole preamble.
     doppler_uncertainty : float, default 0.0
         One-sided Doppler search half-range in Hz.
     pfa : float, default 1e-3
@@ -2089,8 +2089,6 @@ class BurstAcquisition:
         Target detection probability (0,1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         CFAR mode index: 0=mean, 1=median, 2=min, 3=max.
-    fs : float, default 1.0
-        Sample rate in Hz (> 0); a preamble's samples only.
     doppler_rate : float, default 0.0
         Doppler rate in Hz/s (>= 0) that caps the coherent depth at
         `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no
@@ -2100,10 +2098,9 @@ class BurstAcquisition:
     ------
     ValueError
         If construction fails. The exception message is ``BurstAcquisition:
-        invalid parameter (need a non-empty code, reps >= 1, spc >= 1,
-        chip_rate > 0, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty >=
-        0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1; a preamble needs finite,
-        non-zero energy)``.
+        invalid parameter (need a non-empty preamble with finite, non-zero
+        energy, reps >= 1, fs > 0, cn0_dbhz finite or NaN, doppler_uncertainty
+        >= 0, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)``.
 
     Warns
     -----
@@ -2116,43 +2113,42 @@ class BurstAcquisition:
     Examples
     --------
     >>> import numpy as np
+    >>> from doppler.cvt import bin_to_nrz
     >>> from doppler.dsss import BurstAcquisition
     >>> from doppler.wfm import PN, mls_poly
     >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
     ...                      length=5).generate(31)).astype(np.uint8)
-    >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
-    ...     np.complex64)
-    >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
-    >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
-    ...                      cn0_dbhz=50.0)
-    >>> b.push(burst)[0][:2]      # detects (Doppler bin, code phase)
+    >>> nrz = np.zeros(31, np.float32)
+    >>> _ = bin_to_nrz(code & 1, nrz)
+    >>> s0 = np.repeat(nrz, 4).astype(np.complex64)    # 4 samples a chip
+    >>> burst = np.tile(np.roll(s0, 17), 24)
+    >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+    >>> b.push(burst)[0][:2]      # detects (Doppler bin, delay in samples)
     (0, 17)
 
-    The same object searches any repeated preamble by its samples -- here
-    a 127-sample Zadoff-Chu sequence, in normalized units:
+    Any repeated preamble is searched the same way -- here a 127-sample
+    Zadoff-Chu sequence, in normalized units:
 
     >>> k = np.arange(127)
     >>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(
     ...     np.complex64)
     >>> z = BurstAcquisition(zc, reps=8)
-    >>> z.sf, z.spc                # one chip is one sample
-    (127, 1)
+    >>> z.code_bins                # samples per repetition
+    127
     >>> z.push(np.tile(np.roll(zc, 40), 10))[0][:2]
     (0, 40)
 
     """
     def __init__(
         self,
-        code: NDArray[np.uint8],
+        preamble: NDArray[np.complex64],
         reps: int = 1,
-        spc: int = 4,
-        chip_rate: float = 1000000.0,
+        fs: float = 1.0,
         cn0_dbhz: float = ...,
         doppler_uncertainty: float = 0.0,
         pfa: float = 1e-3,
         pd: float = 0.9,
         noise_mode: Literal["mean", "median", "min", "max"] = "mean",
-        fs: float = 1.0,
         doppler_rate: float = 0.0,
     ) -> None: ...
 
@@ -2174,11 +2170,10 @@ class BurstAcquisition:
         >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
         ...     np.complex64)
         >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
-        >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
-        ...                      cn0_dbhz=50.0)
+        >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
         >>> _ = b.push(burst[:100])   # a partial frame, buffered mid-stream
         >>> b.reset()                 # drop it before it can bias a detection
-        >>> b.push(burst)[0][:2]      # (Doppler bin, code phase)
+        >>> b.push(burst)[0][:2]      # (Doppler bin, delay in samples)
         (0, 17)
 
         """
@@ -2214,9 +2209,8 @@ class BurstAcquisition:
         >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
         ...     np.complex64)
         >>> burst = np.tile(np.roll(s0, 17), 24).astype(np.complex64)
-        >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
-        ...                      cn0_dbhz=50.0)
-        >>> b.push(burst)[0][:2]      # (Doppler bin, code phase)
+        >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
+        >>> b.push(burst)[0][:2]      # (Doppler bin, delay in samples)
         (0, 17)
 
         """
@@ -2264,8 +2258,7 @@ class BurstAcquisition:
         ...                      length=5).generate(31)).astype(np.uint8)
         >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
         ...     np.complex64)
-        >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
-        ...                      cn0_dbhz=50.0)
+        >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
         >>> b.configure_search_raw(doppler_bins=4, n_noncoh=2)  # pin the grid
         >>> b.doppler_bins, b.n_noncoh
         (4, 2)
@@ -2313,8 +2306,9 @@ class BurstAcquisition:
         >>> import numpy as np
         >>> from doppler.dsss import BurstAcquisition
         >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
-        >>> b = BurstAcquisition(code, reps=8, spc=4, chip_rate=1e6,
-        ...                      cn0_dbhz=50.0)
+        >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
+        ...     np.complex64)
+        >>> b = BurstAcquisition(s0, reps=8, fs=4e6, cn0_dbhz=50.0)
         >>> b.set_max_peaks(4)
         >>> b.max_peaks
         4
@@ -2384,8 +2378,8 @@ class BurstAcquisition:
 
     @property
     def code_bins(self) -> int:
-        """Delay hypotheses searched: one repetition in samples (= sf*spc; a
-        preamble's length).
+        """Delay hypotheses searched: one repetition of the preamble, in
+        samples (len(preamble)).
         """
 
     @property
@@ -2395,16 +2389,6 @@ class BurstAcquisition:
         case this reports the wideband window-tile count instead (coherent
         depth forced to 1 -- see acq_core.h's file doc comment).
         """
-
-    @property
-    def sf(self) -> int:
-        """Chips per repetition, from len(code); for a preamble, its length in
-        samples (one chip is one sample).
-        """
-
-    @property
-    def spc(self) -> int:
-        """Samples per chip (chip-rate oversample factor); 1 for a preamble."""
 
     @property
     def reps(self) -> int:
@@ -2465,9 +2449,7 @@ class BurstAcquisition:
 
     @property
     def fs(self) -> float:
-        """Sample rate (Hz) = chip_rate * spc; for a preamble, the fs it was
-        given.
-        """
+        """Sample rate (Hz) the preamble was given at."""
 
     @property
     def doppler_rate(self) -> float:
@@ -2476,20 +2458,18 @@ class BurstAcquisition:
         """
 
     @property
-    def chip_rate(self) -> float:
-        """Chip rate (Hz); for a preamble, equal to fs."""
-
-    @property
     def cn0_dbhz(self) -> float:
         """Carrier-to-noise density used to size the search (dB-Hz)."""
 
     @property
     def doppler_span_hz(self) -> float:
-        """Native unambiguous Doppler half-range = +/- chip_rate/(2*sf) Hz."""
+        """Native unambiguous Doppler half-range = +/- fs/(2*len(preamble))
+        Hz.
+        """
 
     @property
     def doppler_res_hz(self) -> float:
-        """Doppler bin width = chip_rate/(sf*doppler_bins) Hz."""
+        """Doppler bin width = fs/(len(preamble)*doppler_bins) Hz."""
 
     @property
     def pd(self) -> float:
@@ -3181,19 +3161,18 @@ class BurstCapture:
 
     Parameters
     ----------
-    acq_code : NDArray[np.uint8]
-        Preamble PN chips (0/1), length acq_code_len.
+    preamble : NDArray[np.complex64]
+        One period of the preamble, preamble_len samples; not all zero, every
+        sample finite. Read, not kept.
     burst_len : int, default 8192
         Samples in one burst -- what gets captured.
     reps : int, default 5
-        Preamble code repetitions.
-    spc : int, default 4
-        Samples per chip.
-    chip_rate : float, default 1000000.0
-        Chip rate, Hz.
+        Preamble repetitions (>= 1).
+    fs : float, default 1.0
+        Sample rate, Hz (> 0); 1 for normalized units.
     cn0_dbhz : float
-        C/N0 the search is sized for, dB-Hz: any finite value, or NaN
-        (ACQ_CN0_NONE) for no design point.
+        C/N0 the search is sized for, dB-Hz, of the preamble's mean power: any
+        finite value, or NaN (ACQ_CN0_NONE) for no design point.
     doppler_uncertainty : float, default 0.0
         Doppler search half-range, Hz (0 = native).
     pfa : float, default 1e-3
@@ -3211,9 +3190,9 @@ class BurstCapture:
     ------
     ValueError
         If construction fails. The exception message is ``BurstCapture: invalid
-        parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0,
-        burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >= 0, 0 < pfa < 1,
-        0 < pd < 1)``.
+        parameter (need a non-empty preamble with finite, non-zero energy, reps
+        >= 1, fs > 0, burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >=
+        0, 0 < pfa < 1, 0 < pd < 1)``.
 
     Warns
     -----
@@ -3229,7 +3208,8 @@ class BurstCapture:
     >>> import numpy as np
     >>> from doppler.dsss import BurstCapture
     >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-    >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+    >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+    >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
     >>> cap.burst_len
     512
     >>> cap.retain_span == cap.refine_span + cap.burst_len
@@ -3238,11 +3218,10 @@ class BurstCapture:
     """
     def __init__(
         self,
-        acq_code: NDArray[np.uint8],
+        preamble: NDArray[np.complex64],
         burst_len: int = 8192,
         reps: int = 5,
-        spc: int = 4,
-        chip_rate: float = 1000000.0,
+        fs: float = 1.0,
         cn0_dbhz: float = ...,
         doppler_uncertainty: float = 0.0,
         pfa: float = 1e-3,
@@ -3294,7 +3273,8 @@ class BurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
         >>> win.size % cap.burst_len        # whole windows, never a partial
         0
@@ -3363,7 +3343,8 @@ class BurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
         >>> # what the search found, against what became a burst
         >>> len(cap.detections()) >= len(cap.events())
@@ -3418,7 +3399,8 @@ class BurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
         >>> len(cap.events()) == win.size // cap.burst_len
         True
@@ -3473,7 +3455,8 @@ class BurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> cap.configure_search_raw(4, 1)   # 4 Doppler bins, coherent only
 
         """
@@ -3521,7 +3504,8 @@ class BurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
         >>> cap.release(0)   # no window 0 in a quiet push
         Traceback (most recent call last):
@@ -3546,7 +3530,8 @@ class BurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> cap.push(np.zeros(4096, dtype=np.complex64)).size
         0
         >>> cap.reset()
@@ -3627,7 +3612,7 @@ class BurstCapture:
     @property
     def doppler_res_hz(self) -> float:
         """Acquisition's native Doppler bin width =
-        chip_rate/(sf*coherent_bins), Hz. The width of doppler_hz_est: the
+        fs/(len(preamble)*coherent_bins), Hz. The width of doppler_hz_est: the
         estimate is that value +/- half of this.
         """
 
@@ -3745,8 +3730,8 @@ class BurstCapture:
 
     @property
     def code_bins(self) -> int:
-        """Code-phase hypotheses per Doppler row: one segment in samples, `sf *
-        spc`.
+        """Delay hypotheses per Doppler row: one repetition of the preamble, in
+        samples (len(preamble)).
         """
 
     @property
@@ -3831,16 +3816,14 @@ class PersistentBurstCapture:
     ----------
     path : str | os.PathLike
         File to back the ring with; not NULL and not empty.
-    acq_code : NDArray[np.uint8]
-        Preamble PN chips (0/1), length acq_code_len.
+    preamble : NDArray[np.complex64]
+        One period of the preamble, preamble_len samples.
     burst_len : int, default 8192
         Samples in one burst -- what gets captured.
     reps : int, default 5
-        Preamble code repetitions.
-    spc : int, default 4
-        Samples per chip.
-    chip_rate : float, default 1000000.0
-        Chip rate, Hz.
+        Preamble repetitions (>= 1).
+    fs : float, default 1.0
+        Sample rate, Hz (> 0).
     cn0_dbhz : float
         C/N0 the search is sized for, dB-Hz: any finite value, or NaN
         (ACQ_CN0_NONE) for no design point.
@@ -3861,9 +3844,9 @@ class PersistentBurstCapture:
     ------
     ValueError
         If construction fails. The exception message is ``BurstCapture: invalid
-        parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0,
-        burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >= 0, 0 < pfa < 1,
-        0 < pd < 1)``.
+        parameter (need a non-empty preamble with finite, non-zero energy, reps
+        >= 1, fs > 0, burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >=
+        0, 0 < pfa < 1, 0 < pd < 1)``.
 
     Warns
     -----
@@ -3879,10 +3862,11 @@ class PersistentBurstCapture:
     >>> import numpy as np, tempfile, os
     >>> from doppler.dsss import BurstCapture, PersistentBurstCapture
     >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
+    >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
     >>> path = os.path.join(tempfile.mkdtemp(), "ring.cf32")
-    >>> cap = PersistentBurstCapture(path, code, burst_len=512,
-    ...                             reps=4, spc=2)
-    >>> ram = BurstCapture(code, burst_len=512, reps=4, spc=2)
+    >>> cap = PersistentBurstCapture(path, pre, burst_len=512,
+    ...                             reps=4, fs=2e6)
+    >>> ram = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
     >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
     >>> # the look-back is in the file, so the blob stops carrying it
     >>> ram.state_bytes() - cap.state_bytes() == ram.retain_span * 8
@@ -3894,11 +3878,10 @@ class PersistentBurstCapture:
     def __init__(
         self,
         path: str | os.PathLike,
-        acq_code: NDArray[np.uint8],
+        preamble: NDArray[np.complex64],
         burst_len: int = 8192,
         reps: int = 5,
-        spc: int = 4,
-        chip_rate: float = 1000000.0,
+        fs: float = 1.0,
         cn0_dbhz: float = ...,
         doppler_uncertainty: float = 0.0,
         pfa: float = 1e-3,
@@ -3950,7 +3933,8 @@ class PersistentBurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
         >>> win.size % cap.burst_len        # whole windows, never a partial
         0
@@ -4019,7 +4003,8 @@ class PersistentBurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
         >>> # what the search found, against what became a burst
         >>> len(cap.detections()) >= len(cap.events())
@@ -4074,7 +4059,8 @@ class PersistentBurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> win = cap.push(np.zeros(4096, dtype=np.complex64))
         >>> len(cap.events()) == win.size // cap.burst_len
         True
@@ -4129,7 +4115,8 @@ class PersistentBurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> cap.configure_search_raw(4, 1)   # 4 Doppler bins, coherent only
 
         """
@@ -4177,7 +4164,8 @@ class PersistentBurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> _ = cap.push(np.zeros(4096, dtype=np.complex64))
         >>> cap.release(0)   # no window 0 in a quiet push
         Traceback (most recent call last):
@@ -4202,7 +4190,8 @@ class PersistentBurstCapture:
         >>> import numpy as np
         >>> from doppler.dsss import BurstCapture
         >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
-        >>> cap = BurstCapture(code, burst_len=512, reps=4, spc=2)
+        >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
+        >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
         >>> cap.push(np.zeros(4096, dtype=np.complex64)).size
         0
         >>> cap.reset()
@@ -4286,7 +4275,7 @@ class PersistentBurstCapture:
     @property
     def doppler_res_hz(self) -> float:
         """Acquisition's native Doppler bin width =
-        chip_rate/(sf*coherent_bins), Hz. The width of doppler_hz_est: the
+        fs/(len(preamble)*coherent_bins), Hz. The width of doppler_hz_est: the
         estimate is that value +/- half of this.
         """
 
@@ -4404,8 +4393,8 @@ class PersistentBurstCapture:
 
     @property
     def code_bins(self) -> int:
-        """Code-phase hypotheses per Doppler row: one segment in samples, `sf *
-        spc`.
+        """Delay hypotheses per Doppler row: one repetition of the preamble, in
+        samples (len(preamble)).
         """
 
     @property

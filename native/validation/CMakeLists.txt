@@ -487,6 +487,20 @@ dp_gnu_compile_options(validate_acq_peak_list PRIVATE -O3 -funroll-loops)
 add_test(NAME validate_acq_peak_list
          COMMAND validate_acq_peak_list --check)
 
+# The Pd a TEMPLATE burst engine delivers against the Pd it predicts
+# (doppler#1470): four kinds of repeated preamble at three design points
+# each, acq's §2.6 method, with the code as the control row. Noise from the
+# shipped awgn; native/tests for dp_test.h and dp_rng_test.h only.
+add_executable(validate_acq_template_pd
+               ${CMAKE_CURRENT_SOURCE_DIR}/acq_template_pd.c)
+target_include_directories(validate_acq_template_pd
+                           PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+                                   ${CMAKE_SOURCE_DIR}/native/tests)
+target_link_libraries(validate_acq_template_pd PRIVATE doppler_lib_static ${DP_MATH_LIBRARY})
+dp_gnu_compile_options(validate_acq_template_pd PRIVATE -O3 -funroll-loops)
+add_test(NAME validate_acq_template_pd
+         COMMAND validate_acq_template_pd --check)
+
 # The pool's lifecycle soak: emitters from the shipped synth with its
 # window, each through the shipped doppler_channel at its own Doppler,
 # arriving and leaving at the sum; one AsyncDsssPool at the operating point

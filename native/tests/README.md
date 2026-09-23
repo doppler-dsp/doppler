@@ -10,7 +10,7 @@ shared parts live in the `dp_*_test.h` family rather than in each file.
 | ----------------- | ---------------------------------------------------------------- |
 | `dp_test.h`       | **assertions, the counters, the epilogue** — everything below    |
 | `dp_rng_test.h`   | **randomness**: the generator, the uniforms, the Gaussians       |
-| `dp_state_test.h` | the serialize → restore → reject-a-clobbered-blob round trip     |
+| `dp_state_test.h` | the serialize → restore → reject round trip; every byte written  |
 | `dp_tx_test.h`    | stimulus: one shaped symbol stream, one place                    |
 | `dp_dsss_test.h`  | stimulus: the code-spread BPSK capture, fixed or ramped          |
 | `dp_sym_test.h`   | truth-free symbol-quality verdicts for receiver tests            |
@@ -245,6 +245,15 @@ three was visible to review; the other two were found by counting.
 Deliberate removals go in `native/tests/.assertion-ratchet-ignore` with a
 reason. Deleting a whole file needs no entry: a deletion is visible in the
 diff, which is exactly what the silent case is not.
+
+**Every serializable object takes the shared round trip.** An object whose
+header declares `int <p>_set_state (` must have a C test calling
+`DP_STATE_ROUNDTRIP_TEST (<p>, a, b)`, which is what checks fidelity, the
+envelope reject, and that `get_state` writes every byte of the blob it sizes.
+That last check is new: `acq`'s hand-written round trips `memcmp`'d two fresh
+`malloc`s, which agree on zeroed pages, so its unwritten ring tail went unseen
+(doppler#1471). The 30 objects outside the macro when the rule arrived are in
+`scripts/.state-roundtrip-ratchet`, which may only shrink (doppler#1475).
 
 ## The one exception
 

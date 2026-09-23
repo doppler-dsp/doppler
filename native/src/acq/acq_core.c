@@ -2194,6 +2194,10 @@ acq_get_state (const acq_state_t *st, void *blob)
       size_t idx = (t + i) & st->ring->mask;
       dst[i]     = st->ring->data[idx * 2] + I * st->ring->data[idx * 2 + 1];
     }
+  /* The region is sized for a full ring and only `nun` of it is state; the
+     rest is zeroed, or the blob carries whatever the caller's buffer held
+     (doppler#1471) -- and set_state reads only the first `nun` anyway. */
+  memset (dst + nun, 0, (st->ring_cap - nun) * sizeof (float _Complex));
   if (ex.has_nc)
     memcpy (acq_state_nc (blob, st->ring_cap), st->nc_surface,
             st->n_surf * sizeof (float));

@@ -38,6 +38,20 @@
  * by `create()`), and `b` is required to be a fresh object of the SAME config,
  * so two objects in the same state must serialize identically.
  */
+/*
+ * The DETERMINISM half was missing too (doppler#1471).
+ *
+ * The fidelity check compares two blobs from two fresh `malloc`s, and a fresh
+ * allocation is usually a zeroed page -- so a `get_state` that left bytes of
+ * its own blob unwritten produced two identical, all-zero gaps and passed.
+ * acq_get_state did exactly that with its ring's unused tail: the blob's
+ * bytes depended on whatever the caller's buffer held, and a blob shipped to
+ * another pod carried that heap along with it.
+ *
+ * So both buffers are FILLED first, with two different patterns, and `a` is
+ * serialized into both. Every byte `get_state` owns must then agree; a byte
+ * it skipped still holds 0xA5 in one and 0x5A in the other.
+ */
 #define DP_STATE_ROUNDTRIP_TEST(pfx, a, b)                                    \
   do                                                                          \
     {                                                                         \
@@ -45,7 +59,14 @@
       void  *_blob = malloc (_cb);                                            \
       void  *_back = malloc (_cb);                                            \
       DP_CHECK (_blob != NULL && _back != NULL);                              \
+      memset (_blob, 0xA5, _cb);                                              \
+      memset (_back, 0x5A, _cb);                                              \
       pfx##_get_state ((a), _blob);                                           \
+      pfx##_get_state ((a), _back);                                           \
+      /* Determinism: every byte of the blob is written, whatever the         \
+         buffer held before. */                                               \
+      DP_CHECK (memcmp (_blob, _back, _cb) == 0);                             \
+      memset (_back, 0x5A, _cb);                                              \
       DP_CHECK (pfx##_set_state ((b), _blob) == DP_OK);                       \
       /* Fidelity: b must now BE a, which it re-serializing identically is    \
          the object-agnostic way to say. */                                   \

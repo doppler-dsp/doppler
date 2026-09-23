@@ -566,6 +566,88 @@ def generators() -> list[str]:
     return bad
 
 
+#: A RATCHET: it may only shrink. See state_roundtrips().
+STATE_RATCHET = ROOT / "scripts" / ".state-roundtrip-ratchet"
+INC = ROOT / "native" / "inc"
+SET_STATE = re.compile(r"\bint\s+(\w+)_set_state\s*\(")
+ROUNDTRIP = re.compile(r"\bDP_STATE_ROUNDTRIP_TEST\s*\(\s*(\w+)\s*,")
+
+
+def serializable() -> set[str]:
+    """Every prefix whose public header declares `int <p>_set_state (`."""
+    found: set[str] = set()
+    for h in sorted(INC.rglob("*.h")):
+        found.update(SET_STATE.findall(strip_comments(h.read_text())))
+    return found
+
+
+def roundtripped() -> set[str]:
+    """Every prefix a C test hands to the shared round trip."""
+    found: set[str] = set()
+    for path in sources():
+        if path.suffix == ".c":
+            found.update(ROUNDTRIP.findall(strip_comments(path.read_text())))
+    return found
+
+
+def state_ratchet() -> dict[str, str]:
+    held: dict[str, str] = {}
+    if STATE_RATCHET.exists():
+        for raw in STATE_RATCHET.read_text().splitlines():
+            line = raw.strip()
+            if line and not line.startswith("#"):
+                key, _, reason = line.partition("|")
+                held[key.strip()] = reason.strip()
+    return held
+
+
+def state_roundtrips() -> list[str]:
+    """Every serializable object is tested by the shared round trip.
+
+    `DP_STATE_ROUNDTRIP_TEST` is where the state standard's claims are
+    checked -- fidelity, the envelope reject, and (doppler#1471) that
+    `get_state` writes EVERY byte of the blob it sizes. A check in a shared
+    macro is only a gate for the objects that call it, and nothing required
+    one to: acq's own round trips were hand-written, so the macro never saw
+    the engine whose blob carried an unwritten ring tail -- the caller's
+    heap, shipped along with the state to whichever pod restored it.
+
+    Both sides are derived, nothing is registered: an object is serializable
+    when its header declares `int <p>_set_state (`, and covered when a C test
+    calls `DP_STATE_ROUNDTRIP_TEST (<p>, ...)`. What was uncovered when the
+    rule arrived is ratcheted with a reason; the list may only shrink, and an
+    entry that is covered, or no longer serializable, fails as stale.
+    """
+    have = serializable()
+    if not have:
+        return [
+            f"found no `int <p>_set_state (` in {INC.relative_to(ROOT)} -- "
+            "the scan did not run, so it has not passed"
+        ]
+    covered = roundtripped()
+    held = state_ratchet()
+    bad: list[str] = []
+    for p in sorted(have - covered - set(held)):
+        bad.append(
+            f"{p}: serializable ({p}_set_state) but no C test calls "
+            f"DP_STATE_ROUNDTRIP_TEST ({p}, ...) -- the shared round trip "
+            "is what proves fidelity, the envelope reject and that every "
+            "byte of the blob is written."
+        )
+    for p in sorted(set(held) & covered):
+        bad.append(
+            f"{STATE_RATCHET.relative_to(ROOT)}: '{p}' is now under "
+            "DP_STATE_ROUNDTRIP_TEST -- the ratchet went stale. Delete the "
+            "line."
+        )
+    for p in sorted(set(held) - have):
+        bad.append(
+            f"{STATE_RATCHET.relative_to(ROOT)}: '{p}' declares no "
+            "_set_state -- the ratchet went stale. Delete the line."
+        )
+    return bad
+
+
 IGNORE = TESTS / ".assertion-ratchet-ignore"
 
 # What counts as an assertion, on either side of the migration. Both sets are
@@ -891,6 +973,7 @@ def main() -> int:
     bad += generators()
     bad += double_draws()
     bad += unreported_checks()
+    bad += state_roundtrips()
 
     if bad:
         print("check_tests_ssot: the shared harness is the single definition.")
@@ -947,6 +1030,12 @@ def main() -> int:
             if held
             else ", and none held on the ratchet"
         )
+    )
+    have = serializable()
+    print(
+        f"  state: {len(have)} serializable object(s), "
+        f"{len(have & roundtripped())} under DP_STATE_ROUNDTRIP_TEST, "
+        f"{len(state_ratchet())} ratcheted (may only shrink)"
     )
     if base:
         print(f"  assertions: no file lost any vs the merge base with {base}")

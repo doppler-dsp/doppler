@@ -1,0 +1,43 @@
+# Ratchet for scripts/check_tests_ssot.py's state round-trip rule.
+#
+# One serializable object per line (its `<p>_set_state` prefix), each with a
+# reason, whose C test does not yet call DP_STATE_ROUNDTRIP_TEST.
+#
+# THIS LIST MAY ONLY SHRINK. The shared round trip is where the state
+# standard's claims are checked -- fidelity, the envelope reject, and that
+# get_state writes EVERY byte of the blob (doppler#1471: acq's hand-written
+# round trips never saw its unwritten ring tail). A new serializable object
+# goes under the macro; it does not go on this list.
+#
+# An entry that is now covered, or no longer serializable, is a FAILURE: the
+# list went stale. Burn-down: doppler#1475.
+HalfbandDecimator | predates the rule; determinism unchecked (#1475)
+RateConverter | predates the rule; determinism unchecked (#1475)
+Resampler | predates the rule; determinism unchecked (#1475)
+async_dsss_pool | predates the rule; determinism unchecked (#1475)
+awgn | predates the rule; determinism unchecked (#1475)
+ber_meter | predates the rule; determinism unchecked (#1475)
+boxcar | predates the rule; determinism unchecked (#1475)
+burst_acq | predates the rule; determinism unchecked (#1475)
+carrier_mpsk | predates the rule; determinism unchecked (#1475)
+carrier_nda | predates the rule; determinism unchecked (#1475)
+cic | predates the rule; determinism unchecked (#1475)
+conv_enc | predates the rule; determinism unchecked (#1475)
+costas | predates the rule; determinism unchecked (#1475)
+ddc | predates the rule; determinism unchecked (#1475)
+ddcr | predates the rule; determinism unchecked (#1475)
+dsss_burst_receiver | predates the rule; determinism unchecked (#1475)
+dsss_receiver | predates the rule; determinism unchecked (#1475)
+fir | predates the rule; determinism unchecked (#1475)
+frame_meter | predates the rule; determinism unchecked (#1475)
+gold | predates the rule; determinism unchecked (#1475)
+hbdecim | predates the rule; determinism unchecked (#1475)
+hbdecim_r2c | predates the rule; determinism unchecked (#1475)
+lockdet | predates the rule; determinism unchecked (#1475)
+loop_filter | predates the rule; determinism unchecked (#1475)
+mpsk_rx_loops | predates the rule; determinism unchecked (#1475)
+nco | predates the rule; determinism unchecked (#1475)
+pn | predates the rule; determinism unchecked (#1475)
+ratesync | predates the rule; determinism unchecked (#1475)
+ratesync_loop | predates the rule; determinism unchecked (#1475)
+resamp | predates the rule; determinism unchecked (#1475)

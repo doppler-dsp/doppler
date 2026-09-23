@@ -62,9 +62,9 @@ _bind_int_to_bin (PyObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *out     = (uint8_t *)PyArray_DATA (out_arr);
   size_t   out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t   _r      = int_to_bin (v, n_bits, out, out_len, bitorder);
   Py_DECREF (out_arr);
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)int_to_bin (v, n_bits, out, out_len, bitorder));
+  return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
 }
 
 static PyObject *
@@ -97,9 +97,9 @@ _bind_hex_to_bin (PyObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *out     = (uint8_t *)PyArray_DATA (out_arr);
   size_t   out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t   _r      = hex_to_bin (hex, out, out_len, bitorder);
   Py_DECREF (out_arr);
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)hex_to_bin (hex, out, out_len, bitorder));
+  return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
 }
 
 static PyObject *
@@ -120,9 +120,9 @@ _bind_bin_to_int (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *bits     = (const uint8_t *)PyArray_DATA (bits_arr);
   size_t         bits_len = (size_t)PyArray_SIZE (bits_arr);
+  uint64_t       _r       = bin_to_int (bits, bits_len, bitorder);
   Py_DECREF (bits_arr);
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)bin_to_int (bits, bits_len, bitorder));
+  return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
 }
 
 static PyObject *
@@ -165,10 +165,10 @@ _bind_bin_to_hex (PyObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *out     = (uint8_t *)PyArray_DATA (out_arr);
   size_t   out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t   _r      = bin_to_hex (bits, bits_len, out, out_len, bitorder);
   Py_DECREF (bits_arr);
   Py_DECREF (out_arr);
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)bin_to_hex (bits, bits_len, out, out_len, bitorder));
+  return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
 }
 
 static PyObject *
@@ -210,10 +210,10 @@ _bind_bin_to_nrz (PyObject *self, PyObject *args, PyObject *kwds)
     }
   float *out     = (float *)PyArray_DATA (out_arr);
   size_t out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t _r      = bin_to_nrz (bits, bits_len, out, out_len);
   Py_DECREF (bits_arr);
   Py_DECREF (out_arr);
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)bin_to_nrz (bits, bits_len, out, out_len));
+  return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
 }
 
 static PyObject *
@@ -255,10 +255,10 @@ _bind_nrz_to_bin (PyObject *self, PyObject *args, PyObject *kwds)
     }
   uint8_t *out     = (uint8_t *)PyArray_DATA (out_arr);
   size_t   out_len = (size_t)PyArray_SIZE (out_arr);
+  size_t   _r      = nrz_to_bin (nrz, nrz_len, out, out_len);
   Py_DECREF (nrz_arr);
   Py_DECREF (out_arr);
-  return PyLong_FromUnsignedLongLong (
-      (unsigned long long)nrz_to_bin (nrz, nrz_len, out, out_len));
+  return PyLong_FromUnsignedLongLong ((unsigned long long)_r);
 }
 
 /* ======================================================== */

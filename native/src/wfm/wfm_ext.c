@@ -135,8 +135,9 @@ _bind_crc16 (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *bits     = (const uint8_t *)PyArray_DATA (bits_arr);
   size_t         bits_len = (size_t)PyArray_SIZE (bits_arr);
+  uint16_t       _r       = crc16 (bits, bits_len);
   Py_DECREF (bits_arr);
-  return PyLong_FromUnsignedLong ((unsigned long)crc16 (bits, bits_len));
+  return PyLong_FromUnsignedLong ((unsigned long)_r);
 }
 
 static PyObject *

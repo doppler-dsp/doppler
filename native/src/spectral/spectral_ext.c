@@ -37,8 +37,9 @@ _bind_kaiser_enbw (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const float *w     = (const float *)PyArray_DATA (w_arr);
   size_t       w_len = (size_t)PyArray_SIZE (w_arr);
+  float        _r    = kaiser_enbw (w, w_len);
   Py_DECREF (w_arr);
-  return PyFloat_FromDouble ((double)kaiser_enbw (w, w_len));
+  return PyFloat_FromDouble ((double)_r);
 }
 
 static PyObject *
@@ -284,8 +285,9 @@ _bind_obw_from_power (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const double *pwr     = (const double *)PyArray_DATA (pwr_arr);
   size_t        pwr_len = (size_t)PyArray_SIZE (pwr_arr);
+  double        _r      = obw_from_power (pwr, pwr_len, fs, frac);
   Py_DECREF (pwr_arr);
-  return PyFloat_FromDouble (obw_from_power (pwr, pwr_len, fs, frac));
+  return PyFloat_FromDouble (_r);
 }
 
 static PyObject *
@@ -304,8 +306,9 @@ _bind_noise_floor_db (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const float *db     = (const float *)PyArray_DATA (db_arr);
   size_t       db_len = (size_t)PyArray_SIZE (db_arr);
+  double       _r     = noise_floor_db (db, db_len);
   Py_DECREF (db_arr);
-  return PyFloat_FromDouble (noise_floor_db (db, db_len));
+  return PyFloat_FromDouble (_r);
 }
 
 /* ======================================================== */

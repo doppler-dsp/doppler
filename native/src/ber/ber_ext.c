@@ -97,9 +97,9 @@ _bind_ber_lock_symbol (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const uint8_t *flags     = (const uint8_t *)PyArray_DATA (flags_arr);
   size_t         flags_len = (size_t)PyArray_SIZE (flags_arr);
+  int            _r = ber_lock_symbol (flags, flags_len, sustain, min_frac);
   Py_DECREF (flags_arr);
-  return PyLong_FromLong (
-      (long)ber_lock_symbol (flags, flags_len, sustain, min_frac));
+  return PyLong_FromLong ((long)_r);
 }
 
 static PyObject *
@@ -124,8 +124,9 @@ _bind_ber_evm_db (PyObject *self, PyObject *args, PyObject *kwds)
     }
   const float _Complex *rx     = (const float _Complex *)PyArray_DATA (rx_arr);
   size_t                rx_len = (size_t)PyArray_SIZE (rx_arr);
+  double                _r     = ber_evm_db (rx, rx_len, lo, hi, m);
   Py_DECREF (rx_arr);
-  return PyFloat_FromDouble (ber_evm_db (rx, rx_len, lo, hi, m));
+  return PyFloat_FromDouble (_r);
 }
 
 static PyObject *

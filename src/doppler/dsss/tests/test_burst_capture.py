@@ -476,3 +476,45 @@ def test_no_design_point_refines_exactly_at_any_depth(reps):
     assert [s for s in starts if s in at] == at, (
         f"reps={reps}: transmitted at {at}, captured at {starts}"
     )
+
+
+# ── a Doppler rate caps the acquisition's depth (doppler#1490) ────────────
+
+#: f_epoch = chip_rate / sf; a rate of f_epoch^2 / (2 * 2.5^2) allows 2.
+_RATE_CAP_2 = (CHIP_RATE / ACQ_SF) ** 2 / (2 * 2.5**2)
+
+
+def test_doppler_rate_defaults_to_no_bound():
+    cap = BurstCapture(acq_code(), burst_len=BURST_LEN, reps=REPS, spc=SPC)
+    assert cap.doppler_rate == 0.0 and cap.doppler_bins == REPS
+
+
+def test_doppler_rate_caps_the_depth():
+    cap = BurstCapture(
+        acq_code(),
+        burst_len=BURST_LEN,
+        reps=REPS,
+        spc=SPC,
+        doppler_rate=_RATE_CAP_2,
+    )
+    assert cap.doppler_rate == _RATE_CAP_2 and cap.doppler_bins == 2
+
+
+def test_persistent_takes_the_doppler_rate(tmp_path):
+    cap = PersistentBurstCapture(
+        tmp_path / "ring.cf32",
+        acq_code(),
+        burst_len=BURST_LEN,
+        reps=REPS,
+        spc=SPC,
+        doppler_rate=_RATE_CAP_2,
+    )
+    assert cap.doppler_bins == 2
+
+
+@pytest.mark.parametrize("rate", [-1.0, np.nan, np.inf])
+def test_a_bad_doppler_rate_is_a_value_error(rate):
+    with pytest.raises(ValueError, match="doppler_rate >= 0"):
+        BurstCapture(
+            acq_code(), burst_len=BURST_LEN, reps=REPS, doppler_rate=rate
+        )

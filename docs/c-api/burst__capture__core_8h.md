@@ -71,8 +71,8 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 | Type | Name |
 | ---: | :--- |
 |  int | [**burst\_capture\_configure\_search\_raw**](#function-burst_capture_configure_search_raw) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the embedded acquisition's search grid directly._  |
-|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create**](#function-burst_capture_create) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a burst capture: acquisition, refine and retention behind one push()._  |
-|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create\_backed**](#function-burst_capture_create_backed) (const char \* path, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode) <br>_Create a capture whose look-back lives in a FILE._  |
+|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create**](#function-burst_capture_create) (const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst capture: acquisition, refine and retention behind one push()._  |
+|  [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* | [**burst\_capture\_create\_backed**](#function-burst_capture_create_backed) (const char \* path, const uint8\_t \* acq\_code, size\_t acq\_code\_len, size\_t burst\_len, size\_t reps, size\_t spc, double chip\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a capture whose look-back lives in a FILE._  |
 |  void | [**burst\_capture\_destroy**](#function-burst_capture_destroy) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Release a capture and everything it owns. NULL-safe._  |
 |  size\_t | [**burst\_capture\_detections**](#function-burst_capture_detections) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t n, [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md) \* out, size\_t max\_out) <br>_Every hit the search made in the last push(), unfiltered._  |
 |  size\_t | [**burst\_capture\_detections\_max\_out**](#function-burst_capture_detections_max_out) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t n) <br>_Raw detections available from the last push()._ `n` _is ignored._ |
@@ -83,6 +83,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  size\_t | [**burst\_capture\_get\_code\_bins**](#function-burst_capture_get_code_bins) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Code-phase hypotheses per Doppler row._  |
 |  size\_t | [**burst\_capture\_get\_doppler\_bins**](#function-burst_capture_get_doppler_bins) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Doppler hypotheses searched (the coherent depth)._  |
 |  double | [**burst\_capture\_get\_doppler\_hz\_est**](#function-burst_capture_get_doppler_hz_est) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
+|  double | [**burst\_capture\_get\_doppler\_rate**](#function-burst_capture_get_doppler_rate) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Doppler rate (Hz/s) the coherent depth is bounded against; 0 is no bound._  |
 |  double | [**burst\_capture\_get\_doppler\_res\_hz**](#function-burst_capture_get_doppler_res_hz) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  double | [**burst\_capture\_get\_doppler\_span\_hz**](#function-burst_capture_get_doppler_span_hz) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Unambiguous Doppler half-range, Hz (+/- this)._  |
 |  uint64\_t | [**burst\_capture\_get\_dropped**](#function-burst_capture_get_dropped) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
@@ -159,7 +160,7 @@ Lifecycle: create, then push() repeatedly, then destroy. There is no step()/step
 uint8_t code[31];
 for (size_t i = 0; i < 31; i++) code[i] = (uint8_t)(i & 1u);
 burst_capture_state_t *cap = burst_capture_create (
-    code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
+    code, 31, 4096, 4, 4, 1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
 float _Complex x[2048] = { 0 };
 float _Complex win[4096];
 size_t n = burst_capture_push (cap, x, 2048, win, 4096);
@@ -230,7 +231,8 @@ burst_capture_state_t * burst_capture_create (
     double doppler_uncertainty,
     double pfa,
     double pd,
-    int noise_mode
+    int noise_mode,
+    double doppler_rate
 ) 
 ```
 
@@ -258,6 +260,7 @@ The look-back buffer is NOT a parameter. Its span is derived from the geometry h
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 
 * `noise_mode` CFAR reference: 0=mean, 1=median, 2=min, 3=max. 
+* `doppler_rate` Doppler rate, Hz/s (&gt;= 0), that caps the acquisition's coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. 
 
 
 
@@ -302,7 +305,8 @@ burst_capture_state_t * burst_capture_create_backed (
     double doppler_uncertainty,
     double pfa,
     double pd,
-    int noise_mode
+    int noise_mode,
+    double doppler_rate
 ) 
 ```
 
@@ -344,6 +348,7 @@ A blob from a backed capture does NOT restore into an in-RAM one, or the reverse
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 
 * `noise_mode` CFAR reference: 0=mean, 1=median, 2=min, 3=max. 
+* `doppler_rate` Doppler rate, Hz/s (&gt;= 0), that caps the acquisition's coherent depth at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no bound. 
 
 
 
@@ -568,6 +573,22 @@ size_t burst_capture_get_doppler_bins (
 
 ```C++
 double burst_capture_get_doppler_hz_est (
+    const burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function burst\_capture\_get\_doppler\_rate 
+
+_Doppler rate (Hz/s) the coherent depth is bounded against; 0 is no bound._ 
+```C++
+double burst_capture_get_doppler_rate (
     const burst_capture_state_t * state
 ) 
 ```

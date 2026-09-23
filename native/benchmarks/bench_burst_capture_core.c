@@ -110,9 +110,9 @@ time_push (jm_bench_t *b, const char *name, const char *path,
       burst_capture_state_t *c
           = path ? burst_capture_create_backed (path, code, ACQ_SF, BURST_LEN,
                                                 REPS, SPC, 1.0e6, 55.0, 0.0,
-                                                1e-3, 0.9, 0)
+                                                1e-3, 0.9, 0, 0.0)
                  : burst_capture_create (code, ACQ_SF, BURST_LEN, REPS, SPC,
-                                         1.0e6, 55.0, 0.0, 1e-3, 0.9, 0);
+                                         1.0e6, 55.0, 0.0, 1e-3, 0.9, 0, 0.0);
       if (!c)
         return;
       t0 = jm_bench_now_ns ();

@@ -3202,13 +3202,18 @@ class BurstCapture:
         Target detection probability, in (0, 1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         CFAR reference: 0=mean, 1=median, 2=min, 3=max.
+    doppler_rate : float, default 0.0
+        Doppler rate, Hz/s (>= 0), that caps the acquisition's coherent depth
+        at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no
+        bound.
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is ``BurstCapture: invalid
         parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0,
-        burst_len >= 1, cn0_dbhz finite or NaN, 0 < pfa < 1, 0 < pd < 1)``.
+        burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >= 0, 0 < pfa < 1,
+        0 < pd < 1)``.
 
     Warns
     -----
@@ -3243,6 +3248,7 @@ class BurstCapture:
         pfa: float = 1e-3,
         pd: float = 0.9,
         noise_mode: Literal["mean", "median", "min", "max"] = "mean",
+        doppler_rate: float = 0.0,
     ) -> None: ...
 
     def push(
@@ -3689,6 +3695,13 @@ class BurstCapture:
         """
 
     @property
+    def doppler_rate(self) -> float:
+        """Doppler rate (Hz/s) the acquisition's coherent depth is bounded
+        against: `doppler_bins <= f_epoch/sqrt(2*doppler_rate)`, so the carrier
+        drifts less than half a slow-time row per block. 0 is no bound.
+        """
+
+    @property
     def pd_predicted(self) -> float:
         """Detection probability the sized grid actually predicts at
         `cn0_dbhz`. The number behind `underpowered`, and the one to compare
@@ -3839,13 +3852,18 @@ class PersistentBurstCapture:
         Target detection probability, in (0, 1).
     noise_mode : Literal["mean", "median", "min", "max"], default "mean"
         CFAR reference: 0=mean, 1=median, 2=min, 3=max.
+    doppler_rate : float, default 0.0
+        Doppler rate, Hz/s (>= 0), that caps the acquisition's coherent depth
+        at `f_epoch/sqrt(2*doppler_rate)` repetitions (doppler#1482); 0 is no
+        bound.
 
     Raises
     ------
     ValueError
         If construction fails. The exception message is ``BurstCapture: invalid
         parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0,
-        burst_len >= 1, cn0_dbhz finite or NaN, 0 < pfa < 1, 0 < pd < 1)``.
+        burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >= 0, 0 < pfa < 1,
+        0 < pd < 1)``.
 
     Warns
     -----
@@ -3886,6 +3904,7 @@ class PersistentBurstCapture:
         pfa: float = 1e-3,
         pd: float = 0.9,
         noise_mode: Literal["mean", "median", "min", "max"] = "mean",
+        doppler_rate: float = 0.0,
     ) -> None: ...
 
     def push(
@@ -4332,6 +4351,13 @@ class PersistentBurstCapture:
         best-effort, so the symptom is bursts that are never captured rather
         than a failure. Construction also emits a UserWarning; this is the same
         fact as a value, for a caller that would rather ask than catch.
+        """
+
+    @property
+    def doppler_rate(self) -> float:
+        """Doppler rate (Hz/s) the acquisition's coherent depth is bounded
+        against: `doppler_bins <= f_epoch/sqrt(2*doppler_rate)`, so the carrier
+        drifts less than half a slow-time row per block. 0 is no bound.
         """
 
     @property

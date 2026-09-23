@@ -39,6 +39,7 @@ const jm_any_fn jm_bound_symbols_burst_capture[] = {
     (jm_any_fn)burst_capture_get_eta_nc,
     (jm_any_fn)burst_capture_get_straddle_loss,
     (jm_any_fn)burst_capture_get_pd_predicted,
+    (jm_any_fn)burst_capture_get_doppler_rate,
     (jm_any_fn)burst_capture_get_doppler_bins,
     (jm_any_fn)burst_capture_get_n_noncoh,
     (jm_any_fn)burst_capture_get_code_bins,

@@ -1173,12 +1173,36 @@ test_a_failed_frame_gives_its_span_back (void)
   return 0;
 }
 
+/* max_rate is the one statement of the Doppler rate this receiver expects
+ * (doppler#1490): the demod searches +/- max_rate cycles/sample^2, and the
+ * acquisition bounds its coherent depth by the same rate in Hz/s,
+ * max_rate * fs^2. 0 leaves both unbounded, as before. */
+static int
+test_max_rate_bounds_the_acquisition (void)
+{
+  const double fs = 1.0e6 * (double)SPC;
+  const double r  = 1.0e-7; /* cycles/sample^2: 1.6 MHz/s at 4 MS/s */
+  dsss_burst_receiver_state_t *rx = dsss_burst_receiver_create (
+      acq_code (), ACQ_SF, data_code (), DATA_SF, sync_word (), SYNC_LEN, REPS,
+      SPC, 1.0e6, FRAME_SYMS, 55.0, 0.0, 1e-3, 0.9, 0.0, r, 10);
+  dsss_burst_receiver_state_t *r0 = make_rx ();
+  DP_REQUIRE (rx != NULL && r0 != NULL);
+  DP_CHECK (fabs (burst_capture_get_doppler_rate (rx->cap) - r * fs * fs)
+            <= 1e-9 * r * fs * fs);
+  DP_CHECK (burst_capture_get_doppler_rate (r0->cap) == 0.0);
+  dsss_burst_receiver_destroy (rx);
+  dsss_burst_receiver_destroy (r0);
+  return 0;
+}
+
 int
 main (void)
 {
   if (test_create_copies_and_derives ())
     return 1;
   if (test_refuses_bad_arguments ())
+    return 1;
+  if (test_max_rate_bounds_the_acquisition ())
     return 1;
   if (test_decodes_a_burst_from_a_stream ())
     return 1;

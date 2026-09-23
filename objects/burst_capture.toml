@@ -16,7 +16,7 @@ serializable = "true"
 # rejects a parameter set that cannot build a capture. Same shape as
 # objects/dsss_burst_receiver.toml's.
 create_error = "ValueError"
-create_error_message = "BurstCapture: invalid parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0, burst_len >= 1, cn0_dbhz finite or NaN, 0 < pfa < 1, 0 < pd < 1)"
+create_error_message = "BurstCapture: invalid parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0, burst_len >= 1, cn0_dbhz finite or NaN, doppler_rate >= 0, 0 < pfa < 1, 0 < pd < 1)"
 # A search that cannot meet the requested `pd` still BUILDS, best-effort, and
 # then captures fewer bursts than arrived -- so the only symptom is a quiet
 # stream. Declared here rather than hand-patched: jm's condition must be a
@@ -106,6 +106,14 @@ name = "noise_mode"
 type = "string_enum:mean,median,min,max"
 default = "mean"
 
+# Hz/s; caps the acquisition's coherent depth at f_epoch/sqrt(2*rate)
+# (doppler#1482, #1490). 0 = no bound. Appended last, so no positional call
+# moves.
+[[burst_capture.init_params]]
+name = "doppler_rate"
+type = "double"
+default = "0.0"
+
 # ── The persistent flavour ───────────────────────────────────────────────────
 # A difference in CONSTRUCTOR is a flavor (a view over one core); a difference
 # in METHOD SIGNATURE would be a separate type. This differs only in where the
@@ -132,6 +140,7 @@ init_params = [
   { name = "pfa", type = "double", default = "1e-3" },
   { name = "pd", type = "double", default = "0.9" },
   { name = "noise_mode", type = "string_enum:mean,median,min,max", default = "mean" },
+  { name = "doppler_rate", type = "double", default = "0.0" },
 ]
 
 [[burst_capture.methods]]
@@ -299,6 +308,11 @@ name = "underpowered"
 type = "bool"
 field = true
 doc = "True when the search cannot meet the requested `pd` at this `cn0_dbhz` and geometry — `pd_predicted < pd`. The grid is still built, best-effort, so the symptom is bursts that are never captured rather than a failure. Construction also emits a UserWarning; this is the same fact as a value, for a caller that would rather ask than catch."
+
+[[burst_capture.properties]]
+name = "doppler_rate"
+type = "double"
+doc = "Doppler rate (Hz/s) the acquisition's coherent depth is bounded against: `doppler_bins <= f_epoch/sqrt(2*doppler_rate)`, so the carrier drifts less than half a slow-time row per block. 0 is no bound."
 
 [[burst_capture.properties]]
 name = "pd_predicted"

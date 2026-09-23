@@ -475,11 +475,15 @@ burst's. So the contract is:
 - **A burst engine never buys non-coherent looks.** When the coherent
     ceiling falls short of `pd` it is `underpowered`, honestly, rather than
     escalated (`acq_auto_config_burst`).
-- **`cn0_dbhz` is a design (minimum) C/N0, and optional.** `0` means none
-    given: the whole preamble is integrated in one look and the threshold is
-    `pfa`'s alone; `pd` is a target only with a design point, and without
-    one `pd_predicted` is NaN and `underpowered` never asserts. The
-    continuous engine keeps a required C/N0 — looks are its only lever.
+- **`cn0_dbhz` is a design (minimum) C/N0, and optional.** NaN
+    (`ACQ_CN0_NONE`, the default) means none given: the whole preamble is
+    integrated in one look and the threshold is `pfa`'s alone; `pd` is a
+    target only with a design point, and without one `pd_predicted` is NaN
+    and `underpowered` never asserts. Every finite value is a design point,
+    negative included: it used to be `0`, which left normalized units
+    (`fs = 1`, where C/N0 is the per-sample SNR) no way to state one
+    (#1484). The continuous engine keeps a required, finite C/N0 — looks are
+    its only lever.
 - **The capture refuses a pinned grid past its reach**:
     `configure_search_raw` returns `DP_ERR_INVALID` when
     `n_noncoh · doppler_bins > k_lo`.

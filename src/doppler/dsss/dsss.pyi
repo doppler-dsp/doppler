@@ -1086,7 +1086,9 @@ class Acquisition:
         feed sizing: this engine never coherently combines regardless of the
         data-modulation clock.
     cn0_dbhz : float, default 50.0
-        Carrier-to-noise density in dB-Hz (> 0).
+        Carrier-to-noise density in dB-Hz: any finite value. A continuous
+        engine needs one -- its non-coherent looks cannot be chosen without a
+        target.
     doppler_uncertainty : float, default 0.0
         One-sided Doppler search half-range in Hz; 0 uses the full native span
         +/- chip_rate/(2*sf) (still window-tiled, at window_bins=1).
@@ -2075,8 +2077,9 @@ class BurstAcquisition:
         Samples per chip (>= 1).
     chip_rate : float, default 1000000.0
         Chip rate in Hz (> 0).
-    cn0_dbhz : float, default 0.0
-        Carrier-to-noise density in dB-Hz (> 0).
+    cn0_dbhz : float
+        Carrier-to-noise density in dB-Hz: any finite value, or NaN
+        (ACQ_CN0_NONE) for no design point.
     doppler_uncertainty : float, default 0.0
         One-sided Doppler search half-range in Hz.
     pfa : float, default 1e-3
@@ -2108,7 +2111,7 @@ class BurstAcquisition:
         reps: int = 1,
         spc: int = 4,
         chip_rate: float = 1000000.0,
-        cn0_dbhz: float = 0.0,
+        cn0_dbhz: float = ...,
         doppler_uncertainty: float = 0.0,
         pfa: float = 1e-3,
         pd: float = 0.9,
@@ -3138,8 +3141,9 @@ class BurstCapture:
         Samples per chip.
     chip_rate : float, default 1000000.0
         Chip rate, Hz.
-    cn0_dbhz : float, default 0.0
-        C/N0 the search is sized for, dB-Hz.
+    cn0_dbhz : float
+        C/N0 the search is sized for, dB-Hz: any finite value, or NaN
+        (ACQ_CN0_NONE) for no design point.
     doppler_uncertainty : float, default 0.0
         Doppler search half-range, Hz (0 = native).
     pfa : float, default 1e-3
@@ -3154,7 +3158,7 @@ class BurstCapture:
     ValueError
         If construction fails. The exception message is ``BurstCapture: invalid
         parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0,
-        burst_len >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0 < pd < 1)``.
+        burst_len >= 1, cn0_dbhz finite or NaN, 0 < pfa < 1, 0 < pd < 1)``.
 
     Warns
     -----
@@ -3184,7 +3188,7 @@ class BurstCapture:
         reps: int = 5,
         spc: int = 4,
         chip_rate: float = 1000000.0,
-        cn0_dbhz: float = 0.0,
+        cn0_dbhz: float = ...,
         doppler_uncertainty: float = 0.0,
         pfa: float = 1e-3,
         pd: float = 0.9,
@@ -3774,8 +3778,9 @@ class PersistentBurstCapture:
         Samples per chip.
     chip_rate : float, default 1000000.0
         Chip rate, Hz.
-    cn0_dbhz : float, default 0.0
-        C/N0 the search is sized for, dB-Hz.
+    cn0_dbhz : float
+        C/N0 the search is sized for, dB-Hz: any finite value, or NaN
+        (ACQ_CN0_NONE) for no design point.
     doppler_uncertainty : float, default 0.0
         Doppler search half-range, Hz (0 = native).
     pfa : float, default 1e-3
@@ -3790,7 +3795,7 @@ class PersistentBurstCapture:
     ValueError
         If construction fails. The exception message is ``BurstCapture: invalid
         parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > 0,
-        burst_len >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0 < pd < 1)``.
+        burst_len >= 1, cn0_dbhz finite or NaN, 0 < pfa < 1, 0 < pd < 1)``.
 
     Warns
     -----
@@ -3826,7 +3831,7 @@ class PersistentBurstCapture:
         reps: int = 5,
         spc: int = 4,
         chip_rate: float = 1000000.0,
-        cn0_dbhz: float = 0.0,
+        cn0_dbhz: float = ...,
         doppler_uncertainty: float = 0.0,
         pfa: float = 1e-3,
         pd: float = 0.9,
@@ -6819,8 +6824,9 @@ class DsssBurstReceiver:
         Chip rate in Hz (> 0).
     frame_syms : int, default 64
         Frame symbols per burst (>= 1) — what push() returns, bit for bit.
-    cn0_dbhz : float, default 0.0
-        Carrier-to-noise density in dB-Hz (> 0), sizing the acquisition search.
+    cn0_dbhz : float
+        Carrier-to-noise density in dB-Hz sizing the acquisition search: any
+        finite value, or NaN (ACQ_CN0_NONE) for no design point.
     doppler_uncertainty : float, default 0.0
         One-sided Doppler half-range, Hz.
     pfa : float, default 1e-3
@@ -6839,8 +6845,8 @@ class DsssBurstReceiver:
     ValueError
         If construction fails. The exception message is ``DsssBurstReceiver:
         invalid parameter (need non-empty acq_code/data_code/sync, reps >= 1,
-        spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0
-        < pd < 1)``.
+        spc >= 1, chip_rate > 0, frame_syms >= 1, cn0_dbhz finite or NaN, 0 <
+        pfa < 1, 0 < pd < 1)``.
 
     Examples
     --------
@@ -6865,7 +6871,7 @@ class DsssBurstReceiver:
         spc: int = 4,
         chip_rate: float = 1000000.0,
         frame_syms: int = 64,
-        cn0_dbhz: float = 0.0,
+        cn0_dbhz: float = ...,
         doppler_uncertainty: float = 0.0,
         pfa: float = 1e-3,
         pd: float = 0.9,

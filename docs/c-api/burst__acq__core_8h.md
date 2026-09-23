@@ -209,7 +209,7 @@ burst_acq_state_t * burst_acq_create (
 * `reps` Max coherent code repetitions (&gt;= 1). 
 * `spc` Samples per chip (&gt;= 1). 
 * `chip_rate` Chip rate in Hz (&gt; 0). 
-* `cn0_dbhz` Carrier-to-noise density in dB-Hz (&gt; 0). 
+* `cn0_dbhz` Carrier-to-noise density in dB-Hz: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
 * `doppler_uncertainty` One-sided Doppler search half-range in Hz. 
 * `pfa` Target system false-alarm probability (0,1). 
 * `pd` Target detection probability (0,1). 

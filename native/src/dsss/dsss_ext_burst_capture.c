@@ -45,7 +45,7 @@ BurstCaptureObj_init (BurstCaptureObject *self, PyObject *args, PyObject *kwds)
   unsigned long long reps_raw            = 5;
   unsigned long long spc_raw             = 4;
   double             chip_rate           = 1000000.0;
-  double             cn0_dbhz            = 0.0;
+  double             cn0_dbhz            = ACQ_CN0_NONE;
   double             doppler_uncertainty = 0.0;
   double             pfa                 = 1e-3;
   double             pd                  = 0.9;
@@ -1585,8 +1585,9 @@ static PyTypeObject BurstCaptureObjType = {
     "    Samples per chip.\n"
     "chip_rate : float, default 1000000.0\n"
     "    Chip rate, Hz.\n"
-    "cn0_dbhz : float, default 0.0\n"
-    "    C/N0 the search is sized for, dB-Hz.\n"
+    "cn0_dbhz : float\n"
+    "    C/N0 the search is sized for, dB-Hz: any finite value, or NaN\n"
+    "    (ACQ_CN0_NONE) for no design point.\n"
     "doppler_uncertainty : float, default 0.0\n"
     "    Doppler search half-range, Hz (0 = native).\n"
     "pfa : float, default 1e-3\n"
@@ -1604,7 +1605,7 @@ static PyTypeObject BurstCaptureObjType = {
     "invalid\n"
     "    parameter (need non-empty acq_code, reps >= 1, spc >= 1, chip_rate > "
     "0,\n"
-    "    burst_len >= 1, cn0_dbhz >= 0, 0 < pfa < 1, 0 < pd < 1)``.\n"
+    "    burst_len >= 1, cn0_dbhz finite or NaN, 0 < pfa < 1, 0 < pd < 1)``.\n"
     "\n"
     "Warns\n"
     "-----\n"

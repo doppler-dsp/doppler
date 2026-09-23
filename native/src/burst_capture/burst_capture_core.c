@@ -47,9 +47,13 @@ burst_capture_create_impl (const char *path, const uint8_t *acq_code,
    * naming the constraint -- not the blanket MemoryError this would
    * otherwise surface as. */
   if (!acq_code || acq_code_len == 0 || burst_len == 0 || reps < 1 || spc < 1
-      || chip_rate <= 0.0 || cn0_dbhz < 0.0 || pfa <= 0.0 || pfa >= 1.0
-      || pd <= 0.0 || pd >= 1.0)
+      || chip_rate <= 0.0 || pfa <= 0.0 || pfa >= 1.0 || pd <= 0.0
+      || pd >= 1.0)
     return NULL;
+  /* cn0_dbhz is NOT checked here: what a valid design C/N0 is -- any finite
+     value, or NaN for none (doppler#1484) -- is the engine's rule, and it
+     refuses the rest; burst_acq_create() returns NULL and this unwinds.
+     A second copy here is how the old `< 0` outlived the rule it copied. */
 
   /* dp_xcalloc and friends abort on OOM rather than threading an unwind path
      no test can reach: arguments are validated above, so the only remaining

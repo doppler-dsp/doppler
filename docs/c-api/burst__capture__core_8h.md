@@ -253,7 +253,7 @@ The look-back buffer is NOT a parameter. Its span is derived from the geometry h
 * `reps` Preamble code repetitions. 
 * `spc` Samples per chip. 
 * `chip_rate` Chip rate, Hz. 
-* `cn0_dbhz` C/N0 the search is sized for, dB-Hz. 
+* `cn0_dbhz` C/N0 the search is sized for, dB-Hz: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
 * `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 
@@ -339,7 +339,7 @@ A blob from a backed capture does NOT restore into an in-RAM one, or the reverse
 * `reps` Preamble code repetitions. 
 * `spc` Samples per chip. 
 * `chip_rate` Chip rate, Hz. 
-* `cn0_dbhz` C/N0 the search is sized for, dB-Hz. 
+* `cn0_dbhz` C/N0 the search is sized for, dB-Hz: any finite value, or NaN (ACQ\_CN0\_NONE) for no design point. 
 * `doppler_uncertainty` Doppler search half-range, Hz (0 = native). 
 * `pfa` Target false-alarm probability, in (0, 1). 
 * `pd` Target detection probability, in (0, 1). 

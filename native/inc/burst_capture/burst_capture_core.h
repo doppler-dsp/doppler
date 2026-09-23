@@ -420,7 +420,8 @@ typedef struct
  * @param reps          Preamble code repetitions.
  * @param spc           Samples per chip.
  * @param chip_rate     Chip rate, Hz.
- * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz.
+ * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz: any finite
+ *                      value, or NaN (ACQ_CN0_NONE) for no design point.
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).
@@ -484,7 +485,8 @@ burst_capture_state_t *burst_capture_create (const uint8_t *acq_code,
  * @param reps          Preamble code repetitions.
  * @param spc           Samples per chip.
  * @param chip_rate     Chip rate, Hz.
- * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz.
+ * @param cn0_dbhz      C/N0 the search is sized for, dB-Hz: any finite
+ *                      value, or NaN (ACQ_CN0_NONE) for no design point.
  * @param doppler_uncertainty  Doppler search half-range, Hz (0 = native).
  * @param pfa           Target false-alarm probability, in (0, 1).
  * @param pd            Target detection probability, in (0, 1).

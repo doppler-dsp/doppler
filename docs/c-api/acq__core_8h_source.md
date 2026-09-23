@@ -222,6 +222,8 @@ extern "C"
 
 #define ACQ_N_NONCOH_SAFETY_CEILING 256u
 
+#define ACQ_CN0_NONE NAN
+
   acq_state_t *acq_create_burst (const uint8_t *code, size_t code_len,
                                  size_t reps, size_t spc, double chip_rate,
                                  double cn0_dbhz, double doppler_uncertainty,

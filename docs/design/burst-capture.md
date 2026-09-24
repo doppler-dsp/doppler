@@ -1,8 +1,12 @@
 # `BurstCapture`: acquisition's output, turned into bursts
 
-**Status:** phase 1 — the Why. The object does not exist yet; this is what
-it is for, what it owns, and what has to be measured before it is certified.
-**Scope:** a new C object — `BurstCapture` — that sits between a detector
+**Status:** shipped, as `doppler.acquire.BurstCapture` and its file-backed
+view `PersistentBurstCapture`; `DsssBurstReceiver` composes it. §1–§6 are the
+rationale written before it was built, and describe the receiver as it was
+then: where they say "today's receiver", read "the receiver before
+`BurstCapture`". The certification is its
+[validation report](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_capture/results.md).
+**Scope:** a C object — `BurstCapture` — that sits between a detector
 and whatever consumes a burst. It searches, refines, retains, and emits the
 burst's SAMPLES. It stops there.
 **Decision record:**
@@ -115,7 +119,7 @@ there is no child accessor and there is not going to be one. What is true
 instead:
 
 - **`BurstAcquisition` is public.** A caller who wants the search's own face
-    constructs one with the same parameters and gets all 27 of its
+    constructs one with the same parameters and gets all 22 of its
     read-backs. Nothing was taken away by this object existing, which is what
     makes the swallowing survivable.
 - **The search this capture will do is visible FROM the capture** —
@@ -165,10 +169,9 @@ ______________________________________________________________________
 
 ```c
 burst_capture_state_t *burst_capture_create (
-    const uint8_t *acq_code, size_t acq_code_len, size_t burst_len,
-    size_t reps, size_t spc, double chip_rate, double cn0_dbhz,
-    double doppler_uncertainty, double pfa, double pd, int noise_mode,
-    double doppler_rate);
+    const float _Complex *preamble, size_t preamble_len, size_t burst_len,
+    size_t reps, double fs, double cn0_dbhz, double doppler_uncertainty,
+    double pfa, double pd, int noise_mode, double doppler_rate);
 
 size_t burst_capture_push (burst_capture_state_t *, const float complex *x,
                            size_t x_len, float complex *out, size_t max_out);
@@ -291,7 +294,7 @@ decision already made.
     per dwell over-credited small D by up to 0.05). The sizer meets `pd` with
     it, and `underpowered` reads it
     ([#1498](https://github.com/doppler-dsp/doppler/issues/1498)). With each
-    depth at `pd_burst` = 0.6, the engine delivers 0.61–0.71 against it
+    depth at `pd_burst` = 0.6, the engine delivers 0.64–0.71 against it
     (`native/validation/capture_dwell_pd.c`): conservative within acq's
     bounds at every D. D = 1 was 0.045 optimistic until the model priced the
     CFAR reference, 127 cells there and inflated by the burst itself
@@ -355,7 +358,8 @@ decision already made.
     a zero gap is a continuous stream rather than a burst link (§5.1).
 
 - **Does the queue depth still hold at a capture-only geometry?** `q_cap` is
-    derived as `burst_len/refine_span`, and the receiver only ever exercised
+    derived from `burst_len/refine_span` (`2·(3 + burst_len/refine_span + 1)`,
+    at least 8), and the receiver only ever exercised
     it where a burst was also demodulated. A recorder with a very long
     `burst_len` and a short code is a shape nothing has run.
 
@@ -467,14 +471,15 @@ ______________________________________________________________________
 
 Two different axes, and pulling on the wrong one makes the object worse.
 
-**Required configuration is one parameter: `acq_code`.** Everything else —
-the geometry, the search targets, the burst length, the CFAR mode — carries a
-default, so the smallest thing that constructs is `BurstCapture(code)`. That
+**Required configuration is one parameter: `preamble`** (one period, as
+complex samples). Everything else — the geometry, the search targets, the
+burst length, the CFAR mode — carries a default, so the smallest thing that
+constructs is `BurstCapture(preamble)`. That
 is the axis to minimise, because every required parameter is a decision a
 caller has to make before they can begin.
 
 **Read-backs, optional configuration and diagnostics are rich, deliberately.**
-Twenty read-backs is not bloat when each answers a question the object alone
+Twenty-two read-backs is not bloat when each answers a question the object alone
 can answer:
 
 | group                            | what it answers                                            |
@@ -488,17 +493,16 @@ The one that earns its place most is **`underpowered`**, because its failure
 mode is silence: a search that cannot meet the requested `pd` still builds a
 best-effort grid and then captures fewer bursts than arrived, which is
 indistinguishable from a stream with nothing in it. It is a *declared*
-warning here, gated on a bool field — which the sibling `BurstAcquisition`
-cannot do, because `burst_acq_state_t` holds nothing but its `engine` pointer
-and jm's condition must be a bare identifier on the struct. Its copy of the
-same warning is a hand-patch in a sacred fragment.
+warning, gated on a bool field. The sibling `BurstAcquisition` declares the
+same warning the same way: `burst_acq_state_t` carries its own `underpowered`
+field for it, because jm's condition must be a bare identifier on the
+struct.
 
-`threshold` is deliberately **not** forwarded, though the engine carries it:
-it is the COHERENT gate and is zeroed on the non-coherent path
-(`acq_core.c:354`), so it reads 0.0 whenever `n_noncoh > 1` — the usual case.
-A read-back that is zero for a healthy object invites exactly the wrong
-conclusion. `eta` and `eta_nc` are the gates actually in force, and
-`n_noncoh` says which.
+`threshold` is **not** forwarded, though the engine carries it. `eta` and
+`eta_nc` are the gates, and `n_noncoh` says which is in force. A burst
+engine's `n_noncoh` is always 1, so `eta` is the gate and `eta_nc` reads 0.0.
+(The engine zeroes `threshold` on the non-coherent path, where the
+continuous engine runs; a burst capture never takes it.)
 
 ______________________________________________________________________
 
@@ -529,7 +533,7 @@ burst's. So the contract is:
     escalated (`acq_auto_config_burst`).
 - **`cn0_dbhz` is a design (minimum) C/N0, and optional.** NaN
     (`ACQ_CN0_NONE`, the default) means none given: the whole preamble is
-    integrated in one look and the threshold is `pfa`'s alone; `pd` is a
+    integrated in one look (capped by `doppler_rate` when one is given) and the threshold is `pfa`'s alone; `pd` is a
     target only with a design point, and without one `pd_predicted` is NaN
     and `underpowered` never asserts. Every finite value is a design point,
     negative included: it used to be `0`, which left normalized units

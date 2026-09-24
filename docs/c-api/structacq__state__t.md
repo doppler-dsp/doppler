@@ -316,7 +316,7 @@ double acq_state_t::cn0_dbhz;
 
 
 
-Design C/N0 the search is sized for (dB-Hz); 0 on a burst engine means none was given. 
+Design C/N0 the search is sized for (dB-Hz); NaN (ACQ\_CN0\_NONE) means none was given. 
  
 
 

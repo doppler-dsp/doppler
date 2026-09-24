@@ -168,7 +168,8 @@ extern "C"
     /* The peak list (docs/design/async-dsss-receiver.md §7.1): up to
        `max_peaks` peaks per dwell, each above the same gate, strongest
        first, with an exclusion zone of one Doppler row (`interp` surface
-       rows) by one chip (`spc` columns), circular, around each; every
+       rows) by the reference's first autocorrelation null (`shape.zone`
+       columns; one chip for a PN code), circular, around each; every
        listed peak is one acq_result_t. `band_mask` marks the cells outside
        the searched Doppler band (rebuilt with the thresholds); `peak_mask`
        is the per-dwell working copy the list marks its zones into. The

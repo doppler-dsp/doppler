@@ -65,8 +65,9 @@ a slow-time FFT row does, so the engine keeps two internal fields named for the
 coherent multi-epoch integration — `BurstAcquisition`'s axis) and `window_bins`
 (roll-tiled frequency windows, each a single-epoch FFT rolled to another
 hypothesis — `Acquisition`'s axis). "Non-coherent" is a third, composable axis:
-`n_noncoh` repeated dwells at a fixed hypothesis set, auto-selected to meet `pd`
-at `pfa` and read-only, bounded only by a safety valve
+`n_noncoh` repeated dwells at a fixed hypothesis set — on the continuous door
+auto-selected to meet `pd` at `pfa` and read-only (a burst engine never adds
+looks; it sizes on the burst and reports `underpowered`), bounded only by a safety valve
 (`ACQ_N_NONCOH_SAFETY_CEILING`, 256 looks) because the semi-analytical
 `pd_predicted` model turns non-monotonic past it.
 
@@ -111,10 +112,12 @@ epochs by its own code rate so a deep block does not smear.
 
 **Nothing below the holder sees a clock.** The engines are pure sample-domain
 with no I/O, so the anchor comes from whatever feeds them samples and is threaded
-through by the composing layer (§8.1). **Neither class takes a `carrier_freq`**:
-the engine works in baseband Doppler Hz throughout, and the aiding scale
-`doppler_hz_est · chip_rate / carrier_freq` is computed by the component that
-knows the carrier, which keeps the engine usable by a baseband-only caller.
+through by the composing layer (§8.1). **Neither constructor takes a
+`carrier_freq`**: the engine works in baseband Doppler Hz, and a baseband-only
+caller never has to name one. A caller that knows the carrier tells the engine
+afterwards (`acq_set_carrier_freq_hz()` / `set_carrier_freq_hz`), which is what
+lets each tile walk its code rate and the hand-off advance by the drift over
+half a dwell.
 
 ### 2.3 The search rolls one spectrum across frequency and integrates coherently inside the window
 

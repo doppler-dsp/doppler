@@ -47,10 +47,15 @@ alongside** the OO API, never a replacement.
 
 ## State blobs (flat, versioned POD)
 
-- **`acq_fn` state:** unconsumed ring samples (the partial frame, `< n`) +
-    running sample offset (the code-phase anchor — carried so a resumed pod keeps a
-    continuous phase reference) + `nc_surface[n]` + `nc_count`. Header stamps
-    `magic`/`version`/`n`/`n_noncoh` for validation; a mismatch is rejected, never
+- **`acq_fn` state** (`acq_state_bytes` / `acq_get_state` in
+    `native/src/acq/acq_core.c`): the unconsumed ring samples (the partial
+    frame; the region is sized for the whole ring and zero-filled past them) +
+    the running sample offset (the code-phase anchor, carried so a resumed pod
+    keeps a continuous phase reference) + `nc_surface[n_surf]` and `nc_count`
+    when `n_noncoh > 1` + the peak list's twin rows/columns (`2·max_peaks`) + the
+    block-coherent accumulator and the block's raw epochs. The header stamps
+    `magic`/`version`/`n`/`n_noncoh`, and `set_state` also checks `max_peaks`,
+    `n_twins` and the block epoch; a mismatch is rejected, never
     reinterpreted.
 - **`ddc_fn` state:** NCO phase + every filter's delay line (FIR history, CIC
     integrator/comb, halfband, resampler fractional phase). Heterogeneous — the
@@ -76,9 +81,10 @@ main (void)
 {
   /* config: build once per pod from the physics descriptor. Two
      constructors over one engine -- burst combines coherently across code
-     repetitions, continuous never does. (There is no bare acq_create, and
-     no max_noncoh: non-coherent looks are auto-selected against the
-     internal ACQ_N_NONCOH_SAFETY_CEILING.) */
+     repetitions, continuous only inside a tile over declared code-only
+     epochs. (There is no bare acq_create, and no max_noncoh: the continuous
+     engine auto-selects its non-coherent looks against the internal
+     ACQ_N_NONCOH_SAFETY_CEILING; a burst engine never adds any.) */
   acq_state_t *(*create_burst) (const float _Complex *, size_t, size_t,
                                 double, double, double, double, double, int,
                                 double)

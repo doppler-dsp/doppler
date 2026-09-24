@@ -202,7 +202,7 @@ burst_acq_state_t * burst_acq_create (
 
 
 
-One period of `preamble_len` complex samples at `fs`, repeated up to `reps` times: a chirp, a Zadoff-Chu sequence, shaped PSK, or a PN code mapped by [**bin\_to\_nrz()**](cvt__core_8h.md#function-bin_to_nrz) and held `spc` samples each (at `fs = chip_rate*spc`). One chip is one sample: `sf = preamble_len`, `spc = 1`, `chip_rate = fs`, and `code_phase` is the delay into the repetition, in samples. `fs` of 1 is normalized units, where Doppler is in cycles/sample and `cn0_dbhz` is the per-sample SNR in dB.
+One period of `preamble_len` complex samples at `fs`, repeated up to `reps` times: a chirp, a Zadoff-Chu sequence, shaped PSK, or a PN code mapped by [**bin\_to\_nrz()**](cvt__core_8h.md#function-bin_to_nrz) and held `spc` samples each (at `fs = chip_rate*spc`). One chip is one sample: `sf = preamble_len`, `spc = 1`, `chip_rate = fs`, and `code_phase` is the delay into the repetition, in samples (for a Zadoff-Chu preamble, plus `u^-1 mod n` samples per native bin of Doppler the search did not resolve before correlating). `fs` of 1 is normalized units, where Doppler is in cycles/sample and `cn0_dbhz` is the per-sample SNR in dB.
 
 
 
@@ -425,7 +425,7 @@ int burst_acq_set_max_peaks (
 
 
 
-Forwards to [**acq\_set\_max\_peaks()**](acq__core_8h.md#function-acq_set_max_peaks) on the embedded engine (see its doc comment in [**acq\_core.h**](acq__core_8h.md)): one is the classic gated maximum; more is the list of docs/design/async-dsss-receiver.md §7.1  every peak above the same gate, strongest first, an exclusion zone of one Doppler bin by one chip around each, and the two-epoch rule for a peak at an already-listed code phase. Each listed peak is one result from push().
+Forwards to [**acq\_set\_max\_peaks()**](acq__core_8h.md#function-acq_set_max_peaks) on the embedded engine (see its doc comment in [**acq\_core.h**](acq__core_8h.md)): one is the classic gated maximum; more is the list of docs/design/async-dsss-receiver.md §7.1  every peak above the same gate, strongest first, an exclusion zone of one Doppler bin by the reference's first autocorrelation null (one chip for a PN code) around each, and the two-epoch rule for a peak at an already-listed code phase. Each listed peak is one result from push().
 
 
 

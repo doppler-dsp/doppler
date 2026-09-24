@@ -21,7 +21,8 @@ ______________________________________________________________________
 
 | caller                                         | threads | how it reads                                                                     |
 | ---------------------------------------------- | ------- | -------------------------------------------------------------------------------- |
-| `acq`, `detector`, `detector2d`                | one     | chunks in through `write_some()`, fixed frames out through `peek()`              |
+| `acq`                                          | one     | writes into free space it computes, reads fixed frames off `data`, `consume()`s  |
+| `detector`, `detector2d`                       | one     | chunks in through `write_some()`, fixed frames out through `peek()`              |
 | `burst_capture`                                | one     | a **history**: samples addressed by absolute stream position; may be file-backed |
 | Python `F32Buffer` / `F64Buffer` / `I16Buffer` | two     | a producer thread `write()`s, a consumer thread `wait()`s                        |
 

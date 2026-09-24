@@ -89,7 +89,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  double | [**burst\_capture\_get\_doppler\_span\_hz**](#function-burst_capture_get_doppler_span_hz) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Unambiguous Doppler half-range, Hz (+/- this)._  |
 |  uint64\_t | [**burst\_capture\_get\_dropped**](#function-burst_capture_get_dropped) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  double | [**burst\_capture\_get\_eta**](#function-burst_capture_get_eta) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Coherent detection gate; in force when_ `n_noncoh == 1` _._ |
-|  double | [**burst\_capture\_get\_eta\_nc**](#function-burst_capture_get_eta_nc) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Non-coherent gate; in force when_ `n_noncoh > 1` _(the usual case)._ |
+|  double | [**burst\_capture\_get\_eta\_nc**](#function-burst_capture_get_eta_nc) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Non-coherent gate; in force only when_ `n_noncoh > 1` _, which a burst search never chooses (it reads 0 unless a pin sets looks)._ |
 |  size\_t | [**burst\_capture\_get\_min\_gap**](#function-burst_capture_get_min_gap) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Dead air a caller must leave between bursts, edge to edge._  |
 |  uint64\_t | [**burst\_capture\_get\_n\_bursts**](#function-burst_capture_get_n_bursts) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  size\_t | [**burst\_capture\_get\_n\_noncoh**](#function-burst_capture_get_n_noncoh) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Non-coherent looks combined per decision._  |
@@ -246,7 +246,7 @@ burst_capture_state_t * burst_capture_create (
 
 
 
-Give it the preamble  one period of its SAMPLES  and the geometry, say how long a burst is, and stream samples in. It searches blindly, recovers the exact preamble start, and hands back the burst's samples once they have all arrived.
+Give it the preamble  one period of its SAMPLES  and the geometry, say how long a burst is, and stream samples in. It searches blindly, recovers the exact preamble start, and hands back the burst's samples once they have all arrived. The Doppler must lie inside the native span `+/- fs/(2n)`: a wider `doppler_uncertainty` is accepted but not yet searched (#1512).
 
 
 The look-back buffer is NOT a parameter. Its span is derived from the geometry here (detection lag + refine search + the burst itself), because every term is already known and a caller asked to size a history buffer is a caller handed a way to lose bursts silently.
@@ -329,7 +329,7 @@ Two things follow, and they are the reason to reach for this constructor:
 
 
 
-* **The blob stops carrying the look-back.** For an in-RAM capture the retained history IS the blob (measured: 2.57 MB at a 1029-symbol frame, 16.68 MB at 8029). Backed, `state_bytes()` is a few hundred bytes plus the acquisition child, because the samples are already durable and the blob only has to name where in the ring they sit.
+* **The blob stops carrying the look-back.** For an in-RAM capture the retained history IS the blob (measured 2026-09-24: 2.73 MB at a 1029-symbol frame, 16.84 MB at 8029). Backed, `state_bytes()` is a few hundred bytes plus the acquisition child, because the samples are already durable and the blob only has to name where in the ring they sit.
 * **The history outlives the process.** Point a new capture at the same path and the samples are there; restore the blob and it reaches back across the restart into a burst that began before it.
 
 
@@ -676,7 +676,7 @@ double burst_capture_get_eta (
 
 ### function burst\_capture\_get\_eta\_nc 
 
-_Non-coherent gate; in force when_ `n_noncoh > 1` _(the usual case)._
+_Non-coherent gate; in force only when_ `n_noncoh > 1` _, which a burst search never chooses (it reads 0 unless a pin sets looks)._
 ```C++
 double burst_capture_get_eta_nc (
     const burst_capture_state_t * state

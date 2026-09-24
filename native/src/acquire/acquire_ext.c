@@ -80,25 +80,26 @@ static PyMethodDef acquire_module_methods[] = {
 
 static PyModuleDef acquire_moduledef = {
   PyModuleDef_HEAD_INIT,
-  .m_name    = "acquire",
-  .m_doc     = "Acquisition: the searches that find a signal before anything "
-               "tracks it. Acquisition is the code-phase x Doppler engine; "
-               "BurstAcquisition and BurstCapture find a burst of any repeated "
-               "complex preamble (a PN code, Zadoff-Chu, a chirp or a QPSK "
-               "sequence), and PersistentBurstCapture keeps one armed across "
-               "calls. CarrierAcquisition is a coarse frequency/phase search that "
-               "seeds a carrier tracking loop. bin_to_signed is the Doppler-bin "
-               "fold convention the searches and their hand-offs share.\n"
-               "\n"
-               "Examples\n"
-               "--------\n"
-               ">>> import numpy as np\n"
-               ">>> from doppler.acquire import CarrierAcquisition\n"
-               ">>> ca = CarrierAcquisition(sample_rate_hz=8000.0, "
-               "symbol_rate_hz=1000.0,\n"
-               "...                          resolution_hz=5.0)\n"
-               ">>> ca.ready()\n"
-               "False\n",
+  .m_name = "acquire",
+  .m_doc
+  = "Acquisition: the searches that find a signal before anything tracks it. "
+    "Acquisition is the code-phase x Doppler engine; BurstAcquisition and "
+    "BurstCapture find a burst of any repeated complex preamble (a PN code, "
+    "Zadoff-Chu, a chirp or a QPSK sequence), and PersistentBurstCapture "
+    "keeps the capture's history in a file. CarrierAcquisition is a coarse "
+    "frequency/phase search that seeds a carrier tracking loop. bin_to_signed "
+    "is the Doppler-bin fold convention the searches and their hand-offs "
+    "share.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.acquire import CarrierAcquisition\n"
+    ">>> ca = CarrierAcquisition(sample_rate_hz=8000.0, "
+    "symbol_rate_hz=1000.0,\n"
+    "...                          resolution_hz=5.0)\n"
+    ">>> ca.ready()\n"
+    "False\n",
   .m_size    = -1,
   .m_methods = acquire_module_methods,
 };

@@ -252,6 +252,7 @@ nav:
   - Benchmarks: benchmarks.md
   - Guides:
       - Guides: guide/index.md
+      - Acquiring a Repeated Preamble: guide/acquisition.md
       - DSSS Burst Acquisition: guide/dsss-acquisition.md
       - Tracking a Population of DSSS Emitters: guide/async-dsss-pool.md
       - Lock Detection Across doppler.track: guide/lock-detection.md

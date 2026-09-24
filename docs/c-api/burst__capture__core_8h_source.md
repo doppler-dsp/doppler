@@ -130,10 +130,9 @@ typedef struct
   int recovered; 
   /* ── Diagnostics ────────────────────────────────────────────────────
    * Mirrored from the engine at create() rather than read through it on
-   * demand, because jm's declared warning needs a bare bool field on THIS
-   * struct -- the reason the sibling BurstAcquisition's copy of the same
-   * warning has to be a hand-patch in its fragment (see the note at the top
-   * of objects/burst_acq.toml). */
+   * demand, because jm's declared warning needs a bare field on THIS
+   * struct; the sibling BurstAcquisition carries its own `underpowered`
+   * field for the same reason. */
   int underpowered; 
   /* ── Bookkeeping ────────────────────────────────────────────────────── */
   uint64_t dropped;  

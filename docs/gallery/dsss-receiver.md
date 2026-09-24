@@ -35,18 +35,18 @@ required. Three escape hatches cover the power-user surface:
     defaults, still bridged by a freshly-sized `RateConverter` — the one
     composition-specific knob this object adds beyond its children's own.
 
-!!! warning "`configure_search_raw` bypasses the mislock-avoiding auto-sizer"
+!!! warning "`configure_search_raw` replaces the auto-sized grid"
 
-    `DsssReceiver` always has a `symbol_rate` (it's required), so its
-    embedded `Acquisition` always runs the data-modulation-aware joint
-    search — which naturally lands on a short coherent depth plus
-    non-coherent looks specifically to avoid a real, confirmed mislock
-    failure mode (see
+    `DsssReceiver`'s embedded `Acquisition` is the continuous engine: it
+    window-tiles the Doppler search at a coherent depth of one epoch and
+    adds non-coherent looks, specifically to avoid a real, confirmed
+    mislock failure mode (see
     [Continuous, data-modulated signals](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)).
-    Pinning a large `doppler_bins` directly via `configure_search_raw`
-    bypasses that protection entirely, with no Pd-honest pricing to warn
-    you. Only pin a coherent depth beyond a handful of epochs if you know
-    the signal is genuinely data-free for that whole window.
+    `configure_search_raw` cannot pin a deeper coherent depth on it —
+    `doppler_bins` above 1 is refused with `ValueError` — but a pin does
+    replace the auto-sized grid: it drops the window tiling back to one
+    native window, so the search no longer covers a `doppler_uncertainty`
+    wider than the span, and the looks become whatever you pinned.
 
 ## How it works
 

@@ -57,7 +57,8 @@ from doppler.dsss import BurstDemod
 
 # Build a burst: 5x acquisition preamble, then a spread frame
 # [Barker-13 sync | payload | CRC-16]. A real receiver takes (f0, code
-# phase) from `Acquisition`; here we seed a known prior so the block runs.
+# phase) from `BurstAcquisition`/`BurstCapture`; here we seed a known prior so
+# the block runs.
 acq_code = ((np.arange(500) * 2654435761 >> 13) & 1).astype(np.uint8)
 data_code = ((np.arange(50) * 40503 >> 7) & 1).astype(np.uint8)
 sync_word = np.array([0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0], np.uint8)
@@ -145,7 +146,7 @@ ______________________________________________________________________
 ## `BurstDespreader` — tracking receiver
 
 Seeded with a coarse frequency and code-phase estimate (from the
-`Corr2D`/`CorrDetector2D` acquisition engine or `Acquisition`), the `BurstDespreader` locks
+`Corr2D`/`CorrDetector2D` acquisition engine or `BurstAcquisition`), the `BurstDespreader` locks
 the signal with a code-tracking **delay-locked loop** and a carrier-tracking
 **Costas loop**, despreads the payload, and emits symbols.
 
@@ -293,8 +294,9 @@ It carries no timestamp: the holder owns the sample clock and stamps it.
 ## `AsyncDsssPool` — one object holds the population
 
 `AsyncDsssPool` holds a whole population behind a single `push()`. It owns
-**one searcher** — `Acquisition` in continuous mode, coherent across the
-whole code-only epochs the waveform's window holds, reporting a peak list of
+**one searcher** — `Acquisition` in continuous mode, block-coherent inside
+each tile over up to half the code-only epochs the waveform's window holds
+(capped by `doppler_rate`), reporting a peak list of
 `max_peaks`; **`n_slots`
 `CellAsyncDsssReceiver`s**, created idle; **the assigned table**, one row per
 slot carrying the seed's coordinates and that row's *current* Doppler and

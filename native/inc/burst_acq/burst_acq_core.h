@@ -61,7 +61,9 @@ extern "C"
    * by bin_to_nrz() and held `spc` samples each (at `fs = chip_rate*spc`).
    * One chip is one sample: `sf = preamble_len`, `spc = 1`,
    * `chip_rate = fs`, and
-   * `code_phase` is the delay into the repetition, in samples. @p fs of 1
+   * `code_phase` is the delay into the repetition, in samples (for a
+   * Zadoff-Chu preamble, plus `u^-1 mod n` samples per native bin of
+   * Doppler the search did not resolve before correlating). @p fs of 1
    * is normalized units, where Doppler is in cycles/sample and @p cn0_dbhz
    * is the per-sample SNR in dB.
    *
@@ -225,8 +227,9 @@ extern "C"
    * Forwards to acq_set_max_peaks() on the embedded engine (see its doc
    * comment in acq_core.h): one is the classic gated maximum; more is the
    * list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the
-   * same gate, strongest first, an exclusion zone of one Doppler bin by one
-   * chip around each, and the two-epoch rule for a peak at an
+   * same gate, strongest first, an exclusion zone of one Doppler bin by the
+   * reference's first autocorrelation null (one chip for a PN code) around
+   * each, and the two-epoch rule for a peak at an
    * already-listed code phase. Each listed peak is one result from push().
    *
    * @param state  Allocated engine (non-NULL).

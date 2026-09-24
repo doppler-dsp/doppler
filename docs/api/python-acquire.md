@@ -42,25 +42,33 @@ independent of `dwell_target`.
 
 ::: doppler.acquire.CarrierAcquisition
 
-## `Acquisition` — streaming burst acquisition
+## `Acquisition` — continuous acquisition
 
-`Acquisition` searches a streamed cf32 signal for a repeated BPSK PN burst over the
-joint (Doppler × code-phase) grid, sizing its own search grid — coherent depth,
-CFAR threshold, non-coherent looks — from the physics `(chip_rate, cn0_dbhz, pfa, pd)` using `doppler.detection`. Push
-arbitrary-length blocks; it yields one record per detection — `(doppler_bin, code_phase, peak_mag, noise_est, test_stat, snr_est)` — whose `(doppler_bin, code_phase)` seed the `BurstDespreader`. See the
-[DSSS Burst Acquisition guide](../guide/dsss-acquisition.md) for the search-space
-sizing and a worked example.
+`Acquisition` searches a continuous spread-spectrum signal (a code that repeats
+forever, data riding on it) over the joint (Doppler × code-phase) grid. It
+takes the `code`, `chip_rate` and `spc`, always tiles the Doppler uncertainty
+with frequency windows, and sizes its non-coherent looks from
+`(cn0_dbhz, pfa, pd)` using `doppler.detection`; its coherent depth is set by
+the code-only epochs you declare (`code_only_epochs`) and capped by
+`doppler_rate`, never grown to meet `pd`. Push arbitrary-length blocks; it
+yields one 7-tuple per detection — `(doppler_bin, code_phase, peak_mag, noise_est, test_stat, cn0_dbhz_est, samples_consumed)`. See the
+[DSSS acquisition guide](../guide/dsss-acquisition.md#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
+for when to use it.
 
 ::: doppler.acquire.Acquisition
 
 ## `BurstAcquisition` — the burst front door to acquisition
 
-`BurstAcquisition` is the burst-oriented front door to the shared
-acquisition engine: a bounded preamble is searched over a (Doppler, code
-phase) grid and the peak is reported once, rather than the continuous
-streaming push of [`Acquisition`](#acquisition-streaming-burst-acquisition).
-Both wrap the same stateless kernel; the two front doors differ only in how
-the capture is fed and when the estimate is emitted.
+`BurstAcquisition` is the burst front door to the same engine. It takes one
+period of any repeated complex preamble as samples, plus their rate `fs`, and
+sizes the coherent depth: the smallest number of repetitions whose Pd for the
+whole burst meets `pd`, with no non-coherent looks. Every dwell whose
+statistic clears the gate reports a hit, so one burst typically produces
+several; each is the same 7-tuple as
+[`Acquisition`](#acquisition-continuous-acquisition)'s. The two front doors
+differ in what they take (preamble samples against a code) and in how they
+size the search. See the [acquisition guide](../guide/acquisition.md) for a
+worked example on a non-PN preamble.
 
 ::: doppler.acquire.BurstAcquisition
 
@@ -69,13 +77,14 @@ the capture is fed and when the estimate is emitted.
 `BurstCapture` is the stage between a detector and whatever consumes a burst.
 [`BurstAcquisition`](#burstacquisition-the-burst-front-door-to-acquisition)
 reports an END anchor and a code phase that is a lag **modulo one code
-period**, so it names the alignment within a preamble repetition and never
-which one — and a burst has a frame that begins in one specific repetition.
+period** (for a Zadoff-Chu preamble, shifted by any Doppler the search did not
+resolve first), so it names the alignment within a preamble repetition and
+never which one — and a burst has a frame that begins in one specific repetition.
 `BurstCapture` resolves that (the refine stage), keeps the look-back needed to
 reach a start that has already gone past, and emits the burst's **samples**.
 
 It stops there. Demodulating is
-[`BurstDemod`](#burstdemod-feedforward-dsss-frame-demodulator)'s job, and
+[`BurstDemod`](python-dsss.md#burstdemod-feedforward-dsss-frame-demodulator)'s job, and
 [`DsssBurstReceiver`](../gallery/dsss-burst-receiver.md) is this
 plus that. Reach for `BurstCapture` directly when you want the bursts
 themselves: a recorder, an offline corpus, or a second consumer fanned out
@@ -95,11 +104,11 @@ be delegated to a caller.
 
 The look-back is essentially the whole checkpoint: at a 511-chip code, 5
 repetitions and an 8029-symbol frame, `BurstCapture.state_bytes()` is
-16.68 MB and all but ~20 kB of it is retained history.
+16.84 MB, and all but 135 kB of it is retained history.
 `PersistentBurstCapture` takes a `path` and backs the ring's pages with that
 file (`MAP_SHARED`), so the samples **are** the file's contents — there is no
-mirror buffer and no flush path. Two things follow: the blob drops to 21.6 kB
-because the history is already durable, and the history outlives the process,
+mirror buffer and no flush path. Two things follow: the blob drops to 135 kB (the
+acquisition engine's own state) because the history is already durable, and the history outlives the process,
 so a capture restored over the same file reaches back across a restart into a
 burst that began before it.
 
@@ -159,7 +168,7 @@ sample **rate** where numpy takes the sample **spacing**.
 <!-- related-pages:start -->
 
 **Gallery** — [Async DSSS Receiver: the SPEC waveform through coupled Doppler](../gallery/async-dsss-receiver-spec.md), [CarrierAcquisition: RRC Pulse Shaping](../gallery/carrier-acq-rrc.md), [Correlation and Detection](../gallery/corr.md), [DSSS Acquisition — Pd / Pfa vs Es/N0](../gallery/dsss-acq-characterization.md), [A 5-Burst DSSS Link — wfmgen's Three Faces, the Full Receiver Chain](../gallery/dsss-burst-pipeline.md), [DsssBurstReceiver — the Composed Burst Chain](../gallery/dsss-burst-receiver.md), [DsssReceiver — the Composed Continuous DSSS Receiver](../gallery/dsss-receiver.md), [Gallery](../gallery/index.md)
-**Guides** — [Tracking a Population of DSSS Emitters with `AsyncDsssPool`](../guide/async-dsss-pool.md), [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Checkpoint & Resume](../guide/state-serialization.md)
+**Guides** — [Acquiring a Repeated Preamble](../guide/acquisition.md), [Tracking a Population of DSSS Emitters with `AsyncDsssPool`](../guide/async-dsss-pool.md), [DSSS Burst Acquisition](../guide/dsss-acquisition.md), [Guides](../guide/index.md), [Checkpoint & Resume](../guide/state-serialization.md)
 **Design** — [Design — pure-functional acquisition kernel (elastic fleet)](../design/acq-fn.md), [API taxonomy: the DSP building-block hierarchy and its naming axis](../design/api-taxonomy.md), [AsyncDsssReceiver — the continuous DSSS receiver, from spec to object](../design/async-dsss-receiver.md), [BurstBank — the coarse-Doppler bank as one C object](../design/burst-bank.md), [`BurstCapture`: acquisition's output, turned into bursts](../design/burst-capture.md), [CoarseChannel — is a channel an object, or a slice of the bank?](../design/coarse-channel.md), [Corr2D: decoupled (interpolated) inverse length](../design/corr2d-interpolated-inverse.md), [Detection Sizing — the four laws behind one prefix](../design/detection.md), [DSSS acquisition: stateless, parallel, dynamics-capable](../design/dsss-acquisition.md), [`DsssBurstReceiver`: the burst chain, composed in C](../design/dsss-burst-receiver.md), [Design](../design/index.md), [State Serialization — the standard bytes interface](../design/state-serialization.md)
 **Contributing** — [DSSS Primary Use Cases for Code Acquisition Design](../dev/contributing/dsss-use-cases.md), [Validation log](../dev/contributing/validation-log.md), [Contributing](../dev/index.md)
 

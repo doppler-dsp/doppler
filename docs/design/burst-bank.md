@@ -107,7 +107,7 @@ burst_bank_state_t
   det[], det_len             bank-absolute detections of the LAST push (scratch)
 ```
 
-`burst_bank_create(code, code_len, reps, spc, chip_rate, source_rate, doppler_uncertainty_hz, burst_len, cn0_dbhz, pfa, pd, noise_mode)` and a
+`burst_bank_create(preamble, preamble_len, reps, fs, source_rate, doppler_uncertainty_hz, burst_len, cn0_dbhz, pfa, pd, noise_mode, doppler_rate)` (the children's face since #1470: one period of the preamble as samples at `fs`) and a
 `_backed` flavour taking a ring DIRECTORY. `burst_bank_push(x, n, out, max_out)` returns detections; `burst_bank_windows(k, …)` / `events(k)` /
 `detections()` read the channel faces; `release(k, i)` forwards a consumer's
 verdict; `configure_search_raw` forwards to every channel; the state
@@ -162,7 +162,7 @@ same −3.9 dB but the bin is a tenth of the span.
 ## 7. Plan
 
 Phases 2–10 of the standard, in order: declare (a `burst_bank` manifest
-fragment and a `[module.dsss]` entry, `--preset blockwise` with
+fragment and a `[module.acquire]` entry, beside the captures it composes (#1511), `--preset blockwise` with
 `pass_capacity`), implement (a `burst_bank` core under `native/`), pin (a
 C test, each pin sabotaged), bind, instrument (the state triplet;
 `check_serializable.py`), explore (a characterization subject), certify (a
@@ -323,11 +323,11 @@ must thread at all, load balancing decides what the unit of work is.
 
 ### 10.2 The options
 
-|                                                    | mechanism                                                                                                      | fits                                                                                                                                  | cost                                                                                                                                                                       |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **(a) serial `push`; parallelism is the caller's** | the Python pool over per-channel handles, as today; the C++ application pushes channel `k` from its thread `k` | the primary consumer exactly (§10.1's third motivation is an application with its own threads); load balancing (channels are handles) | needs the channel to be addressable — shape B of `coarse-channel.md`; a caller that does not want to schedule gets no scaling from the bank alone                          |
-| **(b) `dp_parallel_for` inside `push`, opt-in**    | `burst_bank_set_threads(n)`; `push` fans channels across up to `n` workers, serial when `n ≤ 1`                | span coverage for every caller; bit-identical to serial by `dp_parallel`'s contract                                                   | `dp_parallel_for` creates its workers **per call** — there is no pool — so each push pays `n` thread creations; at a 4096-sample block that is a real fraction of the work |
-| **(c) a separate `push_parallel`**                 | two entry points, one contract                                                                                 | as (b)                                                                                                                                | two faces of one function; a caller has to choose per call                                                                                                                 |
+|                                                    | mechanism                                                                                                      | fits                                                                                                                                  | cost                                                                                                                                                                                                                                           |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **(a) serial `push`; parallelism is the caller's** | the Python pool over per-channel handles, as today; the C++ application pushes channel `k` from its thread `k` | the primary consumer exactly (§10.1's third motivation is an application with its own threads); load balancing (channels are handles) | needs the channel to be addressable — shape B of `coarse-channel.md`; a caller that does not want to schedule gets no scaling from the bank alone                                                                                              |
+| **(b) `dp_parallel_for` inside `push`, opt-in**    | `burst_bank_set_threads(n)`; `push` fans channels across up to `n` workers, serial when `n ≤ 1`                | span coverage for every caller; bit-identical to serial by `dp_parallel`'s contract                                                   | `dp_parallel_for` creates its workers **per call**, so each push pays `n` thread creations; at a 4096-sample block that is a real fraction of the work. A persistent pool (`dp_pool_*`, `dp_parallel.h`) now exists and the acq engine uses it |
+| **(c) a separate `push_parallel`**                 | two entry points, one contract                                                                                 | as (b)                                                                                                                                | two faces of one function; a caller has to choose per call                                                                                                                                                                                     |
 
 (a) is not optional: the primary consumer brings its own threads, so the
 channel must be pushable alone regardless of what the bank's `push` does.
@@ -335,8 +335,8 @@ The question is only whether the bank's own `push` ALSO fans out — (b) over
 (c) if it does: a thread count is configuration, not a verb, and the serial
 fallback is already inside `dp_parallel_for`. That turns on whether
 per-call thread creation is affordable at the block sizes the link uses —
-and if it is not, whether the bank grows a persistent pool (the
-repository's first) or stays serial and leaves scaling to the caller, as
+and if it is not, whether the bank takes a persistent `dp_pool_*` pool (as
+the acq engine's tile fan-out already does) or stays serial and leaves scaling to the caller, as
 (a) already provides.
 
 ### 10.3 The work that answers it

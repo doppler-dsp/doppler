@@ -136,7 +136,7 @@ size_t acq_result_t::doppler_bin;
 
 
 
-Peak row: Doppler bin (0 … coherent\_bins-1), or, in wideband mode, the frequency-window index (0 … window\_bins-1) — see [**acq\_core.h**](acq__core_8h.md)'s file doc comment. 
+Peak row: Doppler bin (0 … coherent\_bins-1), or, in wideband mode, a bin of the uniform grid of window\_bins\*coherent\_bins bins (window\_bins tiles of coherent\_bins each) — see [**acq\_core.h**](acq__core_8h.md)'s file doc comment. 
  
 
 

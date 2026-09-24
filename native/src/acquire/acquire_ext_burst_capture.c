@@ -1134,8 +1134,10 @@ static PyGetSetDef BurstCapture_getset[] = {
     NULL },
   { "eta_nc", (getter)BurstCapture_getprop_eta_nc, NULL,
     "Non-coherent detection gate — the one in force when `n_noncoh > 1`, "
-    "which is the usual case. Higher than `eta` for the same `pfa`, because "
-    "combining looks costs the threshold what it buys in sensitivity.\n",
+    "which a burst search never chooses on its own (it reads 0 unless "
+    "`configure_search_raw` pins looks). Higher than `eta` for the same "
+    "`pfa`, because combining looks costs the threshold what it buys in "
+    "sensitivity.\n",
     NULL },
   { "straddle_loss", (getter)BurstCapture_getprop_straddle_loss, NULL,
     "Correlation kept, worst case, by a burst landing BETWEEN grid points "

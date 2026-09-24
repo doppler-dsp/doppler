@@ -2,7 +2,7 @@
 
 ![DSSS acquisition characterisation](../assets/dsss_acq_characterization.png)
 
-A performance characterisation of `doppler.acquire.Acquisition`: the probability
+A performance characterisation of `doppler.acquire.BurstAcquisition` on a DSSS preamble: the probability
 of detection (`Pd`) and probability of false alarm (`Pfa`) of a
 spread-spectrum burst acquirer, measured by Monte-Carlo against the data-link
 **Es/N0**.
@@ -60,8 +60,9 @@ noise-only run (≈ `8.5e-4`); the squares are the noisier per-Es/N0 estimates.
 
 ## How it works
 
-`Acquisition` is constructed from physics, not tuning knobs — the PN code, the
-front-end geometry (`reps`, `spc`, `chip_rate`), a sizing sensitivity
+`BurstAcquisition` is constructed from physics, not tuning knobs — the
+preamble's samples (the PN code by `bin_to_nrz`, each chip held `spc` samples),
+their rate `fs = chip_rate·spc`, the repetitions `reps`, a sizing sensitivity
 (`cn0_dbhz`), and the detection targets (`pfa`, `pd`). It then:
 
 1. Frames the raw stream into `(doppler_bins, code_bins)` where
@@ -74,9 +75,9 @@ front-end geometry (`reps`, `spc`, `chip_rate`), a sizing sensitivity
     `(doppler_bin, code_phase, …)` event whenever the test statistic crosses an
     automatically configured, Bonferroni-corrected threshold.
 
-A deliberately low sizing `cn0_dbhz` pins the coherent depth to all five
-repetitions (`doppler_bins == reps`), so one acquisition frame spans the whole
-preamble.
+The script pins the coherent depth to all five repetitions with
+`configure_search_raw(reps, 1)` (`doppler_bins == reps`), so one acquisition
+frame spans the whole preamble.
 
 ### Es/N0
 

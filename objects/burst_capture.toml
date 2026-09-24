@@ -20,9 +20,7 @@ create_error_message = "BurstCapture: invalid parameter (need a non-empty preamb
 # A search that cannot meet the requested `pd` still BUILDS, best-effort, and
 # then captures fewer bursts than arrived -- so the only symptom is a quiet
 # stream. Declared here rather than hand-patched: jm's condition must be a
-# bare bool field on the state struct, which is exactly why the sibling
-# BurstAcquisition's copy of this warning lives in its sacred fragment (see
-# the note at the top of objects/burst_acq.toml).
+# bare field on the state struct, which BurstAcquisition carries too.
 warnings = [
   { after = "__init__", condition = "underpowered", category = "UserWarning", message = "BurstCapture: the search cannot meet the requested pd at this cn0_dbhz and geometry (pd_burst < pd). It still builds a best-effort grid, so the symptom is bursts that are never captured rather than an error. Lower pd, raise cn0_dbhz, or give the preamble more repetitions." },
 ]
@@ -325,12 +323,10 @@ name = "pd_burst"
 type = "double"
 doc = "Detection probability of one burst at `cn0_dbhz`: every dwell its preamble spans, at a uniform alignment against the stream, any one detecting. The number behind `underpowered`, and the one to compare against the `pd` that was asked for. It is the ENGINE's: a detection the capture then cannot resolve to the right start is not priced in. NaN with no design `cn0_dbhz`."
 
-# NOT `threshold`, which the engine also carries: it is the COHERENT gate and
-# is deliberately zeroed on the non-coherent path (acq_core.c:354), so it
-# reads 0.0 whenever `n_noncoh > 1` -- which is the usual case. A read-back
-# that is zero for a working object invites exactly the wrong conclusion.
-# These two are the gates that are actually in force, and `n_noncoh` above
-# says which.
+# NOT `threshold`, which the engine also carries: the engine zeroes it on the
+# non-coherent path, so a read-back could be zero for a working object. These
+# two are the gates, and `n_noncoh` above says which is in force (a burst
+# search always picks one look, so `eta`).
 [[burst_capture.properties]]
 name = "eta"
 type = "double"
@@ -339,7 +335,7 @@ doc = "Coherent detection gate: the normalised statistic a single-look decision 
 [[burst_capture.properties]]
 name = "eta_nc"
 type = "double"
-doc = "Non-coherent detection gate — the one in force when `n_noncoh > 1`, which is the usual case. Higher than `eta` for the same `pfa`, because combining looks costs the threshold what it buys in sensitivity."
+doc = "Non-coherent detection gate — the one in force when `n_noncoh > 1`, which a burst search never chooses on its own (it reads 0 unless `configure_search_raw` pins looks). Higher than `eta` for the same `pfa`, because combining looks costs the threshold what it buys in sensitivity."
 
 [[burst_capture.properties]]
 name = "straddle_loss"

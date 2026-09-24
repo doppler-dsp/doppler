@@ -513,7 +513,8 @@ class Acquisition:
         One (the default) is the classic detector -- the maximum of the
         surface, gated. More is the list of docs/design/async-dsss-receiver.md
         §7.1: every peak above the same gate, strongest first, each with an
-        exclusion zone of one Doppler bin by one chip around it (one emitter's
+        exclusion zone of one Doppler bin by the reference's first
+        autocorrelation null around it (one chip for a PN code; one emitter's
         main lobe, so its own shoulders are not the next peak), and the
         two-epoch rule for a peak at an already-listed code phase -- a data
         transition inside the epoch splits one emitter into twins at its own
@@ -1503,9 +1504,10 @@ class BurstAcquisition:
         Forwards to acq_set_max_peaks() on the embedded engine (see its doc
         comment in acq_core.h): one is the classic gated maximum; more is the
         list of docs/design/async-dsss-receiver.md §7.1 -- every peak above the
-        same gate, strongest first, an exclusion zone of one Doppler bin by one
-        chip around each, and the two-epoch rule for a peak at an
-        already-listed code phase. Each listed peak is one result from push().
+        same gate, strongest first, an exclusion zone of one Doppler bin by the
+        reference's first autocorrelation null (one chip for a PN code) around
+        each, and the two-epoch rule for a peak at an already-listed code
+        phase. Each listed peak is one result from push().
 
         Parameters
         ----------
@@ -2319,8 +2321,10 @@ class BurstCapture:
     @property
     def eta_nc(self) -> float:
         """Non-coherent detection gate — the one in force when `n_noncoh > 1`,
-        which is the usual case. Higher than `eta` for the same `pfa`, because
-        combining looks costs the threshold what it buys in sensitivity.
+        which a burst search never chooses on its own (it reads 0 unless
+        `configure_search_raw` pins looks). Higher than `eta` for the same
+        `pfa`, because combining looks costs the threshold what it buys in
+        sensitivity.
         """
 
     @property
@@ -2994,8 +2998,10 @@ class PersistentBurstCapture:
     @property
     def eta_nc(self) -> float:
         """Non-coherent detection gate — the one in force when `n_noncoh > 1`,
-        which is the usual case. Higher than `eta` for the same `pfa`, because
-        combining looks costs the threshold what it buys in sensitivity.
+        which a burst search never chooses on its own (it reads 0 unless
+        `configure_search_raw` pins looks). Higher than `eta` for the same
+        `pfa`, because combining looks costs the threshold what it buys in
+        sensitivity.
         """
 
     @property

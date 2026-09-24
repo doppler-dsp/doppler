@@ -280,18 +280,36 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
 static double
 cn0_for (const tmpl_t *tp, double target)
 {
-  for (int step = 0; step <= 280; step++)
+  /* Bisected on the quarter-dB grid 30..100 dB-Hz: Pd rises with C/N0 at a
+     pinned grid, so this is the step a linear scan finds, in ~9
+     constructions rather than ~60. Each one sizes a whole burst engine, and
+     the scan alone put the spot check over its CI budget (doppler#1498). */
+  int lo = 0, hi = 280;
+  {
+    acq_state_t *a = dp_xnn (acq_create_burst (tp->t, tp->n, D, FS_T,
+                                               30.0 + 0.25 * (double)hi, 0.0,
+                                               PFA, 0.9, 0, 0.0));
+    pin (a);
+    const double p = a->pd_predicted;
+    acq_destroy (a);
+    if (!(p >= target))
+      return NAN;
+  }
+  while (lo < hi)
     {
-      double       c = 30.0 + 0.25 * (double)step;
-      acq_state_t *a = dp_xnn (
-          acq_create_burst (tp->t, tp->n, D, FS_T, c, 0.0, PFA, 0.9, 0, 0.0));
+      const int    mid = (lo + hi) / 2;
+      acq_state_t *a   = dp_xnn (acq_create_burst (tp->t, tp->n, D, FS_T,
+                                                   30.0 + 0.25 * (double)mid,
+                                                   0.0, PFA, 0.9, 0, 0.0));
       pin (a);
-      double p = a->pd_predicted;
+      const double p = a->pd_predicted;
       acq_destroy (a);
       if (p >= target)
-        return c;
+        hi = mid;
+      else
+        lo = mid + 1;
     }
-  return NAN;
+  return 30.0 + 0.25 * (double)lo;
 }
 
 /* --emit: CSV blocks for acq's validate.py, which renders the report and
@@ -322,25 +340,36 @@ drift_rows (const tmpl_t *zc, int check)
 {
   const size_t reps = 16;
   const double rate = 1.5e6; /* Hz/s */
-  double       cn0  = NAN;
-  for (int step = 0; step <= 160; step++)
+  /* The highest C/N0, on a quarter-dB grid down from 70 dB-Hz, at which the
+     sizer alone picks a deep block -- deep whether or not it can also MEET
+     pd there: sizing on the burst (doppler#1498) no longer buys a 12-deep
+     block of 16 that meets it, since such a dwell straddles the preamble at
+     most alignments. What this needs is only a depth well past the cap.
+     Bisected: the depth grows as C/N0 falls over 70..30 dB-Hz, so this is
+     the step a linear scan finds, in ~8 constructions rather than ~95. */
+  int lo = 0, hi = 160; /* steps down from 70 dB-Hz */
+  {
+    acq_state_t *a = dp_xnn (acq_create_burst (zc->t, zc->n, reps, FS_T,
+                                               70.0 - 0.25 * (double)hi, 0.0,
+                                               PFA, 0.9, 0, 0.0));
+    const int    deep = a->coherent_bins >= 10;
+    acq_destroy (a);
+    DP_REQUIRE (deep);
+  }
+  while (lo < hi)
     {
-      double       c = 70.0 - 0.25 * (double)step;
-      acq_state_t *a = dp_xnn (acq_create_burst (zc->t, zc->n, reps, FS_T, c,
-                                                 0.0, PFA, 0.9, 0, 0.0));
-      /* Deep, whether or not the sizer can also MEET pd there: sizing on
-         the burst (doppler#1498) no longer buys a 12-deep block of 16 that
-         meets it, since such a dwell straddles the preamble at most
-         alignments. What this needs is only a depth well past the cap. */
-      int deep = a->coherent_bins >= 10;
+      const int    mid  = (lo + hi) / 2;
+      acq_state_t *a    = dp_xnn (acq_create_burst (zc->t, zc->n, reps, FS_T,
+                                                    70.0 - 0.25 * (double)mid,
+                                                    0.0, PFA, 0.9, 0, 0.0));
+      const int    deep = a->coherent_bins >= 10;
       acq_destroy (a);
       if (deep)
-        {
-          cn0 = c;
-          break;
-        }
+        hi = mid;
+      else
+        lo = mid + 1;
     }
-  DP_REQUIRE (!isnan (cn0));
+  const double cn0 = 70.0 - 0.25 * (double)lo;
 
   /* The spot check needs far fewer trials than the table: the blind row
      misses its promise by ~0.27, 13 sigma at 500. */

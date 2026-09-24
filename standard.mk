@@ -92,6 +92,24 @@ STANDARD_URL  ?= https://just-buildit.github.io/standard.mk
 VENDORED_FILES  ?=
 VENDOR_BASE_URL ?= $(dir $(STANDARD_URL))
 
+# Where vendored file $f is fetched from, as shell that sets `u`. ONE
+# derivation, used by both standard-update and standard-check, so the fetch
+# and the check cannot disagree about where a file lives.
+#
+# A path under `.github/` is served from `github/` (no dot): Pages publishes
+# dotfiles but never the `.github/` directory, and `.github/dependabot.yml`
+# is the one place Dependabot reads its config. So canonical publishes
+# `github/dependabot.yml`, and an adopter lists `.github/dependabot.yml`.
+#
+# The x prefix is load-bearing: an empty STANDARD_FILE expands the first
+# pattern to a bare ) and the shell dies on a syntax error. Quoted, so an
+# exact match rather than a glob.
+_std_vendor_src = case "x$$f" in \
+        "x$(STANDARD_FILE)") u="$(STANDARD_URL)" ;; \
+        x.github/*)          u="$(VENDOR_BASE_URL)github/$${f\#.github/}" ;; \
+        *)                   u="$(VENDOR_BASE_URL)$$f" ;; \
+    esac
+
 # ── Tooling ──────────────────────────────────────────────────────────────────
 # The ONLY place a tool binary is named. Versions live in pyproject.toml's dev
 # group and are pinned by uv.lock; humans, hooks and CI all reach the tools
@@ -1302,10 +1320,7 @@ standard-update: ## Re-fetch every vendored file from canonical
 	    exit 0; \
 	fi; \
 	for f in $(STANDARD_FILE) $(VENDORED_FILES); do \
-	    case "x$$f" in \
-	        "x$(STANDARD_FILE)") u="$(STANDARD_URL)" ;; \
-	        *)                   u="$(VENDOR_BASE_URL)$$f" ;; \
-	    esac; \
+	    $(_std_vendor_src); \
 	    tmp=$$(mktemp); \
 	    if ! curl -fsSL "$$u" -o "$$tmp" 2>/dev/null; then \
 	        rm -f "$$tmp"; \
@@ -1330,14 +1345,7 @@ standard-check: ## Verify every vendored file matches canonical
 	fi; \
 	n=0; fail=0; \
 	for f in $(STANDARD_FILE) $(VENDORED_FILES); do \
-	    : "The x prefix is load-bearing: an empty STANDARD_FILE expands the"; \
-	    : "pattern to a bare ) and the shell dies on a syntax error instead"; \
-	    : "of reaching the compared-0-files guard below. Quoted, so an exact"; \
-	    : "match rather than a glob."; \
-	    case "x$$f" in \
-	        "x$(STANDARD_FILE)") u="$(STANDARD_URL)" ;; \
-	        *)                   u="$(VENDOR_BASE_URL)$$f" ;; \
-	    esac; \
+	    $(_std_vendor_src); \
 	    if [ ! -f "$$f" ]; then \
 	        echo "ERROR: $$f is vendored but missing from this repo."; \
 	        echo "  A gate that compares nothing has not passed. Fetch it:"; \

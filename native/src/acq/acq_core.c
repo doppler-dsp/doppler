@@ -771,11 +771,14 @@ acq_sinc (double u)
 }
 
 /* Gauss-Hermite nodes and weights (physicists') for E[f(X)], X Gaussian:
-   3 match 6 to 1e-5 on the Pd below (doppler#1501). */
-static const double ACQ_GH_X[3]
-    = { -1.224744871391589, 0.0, 1.224744871391589 };
-static const double ACQ_GH_W[3]
-    = { 0.295408975150919, 1.181635900603677, 0.295408975150919 };
+   2 match 6 to 5e-5 on the Pd below, far under anything a certification
+   resolves, and every burst sizing evaluates them ~13k times a depth
+   (doppler#1501). */
+#define ACQ_GH_NODES 2
+static const double ACQ_GH_X[ACQ_GH_NODES]
+    = { -0.707106781186548, 0.707106781186548 };
+static const double ACQ_GH_W[ACQ_GH_NODES]
+    = { 0.886226925452758, 0.886226925452758 };
 
 /* The Pd of one coherent cell at amplitude SNR `se` against the gate the
  * engine actually runs: `eta` scaled by a noise reference MEASURED from the
@@ -837,7 +840,7 @@ acq_cfar_pd (double se, double se_tot, int n, double eta, double k,
   const double sd  = sqrt ((4.0 - M_PI) / 2.0 / (k - 1.0));
   const double g   = t * (k - 1.0) / (k - t);
   double       acc = 0.0;
-  for (int j = 0; j < 3; j++)
+  for (int j = 0; j < ACQ_GH_NODES; j++)
     acc += ACQ_GH_W[j] * det_pd (se, n, g * (mu + M_SQRT2 * sd * ACQ_GH_X[j]));
   return acc / sqrt (M_PI);
 }

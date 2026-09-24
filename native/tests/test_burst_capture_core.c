@@ -531,6 +531,78 @@ test_block_size_below_min_gap (void)
 }
 
 /**
+ * A held head does not stall the bursts behind it (doppler#1534).
+ *
+ * Bursts LONGER than `refine_span`, whose payload keeps firing against the
+ * acquisition code after the window is emitted: those late detections are
+ * held (shadowed) for a release() verdict. emit() used to stop at a held
+ * head, so a complete window behind it waited, kept the history tail
+ * pinned, and inside one long push the ring refused a chunk -- a whole
+ * push of four such bursts lost one and dropped tens of thousands of
+ * samples, where 333-sample blocks lost nothing. Asserted: nothing dropped,
+ * and every burst at its exact start, whole and in blocks.
+ */
+static int
+test_a_held_head_does_not_stall_long_bursts (void)
+{
+  const size_t LONG_LEN = 4u * BURST_LEN, GAP = 500u, N = 4u;
+  const size_t n_syms = (LONG_LEN / SPC - REPS * ACQ_SF) / DATA_SF;
+  static float _Complex burst[4u * BURST_LEN];
+  {
+    const uint8_t *acode = acq_code (), *dcode = data_code ();
+    size_t         k = 0;
+    for (size_t r = 0; r < REPS; r++)
+      for (size_t c = 0; c < ACQ_SF; c++)
+        for (size_t m = 0; m < SPC; m++)
+          burst[k++] = csign (acode[c]);
+    uint32_t st = 1534u;
+    for (size_t j = 0; j < n_syms; j++)
+      {
+        float a = csign ((uint8_t)(dp_xs32 (&st) >> 31));
+        for (size_t c = 0; c < DATA_SF; c++)
+          for (size_t m = 0; m < SPC; m++)
+            burst[k++] = a * csign (dcode[c]);
+      }
+    DP_REQUIRE (k <= LONG_LEN);
+  }
+  static float _Complex cap[6u * 4u * BURST_LEN];
+  const size_t n_cap = sizeof cap / sizeof *cap;
+  size_t       at[4];
+  for (size_t b = 0; b < N; b++)
+    at[b] = 1000u + b * (LONG_LEN + GAP);
+  DP_REQUIRE (at[N - 1] + 2u * LONG_LEN <= n_cap);
+  build_capture (cap, n_cap, NULL, 0u, 0.02, 1534u);
+  for (size_t b = 0; b < N; b++)
+    for (size_t i = 0; i < LONG_LEN; i++)
+      cap[at[b] + i] += burst[i];
+
+  const size_t blocks[2] = { n_cap, 333u };
+  for (size_t v = 0; v < 2u; v++)
+    {
+      burst_capture_state_t *s
+          = capture_from_code (acq_code (), ACQ_SF, LONG_LEN, REPS, SPC, 1.0e6,
+                               ACQ_CN0_NONE, 0.0, 1e-3, 0.9, 0, 0.0);
+      DP_REQUIRE (s != NULL);
+      DP_REQUIRE (LONG_LEN > s->refine_span); /* the premise */
+      size_t seen[4] = { 0 };
+      for (size_t off = 0; off < n_cap; off += blocks[v])
+        {
+          size_t blk = n_cap - off < blocks[v] ? n_cap - off : blocks[v];
+          (void)burst_capture_push (s, cap + off, blk, NULL, 0);
+          for (size_t i = 0; i < burst_capture_ready (s); i++)
+            for (size_t b = 0; b < N; b++)
+              seen[b]
+                  += burst_capture_event_at (s, i)->preamble_start == at[b];
+        }
+      DP_CHECK (s->dropped == 0);
+      for (size_t b = 0; b < N; b++)
+        DP_CHECK (seen[b] == 1u);
+      burst_capture_destroy (s);
+    }
+  return 0;
+}
+
+/**
  * A caller whose buffer holds fewer than the completed bursts gets WHOLE
  * windows, never a truncated one: half a burst is not a burst, and a caller
  * handed 3.5 of them cannot tell where the truncation fell.
@@ -2130,6 +2202,8 @@ main (void)
   if (test_every_burst_is_emitted_once ())
     return 1;
   if (test_block_size_below_min_gap ())
+    return 1;
+  if (test_a_held_head_does_not_stall_long_bursts ())
     return 1;
   if (test_block_size_does_not_change_the_answer ())
     return 1;

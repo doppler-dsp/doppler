@@ -570,6 +570,10 @@ detection, in whatever form a frame carries it, is the consumer's. So:
     that can still be emitted, and a held detection whose history has been
     trimmed goes early, since no release could refine it again. Only a push
     long enough to trim past one gets there (#1527).
+- they never stall the queue: `emit` takes the first entry that is not
+    held. A complete window behind a held head used to wait, pin the history
+    tail, and with bursts longer than `refine_span` make one long push drop a
+    chunk and a burst (#1534).
 
 `DsssBurstReceiver` checks its own trailer in C (`frame_valid`, scalar and
 per event row) and releases every window that fails. Nothing assumes that

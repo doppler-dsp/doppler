@@ -606,9 +606,26 @@ burst_capture_emit (burst_capture_state_t *s)
 {
   if (!s->pending)
     return 0;
+  /* The first entry NOT held. A held (shadowed) one waits for a verdict
+     only the consumer can give, between pushes (burst_capture_release());
+     it must not stall every burst queued behind it. A long burst makes the
+     stall a loss: a complete window waiting behind a held head keeps the
+     history tail pinned, the ring refuses the next chunk, and a whole-capture
+     push of four 41548-sample bursts dropped 52596 samples and the fourth
+     burst, where 1000-sample blocks lost nothing (doppler#1534). */
+  size_t j = 0;
+  while (j < s->pending && s->q[(s->q_head + j) % s->q_cap].shadowed)
+    j++;
+  if (j == s->pending)
+    return 0;
+  if (j)
+    {
+      burst_capture_pending_t  tmp = s->q[s->q_head];
+      burst_capture_pending_t *hj  = &s->q[(s->q_head + j) % s->q_cap];
+      s->q[s->q_head]              = *hj;
+      *hj                          = tmp;
+    }
   burst_capture_pending_t *e = &s->q[s->q_head];
-  if (e->shadowed)
-    return 0; /* held inside an emitted span; see burst_capture_release() */
 
   if (!e->refined)
     {

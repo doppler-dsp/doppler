@@ -16,8 +16,8 @@ ______________________________________________________________________
 ## Correlation
 
 `Corr` is a 1-D FFT correlator with coherent integrate-and-dump: it pre-computes
-`conj(FFT(ref))` once at construction, so each `execute()` costs two FFTs and `n`
-complex multiplies. With `dwell == 1` every call dumps; with a larger `dwell`,
+`conj(FFT(ref))` once at construction, so each `execute()` costs one forward FFT
+and `n` complex multiplies, plus the inverse FFT on the call that dumps. With `dwell == 1` every call dumps; with a larger `dwell`,
 the accumulator coherently integrates that many frames before returning a result
 (and returns `None` in between).
 
@@ -32,7 +32,9 @@ out = corr.execute(frame.astype(np.complex64))   # ndarray on a dump, else None
 lag = int(np.argmax(np.abs(out)))                 # correlation peak position
 ```
 
-`Corr2D` is the 2-D analogue over an `ny × nx` grid (flat row-major arrays).
+`Corr2D` is the 2-D analogue over an `ny × nx` grid: the reference is a 2-D
+`(ny, nx)` array, `execute` takes the input in either shape, and it returns a
+flat row-major array.
 
 ::: doppler.spectral.Corr
 
@@ -53,7 +55,7 @@ import numpy as np
 from doppler.spectral import CorrDetector
 
 ref = np.exp(2j * np.pi * 0.1 * np.arange(1024)).astype(np.complex64)
-det = CorrDetector(ref, dwell=4, threshold=12.0)      # ~12 dB peak-to-noise
+det = CorrDetector(ref, dwell=4, threshold=12.0)      # peak 12x the noise (linear)
 
 
 def stream_chunks():                              # a real CF32 source

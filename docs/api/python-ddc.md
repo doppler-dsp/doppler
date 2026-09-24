@@ -20,15 +20,16 @@ different constructor over the same C state:
 | `Ddcr`        | float32 real | Kaiser anti-alias   | real ADC, direct-sampling SDR      |
 | `MatchedDdcr` | float32 real | matched-filter bank | recovering symbols from a real ADC |
 
-All four produce CF32 IQ at the decimated output rate, share the same methods,
-and take an optional caller-provided output buffer (`y = ddc.execute(x, out)`)
+All four produce CF32 IQ at the decimated output rate and share the same
+processing methods (`Ddcr`/`MatchedDdcr` also have `close()`), and take an optional caller-provided output buffer (`y = ddc.execute(x, out)`)
 when allocation and buffer reuse need to be explicit.
 
 ______________________________________________________________________
 
 ## `DDC` — complex input
 
-Signal chain: LO mix → polyphase resample.
+Signal chain: LO mix → RateConverter (the cheapest CIC + halfband + polyphase
+cascade for the rate, chosen at create time).
 Built-in Kaiser bank (60 dB rejection) — no filter design required.
 
 **Frequency convention:** `norm_freq = -f_carrier` shifts a carrier at
@@ -149,9 +150,12 @@ ______________________________________________________________________
 Signal chain: halfband R2C (2:1, embedded −fs/4 shift, zero extra
 multiplications) → LO mix at fs/2 → polyphase resample.
 
-~2× cheaper than `DDC` for any real-ADC source because the halfband
-operates at half the sample rate and the embedded mix costs zero extra
-multiplications.
+Choose it because your input is real, not for speed. The halfband's embedded
+fs/4 mix costs no multiplications, but the front end alone measures 1.04–1.40×
+against `DDC` on the same stream promoted to complex (0.74–1.13× once the
+promote is charged to `DDC`); the half rate pays in a whole receiver, where it
+halves the rate ahead of the matched filter (1.13–1.69× for `MpskReceiverR`,
+see `ddcr_core.h`).
 
 `Ddcr` wraps `ddcr_state_t`. `execute()` returns its own array, or fills a
 **caller-provided writable `complex64` buffer** and returns the trimmed view
@@ -171,7 +175,7 @@ ddcr = Ddcr(norm_freq=-0.7, rate=0.25)
 
 x = np.random.randn(4096).astype(np.float32)   # real ADC samples
 out = np.empty(len(x), dtype=np.complex64)     # caller buffer (reuse across calls)
-y = ddcr.execute(x, out)    # CF32 view out[:n_out], len(y) ≈ 4096/2 * 0.25 = 512
+y = ddcr.execute(x, out)    # CF32 view out[:n_out], len(y) = 4096 * 0.25 = 1024 (rate is fs_out / fs_in)
 ```
 
 ______________________________________________________________________
@@ -199,9 +203,8 @@ entirely explicit — ideal for streaming and sharded-worker designs.
 
 !!! warning "Match the buffer's dtype"
 
-    An `out=` buffer of the wrong dtype is **not** written: the binding casts
-    it into a temporary, so the returned array is correct but the caller's
-    buffer stays untouched. Always allocate `complex64`.
+    An `out=` buffer of the wrong dtype is refused with `TypeError` rather
+    than cast into a temporary. Always allocate `complex64`.
 
 ### Buffer sizing
 
@@ -293,7 +296,7 @@ the [Ddcr gallery walkthrough](../gallery/ddc-fn.md).
 
 ### Lifecycle and memory safety
 
-`Ddcr` is an RAII handle: `close()` (or a `with` block) releases the C state
+`Ddcr` owns its C state: `close()` (or a `with` block) releases the C state
 deterministically; otherwise the destructor frees it.
 
 | Scenario                  | Safe?                                                   |
@@ -337,7 +340,7 @@ Three stages, each optional or reorderable:
 | Halfband ÷2        | `hbdecim_state_t` | Cheap factor-of-2 decimation                   |
 | Polyphase resample | `resamp_state_t`  | Continuously-variable rate conversion          |
 
-`ddc_create(norm_freq, rate)` chains LO + polyphase resampler with built-in
+`ddc_create(norm_freq, rate)` chains the LO and a RateConverter with built-in
 Kaiser coefficients (passband ≤ 0.4·fs_out, stopband ≥ 0.6·fs_out, 60 dB
 rejection); `ddc_create_matched(norm_freq, rate, pulse, …)` puts a
 matched-filter bank on the terminal stage instead — see
@@ -348,11 +351,13 @@ ______________________________________________________________________
 ### Architecture A — Plain DDC (default)
 
 ```
-CF32 in ──► LO ──► polyphase resample (0.4/0.6, rate r) ──► CF32 out
+CF32 in ──► LO ──► RateConverter (0.4/0.6, rate r) ──► CF32 out
 ```
 
-`ddc_create(norm_freq, rate)` with built-in Kaiser bank.
-No design step required. One allocation, no intermediate buffers.
+`ddc_create(norm_freq, rate)` with built-in Kaiser bank. No design step
+required. The RateConverter already picks a CIC + halfband + polyphase
+cascade for large ratios, so this is the halfband-first structure below
+whenever it is cheaper.
 
 **Best for:** prototype, any decimation rate, single-stage simplicity.
 
@@ -384,8 +389,8 @@ the fs/4 mix multiplies by `{1, −j, −1, +j, …}` (sign negations only,
 no multiplications) and is embedded into the halfband tap weights at
 construction time.
 
-**Fine NCO frequency convention:** `norm_freq = 2*f_tone + 0.5`
-The +0.5 cancels the halfband's embedded −fs/4 shift.
+**Fine NCO frequency convention:** `norm_freq = -(2*f_tone + 0.5)`
+The 0.5 cancels the halfband's embedded fs/4 shift.
 
 **Cost vs Architecture D (NCO → complex HB → polyphase resample):**
 
@@ -396,9 +401,9 @@ The +0.5 cancels the halfband's embedded −fs/4 shift.
 | Fine NCO at fs/2 | —                  | 1 MAC (effective)        |
 | **Total (N=19)** | **≈ 11.5 MACs**    | **≈ 5.75 MACs**          |
 
-Architecture D2 is approximately **2× cheaper** than Architecture D for
-real input at any carrier or decimation rate. This is what `Ddcr`
-implements.
+That is the MAC count; measured, the front end gains far less (1.04–1.40×,
+see above), because multiplies are not what this path pays for. `Ddcr`
+implements Architecture D2.
 
 ______________________________________________________________________
 
@@ -441,7 +446,7 @@ ______________________________________________________________________
 ```
 Is your input real (single ADC channel)?
   YES ─► Ddcr / Architecture D2
-  │        ~2× cheaper at any carrier, any decimation rate
+  │        the real-input path (cheaper in a whole receiver, not ~2×)
   │        └─ Decimation > 38× after the HB?
   │              ─► Architecture E (planned): embed LO into polyphase taps
   │

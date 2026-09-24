@@ -38,7 +38,7 @@ import pytest
 from numpy.typing import NDArray
 
 from doppler.accumulator import AccCf64, AccF32, AccTrace
-from doppler.acquire import CarrierAcquisition
+from doppler.acquire import BurstAcquisition, BurstCapture, CarrierAcquisition
 from doppler.agc import AGC
 from doppler.analyzer import Specan
 from doppler.arith import AccQ8, AccQ15
@@ -95,6 +95,12 @@ _HB_TAPS = np.array([-0.21, 0.64, 0.64, -0.21], dtype=np.float32)
 _REF16 = (np.arange(16) + 0.5j).astype(np.complex64)
 # A 31-chip 0/1 spreading code for the burst despreader.
 _CODE31 = (np.arange(31, dtype=np.uint8) & 1).astype(np.uint8)
+# A COMPLEX preamble, Zadoff-Chu root 5 over 31 samples: the burst engines
+# take any preamble by its samples (doppler#1470), and until these entries
+# every round trip in the tree built them from a +-1 code.
+_ZC31 = np.exp(
+    -1j * np.pi * 5 * np.arange(31) * (np.arange(31) + 1) / 31
+).astype(np.complex64)
 # CCSDS 131.0-B-3 section 3's inner code, as Viterbi takes it.
 _CCSDS_POLY = np.array([0o171, 0o133], dtype=np.uint32)
 
@@ -488,6 +494,23 @@ CASES: dict[str, tuple[Callable[[], Any], _Feed]] = {
     # comfortably beyond the harness's 2048-sample stream so the object
     # never reaches its terminal (ready/give-up) state mid-test -- a
     # genuine in-progress resume, like PSD's/Corr's own entries above.
+    # Burst acquisition of a complex preamble: the engine's resumable state is
+    # the partial frame in its ring plus the dwell counters. The 2048-sample
+    # stream is not a whole number of 8 x 31 frames, so the cut lands
+    # mid-frame. Compared on the blob, as the detectors are: the hits depend
+    # on the whole running state.
+    "BurstAcquisition (Zadoff-Chu)": (
+        lambda: BurstAcquisition(_ZC31, reps=8, fs=1.0e6, cn0_dbhz=50.0),
+        _blob_after(lambda o, seg: o.push(seg)),
+    ),
+    # ...and the capture over it: the engine's state plus the history ring
+    # and the pending bursts, nested.
+    "BurstCapture (Zadoff-Chu)": (
+        lambda: BurstCapture(
+            _ZC31, burst_len=512, reps=8, fs=1.0e6, cn0_dbhz=50.0
+        ),
+        _blob_after(lambda o, seg: o.push(seg)),
+    ),
     "CarrierAcquisition": (
         lambda: CarrierAcquisition(
             16000.0,

@@ -1267,7 +1267,11 @@ main (void)
    * blob reserves ring_cap samples and acq_get_state wrote only the
    * n_unconsumed of them. Each engine here holds a PARTIAL frame, so the
    * ring has a tail to leave unwritten; one is burst, one continuous with a
-   * block and non-coherent looks (the blob's optional regions present). */
+   * block and non-coherent looks (the blob's optional regions present).
+   * The fourth is built from a COMPLEX preamble -- Zadoff-Chu root 5 over 31
+   * samples -- since every other round trip in the tree builds its engine
+   * from a +-1 code, and the burst engines take any preamble (doppler#1470).
+   */
   {
     const size_t    n_in = 3 * nx + 5; /* not a whole frame of any grid */
     float _Complex *x    = malloc (n_in * sizeof *x);
@@ -1275,9 +1279,15 @@ main (void)
     DP_REQUIRE (x != NULL);
     for (size_t i = 0; i < n_in; i++)
       x[i] = cosf (0.3f * (float)i) + I * sinf (0.7f * (float)i);
-    acq_state_t *pairs[3][2];
+    acq_state_t *pairs[4][2];
+    float _Complex zc[31];
+    for (size_t i = 0; i < 31; i++)
+      zc[i] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)i
+                                    * (double)(i + 1) / 31.0);
     for (int k = 0; k < 2; k++)
       {
+        pairs[3][k] = acq_create_burst (zc, 31, 8, 1.0e6, 50.0, 0.0, 1e-3, 0.9,
+                                        0, 0.0);
         pairs[0][k] = burst_from_code (CODE7, 7, 8, spc, crate, 45.0, 0.0,
                                        1e-3, 0.9, 0, 0.0);
         pairs[1][k] = acq_create_continuous (CODE7, 7, spc, crate, 0.0, 40.0,
@@ -1287,7 +1297,9 @@ main (void)
       }
     DP_CHECK (acq_configure_search_raw (pairs[2][0], 8, 2) == 0);
     DP_CHECK (acq_configure_search_raw (pairs[2][1], 8, 2) == 0);
-    for (int e = 0; e < 3; e++)
+    /* not a whole frame of the template's grid either */
+    DP_CHECK (n_in % (pairs[3][0]->coherent_bins * 31) != 0);
+    for (int e = 0; e < 4; e++)
       {
         DP_REQUIRE (pairs[e][0] != NULL && pairs[e][1] != NULL);
         (void)acq_push (pairs[e][0], x, n_in, hits, 16);

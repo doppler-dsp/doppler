@@ -129,6 +129,7 @@ typedef struct
   size_t ev_len;           
   uint8_t *released;       
   uint64_t suppress_until; 
+  uint64_t horizon;        
   uint64_t suppress_base;  
   size_t acq_blob_max;     
   /* ── Persistence (docs/design/burst-capture.md §9) ───────────────────── */

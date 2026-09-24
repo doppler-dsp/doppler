@@ -470,6 +470,67 @@ test_block_size_does_not_change_the_answer (void)
 }
 
 /**
+ * Block size does not change the answer BELOW `min_gap` either, where bursts
+ * sit closer than `refine_span` start to start (doppler#1527). The claim loop
+ * used to claim a whole chunk's detections before draining once, so a burst
+ * a small-block caller had already been handed was still pending when the
+ * next burst's detections arrived, and they merged: four bursts at a quarter
+ * of min_gap came back as ONE wrong window pushed whole and as four exact
+ * ones in small blocks. Starts are compared per block size, every event of
+ * every push collected, and each true start must come back exactly once.
+ */
+static int
+test_block_size_below_min_gap (void)
+{
+  static float _Complex cap[120000];
+  const size_t           n_cap = sizeof cap / sizeof *cap;
+  burst_capture_state_t *probe = make ();
+  DP_REQUIRE (probe != NULL);
+  const size_t gap = burst_capture_get_min_gap (probe) / 4u;
+  DP_REQUIRE (gap > 0u && BURST_LEN + gap < probe->refine_span);
+  burst_capture_destroy (probe);
+
+  size_t at[4];
+  for (size_t k = 0; k < 4u; k++)
+    at[k] = 3000u + k * (BURST_LEN + gap);
+  DP_REQUIRE (at[3] + BURST_LEN + 2u * BURST_LEN < n_cap);
+  build_capture (cap, n_cap, at, 4u, 0.02, 11u);
+
+  const size_t blocks[3] = { n_cap, 8192u, 333u };
+  uint64_t     got[3][16];
+  size_t       n_got[3] = { 0 };
+  for (size_t b = 0; b < 3u; b++)
+    {
+      burst_capture_state_t *s = make ();
+      DP_REQUIRE (s != NULL);
+      for (size_t off = 0; off < n_cap; off += blocks[b])
+        {
+          size_t blk = n_cap - off < blocks[b] ? n_cap - off : blocks[b];
+          (void)burst_capture_push (s, cap + off, blk, NULL, 0);
+          for (size_t i = 0; i < burst_capture_ready (s) && n_got[b] < 16u;
+               i++)
+            got[b][n_got[b]++] = burst_capture_event_at (s, i)->preamble_start;
+        }
+      burst_capture_destroy (s);
+    }
+
+  for (size_t b = 1; b < 3u; b++)
+    {
+      DP_CHECK (n_got[b] == n_got[0]);
+      for (size_t i = 0; i < n_got[0] && i < n_got[b]; i++)
+        DP_CHECK (got[b][i] == got[0][i]);
+    }
+  for (size_t k = 0; k < 4u; k++)
+    {
+      size_t seen = 0;
+      for (size_t i = 0; i < n_got[0]; i++)
+        seen += got[0][i] == at[k];
+      DP_CHECK (seen == 1u);
+    }
+  return 0;
+}
+
+/**
  * A caller whose buffer holds fewer than the completed bursts gets WHOLE
  * windows, never a truncated one: half a burst is not a burst, and a caller
  * handed 3.5 of them cannot tell where the truncation fell.
@@ -980,9 +1041,14 @@ test_release_gives_back_a_shadowed_burst (void)
     burst_capture_destroy (s);
   }
 
-  /* Not released: the hit is held through the push that shadowed it, then
-     dropped -- and `pending` never counted it, because it is not a burst a
-     caller would lose by stopping. */
+  /* Not released: the hit is never emitted, and `pending` never counted it,
+     because it is not a burst a caller would lose by stopping. Held only
+     while its history lasts: this push is long enough to trim past it, and
+     the decoy that shadowed it belongs to the PREVIOUS push, which no
+     release can reach any more -- so the hold bought nothing and pinned the
+     history ring until a chunk was refused (doppler#1527). The held-then-
+     released path is the long-burst block below, where the shadowing
+     window is emitted by the same push. */
   {
     burst_capture_state_t *s = make ();
     DP_REQUIRE (s != NULL);
@@ -991,8 +1057,7 @@ test_release_gives_back_a_shadowed_burst (void)
     burst_capture_push (s, cap + CUT, sizeof cap / sizeof *cap - CUT, out,
                         sizeof out / sizeof *out);
     DP_CHECK (burst_capture_ready (s) == 0);
-    DP_CHECK (s->pending >= 1u);                   /* held... */
-    DP_CHECK (burst_capture_get_pending (s) == 0); /* ...and not counted */
+    DP_CHECK (burst_capture_get_pending (s) == 0); /* not counted */
     static float _Complex quiet[8000];
     build_capture (quiet, sizeof quiet / sizeof *quiet, NULL, 0u, 0.02, 4u);
     burst_capture_push (s, quiet, sizeof quiet / sizeof *quiet, out,
@@ -2063,6 +2128,8 @@ main (void)
   if (test_a_wide_doppler_search_is_searched ())
     return 1;
   if (test_every_burst_is_emitted_once ())
+    return 1;
+  if (test_block_size_below_min_gap ())
     return 1;
   if (test_block_size_does_not_change_the_answer ())
     return 1;

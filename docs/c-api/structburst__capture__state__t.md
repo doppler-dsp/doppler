@@ -55,6 +55,7 @@ _BurstCapture state._ [More...](#detailed-description)
 |  size\_t | [**ev\_cap**](#variable-ev_cap)  <br> |
 |  size\_t | [**ev\_len**](#variable-ev_len)  <br> |
 |  dp\_f32\_t \* | [**hist**](#variable-hist)  <br> |
+|  uint64\_t | [**horizon**](#variable-horizon)  <br> |
 |  size\_t | [**k\_hi**](#variable-k_hi)  <br> |
 |  size\_t | [**k\_lo**](#variable-k_lo)  <br> |
 |  size\_t | [**max\_cells**](#variable-max_cells)  <br> |
@@ -464,6 +465,24 @@ dp_f32_t* burst_capture_state_t::hist;
 
 
 History ring. Double-mapped, so a window that spans the wrap is ONE contiguous pointer. This object keeps its own rather than borrowing acq's, which consumes every frame it processes and has therefore released what is still needed. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable horizon 
+
+```C++
+uint64_t burst_capture_state_t::horizon;
+```
+
+
+
+Scratch, inside push(): the stream position a window must END by to count as arrived. Claiming a detection first emits what was complete when that detection was MADE, so what a push returns follows stream time rather than the caller's block size (doppler#1527). UINT64\_MAX outside the claim loop; never serialized. 
  
 
 

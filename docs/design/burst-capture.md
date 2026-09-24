@@ -565,7 +565,11 @@ detection, in whatever form a frame carries it, is the consumer's. So:
 - `burst_capture_release(i)` gives window `i`'s span back and the held
     detections are searched again on the next `push()`;
 - unreleased, they are dropped when the next `push()` begins — exactly what
-    a consumer with no verdict always got. `pending` never counts them.
+    a consumer with no verdict always got. `pending` never counts them;
+- they never hold the history ring. Its tail is kept for the oldest entry
+    that can still be emitted, and a held detection whose history has been
+    trimmed goes early, since no release could refine it again. Only a push
+    long enough to trim past one gets there (#1527).
 
 `DsssBurstReceiver` checks its own trailer in C (`frame_valid`, scalar and
 per event row) and releases every window that fails. Nothing assumes that
@@ -576,6 +580,31 @@ or detect errors another way, and the capture's contract is the same.
 sabotages: the sizer escalating again, the reach refusal removed, a
 shadowed hit dropped on arrival, dropped at emission, and the receiver never
 releasing — each red at its own pin.
+
+### 11.3 Stream order
+
+What a push returns follows the stream, not the caller's block size. A push
+is processed in chunks of up to `chunk_max`, and each detection is claimed
+only after every pending burst whose window had **arrived when that
+detection was made** has been emitted: `burst_capture_have()` reads the
+history up to a *horizon*, the detection's `samples_consumed`, while it is
+claimed.
+
+Before that, a chunk's detections were all claimed and then drained once.
+A burst a small-block caller had already been handed was still pending when
+the next burst's detections arrived, and inside `refine_span` they merged.
+Four bursts at a quarter of `min_gap` came back as one wrong window when
+pushed whole, and as four exact ones in 1000-sample blocks (#1527). Fixed,
+120 of 120 runs agree across block sizes, gaps from `min_gap / 8` up, and
+lead offsets; §2.4's pair sweep reaches 100% at 194 samples of dead air,
+down from 388. `min_gap` stays sufficient and now looks conservative
+(#1530).
+
+Proven by three sabotages. Removing the drain before a claim turns the
+below-`min_gap` block-size test red. Ignoring the horizon turns five refine
+tests red, because bursts were emitted before their later phases were
+scored. Holding history for held detections turns the receiver's
+saturation test red, with a chunk refused.
 
 ## 10. See also
 

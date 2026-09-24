@@ -375,6 +375,14 @@ typedef struct
                                 preamble is a separate job, done by
                                 `refine_span` proximity plus a greatest-of
                                 tie-break.                                 */
+  uint64_t horizon;        /**< Scratch, inside push(): the stream position
+                                a window must END by to count as arrived.
+                                Claiming a detection first emits what was
+                                complete when that detection was MADE, so
+                                what a push returns follows stream time
+                                rather than the caller's block size
+                                (doppler#1527). UINT64_MAX outside the claim
+                                loop; never serialized.                    */
   uint64_t suppress_base;  /**< `suppress_until` as the last push() began:
                                 what EARLIER pushes' windows own, which a
                                 release() of this push's window must not

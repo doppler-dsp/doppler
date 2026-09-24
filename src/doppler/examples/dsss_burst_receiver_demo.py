@@ -36,8 +36,8 @@ its bursts at exactly `min_gap`, edge to edge, and property 1's assertions
 are the guarantee: every burst, at its exact sample, at every block size.
 It is a property to read, not a constant, and `refine_span` -- a
 start-to-start reach -- is not it (doppler#1514). Below `min_gap` there is
-no promise: today the result depends on the push block size
-(doppler#1527).
+no promise, though at this geometry an eighth of it still decodes every
+burst; whether the bound should come down is doppler#1530.
 
 **4. Every read-back is checked against the capture that produced it.**
 `events()`'s fields are the object's whole diagnostic surface, and each is

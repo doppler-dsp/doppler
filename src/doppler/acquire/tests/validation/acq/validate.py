@@ -1213,7 +1213,7 @@ def limits(d: Data) -> None:
     R.md(
         "Claims a caller may rely on. A failure here is a regression, not a "
         "new finding. Every one is asserted by "
-        "`src/doppler/dsss/tests/test_validation_limits.py`."
+        "`src/doppler/acquire/tests/test_validation_limits.py`."
     )
     R.md()
     R.limit(

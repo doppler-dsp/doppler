@@ -2306,9 +2306,12 @@ class BurstCapture:
         """Detection probability of one burst at `cn0_dbhz`: every dwell its
         preamble spans, at a uniform alignment against the stream, any one
         detecting. The number behind `underpowered`, and the one to compare
-        against the `pd` that was asked for. It is the ENGINE's: a detection
-        the capture then cannot resolve to the right start is not priced in.
-        NaN with no design `cn0_dbhz`.
+        against the `pd` that was asked for. It models the ENGINE, and the
+        model does not price a detection the capture then resolves to the wrong
+        repetition; measured, that loss fits inside the model's margin, so the
+        capture delivers at least `pd_burst` at every depth (validation report
+        §2.8, on a Zadoff-Chu 127 x 8 preamble). NaN with no design
+        `cn0_dbhz`.
         """
 
     @property
@@ -2983,9 +2986,12 @@ class PersistentBurstCapture:
         """Detection probability of one burst at `cn0_dbhz`: every dwell its
         preamble spans, at a uniform alignment against the stream, any one
         detecting. The number behind `underpowered`, and the one to compare
-        against the `pd` that was asked for. It is the ENGINE's: a detection
-        the capture then cannot resolve to the right start is not priced in.
-        NaN with no design `cn0_dbhz`.
+        against the `pd` that was asked for. It models the ENGINE, and the
+        model does not price a detection the capture then resolves to the wrong
+        repetition; measured, that loss fits inside the model's margin, so the
+        capture delivers at least `pd_burst` at every depth (validation report
+        §2.8, on a Zadoff-Chu 127 x 8 preamble). NaN with no design
+        `cn0_dbhz`.
         """
 
     @property

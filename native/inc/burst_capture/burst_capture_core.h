@@ -761,7 +761,13 @@ double burst_capture_get_straddle_loss (const burst_capture_state_t *state);
 /** @brief Detection probability of one dwell wholly inside the preamble. */
 double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
 /** @brief Detection probability of one burst: any dwell its preamble spans,
- *         at a uniform alignment (doppler#1498). What `underpowered` reads. */
+ *         at a uniform alignment (doppler#1498). What `underpowered` reads.
+ *
+ * It models the ENGINE. Refine naming the wrong repetition is not in the
+ * model, and does not need to be: measured on a Zadoff-Chu 127 x 8
+ * preamble at every depth, the capture delivers at least this, and refine
+ * names the wrong repetition in under 2.5% of trials pooled over depths
+ * (native/validation/capture_dwell_pd.c; validation report §2.8). */
 double burst_capture_get_pd_burst (const burst_capture_state_t *state);
 /** @brief Doppler rate (Hz/s) the coherent depth is bounded against; 0 is
  *         no bound. */

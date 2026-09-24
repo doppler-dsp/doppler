@@ -21,11 +21,15 @@ against the composition that shipped first.
 
 What is certified here is what this object owns alone: the **geometry** it
 derives, the **epoch** it resolves, the **retention** that lets it reach back,
-and the **two flavours' blobs**.
+the **two flavours' blobs**, and the **Pd it delivers** after refine names a
+repetition (§2.8). That last one is a Monte-Carlo, and the trial loop is C's
+(`native/validation/capture_dwell_pd.c --emit`, the same trials CTest runs):
+this file renders its rows and decides in `limits()`.
 """
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -47,9 +51,22 @@ from doppler.acquire.tests.characterization.burst_capture.characterize import (
     scene,
     separation,
 )
+from doppler.tests._repo import build_dir, exe, repo_root
 from doppler.tests._validation_common import Report, cli
 
 HERE = Path(__file__).resolve().parent
+ROOT = repo_root(__file__)
+#: The delivered-Pd Monte-Carlo (§2.8) is C's: one trial loop, one continuous
+#: delay and one scoring rule, in the harness CTest already runs.
+DWELL_PD = exe(
+    build_dir(__file__) / "native/validation/validate_capture_dwell_pd"
+)
+#: Refine's wrong-repetition share, pooled over every depth, may not exceed
+#: this. Measured 2026-09-24: 1.9% today; 2.8% with refine's Doppler grid
+#: halved (the setting doppler#1508 measured worse); 3.4% for the refine
+#: doppler#1502 replaced. The delivered-Pd limit alone passes all three,
+#: because pd_burst's margin absorbs the loss -- this is what sees refine.
+WRONG_REP_MAX = 0.025
 R = Report()
 
 # Geometry, stimulus and codes all come from the characterization subject, so
@@ -105,6 +122,8 @@ class Data:
     blob_disk: int = 0
     resume_ok: bool = False
     cross_reject: bool = False
+    pd_meta: list = field(default_factory=list)
+    pd_rows: list = field(default_factory=list)
 
 
 def section_object() -> None:
@@ -562,7 +581,99 @@ def characterise() -> Data:
         ],
     )
     R.md()
+    _sec_delivered_pd(d)
     return d
+
+
+def _dwell_pd_harness(d: Data) -> None:
+    """Run the delivered-Pd Monte-Carlo and parse its CSV.
+
+    A missing binary is a hard failure rather than a skip: a skipped
+    measurement is indistinguishable from a passing one in a log, and §2.8
+    comes from nowhere else. `make build` builds it, and CI builds before it
+    runs any Python.
+    """
+    if not DWELL_PD.exists():
+        raise SystemExit(
+            f"burst_capture: {DWELL_PD.relative_to(ROOT)} is not built — run "
+            "`make build` first. §2.8 is its measurement."
+        )
+    out = subprocess.run(
+        [str(DWELL_PD), "--emit"], capture_output=True, text=True, check=True
+    ).stdout
+    header: list[str] = []
+    for line in out.splitlines():
+        if line.startswith("# capture "):
+            d.pd_meta = line[len("# capture ") :].split(",")
+        elif not header:
+            header = line.split(",")
+        else:
+            d.pd_rows.append(
+                {k: float(v) for k, v in zip(header, line.split(","))}
+            )
+
+
+def _sec_delivered_pd(d: Data) -> None:
+    """What a caller of the capture gets: bursts at their true start."""
+    _dwell_pd_harness(d)
+    n, reps, payload, trials, pfa = d.pd_meta
+    R.md("### 2.8 The Pd it delivers, and refine's choice of repetition")
+    R.md()
+    R.md(
+        "The engine's `pd_burst` models a detection: some dwell the preamble "
+        "spans names its code phase. What a caller gets is a WINDOW at the "
+        "burst's true start, and between the two sits refine, which must "
+        "name the repetition the burst began on (doppler#1502). This "
+        f"measures both, per trial: a Zadoff-Chu {n} preamble repeated "
+        f"{reps} times, then {payload} samples of random QPSK, at a uniform "
+        "random offset, a Doppler uniform over the native span, a "
+        "continuous delay and AWGN from the shipped `awgn`. The grid is "
+        "pinned at each depth D with one look, pfa "
+        f"{pfa}, {trials} trials a row, and each row runs at the C/N0 where "
+        "the engine predicts a burst Pd of 0.6. `engine` scores the "
+        "search's own detections; `capture` scores windows emitted within "
+        "3 samples of the truth; `wrong rep` is the share of trials whose "
+        "window landed a whole number of periods off, the one error refine "
+        "owns. Measured by `native/validation/capture_dwell_pd.c --emit`."
+    )
+    R.md()
+    R.table(
+        [
+            "D",
+            "C/N0 (dB)",
+            "one dwell",
+            "`pd_burst`",
+            "engine",
+            "capture",
+            "± 1σ",
+            "wrong rep",
+        ],
+        [
+            [
+                str(int(r["depth"])),
+                f"{r['cn0']:.2f}",
+                f"{r['dwell']:.3f}",
+                f"{r['pred']:.3f}",
+                f"{r['eng']:.3f}",
+                f"{r['meas']:.3f}",
+                f"{r['se']:.3f}",
+                f"{r['wrong']:.3f}",
+            ]
+            for r in d.pd_rows
+        ],
+    )
+    R.md()
+    pooled = sum(r["wrong"] for r in d.pd_rows) / max(len(d.pd_rows), 1)
+    R.md(
+        "One dwell's Pd runs from "
+        f"{min(r['dwell'] for r in d.pd_rows):.2f} to "
+        f"{max(r['dwell'] for r in d.pd_rows):.2f} across rows that all sit "
+        "near `pd_burst`, so `pd_burst` is the number to design to. The "
+        "capture's loss against the engine is almost entirely refine naming "
+        f"the wrong repetition: {pooled:.1%} of trials pooled over every "
+        "depth. That loss is not in the model, and fits inside its margin."
+    )
+    R.md()
 
 
 def review(d: Data) -> None:
@@ -772,6 +883,26 @@ def limits(d: Data) -> None:
         "burst it became) — so a bank reads both faces from one engine "
         "(§2.7)",
     )
+    short = [
+        int(r["depth"])
+        for r in d.pd_rows
+        if r["meas"] < r["pred"] - 2.0 * r["se"]
+    ]
+    R.limit(
+        bool(d.pd_rows) and not short,
+        "the capture delivers `pd_burst`: at every depth D = 1..8, bursts "
+        "emitted at their true start are never fewer than `pd_burst` by "
+        "more than 2σ, so the engine's number is the capture's promise "
+        f"(§2.8){'; short at D = ' + str(short) if short else ''}",
+    )
+    pooled = sum(r["wrong"] for r in d.pd_rows) / max(len(d.pd_rows), 1)
+    R.limit(
+        bool(d.pd_rows) and pooled <= WRONG_REP_MAX,
+        f"refine names the wrong repetition in at most "
+        f"{WRONG_REP_MAX:.1%} of trials pooled over every depth "
+        f"({pooled:.1%} measured) — the check that sees refine, since "
+        "`pd_burst`'s margin hides a worse one from the limit above (§2.8)",
+    )
 
 
 def build(write: bool = True) -> Report:
@@ -798,6 +929,10 @@ def build(write: bool = True) -> Report:
             "C/N0 separates the two populations by "
             f"{d.sep.get('cn0_real', 0) - d.sep.get('cn0_spurious', 0):.1f} "
             "dB, and it is the only read-back that does (§2.5, F2).",
+            "**Design to `pd_burst`; the capture delivers it.** Refine "
+            "naming the wrong repetition is the capture's only loss against "
+            "the engine, about 2% of trials, and it fits inside the model's "
+            "margin at every depth (§2.8).",
             "**Block size is not a parameter of the answer.** From 333 "
             "samples to a push larger than the ring, the windows are "
             "bit-identical and nothing is dropped (§2.3).",

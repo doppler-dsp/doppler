@@ -748,6 +748,10 @@ double burst_capture_get_pd_burst (
 
 
 
+It models the ENGINE. Refine naming the wrong repetition is not in the model, and does not need to be: measured on a Zadoff-Chu 127 x 8 preamble at every depth, the capture delivers at least this, and refine names the wrong repetition in under 2.5% of trials pooled over depths (native/validation/capture\_dwell\_pd.c; validation report §2.8). 
+
+
+        
 
 <hr>
 

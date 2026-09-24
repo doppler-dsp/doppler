@@ -78,6 +78,9 @@
 #define BURST (R * N + PAYLOAD)
 #define PFA 1e-3
 #define TOL 3.0
+/* --check and --emit share one trial count, so the report's rows and
+   CTest's spot checks are the same Monte-Carlo, not two. */
+#define EMIT_TRIALS 300
 
 static float _Complex ZC[N];
 
@@ -136,6 +139,10 @@ typedef struct
 {
   size_t depth;
   double cn0, dwell, pred, eng, eng_se, meas, se;
+  /* Refine's own error: trials whose capture emitted a window a WHOLE
+     number of periods off the truth -- the burst found, the repetition
+     named wrong. The one failure refine owns (doppler#1502). */
+  double wrong;
 } row_t;
 
 static row_t
@@ -164,7 +171,7 @@ measure (size_t depth, int trials, uint32_t seed)
       awgn_create (seed, awgn_amplitude_for_snr ((float)r.cn0, 1.0f)));
   const double span = 1.0 / (2.0 * (double)N); /* cycles/sample */
   uint32_t     st   = seed;
-  int          hits = 0, eng = 0;
+  int          hits = 0, eng = 0, wrong = 0;
 
   for (int t = 0; t < trials; t++)
     {
@@ -195,16 +202,26 @@ measure (size_t depth, int trials, uint32_t seed)
 
       burst_capture_reset (s);
       (void)burst_capture_push (s, x, len, out, cap);
-      int hit = 0;
+      int hit = 0, off = 0;
       for (size_t k = 0; k < burst_capture_ready (s); k++)
         {
           const burst_capture_event_t *ev = burst_capture_event_at (s, k);
-          if (ev
-              && fabs ((double)ev->preamble_start - ((double)at + frac))
-                     <= TOL)
+          if (!ev)
+            continue;
+          const double err = (double)ev->preamble_start - ((double)at + frac);
+          if (fabs (err) <= TOL)
             hit = 1;
+          else if (fabs (err) <= (double)(R * N))
+            {
+              /* Within the preamble's reach and a whole number of
+                 periods off: the right burst, the wrong repetition. */
+              const double k_per = round (err / (double)N);
+              if (k_per != 0.0 && fabs (err - k_per * (double)N) <= TOL)
+                off = 1;
+            }
         }
       hits += hit;
+      wrong += (!hit && off);
 
       /* The ENGINE's own verdict, from the raw hits the capture recorded
          before claiming anything: some dwell overlapping the preamble named
@@ -228,6 +245,7 @@ measure (size_t depth, int trials, uint32_t seed)
   r.eng_se = sqrt (fmax (r.eng * (1.0 - r.eng), 1e-9) / trials);
   r.meas   = (double)hits / trials;
   r.se     = sqrt (fmax (r.meas * (1.0 - r.meas), 1e-9) / trials);
+  r.wrong  = (double)wrong / trials;
   awgn_destroy (g);
   free (out);
   free (per);
@@ -240,25 +258,41 @@ measure (size_t depth, int trials, uint32_t seed)
 int
 main (int argc, char **argv)
 {
-  const int check = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  const int check  = (argc > 1 && strcmp (argv[1], "--check") == 0);
+  const int emit   = (argc > 1 && strcmp (argv[1], "--emit") == 0);
+  const int trials = check || emit ? EMIT_TRIALS : 1000;
   zadoff_chu ();
-  printf ("Zadoff-Chu %u x %u then %u samples of QPSK; grid pinned at D, one "
-          "look, pfa %g; each row at the C/N0 the engine predicts a burst "
-          "Pd of 0.6 at\n",
-          N, R, PAYLOAD, PFA);
-  printf (
-      "a whole dwell fits at every alignment while D <= (R + 1)/2 = %u\n\n",
-      (R + 1u) / 2u);
-  printf ("%3s %8s %6s %6s %6s %6s %6s %6s %8s\n", "D", "C/N0", "dwell",
-          "burst", "engine", "1sig", "captur", "1sig", "lost");
+  if (emit)
+    printf ("# capture %u,%u,%u,%d,%g\n"
+            "depth,cn0,dwell,pred,eng,eng_se,meas,se,wrong\n",
+            N, R, PAYLOAD, trials, PFA);
+  else
+    {
+      printf ("Zadoff-Chu %u x %u then %u samples of QPSK; grid pinned at D, "
+              "one look, pfa %g; each row at the C/N0 the engine predicts a "
+              "burst Pd of 0.6 at\n",
+              N, R, PAYLOAD, PFA);
+      printf ("a whole dwell fits at every alignment while D <= (R + 1)/2 = "
+              "%u\n\n",
+              (R + 1u) / 2u);
+      printf ("%3s %8s %6s %6s %6s %6s %6s %6s %8s %6s\n", "D", "C/N0",
+              "dwell", "burst", "engine", "1sig", "captur", "1sig", "lost",
+              "wrong");
+    }
   for (size_t depth = 1; depth <= R; depth++)
     {
       if (check && depth != 1u && depth != 4u && depth != R)
         continue;
-      row_t r = measure (depth, check ? 300 : 1000, 1470u + (uint32_t)depth);
-      printf ("%3zu %8.2f %6.3f %6.3f %6.3f %6.3f %6.3f %6.3f %+8.3f\n",
-              r.depth, r.cn0, r.dwell, r.pred, r.eng, r.eng_se, r.meas, r.se,
-              r.meas - r.eng);
+      row_t r = measure (depth, trials, 1470u + (uint32_t)depth);
+      if (emit)
+        printf ("%zu,%.2f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n", r.depth,
+                r.cn0, r.dwell, r.pred, r.eng, r.eng_se, r.meas, r.se,
+                r.wrong);
+      else
+        printf ("%3zu %8.2f %6.3f %6.3f %6.3f %6.3f %6.3f %6.3f %+8.3f "
+                "%6.3f\n",
+                r.depth, r.cn0, r.dwell, r.pred, r.eng, r.eng_se, r.meas, r.se,
+                r.meas - r.eng, r.wrong);
       /* pd_burst holds for the engine it models, on both sides of
          (R + 1)/2 and at the most dwells: never optimistic beyond 2 sigma,
          never conservative beyond 0.15 -- acq's own bounds. */
@@ -270,5 +304,7 @@ main (int argc, char **argv)
           DP_CHECK (r.meas >= r.pred - 2.0 * r.se);
         }
     }
+  if (emit)
+    return 0;
   DP_TEST_END ("validate_capture_dwell_pd");
 }

@@ -67,10 +67,6 @@ DWELL_PD = exe(
 #: doppler#1502 replaced. The delivered-Pd limit alone passes all three,
 #: because pd_burst's margin absorbs the loss -- this is what sees refine.
 WRONG_REP_MAX = 0.025
-#: At the 0.9 design point the capture is SHORT of pd_burst (doppler#1519):
-#: up to 0.026 at 1000 trials, 0.035 at this report's 300. A RATCHET -- it
-#: may only tighten, and returns to "within 2 sigma" when #1519 is fixed.
-SHORTFALL_AT_09 = 0.04
 R = Report()
 
 # Geometry, stimulus and codes all come from the characterization subject, so
@@ -682,7 +678,7 @@ def _sec_delivered_pd(d: Data) -> None:
     )
     R.md()
     lo, hi = _rows(d, 0.6), _rows(d, 0.9)
-    worst = max((r["pred"] - r["meas"] for r in hi), default=0.0)
+    max((r["pred"] - r["meas"] for r in hi), default=0.0)
     R.md(
         "One dwell's Pd runs from "
         f"{min(r['dwell'] for r in lo):.2f} to "
@@ -691,13 +687,12 @@ def _sec_delivered_pd(d: Data) -> None:
         "design to. At 0.6 the engine runs above `pd_burst` and the capture "
         "delivers it: its loss against the engine, refine naming the wrong "
         f"repetition in {_wrong(lo):.1%} of trials pooled, fits inside the "
-        "model's margin. At 0.9 that margin is gone, and the capture falls "
-        f"short of `pd_burst` by up to {worst:.3f} here. Two errors make up "
-        f"the loss: wrong repetitions ({_wrong(hi):.1%} pooled), and windows "
-        "51 samples off -- u⁻¹ mod 127, the Zadoff-Chu delay-Doppler ridge, "
-        "a code phase refine inherits from a detection at the neighbouring "
-        "Doppler cell (doppler#1519, F7). A PN preamble has no ridge; this "
-        "report does not measure one."
+        "model's margin. At 0.9 that margin is gone, and the capture holds "
+        "`pd_burst` on its own: its loss against the engine is its "
+        f"wrong-repetition rate ({_wrong(hi):.1%} pooled) and nothing else. "
+        "Before doppler#1519 it was also losing windows 51 samples off -- "
+        "u⁻¹ mod 127, the Zadoff-Chu delay-Doppler ridge -- and fell up to "
+        "0.026 short (F7)."
     )
     R.md()
 
@@ -780,24 +775,25 @@ def review(d: Data) -> None:
         "measurement that has not been taken. Tracked as "
         "[gh-1173](https://github.com/doppler-dsp/doppler/issues/1173).",
     )
-    worst = max((r["pred"] - r["meas"] for r in _rows(d, 0.9)), default=0.0)
     R.find(
         "F7",
-        "CONFIRMED",
-        "**At the 0.9 design point the capture falls short of "
-        "`pd_burst`.** At 0.6 the engine runs 0.03-0.12 above its model and "
-        "that margin absorbs refine's loss; at 0.9 the margin is 0.00-0.04, "
-        f"and the capture reads up to {worst:.3f} below `pd_burst` here (up "
-        "to 0.026, about 2.6σ, at 1000 trials). Sorting the misses by the "
-        "window's error found two classes: a whole period off (the wrong "
-        "repetition, most of the loss at D ≥ 2) and 51 samples off, "
-        "u⁻¹ mod 127 for root 5 -- the Zadoff-Chu delay-Doppler ridge. "
-        "Refine resolves the repetition but keeps the engine's code phase, "
-        "so a detection one Doppler cell off hands it a phase shifted along "
-        "the ridge; that is ALL of the loss at D = 1. The limit below holds "
-        "the shortfall as a ratchet until "
-        "[#1519](https://github.com/doppler-dsp/doppler/issues/1519) lets "
-        "refine re-derive the phase at its own Doppler cell (§2.8).",
+        "FIXED",
+        "**At the 0.9 design point the capture fell short of `pd_burst`.** "
+        "At 0.6 the engine runs 0.03-0.12 above its model and that margin "
+        "absorbed refine's loss; at 0.9 the margin is 0.00-0.04, and the "
+        "capture read up to 0.026 below `pd_burst` (about 2.6σ at 1000 "
+        "trials). Sorting the misses by window error found two classes: a "
+        "whole period off (the wrong repetition) and 51 samples off, "
+        "u⁻¹ mod 127 for root 5 -- the Zadoff-Chu delay-Doppler ridge. At "
+        "the edge of the native span a burst's detections split between the "
+        "true phase and the ridge phase; refine kept only the anchor's, and "
+        "its Doppler cells, wrapped into the span, gave the ridge hypothesis "
+        "the better mix. Fixed by "
+        "[#1519](https://github.com/doppler-dsp/doppler/issues/1519): each "
+        "pending burst remembers the phases its detections carried, refine "
+        "scores every one, and cells at the span's edge are scored at both "
+        "aliases. Pinned in C by `test_refine_scores_every_detected_phase`, "
+        "which fails with either half removed (§2.8).",
     )
 
 
@@ -929,24 +925,19 @@ def limits(d: Data) -> None:
         "(§2.7)",
     )
     lo, hi = _rows(d, 0.6), _rows(d, 0.9)
-    short = [
-        int(r["depth"]) for r in lo if r["meas"] < r["pred"] - 2.0 * r["se"]
-    ]
-    R.limit(
-        bool(lo) and not short,
-        "at the 0.6 design point the capture delivers `pd_burst`: at every "
-        "depth D = 1..8, bursts emitted at their true start are never fewer "
-        "than `pd_burst` by more than 2σ "
-        f"(§2.8){'; short at D = ' + str(short) if short else ''}",
-    )
-    worst = max((r["pred"] - r["meas"] for r in hi), default=1.0)
-    R.limit(
-        bool(hi) and worst <= SHORTFALL_AT_09,
-        "at the 0.9 design point the capture is at most "
-        f"{SHORTFALL_AT_09} short of `pd_burst` at any depth ({worst:.3f} "
-        "measured) -- a RATCHET on a confirmed shortfall (F7, "
-        "doppler#1519): it may only tighten (§2.8)",
-    )
+    for tgt, rows in ((0.6, lo), (0.9, hi)):
+        short = [
+            int(r["depth"])
+            for r in rows
+            if r["meas"] < r["pred"] - 2.0 * r["se"]
+        ]
+        R.limit(
+            bool(rows) and not short,
+            f"at the {tgt} design point the capture delivers `pd_burst`: at "
+            "every depth D = 1..8, bursts emitted at their true start are "
+            "never fewer than `pd_burst` by more than 2σ "
+            f"(§2.8){'; short at D = ' + str(short) if short else ''}",
+        )
     for tgt, rows in ((0.6, lo), (0.9, hi)):
         R.limit(
             bool(rows) and _wrong(rows) <= WRONG_REP_MAX,
@@ -982,11 +973,10 @@ def build(write: bool = True) -> Report:
             "C/N0 separates the two populations by "
             f"{d.sep.get('cn0_real', 0) - d.sep.get('cn0_spurious', 0):.1f} "
             "dB, and it is the only read-back that does (§2.5, F2).",
-            "**Design to `pd_burst`, but not blindly at 0.9.** At a 0.6 "
-            "design point the capture delivers `pd_burst`; at the default "
-            "`pd=0.9` it falls up to 0.026 short on a Zadoff-Chu preamble, "
-            "from wrong repetitions and a code phase inherited along the ZC "
-            "delay-Doppler ridge (§2.8, F7, #1519).",
+            "**Design to `pd_burst`; the capture delivers it.** At the 0.6 "
+            "design point and at the default 0.9, on a Zadoff-Chu preamble "
+            "at every depth. Its only loss against the engine is refine "
+            "naming the wrong repetition, about 2% of trials (§2.8, F7).",
             "**Block size is not a parameter of the answer.** From 333 "
             "samples to a push larger than the ring, the windows are "
             "bit-identical and nothing is dropped (§2.3).",

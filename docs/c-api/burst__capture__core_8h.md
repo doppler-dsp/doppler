@@ -138,10 +138,12 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 
 | Type | Name |
 | ---: | :--- |
+| define  | [**BURST\_CAPTURE\_EDGE\_TWINS**](burst__capture__core_8h.md#define-burst_capture_edge_twins)  `4u`<br> |
 | define  | [**BURST\_CAPTURE\_HITS**](burst__capture__core_8h.md#define-burst_capture_hits)  `16u`<br>_Detections collected from acquisition per batch._  |
+| define  | [**BURST\_CAPTURE\_MAX\_PHASES**](burst__capture__core_8h.md#define-burst_capture_max_phases)  `4u`<br> |
 | define  | [**BURST\_CAPTURE\_REFINE\_INTERP**](burst__capture__core_8h.md#define-burst_capture_refine_interp)  `4u`<br> |
 | define  | [**BURST\_CAPTURE\_STATE\_MAGIC**](burst__capture__core_8h.md#define-burst_capture_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('B', 'C', 'A', 'P')`<br>_State blob magic — a wrong blob is rejected, not reinterpreted._  |
-| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `3u`<br>_State blob layout version._  |
+| define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `4u`<br>_State blob layout version._  |
 
 ## Detailed Description
 
@@ -748,7 +750,7 @@ double burst_capture_get_pd_burst (
 
 
 
-It models the ENGINE; what refine loses afterwards is not in the model. Measured on a Zadoff-Chu 127 x 8 preamble at every depth: at a 0.6 design point the capture delivers at least this, the engine's margin absorbing refine's loss; at 0.9 (the default `pd`) it falls up to 0.026 short, from wrong repetitions and a code phase inherited along the ZC delay-Doppler ridge (doppler#1519). Design with that margin until it is fixed (native/validation/capture\_dwell\_pd.c; validation report §2.8). 
+It models the ENGINE; what refine loses afterwards is not in the model. Measured on a Zadoff-Chu 127 x 8 preamble at every depth, the capture delivers at least this at a 0.6 design point and at 0.9 (the default `pd`): its loss against the engine is refine naming the wrong repetition, about 2% of trials (native/validation/capture\_dwell\_pd.c; validation report §2.8). Until doppler#1519 it also lost a code phase along the ZC delay-Doppler ridge and fell 0.026 short at 0.9. 
 
 
         
@@ -1089,6 +1091,23 @@ Contiguous, `burst_len` samples, valid until the next push(), reset() or set\_st
 
 
 
+### define BURST\_CAPTURE\_EDGE\_TWINS 
+
+```C++
+#define BURST_CAPTURE_EDGE_TWINS `4u`
+```
+
+
+
+Extra Doppler cells refine scores at the other alias when a cell sits at the edge of the native span (doppler#1519). 
+
+
+        
+
+<hr>
+
+
+
 ### define BURST\_CAPTURE\_HITS 
 
 _Detections collected from acquisition per batch._ 
@@ -1099,6 +1118,23 @@ _Detections collected from acquisition per batch._
 
 
 A BATCHING parameter, never a correctness one: push() loops until acq has absorbed the whole chunk, so a smaller array means more iterations and nothing else. Growing it to "be safe" would hide the fact that [**acq\_push()**](acq__core_8h.md#function-acq_push) stops once its result array is full and abandons the rest of its input. 
+
+
+        
+
+<hr>
+
+
+
+### define BURST\_CAPTURE\_MAX\_PHASES 
+
+```C++
+#define BURST_CAPTURE_MAX_PHASES `4u`
+```
+
+
+
+Distinct code phases a pending burst remembers for refine to score. Two is what a Zadoff-Chu preamble at the edge of the native span produces (doppler#1519); the rest is room for a false alarm merged into the same burst. A phase past the cap is not recorded, and refine then behaves as it did before phases were kept. 
 
 
         
@@ -1142,7 +1178,7 @@ _State blob magic — a wrong blob is rejected, not reinterpreted._
 
 _State blob layout version._ 
 ```C++
-#define BURST_CAPTURE_STATE_VERSION `3u`
+#define BURST_CAPTURE_STATE_VERSION `4u`
 ```
 
 

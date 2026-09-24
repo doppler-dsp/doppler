@@ -1896,6 +1896,76 @@ test_refine_wraps_its_doppler_cells (void)
   return 0;
 }
 
+/** At the edge of the native span a Zadoff-Chu preamble's detections carry
+ *  TWO code phases, and refine must score both (doppler#1519).
+ *
+ * A carrier near +-fs/(2P) is halfway between two slow-time aliases, and
+ * ZC's single-epoch correlation splits between the true lag and one u^-1
+ * samples along its delay-Doppler ridge (u^-1 = 51 for root 5, N = 127).
+ * The engine reports hits at both, and the claim keeps the STRONGER as the
+ * anchor -- which is the ridge phase often enough to cost the capture 0.026
+ * of Pd at the 0.9 design point (capture_dwell_pd). Refine resolved the
+ * repetition but never the phase, so it inherited 51 samples of error.
+ * Now every pending burst remembers the phases its detections carried and
+ * refine keeps the best-scoring start. Pinned at D = 1, carriers at 0.95 to
+ * 0.99 of the half-span on both sides, several offsets: the window must
+ * start exactly on the burst every time.
+ */
+static int
+test_refine_scores_every_detected_phase (void)
+{
+  enum
+  {
+    NZ = 127,
+    RZ = 8
+  };
+  static float _Complex zc[NZ];
+  for (size_t k = 0; k < NZ; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)NZ);
+  const size_t burst = RZ * NZ + 400;
+  const double fr[]  = { 0.95, -0.95, 0.97, -0.97, 0.99, -0.99 };
+  const size_t ats[] = { 3 * NZ + 17, 4 * NZ + 90, 5 * NZ + 51 };
+  int          exact = 0, total = 0;
+  for (size_t j = 0; j < sizeof fr / sizeof *fr; j++)
+    for (size_t a = 0; a < sizeof ats / sizeof *ats; a++)
+      {
+        burst_capture_state_t *s = burst_capture_create (
+            zc, NZ, burst, RZ, 1.0, 0.0, 0.0, 1e-3, 0.9, 0, 0.0);
+        DP_REQUIRE (s != NULL);
+        DP_REQUIRE (burst_capture_configure_search_raw (s, 1, 1) == 0);
+        const size_t    at  = ats[a];
+        const size_t    len = at + burst + 2 * s->refine_span + 4 * NZ;
+        float _Complex *x   = dp_xmalloc (len * sizeof *x);
+        const double    f   = fr[j] / (2.0 * (double)NZ); /* cycles/sample */
+        uint32_t        st  = 1519u + (uint32_t)(10 * j + a);
+        for (size_t i = 0; i < len; i++)
+          {
+            const float re = (float)dp_gauss (&st);
+            const float im = (float)dp_gauss (&st);
+            x[i]           = 0.05f * (re + I * im);
+          }
+        for (size_t i = 0; i < RZ * NZ; i++)
+          x[at + i] += zc[i % NZ]
+                       * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
+        const size_t    cap = burst_capture_push_max_out (s, len);
+        float _Complex *out = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
+        (void)burst_capture_push (s, x, len, out, cap);
+        total++;
+        if (burst_capture_ready (s) >= 1
+            && burst_capture_event_at (s, 0)->preamble_start == at)
+          exact++;
+        free (out);
+        free (x);
+        burst_capture_destroy (s);
+      }
+  DP_CHECK (exact == total);
+  if (exact != total)
+    fprintf (stderr, "  refine_scores_every_detected_phase: %d/%d exact\n",
+             exact, total);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1910,6 +1980,8 @@ main (void)
   if (test_window_starts_at_the_burst ())
     return 1;
   if (test_refine_wraps_its_doppler_cells ())
+    return 1;
+  if (test_refine_scores_every_detected_phase ())
     return 1;
   if (test_every_burst_is_emitted_once ())
     return 1;

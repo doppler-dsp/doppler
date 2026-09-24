@@ -176,8 +176,11 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
   /* One row of cells per candidate preamble POSITION, not per sample: the
      candidates are anchor + k*P, so the whole search is (k_lo+k_hi+reps)
      code periods, each evaluated at the Doppler cells refine needs. */
-  s->corr_len  = s->k_lo + s->k_hi + reps + 1u;
-  s->max_cells = 2u * ((reps * BURST_CAPTURE_REFINE_INTERP + 1u) / 2u) + 3u;
+  s->corr_len = s->k_lo + s->k_hi + reps + 1u;
+  /* + BURST_CAPTURE_EDGE_TWINS: the cells at the native span's edge are
+     scored at BOTH aliases (see burst_capture_refine). */
+  s->max_cells = 2u * ((reps * BURST_CAPTURE_REFINE_INTERP + 1u) / 2u) + 3u
+                 + BURST_CAPTURE_EDGE_TWINS;
   s->cell_buf  = dp_xmalloc (s->corr_len * s->max_cells * sizeof *s->cell_buf);
 
   /* acq_state_bytes() is ALREADY a pure function of configuration -- it
@@ -348,12 +351,15 @@ burst_capture_have (const burst_capture_state_t *s, uint64_t pos, size_t n)
  * @param anchor Coarse code epoch from the hit.
  * @param doppler_hz The detecting engine's Doppler estimate, Hz.
  * @param start  Written with the refined stream-absolute preamble start.
+ * @param score  Written with that start's power, |sum over reps|^2 at its
+ *               best Doppler cell, so burst_capture_refine_phases() can
+ *               compare one phase against another.
  * @return Non-zero on success; 0 if the search window is not yet reachable,
  *         in which case the caller must try again rather than drop the hit.
  */
 static int
 burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
-                      double doppler_hz, uint64_t *start)
+                      double doppler_hz, uint64_t *start, double *score)
 {
   size_t P    = s->code_period;
   size_t reps = s->reps;
@@ -389,8 +395,8 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
       = (reps * IP + 2u * eng->coherent_bins - 1u) / (2u * eng->coherent_bins)
         + 1u;
   size_t cells = 2u * half + 1u;
-  if (cells > s->max_cells)
-    cells = s->max_cells;
+  if (cells > s->max_cells - BURST_CAPTURE_EDGE_TWINS)
+    cells = s->max_cells - BURST_CAPTURE_EDGE_TWINS;
   const long hc = (long)(cells / 2u);
 
   /* Every candidate POSITION's period, at every cell, computed once; each
@@ -404,13 +410,38 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
      epochs the two are one frequency. Mixed WITHIN each epoch they are a
      whole span apart, and the carrier is the one inside the span: unwrapped,
      every even depth centred on the wrong alias (D = 2 lost 0.13 of Pd). */
+  /* At the span's EDGE the two aliases are one frequency between epochs
+     but a whole span apart within one, and wrapping keeps only one of
+     them: a carrier at +0.99 of the half-span has its nearest cell wrapped
+     to -span/2. For most preambles that costs a sliver of Pd; for a
+     Zadoff-Chu preamble it hands the cell to the RIDGE hypothesis -- the
+     same energy u^-1 samples along -- which then outscores the true one
+     (doppler#1519). So each cell within 1.5 fine steps of the edge is
+     scored at its other alias too, and the finite preamble decides. */
   const double span = eng->fs / (double)P;
+  double       twin[BURST_CAPTURE_EDGE_TWINS];
+  size_t       n_twin = 0;
   for (size_t j = 0; j < cells; j++)
     {
       double f = doppler_hz + (double)((long)j - hc) * fine;
       f -= span * floor (f / span + 0.5);
+      if (fabs (f) >= 0.5 * span - 1.5 * fine
+          && n_twin < BURST_CAPTURE_EDGE_TWINS)
+        twin[n_twin++] = f - copysign (span, f);
+    }
+  const size_t nf = cells + n_twin;
+  for (size_t j = 0; j < nf; j++)
+    {
+      double f;
+      if (j < cells)
+        {
+          f = doppler_hz + (double)((long)j - hc) * fine;
+          f -= span * floor (f / span + 0.5);
+        }
+      else
+        f = twin[j - cells];
       for (size_t i = 0; i < n_pos; i++)
-        s->cell_buf[i * cells + j] = (float _Complex)acq_cell_corr (
+        s->cell_buf[i * nf + j] = (float _Complex)acq_cell_corr (
             eng, burst_capture_at (s, lo + (uint64_t)(i * P)), 0, f,
             (double)(i * P));
     }
@@ -418,11 +449,11 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
   double best   = -1.0;
   size_t best_k = 0;
   for (size_t k = 0; k + reps <= n_pos; k++)
-    for (size_t j = 0; j < cells; j++)
+    for (size_t j = 0; j < nf; j++)
       {
         double _Complex acc = 0.0;
         for (size_t r = 0; r < reps; r++)
-          acc += (double _Complex)s->cell_buf[(k + r) * cells + j];
+          acc += (double _Complex)s->cell_buf[(k + r) * nf + j];
         const double pk
             = creal (acc) * creal (acc) + cimag (acc) * cimag (acc);
         if (pk > best)
@@ -433,6 +464,73 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
       }
 
   *start = lo + (uint64_t)(best_k * P);
+  *score = best;
+  return 1;
+}
+
+/** @brief Record `epoch`'s code phase on `e` if it is new: returns non-zero
+ *         when it was. Phases within 2 samples are one phase -- a continuous
+ *         delay straddles two samples -- and a full set drops the newcomer,
+ *         leaving refine as it was before phases were kept. */
+static int
+burst_capture_note_phase (const burst_capture_state_t *s,
+                          burst_capture_pending_t *e, uint64_t epoch)
+{
+  const uint32_t P  = (uint32_t)s->code_period;
+  const uint32_t ph = (uint32_t)(epoch % (uint64_t)P);
+  for (uint32_t i = 0; i < e->n_phase; i++)
+    {
+      uint32_t d = ph > e->phase[i] ? ph - e->phase[i] : e->phase[i] - ph;
+      if (d > P - d)
+        d = P - d;
+      if (d <= 2u)
+        return 0;
+    }
+  if (e->n_phase >= BURST_CAPTURE_MAX_PHASES)
+    return 0;
+  e->phase[e->n_phase++] = ph;
+  return 1;
+}
+
+/** @brief Refine `e` at every code phase its detections carried, and keep
+ *         the best-scoring start (doppler#1519).
+ *
+ * Each phase is scored on the ANCHOR's grid, shifted by the phase's offset
+ * folded into (-P/2, P/2], so no phase reaches further than half a period
+ * beyond what the anchor's refine does: the history trim keeps that half
+ * period. A phase whose window has not fully arrived holds the whole
+ * refine, exactly as the anchor's own does, so the answer never depends on
+ * how the stream was blocked.
+ *
+ * @return Non-zero once refined; 0 to retry after more samples arrive.
+ */
+static int
+burst_capture_refine_phases (burst_capture_state_t   *s,
+                             burst_capture_pending_t *e)
+{
+  const int64_t  P    = (int64_t)s->code_period;
+  const int64_t  base = (int64_t)(e->anchor % (uint64_t)P);
+  double         best = -1.0;
+  uint64_t       pick = 0;
+  const uint32_t n    = e->n_phase ? e->n_phase : 1u;
+  for (uint32_t i = 0; i < n; i++)
+    {
+      int64_t d = e->n_phase ? (int64_t)e->phase[i] - base : 0;
+      d -= P * (int64_t)floor ((double)d / (double)P + 0.5);
+      if ((int64_t)e->anchor + d < 0)
+        continue;
+      uint64_t start = 0;
+      double   score = 0.0;
+      if (!burst_capture_refine (s, (uint64_t)((int64_t)e->anchor + d),
+                                 e->doppler_hz, &start, &score))
+        return 0;
+      if (score > best)
+        {
+          best = score;
+          pick = start;
+        }
+    }
+  e->start = pick;
   return 1;
 }
 
@@ -447,7 +545,9 @@ burst_capture_trim (burst_capture_state_t *s)
     {
       const burst_capture_pending_t *o    = &s->q[s->q_head];
       uint64_t                       base = o->refined ? o->start : o->anchor;
-      uint64_t back = (uint64_t)(s->k_lo * s->code_period);
+      /* One period beyond the anchor's reach: refine scores each remembered
+         phase on the anchor's grid shifted by up to half a period. */
+      uint64_t back = (uint64_t)((s->k_lo + 1u) * s->code_period);
       uint64_t need = base > back ? base - back : 0;
       if (need < keep)
         keep = need;
@@ -478,7 +578,7 @@ burst_capture_emit (burst_capture_state_t *s)
 
   if (!e->refined)
     {
-      if (!burst_capture_refine (s, e->anchor, e->doppler_hz, &e->start))
+      if (!burst_capture_refine_phases (s, e))
         return 0;
       e->refined = 1;
     }
@@ -740,6 +840,13 @@ burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
                   if (d >= (uint64_t)state->refine_span)
                     continue;
                   merged = 1;
+                  /* A phase refine has not scored re-arms it, the same way
+                     a stronger anchor does below (doppler#1519). */
+                  if (burst_capture_note_phase (state, cand, epoch))
+                    {
+                      cand->refined = 0;
+                      cand->start   = 0;
+                    }
                   if ((double)hits[i].peak_mag > cand->peak_mag)
                     {
                       /* The anchor moves, so whatever refine concluded from
@@ -766,7 +873,9 @@ burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
 
               burst_capture_pending_t *q
                   = &state->q[(state->q_head + state->pending) % state->q_cap];
-              q->anchor   = epoch;
+              q->anchor  = epoch;
+              q->n_phase = 0;
+              (void)burst_capture_note_phase (state, q, epoch);
               q->start    = 0;
               q->peak_mag = (double)hits[i].peak_mag;
               q->refined  = 0;

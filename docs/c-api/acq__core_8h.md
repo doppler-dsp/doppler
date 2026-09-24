@@ -420,7 +420,7 @@ It is what a caller does once acquisition has SETTLED the code phase and the Dop
 * `x` One epoch, `code_bins` samples. 
 * `col` Code phase, samples, in [0, code\_bins). 
 * `f_hz` Mixer frequency, Hz. 
-* `t0` Time of `x`[0], samples, on the caller's reference. 
+* `t0` Time of the first sample of `x`, in samples, on the caller's reference. 
 
 
 

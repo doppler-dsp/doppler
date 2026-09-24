@@ -1203,7 +1203,8 @@ extern "C"
    * @param x      One epoch, `code_bins` samples.
    * @param col    Code phase, samples, in [0, code_bins).
    * @param f_hz   Mixer frequency, Hz.
-   * @param t0     Time of @p x[0], samples, on the caller's reference.
+   * @param t0     Time of the first sample of @p x, in samples, on the
+   *                caller's reference.
    * @return The complex correlation.
    */
   double _Complex acq_cell_corr (const acq_state_t *state,

@@ -278,16 +278,18 @@ decision already made.
     of D repetitions are aligned to the stream, not the burst. Measured on
     Zadoff-Chu 127 × R = 8 followed by QPSK data, each depth at the C/N0 where
     the engine predicts 0.6 (`native/validation/capture_dwell_pd.c`, 1000
-    trials a row). Delivered Pd falls from 0.945 at D = 1 to 0.837 at D = 4,
-    0.653 at D = 6 and 0.402 at D = 8.
+    trials a row, each burst at a continuous delay). Delivered Pd falls from
+    0.900 at D = 1 to 0.631 at D = 4, 0.453 at D = 6 and 0.263 at D = 8.
 
     - Up to D = (R + 1)/2 a whole dwell fits at every alignment. The capture
-        delivers far more than predicted, because a burst offers about R/D
+        delivers more than predicted, because a burst offers about R/D
         dwells and the model credits one.
-    - Past that it is optimistic, −0.08 at D = 7 and −0.21 at D = 8. The
+    - Past that it is optimistic, −0.07 at D = 5 and −0.35 at D = 8. The
         detecting dwell straddles noise or data.
-    - A hard cap at (R + 1)/2 would give up about 1.5 dB of real
-        sensitivity, so the fix is a Pd model over the burst's alignment
+    - The delay must be continuous. A first run put every burst on a whole
+        sample, which removes the code-phase straddle the model averages
+        over, and read up to 0.23 high. The fix is a Pd model over the
+        burst's alignment
         ([#1498](https://github.com/doppler-dsp/doppler/issues/1498)).
 
 - **Does the per-burst copy cost anything? — MEASURED at the test geometry,

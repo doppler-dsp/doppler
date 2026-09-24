@@ -144,35 +144,6 @@ templates (tmpl_t *out)
   return 4;
 }
 
-/* One period delayed by `tau` samples, band-limited: S_k e^{-j2pi f_k tau/n}
-   over the signed bin f_k, an even length's Nyquist bin taking cos(pi tau)
-   -- the same kernel the engine's delay straddle assumes. */
-static void
-shift (const float _Complex *t, size_t n, double tau, float _Complex *out)
-{
-  static double _Complex in[NMAX], spec[NMAX], back[NMAX];
-  fft_state_t *fwd = dp_xnn (fft_create (n, -1, 1));
-  fft_state_t *inv = dp_xnn (fft_create (n, +1, 1));
-  for (size_t i = 0; i < n; i++)
-    in[i] = (double)crealf (t[i]) + I * (double)cimagf (t[i]);
-  fft_execute_cf64 (fwd, in, n, spec, n);
-  for (size_t k = 0; k < n; k++)
-    {
-      if ((n & 1u) == 0 && k == n / 2)
-        {
-          spec[k] *= cos (M_PI * tau);
-          continue;
-        }
-      double f = (k <= n / 2) ? (double)k : (double)k - (double)n;
-      spec[k] *= cexp (-I * 2.0 * M_PI * f * tau / (double)n);
-    }
-  fft_execute_cf64 (inv, spec, n, back, n);
-  for (size_t i = 0; i < n; i++)
-    out[i] = (float _Complex) (back[i] / (double)n);
-  fft_destroy (fwd);
-  fft_destroy (inv);
-}
-
 /* The grid every row is measured on: D repetitions, one look. A harness
    that cannot pin it has nothing to measure, so it stops. */
 static void
@@ -262,7 +233,7 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
             }
         }
       else
-        shift (tp->t, n, tau, per);
+        dp_preamble_shift (tp->t, n, tau, per);
       if (gm->ramp == 0.0)
         for (size_t i = 0; i < len; i++)
           x[i] = per[i % n]

@@ -968,19 +968,49 @@ def _sec_boundaries(d: Data) -> None:
     R.md()
     R.md(
         "These size a detector once, at startup, from numbers a config file "
-        "supplied — so nonsense must not become a NaN threshold compared "
-        "against every sample for the life of the process."
+        "supplied — so nonsense must return, in bounded time, a value no "
+        "caller can mistake for a design point. A probability outside its "
+        "range gives `NaN` from a helper that returns a double (a threshold "
+        "every comparison is false against: it never fires) and `-1` from "
+        "one that returns a count. `0.0`, which three of them returned "
+        "before #1513, fails *open*: every sample clears it. `det_snr` did "
+        "not return at all."
     )
     R.md()
+    nan = np.isnan
     checks = [
-        ("det_q_inv(0.0)", det_q_inv(0.0) == 0.0),
-        ("det_q_inv(1.0)", det_q_inv(1.0) == 0.0),
-        ("det_threshold_f(1e-3, 0)", det_threshold_f(1e-3, 0) == 0.0),
-        ("det_threshold_f(0.0, 16)", det_threshold_f(0.0, 16) == 0.0),
+        ("det_threshold(1.5)", nan(det_threshold(1.5))),
+        ("det_threshold(0.0)", nan(det_threshold(0.0))),
+        ("det_threshold_power(1.5)", nan(det_threshold_power(1.5))),
+        (
+            "det_threshold_noncoherent(0.0, 4)",
+            nan(det_threshold_noncoherent(0.0, 4)),
+        ),
+        ("det_threshold_f(0.0, 16)", nan(det_threshold_f(0.0, 16))),
+        ("det_threshold_f(1e-3, 0)", nan(det_threshold_f(1e-3, 0))),
+        ("det_q_inv(0.0)", nan(det_q_inv(0.0))),
+        ("det_q_inv(1.0)", nan(det_q_inv(1.0))),
         (
             "det_threshold_gauss(0.0, .99, 1e-5)",
-            det_threshold_gauss(0.0, 0.99, 1e-5) == 0.0,
+            nan(det_threshold_gauss(0.0, 0.99, 1e-5)),
         ),
+        ("det_snr(8, 1.5, 1e-3)", nan(det_snr(8, 1.5, 1e-3))),
+        ("det_snr(8, 0.9, 1.5)", nan(det_snr(8, 0.9, 1.5))),
+        ("det_snr_power(8, 0.9, 0.0)", nan(det_snr_power(8, 0.9, 0.0))),
+        ("det_dwell(pfa=1.5)", det_dwell(100.0, 0.9, 1.5, 64) == -1),
+        (
+            "det_dwell_power(pd_min=0.0)",
+            det_dwell_power(100.0, 0.0, 1e-3, 64) == -1,
+        ),
+        (
+            "det_n_noncoh(pfa=0.0)",
+            det_n_noncoh(100.0, 1, 0.9, 0.0, 64) == -1,
+        ),
+        (
+            "det_verify_count(p_look=1.5)",
+            det_verify_count(1.5, 1e-6) == -1,
+        ),
+        ("det_verify_delay(p=1.5)", nan(det_verify_delay(1.5, 8))),
         (
             "det_dwell_gauss(mean=0)",
             det_dwell_gauss(0.0, 0.5, 0.99, 1e-5) == -1,
@@ -1282,11 +1312,11 @@ def build(write: bool = True) -> Report:
             "of Monte-Carlo at 512, while `acq` bounds its search at 256 "
             "citing unreliability. Sensitivity may be sitting on the table "
             "(§2.3, F5 / #997).",
-            "**These are design-time helpers and they fail closed** — `-1` "
-            "for unachievable, `0.0` for out-of-range, `INT_MAX` for a "
-            "look that can never compound. A caller that ignores the sign "
-            "gets an obviously broken configuration rather than a NaN "
-            "threshold that survives to production (§2.7).",
+            "**These are design-time helpers and they fail closed** — `NaN` "
+            "or `-1` for a probability out of range, `-1` for unachievable, "
+            "`INT_MAX` for a look that can never compound, all in bounded "
+            "time. A `NaN` threshold never fires; the `0.0` some returned "
+            "before #1513 fired on every sample (§2.7).",
         ],
     )
     R.summary(

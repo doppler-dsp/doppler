@@ -67,15 +67,15 @@ decoded, and no other read-back distinguishes that case from an empty
 capture — `dropped` counts samples the ring refused, `n_bursts` counts what
 was demodulated, and a truncated burst is neither.
 
-### 3. Bursts packed too tightly are lost, not reported
+### 3. Leave `min_gap` between bursts
 
-Two detections whose starts are closer than `refine_span` are treated as the
-same preamble and merged, so bursts packed tighter than that are **lost
-rather than reported**. `refine_span` bounds start-to-start separation; the
-dead air a caller has to leave between bursts is `min_gap`, which the object
-derives (`refine_span + reps·code_period − burst_len`, floored at zero). Both
-are properties to read rather than constants to assume. The demo spaces its
-bursts 20% past `refine_span`:
+The dead air a caller has to leave between bursts, edge to edge, is
+`min_gap`, which the object derives (`refine_span + reps·code_period − burst_len`, floored at zero). `refine_span` is the reach over which two
+detections count as one preamble. It bounds start-to-start separation, so
+it is not a gap. Both are properties to read rather than constants to
+assume. The demo places its bursts **at** `min_gap`, with no margin,
+because that guarantee is what it asserts: every burst decodes, at its
+exact sample, at every block size:
 
 <!-- docs-snippet: skip=an excerpt whose names (BURST_LEN, receiver) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
 
@@ -85,7 +85,17 @@ bursts 20% past `refine_span`:
 
 Where the loss starts depends on where each burst falls against the search's
 dwells, so the boundary is not a single sample; `min_gap` is the separation
-the object guarantees. Both spans were internal until
+the object guarantees. Measured at this geometry over 40 random lead
+offsets (doppler#1514), every burst spaced at `min_gap` decoded at its exact
+sample. One run also returned a fifth frame, from the noise after the last
+burst: a false alarm at the configured `pfa`, with its sync word and payload
+wrong and `frame_valid = 0`. The receiver stops at decisions, so a caller
+separates bursts from false alarms by that flag. The demo does.
+
+Below `min_gap` there is no promise. At a quarter of it, today's answer
+depends on how the stream is pushed: 1000-sample blocks decode all four
+bursts, a whole-capture push decodes none
+([#1527](https://github.com/doppler-dsp/doppler/issues/1527)). Both spans were internal until
 [#1011](https://github.com/doppler-dsp/doppler/issues/1011) — the only way
 to learn the minimum spacing was to read the C, and the header's own
 formula for it was 2.4x low.

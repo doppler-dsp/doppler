@@ -11,8 +11,8 @@ stops being the caller's problem:
 
 - acquisition reports an **end** anchor and a code phase modulo one period,
   and neither of those is a burst start. Refine turns them into one;
-- one preamble raises several detections, and coalescing them is a rule
-  about `refine_span`, not a loop the caller writes;
+- one preamble raises several detections, and coalescing them is the
+  object's job, not a loop the caller writes;
 - a bin→frequency fold that four call sites once restated three mutually
   inconsistent ways is now inside.
 
@@ -31,9 +31,13 @@ back to zero when it emits. Read it at the END of a stream: closing a file
 while it is set discards a burst that would have decoded, and no other
 read-back distinguishes that from an empty capture.
 
-**3. Bursts closer than `refine_span` are coalesced.** That is the minimum
-spacing, it is a property rather than a constant, and packing tighter
-silently costs bursts rather than erroring.
+**3. `min_gap` is the dead air the object guarantees.** The capture places
+its bursts at exactly `min_gap`, edge to edge, and property 1's assertions
+are the guarantee: every burst, at its exact sample, at every block size.
+It is a property to read, not a constant, and `refine_span` -- a
+start-to-start reach -- is not it (doppler#1514). Below `min_gap` there is
+no promise: today the result depends on the push block size
+(doppler#1527).
 
 **4. Every read-back is checked against the capture that produced it.**
 `events()`'s fields are the object's whole diagnostic surface, and each is
@@ -131,15 +135,15 @@ def receiver():
 # --8<-- [end:receiver]
 
 # --8<-- [start:spacing]
-# The spacing is READ from the receiver, not computed here: detections closer
-# than `refine_span` are coalesced as one preamble, so a capture that packs
-# them tighter loses bursts rather than erroring. A margin over the minimum
-# because sitting on an inequality is how a geometry change breaks a demo.
+# The dead air between bursts is READ from the receiver: `min_gap`, edge to
+# edge, is the gap it guarantees. The demo places its bursts AT it, with no
+# margin, because the guarantee is the thing being shown -- the assertions
+# below are what would catch it failing. (`refine_span` is a start-to-start
+# reach, not a gap; spacing by it is how this demo used to be wrong.)
 probe = receiver()
-REFINE_SPAN, RETAIN_SPAN = probe.refine_span, probe.retain_span
-SPACING = REFINE_SPAN + REFINE_SPAN // 5
-GAP = SPACING - BURST_LEN
-assert GAP > 0, "the geometry cannot fit a gap at this spacing"
+MIN_GAP, RETAIN_SPAN = probe.min_gap, probe.retain_span
+GAP = MIN_GAP
+SPACING = BURST_LEN + GAP
 # --8<-- [end:spacing]
 
 # ── the capture ─────────────────────────────────────────────────────────────
@@ -169,22 +173,27 @@ truth = [k * SPACING for k in range(N_BURSTS)]
 
 print(f"capture: {capture.size} samples at {FS / 1e6:.1f} MHz")
 print(f"  burst_len   {BURST_LEN:>7}   spacing {SPACING}")
-print(
-    f"  refine_span {REFINE_SPAN:>7}   (minimum spacing, read from the object)"
-)
+print(f"  min_gap     {MIN_GAP:>7}   (the gap used, read from the object)")
 print(f"  retain_span {RETAIN_SPAN:>7}   (history kept per anchor)")
 
 
 # --8<-- [start:decode]
 def decode(block_size):
-    """Push the whole capture in blocks of `block_size`; return starts+bits."""
+    """Push the capture in blocks of `block_size`; return valid starts+bits.
+
+    A frame is kept only when its event says `frame_valid`: the receiver
+    stops at decisions, so a false alarm in the noise (at the configured
+    pfa) still returns a frame -- and that flag is how a caller tells it
+    from a burst.
+    """
     rx = receiver()
     starts, bits = [], []
     for off in range(0, capture.size, block_size):
         out = np.asarray(rx.push(capture[off : off + block_size]))
-        if out.size:
-            bits.append(out)
-            starts.extend(int(e[0]) for e in rx.events())
+        for k, e in enumerate(rx.events()):
+            if e["frame_valid"]:
+                bits.append(out[k * FRAME_SYMS : (k + 1) * FRAME_SYMS])
+                starts.append(int(e["preamble_start"]))
     return (
         starts,
         (np.concatenate(bits) if bits else np.empty(0, np.uint8)),
@@ -231,6 +240,9 @@ for k in range(N_BURSTS):
     ), f"burst {k} payload is not bit-exact"
 print(f"  -> {N_BURSTS}/{N_BURSTS} bursts, exact samples, payloads bit-exact")
 
+# (3. is the spacing above: the capture sits AT min_gap, and section 1's
+# assertions are its guarantee.)
+
 # ── 2. a burst split across two calls is HELD, and pending says so ──────────
 print("\nsplit across two push() calls:")
 # --8<-- [start:split]
@@ -255,49 +267,6 @@ assert np.array_equal(second[PAYLOAD_OFF:][:PAYLOAD], payload), (
 )
 print("  -> held, then returned whole. Read pending before you stop feeding.")
 # --8<-- [end:split]
-
-# ── 3. closer than refine_span, and they coalesce ──────────────────────────
-# Between one burst and one refine_span: the bursts do not overlap, they are
-# simply nearer than the window that decides "same preamble". Halving
-# refine_span would give a NEGATIVE gap at this geometry, which is a
-# different thing entirely (overlapping bursts) and not what this shows.
-TIGHT_SPACING = (BURST_LEN + REFINE_SPAN) // 2
-assert BURST_LEN < TIGHT_SPACING < REFINE_SPAN
-tight = Composer(
-    [
-        Segment(
-            type="dsss",
-            fs=FS,
-            freq=0.0,
-            snr=ESN0_DB,
-            snr_mode="esno",
-            seed=k + 1,
-            sps=SPC,
-            acq_code=acq_code.tobytes(),
-            acq_reps=REPS,
-            data_code=data_code.tobytes(),
-            sync=SYNC.tobytes(),
-            payload=payload.tobytes(),
-            gap_noise="auto",
-            off_samples=(TIGHT_SPACING - BURST_LEN)
-            if k < N_BURSTS - 1
-            else RETAIN_SPAN * 2,
-        )
-        for k in range(N_BURSTS)
-    ]
-).compose()
-rx_tight = receiver()
-tight_bits = np.asarray(rx_tight.push(tight))
-n_tight = tight_bits.size // FRAME_SYMS
-print(
-    f"\npacked at {TIGHT_SPACING} (inside refine_span {REFINE_SPAN}): "
-    f"{n_tight} of {N_BURSTS} bursts decoded"
-)
-assert n_tight < N_BURSTS, (
-    "bursts packed inside refine_span were all decoded — either the "
-    "coalescing rule changed or this demo no longer demonstrates it"
-)
-print("  -> coalesced, as documented. refine_span IS the minimum spacing.")
 
 # ── 4. every read-back the object offers, for EVERY burst ──────────────────
 # --8<-- [start:probes]

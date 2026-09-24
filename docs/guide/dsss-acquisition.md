@@ -650,7 +650,8 @@ grid (`200 kHz` total to cover):
     ~4 dB.
 - low-loss (50% overlap): step = `chip_rate/(2·sf)` = **500 Hz** →
     `200 kHz / 500 Hz` = **400 channels**, residual `±250 Hz` (≤ 0.25 cycle, \<1 dB)
-    — this is the grid in the snippet above.
+    — the same rule the snippet above applies to its own 31-chip code, where
+    it gives a 16 kHz step and 13 channels.
 - each channel searches up to a `10 × 2000` (Doppler × code-phase) surface at the
     native **100 Hz** resolution, with up to 10 ms of coherent gain. The engine
     uses the smallest depth that meets `pd`, so a strong link searches fewer

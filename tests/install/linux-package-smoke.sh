@@ -27,8 +27,10 @@ die() { echo "FAIL: $*" >&2; exit 1; }
 if command -v apt-get >/dev/null 2>&1; then
     fmt=deb
     export DEBIAN_FRONTEND=noninteractive
-    apt-get update -qq >/dev/null
     install() { apt-get install -y -qq --no-install-recommends "$@" >/dev/null; }
+    have() { dpkg -s "$1" >/dev/null 2>&1; }
+    # libc6-dev is the -dev package's one archive dependency; the rest is
+    # the consumer's toolchain.
     toolchain=(gcc libc6-dev cmake make pkg-config)
     rt=("$PKGS"/libdoppler-dsp[0-9]*.deb)
     dev=("$PKGS"/libdoppler-dsp-dev_*.deb)
@@ -36,11 +38,22 @@ if command -v apt-get >/dev/null 2>&1; then
 else
     fmt=rpm
     install() { dnf install -y -q "$@" >/dev/null; }
+    have() { rpm -q "$1" >/dev/null 2>&1; }
     toolchain=(gcc cmake make pkgconf-pkg-config)
     # The runtime rpm is the one whose name has no -devel and no -tools.
     rt=("$PKGS"/libdoppler-dsp-[0-9]*.rpm)
     dev=("$PKGS"/libdoppler-dsp-devel-*.rpm)
     tools=("$PKGS"/doppler-dsp-tools-*.rpm)
+fi
+# Only what is MISSING comes from the archive (doppler#1524). On the pinned
+# CI image the whole toolchain is baked, so this leg touches no mirror at
+# all -- and it must not: `apt-get install cmake` on an installed cmake
+# UPGRADES it to the index's candidate, a pool fetch, which is exactly the
+# request a desynced security mirror 404s. A stock distro still installs
+# its missing toolchain here, and the index is fetched only then.
+missing=(); for p in "${toolchain[@]}"; do have "$p" || missing+=("$p"); done
+if [ "$fmt" = deb ] && [ ${#missing[@]} -gt 0 ]; then
+    apt-get update -qq >/dev/null
 fi
 for f in "${rt[0]}" "${dev[0]}" "${tools[0]}"; do
     [ -f "$f" ] || die "no package matching $f — run 'make package-linux'"
@@ -84,7 +97,7 @@ tops="$(owned | sed -n 's#^/usr/include/\([^/]*\).*#\1#p' | sort -u | tr '\n' ' 
 say "-dev owns only doppler/ under /usr/include"
 
 # ── 4: consume from /usr ─────────────────────────────────────────────────────
-install "${toolchain[@]}"
+[ ${#missing[@]} -eq 0 ] || install "${missing[@]}"
 work="$(mktemp -d)"
 cmake -S "$SRC/example-projects/consumer" -B "$work/b" \
     -DCMAKE_BUILD_TYPE=Release >"$work/log" 2>&1 \

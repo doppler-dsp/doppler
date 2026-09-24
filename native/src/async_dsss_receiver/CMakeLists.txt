@@ -30,6 +30,11 @@ target_link_libraries(async_dsss_receiver_core PUBLIC
     dp_tlm_core
     cvt_core
     carrier_acq_core
+    psd_core
+    spectral_core
+    acc_trace_core
+    detector_core
+    corr_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -51,11 +56,6 @@ target_link_libraries(async_dsss_receiver_core PUBLIC
     nco_core
     farrow_core
     pn_core
-    psd_core
-    spectral_core
-    acc_trace_core
-    detector_core
-    corr_core
     doppler_channel_core)
 
 add_executable(test_async_dsss_receiver_core
@@ -74,6 +74,11 @@ target_link_libraries(test_async_dsss_receiver_core
     dp_tlm_core
     cvt_core
     carrier_acq_core
+    psd_core
+    spectral_core
+    acc_trace_core
+    detector_core
+    corr_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -95,11 +100,6 @@ target_link_libraries(test_async_dsss_receiver_core
     nco_core
     farrow_core
     pn_core
-    psd_core
-    spectral_core
-    acc_trace_core
-    detector_core
-    corr_core
     doppler_channel_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_async_dsss_receiver_core
@@ -122,6 +122,11 @@ target_link_libraries(bench_async_dsss_receiver_core
     dp_tlm_core
     cvt_core
     carrier_acq_core
+    psd_core
+    spectral_core
+    acc_trace_core
+    detector_core
+    corr_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -143,11 +148,6 @@ target_link_libraries(bench_async_dsss_receiver_core
     nco_core
     farrow_core
     pn_core
-    psd_core
-    spectral_core
-    acc_trace_core
-    detector_core
-    corr_core
     doppler_channel_core
     ${JM_MATH_LIBRARY})
 target_include_directories(

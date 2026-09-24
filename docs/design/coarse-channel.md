@@ -20,7 +20,7 @@ Two shapes can produce that:
     builds channel `k`'s DDC and capture from the bank's descriptor and
     hands back an internal channel struct.
 - **B. The channel is its own object.** `coarse_channel` is a jm object in
-    `[module.dsss]` — header claims, C pins, a state triplet, a report, both
+    `[module.acquire]` — header claims, C pins, a state triplet, a report, both
     examples — and `burst_bank` composes `K` of them the way
     `DsssBurstReceiver` composes one `BurstCapture`. `CoarseChannel` in
     Python becomes that object's binding; `Acquirer` becomes `burst_bank`'s.
@@ -87,8 +87,8 @@ at all (`burst-bank.md` §1).
 | single-channel pod (§2.2)            | a factory returning an internal struct; its header claims, tests and report are the bank's, so the pod runs code certified only as part of a bank                  | a certified unit with its own report; `(descriptor, k)` is its constructor                                                                                |
 | blob composability                   | the bank's blob carries `K` internal sections; a slice restores into the factory's struct only if the section is the same bytes — a private convention             | the bank's blob is `[hdr][K][child blob]…` with each child self-validating; a slice IS a channel blob, by construction (`dp_state.h`'s composition rule)  |
 | the dedup rule                       | a bank method over its own last push                                                                                                                               | a free function over `detection_t[]`; `push` and the aggregator both call it                                                                              |
-| lifecycle cost                       | one object: one toml, header, core, test, report, two examples, two benches                                                                                        | two objects — but the bank's own claims shrink to layout + dedup + composition, exactly what `burst_acq`'s "thin forwarder" report certifies in 17 limits |
-| Python                               | `Acquirer` binds the bank; `CoarseChannel` becomes a view over an internal struct, or disappears                                                                   | `CoarseChannel` binds `coarse_channel` unchanged in name; `Acquirer` binds the bank; the 24 orchestrator tests split by object                            |
+| lifecycle cost                       | one object: one toml, header, core, test, report, two examples, two benches                                                                                        | two objects — but the bank's own claims shrink to layout + dedup + composition, exactly what `burst_acq`'s "thin forwarder" report certifies in 16 limits |
+| Python                               | `Acquirer` binds the bank; `CoarseChannel` becomes a view over an internal struct, or disappears                                                                   | `CoarseChannel` binds `coarse_channel` unchanged in name; `Acquirer` binds the bank; the 23 orchestrator tests split by object                            |
 | detector-only mode (`burst_len = 0`) | the bank would carry both a capture array and an acquisition array, or drop the mode                                                                               | the channel carries the choice; the bank never sees it                                                                                                    |
 | precedent                            | `DsssBurstReceiver` composes `BurstCapture` (an object), not a slice — and the doctrine that came out of that split is *certify each object, then the composition* | the same precedent, applied once more                                                                                                                     |
 
@@ -97,9 +97,9 @@ Two things the table does not settle and §5 measures:
 - **whether the detector-only mode survives.** A capture reports detections
     anyway (`detections()`, built for the bank); what a detector-only channel
     saves is the ring — `retain_span · 8` bytes per channel, ~40 kB at the
-    test geometry and ~2.5 MB at an 8029-symbol frame. For a pure detector
-    bank of 21 channels at the long frame that is 50 MB of rings nobody
-    reads. Keeping the mode costs a second child type in the channel;
+    test geometry, ~2.6 MB at a 1029-symbol frame and ~16.7 MB at an
+    8029-symbol one. For a pure detector bank of 21 channels at the long frame
+    that is ~350 MB of rings nobody reads. Keeping the mode costs a second child type in the channel;
     dropping it costs that memory to callers who only wanted Doppler and
     phase.
 - **what a channel's own claims are.** If the header ends up saying only

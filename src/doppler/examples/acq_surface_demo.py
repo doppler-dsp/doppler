@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """acq_surface_demo.py -- watch the searcher: the 2-D test statistic and the
-dwell-by-dwell probes of a continuous :class:`~doppler.dsss.Acquisition`.
+dwell-by-dwell probes of a continuous :class:`~doppler.acquire.Acquisition`.
 
 Design §2.4: the searcher is the one stage a hit alone cannot vouch for,
 so the engine carries its own instruments, attach-on-demand. This page
@@ -38,7 +38,7 @@ import sys
 # --8<-- [start:setup]
 import numpy as np
 
-from doppler.dsss import Acquisition
+from doppler.acquire import Acquisition
 from doppler.telemetry import Telemetry
 from doppler.wfm import Composer, Gold, Segment
 

@@ -12,13 +12,17 @@ ______________________________________________________________________
 
 ## 1. Context
 
-`doppler.dsss.BurstAcquisition` (`native/src/acq/acq_core.c`) acquires a DSSS
-burst — repeated BPSK PN epochs — under unknown code phase and Doppler. It
-frames the stream into `(doppler_bins, nx)` (one PN epoch per row), FFTs down
-the columns for Doppler, correlates each row against the code, and CFAR-gates
-the surface. It is parameterised by **physics** — `chip_rate`, `cn0_dbhz`,
+`doppler.acquire.BurstAcquisition` (`native/src/acq/acq_core.c`) acquires a burst
+that opens with a repeated preamble (here, a DSSS preamble: repeated BPSK PN
+epochs; §3.1 covers any repeated complex sequence) under unknown code phase and
+Doppler. It frames the stream into `(doppler_bins, nx)` (one preamble period per
+row), FFTs down the columns for Doppler, correlates each row against the
+preamble, and CFAR-gates the surface. It is parameterised by **physics** — the preamble's samples and
+their rate `fs` (a PN code held `spc` samples a chip, here), `cn0_dbhz`,
 `reps`, `pfa`, `pd` — and sizes its own grid: the coherent depth `doppler_bins`
-is the smallest in `[1, reps]` that meets `pd` (see
+is the smallest in `[1, reps]` whose burst Pd (`pd_burst`: the preamble landing
+at any offset against stream-aligned dwells) meets `pd`, capped by
+`doppler_rate` when one is given (see
 [the guide](../guide/dsss-acquisition.md)). Below, `ny ≡ doppler_bins` is the
 slow-time / coherent-depth axis. It works, and it is the right tool for a
 static, low-Doppler, data-free (preamble) signal. A sibling `Acquisition`
@@ -43,21 +47,23 @@ window-tiling mechanism of §4 instead — see the warning immediately below.
     this by construction rather than by pricing it as a tunable trade-off:
     the class is now split in two (see §10's "Update — shipped: the
     burst/continuous split"), and the continuous `Acquisition` class always
-    window-tiles instead of ever coherently combining, so there is no
-    coherent-depth knob on it left for a caller to misuse. An interim
-    design tried `symbol_rate`/`doppler_resolution`/`doppler_rate`
-    parameters on one combined class (added after this document was
-    drafted) to price this in instead; those three are gone now (see §10).
+    window-tiles. It combines coherently only inside a tile, and only across
+    epochs the caller declares code-only (`code_only_epochs`), so no data
+    transition can land inside the coherent window. An interim
+    design tried `doppler_resolution` on one combined class to force the
+    coherent depth up; it is gone (see §10). `symbol_rate` survives as a
+    diagnostic, and `doppler_rate` survives as a CAP on the depth, never a
+    floor.
     This design's `T_coh`-ceiling framing below should eventually be
     reconciled with the split, not with the retired parameters.
 
 It also sits in **one corner** of the acquisition design space, with three gaps:
 
-| Gap                  | Today                                                                                                                                                                                      | Why it matters                                                                                      |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| **Stateful**         | Owns a private ring, a `corr2d` coherent accumulator (`accum`/`count`), and a stream offset — none expressible as explicit carry.                                                          | Cannot fan out across processes/pods; the engine *is* the unit of parallelism, not the work.        |
-| **All-coherent**     | The slow-time FFT over the `ny` epochs is coherent. Non-coherent (`n_noncoh>1`, always auto-selected — no caller-facing cap) looks extend it, but the coherent depth is the primary lever. | Coherent time is bounded (below); weak signals beyond that bound need the non-coherent looks.       |
-| **Constant-Doppler** | The slow-time FFT assumes a linear phase ramp across segments.                                                                                                                             | Platform **dynamics** (Doppler rate) make the phase quadratic → the FFT smears → acquisition fails. |
+| Gap                  | Today                                                                                                                                                                                                                      | Why it matters                                                                                      |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| **Stateful**         | Owns a private ring, a `corr2d` coherent accumulator (`accum`/`count`), and a stream offset. *Since shipped:* the carry serializes (`acq_state_bytes`/`get_state`/`set_state`, §10 P0) and hands off across pods (§10 P4). | Cannot fan out across processes/pods; the engine *is* the unit of parallelism, not the work.        |
+| **All-coherent**     | The slow-time FFT over the `ny` epochs is coherent. Non-coherent looks (`n_noncoh>1`) extend it on the continuous engine only; a burst engine never adds them (§10).                                                       | Coherent time is bounded (below); weak signals beyond that bound need the non-coherent looks.       |
+| **Constant-Doppler** | The slow-time FFT assumes a linear phase ramp across segments. *Since shipped:* `doppler_rate` caps the depth so the ramp stays linear; the de-chirp search (P3) has not.                                                  | Platform **dynamics** (Doppler rate) make the phase quadratic → the FFT smears → acquisition fails. |
 
 This document defines the problem and terms precisely, frames every acquisition
 method as one **cross-ambiguity function (CAF)**, lays out the trade space, and
@@ -169,8 +175,8 @@ reference has, so `peak_mag` and `noise_est` are in the signal's units.
 `cn0_dbhz` is the preamble's mean power over `fs`. At `fs = 1`, normalized
 units, it is the per-sample SNR in dB and Doppler is in cycles/sample.
 That per-sample SNR is negative wherever acquisition is hard, and the burst
-constructors refuse `cn0_dbhz < 0` (0 means "no design point"). So in
-normalized units a design point cannot be stated yet (#1484).
+constructors accept it: any finite `cn0_dbhz` is a design point, and NaN
+(`ACQ_CN0_NONE`) means none (#1484).
 
 **What is not claimed yet:**
 
@@ -210,8 +216,9 @@ normalized units a design point cannot be stated yet (#1484).
     smears the carrier across slow-time rows, which the Pd model does not
     carry. Measured on 16 repetitions of Zadoff-Chu 127 under a 1.5 MHz/s
     ramp (`native/validation/acq_template_pd.c`): an engine told nothing is
-    sized at D = 12, predicts 0.92 and delivers 0.65. Told the rate, it caps
-    at D = 4, reports under-powered, and predicts the 0.33 it delivers.
+    sized at D = 10, predicts 0.91 and delivers 0.84. Told the rate, it caps
+    at D = 4, reports under-powered, predicts 0.42 and delivers 0.46
+    (measured 2026-09-24, 3000 trials).
 
 - **Which repetition** the burst starts in is the capture's to resolve, not
     the detector's (`BurstCapture`). So is a dwell that runs into the data after
@@ -263,11 +270,12 @@ mixer bank's `2D` FFT-equivalents, `D` = uncertainty / native span — measured
 1.2-1.55x, a frequency-bank benchmark) is the right,
 adopted mechanism for this regime specifically. It is now wired directly into
 `Acquisition` (continuous)'s C core (`native/src/acq/acq_core.c`'s wideband
-mode, `coherent_bins` pinned to 1 and the uncertainty tiled with `window_bins`
-parallel roll-FFT hypotheses) rather than composed externally, since — unlike
-the `ny>1` mixer/sub-block case — there is no coherent-depth knob left for a
-caller to tune once `ny` is pinned to 1 (indeed `Acquisition` (continuous)
-never exposes one at all — see §10); the roll IS the whole D=1 search, not an
+mode, the uncertainty tiled with `window_bins` parallel roll-FFT hypotheses,
+and `coherent_bins` 1 unless the caller declares code-only epochs) rather than
+composed externally. There is no free coherent-depth knob for a caller to
+tune: the only depth `Acquisition` (continuous) takes is derived from
+`code_only_epochs` and capped by `doppler_rate` (see §10). The roll IS the
+whole D=1 search, not an
 optional front-end layered in front of a richer kernel. (The burst/repeats
 regime, where `ny>1` coherent integration remains genuinely available —
 `BurstAcquisition` — is unaffected: the mixer bank/P2 stay primary there, per
@@ -329,7 +337,7 @@ is the price of phase-robustness.
 primitives — `det_threshold(pfa)` → `eta`, `det_pd(snr, dwell, eta)` (coherent,
 order 1), and crucially `marcum_q(m, a, b)` with **arbitrary integer order `m`**,
 which *is* the non-coherent detector for `m = N_nc` looks (`native/inc/detection/`).
-The packaged `det_pd_noncoherent(snr, n_coh, n_noncoh)` (plus its look inverse
+The packaged `det_pd_noncoherent(snr, n_coh, n_noncoh, threshold)` (plus its look inverse
 `det_n_noncoh`) lets the engine **auto-split** `(M, N_nc)` from `(Pfa, Pd, cn0_dbhz)` and the ceilings — `cn0_dbhz` is converted to the per-sample amplitude
 `snr = sqrt(10^(cn0_dbhz/10)/fs)` at construction.
 
@@ -374,14 +382,14 @@ void acq_nc_accumulate(const float *dump_mag2, size_t n,
 void acq_nc_merge(float *dst, const float *src, size_t n);  /* tree-reduce */
 ```
 
-Peak + CFAR run **once, after** the reduce, reusing today's `_compute_stat` /
-`_noise_estimate`.
+Peak + CFAR run **once, after** the reduce, reusing today's `acq_compute_stat` /
+`det_noise_estimate`.
 
 **Carry representation — a flat POD, single source of truth.** The carry is plain
 arrays + scalars behind a `dp_header_t`-style envelope (reuse the streaming wire
 convention). Threads get a zero-copy **handle** that is just a pointer-view over
-that POD (the `ddc_fn` precedent: opaque state across free functions, GIL released
-via `nogil`); processes and pods serialize the **same bytes**. One representation,
+that POD (the precedent the `ddc_fn` handle module set before it became the `Ddcr`
+object: opaque state across free functions, GIL released via `nogil`); processes and pods serialize the **same bytes**. One representation,
 two faces — no second format to maintain.
 
 **The engine becomes a thin wrapper.** `acq_state_t` (shared by both
@@ -410,14 +418,15 @@ shards  =  coarse_Doppler bins  ×  rate hypotheses  ×  time blocks
                             peak + CFAR  (once, on the merged surface)
 ```
 
-| Substrate      | Distribute                                     | Reduce                                            | Precedent                                                 |
-| -------------- | ---------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------- |
-| **Threads**    | thread per shard; per-shard partial surfaces   | in-RAM `acq_nc_merge`; GIL released in the kernel | doppler thread-per-shard + `nogil`; `ddc_fn` (~5.4× on 8) |
-| **Processes**  | fork shards; emit serialized partial surfaces  | parent merges deserialized PODs                   | flat-POD carry (§6)                                       |
-| **Pods (k8s)** | distribute `(coarse, rate)` shards across pods | hierarchical merge over the wire envelope         | streaming transport seam                                  |
+| Substrate      | Distribute                                     | Reduce                                            | Precedent                                               |
+| -------------- | ---------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------- |
+| **Threads**    | thread per shard; per-shard partial surfaces   | in-RAM `acq_nc_merge`; GIL released in the kernel | doppler thread-per-shard + `nogil`; `Ddcr` (~5.4× on 8) |
+| **Processes**  | fork shards; emit serialized partial surfaces  | parent merges deserialized PODs                   | flat-POD carry (§6)                                     |
+| **Pods (k8s)** | distribute `(coarse, rate)` shards across pods | hierarchical merge over the wire envelope         | streaming transport seam                                |
 
-Orchestration is the **caller's job** (doppler has no internal thread pool;
-`nthreads` is accepted-but-ignored because the FFT plans are single-threaded).
+Orchestration across shards is the **caller's job**. Inside one engine, the
+window tiles fan out over the engine's own persistent worker pool
+(`acq_set_threads()` / `Acquisition.set_threads()`, read back as `threads`).
 Start **Python-first** — thread-per-shard, mirroring the coarse-bank loop already
 in the usage guide — and promote to Rust later (the FFI layer has no acq/detection
 today; the C ABI is the parallel substrate regardless).
@@ -499,7 +508,8 @@ bank to `~100` channels and fit one box. This is exactly why P2 (sub-block) and 
 
 > Note: the GIL release on `push` was missing in the first cut (jm's
 > `max_results` push codegen omits `nogil`) — found by this benchmark, which
-> measured *zero* thread scaling until it was hand-added in `dsss_ext_acq.c`.
+> measured *zero* thread scaling until it was hand-added in the binding (today
+> `nogil = true` in `objects/acq.toml` generates it).
 
 ______________________________________________________________________
 
@@ -774,17 +784,20 @@ doors sharing one engine (see the [guide](../guide/dsss-acquisition.md)):
 `Acquisition` (continuous) class ALWAYS uses the wideband window-tiling
 mechanism (§4) instead of coherent multi-epoch combining — closing the
 continuous-async-data mislock (§1's warning, task #67) structurally rather
-than leaving it to a caller-tuned knob. `max_noncoh` is gone from both:
-`n_noncoh` is now always auto-selected to meet `pd`, bounded only by an
+than leaving it to a caller-tuned knob. `max_noncoh` is gone from both. The continuous engine auto-selects `n_noncoh`
+to meet `pd`; a burst engine never adds looks (a burst has one preamble, so a
+second look adds noise and arrives a frame late, #1181/#1503), and when no
+depth meets `pd` it takes the depth with the most `pd_burst` and reports
+`underpowered`. The continuous engine's looks are bounded only by an
 internal, non-public safety-valve ceiling (`ACQ_N_NONCOH_SAFETY_CEILING` =
 256 looks — the semi-analytical `pd_predicted` model this engine sizes
 against turns unreliable past that many looks, not a physical sensitivity
-limit). Two parameters that briefly existed on the combined class,
-`doppler_resolution` and `doppler_rate` (sizing a coherent-depth floor/ceiling
-for a downstream tracking loop's benefit — see §1's footnote), are also gone:
-both worked by forcing the coherent depth up, exactly the aliasing risk the
-continuous class now closes by construction, so there is no longer a
-parameter left for them to defeat.
+limit). `doppler_resolution`, which briefly existed on the combined class to
+floor the coherent depth for a downstream tracking loop, is gone: it forced
+the depth up, exactly the aliasing risk the continuous class closes by
+construction. `doppler_rate` came back with the opposite sense: on all three
+objects it CAPS the coherent depth at `f_epoch / sqrt(2 * doppler_rate)`, so it
+can only lower the depth, never raise it.
 
 **P0 (stateless kernel) — substantially shipped, via a coarser mechanism
 than specified below.** `acq_run`/`acq_state_bytes`/`acq_get_state`/
@@ -812,10 +825,10 @@ hand-off, matching this phase's acceptance criteria.
 
 **D=1 async-data wideband roll — shipped, outside the P0-P4 phase list.**
 `Acquisition` (continuous)'s C core ALWAYS engages the 2-D spectral roll (see
-§4 above), unconditionally: `coherent_bins` is pinned to 1 and the
+§4 above), unconditionally: `coherent_bins` is 1 unless `code_only_epochs` allows more, and the
 uncertainty is tiled with `window_bins` parallel roll-FFT hypotheses from one
-epoch, sized by non-coherent accumulation (`n_noncoh`) rather than coherent
-depth. `BurstAcquisition` retains the same mechanism only as a conditional
+epoch (or from `code_only_epochs` declared code-only, block-coherent inside each
+tile), sized by non-coherent accumulation (`n_noncoh`). `BurstAcquisition` retains the same mechanism only as a conditional
 fallback, when `doppler_uncertainty` exceeds the native span (task #67
 doesn't apply to a genuine data-free burst/preamble window, so there's no
 reason to force it there). This is a narrower, alias-safe widener than P2 —
@@ -871,5 +884,5 @@ ______________________________________________________________________
 - [Streaming roadmap](../dev/archive/streaming-roadmap.md) — the transport seam the pod
     fan-out reuses.
 - [Pure-functional acquisition kernel](acq-fn.md) — the elastic
-    `(ddc_fn, acq_fn)` pipeline, config/state/scratch split, and serializable
+    `(Ddcr, acq_fn)` pipeline, config/state/scratch split, and serializable
     state that makes the pod fan-out above possible.

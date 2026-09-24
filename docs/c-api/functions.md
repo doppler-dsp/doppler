@@ -182,6 +182,7 @@
 
 ## b
 
+* **bin\_to\_signed** ([**acquire\_core.h**](acquire__core_8h.md))
 * **ber\_confidence** ([**ber\_core.h**](ber__core_8h.md), [**ber\_meter\_core.h**](ber__meter__core_8h.md))
 * **ber\_esn0\_db\_for\_ser** ([**ber\_core.h**](ber__core_8h.md))
 * **ber\_evm\_db** ([**ber\_core.h**](ber__core_8h.md))
@@ -318,7 +319,6 @@
 * **bin\_to\_hex** ([**cvt\_core.h**](cvt__core_8h.md))
 * **bin\_to\_int** ([**cvt\_core.h**](cvt__core_8h.md))
 * **bin\_to\_nrz** ([**cvt\_core.h**](cvt__core_8h.md))
-* **bin\_to\_signed** ([**dsss\_core.h**](dsss__core_8h.md))
 * **blackman\_harris\_window** ([**spectral\_core.h**](spectral__core_8h.md))
 * **bpsk\_map** ([**wfm\_core.h**](wfm__core_8h.md))
 

@@ -25,8 +25,9 @@ point.
 | `make test` / CI, on every push   | the **fast twin**, not this     |
 | `src/doppler/tests/test_examples.py` | nothing here — they left that glob |
 
-Each subject keeps a **fast twin** in `src/doppler/dsss/tests/` —
-`test_dsss_receiver_stress.py` and `test_dsss_acquisition_stress.py` —
+Each subject keeps a **fast twin** in its module's `tests/` —
+`dsss/tests/test_dsss_receiver_stress.py` and
+`acquire/tests/test_acquisition_stress.py` —
 which imports this module's helpers and runs a handful of trials. That
 is what keeps the code honest per-push: the twin exercises the same
 `run_trial`, the same geometry and the same scene builder, so a

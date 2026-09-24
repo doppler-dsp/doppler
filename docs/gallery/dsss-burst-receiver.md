@@ -67,12 +67,15 @@ decoded, and no other read-back distinguishes that case from an empty
 capture — `dropped` counts samples the ring refused, `n_bursts` counts what
 was demodulated, and a truncated burst is neither.
 
-### 3. `refine_span` is the minimum burst spacing
+### 3. Bursts packed too tightly are lost, not reported
 
-Two detections closer together than `refine_span` are treated as the same
-preamble and merged. So bursts packed tighter than it are **lost rather
-than reported**, and the span is a property to read rather than a constant
-to assume:
+Two detections whose starts are closer than `refine_span` are treated as the
+same preamble and merged, so bursts packed tighter than that are **lost
+rather than reported**. `refine_span` bounds start-to-start separation; the
+dead air a caller has to leave between bursts is `min_gap`, which the object
+derives (`refine_span + reps·code_period − burst_len`, floored at zero). Both
+are properties to read rather than constants to assume. The demo spaces its
+bursts 20% past `refine_span`:
 
 <!-- docs-snippet: skip=an excerpt whose names (BURST_LEN, receiver) live in the example's namespace; the script itself is executed on every push by `make test-examples-python` -->
 
@@ -80,8 +83,9 @@ to assume:
 --8<-- "src/doppler/examples/dsss_burst_receiver_demo.py:spacing"
 ```
 
-The boundary is sharp. At spacing exactly `refine_span`, one burst of four
-is lost; one sample more recovers all four. Both spans were internal until
+Where the loss starts depends on where each burst falls against the search's
+dwells, so the boundary is not a single sample; `min_gap` is the separation
+the object guarantees. Both spans were internal until
 [#1011](https://github.com/doppler-dsp/doppler/issues/1011) — the only way
 to learn the minimum spacing was to read the C, and the header's own
 formula for it was 2.4x low.

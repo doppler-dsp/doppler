@@ -156,7 +156,7 @@ Forwards to [**acq\_configure\_search\_raw()**](acq__core_8h.md#function-acq_con
 0 on success, -1 if either argument is out of range or an allocation fails (the engine keeps its prior grid on failure). 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstAcquisition
+>>> from doppler.acquire import BurstAcquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -202,7 +202,7 @@ burst_acq_state_t * burst_acq_create (
 
 
 
-One period of `preamble_len` complex samples at `fs`, repeated up to `reps` times: a chirp, a Zadoff-Chu sequence, shaped PSK, or a PN code mapped by [**bin\_to\_nrz()**](cvt__core_8h.md#function-bin_to_nrz) and held `spc` samples each (at `fs = chip_rate*spc`). One chip is one sample: `sf = preamble_len`, `spc = 1`, `chip_rate = fs`, and `code_phase` is the delay into the repetition, in samples. `fs` of 1 is normalized units, where Doppler is in cycles/sample and `cn0_dbhz` is the per-sample SNR in dB.
+One period of `preamble_len` complex samples at `fs`, repeated up to `reps` times: a chirp, a Zadoff-Chu sequence, shaped PSK, or a PN code mapped by [**bin\_to\_nrz()**](cvt__core_8h.md#function-bin_to_nrz) and held `spc` samples each (at `fs = chip_rate*spc`). One chip is one sample: `sf = preamble_len`, `spc = 1`, `chip_rate = fs`, and `code_phase` is the delay into the repetition, in samples (for a Zadoff-Chu preamble, plus `u^-1 mod n` samples per native bin of Doppler the search did not resolve before correlating). `fs` of 1 is normalized units, where Doppler is in cycles/sample and `cn0_dbhz` is the per-sample SNR in dB.
 
 
 
@@ -229,7 +229,7 @@ Heap-allocated state, or NULL on bad arguments / allocation failure.
 ```C++
 >>> import numpy as np
 >>> from doppler.cvt import bin_to_nrz
->>> from doppler.dsss import BurstAcquisition
+>>> from doppler.acquire import BurstAcquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -344,7 +344,7 @@ Forwards to [**acq\_push()**](acq__core_8h.md#function-acq_push) on the embedded
 Number of events written (0 … max\_results). 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstAcquisition
+>>> from doppler.acquire import BurstAcquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -389,7 +389,7 @@ Forwards to [**acq\_reset()**](acq__core_8h.md#function-acq_reset) on the embedd
 * `state` Must be non-NULL. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstAcquisition
+>>> from doppler.acquire import BurstAcquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -425,7 +425,7 @@ int burst_acq_set_max_peaks (
 
 
 
-Forwards to [**acq\_set\_max\_peaks()**](acq__core_8h.md#function-acq_set_max_peaks) on the embedded engine (see its doc comment in [**acq\_core.h**](acq__core_8h.md)): one is the classic gated maximum; more is the list of docs/design/async-dsss-receiver.md §7.1  every peak above the same gate, strongest first, an exclusion zone of one Doppler bin by one chip around each, and the two-epoch rule for a peak at an already-listed code phase. Each listed peak is one result from push().
+Forwards to [**acq\_set\_max\_peaks()**](acq__core_8h.md#function-acq_set_max_peaks) on the embedded engine (see its doc comment in [**acq\_core.h**](acq__core_8h.md)): one is the classic gated maximum; more is the list of docs/design/async-dsss-receiver.md §7.1  every peak above the same gate, strongest first, an exclusion zone of one Doppler bin by the reference's first autocorrelation null (one chip for a PN code) around each, and the two-epoch rule for a peak at an already-listed code phase. Each listed peak is one result from push().
 
 
 
@@ -443,7 +443,7 @@ Forwards to [**acq\_set\_max\_peaks()**](acq__core_8h.md#function-acq_set_max_pe
 0, or -1 (engine untouched) when `n` is out of range. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstAcquisition
+>>> from doppler.acquire import BurstAcquisition
 >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)

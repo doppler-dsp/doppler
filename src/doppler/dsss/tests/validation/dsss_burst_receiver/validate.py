@@ -950,9 +950,10 @@ def review(d: Data) -> None:
         "records as a past full-span sign inversion. It is `fftfreq`, and "
         "the engine's private helper had deviated from it at one index: an "
         "even grid's Nyquist bin. Fixed by giving the fold one home "
-        "(`dp_fftfreq` in `clib_common.h`), with `doppler.dsss.bin_to_signed` "
-        "a wrapper over the same inline. This object exists so that no "
-        "further call site has to restate it.",
+        "(`dp_fftfreq` in `clib_common.h`), with "
+        "`doppler.acquire.bin_to_signed` a wrapper over the same inline. "
+        "This object exists so that no further call site has to restate "
+        "it.",
     )
     R.find(
         "F2",

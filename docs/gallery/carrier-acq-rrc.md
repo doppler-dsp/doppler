@@ -66,11 +66,10 @@ and that bias grows as SNR degrades.
 `det_threshold_noncoherent`/`det_n_noncoh` — the same Pfa/Pd statistics
 `Acquisition` itself is built on, derived for classic complex-correlator
 (Rayleigh/Rician) detection. That model does NOT transfer to gating a
-*power-spectrum-vs-template* correlation — confirmed via Monte Carlo (see
-`FINISHING_PLAN.md`'s `CarrierAcquisition` section): the borrowed threshold
+*power-spectrum-vs-template* correlation — confirmed via Monte Carlo: the borrowed threshold
 was roughly **5x too conservative**, which is why an earlier version of
 this very page showed the default template failing to detect outright at
-5 dB. `carrier_acq_core.c`'s `_ratio_threshold()` now uses a threshold
+5 dB. `carrier_acq_core.c`'s `carrier_acq_ratio_threshold()` now uses a threshold
 derived from this object's own real statistic (an exact Gamma-sum H0 model)
 plus one empirically-calibrated constant — not yet a fully general closed
 form (see the source comment for what's still open), but a large,

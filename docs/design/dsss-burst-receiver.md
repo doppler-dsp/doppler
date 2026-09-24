@@ -18,8 +18,9 @@ ______________________________________________________________________
 ## 1. Why — the thing that is missing
 
 Every piece of the burst chain exists and is certified — see
-`src/doppler/dsss/tests/validation/burst_acq/results.md`,
-`.../burst_despreader/results.md` and `.../burst_demod/results.md`. What does
+`src/doppler/acquire/tests/validation/burst_acq/results.md`,
+`src/doppler/dsss/tests/validation/burst_despreader/results.md` and
+`src/doppler/dsss/tests/validation/burst_demod/results.md`. What does
 not exist is the object that puts them together.
 
 The continuous chain has one. `dsss_receiver_core.c` calls
@@ -464,7 +465,9 @@ is not settled is its operating envelope.
     coherent slide reverses that, gaining about `10·log10(REPS)` where the
     boxcar gained `5·log10(REPS)` — swept at 300 trials a point, the
     correct-repetition rate at 39 dB-Hz went 0.59 → 0.70 at `REPS=5`,
-    0.60 → 0.81 at 10 and 0.54 → 0.80 at 16 (doppler#1312).
+    0.60 → 0.81 at 10 and 0.54 → 0.80 at 16 (doppler#1312). The slide has
+    since been replaced by scoring each repetition with acquisition's own
+    statistic (§3.4, doppler#1502); these figures record the step before.
 
     **`refine_margin` was removed** (doppler#1312). It reported the
     runner-up period over the winner, nothing in the library branched on
@@ -509,12 +512,14 @@ is not settled is its operating envelope.
     until a measurement asks for it.
 
 - **Whether refine is a separate object — SETTLED, private** (2026-09-01).
-    It is `dsss_br_refine()`, a static function in
-    `dsss_burst_receiver_core.c`. It does not compose `Corr` as this bullet
+    It was `dsss_br_refine()`, a static function in
+    `dsss_burst_receiver_core.c`; it moved into the capture as
+    `burst_capture_refine()` (`burst_capture_core.c`, §11.3). It does not compose `Corr` as this bullet
     guessed: the candidates are `anchor + k·P` and nothing between, so the
-    stage correlates one code period at each preamble position — through
-    `corr2d`'s known-lag mode, so the code replica has one home — and
-    combines the results coherently over a Doppler search (§3.4). The
+    stage scores each with acquisition's own statistic — `acq_cell_corr()`
+    of every period the preamble would occupy, so the replica has one home —
+    summed coherently over a Doppler search (§3.4; doppler#1502 replaced the
+    earlier per-period `corr2d` correlation with it). The
     decision followed phase 3, as this bullet asked — the wording stayed
     open long after the code closed it. Where refine LIVES is a separate
     question, and §11 answers it: out of this object, into `BurstCapture`,
@@ -654,7 +659,10 @@ about that. Two terms:
 | forward hold  | `BURST_LEN`  | the demod needs the whole burst, which arrives *after* detection |
 
 so the retained span is roughly `2·REPS·P + BURST_LEN`, rounded up to a
-power of two.
+power of two. (As built, the capture reaches further in both directions —
+`refine_span = (5·REPS + 2)·P`, from `k_lo = 3·REPS + 2` periods early to
+`k_hi = REPS` late, and `retain_span = refine_span + BURST_LEN`; see
+`burst_capture_core.c`.)
 
 **The primitive already exists, and `acq` already depends on it.**
 `native/inc/buffer/buffer.h` generates a double-mapped SPSC ring
@@ -667,7 +675,7 @@ burst can be handed to `demod()` with no copy and no seam.
 
 **What it does not already do is retain.** `acq_push()` calls
 `dp_f32_consume(st->ring, frame_n)` on every frame it processes
-(`acq_core.c:906`), so by the time a hit is emitted acquisition has
+(`acq_push` in `acq_core.c`), so by the time a hit is emitted acquisition has
 *released* the samples the receiver still needs. The receiver therefore
 keeps its **own** history ring alongside acq's, rather than borrowing one it
 does not own.
@@ -950,7 +958,8 @@ A user of that bank who wants the burst has two routes, and both are bad.
     stream-absolute and there is no sweep — and §3.1 bites in full:
     `code_phase` is `burst_start mod code_bins`, so the caller must write
     refine themselves (one code-period correlation at each preamble position
-    across ±`REPS·P` candidates, non-coherently summed), plus the ring to
+    across ±`REPS·P` candidates, summed coherently over a Doppler search as
+    §3.4 does), plus the ring to
     reach back into, plus a retention rule, plus a claim rule keyed on
     `refine_span`. §3.2 says getting it wrong is a cliff: a burst one period
     out decodes as noise, not as a degraded frame.
@@ -991,7 +1000,7 @@ already requires the event to be sufficient for.
 ### 11.3 What moves, and what the split does not buy
 
 Out of `dsss_burst_receiver_core.c` and into the capture: the history ring
-and its sizing, `dsss_br_refine()`, `dsss_br_trim()`, the CLAIM bookkeeping
+and its sizing, `dsss_br_refine()` (now `burst_capture_refine()`), `dsss_br_trim()`, the CLAIM bookkeeping
 and the detection queue. What stays: driving the demodulator, the suppression
 window armed on a burst having demodulated (§10.3), and the payload/event
 list `push()` returns. `DsssBurstReceiver` becomes capture + demod;
@@ -1029,9 +1038,9 @@ is a different **retention backend**: a circular file the blob references by
 offset instead of carrying, or a ring shared out of the object's address
 space. That is a policy about where retained samples live, and it is
 precisely what the capture is the right owner of — today's ring is RAM the
-object owns and no knob changes that. **Not built now**: no deployment has
-asked, and the object earns its certification on the reuse case above
-without it.
+object owns and no knob changes that. **Built since:**
+`PersistentBurstCapture` (2026-09-01) keeps the ring in a file, and its blob
+drops the `retain_span · 8` bytes of history.
 
 ### 11.5 The name
 

@@ -7,7 +7,8 @@
     Nor does [Capture I/O](wfm-io/index.md), which is the other half: reading
     a capture back and writing one out, whoever generated it.
 
-- [DSSS Burst Acquisition](dsss-acquisition.md) — acquiring code phase and Doppler with `Acquisition`
+- [Acquiring a Repeated Preamble](acquisition.md) — finding bursts of any repeated preamble with `BurstCapture` and `BurstAcquisition`
+- [DSSS Burst Acquisition](dsss-acquisition.md) — acquiring a spread-spectrum preamble's code phase and Doppler with `BurstAcquisition`, and continuous signals with `Acquisition`
 - [Tracking a Population of DSSS Emitters](async-dsss-pool.md) — `AsyncDsssPool`: one searcher, a pool of cell receivers on its timing, the assigned table and the event log behind one `push()`
 - [Lock Detection Across doppler.track](lock-detection.md) — which `configure_lock` to call, and why, for every tracking loop
 - [Power Spectra & Measurements](spectral-psd.md) — PSD estimation, tone and NPR measurement

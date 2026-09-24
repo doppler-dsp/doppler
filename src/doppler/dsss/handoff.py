@@ -1,4 +1,4 @@
-"""Convert an :class:`~doppler.dsss.Acquisition` hit into a
+"""Convert an :class:`~doppler.acquire.Acquisition` hit into a
 :class:`~doppler.track.Dll` seed.
 
 ``Acquisition.push()`` reports ``code_phase`` as a correlation *lag*: how
@@ -20,7 +20,7 @@ def dll_init_chip_from_acq(code_phase: float, spc: int, sf: int) -> float:
     Parameters
     ----------
     code_phase : float
-        ``code_phase`` from an :class:`~doppler.dsss.Acquisition` hit
+        ``code_phase`` from an :class:`~doppler.acquire.Acquisition` hit
         (samples, ``0 <= code_phase < sf * spc``).
     spc : int
         Samples per chip — the same ``spc`` the ``Acquisition`` and the

@@ -121,8 +121,8 @@ def _acq_frame() -> int:
     back to 4. A sweep across a written-down frame is wrong the moment the
     sizer disagrees with it.
     """
+    from doppler.acquire import BurstCapture
     from doppler.cvt import bin_to_nrz
-    from doppler.dsss import BurstCapture
 
     nrz = np.zeros(ACQ_CODE.size, np.float32)
     bin_to_nrz(np.asarray(ACQ_CODE, np.uint8), nrz)

@@ -15,7 +15,7 @@ import warnings
 import numpy as np
 import pytest
 
-from doppler.dsss import Acquisition
+from doppler.acquire import Acquisition
 from doppler.dsss.handoff import dll_init_chip_from_acq
 from doppler.track import Dll
 from doppler.wfm import Gold

@@ -191,7 +191,7 @@ It used to depend on the block size entirely. `push()` returned at most one burs
 
 ## 3. Review — findings
 
-- **F1 · FIXED** — **One bin-to-frequency fold was restated in four Python call sites, three ways** — one of them the exact form `acq_core.h` records as a past full-span sign inversion. It is `fftfreq`, and the engine's private helper had deviated from it at one index: an even grid's Nyquist bin. Fixed by giving the fold one home (`dp_fftfreq` in `clib_common.h`), with `doppler.dsss.bin_to_signed` a wrapper over the same inline. This object exists so that no further call site has to restate it.
+- **F1 · FIXED** — **One bin-to-frequency fold was restated in four Python call sites, three ways** — one of them the exact form `acq_core.h` records as a past full-span sign inversion. It is `fftfreq`, and the engine's private helper had deviated from it at one index: an even grid's Nyquist bin. Fixed by giving the fold one home (`dp_fftfreq` in `clib_common.h`), with `doppler.acquire.bin_to_signed` a wrapper over the same inline. This object exists so that no further call site has to restate it.
 
 - **F2 · FIXED** — **Refine was designed to correlate the whole preamble coherently, and that does not survive the residual acquisition leaves.** The design doc recorded the coherent form as the mechanism, verified on a capture with ZERO Doppler — the one input where it cannot fail. At a quarter of a Doppler bin it picked an offset two whole code periods wrong, with the true position 639x below the peak it chose; at half a bin, one period wrong. Now combined non-coherently, one code period at a time, which is short enough that a half-bin residual cannot rotate through it. Sabotage-proven by swapping the combine back.
 

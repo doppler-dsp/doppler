@@ -38,7 +38,7 @@ Bottom-left
 
 Bottom-right
     Detection probability vs input SNR, one curve per ``acq_reps``, measured
-    by Monte Carlo through :class:`~doppler.dsss.BurstAcquisition` — the
+    by Monte Carlo through :class:`~doppler.acquire.BurstAcquisition` — the
     object that actually integrates coherently across the repetitions and
     applies the CFAR threshold.  Each doubling of ``acq_reps`` moves the
     Pd = 0.5 threshold about 2.5 dB left against an ideal
@@ -62,7 +62,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from doppler.dsss import BurstAcquisition
+from doppler.acquire import BurstAcquisition
 from doppler.spectral import FFT, PSD, Corr, hann_window, magnitude_db_cf32
 from doppler.wfm import PN, Composer, Segment, bpsk_map
 

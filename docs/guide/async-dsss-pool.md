@@ -142,9 +142,12 @@ a test reads it, and it needs a truth the pool does not have.
 
 ## Configuring it
 
-Every number is a constructor parameter; the defaults are the design's
-operating point, and the searcher's and the receivers' own parameters pass
-through untouched.
+Every number is a constructor parameter, and the searcher's and the receivers'
+own parameters pass through untouched. The defaults are generic, not the
+design's operating point: the 5 Mcps / Gold-1023 point this page quotes passes
+its own `chip_rate`, `doppler_uncertainty` and `doppler_rate=500` (the class
+example does), and `D = 154` comes from that rate bound — with the default
+`doppler_rate=0`, `code_only_epochs=813` gives `D = 407`.
 
 | parameter                              | meaning                                                                                                                                                                                                                               | default         |
 | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |

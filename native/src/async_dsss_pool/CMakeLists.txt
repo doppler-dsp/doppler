@@ -29,6 +29,11 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     dp_tlm_core
     cvt_core
     carrier_acq_core
+    psd_core
+    spectral_core
+    acc_trace_core
+    detector_core
+    corr_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -50,11 +55,6 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     nco_core
     farrow_core
     pn_core
-    psd_core
-    spectral_core
-    acc_trace_core
-    detector_core
-    corr_core
     doppler_channel_core
     dp_event_log_core
     wfm_writer_core
@@ -77,6 +77,11 @@ target_link_libraries(test_async_dsss_pool_core
     dp_tlm_core
     cvt_core
     carrier_acq_core
+    psd_core
+    spectral_core
+    acc_trace_core
+    detector_core
+    corr_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -98,11 +103,6 @@ target_link_libraries(test_async_dsss_pool_core
     nco_core
     farrow_core
     pn_core
-    psd_core
-    spectral_core
-    acc_trace_core
-    detector_core
-    corr_core
     doppler_channel_core
     dp_event_log_core
     wfm_writer_core
@@ -129,6 +129,11 @@ target_link_libraries(bench_async_dsss_pool_core
     dp_tlm_core
     cvt_core
     carrier_acq_core
+    psd_core
+    spectral_core
+    acc_trace_core
+    detector_core
+    corr_core
     dll_core
     loop_filter_core
     lockdet_core
@@ -150,11 +155,6 @@ target_link_libraries(bench_async_dsss_pool_core
     nco_core
     farrow_core
     pn_core
-    psd_core
-    spectral_core
-    acc_trace_core
-    detector_core
-    corr_core
     doppler_channel_core
     dp_event_log_core
     wfm_writer_core

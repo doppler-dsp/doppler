@@ -64,7 +64,7 @@ When coherent integration is capped (Doppler walk, data bits, oscillator drift,
 Doppler rate), `N_nc` coherent **looks** are combined by summing squared
 magnitude. The detector becomes the order-`N_nc` Marcum-Q; these helpers package
 it and reduce to the coherent (order-1) versions above at `n_noncoh = 1`. They
-drive the `doppler.dsss.Acquisition` engine's coherent/non-coherent split.
+drive the `doppler.acquire.Acquisition` engine's coherent/non-coherent split.
 
 ::: doppler.detection.det_threshold_noncoherent
 

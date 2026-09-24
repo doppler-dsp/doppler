@@ -406,7 +406,7 @@ does neither.
 
 The orchestrator cashes it in: `CoarseChannel.get_state`/`set_state` (and the
 bank-level `Acquirer.get_state`/`set_state`) compose their children's blobs (DDC
-mixer/decimator + the Acquisition search) behind a small Python envelope. So a
+mixer/decimator + the `BurstAcquisition` or `BurstCapture` search) behind a small Python envelope. So a
 running acquirer is the documented `(descriptor, state, block)` triple —
 checkpoint a bank mid-stream, rebuild it from its descriptor on another pod,
 restore the blob, and the search continues **detection-for-detection identical**

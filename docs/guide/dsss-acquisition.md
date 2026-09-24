@@ -1,6 +1,6 @@
 # DSSS Burst Acquisition
 
-`doppler.dsss.BurstAcquisition` acquires a direct-sequence spread-spectrum burst —
+`doppler.acquire.BurstAcquisition` acquires a direct-sequence spread-spectrum burst —
 a run of repeated, BPSK-modulated PN-code segments — arriving with an **unknown
 code phase** and an **unknown carrier-frequency (Doppler) offset**, buried in
 noise. It owns the whole receive-side acquisition pipeline:
@@ -14,8 +14,8 @@ Construction is **physics-only**: you state the waveform (for `BurstAcquisition`
 the preamble's samples and their rate `fs`; for `Acquisition` the `code`,
 `chip_rate` and `spc`), the sensitivity (`cn0_dbhz`), and a target
 **(Pfa, Pd)**.
-The engine sizes its own search grid — coherent depth, threshold, non-coherent
-looks — from the [detection theory](../api/python-detection.md) and streams
+The engine sizes its own search grid — the coherent depth and the threshold
+(and, on the continuous `Acquisition`, the non-coherent looks) — from the [detection theory](../api/python-detection.md) and streams
 detections. You never pick a bin count or a threshold.
 
 !!! note "Two front doors, one engine"
@@ -24,7 +24,7 @@ detections. You never pick a bin count or a threshold.
     isolated, data-free run of repeated code (a preamble). For a
     **continuous**, data-modulated signal instead — a beacon/telemetry
     stream where the code repeats forever with async data riding on top
-    — use `doppler.dsss.Acquisition` instead; see
+    — use `doppler.acquire.Acquisition` instead; see
     [Continuous, data-modulated signals](#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
     below. Both are thin front doors over the same C engine and share the
     same `push`/streaming/property surface — they differ only in how the
@@ -39,7 +39,7 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
     ```python
     import numpy as np
     from doppler.cvt import bin_to_nrz
-    from doppler.dsss import BurstAcquisition
+    from doppler.acquire import BurstAcquisition
     from doppler.wfm import PN, mls_poly
 
     code = PN(poly=mls_poly(5), seed=1, length=5).generate(31)  # 31-chip PN
@@ -138,15 +138,17 @@ the slow-time FFT itself, you never pre-transform anything — just `push` IQ.
 
     - **resolution** `doppler_res_hz = fs / (n · doppler_bins)` — set by how
         many repetitions the engine integrates (deeper → finer bins); `n` is the
-        preamble's length in samples.
+        preamble's length in samples. (When the search is widened past the
+        span by window tiles, `doppler_bins` counts tiles and the resolution
+        is one tile's width, `fs / n`.)
     - **span** `doppler_span_hz = ±fs / (2·n)` — the slow-time Nyquist, set by
         the *repetition period* `n/fs` alone, independent of `doppler_bins`.
 
     With a 31-chip code at 1.023 Mcps held 4 samples a chip (`n = 124`,
     `fs = 4.092 MHz`) and `doppler_bins=8`: bins are ≈4125 Hz apart, spanning
-    ±16.5 kHz. To search *wider* than the native span, sweep a
-    coarse Doppler grid in front of `Acquisition` — see
-    [Widening the Doppler search](#widening-the-doppler-search).
+    ±16.5 kHz. To search *wider* than the native span, pass a wider
+    `doppler_uncertainty` (the engine tiles it) or sweep a coarse Doppler grid
+    in front — see [Widening the Doppler search](#widening-the-doppler-search).
 
 ______________________________________________________________________
 
@@ -270,10 +272,11 @@ for dop, phase, peak, noise, stat, cn0, samples_consumed in acq.push(chunk):
 Map the integer bins back to physical units:
 
 ```python
+from doppler.acquire import bin_to_signed
+
 def doppler_hz(dop, acq):
-    """Doppler bin → Hz (folds the upper half to negative)."""
-    k = (dop + acq.doppler_bins // 2) % acq.doppler_bins - acq.doppler_bins // 2
-    return k * acq.doppler_res_hz
+    """Doppler bin → Hz (the library's fold: numpy's fftfreq convention)."""
+    return bin_to_signed(dop, acq.doppler_bins) * acq.doppler_res_hz
 
 delay_chips = phase / 4                # code phase in samples ÷ samples/chip
 ```
@@ -330,7 +333,7 @@ assert acq.pd_burst >= acq.pd       # confirm the search can meet the target
 ```
 
 `reps` defaults to 1: a preamble of one period, which almost always lands
-across two dwells and gives each only part of it. That costs about 5 dB here
+across two dwells and gives each only part of it. That costs about 3 dB here
 — at 61 dB-Hz one aligned dwell would predict 0.81, the burst gets 0.47 — so
 state the repetitions your preamble really has.
 
@@ -345,10 +348,10 @@ The tiers:
     — the coherence ceiling and your latency budget; default 1).
 - **Safe defaults — leave unless you have a reason:** `pfa=1e-3`, `pd=0.9`,
     `noise_mode="mean"`, `doppler_uncertainty=0` (full native span).
-- **Nothing to opt into for weak signals:** non-coherent looks (`n_noncoh`) are
-    always auto-selected once the coherent ceiling (`reps`) is exhausted, up to
-    an internal safety-valve ceiling (256 looks) — there is no caller-facing
-    cap to raise.
+- **No non-coherent looks to opt into:** a burst engine never adds them
+    (`n_noncoh` stays 1). A burst has one preamble, so a second look only adds
+    noise and arrives late; when no depth up to `reps` meets `pd`, the engine
+    reports `underpowered` instead.
 
 The period is **not** a parameter — it is `len(preamble)`, so the engine and
 your replica can never disagree.
@@ -395,11 +398,13 @@ non-coherent looks (`n_noncoh` stays 1), and there's no `max_noncoh` to raise.
 ### Narrowing the Doppler search
 
 If you already know the carrier offset lies within `±Δf`, pass
-`doppler_uncertainty=Δf` (Hz, ≤ the native span). The engine then scans only the
-Doppler bins inside that band, so the CFAR threshold pays a Bonferroni penalty
+`doppler_uncertainty=Δf` (Hz). Within the native span, the engine then scans only
+the Doppler bins inside that band, so the CFAR threshold pays a Bonferroni penalty
 over **fewer** cells — a lower gate at the same system `pfa`, i.e. more
-sensitivity for free. A value beyond the native span is rejected (`MemoryError`);
-to search wider, use the coarse-mix bank below.
+sensitivity for free. A value beyond the native span is accepted: the engine
+tiles the range with frequency windows, one epoch each (see
+[Widening the Doppler search](#widening-the-doppler-search) for that and for the
+coarse-mix bank).
 
 ______________________________________________________________________
 
@@ -413,7 +418,7 @@ BPSK data rides on top continuously, with a symbol clock that is *not* an
 integer multiple of the code-epoch clock (`chip_rate / symbol_rate` not a
 whole number — the common case in real hardware, where the two clocks derive
 from independent budgets). `BurstAcquisition` is the wrong tool for this case
-full stop, not just a tuning risk — reach for `doppler.dsss.Acquisition`
+full stop, not just a tuning risk — reach for `doppler.acquire.Acquisition`
 instead (below).
 
 ### Why this changes the sizing decision
@@ -434,7 +439,7 @@ fraction of a symbol — which is exactly what a naive
 whole reason for existing is to greedily grow the coherent depth
 (`doppler_bins`) up to `reps` to meet `pd`, with no notion that a
 data-modulated symbol clock might be present at all — `BurstAcquisition` only
-ever sees a `code` and a `chip_rate`. There is no parameter that makes this
+ever sees the preamble's samples and their rate. There is no parameter that makes this
 class safe here; the fix is to use the other front door.
 
 ### The robust default: `Acquisition`, not `BurstAcquisition`
@@ -443,20 +448,20 @@ class safe here; the fix is to use the other front door.
 pricing it as a tunable trade-off: it **always** window-tiles the Doppler
 search (rolling one epoch's own FFT spectrum across parallel frequency-window
 hypotheses — the same mechanism as [Widening the Doppler
-search](#widening-the-doppler-search) below, but built in) and **never**
-attempts coherent multi-epoch combining, regardless of `doppler_uncertainty`
-or how strong the signal is. There is no `reps`-like ceiling to raise by
-mistake, because there is no coherent-depth axis on this class at all.
-Sensitivity margin comes entirely from `n_noncoh`, which is always
-auto-selected to meet `pd` (up to the same internal 256-look safety valve as
-`BurstAcquisition`) — never a caller-tuned cap.
+search](#widening-the-doppler-search) below, but built in). It combines
+coherently across epochs only inside a tile, and only across epochs you
+declare free of data (`code_only_epochs`, default 1, so by default it never
+does): `coherent_bins` is derived from that and capped by `doppler_rate`.
+There is no `reps`-like ceiling to raise by mistake. The rest of the
+sensitivity margin comes from `n_noncoh`, auto-selected to meet `pd` up to an
+internal 256-look safety valve — never a caller-tuned cap.
 
 Given the high-level inputs a typical caller actually has — the `code`, the
 `chip_rate`, a Doppler uncertainty, and a `cn0_dbhz` sensitivity — construction
 looks just like `BurstAcquisition`'s, minus `reps`:
 
 ```python
-from doppler.dsss import Acquisition
+from doppler.acquire import Acquisition
 
 chip_rate = 1.023e6            # Hz, the waveform (matches the code above)
 symbol_rate = 2400.0           # Hz -- present and asynchronous to chip_rate
@@ -499,14 +504,13 @@ The one thing you give up is the classic non-coherent combining loss (roughly
 1–3 dB versus the same total energy combined ideally coherently, for small
 `N`) — a fair price for robustness on a continuous, data-modulated link.
 
-!!! info "`doppler_resolution`/`doppler_rate` were removed, not left as knobs"
+!!! info "`doppler_resolution` was removed, not left as a knob"
 
-    An earlier iteration of this class also had `doppler_resolution` (floor a
-    minimum Doppler-bin resolution) and `doppler_rate` (cap the coherent depth
-    for Doppler-rate smearing). Both existed to serve a genuine, separate
-    need — handing a finer Doppler estimate to a downstream tracking loop —
-    but both worked by **forcing the coherent depth up**, exactly the
-    mislock risk this section describes. Confirmed directly on this
+    An earlier iteration of this class had `doppler_resolution` (floor a
+    minimum Doppler-bin resolution), to serve a genuine, separate need —
+    handing a finer Doppler estimate to a downstream tracking loop — but it
+    worked by **forcing the coherent depth up**, exactly the mislock risk
+    this section describes. Confirmed directly on this
     project's own continuous receiver: forcing `doppler_bins` up via
     `doppler_resolution` to shrink a downstream carrier-loop's pull-in range
     caused *frequent, gross* mislocks (the wrong Doppler bin winning
@@ -515,10 +519,10 @@ The one thing you give up is the classic non-coherent combining loss (roughly
     broadband enough to alias real energy across the *entire* Doppler-bin
     axis once the coherent window spans more than a handful of symbols.
     Rather than leave a foot-gun knob on the class with a "use with care"
-    caveat, both were removed entirely: `Acquisition` (continuous) has no
-    coherent-depth axis left for either one to force up, so the guarantee
-    above (`doppler_bins` is always the window-tile count, never a
-    slow-time FFT depth) is now structural, not a documentation promise. A
+    caveat, it was removed entirely. The only coherent depth `Acquisition`
+    (continuous) takes now is the one you declare safe (`code_only_epochs`),
+    and `doppler_rate` exists only to CAP it — it can lower the depth, never
+    raise it. A
     finer Doppler estimate downstream is still a real need; it belongs to a
     resolution mechanism that doesn't grow real coherent depth (zero-padding
     the Doppler FFT, not yet shipped), not a parameter on this constructor.
@@ -527,9 +531,9 @@ The one thing you give up is the classic non-coherent combining loss (roughly
 
 If there is no continuous data modulation to speak of — a genuine data-free
 preamble, the classic case the rest of this guide describes — none of this
-applies: use `BurstAcquisition` and get the coherent-first sizing (`reps`
-grown before non-coherent looks engage), which pays no combining-loss
-penalty. Reach for `Acquisition` (continuous) only when the code carries
+applies: use `BurstAcquisition` and get the coherent sizing (the smallest
+depth up to `reps` whose burst Pd meets `pd`, with no non-coherent looks),
+which pays no combining-loss penalty. Reach for `Acquisition` (continuous) only when the code carries
 continuous data modulation during acquisition itself.
 
 ### Advanced: pinning the grid directly
@@ -565,15 +569,21 @@ grid.
     beyond a handful of epochs when you know the window is genuinely
     data-free (a preamble) for its whole span — on a continuous signal, pin
     `Acquisition`'s `n_noncoh` instead (its `doppler_bins` bound collapses to
-    `1`, so there's no coherent depth to accidentally pin up).
+    `1`, so there's no coherent depth to accidentally pin up). Note that a pin
+    also drops window tiling back to one native window, so a pinned
+    `Acquisition` no longer covers a `doppler_uncertainty` wider than the
+    span.
 
 ______________________________________________________________________
 
 ## Widening the Doppler search
 
-The native search spans only `±chip_rate/(2·sf)` — one slow-time Nyquist, set by
-the code period. When the true Doppler exceeds that, tile the wider range with a
-sequence of **coarse Doppler hypotheses**: mix the raw stream down by each
+The native search spans only `±fs/(2n)` (`±chip_rate/(2·sf)` for a code) — one
+slow-time Nyquist, set by the code period. Past that, the engine can tile the
+range itself: pass the wider `doppler_uncertainty`, and it searches frequency
+windows of one epoch each. For a range many times the span, or to keep the
+coherent depth in every channel, tile it with a sequence of **coarse Doppler
+hypotheses** instead: mix the raw stream down by each
 `f_coarse` and run `BurstAcquisition` on the result. The engine's fine FFT then
 resolves the residual within the native span, and the absolute Doppler is
 `f_coarse +` the fine bin.
@@ -595,9 +605,8 @@ for chunk in iq_stream:                                  # any cf32 block
     n = n0 + np.arange(len(chunk))
     for f_coarse, acq in zip(coarse, bank):
         mixed = (chunk * np.exp(-2j * np.pi * f_coarse / fs * n)).astype(np.complex64)
-        for dop, phase, *_rest, cn0 in acq.push(mixed):
-            k = (dop + acq.doppler_bins // 2) % acq.doppler_bins \
-                - acq.doppler_bins // 2
+        for dop, phase, *_rest in acq.push(mixed):
+            k = bin_to_signed(dop, acq.doppler_bins)
             doppler_hz = f_coarse + k * acq.doppler_res_hz
             print(f"hit: {doppler_hz:+.0f} Hz, code phase {phase}")
     n0 += len(chunk)
@@ -641,9 +650,12 @@ grid (`200 kHz` total to cover):
     ~4 dB.
 - low-loss (50% overlap): step = `chip_rate/(2·sf)` = **500 Hz** →
     `200 kHz / 500 Hz` = **400 channels**, residual `±250 Hz` (≤ 0.25 cycle, \<1 dB)
-    — this is the grid in the snippet above.
-- each channel searches a `10 × 2000` (Doppler × code-phase) surface at the native
-    **100 Hz** resolution, with full 10 ms coherent gain.
+    — the same rule the snippet above applies to its own 31-chip code, where
+    it gives a 16 kHz step and 13 channels.
+- each channel searches up to a `10 × 2000` (Doppler × code-phase) surface at the
+    native **100 Hz** resolution, with up to 10 ms of coherent gain. The engine
+    uses the smallest depth that meets `pd`, so a strong link searches fewer
+    rows at a coarser resolution.
 
 So acquisition is **200–400 fine searches**, one per coarse mix —
 `BurstAcquisition` runs the inner search and CFAR; your loop sweeps `f_coarse`.
@@ -659,19 +671,26 @@ ______________________________________________________________________
 **track**. Once it reports a `(Doppler bin, code phase)`, hand the coarse
 estimate to the [`BurstDespreader`](../api/python-dsss.md), which closes a
 DLL + Costas loop to track code phase and carrier and recover the payload
-bits. Both live in `doppler.dsss`:
+bits. Acquisition lives in `doppler.acquire`, the despreaders in
+`doppler.dsss`:
 
 ```python
-from doppler.dsss import BurstAcquisition, BurstDespreader
+from doppler.acquire import BurstAcquisition
+from doppler.dsss import BurstDespreader
 ```
+
+`DsssBurstReceiver` composes the whole chain in C — acquisition, a
+[`BurstCapture`](../api/python-acquire.md) that turns detections into
+windows, and the despreader — so most links never wire these by hand.
 
 ______________________________________________________________________
 
 ## See also
 
-- [Python: DSSS API](../api/python-dsss.md) — full `Acquisition`/`BurstAcquisition` + `BurstDespreader` reference
+- [Python: Acquire API](../api/python-acquire.md) — full `Acquisition`/`BurstAcquisition`/`BurstCapture` reference
+- [Python: DSSS API](../api/python-dsss.md) — `BurstDespreader` and the composed receivers
 - [Python: Detection Statistics](../api/python-detection.md) — `det_threshold` / `det_pd` / `det_dwell`
 - [Gallery: 2-D Acquisition](../gallery/detection2d.md) — the `CorrDetector2D` matched-filter surface
 - [Design: pure-functional acquisition kernel](../design/acq-fn.md) — the
-    elastic `(ddc_fn, acq_fn)` pipeline behind the acquisition engine, for pod
-    fan-out and checkpoint/resume
+    elastic `(ddc_fn, acq_fn)` pipeline design, for pod fan-out and
+    checkpoint/resume

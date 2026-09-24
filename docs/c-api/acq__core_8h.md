@@ -144,10 +144,10 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 ## Detailed Description
 
 
-Acquires a direct-sequence spread-spectrum signal — repeated, BPSK -modulated PN-code segments — arriving with an unknown integer code phase and an unknown carrier-frequency (Doppler) offset, buried in AWGN. It jointly estimates the (Doppler bin, code phase) and declares a detection whenever the CFAR test statistic crosses an automatically configured threshold.
+Acquires a signal built from a repeated sequence  a spread-spectrum code (the continuous door) or any repeated complex preamble (the burst door)  arriving with an unknown integer code phase and an unknown carrier-frequency (Doppler) offset, buried in AWGN. It jointly estimates the (Doppler bin, code phase) and declares a detection whenever the CFAR test statistic crosses an automatically configured threshold.
 
 
-Pipeline (owned end to end, one object): push(raw cf32) -&gt; ring buffer -&gt; reframe to (coherent\_bins, code\_bins) -&gt; slow-time Doppler FFT (FFT along the segment axis) -&gt; 2-D code correlation against a single-row PN reference (corr2d) -&gt; argmax + CFAR noise estimate -&gt; threshold gate -&gt; [**acq\_result\_t**](structacq__result__t.md).
+Pipeline (owned end to end, one object): push(raw cf32) -&gt; ring buffer -&gt; reframe to (coherent\_bins, code\_bins) -&gt; slow-time Doppler FFT (FFT along the segment axis) -&gt; 2-D code correlation against a single-row reference (corr2d) -&gt; argmax + CFAR noise estimate -&gt; threshold gate -&gt; [**acq\_result\_t**](structacq__result__t.md).
 
 
 The fast-time axis (code\_bins = sf\*spc columns) is the circular code matched filter; the slow-time axis (coherent\_bins rows, one row per code repetition) is the coherent Doppler search. A carrier offset f (cycles/sample) lands the peak at row = round(f\*code\_bins\*coherent\_bins) mod coherent\_bins, column = code phase.
@@ -157,7 +157,7 @@ The fast-time axis (code\_bins = sf\*spc columns) is the circular code matched f
 
 
 
-* [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst) — today's classic behavior: the smallest coherent depth `coherent_bins` in `[1, reps]` whose coherent\_bins\*code\_bins coherent samples meet `pd` (det\_threshold / det\_pd) — minimum latency for a strong signal, unmodulated bursts/preambles only. A tighter `doppler_uncertainty` shrinks the searched cell count, lowering the Bonferroni threshold (more sensitive). When `doppler_uncertainty` exceeds the native span, falls back to the wideband window-tiling mechanism below instead (coherent depth structurally can't cover more than one span, regardless of mode).
+* [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst) — the smallest coherent depth `coherent_bins` in `[1, reps]` whose BURST Pd meets `pd:` the preamble lands at any offset against stream-aligned dwells and is detected when any one of them is (see [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst)); never a non-coherent look. Minimum latency for a strong signal, unmodulated bursts/preambles only. A tighter `doppler_uncertainty` shrinks the searched cell count, lowering the Bonferroni threshold (more sensitive). When `doppler_uncertainty` exceeds the native span, falls back to the wideband window-tiling mechanism below instead (coherent depth structurally can't cover more than one span, regardless of mode).
 * [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) — for a continuous, data-modulated signal: ALWAYS uses the wideband window-tiling mechanism below, unconditionally (never attempts coherent multi-epoch combining, even when `doppler_uncertainty` is narrower than one native span) — closes the aliasing footgun structurally rather than pricing it as a tunable loss. Sensitivity margin comes entirely from auto-selected non-coherent looks.
 
 
@@ -255,7 +255,7 @@ The block-coherent engine gathers every tile's correlation row for `coherent_bin
 Values written (`coherent_bins`), or 0 at `coherent_bins == 1` (no block is gathered), while a block is partial, for an index out of range, or when `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -319,7 +319,7 @@ Copies the `coherent_bins * code_bins` samples the block-coherent engine gathere
 Samples written (`coherent_bins * code_bins`), or 0 at `coherent_bins == 1`, while a block is partial, or when `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -367,7 +367,7 @@ Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`
 
 
 * **Chip phase**: `hit's` `code_phase` is a correlation LAG (0 … code\_bins-1); a code-tracking loop's `init_chip` wants the code's own instantaneous phase instead — the mirror-image inversion `phase = fmod(code_len - code_phase/spc, code_len)`, folded non-negative.
-* **Doppler**: `state` is assumed built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) (coherent\_bins pinned at 1, `window_bins` the active mechanism, the only mode this function supports), so `hit`'s `doppler_bin` is a frequency-WINDOW index, mapped to a signed bin by `dp_fftfreq_index()` — the SAME helper the search uses — and scaled by `state->doppler_res_hz`.
+* **Doppler**: `state` is assumed built via [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) (`window_bins` tiles of `coherent_bins` each, the only mode this function supports), so `hit`'s `doppler_bin` indexes the uniform grid of `window_bins * coherent_bins` bins, mapped to a signed bin by `dp_fftfreq_index()` — the SAME helper the search uses — and scaled by `state->doppler_res_hz`.
 * **The dwell's dilation** (doppler#1254): a hit is decided on a non-coherent sum over `n_noncoh` looks, and the code phase it reports is that sum's peak  the phase at the MIDDLE of the dwell, not at its end, when the chip clock is dilated by the same Doppler the hit reports (a physically-coupled carrier, `doppler_hz / carrier_freq_hz` chips per chip). The seed a code loop wants is the phase at the next sample, so with the carrier set ([**acq\_set\_carrier\_freq\_hz()**](acq__core_8h.md#function-acq_set_carrier_freq_hz)) the phase is advanced by the drift over HALF the dwell, `doppler_hz_est / carrier_freq_hz * n_noncoh * coherent_bins * code_len / 2` chips (a coherent block's epochs are aligned to its middle by the same setting, so the block's peak is its middle too). At SPEC's 20 ppm the continuous engine's dwell at 45 dB-Hz is 15 epochs (0.15 chip, inside any code loop's pull-in) and at the 40 dB-Hz floor 88 epochs  0.9 chip, measured directly, past the refine Dll's; without this the floor's hand-offs never refined. Uncoupled (0.0): no advance. 
 
 **Parameters:**
@@ -470,7 +470,7 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 0 on success, -1 if either argument is out of range or an allocation fails (the engine is left usable at its prior grid on failure). 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -516,7 +516,7 @@ acq_state_t * acq_create_burst (
 
 
 
-Takes the preamble as its SAMPLES: one period of `n` complex samples at `fs`, repeated up to `reps` times. A PN code is one such preamble  pass its chips mapped by [**bin\_to\_nrz()**](cvt__core_8h.md#function-bin_to_nrz) and held `spc` samples each, at `fs = chip_rate * spc`. The engine sees one chip = one sample: `sf = n`, `spc = 1`, `chip_rate = fs`, the native Doppler span is `+/- fs/(2n)`, and `code_phase` is the delay into the repetition, in samples. It converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / fs)), and picks the _smallest_ coherent depth `coherent_bins` in `[1, reps]` whose burst Pd `pd_burst` meets `pd` at the Bonferroni threshold (minimum latency for a strong signal). `pd_burst` treats the preamble as exactly `reps` periods at a uniform offset against the stream-aligned dwells, and credits every dwell it spans (doppler#1498). If no depth meets `pd` the engine takes the one with the most burst Pd and is `underpowered`; it does NOT add non-coherent looks. A burst has one frame of preamble, so looks beyond it add noise to the statistic and move the hit  `samples_consumed` is stamped at the end of the LAST accumulated look, so a consumer resolving the preamble's position sees an anchor up to n\_noncoh\*coherent\_bins periods late (doppler#1181). Intended for an unmodulated burst or preamble window  a continuous, data-modulated signal should use [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) instead (coherent combining under continuous data is a structural aliasing mislock, not a tunable SNR trade-off  see the file doc comment).
+Takes the preamble as its SAMPLES: one period of `n` complex samples at `fs`, repeated up to `reps` times. A PN code is one such preamble  pass its chips mapped by [**bin\_to\_nrz()**](cvt__core_8h.md#function-bin_to_nrz) and held `spc` samples each, at `fs = chip_rate * spc`. The engine sees one chip = one sample: `sf = n`, `spc = 1`, `chip_rate = fs`, the native Doppler span is `+/- fs/(2n)`, and `code_phase` is the delay into the repetition, in samples  for a preamble whose ambiguity function is a ridge (Zadoff-Chu: one native bin of Doppler moves the peak `u^-1 mod n` samples), the delay plus that shift whenever the Doppler is not resolved before correlation. It converts `cn0_dbhz` to a per-sample amplitude SNR (snr = sqrt(10^(cn0\_dbhz/10) / fs)), and picks the _smallest_ coherent depth `coherent_bins` in `[1, reps]` whose burst Pd `pd_burst` meets `pd` at the Bonferroni threshold (minimum latency for a strong signal). `pd_burst` treats the preamble as exactly `reps` periods at a uniform offset against the stream-aligned dwells, and credits every dwell it spans (doppler#1498). If no depth meets `pd` the engine takes the one with the most burst Pd and is `underpowered`; it does NOT add non-coherent looks. A burst has one frame of preamble, so looks beyond it add noise to the statistic and move the hit  `samples_consumed` is stamped at the end of the LAST accumulated look, so a consumer resolving the preamble's position sees an anchor up to n\_noncoh\*coherent\_bins periods late (doppler#1181). Intended for an unmodulated burst or preamble window  a continuous, data-modulated signal should use [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous) instead (coherent combining under continuous data is a structural aliasing mislock, not a tunable SNR trade-off  see the file doc comment).
 
 
 `cn0_dbhz` is the DESIGN (minimum) C/N0 and is optional: NaN ([**ACQ\_CN0\_NONE**](acq__core_8h.md#define-acq_cn0_none)) means none was given, and the engine then integrates the whole preamble (`coherent_bins = reps`) with the threshold set by `pfa` alone. `pd` is a sizing target only when a design C/N0 is given; without one `pd_predicted` and `pd_burst` are NAN and `underpowered` is never set.
@@ -636,7 +636,7 @@ Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_
 Heap-allocated state, or NULL on bad arguments / allocation failure. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -745,7 +745,7 @@ Buffers `x`, then for every complete frame applies the slow-time Doppler FFT, co
 Number of events written (0 … max\_results). 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -795,7 +795,7 @@ Discards any buffered samples that have not yet completed a frame and clears the
 * `state` Must be non-NULL. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -889,7 +889,7 @@ Config, not running state: it is not in the state blob, so a resumed engine want
 `DP_OK`, or `DP_ERR_INVALID` for a negative or non-finite value. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
 >>> a = Acquisition(code, spc=2, chip_rate=5e6, symbol_rate=2700.0,
@@ -924,7 +924,7 @@ int acq_set_max_peaks (
 
 
 
-One (the default) is the classic detector  the maximum of the surface, gated. More is the list of docs/design/async-dsss-receiver.md §7.1: every peak above the same gate, strongest first, each with an exclusion zone of one Doppler bin by one chip around it (one emitter's main lobe, so its own shoulders are not the next peak), and the two-epoch rule for a peak at an already-listed code phase  a data transition inside the epoch splits one emitter into twins at its own code phase on other tiles, so such a peak is held for one dwell and listed only if it was there, at the same tile, on the previous one. Each listed peak is one [**acq\_result\_t**](structacq__result__t.md) from [**acq\_push()**](acq__core_8h.md#function-acq_push), all of a dwell's sharing its `samples_consumed` and `noise_est`. A held twin takes a slot of the `n` for that dwell but is not reported. The threshold does not change: a second peak is another draw from the same cells against the same union bound. Clears the held candidates.
+One (the default) is the classic detector  the maximum of the surface, gated. More is the list of docs/design/async-dsss-receiver.md §7.1: every peak above the same gate, strongest first, each with an exclusion zone of one Doppler bin by the reference's first autocorrelation null around it (one chip for a PN code; one emitter's main lobe, so its own shoulders are not the next peak), and the two-epoch rule for a peak at an already-listed code phase  a data transition inside the epoch splits one emitter into twins at its own code phase on other tiles, so such a peak is held for one dwell and listed only if it was there, at the same tile, on the previous one. Each listed peak is one [**acq\_result\_t**](structacq__result__t.md) from [**acq\_push()**](acq__core_8h.md#function-acq_push), all of a dwell's sharing its `samples_consumed` and `noise_est`. A held twin takes a slot of the `n` for that dwell but is not reported. The threshold does not change: a second peak is another draw from the same cells against the same union bound. Clears the held candidates.
 
 
 
@@ -942,7 +942,7 @@ One (the default) is the classic detector  the maximum of the surface, gated. Mo
 0, or -1 (state untouched) when `n` is out of range. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
 >>> a = Acquisition(code, spc=2, chip_rate=1e6, symbol_rate=1e3,
 ...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
@@ -1062,7 +1062,7 @@ Registers ten probes, emitted once per DECIDED dwell (a coherent dump, or the dw
 DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all ten probes (the attach fails whole; the engine stays detached). 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.telemetry import Telemetry
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
@@ -1119,7 +1119,7 @@ A continuous engine is created with a pool of the machine's online cores when it
 DP\_OK. The count actually running is `threads`. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1191,7 +1191,7 @@ Copies the surface the last dwell was decided on into `out`, row-major `surface_
 Cells written (`surface_rows * code_bins`), or 0 when no dwell has been decided with `keep_surface` set, or `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1249,7 +1249,7 @@ One value per surface column, in chips, the same mapping [**acq\_build\_handoff(
 Values written (`code_bins`), or 0 if `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1304,7 +1304,7 @@ Copies the coherent sum the last dwell was decided on into `out`, row-major `sur
 Cells written (`surface_rows * code_bins`), or 0 when no dwell has been decided, the path is non-coherent, or `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -1364,7 +1364,7 @@ One value per surface row, the fold and scale a hit's `doppler_hz_est` uses (dp\
 Values written (`surface_rows`), or 0 if `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)

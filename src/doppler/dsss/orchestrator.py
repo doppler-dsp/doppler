@@ -1,10 +1,13 @@
 """Elastic multi-channel DSSS acquirer — a coarse-Doppler mixer bank.
 
-A single :class:`~doppler.dsss.BurstAcquisition` searches only its *native*
-Doppler span, ``±chip_rate/(2*sf)`` (the slow-time FFT's unambiguous range —
-beyond it the per-segment integrate-and-dump's ``sinc`` rolloff nulls the
-correlation at ``±2*span``).  To acquire a burst whose Doppler is uncertain
-over a *wider* range, this tiles ``K`` coarse-Doppler **channels**: each
+A single :class:`~doppler.acquire.BurstAcquisition` integrates coherently only
+within its *native* Doppler span, ``±chip_rate/(2*sf)`` (the slow-time FFT's
+unambiguous range — beyond it the per-segment integrate-and-dump's ``sinc``
+rolloff nulls the correlation at ``±2*span``).  Given a wider
+``doppler_uncertainty`` it tiles the range itself, one epoch per window and no
+coherent depth.  To keep the coherent depth over a *wider* range — or to
+capture bursts there (``BurstCapture`` does not widen yet, doppler#1512) —
+this tiles ``K`` coarse-Doppler **channels**: each
 down-mixes its sub-band to baseband with a :class:`~doppler.ddc.DDC` and runs
 its own ``BurstAcquisition`` there, so the bank spans ``±doppler_uncertainty``.
 
@@ -17,7 +20,7 @@ stream: :meth:`Acquirer.process` the detections, :meth:`Acquirer.bursts` the
 windows, per channel.  The same channels are shippable as
 ``(descriptor, state, block)`` to separate processes / pods:
 :meth:`CoarseChannel.get_state` / :meth:`Acquirer.get_state` snapshot the
-running state (the DDC mixer/decimator and the Acquisition search), and
+running state (the DDC mixer/decimator and the acquisition search), and
 :meth:`set_state` resumes it bit-for-bit in a
 fresh, identically-built instance elsewhere — checkpoint a bank here, rebuild
 it from its descriptor on another pod, restore the blob, and the search
@@ -75,14 +78,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from doppler.cvt import bin_to_nrz
-from doppler.ddc import DDC
-from doppler.dsss import (
+from doppler.acquire import (
     BurstAcquisition,
     BurstCapture,
     PersistentBurstCapture,
     bin_to_signed,
 )
+from doppler.cvt import bin_to_nrz
+from doppler.ddc import DDC
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -229,7 +232,7 @@ class CoarseChannel:
 
     @property
     def acquisition(self) -> BurstAcquisition:
-        """The per-channel :class:`~doppler.dsss.BurstAcquisition`."""
+        """The per-channel :class:`~doppler.acquire.BurstAcquisition`."""
         return self._acq
 
     def _abs_doppler(self, doppler_bin: int) -> float:
@@ -424,16 +427,16 @@ class Acquirer:
     reps : int, default 1
         Max coherent code repetitions per channel (BurstAcquisition ceiling).
     cn0_dbhz, pfa, pd, noise_mode
-        Per-channel :class:`~doppler.dsss.BurstAcquisition` detect params.
+        Per-channel :class:`~doppler.acquire.BurstAcquisition` detect params.
     max_workers : int, optional
         Thread-pool size; defaults to the channel count.
     burst_len : int, default 0
         Samples in one burst, at the acquisition rate. Non-zero makes every
-        channel a :class:`~doppler.dsss.BurstCapture`; zero leaves it the
+        channel a :class:`~doppler.acquire.BurstCapture`; zero leaves it the
         detector it always was.
     ring_dir : path-like, optional
         Directory for one file-backed look-back ring per channel
-        (:class:`~doppler.dsss.PersistentBurstCapture`); created if absent.
+        (:class:`~doppler.acquire.PersistentBurstCapture`); created if absent.
         Needs ``burst_len``. Each ring is named by its channel's CENTER
         (``ch+32258Hz.cf32``), not its index: widening the bank adds
         channels at the edges and keeps every existing ring valid, where an

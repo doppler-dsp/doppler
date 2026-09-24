@@ -2,7 +2,7 @@
 
 ![DSSS acquisition characterisation](../assets/dsss_acq_characterization.png)
 
-A performance characterisation of `doppler.dsss.Acquisition`: the probability
+A performance characterisation of `doppler.acquire.BurstAcquisition` on a DSSS preamble: the probability
 of detection (`Pd`) and probability of false alarm (`Pfa`) of a
 spread-spectrum burst acquirer, measured by Monte-Carlo against the data-link
 **Es/N0**.
@@ -54,14 +54,20 @@ search — an honest operating curve, not the on-bin best case.
 
 **Right — Pfa vs Es/N0.** The false-alarm rate, measured on the noise-only
 (silence) frames. It is set by the engine's CFAR threshold and is **independent
-of the signal**, so it stays flat at the configured `pfa = 1e-3` target across
-the whole sweep. The solid line is the achieved rate over a 20 000-frame
-noise-only run (≈ `8.5e-4`); the squares are the noisier per-Es/N0 estimates.
+of the signal**, so it stays flat across the whole sweep — but above the
+configured `pfa = 1e-3`, not on it. The solid line is the achieved rate over a
+20 000-frame noise-only run: `1.85e-3`, 1.85× the target. The threshold is
+sized from the native cell count while the peak search runs on the
+interpolated surface, which offers the noise more chances
+([#1064](https://github.com/doppler-dsp/doppler/issues/1064)); a ratchet holds
+the ratio under 2.2× until that is fixed. The squares are the noisier
+per-Es/N0 estimates.
 
 ## How it works
 
-`Acquisition` is constructed from physics, not tuning knobs — the PN code, the
-front-end geometry (`reps`, `spc`, `chip_rate`), a sizing sensitivity
+`BurstAcquisition` is constructed from physics, not tuning knobs — the
+preamble's samples (the PN code by `bin_to_nrz`, each chip held `spc` samples),
+their rate `fs = chip_rate·spc`, the repetitions `reps`, a sizing sensitivity
 (`cn0_dbhz`), and the detection targets (`pfa`, `pd`). It then:
 
 1. Frames the raw stream into `(doppler_bins, code_bins)` where
@@ -74,9 +80,9 @@ front-end geometry (`reps`, `spc`, `chip_rate`), a sizing sensitivity
     `(doppler_bin, code_phase, …)` event whenever the test statistic crosses an
     automatically configured, Bonferroni-corrected threshold.
 
-A deliberately low sizing `cn0_dbhz` pins the coherent depth to all five
-repetitions (`doppler_bins == reps`), so one acquisition frame spans the whole
-preamble.
+The script pins the coherent depth to all five repetitions with
+`configure_search_raw(reps, 1)` (`doppler_bins == reps`), so one acquisition
+frame spans the whole preamble.
 
 ### Es/N0
 
@@ -106,11 +112,11 @@ for the distinction.
 make characterize          # every subject
 
 python -m \
-    doppler.dsss.tests.characterization.burst_acquisition.characterize
+    doppler.acquire.tests.characterization.burst_acquisition.characterize
 ```
 
 The waveform geometry, signal construction, and the `(Doppler bin, code phase)`
 mapping live in
-`doppler.dsss.tests.characterization.burst_acquisition.characterize`, shared
+`doppler.acquire.tests.characterization.burst_acquisition.characterize`, shared
 with the `test_acq_characterization` gate so the sweep and the test agree by
 construction.

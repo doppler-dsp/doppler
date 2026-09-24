@@ -195,7 +195,7 @@ moved.
 
 [`doppler.dsss.orchestrator`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/orchestrator.py)
 is this cashed in for real: `CoarseChannel` composes a `DDC` mixer/decimator
-with an `Acquisition` search, and `Acquirer` composes a whole bank of
+with a `BurstAcquisition` search (a `BurstCapture` when given a `burst_len`), and `Acquirer` composes a whole bank of
 channels for wide-Doppler-uncertainty search. Both checkpoint and resume at
 their own level, so a bank mid-search can be handed to a fresh pod without
 losing a single in-progress detection:

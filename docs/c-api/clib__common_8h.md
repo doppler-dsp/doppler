@@ -259,7 +259,7 @@ static inline long dp_fftfreq_index (
 Named for what it is. It arrived as an acquisition-specific helper called `dp_fftfreq_index`, which is how it came to disagree with numpy at exactly one index: it reported `+n/2` at the Nyquist bin. That is not wrong on its own  `+n/2` and `-n/2` are the same frequency, and a search on this grid cannot tell them apart  but every formula ported in from numpy then disagreed with the engine at the one bin the engine was most careful about. Following the universal convention deletes that class of surprise rather than documenting it.
 
 
-What must not vary is the READER: a consumer seeded on one side of the fold while the search meant the other is off by the full span. That happened here once  an acquisition's wideband search and its hand-off spelled the fold differently  and it surfaced as a receiver reporting `tracking == 1` while decoding noise. So this lives in the COMMON header, inline, and `doppler.dsss.bin_to_signed` is a thin wrapper over it, so C and Python call the same code instead of restating the arithmetic.
+What must not vary is the READER: a consumer seeded on one side of the fold while the search meant the other is off by the full span. That happened here once  an acquisition's wideband search and its hand-off spelled the fold differently  and it surfaced as a receiver reporting `tracking == 1` while decoding noise. So this lives in the COMMON header, inline, and `doppler.acquire.bin_to_signed` is a thin wrapper over it, so C and Python call the same code instead of restating the arithmetic.
 
 
 

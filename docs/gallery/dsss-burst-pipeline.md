@@ -4,9 +4,9 @@
 
 Two things in one example: exercise every way `wfmgen` can produce a
 waveform against the *same* declarative scene, then run the resulting
-capture through all three DSSS receiver objects — `Acquisition`,
+capture through all three receiver objects — `BurstAcquisition`,
 `BurstDespreader`, `BurstDemod` — each demonstrated on its own before
-they're chained, with every downstream stage seeded from what `Acquisition`
+they're chained, with every downstream stage seeded from what `BurstAcquisition`
 actually *finds*, not from ground truth.
 
 ## The scenario
@@ -55,9 +55,9 @@ len(rx), len(starts)
 value means the CLI, `Composer.from_file`, and `Composer([Segment(...)])`
 all agree, bit for bit, on this multi-segment DSSS scene.
 
-## Acquisition — alone, and actually blind
+## BurstAcquisition — alone, and actually blind
 
-`Acquisition`'s real job is running continuously against a channel that's
+`BurstAcquisition`'s real job is running continuously against a channel that's
 mostly silence and noise, finding a signal (or not) with zero prior
 knowledge of its timing — so this section runs it that way: ONE instance,
 swept blindly across the *entire* capture:
@@ -69,16 +69,22 @@ hits, acq = demo_acquisition(rx, acq_code)
 len(hits)
 ```
 
-Every one of the 5 real bursts is discovered at Doppler bin 0 (no Doppler
-was injected in this scene), at exactly its true sample position, purely
-from CFAR threshold crossings — no ground truth passed in. A handful of
-false alarms in the noise-only regions typically also show up; see
-[API notes](#api-notes) for why, and how the pipeline handles them.
+Every one of the 5 real bursts is detected at Doppler bin 0 (no Doppler was
+injected in this scene), purely from CFAR threshold crossings — no ground
+truth passed in. Four land at exactly their true sample position; one lands
+a whole number of code periods off. A detection's code phase is a lag modulo
+one code period, so it never says which repetition the burst started in;
+this hand-wired pipeline takes the first, and resolving the repetition is
+what [`BurstCapture`](../api/python-acquire.md) (and `DsssBurstReceiver`,
+which composes it) adds. The engine is also constructed below its design
+point here and warns that it is under-powered. A false alarm or two in the
+noise-only regions typically also show up; see [API notes](#api-notes) for
+why, and how the pipeline handles them.
 
 ### How `push()` actually buffers and frames samples
 
 Worth walking through in full, since it's *why* the sweep above is written
-the way it is (`native/src/acq/acq_core.c:322-410`):
+the way it is (`acq_push` in `native/src/acq/acq_core.c`):
 
 - It's a **ring-buffer FIFO**, not an accumulate-then-process call. Each
     call writes as many input samples as currently fit, drains every
@@ -88,7 +94,7 @@ the way it is (`native/src/acq/acq_core.c:322-410`):
     ring's own capacity.
 - **Leftover samples short of a full frame stay buffered across calls** —
     unless a single call already hit the **hardcoded, non-configurable
-    64-result cap** (`native/src/dsss/dsss_ext_acq.c:148`, not exposed as a
+    64-result cap** (`native/src/acquire/acquire_ext_burst_acq.c`, not exposed as a
     Python parameter), in which case the remaining input for that call is
     genuinely *dropped*, not buffered. Not a concern at realistic CFAR
     settings, but a real edge case worth knowing about.
@@ -117,7 +123,7 @@ results = demo_despreader(rx, hits, acq, acq_code, data_code, frame_bits)
 ```
 
 Bit errors land near zero and the measured Es/N0 lands within a couple dB
-of the configured 10 dB on every *real* burst — the tracking loop follows
+of the configured 10 dB on every real burst found at its true start — the tracking loop follows
 the carrier and code phase continuously across all 1029 frame symbols. Any
 false alarms score wildly wrong Es/N0 and near-zero lock, exactly as they
 should.
@@ -159,11 +165,12 @@ demod_results = demo_burst_demod(
 sum(1 for valid, _errs in demod_results if valid), len(demod_results)
 ```
 
-Every real burst decodes; any false alarms correctly fail the CRC.
+Every burst found at its true start decodes; false alarms and the aliased
+detection fail the CRC, as they should.
 
 ## API notes
 
-- **`Acquisition.push()`'s buffering/framing** is a ring-buffer FIFO with
+- **`BurstAcquisition.push()`'s buffering/framing** is a ring-buffer FIFO with
     non-overlapping frames and a hardcoded 64-result-per-call cap — see
     [How `push()` actually buffers and frames samples](#how-push-actually-buffers-and-frames-samples)
     above for the full walkthrough. The short version: leftover samples
@@ -191,7 +198,7 @@ Every real burst decodes; any false alarms correctly fail the CRC.
     frame. Genuine streaming behaviour, not a bug — but downstream code must
     not assume the output length is exact.
 
-- **`Acquisition.push()`'s `cn0_dbhz_est`** tracks true C/N0 while AWGN
+- **`BurstAcquisition.push()`'s `cn0_dbhz_est`** tracks true C/N0 while AWGN
     dominates the CFAR noise estimate, and saturates at the code's own
     autocorrelation-sidelobe floor once C/N0 exceeds what the code/geometry
     can resolve — a real ceiling, not a bug.
@@ -228,8 +235,9 @@ tests (skipped when the `wfmgen` CLI isn't built):
 ## See also
 
 - [DSSS Acquisition: Pd/Pfa](dsss-acq-characterization.md) — how
-    `Acquisition`'s detection performance is characterised against Es/N0.
+    `BurstAcquisition`'s detection performance is characterised against Es/N0.
 - [wfmgen — One Engine, Every Waveform](wfmgen.md) — the CLI and Composer
     API this example's generation step exercises.
-- [Python: DSSS](../api/python-dsss.md) — the full `Acquisition` /
-    `BurstDespreader` / `BurstDemod` reference.
+- [Python: Acquire](../api/python-acquire.md) — the full `BurstAcquisition`
+    reference; [Python: DSSS](../api/python-dsss.md) — `BurstDespreader` /
+    `BurstDemod`.

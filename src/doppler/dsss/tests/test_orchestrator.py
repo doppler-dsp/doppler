@@ -12,15 +12,11 @@ import math
 import numpy as np
 import pytest
 
-from doppler.dsss import (
-    BurstCapture,
-    PersistentBurstCapture,
-    bin_to_signed,
-)
-from doppler.dsss.orchestrator import Acquirer, CoarseChannel, Detection
-from doppler.dsss.tests.characterization.burst_capture import (
+from doppler.acquire import BurstCapture, PersistentBurstCapture, bin_to_signed
+from doppler.acquire.tests.characterization.burst_capture import (
     characterize as _bc,
 )
+from doppler.dsss.orchestrator import Acquirer, CoarseChannel, Detection
 
 CODE = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
 SF = 7

@@ -3,9 +3,10 @@
  * @brief Streaming DSSS acquisition engine — burst and continuous front
  *        doors over one shared engine.
  *
- * Acquires a direct-sequence spread-spectrum signal — repeated, BPSK
- * -modulated PN-code segments — arriving with an unknown integer code phase
- * and an unknown carrier-frequency (Doppler) offset, buried in AWGN.  It
+ * Acquires a signal built from a repeated sequence -- a spread-spectrum
+ * code (the continuous door) or any repeated complex preamble (the burst
+ * door) -- arriving with an unknown integer code phase and an unknown
+ * carrier-frequency (Doppler) offset, buried in AWGN.  It
  * jointly estimates the (Doppler bin, code phase) and declares a detection
  * whenever the CFAR test statistic crosses an automatically configured
  * threshold.
@@ -13,7 +14,7 @@
  * Pipeline (owned end to end, one object):
  *   push(raw cf32) -> ring buffer -> reframe to (coherent_bins, code_bins) ->
  *   slow-time Doppler FFT (FFT along the segment axis) -> 2-D code correlation
- *   against a single-row PN reference (corr2d) -> argmax + CFAR noise estimate
+ *   against a single-row reference (corr2d) -> argmax + CFAR noise estimate
  *   -> threshold gate -> acq_result_t.
  *
  * The fast-time axis (code_bins = sf*spc columns) is the circular code matched
@@ -32,10 +33,11 @@
  * docs/design/dsss-acquisition.md).  So the two constructors fix a mode each,
  * never a per-call knob:
  *
- * - acq_create_burst() — today's classic behavior: the smallest coherent
- *   depth `coherent_bins` in `[1, reps]` whose coherent_bins*code_bins
- *   coherent samples meet @p pd (det_threshold / det_pd) — minimum latency
- *   for a strong signal, unmodulated bursts/preambles only.  A tighter
+ * - acq_create_burst() — the smallest coherent depth `coherent_bins` in
+ *   `[1, reps]` whose BURST Pd meets @p pd: the preamble lands at any
+ *   offset against stream-aligned dwells and is detected when any one of
+ *   them is (see acq_create_burst()); never a non-coherent look. Minimum
+ *   latency for a strong signal, unmodulated bursts/preambles only.  A tighter
  *   @p doppler_uncertainty shrinks the searched cell count, lowering the
  *   Bonferroni threshold (more sensitive).  When @p doppler_uncertainty
  *   exceeds the native span, falls back to the wideband window-tiling
@@ -169,9 +171,10 @@ extern "C"
   typedef struct
   {
     size_t doppler_bin; /**< Peak row: Doppler bin (0 … coherent_bins-1), or,
-                             in wideband mode, the frequency-window index
-                             (0 … window_bins-1) — see acq_core.h's file
-                             doc comment.                                   */
+                             in wideband mode, a bin of the uniform grid of
+                             window_bins*coherent_bins bins (window_bins
+                             tiles of coherent_bins each) — see acq_core.h's
+                             file doc comment.                              */
     size_t code_phase; /**< Peak col: code phase (0 … code_bins-1).          */
     float  peak_mag;   /**< max `|R[i,j]|` over the surface (linear).        */
     float  noise_est;  /**< CFAR noise estimate over `[noise_lo, noise_hi]`. */
@@ -382,7 +385,7 @@ extern "C"
     double chip_rate; /**< Chip rate (Hz).                               */
     double fs;        /**< Sample rate (Hz) = chip_rate * spc.           */
     double cn0_dbhz;  /**< Design C/N0 the search is sized for (dB-Hz);
-                           0 on a burst engine means none was given.    */
+                           NaN (ACQ_CN0_NONE) means none was given.     */
     double
         doppler_span_hz; /**< Native Doppler half-range = chip_rate/(2*sf). */
     double
@@ -494,7 +497,8 @@ extern "C"
     /* The peak list (docs/design/async-dsss-receiver.md §7.1): up to
        `max_peaks` peaks per dwell, each above the same gate, strongest
        first, with an exclusion zone of one Doppler row (`interp` surface
-       rows) by one chip (`spc` columns), circular, around each; every
+       rows) by the reference's first autocorrelation null (`shape.zone`
+       columns; one chip for a PN code), circular, around each; every
        listed peak is one acq_result_t. `band_mask` marks the cells outside
        the searched Doppler band (rebuilt with the thresholds); `peak_mask`
        is the per-dwell working copy the list marks its zones into. The
@@ -617,7 +621,10 @@ extern "C"
    * pass its chips mapped by bin_to_nrz() and held `spc` samples each, at
    * `fs = chip_rate * spc`. The engine sees one chip = one sample: `sf = n`,
    * `spc = 1`, `chip_rate = fs`, the native Doppler span is `+/- fs/(2n)`,
-   * and `code_phase` is the delay into the repetition, in samples. It
+   * and `code_phase` is the delay into the repetition, in samples -- for a
+   * preamble whose ambiguity function is a ridge (Zadoff-Chu: one native
+   * bin of Doppler moves the peak `u^-1 mod n` samples), the delay plus
+   * that shift whenever the Doppler is not resolved before correlation. It
    * converts @p cn0_dbhz to a per-sample amplitude SNR
    * (snr = sqrt(10^(cn0_dbhz/10) / fs)), and picks the
    * *smallest* coherent depth `coherent_bins` in `[1, reps]` whose burst Pd
@@ -768,7 +775,7 @@ extern "C"
    * failure.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -810,7 +817,7 @@ extern "C"
    * @param state Must be non-NULL.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -849,7 +856,7 @@ extern "C"
    *         on failure).
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -874,7 +881,8 @@ extern "C"
    * One (the default) is the classic detector -- the maximum of the surface,
    * gated. More is the list of docs/design/async-dsss-receiver.md §7.1:
    * every peak above the same gate, strongest first, each with an exclusion
-   * zone of one Doppler bin by one chip around it (one emitter's main lobe,
+   * zone of one Doppler bin by the reference's first autocorrelation null
+   * around it (one chip for a PN code; one emitter's main lobe,
    * so its own shoulders are not the next peak), and the two-epoch rule
    * for a peak at an already-listed code phase -- a data transition inside
    * the epoch splits one emitter into twins at its own code phase on other
@@ -891,7 +899,7 @@ extern "C"
    * @return 0, or -1 (state untouched) when @p n is out of range.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
    * >>> a = Acquisition(code, spc=2, chip_rate=1e6, symbol_rate=1e3,
    * ...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
@@ -935,7 +943,7 @@ extern "C"
    *         value.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> a = Acquisition(code, spc=2, chip_rate=5e6, symbol_rate=2700.0,
@@ -970,7 +978,7 @@ extern "C"
    * @return DP_OK. The count actually running is `threads`.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1020,7 +1028,7 @@ extern "C"
    *         ten probes (the attach fails whole; the engine stays detached).
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.telemetry import Telemetry
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
@@ -1061,7 +1069,7 @@ extern "C"
    *         has been decided with `keep_surface` set, or @p out is too small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1093,7 +1101,7 @@ extern "C"
    * @return Values written (`surface_rows`), or 0 if @p out is too small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1123,7 +1131,7 @@ extern "C"
    * @return Values written (`code_bins`), or 0 if @p out is too small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1162,7 +1170,7 @@ extern "C"
    *         small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -1240,7 +1248,7 @@ extern "C"
    *         out of range, or when @p out is too small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -1287,7 +1295,7 @@ extern "C"
    *         is too small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -1344,7 +1352,7 @@ extern "C"
    * @return Number of events written (0 … max_results).
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -1412,9 +1420,9 @@ extern "C"
    *   `phase = fmod(code_len - code_phase/spc, code_len)`, folded
    *   non-negative.
    * - **Doppler**: @p state is assumed built via acq_create_continuous()
-   *   (coherent_bins pinned at 1, `window_bins` the active mechanism, the
-   *   only mode this function supports), so `hit`'s `doppler_bin` is a
-   *   frequency-WINDOW index, mapped to a signed bin by
+   *   (`window_bins` tiles of `coherent_bins` each, the only mode this
+   *   function supports), so `hit`'s `doppler_bin` indexes the uniform grid
+   *   of `window_bins * coherent_bins` bins, mapped to a signed bin by
    *   `dp_fftfreq_index()` — the SAME helper the search uses — and scaled
    *   by `state->doppler_res_hz`.
    *

@@ -382,10 +382,9 @@ typedef struct
 
   /* ── Diagnostics ────────────────────────────────────────────────────
    * Mirrored from the engine at create() rather than read through it on
-   * demand, because jm's declared warning needs a bare bool field on THIS
-   * struct -- the reason the sibling BurstAcquisition's copy of the same
-   * warning has to be a hand-patch in its fragment (see the note at the top
-   * of objects/burst_acq.toml). */
+   * demand, because jm's declared warning needs a bare field on THIS
+   * struct; the sibling BurstAcquisition carries its own `underpowered`
+   * field for the same reason. */
   int underpowered; /**< The search cannot meet the requested pd at this
                          cn0_dbhz and geometry. It still builds a
                          best-effort grid, so the symptom is bursts that are
@@ -403,8 +402,10 @@ typedef struct
  *        one push().
  *
  * Give it the preamble -- one period of its SAMPLES -- and the geometry, say
- * how long a burst is, and stream samples in. It searches blindly, recovers the exact preamble start,
- * and hands back the burst's samples once they have all arrived.
+ * how long a burst is, and stream samples in. It searches blindly, recovers
+ * the exact preamble start, and hands back the burst's samples once they have
+ * all arrived. The Doppler must lie inside the native span `+/- fs/(2n)`: a
+ * wider @p doppler_uncertainty is accepted but not yet searched (#1512).
  *
  * The look-back buffer is NOT a parameter. Its span is derived from the
  * geometry here (detection lag + refine search + the burst itself), because
@@ -440,7 +441,7 @@ typedef struct
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -468,8 +469,8 @@ burst_capture_state_t *burst_capture_create (
  * Two things follow, and they are the reason to reach for this constructor:
  *
  * - **The blob stops carrying the look-back.** For an in-RAM capture the
- *   retained history IS the blob (measured: 2.57 MB at a 1029-symbol frame,
- *   16.68 MB at 8029). Backed, `state_bytes()` is a few hundred bytes plus
+ *   retained history IS the blob (measured 2026-09-24: 2.73 MB at a
+ *   1029-symbol frame, 16.84 MB at 8029). Backed, `state_bytes()` is a few hundred bytes plus
  *   the acquisition child, because the samples are already durable and the
  *   blob only has to name where in the ring they sit.
  * - **The history outlives the process.** Point a new capture at the same
@@ -507,7 +508,7 @@ burst_capture_state_t *burst_capture_create (
  *
  * @code
  * >>> import numpy as np, tempfile, os
- * >>> from doppler.dsss import BurstCapture, PersistentBurstCapture
+ * >>> from doppler.acquire import BurstCapture, PersistentBurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> path = os.path.join(tempfile.mkdtemp(), "ring.cf32")
@@ -541,7 +542,7 @@ void burst_capture_destroy (burst_capture_state_t *state);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -580,7 +581,7 @@ size_t burst_capture_push_max_out (burst_capture_state_t *state,
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -609,7 +610,7 @@ size_t burst_capture_detections_max_out (burst_capture_state_t *state,
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -634,7 +635,7 @@ size_t burst_capture_events_max_out (burst_capture_state_t *state, size_t n);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -692,7 +693,7 @@ burst_capture_event_at (const burst_capture_state_t *state, size_t i);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -723,7 +724,7 @@ int burst_capture_release (burst_capture_state_t *state, size_t i);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -752,7 +753,8 @@ size_t burst_capture_get_min_gap (const burst_capture_state_t *state);
 
 /** @brief Coherent detection gate; in force when `n_noncoh == 1`. */
 double burst_capture_get_eta (const burst_capture_state_t *state);
-/** @brief Non-coherent gate; in force when `n_noncoh > 1` (the usual case). */
+/** @brief Non-coherent gate; in force only when `n_noncoh > 1`, which a
+ *  burst search never chooses (it reads 0 unless a pin sets looks). */
 double burst_capture_get_eta_nc (const burst_capture_state_t *state);
 /** @brief Correlation kept, worst case, by a burst landing between bins. */
 double burst_capture_get_straddle_loss (const burst_capture_state_t *state);

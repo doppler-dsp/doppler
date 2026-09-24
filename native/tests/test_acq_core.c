@@ -2390,5 +2390,60 @@ main (void)
     acq_destroy (c);
   }
 
+  /* ── acq_psl_db: the preamble's peak sidelobe (doppler#1470) ─────────
+   * Checked against a brute-force periodic autocorrelation computed here,
+   * O(n^2) and FFT-free, over the lags outside the engine's own peak zone
+   * -- the same boundary the peak list excludes. Three shapes: a code,
+   * whose answer is known (an m-sequence's periodic floor is 1/N); a
+   * perfect sequence, which has none (-INFINITY, not the rounding noise's
+   * -170 dB); and random QPSK, where only the brute force knows. */
+  {
+    float _Complex zc[31], qpsk[64];
+    uint32_t st = 1470u;
+    for (size_t i = 0; i < 31; i++)
+      zc[i] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)i
+                                    * (double)(i + 1) / 31.0);
+    for (size_t i = 0; i < 64; i++)
+      qpsk[i] = (float _Complex)cexp (I * M_PI / 2.0
+                                      * (double)(dp_xs32 (&st) >> 30));
+    float _Complex *code_pre = dp_code_preamble (CODE7, 7, 4);
+    const struct
+    {
+      const float _Complex *t;
+      size_t                n;
+    } cases[3] = { { code_pre, 28 }, { zc, 31 }, { qpsk, 64 } };
+    double got[3];
+    for (int c = 0; c < 3; c++)
+      {
+        acq_state_t *a = dp_xnn (acq_create_burst (
+            cases[c].t, cases[c].n, 4, 1.0e6, 50.0, 0.0, 1e-3, 0.9, 0, 0.0));
+        const size_t n = cases[c].n, z = a->shape.zone;
+        double       r0 = 0.0, best = 0.0;
+        for (size_t m = 0; m < n; m++)
+          {
+            double _Complex r = 0.0;
+            for (size_t i = 0; i < n; i++)
+              r += (double _Complex)cases[c].t[(i + m) % n]
+                   * conj ((double _Complex)cases[c].t[i]);
+            if (m == 0)
+              r0 = cabs (r);
+            else if (m >= z && m <= n - z && cabs (r) > best)
+              best = cabs (r);
+          }
+        const double want
+            = best / r0 < 1e-6 ? -INFINITY : 20.0 * log10 (best / r0);
+        got[c] = acq_psl_db (a);
+        if (isinf (want))
+          DP_CHECK (isinf (got[c]) && got[c] < 0.0);
+        else
+          DP_CHECK (fabs (got[c] - want) < 1e-6);
+        acq_destroy (a);
+      }
+    free (code_pre);
+    DP_CHECK (fabs (got[0] - 20.0 * log10 (1.0 / 7.0)) < 1e-6); /* 1/N */
+    DP_CHECK (isinf (got[1])); /* perfect: none */
+    DP_CHECK (isfinite (got[2]) && got[2] < 0.0 && got[2] > -40.0);
+  }
+
   DP_TEST_END ("test_acq_core");
 }

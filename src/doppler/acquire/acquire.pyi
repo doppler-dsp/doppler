@@ -1667,6 +1667,18 @@ class BurstAcquisition:
         """
 
     @property
+    def psl_db(self) -> float:
+        """The preamble's peak sidelobe level, dB: the largest lag of its
+        periodic autocorrelation OUTSIDE the mainlobe, relative to the peak. A
+        detection's sidelobes sit this far below it, at delays the peak list's
+        exclusion does not cover, so a burst clearing the threshold by more
+        than `-psl_db` also lists its own sidelobe (with `max_peaks > 1`), and
+        a strong burst's sidelobe can mask a weak one there. -29.8 dB for a
+        31-chip m-sequence (1/31); `-inf` for a perfect sequence such as
+        Zadoff-Chu. Fixed at construction.
+        """
+
+    @property
     def straddle_loss(self) -> float:
         """Mean amplitude derating of the correlation peak from grid straddle
         (slow-time Doppler scalloping x intra-segment rotation x code-phase
@@ -2311,6 +2323,18 @@ class BurstCapture:
         preamble, the capture delivers at least `pd_burst` at a 0.6 design
         point and at 0.9, the default `pd` (validation report §2.8). NaN with
         no design `cn0_dbhz`.
+        """
+
+    @property
+    def psl_db(self) -> float:
+        """The preamble's peak sidelobe level, dB: the largest lag of its
+        periodic autocorrelation OUTSIDE the mainlobe, relative to the peak. A
+        detection's sidelobes sit this far below it, at delays the peak list's
+        exclusion does not cover, so a burst clearing the threshold by more
+        than `-psl_db` also lists its own sidelobe (with `max_peaks > 1`), and
+        a strong burst's sidelobe can mask a weak one there. -29.8 dB for a
+        31-chip m-sequence (1/31); `-inf` for a perfect sequence such as
+        Zadoff-Chu. Fixed at construction.
         """
 
     @property
@@ -2993,6 +3017,18 @@ class PersistentBurstCapture:
         preamble, the capture delivers at least `pd_burst` at a 0.6 design
         point and at 0.9, the default `pd` (validation report §2.8). NaN with
         no design `cn0_dbhz`.
+        """
+
+    @property
+    def psl_db(self) -> float:
+        """The preamble's peak sidelobe level, dB: the largest lag of its
+        periodic autocorrelation OUTSIDE the mainlobe, relative to the peak. A
+        detection's sidelobes sit this far below it, at delays the peak list's
+        exclusion does not cover, so a burst clearing the threshold by more
+        than `-psl_db` also lists its own sidelobe (with `max_peaks > 1`), and
+        a strong burst's sidelobe can mask a weak one there. -29.8 dB for a
+        31-chip m-sequence (1/31); `-inf` for a perfect sequence such as
+        Zadoff-Chu. Fixed at construction.
         """
 
     @property

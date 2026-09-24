@@ -537,6 +537,18 @@ BurstAcquisition_getprop_underpowered (BurstAcquisitionObject *self,
   return PyBool_FromLong ((long)((self->handle->engine->underpowered)));
 }
 
+static PyObject *
+BurstAcquisition_getprop_psl_db (BurstAcquisitionObject *self,
+                                 void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((acq_psl_db (self->handle->engine)));
+}
+
 static PyGetSetDef BurstAcquisition_getset[] = {
   { "max_peaks", (getter)BurstAcquisition_getprop_max_peaks, NULL,
     "The peak list's capacity per dwell (1 = the classic gated maximum); set "
@@ -614,6 +626,16 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "cn0_dbhz and geometry. The engine still builds a best-effort grid rather "
     "than failing; because C cannot raise a Python warning from a successful "
     "create, construction also emits a UserWarning in this case.\n",
+    NULL },
+  { "psl_db", (getter)BurstAcquisition_getprop_psl_db, NULL,
+    "The preamble's peak sidelobe level, dB: the largest lag of its periodic "
+    "autocorrelation OUTSIDE the mainlobe, relative to the peak. A "
+    "detection's sidelobes sit this far below it, at delays the peak list's "
+    "exclusion does not cover, so a burst clearing the threshold by more than "
+    "`-psl_db` also lists its own sidelobe (with `max_peaks > 1`), and a "
+    "strong burst's sidelobe can mask a weak one there. -29.8 dB for a "
+    "31-chip m-sequence (1/31); `-inf` for a perfect sequence such as "
+    "Zadoff-Chu. Fixed at construction.\n",
     NULL },
   { NULL }
 };

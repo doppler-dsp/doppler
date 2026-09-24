@@ -798,6 +798,11 @@ double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
  * report §2.8). Until doppler#1519 it also lost a code phase along the ZC
  * delay-Doppler ridge and fell 0.026 short at 0.9. */
 double burst_capture_get_pd_burst (const burst_capture_state_t *state);
+/** @brief The preamble's peak sidelobe level, dB: acq_psl_db() of the
+ *         engine. A burst clearing the threshold by more than `-psl_db`
+ *         also detects its own sidelobe, outside the peak zone; -INFINITY
+ *         for a perfect sequence. */
+double burst_capture_get_psl_db (const burst_capture_state_t *state);
 /** @brief Doppler rate (Hz/s) the coherent depth is bounded against; 0 is
  *         no bound. */
 double burst_capture_get_doppler_rate (const burst_capture_state_t *state);

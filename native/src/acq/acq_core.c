@@ -1714,10 +1714,12 @@ acq_shape_of_template (const float _Complex *t, size_t n, acq_shape_t *sh)
 
 /* The periodic autocorrelation OFF the peak, relative to it: its energy
  * sum |R(m)|^2 / R(0)^2 and its amplitude sum |R(m)| / R(0) over m != 0,
- * into sh->off_peak and sh->off_peak_amp. R is the inverse transform of
- * the replica's power spectrum. The ONE home of both, for a code and a
- * template alike (doppler#1501). A perfect sequence's off-peak lags are
- * rounding (~1e-9 of R(0)); below 1e-6 they are counted as nothing. */
+ * into sh->off_peak and sh->off_peak_amp, and its largest lag OUTSIDE the
+ * mainlobe (zone <= m <= n - zone, sh->zone already set) into sh->psl. R
+ * is the inverse transform of the replica's power spectrum. The ONE home
+ * of all three, for a code and a template alike (doppler#1501,
+ * doppler#1470). A perfect sequence's off-peak lags are rounding (~1e-9 of
+ * R(0)); below 1e-6 they are counted as nothing. */
 static void
 acq_off_peak (const float _Complex *replica, size_t n, acq_shape_t *sh)
 {
@@ -1733,7 +1735,8 @@ acq_off_peak (const float _Complex *replica, size_t n, acq_shape_t *sh)
              + cimag (spec[k]) * cimag (spec[k]);
   fft_execute_cf64 (inv, buf, n, spec, n); /* n * R(m) */
   const double r0 = cabs (spec[0]);
-  double       e1 = 0.0, e2 = 0.0;
+  double       e1 = 0.0, e2 = 0.0, psl = 0.0;
+  const size_t z = sh->zone;
   for (size_t m = 1; m < n; m++)
     {
       const double r = r0 > 0.0 ? cabs (spec[m]) / r0 : 0.0;
@@ -1741,9 +1744,12 @@ acq_off_peak (const float _Complex *replica, size_t n, acq_shape_t *sh)
         continue;
       e1 += r;
       e2 += r * r;
+      if (m >= z && m <= n - z && r > psl)
+        psl = r;
     }
   sh->off_peak     = e2;
   sh->off_peak_amp = e1;
+  sh->psl          = psl;
   fft_destroy (fwd);
   fft_destroy (inv);
   free (spec);
@@ -2305,6 +2311,14 @@ acq_set_carrier_freq_hz (acq_state_t *state, double carrier_freq_hz)
     return DP_ERR_INVALID;
   state->carrier_freq_hz = carrier_freq_hz;
   return DP_OK;
+}
+
+double
+acq_psl_db (const acq_state_t *state)
+{
+  /* log10(0) is -HUGE_VAL, but say it: a perfect sequence has no sidelobe
+     to be below, and -inf is that fact rather than a number to compare. */
+  return state->shape.psl > 0.0 ? 20.0 * log10 (state->shape.psl) : -INFINITY;
 }
 
 void

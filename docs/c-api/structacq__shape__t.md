@@ -40,6 +40,7 @@ _What the engine knows about the SHAPE of the repeated preamble, beyond its samp
 |  double | [**delay\_loss\_mean**](#variable-delay_loss_mean)  <br> |
 |  double | [**off\_peak**](#variable-off_peak)  <br> |
 |  double | [**off\_peak\_amp**](#variable-off_peak_amp)  <br> |
+|  double | [**psl**](#variable-psl)  <br> |
 |  size\_t | [**zone**](#variable-zone)  <br> |
 
 
@@ -169,6 +170,23 @@ double acq_shape_t::off_peak_amp;
 
 
 The same lags' AMPLITUDE: sum over m != 0 of \|R(m)\| / R(0). With off\_peak it says how concentrated that energy is, which sets how much mean it adds to the reference. 
+
+
+        
+
+<hr>
+
+
+
+### variable psl 
+
+```C++
+double acq_shape_t::psl;
+```
+
+
+
+Peak sidelobe: the largest \|R(m)\| / R(0) OUTSIDE the mainlobe, zone &lt;= m &lt;= n - zone  the lags the peak list's exclusion does not cover. 0 for a perfect sequence (below 1e-6, rounding). [**acq\_psl\_db()**](acq__core_8h.md#function-acq_psl_db) is the read-back (doppler#1470). 
 
 
         

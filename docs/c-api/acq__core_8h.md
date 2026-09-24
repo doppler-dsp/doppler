@@ -88,6 +88,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_continuous**](#function-acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
 |  void | [**acq\_destroy**](#function-acq_destroy) ([**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Destroy and free an engine._  |
 |  void | [**acq\_get\_state**](#function-acq_get_state) (const [**acq\_state\_t**](structacq__state__t.md) \* state, void \* blob) <br>_Serialize_ `state's` _cross-call state into_`blob` _(caller-owned,_[_**acq\_state\_bytes()**_](acq__core_8h.md#function-acq_state_bytes) _long). Call between pushes (no partial dump pending)._ |
+|  double | [**acq\_psl\_db**](#function-acq_psl_db) (const [**acq\_state\_t**](structacq__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**acq\_shape\_t::psl**_](structacq__shape__t.md#variable-psl) _)._ |
 |  size\_t | [**acq\_push**](#function-acq_push) ([**acq\_state\_t**](structacq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Stream raw samples; emit one event per CFAR dump above threshold._  |
 |  void | [**acq\_reset**](#function-acq_reset) ([**acq\_state\_t**](structacq__state__t.md) \* state) <br>_Drain the input ring and reset the coherent accumulator._  |
 |  size\_t | [**acq\_run**](#function-acq_run) ([**acq\_state\_t**](structacq__state__t.md) \* state, const void \* state\_in, void \* state\_out, const float \_Complex \* in, size\_t n\_in, [**acq\_result\_t**](structacq__result__t.md) \* result, size\_t max\_results) <br>_Pure run: inject_ `state_in` _, stream_`in` _, emit hits, export_`state_out` _—_`(state_in, input) -> (state_out, output)` _over an engine treated as immutable config + scratch._`state_in` _/_`state_out` _may alias. Either may be NULL (NULL in = fresh; NULL out = discard)._ |
@@ -710,6 +711,48 @@ void acq_get_state (
 
 
 
+
+<hr>
+
+
+
+### function acq\_psl\_db 
+
+_The preamble's peak sidelobe level, dB: 20\*log10 of the largest periodic-autocorrelation lag outside the mainlobe, relative to the peak (_ [_**acq\_shape\_t::psl**_](structacq__shape__t.md#variable-psl) _)._
+```C++
+double acq_psl_db (
+    const acq_state_t * state
+) 
+```
+
+
+
+What it predicts: a detection's sidelobes sit this far below it, at delays outside the peak zone  where the peak list's exclusion does not reach. So a burst that clears the threshold by more than `-psl_db` also lists its own sidelobe as a second peak (with `max_peaks > 1`), and a strong burst's sidelobe can mask a weak one there. A code's is its periodic floor, 20\*log10(1/31) = -29.8 dB for a 31-chip m-sequence; a perfect sequence (Zadoff-Chu, a Frank-type chirp) has none and reads -INFINITY. Configuration, not state: it is fixed at construction and not serialized.
+
+
+
+```C++
+>>> import numpy as np
+>>> from doppler.acquire import BurstAcquisition
+>>> from doppler.cvt import bin_to_nrz
+>>> from doppler.wfm import PN
+>>> chips = (np.asarray(PN(poly=0, seed=1, length=5).generate(31)) & 1
+...          ).astype(np.uint8)
+>>> nrz = np.zeros(31, dtype=np.float32)
+>>> _ = bin_to_nrz(chips, nrz)
+>>> pre = np.repeat(nrz, 4).astype(np.complex64)    # 4 samples a chip
+>>> a = BurstAcquisition(pre, reps=4, fs=4.0e6, cn0_dbhz=50.0)
+>>> round(a.psl_db, 2)          # an m-sequence: 1/31
+-29.83
+>>> k = np.arange(127)
+>>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
+>>> BurstAcquisition(zc, reps=8, fs=1.0e6, cn0_dbhz=50.0).psl_db
+-inf
+```
+ 
+
+
+        
 
 <hr>
 

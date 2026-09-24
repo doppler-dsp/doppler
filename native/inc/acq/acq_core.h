@@ -1184,6 +1184,33 @@ extern "C"
                               size_t n_out);
 
   /**
+   * @brief One epoch's correlation against the replica at ONE code phase
+   *        and ONE frequency: the engine's surface, evaluated at a single
+   *        cell, on raw samples.
+   *
+   * `sum_m x[m] * conj(ref[(m - col) mod nx]) * exp(-j 2 pi f (t0 + m)/fs)`
+   * over the `code_bins` samples of @p x. The mixer phase is referenced to
+   * @p t0, so epochs evaluated at consecutive `t0` combine COHERENTLY: sum
+   * the returned values across epochs and the result is a depth-`len` cell
+   * of the slow-time surface at @p f_hz, with no intra-epoch rotation loss.
+   *
+   * It is what a caller does once acquisition has SETTLED the code phase and
+   * the Doppler: evaluate the same statistic elsewhere without searching the
+   * grid again. The engine's tile-alias check uses it; burst_capture's
+   * refine uses it to score each candidate repetition (doppler#1502).
+   *
+   * @param state  The engine whose replica, `code_bins` and `fs` are used.
+   * @param x      One epoch, `code_bins` samples.
+   * @param col    Code phase, samples, in [0, code_bins).
+   * @param f_hz   Mixer frequency, Hz.
+   * @param t0     Time of @p x[0], samples, on the caller's reference.
+   * @return The complex correlation.
+   */
+  double _Complex acq_cell_corr (const acq_state_t *state,
+                                 const float _Complex *x, size_t col,
+                                 double f_hz, double t0);
+
+  /**
    * @brief One cell's column of the last whole block: the per-epoch
    *        complex correlations at a code phase, the despread stream at
    *        epoch rate.

@@ -38,7 +38,8 @@
  *                                       dwell can straddle): the ENGINE
  *                                       never below pd_burst by 2 sigma,
  *                                       never above it by 0.15 -- acq's
- *                                       bounds
+ *                                       bounds -- and the CAPTURE never
+ *                                       below it by 2 sigma either
  *
  * Measured 2026-09-24 at 1000 trials a row, each at pd_burst = 0.6:
  *
@@ -46,15 +47,19 @@
  *   dwell    0.189  0.358  0.465  0.576  0.643  0.749  0.850  0.915
  *   burst    0.606  0.635  0.626  0.631  0.609  0.603  0.605  0.601
  *   engine   0.640  0.710  0.659  0.676  0.656  0.661  0.689  0.689
- *   capture  0.629  0.688  0.639  0.631  0.605  0.617  0.645  0.646
+ *   capture  0.634  0.685  0.645  0.642  0.630  0.630  0.669  0.660
  *
  * One dwell's Pd ("dwell") runs from 0.19 to 0.92 across rows that all
  * deliver about 0.65; the burst Pd holds the engine to within acq's bounds
  * at every D, conservative by 0.03-0.09. D = 1 was 0.045 OPTIMISTIC until
  * the model priced the CFAR reference the gate divides by -- 127 cells
- * there, inflated by the burst itself (doppler#1501). The capture then
- * loses a further 0.01-0.05 after the engine has detected (doppler#1502),
- * which the model's conservatism now covers but does not price.
+ * there, inflated by the burst itself (doppler#1501). The capture loses
+ * 0.006-0.034 more when refine names the wrong repetition, and still sits
+ * at or above pd_burst at every D -- so pd_burst is the capture's promise
+ * too, and the check holds it to that. Refine used to lose 0.011-0.051:
+ * it combined per-period correlations across periods only; it now scores
+ * each candidate with acquisition's own statistic, mixed within every
+ * period, over the Doppler cells of the engine's bin (doppler#1502).
  */
 #include "awgn/awgn_core.h"
 #include "burst_capture/burst_capture_core.h"
@@ -261,6 +266,8 @@ main (int argc, char **argv)
         {
           DP_CHECK (r.eng >= r.pred - 2.0 * r.eng_se);
           DP_CHECK (r.eng - r.pred <= 0.15);
+          /* What a caller of the CAPTURE gets, after refine. */
+          DP_CHECK (r.meas >= r.pred - 2.0 * r.se);
         }
     }
   DP_TEST_END ("validate_capture_dwell_pd");

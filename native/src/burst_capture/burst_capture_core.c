@@ -173,38 +173,12 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
      PN chips a second time, by its own rule, free to drift from the one
      acquisition correlates against, and unable to describe anything but a
      code. */
-  {
-    /* ny = 1: a candidate position is one row, and the positions are fed
-       one at a time because how many are reachable varies near the start
-       of the stream (the anchor cannot back off past sample 0). */
-    s->pcorr = corr2d_create (s->acq->engine->ref, 1, s->code_period, 1, 1, 0,
-                              0, 0);
-    if (!s->pcorr)
-      goto fail;
-  }
-
-  /* One correlation per candidate preamble POSITION, not per sample: the
+  /* One row of cells per candidate preamble POSITION, not per sample: the
      candidates are anchor + k*P, so the whole search is (k_lo+k_hi+reps)
-     code-period correlations rather than a dense sweep. */
-  s->corr_len = s->k_lo + s->k_hi + reps + 1u;
-  s->corr_buf = dp_xmalloc (s->corr_len * sizeof *s->corr_buf);
-
-  /* The slow-time transform that searches Doppler across the repetitions.
-     Zero-padded to at least 4x `reps` so a residual falling between bins is
-     interpolated rather than straddled -- the same reason acquisition
-     zero-pads its own Doppler axis. The UNAMBIGUOUS span does not depend on
-     the padding: it is +-1/(2*code_period) whatever `slow_n` is, and that is
-     exactly the most acquisition can leave (half of its own bin), so the
-     search covers the residual by construction (doppler#1312). */
-  {
-    size_t n    = next_pow_two (4u * reps);
-    s->slow_n   = n;
-    s->slow_in  = dp_xmalloc (n * sizeof *s->slow_in);
-    s->slow_out = dp_xmalloc (n * sizeof *s->slow_out);
-    s->slow_fft = fft_create (n, -1, 1);
-    if (!s->slow_fft)
-      goto fail;
-  }
+     code periods, each evaluated at the Doppler cells refine needs. */
+  s->corr_len  = s->k_lo + s->k_hi + reps + 1u;
+  s->max_cells = 2u * ((reps * BURST_CAPTURE_REFINE_INTERP + 1u) / 2u) + 3u;
+  s->cell_buf  = dp_xmalloc (s->corr_len * s->max_cells * sizeof *s->cell_buf);
 
   /* acq_state_bytes() is ALREADY a pure function of configuration -- it
      sizes its sample region from `ring_cap`, the capacity, not from whatever
@@ -256,12 +230,7 @@ burst_capture_destroy (burst_capture_state_t *state)
     burst_acq_destroy (state->acq);
   if (state->hist)
     dp_f32_destroy (state->hist);
-  corr2d_destroy (state->pcorr);
-  free (state->corr_buf);
-  if (state->slow_fft)
-    fft_destroy (state->slow_fft);
-  free (state->slow_in);
-  free (state->slow_out);
+  free (state->cell_buf);
   free (state->q);
   free (state->win);
   free (state->released);
@@ -326,17 +295,6 @@ burst_capture_have (const burst_capture_state_t *s, uint64_t pos, size_t n)
  * The magnitude used to be taken here, which threw away the one thing that
  * lets the repetitions be combined coherently (doppler#1312).
  */
-static float _Complex burst_capture_period_corr (burst_capture_state_t *s,
-                                                 uint64_t               pos)
-{
-  /* The history ring is double-mapped, so one code period is contiguous at
-     any position and goes straight into the kernel as a single row. */
-  float _Complex out = 0.0f;
-  corr2d_execute (s->pcorr, burst_capture_at (s, pos), s->code_period, &out,
-                  1);
-  return out;
-}
-
 /**
  * @brief Refine a coarse anchor to the exact preamble start.
  *
@@ -347,11 +305,27 @@ static float _Complex burst_capture_period_corr (burst_capture_state_t *s,
  * last one overlapping. The candidates are therefore `anchor + k*P` and
  * nothing between: the sub-period question is already answered.
  *
- * Score each candidate by correlating one code period at every position the
- * preamble would occupy, then combining those `reps` correlations COHERENTLY
- * across the repetitions -- a zero-padded slow-time transform, strongest bin
- * taken. Only `reps - abs(k)` of the positions still land on preamble when a
- * candidate is `k` periods off, so the score peaks at the truth.
+ * **Acquisition's statistic, at the settled cell.** Acquisition has
+ * already settled the code phase and the Doppler; what is left is the
+ * period. So each candidate is scored by the statistic acquisition itself
+ * would compute for a preamble starting there -- acq_cell_corr() of every
+ * period the preamble would occupy, mixed at one Doppler on one time
+ * reference and summed coherently over the `reps` periods -- and the
+ * strongest candidate wins. Only `reps - abs(k)` of the positions still land
+ * on preamble when a candidate is `k` periods off, so the score peaks at the
+ * truth.
+ *
+ * Settled to the ENGINE's bin, not to refine's: an engine at depth D knows
+ * the Doppler to 1/(D*P), and combining `reps` periods coherently needs
+ * 1/(reps*P). So the cells are the depth-`reps` Doppler grid inside the
+ * detecting engine's bin, BURST_CAPTURE_REFINE_INTERP per native bin, plus
+ * one each side. Nothing past the engine's bin is searched -- acquisition
+ * has ruled it out: measured, the whole native span chose the same period
+ * as the engine's bin to within one trial in 656. Because the mixer runs
+ * INSIDE each period, the intra-period rotation is removed too, which the
+ * slow-time transform this replaces could not do: it rotated between periods
+ * only, and measured on Zadoff-Chu 127 x 8 it chose the wrong period for 51 of
+ * 656 engine hits at D = 5 (doppler#1502).
  *
  * **Coherent, with the Doppler search that makes it survivable.** Summing
  * the magnitudes instead sheds the combining loss as the preamble deepens:
@@ -372,13 +346,14 @@ static float _Complex burst_capture_period_corr (burst_capture_state_t *s,
  *
  * @param s      Capture.
  * @param anchor Coarse code epoch from the hit.
+ * @param doppler_hz The detecting engine's Doppler estimate, Hz.
  * @param start  Written with the refined stream-absolute preamble start.
  * @return Non-zero on success; 0 if the search window is not yet reachable,
  *         in which case the caller must try again rather than drop the hit.
  */
 static int
 burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
-                      uint64_t *start)
+                      double doppler_hz, uint64_t *start)
 {
   size_t P    = s->code_period;
   size_t reps = s->reps;
@@ -404,54 +379,58 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
   if (!burst_capture_have (s, lo, need))
     return 0;
 
-  /* One correlation per preamble POSITION over the whole candidate range,
-     computed once; every candidate indexes it. */
+  /* The Doppler cells: the depth-`reps` grid (fine = fs / (P * reps *
+     ACQ_DOPPLER_INTERP)) across the detecting engine's bin (fs / (P * D))
+     centred on its estimate, one cell of slack each side. */
+  const acq_state_t *eng  = s->acq->engine;
+  const size_t       IP   = BURST_CAPTURE_REFINE_INTERP;
+  const double       fine = eng->fs / ((double)P * (double)reps * (double)IP);
+  const size_t       half
+      = (reps * IP + 2u * eng->coherent_bins - 1u) / (2u * eng->coherent_bins)
+        + 1u;
+  size_t cells = 2u * half + 1u;
+  if (cells > s->max_cells)
+    cells = s->max_cells;
+  const long hc = (long)(cells / 2u);
+
+  /* Every candidate POSITION's period, at every cell, computed once; each
+     candidate sums `reps` consecutive rows of one cell. */
   size_t n_pos = n_cand + reps - 1u;
   if (n_pos > s->corr_len)
     n_pos = s->corr_len;
-  for (size_t i = 0; i < n_pos; i++)
-    s->corr_buf[i] = burst_capture_period_corr (s, lo + (uint64_t)(i * P));
+  /* Each cell is wrapped into the native span +-fs/(2P). The engine's
+     slow-time axis is periodic in the epoch rate fs/P -- at an even depth
+     its Nyquist bin reads -fs/(2P) for a carrier at +fs/(2P) -- and between
+     epochs the two are one frequency. Mixed WITHIN each epoch they are a
+     whole span apart, and the carrier is the one inside the span: unwrapped,
+     every even depth centred on the wrong alias (D = 2 lost 0.13 of Pd). */
+  const double span = eng->fs / (double)P;
+  for (size_t j = 0; j < cells; j++)
+    {
+      double f = doppler_hz + (double)((long)j - hc) * fine;
+      f -= span * floor (f / span + 0.5);
+      for (size_t i = 0; i < n_pos; i++)
+        s->cell_buf[i * cells + j] = (float _Complex)acq_cell_corr (
+            eng, burst_capture_at (s, lo + (uint64_t)(i * P)), 0, f,
+            (double)(i * P));
+    }
 
-  /* A candidate's score is its COHERENT peak over Doppler: the `reps`
-     correlations transformed along slow time, strongest bin taken. The
-     non-coherent sum this replaces shed the combining loss as `reps` grew --
-     swept over 300 trials a point at 255 chips, spc 2, residual half a
-     slow-time bin, correct-repetition rate at 39 dB-Hz went 0.59 -> 0.70 at
-     reps 5, 0.60 -> 0.81 at 10 and 0.54 -> 0.80 at 16. Coherent gains about
-     10*log10(reps) where non-coherent gains 5*log10(reps), so the deeper the
-     preamble the more the old form gave away; `dsss-burst-receiver.md`
-     measured the same thing from the other side, its envelope floor climbing
-     0.55 -> 0.94 across those depths.
-     Two shapes measured and NOT adopted, both in doppler#1312: subtracting
-     the background cannot move the argmax at all (the boxcar has fixed
-     length, so it shifts every candidate by the same constant -- identical
-     at all 48 points, a theorem rather than a result), and square-law scored
-     within 0.01 of linear everywhere. */
   double best   = -1.0;
   size_t best_k = 0;
   for (size_t k = 0; k + reps <= n_pos; k++)
-    {
-      for (size_t r = 0; r < reps; r++)
-        s->slow_in[r] = s->corr_buf[k + r];
-      for (size_t r = reps; r < s->slow_n; r++)
-        s->slow_in[r] = 0.0f;
-      fft_execute_cf32 (s->slow_fft, s->slow_in, s->slow_n, s->slow_out,
-                        s->slow_n);
-      double pk = 0.0;
-      for (size_t b = 0; b < s->slow_n; b++)
-        {
-          double m
-              = (double)crealf (s->slow_out[b]) * crealf (s->slow_out[b])
-                + (double)cimagf (s->slow_out[b]) * cimagf (s->slow_out[b]);
-          if (m > pk)
-            pk = m;
-        }
-      if (pk > best)
-        {
-          best   = pk;
-          best_k = k;
-        }
-    }
+    for (size_t j = 0; j < cells; j++)
+      {
+        double _Complex acc = 0.0;
+        for (size_t r = 0; r < reps; r++)
+          acc += (double _Complex)s->cell_buf[(k + r) * cells + j];
+        const double pk
+            = creal (acc) * creal (acc) + cimag (acc) * cimag (acc);
+        if (pk > best)
+          {
+            best   = pk;
+            best_k = k;
+          }
+      }
 
   *start = lo + (uint64_t)(best_k * P);
   return 1;
@@ -499,7 +478,7 @@ burst_capture_emit (burst_capture_state_t *s)
 
   if (!e->refined)
     {
-      if (!burst_capture_refine (s, e->anchor, &e->start))
+      if (!burst_capture_refine (s, e->anchor, e->doppler_hz, &e->start))
         return 0;
       e->refined = 1;
     }

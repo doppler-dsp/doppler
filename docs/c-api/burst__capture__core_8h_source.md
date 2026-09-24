@@ -27,6 +27,8 @@
 
 #define BURST_CAPTURE_HITS 16u
 
+#define BURST_CAPTURE_REFINE_INTERP 4u
+
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
 #define BURST_CAPTURE_STATE_VERSION 3u
 
@@ -80,12 +82,8 @@ typedef struct
   double   doppler_res_hz; 
   double   cn0_dbhz_est;   
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
-  corr2d_state_t *pcorr; 
-  float _Complex *corr_buf; 
-  fft_state_t *slow_fft;    
-  float _Complex *slow_in;  
-  float _Complex *slow_out; 
-  size_t          slow_n;   
+  float _Complex *cell_buf; 
+  size_t max_cells;         
   size_t refine_span;  
   size_t corr_len;     
   size_t min_gap;      

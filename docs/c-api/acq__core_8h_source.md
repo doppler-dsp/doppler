@@ -269,6 +269,10 @@ extern "C"
   size_t acq_surface_complex (acq_state_t *state, float _Complex *out,
                               size_t n_out);
 
+  double _Complex acq_cell_corr (const acq_state_t *state,
+                                 const float _Complex *x, size_t col,
+                                 double f_hz, double t0);
+
   size_t acq_block_prompt (acq_state_t *state, size_t tile, size_t col,
                            float _Complex *out, size_t n_out);
 

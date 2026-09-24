@@ -139,6 +139,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 | Type | Name |
 | ---: | :--- |
 | define  | [**BURST\_CAPTURE\_HITS**](burst__capture__core_8h.md#define-burst_capture_hits)  `16u`<br>_Detections collected from acquisition per batch._  |
+| define  | [**BURST\_CAPTURE\_REFINE\_INTERP**](burst__capture__core_8h.md#define-burst_capture_refine_interp)  `4u`<br> |
 | define  | [**BURST\_CAPTURE\_STATE\_MAGIC**](burst__capture__core_8h.md#define-burst_capture_state_magic)  `[**DP\_FOURCC**](dp__state_8h.md#define-dp_fourcc) ('B', 'C', 'A', 'P')`<br>_State blob magic — a wrong blob is rejected, not reinterpreted._  |
 | define  | [**BURST\_CAPTURE\_STATE\_VERSION**](burst__capture__core_8h.md#define-burst_capture_state_version)  `3u`<br>_State blob layout version._  |
 
@@ -1094,6 +1095,23 @@ _Detections collected from acquisition per batch._
 
 
 A BATCHING parameter, never a correctness one: push() loops until acq has absorbed the whole chunk, so a smaller array means more iterations and nothing else. Growing it to "be safe" would hide the fact that [**acq\_push()**](acq__core_8h.md#function-acq_push) stops once its result array is full and abandons the rest of its input. 
+
+
+        
+
+<hr>
+
+
+
+### define BURST\_CAPTURE\_REFINE\_INTERP 
+
+```C++
+#define BURST_CAPTURE_REFINE_INTERP `4u`
+```
+
+
+
+Refine's Doppler cells per native bin at depth `reps`: twice acquisition's own zero-padding. Choosing a repetition compares two close scores, and the straddle that costs a detection little tips that comparison: measured on Zadoff-Chu 127 x 8, 2 cells a bin chose the wrong period for 45 of 656 engine hits at D = 5, 4 for 26, and 8 for 25 (doppler#1502). 
 
 
         

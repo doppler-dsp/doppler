@@ -140,8 +140,8 @@ of any repeated complex sequence (a chirp, Zadoff-Chu, shaped PSK), at `fs`
 such preamble -- its chips by `bin_to_nrz()`, each held `spc` samples, at
 `fs = chip_rate · spc` -- and `DsssBurstReceiver` builds it that way from the
 code it is given. The engine is `acq_create_burst()`. Nothing downstream of
-it reads chips: the ring, CLAIM, the slow-time Doppler search and the window
-all work in periods and samples.
+it reads chips: the ring, CLAIM, refine's Doppler cells and the window all
+work in periods and samples.
 
 Refine correlates each candidate position against the **engine's own
 reference row**, the preamble at unit RMS. It used to expand PN chips a
@@ -152,7 +152,10 @@ is built first, and the capture reads its reference.
 A preamble repeated every `P` samples is sampled once a period in slow time,
 so its Doppler is defined only **modulo `1/P`**: `+span` and `-span` are one
 frequency. A burst near the band edge can be reported at the other edge. The
-tests read it that way.
+tests read it that way. Refine cannot: it mixes **within** each period too,
+where the two edges are a whole span apart, so it wraps every Doppler cell
+into the native span first. Unwrapped, every even depth centred its cells on
+the wrong alias (doppler#1502).
 
 ______________________________________________________________________
 

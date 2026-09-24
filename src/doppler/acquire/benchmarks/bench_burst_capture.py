@@ -27,6 +27,7 @@ from doppler.dsss.benchmarks._burst_stimulus import (
     REPS,
     SPC,
     burst_stimulus,
+    on_fresh,
     packing,
     rate,
 )
@@ -59,10 +60,16 @@ def _cap(acq_code, path=None):
     return PersistentBurstCapture(path, pre, **kw)
 
 
+def test_bench_construct(benchmark, waveform):
+    """Construction: the search sized on the burst, plus the history ring."""
+    acq_code = waveform[0]
+    benchmark(lambda: _cap(acq_code))
+
+
 def test_bench_push_idle(benchmark, waveform):
     """The floor — what listening costs when nothing is there."""
     acq_code, _, _, _, idle = waveform
-    win = benchmark(lambda: _cap(acq_code).push(idle))
+    win = on_fresh(benchmark, lambda: _cap(acq_code), lambda c: c.push(idle))
     assert win.size % BURST_LEN == 0, "a partial window is not a window"
     rate(benchmark)
 
@@ -70,7 +77,7 @@ def test_bench_push_idle(benchmark, waveform):
 def test_bench_push_bursts(benchmark, waveform, n_bursts):
     """Complete bursts in the block — refine and the window copy on top."""
     acq_code, _, _, bursts, idle = waveform
-    win = benchmark(lambda: _cap(acq_code).push(bursts))
+    win = on_fresh(benchmark, lambda: _cap(acq_code), lambda c: c.push(bursts))
     idle_win = _cap(acq_code).push(idle)
     assert win.size >= n_bursts * BURST_LEN, (
         f"only {win.size // BURST_LEN} windows for {n_bursts} bursts — this "
@@ -93,6 +100,8 @@ def test_bench_push_bursts_backed(benchmark, waveform, n_bursts, tmp_path):
     """
     acq_code, _, _, bursts, _ = waveform
     path = tmp_path / "ring.cf32"
-    win = benchmark(lambda: _cap(acq_code, path).push(bursts))
+    win = on_fresh(
+        benchmark, lambda: _cap(acq_code, path), lambda c: c.push(bursts)
+    )
     assert win.size >= n_bursts * BURST_LEN
     rate(benchmark)

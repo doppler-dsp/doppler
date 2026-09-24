@@ -171,6 +171,44 @@ def packing(acq_code, data_code):
     return spacing, BLOCK_64K // spacing
 
 
+FRESH_ROUNDS = 30
+
+
+def on_fresh(benchmark, make, call):
+    """Time ``call(obj)`` on a FRESH ``make()`` every round, built untimed.
+
+    The burst chain's objects carry state across ``push()`` -- look-back
+    history, a dwell accumulator, a suppression window -- so a row that
+    reuses one instance measures a warm one from round two onward. These
+    rows used to rebuild the object INSIDE the timed call instead, which
+    was right about the state and wrong about the clock: construction sizes
+    the search on the burst, about 9 ms on this stimulus, and it swamped the
+    1.6 ms push the rows are named for (v0.56.0 measured 7.6 ms "idle").
+    ``pedantic``'s setup builds the object outside the timer; construction
+    has its own ``construct`` row instead.
+
+    Parameters
+    ----------
+    benchmark : pytest_benchmark.fixture.BenchmarkFixture
+        The fixture.
+    make : callable
+        Builds one fresh object; called once per round, untimed.
+    call : callable
+        ``call(obj)`` is the timed work.
+
+    Returns
+    -------
+    object
+        What the last round's ``call`` returned.
+    """
+    return benchmark.pedantic(
+        call,
+        setup=lambda: ((make(),), {}),
+        rounds=FRESH_ROUNDS,
+        warmup_rounds=1,
+    )
+
+
 def rate(benchmark):
     """Record MSa/s from the MINIMUM round, not the mean.
 

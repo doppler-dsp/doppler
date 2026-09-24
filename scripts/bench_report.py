@@ -216,6 +216,11 @@ def collect_meta(
         )
         or None,
         "cpu_boost": {"1": "on", "0": "off"}.get(boost),
+        # The ACPI platform profile sets the package power limit; it is NOT the
+        # governor. v0.56.0's first measurement ran at governor `performance`
+        # under profile `balanced`, and nothing here recorded it.
+        "platform_profile": _readfile("/sys/firmware/acpi/platform_profile")
+        or None,
         # The affinity the MEASUREMENT ran under, when it was narrowed: a
         # published number is not comparable without knowing which core class
         # produced it. None means unpinned (see `fastest_cpus`).
@@ -247,6 +252,74 @@ def _cpu_ranges(cpus):
             out.append(str(run[0]) if len(run) == 1 else f"{run[0]}-{run[-1]}")
         run = [n]
     return ",".join(out)
+
+
+def machine_not_ready(
+    cpu_sysfs="/sys/devices/system/cpu",
+    profile_path="/sys/firmware/acpi/platform_profile",
+    loadavg_path="/proc/loadavg",
+    max_load=1.0,
+):
+    r"""Why this machine must not measure a release, or [] if it may.
+
+    A published number is only comparable if it was measured in the same
+    peak, quiet state every release. Three things decide that, and a snapshot
+    that recorded only the first was taken with the other two wrong (v0.56.0,
+    first attempt): every core's governor `performance`; the ACPI platform
+    profile `performance` where the machine has one (it sets the package
+    power limit a sustained run is held to, independently of the governor);
+    and nothing else running -- a 1-minute load average under ``max_load``
+    (a docker stream stack had been up for nine days).
+
+    Parameters
+    ----------
+    cpu_sysfs, profile_path, loadavg_path : str
+        Where to read them; the defaults are the live machine.
+    max_load : float
+        The 1-minute load average above which the machine is not quiet.
+
+    Returns
+    -------
+    list of str
+        One line per problem, each naming the fix.
+
+    Examples
+    --------
+    >>> import os, tempfile
+    >>> d = tempfile.mkdtemp()
+    >>> for c in ("cpu0", "cpu1"):
+    ...     os.makedirs(f"{d}/{c}/cpufreq")
+    ...     gov = f"{d}/{c}/cpufreq/scaling_governor"
+    ...     _ = open(gov, "w").write("performance\n")
+    >>> _ = open(f"{d}/profile", "w").write("balanced\n")
+    >>> _ = open(f"{d}/loadavg", "w").write("0.20 0.30 0.40 1/500 1\n")
+    >>> machine_not_ready(d, f"{d}/profile", f"{d}/loadavg")
+    ['platform profile is balanced: powerprofilesctl set performance']
+    """
+    problems = []
+    govs = {
+        _readfile(g)
+        for g in glob.glob(
+            os.path.join(cpu_sysfs, "cpu[0-9]*/cpufreq/scaling_governor")
+        )
+    }
+    if govs and govs != {"performance"}:
+        problems.append(
+            f"governor is {'/'.join(sorted(govs))}: "
+            "sudo cpupower frequency-set -g performance"
+        )
+    profile = _readfile(profile_path)
+    if profile and profile != "performance":
+        problems.append(
+            f"platform profile is {profile}: powerprofilesctl set performance"
+        )
+    load = _readfile(loadavg_path).split()
+    if load and float(load[0]) >= max_load:
+        problems.append(
+            f"1-minute load is {load[0]} (>= {max_load}): stop what is "
+            "running (docker ps) and wait for the machine to settle"
+        )
+    return problems
 
 
 def fastest_cpus(sysfs="/sys/devices/system/cpu"):
@@ -439,6 +512,11 @@ def cmd_page(published, out_path) -> int:
         "",
         f"- CPU: **{cpu}** — {m.get('cores', '?')} threads, governor "
         f"`{m.get('cpu_governor') or '?'}`, boost {m.get('cpu_boost') or '?'}"
+        + (
+            f", platform profile `{m['platform_profile']}`"
+            if m.get("platform_profile")
+            else ""
+        )
         + (
             f", measured on the fastest core class only "
             f"(cpus {_cpu_ranges(m['pinned_cpus'])})"

@@ -20,8 +20,13 @@
  *   one look, and the C/N0 is the one at which the engine itself predicts Pd
  *   0.6, so every row asks the same question: does the capture deliver the Pd
  *   it predicts? The burst lands at a uniform random offset in noise, with a
- *   Doppler uniform over the native span. A trial hits when the capture emits
- *   a window whose preamble_start is within 3 samples of the truth.
+ *   Doppler uniform over the native span, at a CONTINUOUS delay
+ *   (dp_preamble_shift). A trial hits when the capture emits a window whose
+ *   preamble_start is within 3 samples of the truth.
+ *
+ * The delay must be continuous. The first version put every burst on a whole
+ * sample, which removes the code-phase straddle the model averages over half
+ * a sample, and read up to 0.23 of Pd high (doppler#1498).
  *
  * Usage:
  *   validate_capture_dwell_pd           every D, 1000 trials a row: reports,
@@ -34,26 +39,28 @@
  *                                       open defect, pinned so a fix to the
  *                                       model has to update this file
  *
- * Measured 2026-09-23 at 1000 trials a row. The prediction is wrong in BOTH
- * directions, and for two different reasons:
+ * Measured 2026-09-23 at 1000 trials a row, continuous delay:
  *
  *   D     1      2      3      4      5      6      7      8
  *   pred  0.611  0.604  0.623  0.608  0.631  0.628  0.608  0.614
- *   meas  0.945  0.922  0.898  0.837  0.768  0.653  0.532  0.402
+ *   meas  0.900  0.839  0.742  0.631  0.563  0.453  0.359  0.263
+ *
+ * The prediction is wrong in BOTH directions, and crosses at (R + 1)/2:
  *
  * - Small D is PESSIMISTIC: `pd_predicted` is one dwell's Pd, and a burst of
  *   R repetitions offers about R/D dwells to detect in.
  * - Past (R + 1)/2 it is OPTIMISTIC: some alignments leave no whole dwell
  *   of preamble, and the one that detects is diluted by noise or data.
  *
- * A hard cap at (R + 1)/2 would stop the optimism but give up real
- * sensitivity (D = 6 at -14.25 dB delivers what D = 4 needs -12.75 dB for).
- * The fix is a Pd model over the burst's alignment that credits every dwell
- * the preamble spans (doppler#1498).
+ * A hard cap at (R + 1)/2 would stop the optimism but give up the dwells a
+ * deeper grid earns at the other alignments. The fix is a Pd model over the
+ * burst's alignment that credits every dwell the preamble spans
+ * (doppler#1498).
  */
 #include "awgn/awgn_core.h"
 #include "burst_capture/burst_capture_core.h"
 #include "dp_complex.h"
+#include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>
@@ -132,6 +139,7 @@ measure (size_t depth, int trials, uint32_t seed)
   const size_t    len      = lead_max + BURST + 2u * s->refine_span + 4u * N;
   float _Complex *x        = dp_xmalloc (len * sizeof *x);
   float _Complex *nz       = dp_xmalloc (len * sizeof *nz);
+  float _Complex *per      = dp_xmalloc (N * sizeof *per);
   const size_t    cap      = burst_capture_push_max_out (s, len);
   float _Complex *out      = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
   awgn_state_t   *g        = dp_xnn (
@@ -147,12 +155,17 @@ measure (size_t depth, int trials, uint32_t seed)
       const size_t at
           = depth * N + (size_t)(dp_uni (&st) * (double)(2u * depth * N));
       const double f = (2.0 * dp_uni (&st) - 1.0) * span;
+      /* The rest of the delay, CONTINUOUS: a burst on a whole sample has no
+         code-phase straddle, which the model averages over half a sample,
+         and reads about 0.2 of Pd high at D = 8 (doppler#1498). */
+      const double frac = dp_uni (&st);
+      dp_preamble_shift (ZC, N, frac, per);
       memset (x, 0, len * sizeof *x);
       for (size_t i = 0; i < BURST; i++)
         {
           float _Complex v
               = i < R * N
-                    ? ZC[i % N]
+                    ? per[i % N]
                     : (float _Complex)cexp (I * M_PI / 2.0
                                             * (double)(dp_xs32 (&st) >> 30));
           x[at + i]
@@ -168,7 +181,9 @@ measure (size_t depth, int trials, uint32_t seed)
       for (size_t k = 0; k < burst_capture_ready (s); k++)
         {
           const burst_capture_event_t *ev = burst_capture_event_at (s, k);
-          if (ev && fabs ((double)ev->preamble_start - (double)at) <= TOL)
+          if (ev
+              && fabs ((double)ev->preamble_start - ((double)at + frac))
+                     <= TOL)
             hit = 1;
         }
       hits += hit;
@@ -177,6 +192,7 @@ measure (size_t depth, int trials, uint32_t seed)
   r.se   = sqrt (fmax (r.meas * (1.0 - r.meas), 1e-9) / trials);
   awgn_destroy (g);
   free (out);
+  free (per);
   free (nz);
   free (x);
   burst_capture_destroy (s);

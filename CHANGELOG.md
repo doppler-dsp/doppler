@@ -13,6 +13,287 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-09-24
+
+### Breaking
+
+- **The burst acquisition objects move from `doppler.dsss` to
+    `doppler.acquire`** (#1511). Since #1470 they take any repeated complex
+    preamble (Zadoff-Chu, a chirp, a QPSK sequence), and a PN code is just
+    one case. `Acquisition`, `BurstAcquisition`, `BurstCapture`,
+    `PersistentBurstCapture` and `bin_to_signed` now sit beside
+    `CarrierAcquisition`. **Breaking for Python:** import them from
+    `doppler.acquire` instead of `doppler.dsss`, for example
+    `from doppler.acquire import BurstCapture`. `doppler.dsss` does not
+    re-export them. The C API is unchanged, and so are the DSSS receivers
+    that compose these objects.
+
+- **A Doppler rate caps the burst engine's coherent depth** (#1482).
+    `BurstAcquisition` takes `doppler_rate` (Hz/s, default 0 = no bound) and
+    sizes at most `f_epoch / sqrt(2 * doppler_rate)` repetitions. Under a
+    1.5 MHz/s ramp, an engine not told the rate predicted Pd 0.92 and
+    delivered 0.65. Told the rate, it predicts the 0.33 it delivers and
+    reports under-powered. **Breaking for C:** `acq_create_burst()` and
+    `burst_acq_create()` gain a trailing `double doppler_rate`; append `0.0`
+    to keep today's depth. `BurstCapture` follows in #1490.
+
+- **The burst objects take the preamble as its samples** (#1470).
+    `BurstAcquisition(preamble, reps, fs=1.0, …)`, `BurstCapture(preamble,   burst_len, reps, fs=1.0, …)` and `PersistentBurstCapture(path, preamble,   …)` accept any repeated complex preamble: a chirp, Zadoff-Chu, shaped
+    PSK. A PN code is one such preamble: `np.repeat(nrz, spc)` after
+    `cvt.bin_to_nrz(code, nrz)`, at `fs = chip_rate · spc`. `spc`,
+    `chip_rate` and `sf` are gone, and the C constructors change to match.
+    The delay model is now the sampled chain's, so code sizing is shallower
+    and closer to measured Pd (acq §2.6: 0.690 predicted, 0.740 delivered).
+
+- **A burst engine sizes on the burst, not one dwell** (#1498). Its dwells
+    are aligned to the stream, so a preamble of `reps` repetitions spans about
+    `reps/D` of them. New `pd_burst` on `BurstAcquisition` and `BurstCapture`
+    averages over that alignment and credits every dwell; the sizer meets
+    `pd` with it and `underpowered` reads it. One dwell's Pd ranged 0.18–0.93
+    across depths that all delivered about 0.6. **Breaking:** auto-sized
+    depths change, usually shallower (reps=16 at 53 dB-Hz: 6 → 4), and a
+    design point can newly read as under-powered. `pd_predicted` still means
+    one aligned dwell; check `pd_burst` against `pd`.
+
+- **The burst captures take the Doppler rate, and the receiver passes its
+    own** (#1490). `BurstCapture` and `PersistentBurstCapture` take
+    `doppler_rate` (Hz/s, default 0 = no bound), as `BurstAcquisition` does.
+    `DsssBurstReceiver` passes its `max_rate` (cycles/sample², the rate its
+    demod already searches) to acquisition as `max_rate · fs²`. With
+    `max_rate > 0` it can now size a shallower search. **Breaking for C:**
+    `burst_capture_create()` and `burst_capture_create_backed()` gain a
+    trailing `double doppler_rate`; append `0.0` to keep today's depth.
+
+- **A burst engine's "no design point" is NaN, not 0** (#1484).
+    `cn0_dbhz` on `BurstAcquisition`, `BurstCapture`, `PersistentBurstCapture`,
+    `DsssBurstReceiver` and `acq_create_burst*` now takes any finite value,
+    negative included, and **NaN** (`ACQ_CN0_NONE` in C, and the new default)
+    means none given. `0` used to mean none, which left normalized units
+    (`fs = 1`, where C/N0 is the per-sample SNR, negative wherever acquisition
+    is hard) no way to state a design point. **If you passed `cn0_dbhz=0` to
+    mean "none", omit it (or pass NaN)**: `0` is now a real 0 dB-Hz design
+    point and warns under-powered. Omitting the argument behaves exactly as
+    before.
+
+### Added
+
+- **`psl_db` on `BurstAcquisition`, `BurstCapture` and
+    `PersistentBurstCapture`**: the preamble's peak sidelobe level, from its
+    own periodic autocorrelation outside the mainlobe. A burst that clears
+    the threshold by more than `-psl_db` also lists its own sidelobe as a
+    second peak. It reads −29.8 dB for a 31-chip m-sequence, about −15 dB
+    for a random 96-symbol QPSK, and `-inf` for Zadoff-Chu. In C it is
+    `acq_psl_db()`
+    ([#1470](https://github.com/doppler-dsp/doppler/issues/1470)).
+
+- **acq's certification covers any repeated preamble and the Doppler-rate
+    cap** (#1470 phase 4). The report renders the template harness's
+    Monte-Carlo: Zadoff-Chu, chirp and QPSK meet `pd_predicted` at Pd 0.3,
+    0.6 and 0.9, and a shaped QPSK preamble's ~0.03 optimism is ratcheted
+    (F8, #1483). Under a ramp, the rate-capped engine predicts the Pd it
+    delivers (F9). 21/21 limits.
+
+- **A template burst engine's `pd_predicted` is measured, not only
+    modelled.** `native/validation/acq_template_pd.c` runs acq report §2.6's
+    Monte-Carlo on four kinds of preamble at three design points each, with
+    the code as a control that reproduces §2.6 (0.729 against 0.740 ± 0.025).
+    QPSK sits on the model; Zadoff-Chu and chirp are conservative (a chirp's
+    peak slides along its ridge instead of shrinking). A shaped template is
+    optimistic by 0.02–0.03 at 3σ
+    ([#1483](https://github.com/doppler-dsp/doppler/issues/1483)).
+    [`dsss-acquisition.md` §3.1](docs/design/dsss-acquisition.md) records the
+    design and these numbers.
+
+- **A burst capture's Pd is measured against its coherent depth** (#1470).
+    `native/validation/capture_dwell_pd.c` shows `pd_predicted` is pessimistic
+    at small D, where a burst offers several dwells, and optimistic past
+    D = (R + 1)/2, where a dwell can straddle the preamble's edge: 0.26
+    delivered against 0.61 predicted at D = R = 8. Each burst lands at a
+    continuous delay; a whole-sample delay read up to 0.23 high. The model
+    fix is [#1498](https://github.com/doppler-dsp/doppler/issues/1498).
+
+### Changed
+
+- **Acquisition's Pd model is certified for a DSSS code at the default
+    `pd = 0.9`.** The code was measured at one design point, 0.65. It now
+    runs at 0.3, 0.6 and 0.9, like every template, and the CTest spot check
+    asserts the 0.9 row. The model holds at 0.9: 0.935 delivered against
+    0.908 predicted. Its margin thins there, from +0.10 at 0.6 to +0.03.
+
+- **The acquisition engine reads a preamble's shape, not its chip count.**
+    The peak zone, the twin rule and the Pd model's delay straddle now come
+    from a per-waveform `acq_shape_t`. A PN code fills it analytically, so
+    every existing engine is bit-identical: 318 configurations, every field,
+    hit and blob. This is phase 1 of
+    [#1470](https://github.com/doppler-dsp/doppler/issues/1470), acquiring
+    any repeated complex64 preamble.
+
+- **A burst engine built from a complex preamble is proven to resume from
+    its state.** Every state round trip used to build its engine from a ±1
+    DSSS code. Now the C round trip and the Python state matrix each include
+    a Zadoff-Chu–built `BurstAcquisition`, and the Python matrix also a
+    `BurstCapture`.
+
+- **`issue-link-check` refuses a branch carrying a base commit under a new
+    hash.** A commit with the same author, author date and subject as one on
+    the base is what `--amend` after a hook-blocked commit produces. The gate
+    used to pass it on that commit's own `No-issue:`, and doppler#1472 was
+    pushed that way.
+
+- **The burst chain's benchmarks time `push`, and construction has its own
+    row.** The `BurstAcquisition`, `BurstCapture`, `BurstDespreader` and
+    `DsssBurstReceiver` rows built the object inside the timed call. Since
+    #1503 sizes the search on the burst, construction takes about 6.4 ms,
+    and it read as a 5–6× slower idle push. The idle push is unchanged at
+    about 1.2 ms. **Per burst, the capture's refine costs ~30× what it did
+    in v0.54.0**: ~765 µs against ~25 µs at the benchmark's geometry. That
+    is the price of scoring every repetition coherently (#1508) and every
+    detected phase (#1520); making it cheaper is
+    [#1538](https://github.com/doppler-dsp/doppler/issues/1538).
+
+- **`make bench-interleaved` refuses a machine that is not ready.** Every
+    core's governor and the ACPI platform profile must be `performance`, and
+    the 1-minute load under 1.0. The snapshot now records the profile.
+
+- **`BurstCapture`'s report certifies the Pd a caller gets**
+    ([#1517](https://github.com/doppler-dsp/doppler/issues/1517)): it matches
+    `pd_burst` at a 0.6 design point, and falls up to 0.026 short at the
+    default 0.9 on Zadoff-Chu
+    ([#1519](https://github.com/doppler-dsp/doppler/issues/1519)).
+
+- **just-makeit pin 0.87.1 → 0.89.0.** Docstrings render as written on every face
+    (gh-1493), so many stubs and bindings rewrap their prose. An object's
+    link lines now carry its whole dependency closure whatever order modules
+    are declared in (gh-1549), so `[module.acquire]` no longer has to come
+    before `[module.dsss]`.
+
+- **The tracked-paths gate now comes from canonical instead of a copy here.**
+    `scripts/check-tracked-paths.sh` is deleted and `LINT_tracked-paths` is
+    gone from `LINT_TOOLS`; the same two rules — every tracked name is one a
+    person could type, and no two names differ only in case — arrive with
+    `standard.mk` as `make tracked-paths-check`, and the pre-commit hook
+    dispatches there. The rule was written here after `test_Resampler.py` was
+    found sitting beside `test_resampler.py` on a Windows checkout, and it
+    turned out to be a rule every repo needs; a second copy of a check is the
+    thing that drifts. `test_tracked_paths_gate.py` still exercises it, now by
+    seeding a throwaway repo with the vendored `standard.mk`.
+
+### Fixed
+
+- **acq's Pd model prices the noise reference its gate divides by**
+    (#1501, #1483). The coherent gate divides by the mean magnitude of the
+    whole surface, peak included, and the preamble's correlation energy off
+    its peak lands in those cells. A 7-chip code at one repetition delivered
+    0.23 where the model promised 0.92; Zadoff-Chu 127 was 0.05 optimistic
+    at D = 1, and a shaped template at every depth. Every certified template
+    is now conservative (+0.04..+0.12). Auto-sized engines buy more depth on
+    small or sidelobe-heavy preambles.
+
+- **`acq_get_state` writes every byte of its blob.** The blob reserves the
+    whole ring and wrote only the buffered samples, so the rest carried
+    whatever the caller's buffer held: blobs weren't reproducible, and a
+    shipped blob carried stale heap. `DP_STATE_ROUNDTRIP_TEST` now checks
+    every byte by serializing into two differently pre-filled buffers, and
+    `make tests-ssot` requires every serializable object to use it. 30
+    objects that predate the rule are ratcheted
+    ([#1475](https://github.com/doppler-dsp/doppler/issues/1475)).
+
+- **`validate_acq_template_pd` fits its sweep budget again.** It found each
+    design point by a quarter-dB scan that built a burst engine per step,
+    and sizing on the burst (#1498) made each build dearer: 2.4 s on CI
+    against 1.1 s. Both scans are now bisected on the same grid, with
+    byte-identical output.
+
+- **`BurstAcquisition` raises `ValueError` for a bad argument, not
+    `MemoryError`.** Its constructor returns NULL only for an argument it
+    refuses (an infinite `cn0_dbhz`, `pfa` outside (0, 1), `reps < 1`, a
+    silent preamble), and the message now names the constraints, as
+    `BurstCapture`'s does. Closes
+    [#1486](https://github.com/doppler-dsp/doppler/issues/1486).
+
+- **`BurstCapture` and `DsssBurstReceiver` return the same bursts at any
+    push block size, however closely the bursts are packed**
+    ([#1527](https://github.com/doppler-dsp/doppler/issues/1527)).
+    Four bursts at a quarter of `min_gap` came back as one wrong window when
+    pushed whole, and as four exact bursts in 1000-sample blocks. A
+    detection now joins a pending burst only if that burst's window had not
+    yet arrived when the detection was made. A detection held for a
+    `release()` verdict no longer pins the history ring for a whole push.
+    `min_gap` still holds, and now looks conservative
+    ([#1530](https://github.com/doppler-dsp/doppler/issues/1530)).
+
+- **The DSSS burst receiver demo spaces its bursts by `min_gap`**
+    ([#1514](https://github.com/doppler-dsp/doppler/issues/1514)). It used
+    `refine_span`, a start-to-start reach, and called it the minimum spacing.
+    It now asserts the `min_gap` guarantee and counts only `frame_valid`
+    frames. It no longer claims that bursts packed tighter are lost; that
+    loss was a defect ([#1527](https://github.com/doppler-dsp/doppler/issues/1527)).
+
+- **A held detection no longer stalls the bursts queued behind it**
+    ([#1534](https://github.com/doppler-dsp/doppler/issues/1534)). With
+    bursts longer than `refine_span`, a whole-capture push dropped 52,596
+    samples and one burst of four, where 1000-sample blocks lost nothing.
+    `BurstCapture` now emits the first burst that is not held.
+
+- **`BurstCapture` names the right repetition more often** (#1502). Refine
+    now scores each candidate period with acquisition's own statistic
+    (`acq_cell_corr`, new in `acq_core.h`) at the settled code phase, mixed
+    within every period over the Doppler cells of the engine's bin, instead
+    of a slow-time transform across per-period correlations. On Zadoff-Chu
+    127 × 8 the wrong-repetition errors roughly halve, and the capture's loss
+    behind the engine falls from 0.011–0.051 to 0.006–0.034. It now sits at
+    or above `pd_burst` at every depth, and the dwell harness holds it there.
+    About 50 µs more per burst.
+
+- **`BurstCapture` delivers `pd_burst` at the default `pd=0.9` on
+    Zadoff-Chu** ([#1519](https://github.com/doppler-dsp/doppler/issues/1519)).
+    Refine scores every code phase the burst's detections carried, and scores
+    edge Doppler cells at both aliases. Before, at the edge of the native
+    span, it lost a phase 51 samples along the delay-Doppler ridge, 0.026 of
+    Pd.
+
+- **`BurstCapture` captures across a wide `doppler_uncertainty`**
+    ([#1512](https://github.com/doppler-dsp/doppler/issues/1512)). Its
+    `doppler_bins` read back only the coherent depth, it converted every tiled
+    hit's Doppler to 0, and refine folded its cells about 0. A new
+    `acq_bin_doppler_hz()` is the one bin-to-Hz conversion.
+
+- **Every detection sizing helper fails closed on a probability outside
+    (0, 1).** `det_snr(8, 1.5, 1e-3)` used to never return; it and the other
+    threshold helpers now return `NaN`, and the count helpers `-1`.
+    `det_q_inv`, `det_threshold_f` and `det_threshold_gauss` returned `0.0`
+    before, a threshold every sample clears
+    ([#1513](https://github.com/doppler-dsp/doppler/issues/1513)).
+
+- **The FFT, DDC, spectral and detection pages say what the code does.**
+    Among the fixes: the fine NCO for `Ddcr` is `-(2f + 0.5)`, not
+    `2f + 0.5`. A wrong-dtype `out=` is refused, not cast. `execute_cf32` runs
+    in float on PFFFT (1.6× faster than cf64 at N = 1024), not in double.
+    `CorrDetector`'s threshold is a linear ratio, not dB.
+
+- **A validation harness's `--emit` mode no longer hides a failed check.**
+    `acq_template_pd --emit` returned 0 unconditionally, to keep a banner out
+    of its CSV, so a failed `DP_REQUIRE` dropped a section silently and the
+    report failed on a parse error two layers away. `DP_TEST_EMIT_END` in
+    `dp_test.h` returns the failing status with nothing on stdout.
+
+- **just-makeit pin 0.86.0 → 0.87.0: a module function no longer reads its
+    array after freeing it** (jm#1490). When numpy had to cast the argument (a
+    `bool` array to `ber_lock_symbol`'s `uint8_t[]`, and 16 functions across
+    `arith`, `ber`, `cvt`, `snr`, `spectral` and `wfm` share the shape), the
+    generated binding freed the temporary before the call read it. Windows CI
+    crashed one run in three; on Linux the answer was silently wrong (a lock
+    dated at 0 instead of 150000). Closes
+    [#1477](https://github.com/doppler-dsp/doppler/issues/1477). The same
+    release bounds-checks string-enum getters.
+
+- **just-makeit pin 0.87.0 → 0.87.1: the drift gate's constructor check
+    reads the function an object actually binds** (jm#1498). It compared
+    `<obj>_create` even when `create_fn` named another constructor, so an
+    object keeping a public `<obj>_create` of a different shape beside its
+    bound one reported CTOR drift that was not drift. `burst_acq` is that
+    shape. No generated file changes on doppler's tree.
+
 ## [0.55.0] - 2026-09-22
 
 ### Added
@@ -14364,8 +14645,9 @@ ______________________________________________________________________
 [0.54.0]: https://github.com/doppler-dsp/doppler/compare/v0.53.0...v0.54.0
 [0.54.1]: https://github.com/doppler-dsp/doppler/compare/v0.54.0...v0.54.1
 [0.55.0]: https://github.com/doppler-dsp/doppler/compare/v0.54.1...v0.55.0
+[0.56.0]: https://github.com/doppler-dsp/doppler/compare/v0.55.0...v0.56.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.55.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.56.0...HEAD

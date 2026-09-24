@@ -5,7 +5,10 @@ The `doppler.detection` module is the **detection-theory** layer over the C
 (`Pd`), probability of false alarm (`Pfa`), SNR, and coherent dwell length for a
 square-law detector. Pair it with the streaming
 [`CorrDetector`](python-spectral.md#streaming-detection) — `detection` tells you
-*what threshold and dwell to use*, `CorrDetector` *runs* the detection.
+*what threshold and dwell to use*, `CorrDetector` *runs* the detection. Mind
+the units: `det_threshold` is in units of the noise's Rayleigh σ, while
+`CorrDetector`'s `noise_est` is the mean magnitude of the surface, so its gate
+is `det_threshold(pfa) · sqrt(2/π)`.
 
 Every quantity comes in two forms: an **amplitude-SNR** version (`det_*`, where
 SNR is the *linear* signal/noise **amplitude** ratio) and a **power-SNR** version
@@ -43,7 +46,7 @@ the Rayleigh tail `exp(-b²/2)`:
 
 ______________________________________________________________________
 
-## Amplitude-SNR (dB)
+## Amplitude SNR (linear)
 
 ::: doppler.detection.det_threshold
 

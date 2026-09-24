@@ -110,7 +110,8 @@ main (void)
 }
 ```
 
-Manifest (`objects/corr2d.toml`) — two new init params after `nx`, default `0`:
+Manifest (`objects/corr2d.toml`) — two new init params, default `0` (as built
+they follow `nthreads`: `(ref, dwell, nthreads, ny_out, nx_out, col_out)`):
 
 ```toml
 [[corr2d.init_params]]
@@ -125,8 +126,8 @@ default = "0"   # 0 => nx (native)
 
 `execute` is already `variable_output`, so the binding sizes the returned array
 to `corr2d_execute_max_out` = `ny_out*nx_out` automatically. New read-only
-properties `ny_out`, `nx_out`. Python: `Corr2D(ref, dwell=1, ny_out=0, nx_out=0, nthreads=1)` — the `(ny, nx)`-shaped `execute` input is unchanged; the returned
-surface is `(ny_out, nx_out)`.
+properties `ny_out`, `nx_out`. Python: `Corr2D(ref, dwell=1, nthreads=1, ny_out=0, nx_out=0)` — the `(ny, nx)`-shaped `execute` input is unchanged; the returned
+surface is flat, `ny_out·nx_out` long, row-major over `(ny_out, nx_out)`.
 
 ______________________________________________________________________
 
@@ -152,9 +153,12 @@ the per-frame sum only by accumulation-order rounding (~1e-5 relative).
 It also composes with the interpolated inverse: zero-padding is linear too, so
 `zeropad(Σ Pₖ)` then one inverse is the natural home for the pad.
 
-State (sizes): `fwd` plan `(ny,nx)`; **`inv` plan `(ny_out,nx_out)`**; `ref_spec`,
-`work_fft`, `accum_P` all `(ny,nx)`; **`work_pad`, `work_ifft` `(ny_out,nx_out)`**;
-`n = ny·nx`, `n_out = ny_out·nx_out`.
+State (sizes, as designed; as built the accumulator is `accum`, there is no
+`work_ifft` — the inverse writes straight into the output — and the state adds
+`ztmp`/`zcol`/`zcolout` and `col_out`/`col_ref`, see `corr2d_core.h`): `fwd` plan
+`(ny,nx)`; **`inv` plan `(ny_out,nx_out)`**; `ref_spec`, `work_fft`, `accum_P` all
+`(ny,nx)`; **`work_pad`, `work_ifft` `(ny_out,nx_out)`**; `n = ny·nx`,
+`n_out = ny_out·nx_out`.
 
 ```
 corr2d_execute(in):
@@ -240,11 +244,12 @@ entirely when it provably contributes nothing — a `corr2d`-level
 optimization, independent of §1-8's forward/inverse split and orthogonal to
 P2 (prime-length forward FFT).
 
-**Why.** Both real callers of `corr2d` (`acq_core.c`, `detector2d_core.c`)
-build a reference with energy only in row 0 (`build_ref`'s own docstring:
-"the flat-in-slow-time row spectrum ... turns the row axis into a
-pass-through" — `acq_core.c` already relies on this, doing its own
-Doppler-axis FFT by hand before calling `corr2d_execute`). For such a
+**Why.** `acq_core.c` (and, since, `burst_capture_core.c`) build a reference
+with energy only in row 0 — the flat-in-slow-time row spectrum turns the row
+axis into a pass-through, and `acq_core.c` relies on this, doing its own
+Doppler-axis FFT by hand before calling `corr2d_execute`. (`detector2d_core.c`
+passes its caller's arbitrary `(ny, nx)` reference through, so it takes the
+fast path only when that reference happens to be single-row.) For such a
 reference, `ref_spec[u,v] = conj(FFT_nx(ref_row0))[v]` is independent of the
 row-frequency index `u`. DFT orthogonality then makes the row axis of the
 forward-accumulate-inverse round trip an **exact identity** for *any* row
@@ -269,10 +274,10 @@ caller requesting Doppler-axis interpolation (`ny_out > ny`, a documented
 `Corr2D` feature, unused by any caller today) genuinely needs the row
 axis's content and must fall back to the general path. `nx_out != nx`
 (code-axis interpolation) composes fine with the fast path — it's a pure
-per-row zero-pad (`_zeropad_1d`, reused unchanged) before each row's
+per-row zero-pad (`corr2d_zeropad_1d`, reused unchanged) before each row's
 inverse.
 
-**Implementation** (`native/src/corr2d/corr2d_core.c`): `_is_single_row_ref`
+**Implementation** (`native/src/corr2d/corr2d_core.c`): `corr2d_is_single_row_ref`
 detects eligibility at `create`/`set_ref` time; the fast branch replaces
 the `(ny,nx)` `fft2d_state_t` plans with a pair of length-`nx`/`nx_out`
 `fft_state_t` 1-D plans and a length-`nx` `row_ref_spec` (replacing the

@@ -109,7 +109,8 @@ grows also raises the threshold on every cell in it.
 
 Measured, on `BurstAcquisition` sweeping preamble repetitions
 (`src/doppler/examples/dsss_burst_demo.py`): the detection threshold improves
-by **2.26 / 2.50 / 3.12 dB** per doubling of coherent depth against the ideal
+by **2.38 / 2.31 / 3.19 dB** per doubling of coherent depth (measured
+2026-09-24) against the ideal
 3.01, and the shortfall is exactly this — more coherent depth is more Doppler
 bins, so the Bonferroni threshold rises from 3.98 to 4.30 across those arms.
 The gain is real and it is not 3 dB per doubling. A caller budgeting link
@@ -248,8 +249,11 @@ ______________________________________________________________________
 Three of these functions do not return the mathematically tight answer, and in
 every case the direction is chosen rather than inherited:
 
-- **`det_threshold`, `det_threshold_power`, `det_threshold_f`, `det_q_inv`**
-    are exact inversions. No iteration, no tolerance.
+- **`det_threshold`, `det_threshold_power`** are closed-form inversions. No
+    iteration, no tolerance. **`det_threshold_f`** inverts the incomplete beta
+    by a 200-step bisection, and **`det_q_inv`** refines a Winitzki initial
+    guess with 4 Newton steps: both converge far below any threshold's
+    precision, but they are iterations.
 - **`det_dwell`, `det_n_noncoh`, `det_dwell_power`** iterate and return the
     *first* value meeting the requirement — minimal by construction, and the
     minimality is asserted rather than assumed (the value one below must fail).
@@ -270,9 +274,13 @@ ______________________________________________________________________
 ## 6. The boundaries are part of the contract
 
 These are design-time helpers — a caller sizes a loop once, at startup, from
-numbers a config file supplied. So every one of them **fails closed on
-nonsense** rather than propagating a NaN into a threshold that will then be
-compared against every sample for the life of the process:
+numbers a config file supplied. A NaN propagated into a threshold is then
+compared against every sample for the life of the process, so the helpers in
+this table **fail closed on nonsense** instead. Not all of them do yet: out of
+range, `det_threshold` returns NaN or `inf`, `det_threshold_power` a finite
+wrong value, and `det_snr` / `det_snr_power` never return
+([#1513](https://github.com/doppler-dsp/doppler/issues/1513)). Validate a
+probability before you call those.
 
 | shape                                                        | returns                                                       |
 | ------------------------------------------------------------ | ------------------------------------------------------------- |

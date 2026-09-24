@@ -2,22 +2,26 @@
 
 1-D and 2-D FFT backed by the vendored **pocketfft** (pure C99, libm-only).
 Each `FFT` / `FFT2D` instance owns an independent plan — no global state,
-thread-safe, multiple sizes coexist freely. CF64 transforms run natively;
-CF32 transforms are computed in double precision and returned as `complex64`.
+thread-safe, multiple sizes coexist freely. CF64 transforms run natively.
+CF32 transforms run natively in single precision on PFFFT when the length is
+a multiple of 16 with no prime factor above 5; any other length is promoted to
+double and returned as `complex64`.
 
 Source:
 [`src/doppler/spectral/__init__.py`](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/spectral/__init__.py)
 
 ______________________________________________________________________
 
-## Dtype dispatch
+## Dtype paths
 
-Pass any dtype — the right C path is chosen automatically:
+The path is chosen by the method you call, not by the input's dtype.
+`execute_cf32` refuses `complex128` with `TypeError` rather than silently
+narrowing it; `execute_cf64` accepts `complex64` and widens it:
 
-| Input dtype  | C path                    | Speed                            |
-| ------------ | ------------------------- | -------------------------------- |
-| `complex64`  | CF32 → computed in double | slower (float↔double conversion) |
-| `complex128` | CF64 (native double)      | baseline                         |
+| Method         | Input dtype  | C path                                                           | Speed                                                       |
+| -------------- | ------------ | ---------------------------------------------------------------- | ----------------------------------------------------------- |
+| `execute_cf32` | `complex64`  | PFFFT in float for 16-aligned, 5-smooth lengths; else via double | faster where PFFFT applies (1.6× at N = 1024), else ≈ equal |
+| `execute_cf64` | `complex128` | pocketfft in double                                              | baseline                                                    |
 
 ______________________________________________________________________
 

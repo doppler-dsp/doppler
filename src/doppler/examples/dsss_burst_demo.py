@@ -378,13 +378,13 @@ shifts = [
 # assertion compared each arm to a floor, which one period of a 127-chip code
 # clears on its own -- so it passed while the reps axis did nothing at all.
 #
-# Ideal is 10*log10(2) = 3.01 dB per doubling. Measured: 2.26, 2.50, 3.12 dB
-# (thresholds -13.6, -15.9, -18.4, -21.5 dB), total 7.9 dB against an ideal
-# 9.03. The shortfall is real and worth knowing rather than tuning away: more
-# coherent depth means more search cells, so the Bonferroni threshold rises
-# with it (the object reports 3.98 -> 4.30 across these four arms). That
-# accounts for part of the gap; this file does not claim it accounts for all
-# of it.
+# Ideal is 10*log10(2) = 3.01 dB per doubling. Measured 2026-09-24: 2.38, 2.31,
+# 3.19 dB (thresholds -13.6, -16.0, -18.3, -21.5 dB), total 7.9 dB against an
+# ideal 9.03. The shortfall is real and worth knowing rather than tuning away:
+# more coherent depth means more search cells, so the Bonferroni threshold
+# rises with it (the object reports 3.98 -> 4.30 across these four arms). That
+# accounts for part of the gap; this file does not claim it accounts for all of
+# it.
 assert all(np.isfinite(t) for t in thresholds.values()), (
     "a reps arm never reached Pd = 0.5 -- widen SWEEP_SNRS"
 )

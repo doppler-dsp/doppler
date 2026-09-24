@@ -1147,6 +1147,12 @@ burst_capture_get_pd_burst (const burst_capture_state_t *state)
 }
 
 double
+burst_capture_get_psl_db (const burst_capture_state_t *state)
+{
+  return acq_psl_db (state->acq->engine);
+}
+
+double
 burst_capture_get_doppler_rate (const burst_capture_state_t *state)
 {
   return state->acq->engine->doppler_rate;

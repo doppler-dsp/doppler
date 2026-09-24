@@ -97,6 +97,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  double | [**burst\_capture\_get\_pd\_predicted**](#function-burst_capture_get_pd_predicted) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Detection probability of one dwell wholly inside the preamble._  |
 |  size\_t | [**burst\_capture\_get\_pending**](#function-burst_capture_get_pending) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  uint64\_t | [**burst\_capture\_get\_preamble\_start**](#function-burst_capture_get_preamble_start) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
+|  double | [**burst\_capture\_get\_psl\_db**](#function-burst_capture_get_psl_db) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_The preamble's peak sidelobe level, dB:_ [_**acq\_psl\_db()**_](acq__core_8h.md#function-acq_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._ |
 |  void | [**burst\_capture\_get\_state**](#function-burst_capture_get_state) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, void \* blob) <br>_Serialize into_ `blob` _, which must be state\_bytes() long._ |
 |  double | [**burst\_capture\_get\_straddle\_loss**](#function-burst_capture_get_straddle_loss) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Correlation kept, worst case, by a burst landing between bins._  |
 |  size\_t | [**burst\_capture\_push**](#function-burst_capture_push) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, const float \_Complex \* x, size\_t x\_len, float \_Complex \* out, size\_t max\_out) <br>_Stream samples; get back every burst whose window has arrived._  |
@@ -794,6 +795,22 @@ size_t burst_capture_get_pending (
 
 ```C++
 uint64_t burst_capture_get_preamble_start (
+    const burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
+### function burst\_capture\_get\_psl\_db 
+
+_The preamble's peak sidelobe level, dB:_ [_**acq\_psl\_db()**_](acq__core_8h.md#function-acq_psl_db) _of the engine. A burst clearing the threshold by more than_`-psl_db` _also detects its own sidelobe, outside the peak zone; -INFINITY for a perfect sequence._
+```C++
+double burst_capture_get_psl_db (
     const burst_capture_state_t * state
 ) 
 ```

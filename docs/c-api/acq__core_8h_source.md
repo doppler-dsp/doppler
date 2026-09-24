@@ -76,6 +76,7 @@ extern "C"
     double delay_loss[ACQ_DELAY_LOSS_NODES]; 
     double off_peak; 
     double off_peak_amp; 
+    double psl; 
   } acq_shape_t;
 
   typedef struct
@@ -321,6 +322,8 @@ extern "C"
     return (double)dp_fftfreq_index (doppler_bin, acq_grid_bins (state))
            * state->doppler_res_hz;
   }
+
+  double acq_psl_db (const acq_state_t *state);
 
   void acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
                           size_t code_len, size_t spc, acq_handoff_t *out);

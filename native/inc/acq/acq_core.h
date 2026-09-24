@@ -302,6 +302,11 @@ extern "C"
                               of |R(m)| / R(0). With off_peak it says how
                               concentrated that energy is, which sets how
                               much mean it adds to the reference. */
+    double psl; /**< Peak sidelobe: the largest |R(m)| / R(0) OUTSIDE the
+                     mainlobe, zone <= m <= n - zone -- the lags the peak
+                     list's exclusion does not cover. 0 for a perfect
+                     sequence (below 1e-6, rounding). acq_psl_db() is the
+                     read-back (doppler#1470). */
   } acq_shape_t;
 
   /**
@@ -1439,6 +1444,43 @@ extern "C"
     return (double)dp_fftfreq_index (doppler_bin, acq_grid_bins (state))
            * state->doppler_res_hz;
   }
+
+  /**
+   * @brief The preamble's peak sidelobe level, dB: 20*log10 of the largest
+   *        periodic-autocorrelation lag outside the mainlobe, relative to
+   *        the peak (acq_shape_t::psl).
+   *
+   * What it predicts: a detection's sidelobes sit this far below it, at
+   * delays outside the peak zone -- where the peak list's exclusion does
+   * not reach. So a burst that clears the threshold by more than
+   * `-psl_db` also lists its own sidelobe as a second peak (with
+   * `max_peaks > 1`), and a strong burst's sidelobe can mask a weak one
+   * there. A code's is its periodic floor, 20*log10(1/31) = -29.8 dB for
+   * a 31-chip m-sequence; a perfect sequence (Zadoff-Chu, a Frank-type
+   * chirp) has none and reads -INFINITY. Configuration, not state: it is
+   * fixed at construction and not serialized.
+   *
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.acquire import BurstAcquisition
+   * >>> from doppler.cvt import bin_to_nrz
+   * >>> from doppler.wfm import PN
+   * >>> chips = (np.asarray(PN(poly=0, seed=1, length=5).generate(31)) & 1
+   * ...          ).astype(np.uint8)
+   * >>> nrz = np.zeros(31, dtype=np.float32)
+   * >>> _ = bin_to_nrz(chips, nrz)
+   * >>> pre = np.repeat(nrz, 4).astype(np.complex64)    # 4 samples a chip
+   * >>> a = BurstAcquisition(pre, reps=4, fs=4.0e6, cn0_dbhz=50.0)
+   * >>> round(a.psl_db, 2)          # an m-sequence: 1/31
+   * -29.83
+   * >>> k = np.arange(127)
+   * >>> zc = np.exp(-1j * np.pi * 5 * k * (k + 1) / 127).astype(np.complex64)
+   * >>> BurstAcquisition(zc, reps=8, fs=1.0e6, cn0_dbhz=50.0).psl_db
+   * -inf
+   *
+   * @endcode
+   */
+  double acq_psl_db (const acq_state_t *state);
 
   /**
    * @brief Convert one acq_push() hit into a wire-ready hand-off record.

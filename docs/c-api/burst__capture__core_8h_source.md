@@ -215,6 +215,7 @@ double burst_capture_get_eta_nc (const burst_capture_state_t *state);
 double burst_capture_get_straddle_loss (const burst_capture_state_t *state);
 double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
 double burst_capture_get_pd_burst (const burst_capture_state_t *state);
+double burst_capture_get_psl_db (const burst_capture_state_t *state);
 double burst_capture_get_doppler_rate (const burst_capture_state_t *state);
 size_t burst_capture_get_doppler_bins (const burst_capture_state_t *state);
 size_t burst_capture_get_n_noncoh (const burst_capture_state_t *state);

@@ -29,8 +29,8 @@ class AccF32:
     0.0
 
     """
-    def __init__(self, acc: float = 0.0) -> None: ...
 
+    def __init__(self, acc: float = 0.0) -> None: ...
     def reset(self) -> None:
         """Zero the accumulator, restoring the same state as a fresh
         ``AccF32(0.0)`` — regardless of the value supplied to
@@ -323,7 +323,6 @@ class AccF32:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "AccF32":
         """Enter a context manager, returning this object.
 
@@ -386,8 +385,8 @@ class AccCf64:
     0j
 
     """
-    def __init__(self, acc: complex = 0j) -> None: ...
 
+    def __init__(self, acc: complex = 0j) -> None: ...
     def reset(self) -> None:
         """Zero the accumulator, restoring the same state as a fresh
         ``AccCf64(0j)`` — regardless of the value supplied to
@@ -682,7 +681,6 @@ class AccCf64:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "AccCf64":
         """Enter a context manager, returning this object.
 
@@ -738,13 +736,13 @@ class AccTrace:
     (8, 0)
 
     """
+
     def __init__(
         self,
         n: int = 1024,
         mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean",
         alpha: float = 0.1,
     ) -> None: ...
-
     def accumulate(self, p: NDArray[np.float32]) -> None:
         """Fold one length-n frame into the running trace.
 
@@ -886,7 +884,6 @@ class AccTrace:
         """EMA smoothing factor (exp mode)."""
     @alpha.setter
     def alpha(self, value: float) -> None: ...
-
     @property
     def count(self) -> int:
         """Frames folded in so far."""
@@ -906,7 +903,6 @@ class AccTrace:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "AccTrace":
         """Enter a context manager, returning this object.

@@ -31,6 +31,7 @@ class DopplerChannel:
     ... )
 
     """
+
     def __init__(
         self,
         fs: float = 1000000.0,
@@ -38,7 +39,6 @@ class DopplerChannel:
         doppler_ppm: float = 0.0,
         doppler_rate_ppm_s: float = 0.0,
     ) -> None: ...
-
     def execute(
         self,
         x: NDArray[np.complex64],
@@ -221,7 +221,6 @@ class DopplerChannel:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "DopplerChannel":
         """Enter a context manager, returning this object.

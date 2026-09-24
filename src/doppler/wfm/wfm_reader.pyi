@@ -70,13 +70,13 @@ class Reader:
     >>> tmp.cleanup()
 
     """
+
     def __init__(
         self,
         path: str | os.PathLike,
         sample_type: Literal["auto", "cf32", "cf64", "ci32", "ci16", "ci8"] = "auto",
         endian: Literal["le", "be"] = "le",
     ) -> None: ...
-
     def reset(self) -> None:
         """Rewind to the first sample of the capture.
 
@@ -408,7 +408,6 @@ class Reader:
         """
     @follow_timeout_ms.setter
     def follow_timeout_ms(self, value: int) -> None: ...
-
     @property
     def follow_grace_ms(self) -> int:
         """How long `read_follow()` keeps waiting for the writer's
@@ -421,7 +420,6 @@ class Reader:
         """
     @follow_grace_ms.setter
     def follow_grace_ms(self, value: int) -> None: ...
-
     @property
     def ending(self) -> Literal["none", "eof", "timeout", "interrupted"]:
         """Why the last `read_follow()` came back empty -- `"none"` while the
@@ -603,7 +601,6 @@ class Reader:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Reader":
         """Enter a context manager, returning this object.

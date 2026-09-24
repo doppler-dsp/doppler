@@ -27,8 +27,8 @@ class DelayCf64:
     4
 
     """
-    def __init__(self, num_taps: int = 1) -> None: ...
 
+    def __init__(self, num_taps: int = 1) -> None: ...
     def reset(self) -> None:
         """Reset the delay line to its post-create state. Zeroes the entire
         dual buffer and resets the write pointer to 0, discarding all
@@ -269,7 +269,6 @@ class DelayCf64:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "DelayCf64":
         """Enter a context manager, returning this object.

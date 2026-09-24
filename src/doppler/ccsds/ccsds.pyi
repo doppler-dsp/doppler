@@ -4,8 +4,8 @@ from numpy.typing import NDArray
 def asm_bits() -> NDArray[np.uint8]:
     """The CCSDS Attached Sync Marker, 0x1ACFFC1D, as 32 unpacked bits —
     `out[0]` is the first bit on the wire (the top of 0x1A). Pass it to
-    `doppler.detection.SyncFinder` to acquire a CADU in a bit stream; it is
-    NOT randomised, so it reads the same in every frame and in exactly one
+    `doppler.detection.SyncFinder` to acquire a CADU in a bit stream; it is NOT
+    randomised, so it reads the same in every frame and in exactly one
     polarity, which is what makes it the thing that reports a 180-degree
     carrier ambiguity.
 

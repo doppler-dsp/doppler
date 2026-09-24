@@ -25,12 +25,12 @@ class InterpolatedTable:
     3
 
     """
+
     def __init__(
         self,
         table: NDArray[np.complex128],
         method: Literal["floor", "nearest", "linear"] = "linear",
     ) -> None: ...
-
     def reset(self) -> None:
         """No-op: InterpolatedTable is purely a function of (table, method,
         point) with no running state to reset.
@@ -115,7 +115,6 @@ class InterpolatedTable:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "InterpolatedTable":
         """Enter a context manager, returning this object.

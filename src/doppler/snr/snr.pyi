@@ -83,8 +83,7 @@ def snr_data_aided_db_series(
     sign_bits: NDArray[np.uint8],
     window: int,
 ) -> NDArray[np.float64]:
-    """Sliding-window data-aided Es/N0 (dB) vs index, for visualizing
-    drift.
+    """Sliding-window data-aided Es/N0 (dB) vs index, for visualizing drift.
 
     Same estimator as snr_data_aided_db(), applied to a ``[i - window/2, i
     + window/2]`` window centered (clamped at the edges) on each output
@@ -110,8 +109,7 @@ def snr_m2m4_db_series(
     x: NDArray[np.complex64],
     window: int,
 ) -> NDArray[np.float64]:
-    """Sliding-window blind (M2M4) Es/N0 (dB) vs index, for visualizing
-    drift.
+    """Sliding-window blind (M2M4) Es/N0 (dB) vs index, for visualizing drift.
 
     Same estimator as snr_m2m4_db(), applied to a ``[i - window/2, i +
     window/2]`` window centered (clamped at the edges) on each output

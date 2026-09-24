@@ -33,13 +33,13 @@ class ConvEncoder:
     16
 
     """
+
     def __init__(
         self,
         poly: NDArray[np.uint32],
         k: int = 7,
         invert: int = 0,
     ) -> None: ...
-
     def reset(self) -> None:
         """Return the register to all-zero, keeping the code.
 
@@ -181,7 +181,6 @@ class ConvEncoder:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "ConvEncoder":
         """Enter a context manager, returning this object.
 
@@ -248,6 +247,7 @@ class Viterbi:
     dtype('uint8')
 
     """
+
     def __init__(
         self,
         poly: NDArray[np.uint32],
@@ -255,7 +255,6 @@ class Viterbi:
         invert: int = 0,
         depth: int = 35,
     ) -> None: ...
-
     def reset(self) -> None:
         """Return to the all-zero start state, discarding the traceback.
 
@@ -409,7 +408,6 @@ class Viterbi:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "Viterbi":
         """Enter a context manager, returning this object.
 
@@ -490,6 +488,7 @@ class ReedSolomon:
     15
 
     """
+
     def __init__(
         self,
         nroots: int,
@@ -498,7 +497,6 @@ class ReedSolomon:
         first_root: int = 1,
         root_stride: int = 1,
     ) -> None: ...
-
     def encode(
         self,
         x: NDArray[np.uint8],
@@ -760,7 +758,6 @@ class ReedSolomon:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "ReedSolomon":
         """Enter a context manager, returning this object.
 
@@ -826,13 +823,13 @@ class Interleaver:
     (12, 3, 4)
 
     """
+
     def __init__(
         self,
         rows: int = ...,
         cols: int = ...,
         unit_bits: int = 1,
     ) -> None: ...
-
     def reset(self) -> None:
         """No-op; an interleaver carries nothing between calls.
 
@@ -1085,7 +1082,6 @@ class Interleaver:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "Interleaver":
         """Enter a context manager, returning this object.
 
@@ -1152,13 +1148,13 @@ class Deinterleaver:
     True
 
     """
+
     def __init__(
         self,
         rows: int = ...,
         cols: int = ...,
         unit_bits: int = 1,
     ) -> None: ...
-
     def reset(self) -> None:
         """No-op; an interleaver carries nothing between calls.
 
@@ -1344,7 +1340,6 @@ class Deinterleaver:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Deinterleaver":
         """Enter a context manager, returning this object.

@@ -352,7 +352,38 @@ static PyTypeObject PlanType = {
   .tp_dealloc                             = (destructor)Plan_dealloc,
   .tp_getset                              = Plan_getset,
   .tp_methods                             = Plan_methods,
-  .tp_doc = PyDoc_STR ("Plan — handle over `wfm_plan`."),
+  .tp_doc                                 = PyDoc_STR (
+      "Prepare a Plan from a composer spec JSON (Composer.to_json()).\n"
+      "\n"
+      "Parses + resolves the scene, validates scope per segment, then renders "
+      "and\n"
+      "caches each segment's clean signal ON-time at gain 1. Returns NULL on "
+      "parse\n"
+      "failure or an out-of-scope spec (continuous/repeat scene, a ranged "
+      "on-time,\n"
+      "a ranged per-source field, a non-trailing/multiple noise source within "
+      "a\n"
+      "segment, or a source carrying clock Doppler).\n"
+      "\n"
+      "The last is a refusal rather than a limitation to work around. This "
+      "cache\n"
+      "holds one source's clean ON-time in isolation; a Doppler channel is a\n"
+      "resampler with state that runs through the gaps too, so what a burst\n"
+      "renders as depends on the leading delay and on the previous instance's "
+      "gap,\n"
+      "and the cache has nowhere to keep that. It also puts the AWGN outside "
+      "the\n"
+      "channel where compose() puts it inside. Both were measured against\n"
+      "compose(), not assumed -- see the note in plan_build(). Refusing "
+      "beats\n"
+      "caching a render that differs from compose() invisibly; teaching the "
+      "cache\n"
+      "to carry a channel's history is gh-1109.\n"
+      "\n"
+      "Parameters\n"
+      "----------\n"
+      "spec_json : str\n"
+      "    A NUL-terminated composer spec JSON string.\n"),
 };
 
 static PyObject *
@@ -407,9 +438,9 @@ wfm_plan_PlanFromFile (PyObject *_mod, PyObject *args)
 
 static PyMethodDef wfm_plan_functions[]
     = { { "PlanFromBlob", (PyCFunction)wfm_plan_PlanFromBlob, METH_VARARGS,
-          "Construct a Plan via wfm_plan_restore." },
+          "Construct a Plan via wfm_plan_restore.\n" },
         { "PlanFromFile", (PyCFunction)wfm_plan_PlanFromFile, METH_VARARGS,
-          "Construct a Plan via wfm_plan_load." },
+          "Construct a Plan via wfm_plan_load.\n" },
         { NULL, NULL, 0, NULL } };
 
 static struct PyModuleDef _moduledef = { PyModuleDef_HEAD_INIT,

@@ -22,8 +22,8 @@ class F32ToI8:
     >>> obj = F32ToI8(scale=128.0)
 
     """
-    def __init__(self, scale: float = 128.0) -> None: ...
 
+    def __init__(self, scale: float = 128.0) -> None: ...
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
@@ -176,7 +176,6 @@ class F32ToI8:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "F32ToI8":
         """Enter a context manager, returning this object.
 
@@ -230,8 +229,8 @@ class F32ToI16:
     >>> obj = F32ToI16(scale=32768.0)
 
     """
-    def __init__(self, scale: float = 32768.0) -> None: ...
 
+    def __init__(self, scale: float = 32768.0) -> None: ...
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
@@ -384,7 +383,6 @@ class F32ToI16:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "F32ToI16":
         """Enter a context manager, returning this object.
 
@@ -438,8 +436,8 @@ class F32ToI32:
     >>> obj = F32ToI32(scale=2147483648.0)
 
     """
-    def __init__(self, scale: float = 2147483648.0) -> None: ...
 
+    def __init__(self, scale: float = 2147483648.0) -> None: ...
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
@@ -600,7 +598,6 @@ class F32ToI32:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "F32ToI32":
         """Enter a context manager, returning this object.
 
@@ -653,8 +650,8 @@ class I8ToF32:
     >>> obj = I8ToF32(scale=128.0)
 
     """
-    def __init__(self, scale: float = 128.0) -> None: ...
 
+    def __init__(self, scale: float = 128.0) -> None: ...
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
 
@@ -742,7 +739,6 @@ class I8ToF32:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "I8ToF32":
         """Enter a context manager, returning this object.
 
@@ -796,8 +792,8 @@ class I16ToF32:
     >>> obj = I16ToF32(scale=32768.0)
 
     """
-    def __init__(self, scale: float = 32768.0) -> None: ...
 
+    def __init__(self, scale: float = 32768.0) -> None: ...
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
 
@@ -886,7 +882,6 @@ class I16ToF32:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "I16ToF32":
         """Enter a context manager, returning this object.
 
@@ -940,8 +935,8 @@ class I32ToF32:
     >>> obj = I32ToF32(scale=2147483648.0)
 
     """
-    def __init__(self, scale: float = 2147483648.0) -> None: ...
 
+    def __init__(self, scale: float = 2147483648.0) -> None: ...
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
 
@@ -1030,7 +1025,6 @@ class I32ToF32:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "I32ToF32":
         """Enter a context manager, returning this object.
 
@@ -1084,8 +1078,8 @@ class F32ToI16U32:
     >>> obj = F32ToI16U32(scale=32768.0)
 
     """
-    def __init__(self, scale: float = 32768.0) -> None: ...
 
+    def __init__(self, scale: float = 32768.0) -> None: ...
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
@@ -1235,7 +1229,6 @@ class F32ToI16U32:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "F32ToI16U32":
         """Enter a context manager, returning this object.
 
@@ -1289,8 +1282,8 @@ class F32ToI16U64:
     >>> obj = F32ToI16U64(scale=32768.0)
 
     """
-    def __init__(self, scale: float = 32768.0) -> None: ...
 
+    def __init__(self, scale: float = 32768.0) -> None: ...
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
@@ -1440,7 +1433,6 @@ class F32ToI16U64:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "F32ToI16U64":
         """Enter a context manager, returning this object.
 
@@ -1493,8 +1485,8 @@ class I16U32ToF32:
     >>> obj = I16U32ToF32(scale=32768.0)
 
     """
-    def __init__(self, scale: float = 32768.0) -> None: ...
 
+    def __init__(self, scale: float = 32768.0) -> None: ...
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
 
@@ -1582,7 +1574,6 @@ class I16U32ToF32:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "I16U32ToF32":
         """Enter a context manager, returning this object.
 
@@ -1635,8 +1626,8 @@ class I16U64ToF32:
     >>> obj = I16U64ToF32(scale=32768.0)
 
     """
-    def __init__(self, scale: float = 32768.0) -> None: ...
 
+    def __init__(self, scale: float = 32768.0) -> None: ...
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
 
@@ -1724,7 +1715,6 @@ class I16U64ToF32:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "I16U64ToF32":
         """Enter a context manager, returning this object.
 
@@ -1778,8 +1768,8 @@ class F32ToUQ15:
     >>> obj = F32ToUQ15(scale=32768.0)
 
     """
-    def __init__(self, scale: float = 32768.0) -> None: ...
 
+    def __init__(self, scale: float = 32768.0) -> None: ...
     def reset(self) -> None:
         """Clear the sticky clip flag, starting a fresh saturation history.
 
@@ -1931,7 +1921,6 @@ class F32ToUQ15:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "F32ToUQ15":
         """Enter a context manager, returning this object.
 
@@ -1985,8 +1974,8 @@ class UQ15ToF32:
     >>> obj = UQ15ToF32(scale=32768.0)
 
     """
-    def __init__(self, scale: float = 32768.0) -> None: ...
 
+    def __init__(self, scale: float = 32768.0) -> None: ...
     def reset(self) -> None:
         """No-op reset, provided only for lifecycle symmetry.
 
@@ -2076,7 +2065,6 @@ class UQ15ToF32:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "UQ15ToF32":
         """Enter a context manager, returning this object.
 
@@ -2134,13 +2122,13 @@ class ADC:
     >>> obj = ADC(bits=16, dbfs=-10.0, dithering=0)
 
     """
+
     def __init__(
         self,
         bits: int = 16,
         dbfs: float = -10.0,
         dithering: int = 0,
     ) -> None: ...
-
     def reset(self) -> None:
         """Clear the clip flag and re-seed the dither PRNG for a reproducible
         run.
@@ -2305,7 +2293,6 @@ class ADC:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "ADC":
         """Enter a context manager, returning this object.
 
@@ -2346,13 +2333,13 @@ def int_to_bin(
     out: NDArray[np.uint8],
     bitorder: int,
 ) -> int:
-    """Expand the low n_bits of an integer to unpacked bits, one per byte.
-    The form a frame field literal usually wants: exact, and with no
-    failure mode a typo can reach, unlike the string form. bitorder is
-    DP_BITORDER_BIG (0, MSB of each byte first -- as written) or
-    DP_BITORDER_LITTLE (1), numpy's `bitorder` convention for this
-    operation, and NOT the BLUE writer's endian (le/be) which selects a
-    file's BYTE order. Returns the bits written, or 0 on refusal.
+    """Expand the low n_bits of an integer to unpacked bits, one per byte. The
+    form a frame field literal usually wants: exact, and with no failure mode a
+    typo can reach, unlike the string form. bitorder is DP_BITORDER_BIG (0, MSB
+    of each byte first -- as written) or DP_BITORDER_LITTLE (1), numpy's
+    `bitorder` convention for this operation, and NOT the BLUE writer's endian
+    (le/be) which selects a file's BYTE order. Returns the bits written, or 0
+    on refusal.
 
     The form a frame field literal usually wants, and the one to reach for
     first: exact, compiler-checked, with no failure mode a typo can reach.
@@ -2393,12 +2380,12 @@ def int_to_bin(
     """
 
 def hex_to_bin(hex: str, out: NDArray[np.uint8], bitorder: int) -> int:
-    """Expand a hex string to unpacked bits, one per byte. For what
-    int_to_bin cannot serve: a literal wider than 64 bits, or one arriving
-    as TEXT from a CLI flag or a JSON record. An odd number of digits is
-    accepted and yields a 4-bit tail. A bad digit is a REFUSAL, never a
-    silently shortened field -- a marker that shortens syncs to nothing.
-    Returns the bits written, or 0 on refusal.
+    """Expand a hex string to unpacked bits, one per byte. For what int_to_bin
+    cannot serve: a literal wider than 64 bits, or one arriving as TEXT from a
+    CLI flag or a JSON record. An odd number of digits is accepted and yields a
+    4-bit tail. A bad digit is a REFUSAL, never a silently shortened field -- a
+    marker that shortens syncs to nothing. Returns the bits written, or 0 on
+    refusal.
 
     For what int_to_bin cannot serve: a literal wider than 64 bits, or one
     arriving as TEXT from a CLI flag or a JSON record. Each digit
@@ -2436,8 +2423,7 @@ def hex_to_bin(hex: str, out: NDArray[np.uint8], bitorder: int) -> int:
     """
 
 def bin_to_int(bits: NDArray[np.uint8], bitorder: int) -> int:
-    """Read unpacked bits back into an integer -- the inverse of
-    int_to_bin.
+    """Read unpacked bits back into an integer -- the inverse of int_to_bin.
 
     Returns the value rather than a status, because that is the shape a
     binding can carry. 0 is therefore both "the value zero" and "refused",
@@ -2473,8 +2459,8 @@ def bin_to_hex(
     bitorder: int,
 ) -> int:
     """Render unpacked bits back to hex digits -- the exact inverse of
-    hex_to_bin. The digits come back as ASCII BYTES rather than a str: jm
-    has no string out-parameter for a module function
+    hex_to_bin. The digits come back as ASCII BYTES rather than a str: jm has
+    no string out-parameter for a module function
     (just-buildit/just-makeit#1180), and uint8_t is the same type as the
     unsigned char a C caller would use. Decode with bytes(out).decode() in
     Python. n_bits must be a multiple of 4. Returns the digits written, not
@@ -2516,12 +2502,12 @@ def bin_to_hex(
     """
 
 def bin_to_nrz(bits: NDArray[np.uint8], out: NDArray[np.float32]) -> int:
-    """Map unpacked bits to bipolar NRZ symbols: bit 0 -> +1.0, bit 1 ->
-    -1.0. That is `1 - 2*b`, the convention already used across doppler
-    (qpsk_map.c and the despreader/ber doctests), NOT the opposite sign --
-    a mapper that disagreed with the receiver's would decode every bit
-    inverted while looking perfectly locked. Any non-zero byte reads as a
-    set bit. Returns the symbols written, or 0 on refusal.
+    """Map unpacked bits to bipolar NRZ symbols: bit 0 -> +1.0, bit 1 -> -1.0.
+    That is `1 - 2*b`, the convention already used across doppler (qpsk_map.c
+    and the despreader/ber doctests), NOT the opposite sign -- a mapper that
+    disagreed with the receiver's would decode every bit inverted while looking
+    perfectly locked. Any non-zero byte reads as a set bit. Returns the symbols
+    written, or 0 on refusal.
 
     That is `1 - 2*b`, and the convention's HOME is `mpsk_core.h`: BPSK is
     M-PSK at m = 2, where phi0 is 0, so label 0 lands at +1 and label 1 at
@@ -2557,11 +2543,10 @@ def bin_to_nrz(bits: NDArray[np.uint8], out: NDArray[np.float32]) -> int:
     """
 
 def nrz_to_bin(nrz: NDArray[np.float32], out: NDArray[np.uint8]) -> int:
-    """Hard-decide bipolar NRZ symbols back to unpacked bits -- the inverse
-    of bin_to_nrz. Negative is a 1, zero and positive are a 0, matching `1
-    - 2*b`. Exactly zero is a 0 rather than a coin toss, so the mapping is
-    total and a round trip is exact. Returns the bits written, or 0 on
-    refusal.
+    """Hard-decide bipolar NRZ symbols back to unpacked bits -- the inverse of
+    bin_to_nrz. Negative is a 1, zero and positive are a 0, matching `1 - 2*b`.
+    Exactly zero is a 0 rather than a coin toss, so the mapping is total and a
+    round trip is exact. Returns the bits written, or 0 on refusal.
 
     Negative is a 1; zero and positive are a 0, matching `1 - 2*b`. Exactly
     zero decides to 0 rather than a coin toss, so the mapping is TOTAL and

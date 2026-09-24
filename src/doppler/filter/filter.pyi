@@ -28,8 +28,8 @@ class FIR:
     False
 
     """
-    def __init__(self, taps: NDArray[np.complex64]) -> None: ...
 
+    def __init__(self, taps: NDArray[np.complex64]) -> None: ...
     def reset(self) -> None:
         """Zero the delay line; preserve taps and scratch capacity. After a
         reset the filter behaves identically to a freshly constructed instance
@@ -190,7 +190,6 @@ class FIR:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "FIR":
         """Enter a context manager, returning this object.
 
@@ -244,8 +243,8 @@ class MovingAverage:
     >>> obj = MovingAverage(len=4, gain=1.0)
 
     """
-    def __init__(self, len: int = 4, gain: float = 1.0) -> None: ...
 
+    def __init__(self, len: int = 4, gain: float = 1.0) -> None: ...
     def step(self, x: complex) -> complex:
         """Slide the window by one sample; return the gained moving average.
 
@@ -391,7 +390,6 @@ class MovingAverage:
         """Current output gain."""
     @gain.setter
     def gain(self, value: float) -> None: ...
-
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
@@ -403,7 +401,6 @@ class MovingAverage:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "MovingAverage":
         """Enter a context manager, returning this object.

@@ -178,6 +178,7 @@ class Synth:
     fs : float, default 1.0
         Sample rate in Hz — one per segment (all sources share it).
     """
+
     def __init__(
         self,
         type: str = ...,
@@ -492,6 +493,7 @@ class Segment:
         gaps are hard zeros.
         One of ``"auto"``, ``"off"``.
     """
+
     sources: list[Synth]
     fs: float
     num_samples: int | tuple[int, int]
@@ -594,6 +596,7 @@ class Segment:
 @disjoint_base
 class Timeline:
     """Timeline."""
+
     segments: list[Segment]
     def __init__(self, segments: list[Segment]) -> None: ...
     def add(self, *segments: Segment) -> Timeline:
@@ -615,6 +618,7 @@ class Composer:
     continuous : bool, default False
         Never finish; execute always returns the requested count.
     """
+
     segments: list[Segment]
     repeat: bool
     continuous: bool

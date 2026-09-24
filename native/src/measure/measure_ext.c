@@ -88,7 +88,7 @@ _bind_dp_coherent_freq (PyObject *self, PyObject *args, PyObject *kwds)
 static PyMethodDef measure_module_methods[] = {
   { "measure_min_samples", (PyCFunction)(void *)_bind_measure_min_samples,
     METH_VARARGS | METH_KEYWORDS,
-    "Samples for a target RBW (auto Kaiser from bits/dynamic_range_db;\n"
+    "Samples for a target RBW (auto Kaiser from bits/dynamic_range_db; "
     "target_rbw<=0 -> span/1000).\n"
     "\n"
     "Plans a capture for the same auto-Kaiser window the measurement objects\n"
@@ -146,8 +146,7 @@ static PyMethodDef measure_module_methods[] = {
     "    Output.\n" },
   { "dp_coherent_freq", (PyCFunction)(void *)_bind_dp_coherent_freq,
     METH_VARARGS | METH_KEYWORDS,
-    "Nearest leakage-free coherent test frequency (J cycles, J coprime\n"
-    "N).\n"
+    "Nearest leakage-free coherent test frequency (J cycles, J coprime N).\n"
     "\n"
     "Snaps `f_target` to `J * fs / N` where J is the nearest integer cycle\n"
     "count that is coprime with N — an integer number of cycles in the\n"

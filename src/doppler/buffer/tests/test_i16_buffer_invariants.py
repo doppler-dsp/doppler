@@ -2,7 +2,7 @@
 
 DO NOT EDIT: `just-makeit apply` rewrites this file. It is jm's,
 not yours -- your own tests belong beside it in
-test_i16_buffer.py, which jm writes once and never touches again.
+test_i16_buffer.py, once you delete its `# jm:generated` line.
 
 What you read is exactly what you can write. Both faces take their
 element from ONE `[[i16_buffer.records]]` declaration, so this asserts

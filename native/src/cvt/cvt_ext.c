@@ -268,12 +268,12 @@ _bind_nrz_to_bin (PyObject *self, PyObject *args, PyObject *kwds)
 static PyMethodDef cvt_module_methods[] = {
   { "int_to_bin", (PyCFunction)(void *)_bind_int_to_bin,
     METH_VARARGS | METH_KEYWORDS,
-    "Expand the low n_bits of an integer to unpacked bits, one per byte.\n"
-    "The form a frame field literal usually wants: exact, and with no\n"
-    "failure mode a typo can reach, unlike the string form. bitorder is\n"
-    "DP_BITORDER_BIG (0, MSB of each byte first -- as written) or\n"
-    "DP_BITORDER_LITTLE (1), numpy's `bitorder` convention for this\n"
-    "operation, and NOT the BLUE writer's endian (le/be) which selects a\n"
+    "Expand the low n_bits of an integer to unpacked bits, one per byte. The "
+    "form a frame field literal usually wants: exact, and with no failure "
+    "mode a typo can reach, unlike the string form. bitorder is "
+    "DP_BITORDER_BIG (0, MSB of each byte first -- as written) or "
+    "DP_BITORDER_LITTLE (1), numpy's `bitorder` convention for this "
+    "operation, and NOT the BLUE writer's endian (le/be) which selects a "
     "file's BYTE order. Returns the bits written, or 0 on refusal.\n"
     "\n"
     "The form a frame field literal usually wants, and the one to reach for\n"
@@ -314,12 +314,12 @@ static PyMethodDef cvt_module_methods[] = {
     "[0, 0, 0, 1, 1, 0, 1, 0]\n" },
   { "hex_to_bin", (PyCFunction)(void *)_bind_hex_to_bin,
     METH_VARARGS | METH_KEYWORDS,
-    "Expand a hex string to unpacked bits, one per byte. For what\n"
-    "int_to_bin cannot serve: a literal wider than 64 bits, or one arriving\n"
-    "as TEXT from a CLI flag or a JSON record. An odd number of digits is\n"
-    "accepted and yields a 4-bit tail. A bad digit is a REFUSAL, never a\n"
-    "silently shortened field -- a marker that shortens syncs to nothing.\n"
-    "Returns the bits written, or 0 on refusal.\n"
+    "Expand a hex string to unpacked bits, one per byte. For what int_to_bin "
+    "cannot serve: a literal wider than 64 bits, or one arriving as TEXT from "
+    "a CLI flag or a JSON record. An odd number of digits is accepted and "
+    "yields a 4-bit tail. A bad digit is a REFUSAL, never a silently "
+    "shortened field -- a marker that shortens syncs to nothing. Returns the "
+    "bits written, or 0 on refusal.\n"
     "\n"
     "For what int_to_bin cannot serve: a literal wider than 64 bits, or one\n"
     "arriving as TEXT from a CLI flag or a JSON record. Each digit\n"
@@ -356,8 +356,7 @@ static PyMethodDef cvt_module_methods[] = {
     "[0, 0, 0, 1, 1, 0, 1, 0]\n" },
   { "bin_to_int", (PyCFunction)(void *)_bind_bin_to_int,
     METH_VARARGS | METH_KEYWORDS,
-    "Read unpacked bits back into an integer -- the inverse of\n"
-    "int_to_bin.\n"
+    "Read unpacked bits back into an integer -- the inverse of int_to_bin.\n"
     "\n"
     "Returns the value rather than a status, because that is the shape a\n"
     "binding can carry. 0 is therefore both \"the value zero\" and "
@@ -387,12 +386,12 @@ static PyMethodDef cvt_module_methods[] = {
     "'0x1a'\n" },
   { "bin_to_hex", (PyCFunction)(void *)_bind_bin_to_hex,
     METH_VARARGS | METH_KEYWORDS,
-    "Render unpacked bits back to hex digits -- the exact inverse of\n"
-    "hex_to_bin. The digits come back as ASCII BYTES rather than a str: jm\n"
-    "has no string out-parameter for a module function\n"
-    "(just-buildit/just-makeit#1180), and uint8_t is the same type as the\n"
-    "unsigned char a C caller would use. Decode with bytes(out).decode() in\n"
-    "Python. n_bits must be a multiple of 4. Returns the digits written, not\n"
+    "Render unpacked bits back to hex digits -- the exact inverse of "
+    "hex_to_bin. The digits come back as ASCII BYTES rather than a str: jm "
+    "has no string out-parameter for a module function "
+    "(just-buildit/just-makeit#1180), and uint8_t is the same type as the "
+    "unsigned char a C caller would use. Decode with bytes(out).decode() in "
+    "Python. n_bits must be a multiple of 4. Returns the digits written, not "
     "counting the NUL, or 0 on refusal.\n"
     "\n"
     "The digits come back as ASCII BYTES rather than a string: jm has no\n"
@@ -429,11 +428,11 @@ static PyMethodDef cvt_module_methods[] = {
     "'1acffc1d'\n" },
   { "bin_to_nrz", (PyCFunction)(void *)_bind_bin_to_nrz,
     METH_VARARGS | METH_KEYWORDS,
-    "Map unpacked bits to bipolar NRZ symbols: bit 0 -> +1.0, bit 1 ->\n"
-    "-1.0. That is `1 - 2*b`, the convention already used across doppler\n"
-    "(qpsk_map.c and the despreader/ber doctests), NOT the opposite sign --\n"
-    "a mapper that disagreed with the receiver's would decode every bit\n"
-    "inverted while looking perfectly locked. Any non-zero byte reads as a\n"
+    "Map unpacked bits to bipolar NRZ symbols: bit 0 -> +1.0, bit 1 -> -1.0. "
+    "That is `1 - 2*b`, the convention already used across doppler "
+    "(qpsk_map.c and the despreader/ber doctests), NOT the opposite sign -- a "
+    "mapper that disagreed with the receiver's would decode every bit "
+    "inverted while looking perfectly locked. Any non-zero byte reads as a "
     "set bit. Returns the symbols written, or 0 on refusal.\n"
     "\n"
     "That is `1 - 2*b`, and the convention's HOME is `mpsk_core.h`: BPSK is\n"
@@ -468,10 +467,10 @@ static PyMethodDef cvt_module_methods[] = {
     "[1.0, -1.0, -1.0, 1.0]\n" },
   { "nrz_to_bin", (PyCFunction)(void *)_bind_nrz_to_bin,
     METH_VARARGS | METH_KEYWORDS,
-    "Hard-decide bipolar NRZ symbols back to unpacked bits -- the inverse\n"
-    "of bin_to_nrz. Negative is a 1, zero and positive are a 0, matching `1\n"
-    "- 2*b`. Exactly zero is a 0 rather than a coin toss, so the mapping is\n"
-    "total and a round trip is exact. Returns the bits written, or 0 on\n"
+    "Hard-decide bipolar NRZ symbols back to unpacked bits -- the inverse of "
+    "bin_to_nrz. Negative is a 1, zero and positive are a 0, matching `1 - "
+    "2*b`. Exactly zero is a 0 rather than a coin toss, so the mapping is "
+    "total and a round trip is exact. Returns the bits written, or 0 on "
     "refusal.\n"
     "\n"
     "Negative is a 1; zero and positive are a 0, matching `1 - 2*b`. Exactly\n"

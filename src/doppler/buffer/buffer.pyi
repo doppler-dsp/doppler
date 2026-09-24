@@ -34,8 +34,8 @@ class F32Buffer:
     True
 
     """
-    def __init__(self, capacity: int) -> None: ...
 
+    def __init__(self, capacity: int) -> None: ...
     def write(self, x: NDArray[np.complex64]) -> bool:
         """Write samples into the buffer without blocking.
 
@@ -357,7 +357,6 @@ class F32Buffer:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "F32Buffer":
         """Enter a context manager, returning this object.
 
@@ -423,8 +422,8 @@ class F64Buffer:
     True
 
     """
-    def __init__(self, capacity: int) -> None: ...
 
+    def __init__(self, capacity: int) -> None: ...
     def write(self, x: NDArray[np.complex128]) -> bool:
         """Write complex128 samples into the buffer without blocking.
 
@@ -736,7 +735,6 @@ class F64Buffer:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "F64Buffer":
         """Enter a context manager, returning this object.
 
@@ -806,8 +804,8 @@ class I16Buffer:
     [20, 40]
 
     """
-    def __init__(self, capacity: int) -> None: ...
 
+    def __init__(self, capacity: int) -> None: ...
     def write(self, x: NDArray[Any]) -> bool:
         """Write IQ samples into the buffer without blocking.
 
@@ -1131,7 +1129,6 @@ class I16Buffer:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "I16Buffer":
         """Enter a context manager, returning this object.

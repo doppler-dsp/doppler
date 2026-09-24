@@ -23,12 +23,12 @@ target_link_libraries(specan_core PUBLIC
     RateConverter_core
     resamp_core
     hbdecim_core
-    hbdecim_r2c_core
     cic_core
     fir_core
     resample_core
     agc_core
     dp_tlm_core
+    hbdecim_r2c_core
     psd_core
     fft_core
     spectral_core
@@ -43,12 +43,12 @@ target_link_libraries(test_specan_core
     RateConverter_core
     resamp_core
     hbdecim_core
-    hbdecim_r2c_core
     cic_core
     fir_core
     resample_core
     agc_core
     dp_tlm_core
+    hbdecim_r2c_core
     psd_core
     fft_core
     spectral_core
@@ -67,12 +67,12 @@ target_link_libraries(bench_specan_core
     RateConverter_core
     resamp_core
     hbdecim_core
-    hbdecim_r2c_core
     cic_core
     fir_core
     resample_core
     agc_core
     dp_tlm_core
+    hbdecim_r2c_core
     psd_core
     fft_core
     spectral_core

@@ -31,13 +31,13 @@ class LoopFilter:
     >>> obj = LoopFilter(bn=0.01, zeta=0.707, t=1.0)
 
     """
+
     def __init__(
         self,
         bn: float = 0.01,
         zeta: float = 0.707,
         t: float = 1.0,
     ) -> None: ...
-
     def step(self, x: float) -> float:
         """Advance the loop one update with error x and return the control
         value the tracker should apply.
@@ -234,7 +234,6 @@ class LoopFilter:
         """integrator memory = running rate/freq estimate."""
     @integ.setter
     def integ(self, value: float) -> None: ...
-
     @property
     def bn(self) -> float:
         """loop noise bandwidth, normalized cycles/sample."""
@@ -258,7 +257,6 @@ class LoopFilter:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "LoopFilter":
         """Enter a context manager, returning this object.
@@ -325,6 +323,7 @@ class Costas:
     ... )
 
     """
+
     def __init__(
         self,
         bn: float = 0.05,
@@ -333,7 +332,6 @@ class Costas:
         tsamps: int = 64,
         bn_fll: float = 0.0,
     ) -> None: ...
-
     def steps(
         self,
         x: NDArray[np.complex64],
@@ -619,13 +617,11 @@ class Costas:
         """PLL loop noise bandwidth (retained)."""
     @bn.setter
     def bn(self, value: float) -> None: ...
-
     @property
     def norm_freq(self) -> float:
         """Norm freq."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def lock_metric(self) -> float:
         """EMA of |Re P|/|P| (1 = locked)."""
@@ -646,7 +642,6 @@ class Costas:
         """FLL-assist bandwidth (0 = pure PLL)."""
     @bn_fll.setter
     def bn_fll(self, value: float) -> None: ...
-
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
@@ -658,7 +653,6 @@ class Costas:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Costas":
         """Enter a context manager, returning this object.
@@ -739,6 +733,7 @@ class Dll:
     1.0
 
     """
+
     def __init__(
         self,
         code: NDArray[np.uint8],
@@ -749,7 +744,6 @@ class Dll:
         spacing: float = 0.5,
         segments: int = 1,
     ) -> None: ...
-
     def steps(
         self,
         x: NDArray[np.complex64],
@@ -1424,7 +1418,6 @@ class Dll:
         """loop noise bandwidth (retained)."""
     @bn.setter
     def bn(self, value: float) -> None: ...
-
     @property
     def code_phase(self) -> float:
         """Code phase."""
@@ -1477,7 +1470,6 @@ class Dll:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Dll":
         """Enter a context manager, returning this object.
@@ -1547,6 +1539,7 @@ class SymbolSync:
     ... )
 
     """
+
     def __init__(
         self,
         sps: int = 4,
@@ -1555,7 +1548,6 @@ class SymbolSync:
         order: Literal["linear", "parabolic", "cubic"] = "cubic",
         ted: Literal["gardner", "dttl"] = "gardner",
     ) -> None: ...
-
     def steps(
         self,
         x: NDArray[np.complex64],
@@ -1906,7 +1898,6 @@ class SymbolSync:
         """loop noise bandwidth (retained)."""
     @bn.setter
     def bn(self, value: float) -> None: ...
-
     @property
     def timing_error(self) -> float:
         """Timing error."""
@@ -1941,7 +1932,6 @@ class SymbolSync:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "SymbolSync":
         """Enter a context manager, returning this object.
@@ -2049,6 +2039,7 @@ class RateSync:
     ... )
 
     """
+
     def __init__(
         self,
         sps: float = 4.0,
@@ -2061,7 +2052,6 @@ class RateSync:
         zeta: float = 0.707,
         ted: Literal["gardner", "dttl"] = "gardner",
     ) -> None: ...
-
     def steps(
         self,
         x: NDArray[np.complex64],
@@ -2348,7 +2338,6 @@ class RateSync:
         """
     @bn.setter
     def bn(self, value: float) -> None: ...
-
     @property
     def timing_error(self) -> float:
         """Last normalised TED error — the loop stress."""
@@ -2402,7 +2391,6 @@ class RateSync:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "RateSync":
         """Enter a context manager, returning this object.
@@ -2472,6 +2460,7 @@ class CarrierMpsk:
     ... )
 
     """
+
     def __init__(
         self,
         bn: float = 0.05,
@@ -2481,7 +2470,6 @@ class CarrierMpsk:
         bn_fll: float = 0.0,
         m: int = 4,
     ) -> None: ...
-
     def steps(
         self,
         x: NDArray[np.complex64],
@@ -2687,13 +2675,11 @@ class CarrierMpsk:
         """PLL loop noise bandwidth (retained)."""
     @bn.setter
     def bn(self, value: float) -> None: ...
-
     @property
     def norm_freq(self) -> float:
         """Norm freq."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def lock_metric(self) -> float:
         """EMA of Re(P conj a)/|P| (1 = locked)."""
@@ -2707,7 +2693,6 @@ class CarrierMpsk:
         """FLL-assist bandwidth (0 = pure PLL)."""
     @bn_fll.setter
     def bn_fll(self, value: float) -> None: ...
-
     @property
     def m(self) -> int:
         """constellation order M (2, 4, 8)."""
@@ -2723,7 +2708,6 @@ class CarrierMpsk:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "CarrierMpsk":
         """Enter a context manager, returning this object.
@@ -2793,6 +2777,7 @@ class CarrierNda:
     ... )
 
     """
+
     def __init__(
         self,
         bn: float = 0.01,
@@ -2802,7 +2787,6 @@ class CarrierNda:
         n: int = 4,
         m: int = 4,
     ) -> None: ...
-
     def steps(
         self,
         x: NDArray[np.complex64],
@@ -3074,7 +3058,6 @@ class CarrierNda:
         """Norm freq."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def lock(self) -> float:
         """EMA of the lock signal (1 = locked)."""
@@ -3095,7 +3078,6 @@ class CarrierNda:
         """PLL loop noise bandwidth (retained)."""
     @bn.setter
     def bn(self, value: float) -> None: ...
-
     @property
     def m(self) -> int:
         """constellation order M (2, 4, 8)."""
@@ -3119,7 +3101,6 @@ class CarrierNda:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "CarrierNda":
         """Enter a context manager, returning this object.
@@ -3292,6 +3273,7 @@ class MpskReceiver:
     ... )
 
     """
+
     def __init__(
         self,
         m: int = 4,
@@ -3310,7 +3292,6 @@ class MpskReceiver:
         agc: int = 1,
         bn_agc_ratio: float = 0.0,
     ) -> None: ...
-
     def set_telemetry(
         self,
         tlm: object | None,
@@ -3637,7 +3618,6 @@ class MpskReceiver:
         """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def lock(self) -> float:
         """The raw carrier lock statistic: the EMA of the M-th-power NDA lock
@@ -3775,7 +3755,6 @@ class MpskReceiver:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "MpskReceiver":
         """Enter a context manager, returning this object.
 
@@ -3873,6 +3852,7 @@ class BpskReceiver:
     8.0
 
     """
+
     def __init__(
         self,
         sample_rate_hz: float,
@@ -3886,7 +3866,6 @@ class BpskReceiver:
         differential: int = 0,
         agc: int = 1,
     ) -> None: ...
-
     def set_telemetry(
         self,
         tlm: object | None,
@@ -4213,7 +4192,6 @@ class BpskReceiver:
         """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def lock(self) -> float:
         """The raw carrier lock statistic: the EMA of the M-th-power NDA lock
@@ -4350,7 +4328,6 @@ class BpskReceiver:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "BpskReceiver":
         """Enter a context manager, returning this object.
@@ -4533,6 +4510,7 @@ class MpskReceiverR:
     ... )
 
     """
+
     def __init__(
         self,
         m: int = 4,
@@ -4551,7 +4529,6 @@ class MpskReceiverR:
         agc: int = 1,
         bn_agc_ratio: float = 0.0,
     ) -> None: ...
-
     def set_telemetry(
         self,
         tlm: object | None,
@@ -4883,7 +4860,6 @@ class MpskReceiverR:
         """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def lock(self) -> float:
         """The raw carrier lock statistic: the EMA of the M-th-power NDA lock
@@ -5020,7 +4996,6 @@ class MpskReceiverR:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "MpskReceiverR":
         """Enter a context manager, returning this object.

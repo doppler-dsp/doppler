@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from typing import Any, final
 
-import numpy as np
 from numpy.typing import NDArray
 
 @final
@@ -23,6 +22,7 @@ class StreamSink:
         One of ``"cf32"``, ``"cf64"``, ``"ci32"``, ``"ci16"``, ``"ci8"``,
         ``"f32"``, ``"f64"``, ``"i32"``, ``"i16"``, ``"i8"``.
     """
+
     def __init__(self, endpoint: int, sample_type: str = ...) -> None: ...
     def send(self, x: NDArray[Any], fs: float, fc: float) -> int:
         """Convert a cf32 block to the wire type and publish it.

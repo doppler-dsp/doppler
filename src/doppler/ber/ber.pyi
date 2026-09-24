@@ -81,13 +81,13 @@ class BerMeter:
     >>> obj = BerMeter(m=4, target_errors=200, conf=0.99)
 
     """
+
     def __init__(
         self,
         m: int = 4,
         target_errors: int = 200,
         conf: float = 0.99,
     ) -> None: ...
-
     def reset(self) -> None:
         """Zero the running counters; keep the configuration and the truth.
 
@@ -563,7 +563,6 @@ class BerMeter:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "BerMeter":
         """Enter a context manager, returning this object.
 
@@ -624,12 +623,12 @@ class FrameMeter:
     >>> obj = FrameMeter(target_errors=200, conf=0.99)
 
     """
+
     def __init__(
         self,
         target_errors: int = 200,
         conf: float = 0.99,
     ) -> None: ...
-
     def reset(self) -> None:
         """Clear every counter; the configuration is untouched.
 
@@ -840,7 +839,6 @@ class FrameMeter:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "FrameMeter":
         """Enter a context manager, returning this object.
 
@@ -876,11 +874,11 @@ class FrameMeter:
         """
 
 def ber_theory_ser(m: int, esn0: float) -> float:
-    """Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR,
-    not dB). BPSK Q(sqrt(2 Es/N0)); QPSK 2Q(sqrt(Es/N0)); 8PSK 2Q(sqrt(2
-    Es/N0) sin(pi/8)). This is a COHERENT bound: a differentially-decoded
-    rate is ~2x it, so pairing a differential measurement with this curve
-    invents a factor of two of implementation loss.
+    """Coherent M-PSK symbol error rate at matched-filter Es/N0 (LINEAR, not
+    dB). BPSK Q(sqrt(2 Es/N0)); QPSK 2Q(sqrt(Es/N0)); 8PSK 2Q(sqrt(2 Es/N0)
+    sin(pi/8)). This is a COHERENT bound: a differentially-decoded rate is ~2x
+    it, so pairing a differential measurement with this curve invents a factor
+    of two of implementation loss.
 
     `BPSK: Q(sqrt(2 Es/N0))`, `QPSK: 2 Q(sqrt(Es/N0))`, `8PSK: 2 Q(sqrt(2
     Es/N0) sin(pi/8))` — the nearest-neighbour union bound, tight to well
@@ -924,10 +922,9 @@ def ber_theory_ber(m: int, esn0: float) -> float:
 
 def ber_esn0_db_for_ser(m: int, ser: float) -> float:
     """Es/N0 (dB) at which the coherent bound equals `ser`. How an
-    implementation loss is quoted honestly: convert the MEASURED rate to
-    the Es/N0 theory would need to produce it, and subtract. A loss in dB
-    is comparable across M and across operating points; a ratio of rates is
-    not.
+    implementation loss is quoted honestly: convert the MEASURED rate to the
+    Es/N0 theory would need to produce it, and subtract. A loss in dB is
+    comparable across M and across operating points; a ratio of rates is not.
 
     How an implementation loss is quoted honestly: convert the MEASURED
     rate to the Es/N0 theory would need to produce it, and subtract. A loss
@@ -948,17 +945,16 @@ def ber_esn0_db_for_ser(m: int, ser: float) -> float:
     """
 
 def ber_evm_scatter_floor_db(m: int) -> float:
-    """EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation --
-    the FLOOR of a self-referenced EVM, i.e. what a completely destroyed
+    """EVM (dB) of an M-PSK constellation at a UNIFORMLY RANDOM rotation -- the
+    FLOOR of a self-referenced EVM, i.e. what a completely destroyed
     constellation reads: -1.4 dB at BPSK, -7.0 at QPSK, -12.9 at 8PSK. ANY
     fixed EVM threshold must be stated against this, never against 0 dB:
-    'scattered reads ~0 dB' is the BPSK limit only, and at 8PSK a stream
-    with no carrier recovery reads the same -12.9 dB a healthy 13 dB link
-    does, so a `< -12.0` assertion is satisfied by pure noise. The room
-    between 'on the bound at the SER=1e-3 anchor' and 'completely broken'
-    collapses as M grows (5.4 / 3.3 / 2.8 dB), so at high M the EVM cannot
-    carry a verdict alone. Not to be confused with the NOISE floor
-    -(Es/N0).
+    'scattered reads ~0 dB' is the BPSK limit only, and at 8PSK a stream with
+    no carrier recovery reads the same -12.9 dB a healthy 13 dB link does, so a
+    `< -12.0` assertion is satisfied by pure noise. The room between 'on the
+    bound at the SER=1e-3 anchor' and 'completely broken' collapses as M grows
+    (5.4 / 3.3 / 2.8 dB), so at high M the EVM cannot carry a verdict alone.
+    Not to be confused with the NOISE floor -(Es/N0).
 
     The FLOOR of a self-referenced EVM: what a completely destroyed
     constant-modulus constellation reads. Slicing a unit-modulus point at a
@@ -989,14 +985,14 @@ def ber_evm_scatter_floor_db(m: int) -> float:
 
 def ber_settle_syms(bn_timing: float, bn_carrier: float) -> int:
     """Symbols to discard before a steady-state measurement means anything:
-    2*(5/bn_timing + 5/bn_carrier). Three factors, and skipping any
-    produces a confident wrong number -- 5/Bn per loop is the standard
-    second-order settling time (in SYMBOLS, since both bn are symbol-rate
-    normalised); the two budgets ADD because the loops are cascaded (the
-    carrier discriminator reads the on-time strobe, so it cannot converge
-    until timing has); and the sum DOUBLES for joint tracking. This is a
-    FLOOR, not the answer: take the max of it and every lock indicator the
-    receiver publishes. Pass a loop's bn as 0 if it is not running.
+    2*(5/bn_timing + 5/bn_carrier). Three factors, and skipping any produces a
+    confident wrong number -- 5/Bn per loop is the standard second-order
+    settling time (in SYMBOLS, since both bn are symbol-rate normalised); the
+    two budgets ADD because the loops are cascaded (the carrier discriminator
+    reads the on-time strobe, so it cannot converge until timing has); and the
+    sum DOUBLES for joint tracking. This is a FLOOR, not the answer: take the
+    max of it and every lock indicator the receiver publishes. Pass a loop's bn
+    as 0 if it is not running.
 
     `2 * (5/bn_timing + 5/bn_carrier)`. Three factors, and skipping any of
     them produces a confident wrong number: 5/Bn per loop is the standard
@@ -1028,15 +1024,15 @@ def ber_lock_symbol(
     sustain: int = 200,
     min_frac: float = 0.9,
 ) -> int:
-    """First symbol from which a verify-counted lock flag is SUSTAINED, or
-    -1 for 'never locked'. Sustained means `sustain` consecutive symbols
-    high AND at least `min_frac` of everything after that point high too:
-    the run rejects a single lucky decision, the fraction rejects a
-    detector that declares early then flaps. Dating the lock by the FINAL
-    contiguous run instead is right with no noise and badly wrong with it
-    -- one late dip once moved a reported lock from 415 to 2286 and left no
-    measurement window at all. The -1 is deliberate: it forces the caller
-    to say 'never locked' rather than quietly measure a transient.
+    """First symbol from which a verify-counted lock flag is SUSTAINED, or -1
+    for 'never locked'. Sustained means `sustain` consecutive symbols high AND
+    at least `min_frac` of everything after that point high too: the run
+    rejects a single lucky decision, the fraction rejects a detector that
+    declares early then flaps. Dating the lock by the FINAL contiguous run
+    instead is right with no noise and badly wrong with it -- one late dip once
+    moved a reported lock from 415 to 2286 and left no measurement window at
+    all. The -1 is deliberate: it forces the caller to say 'never locked'
+    rather than quietly measure a transient.
 
     "Sustained" is sustain consecutive symbols high AND at least min_frac
     of everything after that point high too. Both halves carry weight: the
@@ -1068,18 +1064,17 @@ def ber_evm_db(
     hi: int = 0,
     m: int = 4,
 ) -> float:
-    """Self-referenced EVM (dB) over an EXPLICIT window [lo, hi): each
-    symbol against the stream's OWN hard decision, with the constellation
-    rotation estimated from the data. References neither the transmitted
-    symbols nor a lag, so it cannot be fooled by an alignment search. A
-    locked matched-filter output reads EVM_dB ~ -(Es/N0)_dB (an I/Q-plane
-    quantity -- no factor of two; quoting one flatters the result by 3 dB).
-    Read it against ber_evm_scatter_floor_db(m), NEVER against 0 dB. The
-    window is explicit because BER and EVM must be measured on the SAME
-    one: a convenience back-half default scores a different window than the
-    error rate did, and the two eventually disagree in a way that reads as
-    a receiver defect rather than the harness bug it is. Returns 0.0 for a
-    window under 20 symbols.
+    """Self-referenced EVM (dB) over an EXPLICIT window [lo, hi): each symbol
+    against the stream's OWN hard decision, with the constellation rotation
+    estimated from the data. References neither the transmitted symbols nor a
+    lag, so it cannot be fooled by an alignment search. A locked matched-filter
+    output reads EVM_dB ~ -(Es/N0)_dB (an I/Q-plane quantity -- no factor of
+    two; quoting one flatters the result by 3 dB). Read it against
+    ber_evm_scatter_floor_db(m), NEVER against 0 dB. The window is explicit
+    because BER and EVM must be measured on the SAME one: a convenience
+    back-half default scores a different window than the error rate did, and
+    the two eventually disagree in a way that reads as a receiver defect rather
+    than the harness bug it is. Returns 0.0 for a window under 20 symbols.
 
     Scores each symbol against the stream's OWN hard decision, with the
     constellation rotation estimated from the data — so it references
@@ -1120,19 +1115,19 @@ def ber_settle_from(
     carrier_lock: int = -1,
 ) -> int:
     """Where a steady-state measurement may start: max(budget, timing lock,
-    carrier lock). The analytic budget and the receiver's own indicators
-    are both fallible in the SAME direction, so whichever settles last
-    decides. There was a fourth term until doppler#877: a receiver that
-    handed the carrier from an NDA discriminator to a decision-directed one
-    settled last of all, contributing its instant PLUS the budget again
-    (measured on 8PSK: handover at symbol 2525 against a 2000-symbol
-    budget, and 5.95x the coherent bound if the window started at 2000
-    rather than 4525). No receiver in this library hands over any more, so
-    the term went with the handover rather than remaining as an argument
-    that could only be passed -1. Pass -1 for an indicator the receiver
-    does not publish, which is what ber_lock_symbol() returns for 'never
-    locked'. A -1 timing or carrier lock means there is NO valid
-    steady-state window -- check that yourself before trusting the return.
+    carrier lock). The analytic budget and the receiver's own indicators are
+    both fallible in the SAME direction, so whichever settles last decides.
+    There was a fourth term until doppler#877: a receiver that handed the
+    carrier from an NDA discriminator to a decision-directed one settled last
+    of all, contributing its instant PLUS the budget again (measured on 8PSK:
+    handover at symbol 2525 against a 2000-symbol budget, and 5.95x the
+    coherent bound if the window started at 2000 rather than 4525). No receiver
+    in this library hands over any more, so the term went with the handover
+    rather than remaining as an argument that could only be passed -1. Pass -1
+    for an indicator the receiver does not publish, which is what
+    ber_lock_symbol() returns for 'never locked'. A -1 timing or carrier lock
+    means there is NO valid steady-state window -- check that yourself before
+    trusting the return.
 
     The POLICY for where a steady-state window may start, in one place:
     `max(budget, timing lock, carrier lock)`. The analytic budget and the

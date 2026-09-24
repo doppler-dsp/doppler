@@ -286,6 +286,7 @@ class Despreader:
     0.0
 
     """
+
     def __init__(
         self,
         code: NDArray[np.uint8],
@@ -299,7 +300,6 @@ class Despreader:
         spacing: float = 0.5,
         periods_per_bit: int = 1,
     ) -> None: ...
-
     # jm:hand
     def steps(
         self,
@@ -594,7 +594,6 @@ class Despreader:
         """Norm freq."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def code_phase(self) -> float:
         """Code phase."""
@@ -635,13 +634,11 @@ class Despreader:
         """Bn carrier."""
     @bn_carrier.setter
     def bn_carrier(self, value: float) -> None: ...
-
     @property
     def bn_code(self) -> float:
         """Bn code."""
     @bn_code.setter
     def bn_code(self, value: float) -> None: ...
-
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
@@ -653,7 +650,6 @@ class Despreader:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Despreader":
         """Enter a context manager, returning this object.
@@ -733,6 +729,7 @@ class BurstDespreader:
     0.0
 
     """
+
     def __init__(
         self,
         code: NDArray[np.uint8],
@@ -743,7 +740,6 @@ class BurstDespreader:
         bn_carrier: float = 0.05,
         bn_code: float = 0.01,
     ) -> None: ...
-
     # jm:hand
     def steps(
         self,
@@ -970,19 +966,16 @@ class BurstDespreader:
         """
     @bn_carrier.setter
     def bn_carrier(self, value: float) -> None: ...
-
     @property
     def bn_code(self) -> float:
         """Code (DLL) loop noise bandwidth, normalized to the symbol rate."""
     @bn_code.setter
     def bn_code(self, value: float) -> None: ...
-
     @property
     def norm_freq(self) -> float:
         """Current carrier frequency estimate, cycles/sample."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def code_phase(self) -> float:
         """Current tracked code phase within the symbol, chips."""
@@ -1029,7 +1022,6 @@ class BurstDespreader:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "BurstDespreader":
         """Enter a context manager, returning this object.
@@ -1085,8 +1077,8 @@ class PolynomialPhaseEstimator:
     >>> obj = PolynomialPhaseEstimator(max_len=4096, max_rate=0.0)
 
     """
-    def __init__(self, max_len: int = 4096, max_rate: float = 0.0) -> None: ...
 
+    def __init__(self, max_len: int = 4096, max_rate: float = 0.0) -> None: ...
     def reset(self) -> None:
         """Do nothing — the estimator keeps no running state between calls.
 
@@ -1176,7 +1168,6 @@ class PolynomialPhaseEstimator:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "PolynomialPhaseEstimator":
         """Enter a context manager, returning this object.
@@ -1275,6 +1266,7 @@ class BurstDemod:
     True
 
     """
+
     def __init__(
         self,
         data_code: NDArray[np.uint8],
@@ -1285,7 +1277,6 @@ class BurstDemod:
         frame_syms: int = 0,
         est_segments: int = 10,
     ) -> None: ...
-
     def reset(self) -> None:
         """Clear the per-burst read-backs, leaving the configuration intact.
 
@@ -1652,7 +1643,6 @@ class BurstDemod:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "BurstDemod":
         """Enter a context manager, returning this object.
 
@@ -1772,6 +1762,7 @@ class DsssReceiver:
     True
 
     """
+
     def __init__(
         self,
         code: NDArray[np.uint8],
@@ -1787,7 +1778,6 @@ class DsssReceiver:
         sps: int = 8,
         differential: int = 0,
     ) -> None: ...
-
     def steps(
         self,
         x: NDArray[np.complex64],
@@ -2137,7 +2127,6 @@ class DsssReceiver:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "DsssReceiver":
         """Enter a context manager, returning this object.
 
@@ -2294,6 +2283,7 @@ class AsyncDsssReceiver:
     True
 
     """
+
     def __init__(
         self,
         code: NDArray[np.uint8],
@@ -2318,7 +2308,6 @@ class AsyncDsssReceiver:
         carrier_freq_hz: float = 0.0,
         lost_confirm_s: float = 0.0,
     ) -> None: ...
-
     def steps(
         self,
         x: NDArray[np.complex64],
@@ -2938,7 +2927,6 @@ class AsyncDsssReceiver:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "AsyncDsssReceiver":
         """Enter a context manager, returning this object.
 
@@ -3039,6 +3027,7 @@ class CellAsyncDsssReceiver:
     1
 
     """
+
     def __init__(
         self,
         code: NDArray[np.uint8],
@@ -3058,7 +3047,6 @@ class CellAsyncDsssReceiver:
         gain: float = 0.125,
         pullin_intervals: int = 4,
     ) -> None: ...
-
     def steps(
         self,
         x: NDArray[np.complex64],
@@ -3588,7 +3576,6 @@ class CellAsyncDsssReceiver:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "CellAsyncDsssReceiver":
         """Enter a context manager, returning this object.
 
@@ -3711,6 +3698,7 @@ class AsyncDsssPool:
     31.7
 
     """
+
     def __init__(
         self,
         code: NDArray[np.uint8],
@@ -3736,7 +3724,6 @@ class AsyncDsssPool:
         gain: float = 0.125,
         pullin_intervals: int = 4,
     ) -> None: ...
-
     def reset(self) -> None:
         """Release every slot and start over: the searcher reset, every
         receiver back to idle, the table cleared, the counters zeroed.
@@ -4048,7 +4035,6 @@ class AsyncDsssPool:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "AsyncDsssPool":
         """Enter a context manager, returning this object.
 
@@ -4142,6 +4128,7 @@ class DsssBurstReceiver:
     0
 
     """
+
     def __init__(
         self,
         acq_code: NDArray[np.uint8],
@@ -4159,7 +4146,6 @@ class DsssBurstReceiver:
         max_rate: float = 0.0,
         est_segments: int = 10,
     ) -> None: ...
-
     def push(
         self,
         x: NDArray[np.complex64],
@@ -4564,53 +4550,56 @@ class DsssBurstReceiver:
 
     @property
     def min_gap(self) -> int:
-        """Dead air to leave BETWEEN bursts, in samples — edge to edge. The
-        number a caller placing bursts actually wants, derived by the capture
+        """Dead air to leave BETWEEN bursts, in samples — edge to edge.
+
+        The number a caller placing bursts actually wants, derived by the capture
         rather than left as a rule to apply: `refine_span + reps*code_period -
         burst_len`, floored at zero. Bursts spaced by exactly this all decode:
-        measured at a 255-chip code, `reps=5`, `spc=2` over 40 lead offsets,
-        every burst at its exact sample (doppler#1514). It is a guarantee, not
-        the edge: at that geometry bursts an eighth of it apart decode too
-        (doppler#1530).
+        measured at a 255-chip code, `reps=5`, `spc=2` over 40 lead offsets, every
+        burst at its exact sample (doppler#1514). It is a guarantee, not the edge:
+        at that geometry bursts an eighth of it apart decode too (doppler#1530).
         """
 
     @property
     def refine_span(self) -> int:
         """Coalescing window, in samples -- the reach over which two detections
-        are ONE preamble. Both sides of that test are burst STARTS (resolved
-        code epochs), so this bounds start-to-start separation, NOT the dead
-        air between bursts: the two differ by a whole burst plus the detection
-        lag. **Read `min_gap` for the gap to leave**; it is derived from this
-        reach (doppler#1172). How much the reach matters depends on the burst:
-        at a 255-chip code, `reps=5`, `spc=2` it is 12240 samples, and
-        8316-sample bursts with 600 samples of dead air between them (against
-        the 3924 `min_gap` asks for) decode 2 of 7; the same code with
-        `frame_syms=2053` gives 261228-sample bursts, 21.3x the reach, and
-        every spacing down to zero dead air decodes 7 of 7 (doppler#1085).
+        are ONE preamble.
+
+        Both sides of that test are burst STARTS (resolved code epochs), so this
+        bounds start-to-start separation, NOT the dead air between bursts: the two
+        differ by a whole burst plus the detection lag. **Read `min_gap` for the
+        gap to leave**; it is derived from this reach (doppler#1172). How much the
+        reach matters depends on the burst: at a 255-chip code, `reps=5`, `spc=2`
+        it is 12240 samples, and 8316-sample bursts with 600 samples of dead air
+        between them (against the 3924 `min_gap` asks for) decode 2 of 7; the same
+        code with `frame_syms=2053` gives 261228-sample bursts, 21.3x the reach,
+        and every spacing down to zero dead air decodes 7 of 7 (doppler#1085).
         """
 
     @property
     def retain_span(self) -> int:
         """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
-        `refine_span` plus one whole burst. A burst closer than this to the end
-        of what has been pushed is held rather than emitted, because refine
-        cannot yet see the samples it needs. Feed at least this many more, or
-        the last burst of a capture never comes out. At the geometry above the
-        boundary is sharp: 20500 trailing samples against a `retain_span` of
-        20556 loses the burst.
+
+        `refine_span` plus one whole burst. A burst closer than this to the end of
+        what has been pushed is held rather than emitted, because refine cannot yet
+        see the samples it needs. Feed at least this many more, or the last burst of
+        a capture never comes out. At the geometry above the boundary is sharp: 20500
+        trailing samples against a `retain_span` of 20556 loses the burst.
         """
 
     @property
     def pending(self) -> int:
         """Detections held because their burst window has not fully arrived.
-        `push()` emits nothing for these on purpose -- a burst is returned when
-        it is complete, not when it is guessed at. Feed more samples and it
-        comes out bit-exact, wherever the split fell. Read it at the END of a
-        stream. A caller closing a file or a socket while this is non-zero is
-        discarding a burst that would have decoded, and nothing else
-        distinguishes that from an empty capture: `dropped` counts samples the
-        ring refused, `n_bursts` counts what was demodulated, and a truncated
-        burst is neither.
+
+        `push()` emits nothing for these on purpose -- a burst is returned when it
+        is complete, not when it is guessed at. Feed more samples and it comes out
+        bit-exact, wherever the split fell.
+
+        Read it at the END of a stream. A caller closing a file or a socket while
+        this is non-zero is discarding a burst that would have decoded, and nothing
+        else distinguishes that from an empty capture: `dropped` counts samples the
+        ring refused, `n_bursts` counts what was demodulated, and a truncated burst
+        is neither.
         """
 
     @property
@@ -4637,7 +4626,6 @@ class DsssBurstReceiver:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "DsssBurstReceiver":
         """Enter a context manager, returning this object.

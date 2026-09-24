@@ -65,6 +65,7 @@ class LockDet:
     >>> obj = LockDet(up_thresh=1.0, down_thresh=1.0, n_up=1, n_down=1)
 
     """
+
     def __init__(
         self,
         up_thresh: float = 1.0,
@@ -72,7 +73,6 @@ class LockDet:
         n_up: int = 1,
         n_down: int = 1,
     ) -> None: ...
-
     def step(self, x: float) -> int:
         """Feed one look of the lock metric; return the current decision.
 
@@ -253,13 +253,11 @@ class LockDet:
         """declare side: hit when metric > up_thresh."""
     @up_thresh.setter
     def up_thresh(self, value: float) -> None: ...
-
     @property
     def down_thresh(self) -> float:
         """drop side: miss when metric < down_thresh."""
     @down_thresh.setter
     def down_thresh(self, value: float) -> None: ...
-
     @property
     def n_up(self) -> int:
         """consecutive hits required to declare (>= 1)."""
@@ -289,7 +287,6 @@ class LockDet:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "LockDet":
         """Enter a context manager, returning this object.
@@ -355,8 +352,8 @@ class SyncFinder:
     (1, 96, 0)
 
     """
-    def __init__(self, marker: NDArray[np.uint8]) -> None: ...
 
+    def __init__(self, marker: NDArray[np.uint8]) -> None: ...
     def find(self, bits: NDArray[np.uint8], max_errors: int = 0) -> SyncHit:
         """Find the first marker in bits, either polarity.
 
@@ -483,7 +480,6 @@ class SyncFinder:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "SyncFinder":
         """Enter a context manager, returning this object.

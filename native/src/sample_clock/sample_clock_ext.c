@@ -353,7 +353,12 @@ static PyTypeObject SampleClockType = {
   .tp_dealloc                             = (destructor)SampleClock_dealloc,
   .tp_getset                              = SampleClock_getset,
   .tp_methods                             = SampleClock_methods,
-  .tp_doc = PyDoc_STR ("SampleClock — handle over `dp_sample_clock`."),
+  .tp_doc = PyDoc_STR ("SampleClock handle.\n"
+                       "\n"
+                       "Parameters\n"
+                       "----------\n"
+                       "fs : float\n"
+                       "resync : int, default 0\n"),
 };
 
 static struct PyModuleDef _moduledef = {

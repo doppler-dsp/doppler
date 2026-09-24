@@ -1,8 +1,8 @@
 # telemetry/telemetry.pyi — type stubs for the telemetry C extension.
 from typing import Any, final
 import os
-import numpy as np
 from numpy.typing import NDArray
+import numpy as np
 
 @final
 class TelemetryStats(tuple[int, int, int, int]):
@@ -64,8 +64,8 @@ class Telemetry:
     >>> obj = Telemetry(ring_records=16384)
 
     """
-    def __init__(self, ring_records: int = 16384) -> None: ...
 
+    def __init__(self, ring_records: int = 16384) -> None: ...
     def read(
         self,
         n: int = 0,
@@ -408,7 +408,6 @@ class Telemetry:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "Telemetry":
         """Enter a context manager, returning this object.
 
@@ -543,13 +542,13 @@ class MemoryCapture:
     0
 
     """
+
     def __init__(
         self,
         tlm: Telemetry,
         block_samples: int,
         clock: object | None,
     ) -> None: ...
-
     def records(
         self,
         n: int = 0,
@@ -724,7 +723,6 @@ class MemoryCapture:
             of a ``with`` block (gh-541).
         """
 
-
     def __enter__(self) -> "MemoryCapture":
         """Enter a context manager, returning this object.
 
@@ -873,6 +871,7 @@ class Capture:
     [0.0, 1.0, 2.0, 3.0]
 
     """
+
     def __init__(
         self,
         tlm: Telemetry,
@@ -880,7 +879,6 @@ class Capture:
         path: str | os.PathLike,
         clock: object | None,
     ) -> None: ...
-
     def block(self) -> None:
         """Block boundary: drains the ring to empty.
 
@@ -992,7 +990,6 @@ class Capture:
             of a ``with`` block (gh-541).
         """
 
-
     def __enter__(self) -> "Capture":
         """Enter a context manager, returning this object.
 
@@ -1080,8 +1077,8 @@ class EventLog:
     >>> log.close()
 
     """
-    def __init__(self, path: str | os.PathLike, fc: float = 0.0) -> None: ...
 
+    def __init__(self, path: str | os.PathLike, fc: float = 0.0) -> None: ...
     def field(self, name: str, value: float) -> None:
         """Stages a numeric field for the next event.
 
@@ -1392,7 +1389,6 @@ class EventLog:
             and from ``__exit__`` alike, so a failing teardown propagates out
             of a ``with`` block (gh-541).
         """
-
 
     def __enter__(self) -> "EventLog":
         """Enter a context manager, returning this object.

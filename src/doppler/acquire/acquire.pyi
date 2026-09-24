@@ -72,6 +72,7 @@ class CarrierAcquisition:
     123.0
 
     """
+
     def __init__(
         self,
         sample_rate_hz: float,
@@ -87,7 +88,6 @@ class CarrierAcquisition:
         sequential: bool = True,
         max_n_blocks: int = 100000,
     ) -> None: ...
-
     def steps(self, x: NDArray[np.complex64]) -> None:
         """Fold raw complex samples into the running PSD average and test for a
         detection; any chunk size across repeated calls (a partial trailing
@@ -247,7 +247,6 @@ class CarrierAcquisition:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "CarrierAcquisition":
         """Enter a context manager, returning this object.
 
@@ -353,6 +352,7 @@ class Acquisition:
     4
 
     """
+
     def __init__(
         self,
         code: NDArray[np.uint8],
@@ -367,7 +367,6 @@ class Acquisition:
         code_only_epochs: int = 1,
         doppler_rate: float = 0.0,
     ) -> None: ...
-
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
 
@@ -1198,7 +1197,6 @@ class Acquisition:
         """
     @keep_surface.setter
     def keep_surface(self, value: int) -> None: ...
-
     @property
     def surface_rows(self) -> int:
         """Rows of the surface `surface()` returns: the Doppler axis in surface
@@ -1244,7 +1242,6 @@ class Acquisition:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Acquisition":
         """Enter a context manager, returning this object.
@@ -1357,6 +1354,7 @@ class BurstAcquisition:
     (0, 40)
 
     """
+
     def __init__(
         self,
         preamble: NDArray[np.complex64],
@@ -1369,7 +1367,6 @@ class BurstAcquisition:
         noise_mode: Literal["mean", "median", "min", "max"] = "mean",
         doppler_rate: float = 0.0,
     ) -> None: ...
-
     def reset(self) -> None:
         """Drain the input ring and reset the coherent accumulator.
 
@@ -1737,7 +1734,6 @@ class BurstAcquisition:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "BurstAcquisition":
         """Enter a context manager, returning this object.
 
@@ -1835,6 +1831,7 @@ class BurstCapture:
     True
 
     """
+
     def __init__(
         self,
         preamble: NDArray[np.complex64],
@@ -1848,7 +1845,6 @@ class BurstCapture:
         noise_mode: Literal["mean", "median", "min", "max"] = "mean",
         doppler_rate: float = 0.0,
     ) -> None: ...
-
     def push(
         self,
         x: NDArray[np.complex64],
@@ -2254,39 +2250,46 @@ class BurstCapture:
     @property
     def refine_span(self) -> int:
         """Coalescing window, in samples -- the reach over which two detections
-        are ONE preamble. Both sides of that test are burst STARTS (resolved
-        code epochs), so this bounds start-to-start separation, NOT the dead
-        air between bursts. The two differ by a whole burst, and reading it as
-        dead air costs a caller real airtime for nothing: the gap actually
-        required is `max(0, refine_span - burst_len)`, which is 0 whenever a
-        burst is longer than the refine reach (doppler#1085).
+        are ONE preamble.
+
+        Both sides of that test are burst STARTS (resolved code epochs), so this
+        bounds start-to-start separation, NOT the dead air between bursts. The two
+        differ by a whole burst, and reading it as dead air costs a caller real
+        airtime for nothing: the gap actually required is
+        `max(0, refine_span - burst_len)`, which is 0 whenever a burst is longer than
+        the refine reach (doppler#1085).
         """
 
     @property
     def min_gap(self) -> int:
         """Dead air to leave BETWEEN bursts, in samples — edge to edge, not
-        start to start. Derived rather than documented as a rule the caller has
-        to apply: a detection's anchor is the code epoch of whichever frame
-        detected, and acquisition's framing is not aligned to the preamble, so
-        the last frame that can detect sits up to `reps * code_period` past the
-        true start. CLAIM merges two anchors closer than `refine_span`, so a
-        pair survives only when `gap >= refine_span + reps*code_period -
-        burst_len`. **Zero is a real answer** — a burst longer than
-        `refine_span + reps*P` needs no gap for the claim rule's sake — but it
-        does not mean zero is wise: a zero gap is a continuous stream rather
-        than a burst link, and it measures 88% at a geometry where this reads
-        0. Replaces the prose `max(0, refine_span - burst_len)`, which was
-        short by the whole detection-lag term: 32 samples against 528 at the C
-        suite's geometry (doppler#1172).
+        start to start.
+
+        Derived rather than documented as a rule the caller has to apply: a
+        detection's anchor is the code epoch of whichever frame detected, and
+        acquisition's framing is not aligned to the preamble, so the last frame that
+        can detect sits up to `reps * code_period` past the true start. CLAIM merges
+        two anchors closer than `refine_span`, so a pair survives only when
+        `gap >= refine_span + reps*code_period - burst_len`.
+
+        **Zero is a real answer** — a burst longer than `refine_span + reps*P` needs
+        no gap for the claim rule's sake — but it does not mean zero is wise: a zero
+        gap is a continuous stream rather than a burst link, and it measures 88% at a
+        geometry where this reads 0.
+
+        Replaces the prose `max(0, refine_span - burst_len)`, which was short by the
+        whole detection-lag term: 32 samples against 528 at the C suite's geometry
+        (doppler#1172).
         """
 
     @property
     def retain_span(self) -> int:
         """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
-        `refine_span` plus one whole burst. A burst closer than this to the end
-        of what has been pushed is held rather than emitted, because refine
-        cannot yet see the samples it needs. Feed at least this many more, or
-        the last burst of a capture never comes out.
+
+        `refine_span` plus one whole burst. A burst closer than this to the end of
+        what has been pushed is held rather than emitted, because refine cannot yet
+        see the samples it needs. Feed at least this many more, or the last burst of
+        a capture never comes out.
         """
 
     @property
@@ -2394,11 +2397,12 @@ class BurstCapture:
     @property
     def pending(self) -> int:
         """Detections held because their burst window has NOT fully arrived.
-        push() deliberately emits nothing for these: a window is returned when
-        it is complete, not when it is guessed at. What this exists for is the
-        other end -- a caller closing a file or a socket while this is non-zero
-        is discarding a burst that would have been captured, and every other
-        read-back looks identical to "nothing was ever there".
+
+        push() deliberately emits nothing for these: a window is returned when it is
+        complete, not when it is guessed at. What this exists for is the other end --
+        a caller closing a file or a socket while this is non-zero is discarding a
+        burst that would have been captured, and every other read-back looks
+        identical to "nothing was ever there".
         """
 
     @property
@@ -2422,7 +2426,6 @@ class BurstCapture:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "BurstCapture":
         """Enter a context manager, returning this object.
@@ -2525,6 +2528,7 @@ class PersistentBurstCapture:
     True
 
     """
+
     def __init__(
         self,
         path: str | os.PathLike,
@@ -2539,7 +2543,6 @@ class PersistentBurstCapture:
         noise_mode: Literal["mean", "median", "min", "max"] = "mean",
         doppler_rate: float = 0.0,
     ) -> None: ...
-
     def push(
         self,
         x: NDArray[np.complex64],
@@ -2948,39 +2951,46 @@ class PersistentBurstCapture:
     @property
     def refine_span(self) -> int:
         """Coalescing window, in samples -- the reach over which two detections
-        are ONE preamble. Both sides of that test are burst STARTS (resolved
-        code epochs), so this bounds start-to-start separation, NOT the dead
-        air between bursts. The two differ by a whole burst, and reading it as
-        dead air costs a caller real airtime for nothing: the gap actually
-        required is `max(0, refine_span - burst_len)`, which is 0 whenever a
-        burst is longer than the refine reach (doppler#1085).
+        are ONE preamble.
+
+        Both sides of that test are burst STARTS (resolved code epochs), so this
+        bounds start-to-start separation, NOT the dead air between bursts. The two
+        differ by a whole burst, and reading it as dead air costs a caller real
+        airtime for nothing: the gap actually required is
+        `max(0, refine_span - burst_len)`, which is 0 whenever a burst is longer than
+        the refine reach (doppler#1085).
         """
 
     @property
     def min_gap(self) -> int:
         """Dead air to leave BETWEEN bursts, in samples — edge to edge, not
-        start to start. Derived rather than documented as a rule the caller has
-        to apply: a detection's anchor is the code epoch of whichever frame
-        detected, and acquisition's framing is not aligned to the preamble, so
-        the last frame that can detect sits up to `reps * code_period` past the
-        true start. CLAIM merges two anchors closer than `refine_span`, so a
-        pair survives only when `gap >= refine_span + reps*code_period -
-        burst_len`. **Zero is a real answer** — a burst longer than
-        `refine_span + reps*P` needs no gap for the claim rule's sake — but it
-        does not mean zero is wise: a zero gap is a continuous stream rather
-        than a burst link, and it measures 88% at a geometry where this reads
-        0. Replaces the prose `max(0, refine_span - burst_len)`, which was
-        short by the whole detection-lag term: 32 samples against 528 at the C
-        suite's geometry (doppler#1172).
+        start to start.
+
+        Derived rather than documented as a rule the caller has to apply: a
+        detection's anchor is the code epoch of whichever frame detected, and
+        acquisition's framing is not aligned to the preamble, so the last frame that
+        can detect sits up to `reps * code_period` past the true start. CLAIM merges
+        two anchors closer than `refine_span`, so a pair survives only when
+        `gap >= refine_span + reps*code_period - burst_len`.
+
+        **Zero is a real answer** — a burst longer than `refine_span + reps*P` needs
+        no gap for the claim rule's sake — but it does not mean zero is wise: a zero
+        gap is a continuous stream rather than a burst link, and it measures 88% at a
+        geometry where this reads 0.
+
+        Replaces the prose `max(0, refine_span - burst_len)`, which was short by the
+        whole detection-lag term: 32 samples against 528 at the C suite's geometry
+        (doppler#1172).
         """
 
     @property
     def retain_span(self) -> int:
         """History kept per anchor, in samples -- the MINIMUM TRAILING CONTEXT.
-        `refine_span` plus one whole burst. A burst closer than this to the end
-        of what has been pushed is held rather than emitted, because refine
-        cannot yet see the samples it needs. Feed at least this many more, or
-        the last burst of a capture never comes out.
+
+        `refine_span` plus one whole burst. A burst closer than this to the end of
+        what has been pushed is held rather than emitted, because refine cannot yet
+        see the samples it needs. Feed at least this many more, or the last burst of
+        a capture never comes out.
         """
 
     @property
@@ -3088,11 +3098,12 @@ class PersistentBurstCapture:
     @property
     def pending(self) -> int:
         """Detections held because their burst window has NOT fully arrived.
-        push() deliberately emits nothing for these: a window is returned when
-        it is complete, not when it is guessed at. What this exists for is the
-        other end -- a caller closing a file or a socket while this is non-zero
-        is discarding a burst that would have been captured, and every other
-        read-back looks identical to "nothing was ever there".
+
+        push() deliberately emits nothing for these: a window is returned when it is
+        complete, not when it is guessed at. What this exists for is the other end --
+        a caller closing a file or a socket while this is non-zero is discarding a
+        burst that would have been captured, and every other read-back looks
+        identical to "nothing was ever there".
         """
 
     @property
@@ -3116,7 +3127,6 @@ class PersistentBurstCapture:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "PersistentBurstCapture":
         """Enter a context manager, returning this object.
@@ -3155,14 +3165,14 @@ class PersistentBurstCapture:
 
 def bin_to_signed(bin: int, n_bins: int) -> int:
     """Map an FFT bin index to its SIGNED frequency index --
-    numpy.fft.fftfreq(n) * n, exactly: 0 = DC, ascending positive to
-    (n-1)/2, then wrapping negative, so an even grid's Nyquist bin is -n/2.
-    Multiply by doppler_res_hz for Hz. Call this rather than writing the
-    fold out: the search and its hand-off must agree on the convention, and
-    a consumer seeded on the wrong side of it is off by the full search
-    span -- a failure that once surfaced here as a receiver reporting
-    tracking while decoding noise. A thin wrapper over dp_fftfreq_index()
-    in clib_common.h, so C callers inline the same code.
+    numpy.fft.fftfreq(n) * n, exactly: 0 = DC, ascending positive to (n-1)/2,
+    then wrapping negative, so an even grid's Nyquist bin is -n/2. Multiply by
+    doppler_res_hz for Hz. Call this rather than writing the fold out: the
+    search and its hand-off must agree on the convention, and a consumer seeded
+    on the wrong side of it is off by the full search span -- a failure that
+    once surfaced here as a receiver reporting tracking while decoding noise. A
+    thin wrapper over dp_fftfreq_index() in clib_common.h, so C callers inline
+    the same code.
 
     Parameters
     ----------

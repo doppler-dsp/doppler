@@ -46,8 +46,8 @@ class Capture:
         no such file, or an unrecognised file type``.
 
     """
-    def __init__(self, path: str | os.PathLike) -> None: ...
 
+    def __init__(self, path: str | os.PathLike) -> None: ...
     def reset(self) -> None:
         """Reset state to post-create defaults."""
 
@@ -140,7 +140,6 @@ class Capture:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Capture":
         """Enter a context manager, returning this object.
@@ -200,6 +199,7 @@ class RawCapture:
         no such file, or an unrecognised file type``.
 
     """
+
     def __init__(
         self,
         path: str | os.PathLike,
@@ -208,7 +208,6 @@ class RawCapture:
         fs: float = 1.0,
         fc: float = 0.0,
     ) -> None: ...
-
     def reset(self) -> None:
         """Reset state to post-create defaults."""
 
@@ -301,7 +300,6 @@ class RawCapture:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "RawCapture":
         """Enter a context manager, returning this object.

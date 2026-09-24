@@ -1459,61 +1459,197 @@ Synth_set_fs (SynthObject *self, PyObject *value, void *closure)
 }
 
 static PyGetSetDef Synth_getset[] = {
-  { "type", (getter)Synth_get_type, (setter)Synth_set_type, NULL, NULL },
-  { "freq", (getter)Synth_get_freq, (setter)Synth_set_freq, NULL, NULL },
-  { "snr", (getter)Synth_get_snr, (setter)Synth_set_snr, NULL, NULL },
-  { "snr_mode", (getter)Synth_get_snr_mode, (setter)Synth_set_snr_mode, NULL,
+  { "type", (getter)Synth_get_type, (setter)Synth_set_type, "Waveform type.\n",
     NULL },
-  { "seed", (getter)Synth_get_seed, (setter)Synth_set_seed, NULL, NULL },
-  { "sps", (getter)Synth_get_sps, (setter)Synth_set_sps, NULL, NULL },
+  { "freq", (getter)Synth_get_freq, (setter)Synth_set_freq,
+    "Carrier/offset frequency in Hz (normalised cycles/sample when fs=1); for "
+    "chirp it is the start frequency.\n",
+    NULL },
+  { "snr", (getter)Synth_get_snr, (setter)Synth_set_snr,
+    "Signal-to-noise ratio in dB, interpreted per snr_mode; >=100 is treated "
+    "as clean (no AWGN).\n",
+    NULL },
+  { "snr_mode", (getter)Synth_get_snr_mode, (setter)Synth_set_snr_mode,
+    "How snr is interpreted: auto picks fs for tone/pn/chirp/bits and Es/No "
+    "for bpsk/qpsk.\n",
+    NULL },
+  { "seed", (getter)Synth_get_seed, (setter)Synth_set_seed,
+    "PRNG/LFSR seed for the noise and PN streams.\n", NULL },
+  { "sps", (getter)Synth_get_sps, (setter)Synth_set_sps,
+    "Samples per symbol (PSK) or per chip (PN); the oversampling factor.\n",
+    NULL },
   { "pn_length", (getter)Synth_get_pn_length, (setter)Synth_set_pn_length,
-    NULL, NULL },
-  { "pn_poly", (getter)Synth_get_pn_poly, (setter)Synth_set_pn_poly, NULL,
+    "PN LFSR register length; the sequence period is 2^pn_length - 1.\n",
     NULL },
-  { "lfsr", (getter)Synth_get_lfsr, (setter)Synth_set_lfsr, NULL, NULL },
-  { "level", (getter)Synth_get_level, (setter)Synth_set_level, NULL, NULL },
+  { "pn_poly", (getter)Synth_get_pn_poly, (setter)Synth_set_pn_poly,
+    "PN generator polynomial; 0 auto-selects a maximal-length (MLS) "
+    "polynomial for pn_length.\n",
+    NULL },
+  { "lfsr", (getter)Synth_get_lfsr, (setter)Synth_set_lfsr,
+    "PN LFSR realization (galois or fibonacci); same period, different chip "
+    "order.\n",
+    NULL },
+  { "level", (getter)Synth_get_level, (setter)Synth_set_level,
+    "Source power in dBFS (<=0; 0 = unit power). Applies only when summed in "
+    "a Segment/Composer (gain 10^(level/20)); ignored by standalone "
+    "Synth.steps().\n",
+    NULL },
   { "background", (getter)Synth_get_background, (setter)Synth_set_background,
-    NULL, NULL },
-  { "f_end", (getter)Synth_get_f_end, (setter)Synth_set_f_end, NULL, NULL },
-  { "span", (getter)Synth_get_span, (setter)Synth_set_span, NULL, NULL },
-  { "doppler", (getter)Synth_get_doppler, (setter)Synth_set_doppler, NULL,
+    "Mark this source as part of the static background field (0/1). "
+    "Plan.prepare() folds a contiguous leading run of background sources into "
+    "ONE pre-summed cache entry instead of caching each separately, so a "
+    "scene of many fixed emitters costs one buffer rather than hundreds. The "
+    "composite is overridable as a unit: it takes a single slot in "
+    "gains/phases/enable and counts as one in n_sources(), so scaling it "
+    "trims the whole field while its members keep their relative levels. "
+    "Background sources must come first in the segment (a non-prefix ordering "
+    "is rejected by prepare, since the fold would no longer reproduce compose "
+    "bit-for-bit). Ignored by compose() and by standalone Synth.steps().\n",
+    NULL },
+  { "f_end", (getter)Synth_get_f_end, (setter)Synth_set_f_end,
+    "Chirp end frequency in Hz; ignored by non-chirp types.\n", NULL },
+  { "span", (getter)Synth_get_span, (setter)Synth_set_span,
+    "Chirp sweep length in samples: the frequency ramps from freq to f_end "
+    "over this many samples, then holds at f_end. 0 means the enclosing "
+    "Segment's num_samples. A standalone chirp (f_end != freq) must declare "
+    "it, so step(), steps(N) and any chunking of reads produce the same "
+    "waveform; generating one without it raises. Ignored by non-chirp "
+    "types.\n",
+    NULL },
+  { "doppler", (getter)Synth_get_doppler, (setter)Synth_set_doppler,
+    "Clock Doppler in ppm: the received time base is rescaled by 1 + "
+    "doppler*1e-6, so the symbol and chip rates move with the carrier and a "
+    "timing loop sees the error a carrier-only `freq` offset hides. Accepts a "
+    "(lo, hi) tuple drawn uniformly per repeat, like freq/snr. Zero doppler "
+    "AND zero doppler_rate means no channel is built at all, so a source that "
+    "does not ask for Doppler renders exactly as it always did.\n",
     NULL },
   { "doppler_rate", (getter)Synth_get_doppler_rate,
-    (setter)Synth_set_doppler_rate, NULL, NULL },
+    (setter)Synth_set_doppler_rate,
+    "Linear ramp on `doppler`, in ppm per second of elapsed stream time. The "
+    "channel runs through a segment's gaps as well as its on-time — an "
+    "emitter does not stop moving because its burst ended — so this is per "
+    "second, not per second of on-time. Accepts a (lo, hi) tuple drawn "
+    "uniformly per repeat.\n",
+    NULL },
   { "carrier_hz", (getter)Synth_get_carrier_hz, (setter)Synth_set_carrier_hz,
-    NULL, NULL },
+    "RF carrier in Hz that the ppm figures are referred to, giving the "
+    "coherent carrier rotation that accompanies the time-base warp. 0 (the "
+    "default) warps the clock alone, with no carrier rotation — a legitimate "
+    "scene, not an unset field. Independent of doppler/doppler_rate.\n",
+    NULL },
   { "doppler_lifetime", (getter)Synth_get_doppler_lifetime,
-    (setter)Synth_set_doppler_lifetime, NULL, NULL },
-  { "bits", (getter)Synth_get_bits, (setter)Synth_set_bits, NULL, NULL },
+    (setter)Synth_set_doppler_lifetime,
+    "How long this source's Doppler channel lives. per_instance (default): "
+    "the channel dies with each `repeats` instance, so the geometry restarts "
+    "— the repeated-trial shape, which composes with a ranged doppler "
+    "re-drawn per instance. persist: one continuous pass carries across the "
+    "segment's gaps and repeat instances, keyed by (segment, source) position "
+    "— the only lifetime under which doppler_rate accumulates across a "
+    "multi-burst scene. Plan.prepare() REFUSES a persist source, because its "
+    "cache renders each source independently and concurrently; compose() and "
+    "stream() honour both.\n",
+    NULL },
+  { "bits", (getter)Synth_get_bits, (setter)Synth_set_bits,
+    "For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill "
+    "the request. For type=dsss (as `payload`): the payload bits of the burst "
+    "frame.\n",
+    NULL },
   { "modulation", (getter)Synth_get_modulation, (setter)Synth_set_modulation,
-    NULL, NULL },
-  { "pulse", (getter)Synth_get_pulse, (setter)Synth_set_pulse, NULL, NULL },
-  { "rrc_beta", (getter)Synth_get_rrc_beta, (setter)Synth_set_rrc_beta, NULL,
+    "For type=bits: symbol mapping of the pattern (none=0/1 amplitude, bpsk, "
+    "qpsk).\n",
     NULL },
-  { "rrc_span", (getter)Synth_get_rrc_span, (setter)Synth_set_rrc_span, NULL,
+  { "pulse", (getter)Synth_get_pulse, (setter)Synth_set_pulse,
+    "Pulse shape for the symbol stream (pn/bpsk/qpsk/bits): rect "
+    "sample-and-hold or rrc matched filter.\n",
     NULL },
-  { "symbols", (getter)Synth_get_symbols, (setter)Synth_set_symbols, NULL,
+  { "rrc_beta", (getter)Synth_get_rrc_beta, (setter)Synth_set_rrc_beta,
+    "RRC roll-off factor in (0, 1] when pulse=rrc.\n", NULL },
+  { "rrc_span", (getter)Synth_get_rrc_span, (setter)Synth_set_rrc_span,
+    "RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1).\n",
     NULL },
-  { "acq_code", (getter)Synth_get_acq_code, (setter)Synth_set_acq_code, NULL,
+  { "symbols", (getter)Synth_get_symbols, (setter)Synth_set_symbols,
+    "For type=symbols: a complex64 constellation stream — each element is the "
+    "output point itself, oversampled by sps, cycled, and RRC-shaped with "
+    "pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).\n",
     NULL },
-  { "acq_reps", (getter)Synth_get_acq_reps, (setter)Synth_set_acq_reps, NULL,
+  { "acq_code", (getter)Synth_get_acq_code, (setter)Synth_set_acq_code,
+    "The acquisition/preamble code (0/1), repeated acq_reps times at the head "
+    "of the frame — the coherent pull-in target "
+    "BurstDespreader.set_acq/BurstDemod.set_preamble lock to. For type=dsss "
+    "it is unmodulated chips ahead of the spread frame; for type=bits it is "
+    "the head of the bit pattern. Setting it (or sync) is what makes a source "
+    "FRAMED.\n",
+    NULL },
+  { "acq_reps", (getter)Synth_get_acq_reps, (setter)Synth_set_acq_reps,
+    "Preamble repetitions (periods of acq_code before the sync word).\n",
     NULL },
   { "data_code", (getter)Synth_get_data_code, (setter)Synth_set_data_code,
-    NULL, NULL },
-  { "sync", (getter)Synth_get_sync, (setter)Synth_set_sync, NULL, NULL },
-  { "crc", (getter)Synth_get_crc, (setter)Synth_set_crc, NULL, NULL },
-  { "rs_depth", (getter)Synth_get_rs_depth, (setter)Synth_set_rs_depth, NULL,
+    "For type=dsss: the payload spreading code (0/1 chips) — a second code, "
+    "distinct from acq_code; every frame bit (sync | payload | crc) is "
+    "XOR-spread across its full length, so len(data_code) is the spreading "
+    "factor.\n",
+    NULL },
+  { "sync", (getter)Synth_get_sync, (setter)Synth_set_sync,
+    "The frame-sync word bits (e.g. Barker-13) between the preamble and the "
+    "payload — what BurstDemod.set_frame correlates to resolve frame position "
+    "and BPSK polarity, and what a BER alignment detects against. Optional; "
+    "setting it (or acq_code) is what makes a source FRAMED.\n",
+    NULL },
+  { "crc", (getter)Synth_get_crc, (setter)Synth_set_crc,
+    "The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits "
+    "(what BurstDemod validates as frame_valid, and what makes a truth-free "
+    "frame error rate possible); none omits it. Applies only to a FRAMED "
+    "source: it defaults to crc16, so it alone never frames an otherwise "
+    "plain pattern.\n",
+    NULL },
+  { "rs_depth", (getter)Synth_get_rs_depth, (setter)Synth_set_rs_depth,
+    "Reed-Solomon (255,223) E=16 over the data group, interleaved this many "
+    "codewords deep; 0 = no outer code. CCSDS 131.0-B-3 4.3.5.1 allows 1, 2, "
+    "3, 4, 5 or 8, and the payload plus its CRC must be exactly 223*depth "
+    "octets — virtual fill is not implemented, so any other length is REFUSED "
+    "rather than padded. The wfmgen scene and CLI spell it `rs_depth` / "
+    "`--rs-depth`.\n",
     NULL },
   { "randomise", (getter)Synth_get_randomise, (setter)Synth_set_randomise,
-    NULL, NULL },
+    "XOR a CCSDS section-10 pseudo-randomiser over the data group — the "
+    "payload, its CRC and the outer code's parity, but never a marker or a "
+    "preamble, which have to read the same in every frame to be findable. 0 = "
+    "off, 1 = 131.0-B-6 10.4.1's 131071-bit sequence (the `shall`), 2 = "
+    "10.4.2's 255-bit legacy one. A CHOICE rather than a flag because only "
+    "the matching receiver derandomises a given waveform. CLI: `--randomise "
+    "[G]`.\n",
+    NULL },
   { "attach_asm", (getter)Synth_get_attach_asm, (setter)Synth_set_attach_asm,
-    NULL, NULL },
+    "Prepend the CCSDS Attached Sync Marker (0x1ACFFC1D) as the frame's first "
+    "field — what a receiver correlates to find a frame in a bit stream. Not "
+    "covered by the randomiser, and covered by the inner code, which is the "
+    "coverage rule the description carries. The wfmgen scene and CLI spell it "
+    "`asm` / `--asm`.\n",
+    NULL },
   { "convolutional", (getter)Synth_get_convolutional,
-    (setter)Synth_set_convolutional, NULL, NULL },
+    (setter)Synth_set_convolutional,
+    "Inner code: CCSDS K=7 rate-1/2 convolutional, over the WHOLE frame "
+    "including the marker, doubling its bit count. For a `dsss` burst it "
+    "covers everything that is spread and NOT the acquisition preamble — a "
+    "preamble is transmitted unmodulated because it is the coherent pull-in "
+    "target. The wfmgen scene and CLI spell it `conv` / `--conv`.\n",
+    NULL },
   { "symbol_rate", (getter)Synth_get_symbol_rate,
-    (setter)Synth_set_symbol_rate, NULL, NULL },
+    (setter)Synth_set_symbol_rate,
+    "For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading "
+    "code repeats endlessly and data rides on it at this symbol rate (Hz), "
+    "independent of the code-epoch rate (chips/symbol = fs/sps/symbol_rate, "
+    "non-integer). No preamble/sync/CRC frame; data comes from the payload "
+    "when supplied, else a seeded PN a receiver regenerates. Absent/0 = "
+    "burst.\n",
+    NULL },
   { "dsss_code_only", (getter)Synth_get_dsss_code_only,
-    (setter)Synth_set_dsss_code_only, NULL, NULL },
+    (setter)Synth_set_dsss_code_only,
+    "Continuous dsss data source: 1 = code-only (the pure spreading code, no "
+    "data modulation); 0 = data-modulated (the payload when supplied, else "
+    "the seeded PN). Ignored for burst dsss and non-dsss types.\n",
+    NULL },
   { "fs", (getter)Synth_get_fs, (setter)Synth_set_fs, NULL, NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
@@ -2638,52 +2774,219 @@ Segment_add (SegmentObject *self, PyObject *args)
 
 static PyGetSetDef Segment_getset[] = {
   { "sources", (getter)Segment_get_sources, NULL, NULL, NULL },
-  { "fs", (getter)Segment_get_fs, (setter)Segment_set_fs, NULL, NULL },
+  { "fs", (getter)Segment_get_fs, (setter)Segment_set_fs,
+    "Sample rate in Hz — one per segment (all sources share it).\n", NULL },
   { "num_samples", (getter)Segment_get_num_samples,
-    (setter)Segment_set_num_samples, NULL, NULL },
+    (setter)Segment_set_num_samples,
+    "Segment on-time in samples (the active span).\n", NULL },
   { "off_samples", (getter)Segment_get_off_samples,
-    (setter)Segment_set_off_samples, NULL, NULL },
-  { "repeats", (getter)Segment_get_repeats, (setter)Segment_set_repeats, NULL,
+    (setter)Segment_set_off_samples,
+    "Trailing off-time gap in samples (zeros) appended after the segment.\n",
+    NULL },
+  { "repeats", (getter)Segment_get_repeats, (setter)Segment_set_repeats,
+    "Play the segment this many times back-to-back (each instance = delay + "
+    "on-time + trailing gap) before advancing. Ranged fields re-draw and the "
+    "AWGN is fresh per instance; the signal (codes, payload, PN phase) stays "
+    "fixed.\n",
     NULL },
   { "delay_samples", (getter)Segment_get_delay_samples,
-    (setter)Segment_set_delay_samples, NULL, NULL },
-  { "gap_noise", (getter)Segment_get_gap_noise, (setter)Segment_set_gap_noise,
-    NULL, NULL },
-  { "type", (getter)Segment_flat_type, NULL, NULL, NULL },
-  { "freq", (getter)Segment_flat_freq, NULL, NULL, NULL },
-  { "snr", (getter)Segment_flat_snr, NULL, NULL, NULL },
-  { "snr_mode", (getter)Segment_flat_snr_mode, NULL, NULL, NULL },
-  { "seed", (getter)Segment_flat_seed, NULL, NULL, NULL },
-  { "sps", (getter)Segment_flat_sps, NULL, NULL, NULL },
-  { "pn_length", (getter)Segment_flat_pn_length, NULL, NULL, NULL },
-  { "pn_poly", (getter)Segment_flat_pn_poly, NULL, NULL, NULL },
-  { "lfsr", (getter)Segment_flat_lfsr, NULL, NULL, NULL },
-  { "level", (getter)Segment_flat_level, NULL, NULL, NULL },
-  { "background", (getter)Segment_flat_background, NULL, NULL, NULL },
-  { "f_end", (getter)Segment_flat_f_end, NULL, NULL, NULL },
-  { "span", (getter)Segment_flat_span, NULL, NULL, NULL },
-  { "doppler", (getter)Segment_flat_doppler, NULL, NULL, NULL },
-  { "doppler_rate", (getter)Segment_flat_doppler_rate, NULL, NULL, NULL },
-  { "carrier_hz", (getter)Segment_flat_carrier_hz, NULL, NULL, NULL },
-  { "doppler_lifetime", (getter)Segment_flat_doppler_lifetime, NULL, NULL,
+    (setter)Segment_set_delay_samples,
+    "Leading gap before the on-time (samples) — the burst arrives after this "
+    "delay. Ranged like off_samples and re-drawn per repeats instance, so a "
+    "(lo, hi) delay is per-burst arrival jitter. Use off_samples for "
+    "inter-burst spacing, delay_samples for arrival jitter.\n",
     NULL },
-  { "bits", (getter)Segment_flat_bits, NULL, NULL, NULL },
-  { "modulation", (getter)Segment_flat_modulation, NULL, NULL, NULL },
-  { "pulse", (getter)Segment_flat_pulse, NULL, NULL, NULL },
-  { "rrc_beta", (getter)Segment_flat_rrc_beta, NULL, NULL, NULL },
-  { "rrc_span", (getter)Segment_flat_rrc_span, NULL, NULL, NULL },
-  { "symbols", (getter)Segment_flat_symbols, NULL, NULL, NULL },
-  { "acq_code", (getter)Segment_flat_acq_code, NULL, NULL, NULL },
-  { "acq_reps", (getter)Segment_flat_acq_reps, NULL, NULL, NULL },
-  { "data_code", (getter)Segment_flat_data_code, NULL, NULL, NULL },
-  { "sync", (getter)Segment_flat_sync, NULL, NULL, NULL },
-  { "crc", (getter)Segment_flat_crc, NULL, NULL, NULL },
-  { "rs_depth", (getter)Segment_flat_rs_depth, NULL, NULL, NULL },
-  { "randomise", (getter)Segment_flat_randomise, NULL, NULL, NULL },
-  { "attach_asm", (getter)Segment_flat_attach_asm, NULL, NULL, NULL },
-  { "convolutional", (getter)Segment_flat_convolutional, NULL, NULL, NULL },
-  { "symbol_rate", (getter)Segment_flat_symbol_rate, NULL, NULL, NULL },
-  { "dsss_code_only", (getter)Segment_flat_dsss_code_only, NULL, NULL, NULL },
+  { "gap_noise", (getter)Segment_get_gap_noise, (setter)Segment_set_gap_noise,
+    "Gap policy for this segment's delay and trailing gap. auto (default): "
+    "gaps carry the segment's noise floor — the sources' AWGN keeps running "
+    "while the signal stops (clean scenes still get exact-zero gaps). off: "
+    "gaps are hard zeros.\n",
+    NULL },
+  { "type", (getter)Segment_flat_type, NULL, "Waveform type.\n", NULL },
+  { "freq", (getter)Segment_flat_freq, NULL,
+    "Carrier/offset frequency in Hz (normalised cycles/sample when fs=1); for "
+    "chirp it is the start frequency.\n",
+    NULL },
+  { "snr", (getter)Segment_flat_snr, NULL,
+    "Signal-to-noise ratio in dB, interpreted per snr_mode; >=100 is treated "
+    "as clean (no AWGN).\n",
+    NULL },
+  { "snr_mode", (getter)Segment_flat_snr_mode, NULL,
+    "How snr is interpreted: auto picks fs for tone/pn/chirp/bits and Es/No "
+    "for bpsk/qpsk.\n",
+    NULL },
+  { "seed", (getter)Segment_flat_seed, NULL,
+    "PRNG/LFSR seed for the noise and PN streams.\n", NULL },
+  { "sps", (getter)Segment_flat_sps, NULL,
+    "Samples per symbol (PSK) or per chip (PN); the oversampling factor.\n",
+    NULL },
+  { "pn_length", (getter)Segment_flat_pn_length, NULL,
+    "PN LFSR register length; the sequence period is 2^pn_length - 1.\n",
+    NULL },
+  { "pn_poly", (getter)Segment_flat_pn_poly, NULL,
+    "PN generator polynomial; 0 auto-selects a maximal-length (MLS) "
+    "polynomial for pn_length.\n",
+    NULL },
+  { "lfsr", (getter)Segment_flat_lfsr, NULL,
+    "PN LFSR realization (galois or fibonacci); same period, different chip "
+    "order.\n",
+    NULL },
+  { "level", (getter)Segment_flat_level, NULL,
+    "Source power in dBFS (<=0; 0 = unit power). Applies only when summed in "
+    "a Segment/Composer (gain 10^(level/20)); ignored by standalone "
+    "Synth.steps().\n",
+    NULL },
+  { "background", (getter)Segment_flat_background, NULL,
+    "Mark this source as part of the static background field (0/1). "
+    "Plan.prepare() folds a contiguous leading run of background sources into "
+    "ONE pre-summed cache entry instead of caching each separately, so a "
+    "scene of many fixed emitters costs one buffer rather than hundreds. The "
+    "composite is overridable as a unit: it takes a single slot in "
+    "gains/phases/enable and counts as one in n_sources(), so scaling it "
+    "trims the whole field while its members keep their relative levels. "
+    "Background sources must come first in the segment (a non-prefix ordering "
+    "is rejected by prepare, since the fold would no longer reproduce compose "
+    "bit-for-bit). Ignored by compose() and by standalone Synth.steps().\n",
+    NULL },
+  { "f_end", (getter)Segment_flat_f_end, NULL,
+    "Chirp end frequency in Hz; ignored by non-chirp types.\n", NULL },
+  { "span", (getter)Segment_flat_span, NULL,
+    "Chirp sweep length in samples: the frequency ramps from freq to f_end "
+    "over this many samples, then holds at f_end. 0 means the enclosing "
+    "Segment's num_samples. A standalone chirp (f_end != freq) must declare "
+    "it, so step(), steps(N) and any chunking of reads produce the same "
+    "waveform; generating one without it raises. Ignored by non-chirp "
+    "types.\n",
+    NULL },
+  { "doppler", (getter)Segment_flat_doppler, NULL,
+    "Clock Doppler in ppm: the received time base is rescaled by 1 + "
+    "doppler*1e-6, so the symbol and chip rates move with the carrier and a "
+    "timing loop sees the error a carrier-only `freq` offset hides. Accepts a "
+    "(lo, hi) tuple drawn uniformly per repeat, like freq/snr. Zero doppler "
+    "AND zero doppler_rate means no channel is built at all, so a source that "
+    "does not ask for Doppler renders exactly as it always did.\n",
+    NULL },
+  { "doppler_rate", (getter)Segment_flat_doppler_rate, NULL,
+    "Linear ramp on `doppler`, in ppm per second of elapsed stream time. The "
+    "channel runs through a segment's gaps as well as its on-time — an "
+    "emitter does not stop moving because its burst ended — so this is per "
+    "second, not per second of on-time. Accepts a (lo, hi) tuple drawn "
+    "uniformly per repeat.\n",
+    NULL },
+  { "carrier_hz", (getter)Segment_flat_carrier_hz, NULL,
+    "RF carrier in Hz that the ppm figures are referred to, giving the "
+    "coherent carrier rotation that accompanies the time-base warp. 0 (the "
+    "default) warps the clock alone, with no carrier rotation — a legitimate "
+    "scene, not an unset field. Independent of doppler/doppler_rate.\n",
+    NULL },
+  { "doppler_lifetime", (getter)Segment_flat_doppler_lifetime, NULL,
+    "How long this source's Doppler channel lives. per_instance (default): "
+    "the channel dies with each `repeats` instance, so the geometry restarts "
+    "— the repeated-trial shape, which composes with a ranged doppler "
+    "re-drawn per instance. persist: one continuous pass carries across the "
+    "segment's gaps and repeat instances, keyed by (segment, source) position "
+    "— the only lifetime under which doppler_rate accumulates across a "
+    "multi-burst scene. Plan.prepare() REFUSES a persist source, because its "
+    "cache renders each source independently and concurrently; compose() and "
+    "stream() honour both.\n",
+    NULL },
+  { "bits", (getter)Segment_flat_bits, NULL,
+    "For type=bits: the 0/1 pattern, oversampled by sps and cycled to fill "
+    "the request. For type=dsss (as `payload`): the payload bits of the burst "
+    "frame.\n",
+    NULL },
+  { "modulation", (getter)Segment_flat_modulation, NULL,
+    "For type=bits: symbol mapping of the pattern (none=0/1 amplitude, bpsk, "
+    "qpsk).\n",
+    NULL },
+  { "pulse", (getter)Segment_flat_pulse, NULL,
+    "Pulse shape for the symbol stream (pn/bpsk/qpsk/bits): rect "
+    "sample-and-hold or rrc matched filter.\n",
+    NULL },
+  { "rrc_beta", (getter)Segment_flat_rrc_beta, NULL,
+    "RRC roll-off factor in (0, 1] when pulse=rrc.\n", NULL },
+  { "rrc_span", (getter)Segment_flat_rrc_span, NULL,
+    "RRC filter span in symbols when pulse=rrc (taps = 2*span*sps + 1).\n",
+    NULL },
+  { "symbols", (getter)Segment_flat_symbols, NULL,
+    "For type=symbols: a complex64 constellation stream — each element is the "
+    "output point itself, oversampled by sps, cycled, and RRC-shaped with "
+    "pulse=rrc. Generalises any modulation (pi/4-QPSK, QAM, ...).\n",
+    NULL },
+  { "acq_code", (getter)Segment_flat_acq_code, NULL,
+    "The acquisition/preamble code (0/1), repeated acq_reps times at the head "
+    "of the frame — the coherent pull-in target "
+    "BurstDespreader.set_acq/BurstDemod.set_preamble lock to. For type=dsss "
+    "it is unmodulated chips ahead of the spread frame; for type=bits it is "
+    "the head of the bit pattern. Setting it (or sync) is what makes a source "
+    "FRAMED.\n",
+    NULL },
+  { "acq_reps", (getter)Segment_flat_acq_reps, NULL,
+    "Preamble repetitions (periods of acq_code before the sync word).\n",
+    NULL },
+  { "data_code", (getter)Segment_flat_data_code, NULL,
+    "For type=dsss: the payload spreading code (0/1 chips) — a second code, "
+    "distinct from acq_code; every frame bit (sync | payload | crc) is "
+    "XOR-spread across its full length, so len(data_code) is the spreading "
+    "factor.\n",
+    NULL },
+  { "sync", (getter)Segment_flat_sync, NULL,
+    "The frame-sync word bits (e.g. Barker-13) between the preamble and the "
+    "payload — what BurstDemod.set_frame correlates to resolve frame position "
+    "and BPSK polarity, and what a BER alignment detects against. Optional; "
+    "setting it (or acq_code) is what makes a source FRAMED.\n",
+    NULL },
+  { "crc", (getter)Segment_flat_crc, NULL,
+    "The frame trailer — crc16 appends a CRC-16-CCITT over the payload bits "
+    "(what BurstDemod validates as frame_valid, and what makes a truth-free "
+    "frame error rate possible); none omits it. Applies only to a FRAMED "
+    "source: it defaults to crc16, so it alone never frames an otherwise "
+    "plain pattern.\n",
+    NULL },
+  { "rs_depth", (getter)Segment_flat_rs_depth, NULL,
+    "Reed-Solomon (255,223) E=16 over the data group, interleaved this many "
+    "codewords deep; 0 = no outer code. CCSDS 131.0-B-3 4.3.5.1 allows 1, 2, "
+    "3, 4, 5 or 8, and the payload plus its CRC must be exactly 223*depth "
+    "octets — virtual fill is not implemented, so any other length is REFUSED "
+    "rather than padded. The wfmgen scene and CLI spell it `rs_depth` / "
+    "`--rs-depth`.\n",
+    NULL },
+  { "randomise", (getter)Segment_flat_randomise, NULL,
+    "XOR a CCSDS section-10 pseudo-randomiser over the data group — the "
+    "payload, its CRC and the outer code's parity, but never a marker or a "
+    "preamble, which have to read the same in every frame to be findable. 0 = "
+    "off, 1 = 131.0-B-6 10.4.1's 131071-bit sequence (the `shall`), 2 = "
+    "10.4.2's 255-bit legacy one. A CHOICE rather than a flag because only "
+    "the matching receiver derandomises a given waveform. CLI: `--randomise "
+    "[G]`.\n",
+    NULL },
+  { "attach_asm", (getter)Segment_flat_attach_asm, NULL,
+    "Prepend the CCSDS Attached Sync Marker (0x1ACFFC1D) as the frame's first "
+    "field — what a receiver correlates to find a frame in a bit stream. Not "
+    "covered by the randomiser, and covered by the inner code, which is the "
+    "coverage rule the description carries. The wfmgen scene and CLI spell it "
+    "`asm` / `--asm`.\n",
+    NULL },
+  { "convolutional", (getter)Segment_flat_convolutional, NULL,
+    "Inner code: CCSDS K=7 rate-1/2 convolutional, over the WHOLE frame "
+    "including the marker, doubling its bit count. For a `dsss` burst it "
+    "covers everything that is spread and NOT the acquisition preamble — a "
+    "preamble is transmitted unmodulated because it is the coherent pull-in "
+    "target. The wfmgen scene and CLI spell it `conv` / `--conv`.\n",
+    NULL },
+  { "symbol_rate", (getter)Segment_flat_symbol_rate, NULL,
+    "For type=dsss: > 0 selects CONTINUOUS asynchronous mode — the spreading "
+    "code repeats endlessly and data rides on it at this symbol rate (Hz), "
+    "independent of the code-epoch rate (chips/symbol = fs/sps/symbol_rate, "
+    "non-integer). No preamble/sync/CRC frame; data comes from the payload "
+    "when supplied, else a seeded PN a receiver regenerates. Absent/0 = "
+    "burst.\n",
+    NULL },
+  { "dsss_code_only", (getter)Segment_flat_dsss_code_only, NULL,
+    "Continuous dsss data source: 1 = code-only (the pure spreading code, no "
+    "data modulation); 0 = data-modulated (the payload when supplied, else "
+    "the seeded PN). Ignored for burst dsss and non-dsss types.\n",
+    NULL },
   { NULL, NULL, NULL, NULL, NULL }
 };
 

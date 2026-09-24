@@ -39,7 +39,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bench_report import collect_meta, fastest_cpus
+from bench_report import collect_meta, fastest_cpus, machine_not_ready
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PUBLISHED = os.path.join(REPO, "benchmarks", "published")
@@ -146,6 +146,16 @@ def main() -> int:
     ap.add_argument("-k", "--passes", type=int, default=5)
     a = ap.parse_args()
     ver = "v" + a.version.lstrip("v")
+
+    # Refuse BEFORE the hour of building and measuring, not after: a snapshot
+    # taken in the wrong state publishes numbers no later release can be
+    # compared against, and the page would not say so.
+    problems = machine_not_ready()
+    if problems:
+        print("bench-interleaved: this machine is not ready to measure:")
+        for p in problems:
+            print(f"  - {p}")
+        return 2
 
     wts = {b: setup_worktree(b) for b in BUILD_ARGS}
     info = {b: _build_info(wts[b]) for b in BUILD_ARGS}

@@ -31,6 +31,7 @@ from doppler.dsss.benchmarks._burst_stimulus import (
     REPS,
     SPC,
     burst_stimulus,
+    on_fresh,
     packing,
     rate,
 )
@@ -66,12 +67,18 @@ def _acq(acq_code):
     )
 
 
+def test_bench_construct(benchmark, waveform):
+    """Construction: the search sized on the burst, paid once per object."""
+    acq_code = waveform[0]
+    benchmark(lambda: _acq(acq_code))
+
+
 def test_bench_push_idle(benchmark, waveform):
     """The search floor — the cost paid on every sample, burst or not."""
     acq_code, _, _, _, idle = waveform
-    # Rebuilt per round: the engine carries a dwell accumulator and a ring,
-    # so a reused instance would measure a warm one from round two onward.
-    hits = benchmark(lambda: _acq(acq_code).push(idle))
+    # Fresh per round, built untimed: the engine carries a dwell accumulator
+    # and a ring, and construction is its own row (on_fresh).
+    hits = on_fresh(benchmark, lambda: _acq(acq_code), lambda a: a.push(idle))
     assert isinstance(hits, list)
     rate(benchmark)
 
@@ -79,7 +86,9 @@ def test_bench_push_idle(benchmark, waveform):
 def test_bench_push_bursts(benchmark, waveform, n_bursts):
     """Four bursts in the block — what a detection adds to the search."""
     acq_code, _, _, bursts, idle = waveform
-    hits = benchmark(lambda: _acq(acq_code).push(bursts))
+    hits = on_fresh(
+        benchmark, lambda: _acq(acq_code), lambda a: a.push(bursts)
+    )
     # Not "== N_BURSTS": raw acquisition emits several hits per preamble and
     # the chain coalesces them downstream. What must hold is that the block
     # with bursts in it detects substantially more than the one without.

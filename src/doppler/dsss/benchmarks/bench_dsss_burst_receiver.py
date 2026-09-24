@@ -38,6 +38,7 @@ from doppler.dsss.benchmarks._burst_stimulus import (
     SPC,
     SYNC,
     burst_stimulus,
+    on_fresh,
     packing,
     rate,
 )
@@ -79,17 +80,23 @@ def _receiver(acq_code, data_code):
     )
 
 
+def test_bench_construct(benchmark, waveform):
+    """Construction: the chain, its search sized on the burst."""
+    acq_code, data_code = waveform[0], waveform[1]
+    benchmark(lambda: _receiver(acq_code, data_code))
+
+
 def test_bench_push_idle(benchmark, waveform):
     """The search floor: 64k of noise in, nothing decodes."""
     acq_code, data_code, _, _, idle = waveform
 
-    def run():
-        # Rebuilt per round: push() carries look-back history and a
-        # suppression window, so reusing one instance would measure the
-        # dedup path from the second round onward rather than the search.
-        return _receiver(acq_code, data_code).push(idle)
-
-    out = benchmark(run)
+    # Fresh per round, built untimed: push() carries look-back history and a
+    # suppression window, and construction is its own row (on_fresh).
+    out = on_fresh(
+        benchmark,
+        lambda: _receiver(acq_code, data_code),
+        lambda r: r.push(idle),
+    )
     assert len(out) == 0, "the idle row must decode nothing, or it is not idle"
     rate(benchmark)
 
@@ -98,10 +105,13 @@ def test_bench_push_bursts(benchmark, waveform, n_bursts):
     """Search plus four decoded bursts — the per-detection cost, on top."""
     acq_code, data_code, payload, bursts, _ = waveform
 
-    def run():
-        return _receiver(acq_code, data_code).push(bursts)
-
-    out = np.asarray(benchmark(run))
+    out = np.asarray(
+        on_fresh(
+            benchmark,
+            lambda: _receiver(acq_code, data_code),
+            lambda r: r.push(bursts),
+        )
+    )
     # Asserted, because a benchmark that quietly stopped decoding would
     # otherwise simply look faster.
     # The receiver hands back FRAMES — it stops at decisions, so the payload

@@ -33,6 +33,7 @@ from doppler.dsss.benchmarks._burst_stimulus import (
     REPS,
     SPC,
     burst_stimulus,
+    on_fresh,
     rate,
 )
 
@@ -48,12 +49,22 @@ def _despreader(acq_code, data_code):
     return d
 
 
+def test_bench_construct(benchmark, waveform):
+    """Construction, paid once per object."""
+    acq_code, data_code = waveform[0], waveform[1]
+    benchmark(lambda: _despreader(acq_code, data_code))
+
+
 def test_bench_steps_idle(benchmark, waveform):
     """Noise in: the loops still run on every sample."""
     acq_code, data_code, _, _, idle = waveform
     # Rebuilt per round: the loops carry NCO phase and a code phase, so a
     # reused instance would start round two already dragged by round one.
-    out = benchmark(lambda: _despreader(acq_code, data_code).steps(idle))
+    out = on_fresh(
+        benchmark,
+        lambda: _despreader(acq_code, data_code),
+        lambda d: d.steps(idle),
+    )
     assert np.asarray(out).size > 0, "the despreader emitted no prompts"
     rate(benchmark)
 
@@ -61,7 +72,11 @@ def test_bench_steps_idle(benchmark, waveform):
 def test_bench_steps_bursts(benchmark, waveform):
     """Four bursts in the block — the same loop arithmetic, now locking."""
     acq_code, data_code, _, bursts, _ = waveform
-    out = benchmark(lambda: _despreader(acq_code, data_code).steps(bursts))
+    out = on_fresh(
+        benchmark,
+        lambda: _despreader(acq_code, data_code),
+        lambda d: d.steps(bursts),
+    )
     assert np.asarray(out).size > 0, "the despreader emitted no prompts"
     # Measured on a fresh instance rather than read off the benchmarked one,
     # whose final state belongs to whichever round pytest-benchmark ran last.

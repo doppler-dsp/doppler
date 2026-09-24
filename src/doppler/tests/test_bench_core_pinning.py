@@ -91,3 +91,58 @@ def test_the_doctests_in_bench_report_run():
     result = doctest.testmod(_load("bench_report"))
     assert result.attempted >= 6
     assert result.failed == 0
+
+
+def _fake_machine(
+    root: Path, governors: list[str], profile: str | None, load: str
+) -> tuple[str, str, str]:
+    """A cpu sysfs, a platform-profile file (or none) and a loadavg file."""
+    for i, g in enumerate(governors):
+        d = root / "cpu" / f"cpu{i}" / "cpufreq"
+        d.mkdir(parents=True)
+        (d / "scaling_governor").write_text(g + "\n")
+    prof = root / "platform_profile"
+    if profile is not None:
+        prof.write_text(profile + "\n")
+    (root / "loadavg").write_text(f"{load} 0.30 0.40 1/500 1\n")
+    return str(root / "cpu"), str(prof), str(root / "loadavg")
+
+
+def test_a_ready_machine_has_no_problems(tmp_path):
+    """Governor and profile `performance`, quiet: nothing stops the run."""
+    report = _load("bench_report")
+    paths = _fake_machine(tmp_path, ["performance"] * 4, "performance", "0.4")
+    assert report.machine_not_ready(*paths) == []
+
+
+def test_a_machine_without_a_platform_profile_is_not_refused_for_it(
+    tmp_path,
+):
+    """A desktop has no /sys/firmware/acpi/platform_profile; that is fine."""
+    report = _load("bench_report")
+    paths = _fake_machine(tmp_path, ["performance"] * 2, None, "0.1")
+    assert report.machine_not_ready(*paths) == []
+
+
+@pytest.mark.parametrize(
+    ("governors", "profile", "load", "names"),
+    [
+        (["performance", "powersave"], "performance", "0.2", "governor"),
+        (["performance"] * 2, "balanced", "0.2", "platform profile"),
+        (["performance"] * 2, "performance", "3.5", "load"),
+    ],
+)
+def test_each_wrong_state_refuses_the_run(
+    tmp_path, governors, profile, load, names
+):
+    """v0.56.0's first run had the governor right and the other two wrong.
+
+    Each of the three is checked on its own, so fixing one cannot hide
+    another, and each problem names its fix.
+    """
+    report = _load("bench_report")
+    problems = report.machine_not_ready(
+        *_fake_machine(tmp_path, governors, profile, load)
+    )
+    assert len(problems) == 1 and names in problems[0], problems
+    assert ":" in problems[0]  # "<what is wrong>: <the fix>"

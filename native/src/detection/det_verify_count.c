@@ -11,6 +11,11 @@ det_verify_count (double p_look, double p_target)
    * lock detector — declare (p = per-look pfa, target = false-declare
    * budget) and drop (p = per-look miss rate 1-pd, target = false-drop
    * budget). */
+  /* p_look is closed at both ends: an impossible or a certain look is a
+   * real configuration, answered below. A target of 0 is never reached
+   * (and ceil(inf) would not fit an int), so the budget is open. */
+  if (!(p_look >= 0.0 && p_look <= 1.0) || !(p_target > 0.0 && p_target < 1.0))
+    return -1;
   if (p_target >= p_look)
     return 1; /* a single look already meets the budget */
   if (p_look <= 0.0)

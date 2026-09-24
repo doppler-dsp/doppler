@@ -3,5 +3,7 @@
 double
 det_threshold_power (double pfa)
 {
+  if (!(pfa > 0.0 && pfa < 1.0))
+    return NAN;
   return -log (pfa);
 }

@@ -9,11 +9,11 @@ double
 det_threshold_gauss (double mean, double pd, double pfa)
 {
   if (!(mean > 0.0))
-    return 0.0;
+    return NAN;
   if (!(pfa > 0.0 && pfa < 1.0) || !(pd > 0.0 && pd < 1.0) || !(pd > pfa))
-    return 0.0;
+    return NAN;
   double qa = det_q_inv (pfa), sep = qa - det_q_inv (pd);
   if (!(sep > 0.0))
-    return 0.0;
+    return NAN;
   return qa * mean / sep;
 }

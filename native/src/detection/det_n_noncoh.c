@@ -3,6 +3,8 @@ int
 det_n_noncoh (double snr, int n_coh, double pd_min, double pfa,
               int max_n_noncoh)
 {
+  if (!(pfa > 0.0 && pfa < 1.0) || !(pd_min > 0.0 && pd_min < 1.0))
+    return -1;
   /* Smallest number of non-coherent looks meeting Pd, for a fixed coherent
    * depth n_coh. Pd(k) (the CFAR threshold is recomputed per candidate, so
    * the degrees-of-freedom growth is priced in) is monotonically non-

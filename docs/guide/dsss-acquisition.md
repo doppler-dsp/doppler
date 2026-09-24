@@ -324,10 +324,15 @@ default. The smallest robust call is:
 acq = BurstAcquisition(
     preamble,             # one period of the preamble's samples
     fs=1.023e6 * 4,       # their sample rate (Hz)
-    cn0_dbhz=61,          # your link-budget sensitivity (dB-Hz)
+    cn0_dbhz=66,          # your link-budget sensitivity (dB-Hz)
 )
-assert acq.pd_predicted >= acq.pd   # confirm the search can meet the target
+assert acq.pd_burst >= acq.pd       # confirm the search can meet the target
 ```
+
+`reps` defaults to 1: a preamble of one period, which almost always lands
+across two dwells and gives each only part of it. That costs about 5 dB here
+— at 61 dB-Hz one aligned dwell would predict 0.81, the burst gets 0.47 — so
+state the repetitions your preamble really has.
 
 The tiers:
 

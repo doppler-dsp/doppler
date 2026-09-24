@@ -12,7 +12,7 @@ ______________________________________________________________________
 
 ## 1. Context
 
-`doppler.dsss.BurstAcquisition` (`native/src/acq/acq_core.c`) acquires a DSSS
+`doppler.acquire.BurstAcquisition` (`native/src/acq/acq_core.c`) acquires a DSSS
 burst — repeated BPSK PN epochs — under unknown code phase and Doppler. It
 frames the stream into `(doppler_bins, nx)` (one PN epoch per row), FFTs down
 the columns for Doppler, correlates each row against the code, and CFAR-gates

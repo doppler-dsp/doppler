@@ -131,7 +131,7 @@ dp_xrealloc (void *p, size_t n)
  * happened here once -- an acquisition's wideband search and its hand-off
  * spelled the fold differently -- and it surfaced as a receiver reporting
  * `tracking == 1` while decoding noise. So this lives in the COMMON header,
- * inline, and `doppler.dsss.bin_to_signed` is a thin wrapper over it, so C
+ * inline, and `doppler.acquire.bin_to_signed` is a thin wrapper over it, so C
  * and Python call the same code instead of restating the arithmetic.
  *
  * @param bin  Bin index in `[0, n)`.

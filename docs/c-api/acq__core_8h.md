@@ -255,7 +255,7 @@ The block-coherent engine gathers every tile's correlation row for `coherent_bin
 Values written (`coherent_bins`), or 0 at `coherent_bins == 1` (no block is gathered), while a block is partial, for an index out of range, or when `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -319,7 +319,7 @@ Copies the `coherent_bins * code_bins` samples the block-coherent engine gathere
 Samples written (`coherent_bins * code_bins`), or 0 at `coherent_bins == 1`, while a block is partial, or when `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -470,7 +470,7 @@ Resizes every buffer/plan that depends on the grid (the slow-time FFT, the code 
 0 on success, -1 if either argument is out of range or an allocation fails (the engine is left usable at its prior grid on failure). 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -636,7 +636,7 @@ Builds the single-row oversampled BPSK reference from `code`, infers sf = `code_
 Heap-allocated state, or NULL on bad arguments / allocation failure. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -745,7 +745,7 @@ Buffers `x`, then for every complete frame applies the slow-time Doppler FFT, co
 Number of events written (0 … max\_results). 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -795,7 +795,7 @@ Discards any buffered samples that have not yet completed a frame and clears the
 * `state` Must be non-NULL. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -889,7 +889,7 @@ Config, not running state: it is not in the state blob, so a resumed engine want
 `DP_OK`, or `DP_ERR_INVALID` for a negative or non-finite value. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import Gold
 >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
 >>> a = Acquisition(code, spc=2, chip_rate=5e6, symbol_rate=2700.0,
@@ -942,7 +942,7 @@ One (the default) is the classic detector  the maximum of the surface, gated. Mo
 0, or -1 (state untouched) when `n` is out of range. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
 >>> a = Acquisition(code, spc=2, chip_rate=1e6, symbol_rate=1e3,
 ...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
@@ -1062,7 +1062,7 @@ Registers ten probes, emitted once per DECIDED dwell (a coherent dump, or the dw
 DP\_OK, or DP\_ERR\_INVALID when the probe table cannot take all ten probes (the attach fails whole; the engine stays detached). 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.telemetry import Telemetry
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
@@ -1119,7 +1119,7 @@ A continuous engine is created with a pool of the machine's online cores when it
 DP\_OK. The count actually running is `threads`. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1191,7 +1191,7 @@ Copies the surface the last dwell was decided on into `out`, row-major `surface_
 Cells written (`surface_rows * code_bins`), or 0 when no dwell has been decided with `keep_surface` set, or `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1249,7 +1249,7 @@ One value per surface column, in chips, the same mapping [**acq\_build\_handoff(
 Values written (`code_bins`), or 0 if `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1304,7 +1304,7 @@ Copies the coherent sum the last dwell was decided on into `out`, row-major `sur
 Cells written (`surface_rows * code_bins`), or 0 when no dwell has been decided, the path is non-coherent, or `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -1364,7 +1364,7 @@ One value per surface row, the fold and scale a hit's `doppler_hz_est` uses (dp\
 Values written (`surface_rows`), or 0 if `out` is too small. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import Acquisition
+>>> from doppler.acquire import Acquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(
 ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)

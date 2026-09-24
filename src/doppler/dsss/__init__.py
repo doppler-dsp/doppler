@@ -1,4 +1,4 @@
-"""Direct-sequence spread-spectrum: the full chain from acquisition (Acquisition, BurstAcquisition) through despreading (Despreader, BurstDespreader) and polynomial-phase estimation to end-to-end receivers (DsssReceiver, AsyncDsssReceiver).
+"""Direct-sequence spread-spectrum: despreading (Despreader, BurstDespreader), polynomial-phase estimation and end-to-end receivers (DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver). The receivers compose the acquisition engines of doppler.acquire.
 
 Examples
 --------
@@ -19,6 +19,6 @@ if _sys.platform == "win32" and hasattr(_os, "add_dll_directory"):
     _os.add_dll_directory(_os.path.dirname(_os.path.abspath(__file__)))
 del _os, _sys
 
-from .dsss import BurstDespreader, Acquisition, PolynomialPhaseEstimator, BurstDemod, Despreader, DsssReceiver, BurstAcquisition, AsyncDsssReceiver, bin_to_signed, DsssBurstReceiver, BurstCapture, PersistentBurstCapture, PolynomialPhaseEstimate, ReceiverStatus, AsyncDsssPool, PoolSlot, CellAsyncDsssReceiver  # noqa: E402
+from .dsss import BurstDespreader, PolynomialPhaseEstimator, BurstDemod, Despreader, DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver, PolynomialPhaseEstimate, ReceiverStatus, AsyncDsssPool, PoolSlot, CellAsyncDsssReceiver  # noqa: E402
 
-__all__ = ["BurstDespreader", "Acquisition", "PolynomialPhaseEstimator", "BurstDemod", "Despreader", "DsssReceiver", "BurstAcquisition", "AsyncDsssReceiver", "bin_to_signed", "DsssBurstReceiver", "BurstCapture", "PersistentBurstCapture", "PolynomialPhaseEstimate", "ReceiverStatus", "AsyncDsssPool", "PoolSlot", "CellAsyncDsssReceiver"]
+__all__ = ["BurstDespreader", "PolynomialPhaseEstimator", "BurstDemod", "Despreader", "DsssReceiver", "AsyncDsssReceiver", "DsssBurstReceiver", "PolynomialPhaseEstimate", "ReceiverStatus", "AsyncDsssPool", "PoolSlot", "CellAsyncDsssReceiver"]

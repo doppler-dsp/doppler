@@ -34,10 +34,10 @@ scene, same seed, same samples, whichever door you came in by.
 
 **Reception** — the same capture run through three doppler receiver objects,
 each demonstrated on its own before they are chained. Every downstream stage
-is seeded from what :class:`~doppler.dsss.Acquisition` actually *finds*, not
+is seeded from what :class:`~doppler.acquire.Acquisition` actually *finds*, not
 from ground truth:
 
-  1. :class:`doppler.dsss.Acquisition` alone: ONE instance, blindly and
+  1. :class:`doppler.acquire.Acquisition` alone: ONE instance, blindly and
      continuously sweeping the *entire* capture (silence, noise, and all 5
      bursts) with overlapping dwells, no prior knowledge of burst timing.
      Reports Doppler bin + absolute sample position + CFAR test statistic
@@ -65,7 +65,7 @@ Run::
 
 API notes (see the gallery page for the full write-up):
 
-* **How** :meth:`~doppler.dsss.Acquisition.push` **buffers/frames
+* **How** :meth:`~doppler.acquire.Acquisition.push` **buffers/frames
   samples** (see ``native/src/acq/acq_core.c:322-410``):
 
   - It's a ring-buffer FIFO, not an accumulate-then-process call. Each call
@@ -137,13 +137,9 @@ from pathlib import Path
 
 import numpy as np
 
+from doppler.acquire import BurstAcquisition, bin_to_signed
 from doppler.cvt import bin_to_nrz
-from doppler.dsss import (
-    BurstAcquisition,
-    BurstDemod,
-    BurstDespreader,
-    bin_to_signed,
-)
+from doppler.dsss import BurstDemod, BurstDespreader
 from doppler.snr import snr_data_aided_db, snr_data_aided_db_series
 from doppler.tests._repo import repo_root
 from doppler.wfm import PN, Composer, Segment, crc16
@@ -473,7 +469,7 @@ def demo_despreader(rx, hits, acq, acq_code, data_code, frame_bits):
     for k, hit in enumerate(hits):
         start = hit["abs_pos"]
         dop = hit["dop"]
-        # doppler.dsss.bin_to_signed is the library's own mapping
+        # doppler.acquire.bin_to_signed is the library's own mapping
         # (clib_common.h): fftfreq's convention except at the Nyquist
         # bin, where it reports +n/2 rather than -n/2. Call it rather
         # than restating the fold -- the two answers are aliases of one
@@ -548,7 +544,7 @@ def demo_burst_demod(rx, hits, acq, acq_code, data_code, payload_bits):
     for k, hit in enumerate(hits):
         start, dop = hit["abs_pos"], hit["dop"]
         window = rx[start : start + BURST_LEN]
-        # doppler.dsss.bin_to_signed is the library's own mapping
+        # doppler.acquire.bin_to_signed is the library's own mapping
         # (clib_common.h): fftfreq's convention except at the Nyquist
         # bin, where it reports +n/2 rather than -n/2. Call it rather
         # than restating the fold -- the two answers are aliases of one

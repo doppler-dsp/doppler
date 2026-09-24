@@ -12,15 +12,18 @@ if(NOT JM_MATH_LIBRARY)
   set(JM_MATH_LIBRARY "")
 endif()
 
-add_library(acquire_core OBJECT acquire_core.c)
+add_library(acquire_core OBJECT acquire_core.c bin_to_signed.c)
 target_include_directories(acquire_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)
-# acquire Python module — aggregates: CarrierAcquisition
+# acquire Python module — aggregates: CarrierAcquisition, Acquisition, BurstAcquisition, BurstCapture, PersistentBurstCapture
 Python3_add_library(acquire MODULE WITH_SOABI acquire_ext.c)
 target_link_libraries(acquire PRIVATE
     acquire_core
     carrier_acq_core
+    acq_core
+    burst_acq_core
+    burst_capture_core
     psd_core
     acc_trace_core
     detector_core
@@ -28,6 +31,10 @@ target_link_libraries(acquire PRIVATE
     spectral_core
     corr_core
     fft_core
+    Threads::Threads
+    corr2d_core
+    fft2d_core
+    dp_tlm_core
     Python3::NumPy)
 target_include_directories(acquire PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
 set_target_properties(acquire PROPERTIES
@@ -40,6 +47,54 @@ add_custom_command(TARGET acquire POST_BUILD
     VERBATIM
     COMMENT "Copy acquire extension module")
 endif()
+
+add_executable(test_acquire_core
+    ${CMAKE_SOURCE_DIR}/native/tests/test_acquire_core.c)
+target_link_libraries(test_acquire_core PRIVATE
+    acquire_core
+    carrier_acq_core
+    acq_core
+    burst_acq_core
+    burst_capture_core
+    psd_core
+    acc_trace_core
+    detector_core
+    detection_core
+    spectral_core
+    corr_core
+    fft_core
+    Threads::Threads
+    corr2d_core
+    fft2d_core
+    dp_tlm_core
+    ${JM_MATH_LIBRARY})
+target_include_directories(test_acquire_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
+add_test(NAME test_acquire_core COMMAND test_acquire_core)
+
+add_executable(bench_acquire_core
+    ${CMAKE_SOURCE_DIR}/native/benchmarks/bench_acquire_core.c)
+target_link_libraries(bench_acquire_core PRIVATE
+    acquire_core
+    carrier_acq_core
+    acq_core
+    burst_acq_core
+    burst_capture_core
+    psd_core
+    acc_trace_core
+    detector_core
+    detection_core
+    spectral_core
+    corr_core
+    fft_core
+    Threads::Threads
+    corr2d_core
+    fft2d_core
+    dp_tlm_core
+    ${JM_MATH_LIBRARY})
+target_include_directories(bench_acquire_core
+    PRIVATE ${CMAKE_SOURCE_DIR}/native/inc
+            ${CMAKE_SOURCE_DIR}/native/benchmarks)
 
 # Your own CMake for this directory goes in acquire_extra.cmake beside this
 # file: jm includes it and never writes it (gh-1351). This file is

@@ -28,8 +28,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from doppler.acquire import BurstCapture
 from doppler.cvt import bin_to_nrz
-from doppler.dsss import BurstCapture
 from doppler.wfm import PN, Composer, Segment
 
 # ── Geometry ────────────────────────────────────────────────────────────────

@@ -210,7 +210,7 @@ DP\_OK, or DP\_ERR\_INVALID if this object or the engine refused the grid.
 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstCapture
+>>> from doppler.acquire import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
 >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
 >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -282,7 +282,7 @@ Heap state, or NULL if any parameter is out of range.
 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstCapture
+>>> from doppler.acquire import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
 >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
 >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -369,7 +369,7 @@ Heap state, or NULL if a parameter is out of range or the file could not be open
 
 ```C++
 >>> import numpy as np, tempfile, os
->>> from doppler.dsss import BurstCapture, PersistentBurstCapture
+>>> from doppler.acquire import BurstCapture, PersistentBurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
 >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
 >>> path = os.path.join(tempfile.mkdtemp(), "ring.cf32")
@@ -428,7 +428,7 @@ BEFORE the claim rule and the suppression window: several rows can name one prea
 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstCapture
+>>> from doppler.acquire import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
 >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
 >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -500,7 +500,7 @@ Row `i` describes the window at `i*burst_len`. Valid until the next push(), rese
 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstCapture
+>>> from doppler.acquire import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
 >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
 >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -871,7 +871,7 @@ Samples written  always a multiple of `burst_len`.
 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstCapture
+>>> from doppler.acquire import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
 >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
 >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -962,7 +962,7 @@ DP\_OK, or DP\_ERR\_INVALID if `i` is not a window of the last push().
 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstCapture
+>>> from doppler.acquire import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
 >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
 >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -998,7 +998,7 @@ Resets the embedded acquisition, rewinds the history ring, clears every queued d
 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstCapture
+>>> from doppler.acquire import BurstCapture
 >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
 >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
 >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)

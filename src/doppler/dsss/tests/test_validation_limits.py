@@ -24,17 +24,17 @@ from __future__ import annotations
 
 import pytest
 
-from doppler.dsss.tests.validation.acq import (
+from doppler.acquire.tests.validation.acq import (
     validate as acq_validate,
+)
+from doppler.acquire.tests.validation.burst_acq import (
+    validate as burst_acq_validate,
+)
+from doppler.acquire.tests.validation.burst_capture import (
+    validate as burst_capture_validate,
 )
 from doppler.dsss.tests.validation.async_dsss_pool import (
     validate as async_dsss_pool_validate,
-)
-from doppler.dsss.tests.validation.burst_acq import (
-    validate as burst_acq_validate,
-)
-from doppler.dsss.tests.validation.burst_capture import (
-    validate as burst_capture_validate,
 )
 from doppler.dsss.tests.validation.burst_demod import (
     validate as burst_demod_validate,

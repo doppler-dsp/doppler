@@ -768,7 +768,7 @@ extern "C"
    * failure.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -810,7 +810,7 @@ extern "C"
    * @param state Must be non-NULL.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -849,7 +849,7 @@ extern "C"
    *         on failure).
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -891,7 +891,7 @@ extern "C"
    * @return 0, or -1 (state untouched) when @p n is out of range.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
    * >>> a = Acquisition(code, spc=2, chip_rate=1e6, symbol_rate=1e3,
    * ...                 cn0_dbhz=50.0, doppler_uncertainty=50e3)
@@ -935,7 +935,7 @@ extern "C"
    *         value.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import Gold
    * >>> code = np.asarray(Gold().generate(1023)).astype(np.uint8)
    * >>> a = Acquisition(code, spc=2, chip_rate=5e6, symbol_rate=2700.0,
@@ -970,7 +970,7 @@ extern "C"
    * @return DP_OK. The count actually running is `threads`.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1020,7 +1020,7 @@ extern "C"
    *         ten probes (the attach fails whole; the engine stays detached).
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.telemetry import Telemetry
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
@@ -1061,7 +1061,7 @@ extern "C"
    *         has been decided with `keep_surface` set, or @p out is too small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1093,7 +1093,7 @@ extern "C"
    * @return Values written (`surface_rows`), or 0 if @p out is too small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1123,7 +1123,7 @@ extern "C"
    * @return Values written (`code_bins`), or 0 if @p out is too small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(
    * ...     PN(poly=mls_poly(9), seed=1, length=9).generate(511), np.uint8)
@@ -1162,7 +1162,7 @@ extern "C"
    *         small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -1240,7 +1240,7 @@ extern "C"
    *         out of range, or when @p out is too small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -1287,7 +1287,7 @@ extern "C"
    *         is too small.
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)
@@ -1344,7 +1344,7 @@ extern "C"
    * @return Number of events written (0 … max_results).
    * @code
    * >>> import numpy as np
-   * >>> from doppler.dsss import Acquisition
+   * >>> from doppler.acquire import Acquisition
    * >>> from doppler.wfm import PN, mls_poly
    * >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
    * ...                      length=5).generate(31)).astype(np.uint8)

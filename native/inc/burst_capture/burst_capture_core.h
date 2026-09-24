@@ -440,7 +440,7 @@ typedef struct
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -507,7 +507,7 @@ burst_capture_state_t *burst_capture_create (
  *
  * @code
  * >>> import numpy as np, tempfile, os
- * >>> from doppler.dsss import BurstCapture, PersistentBurstCapture
+ * >>> from doppler.acquire import BurstCapture, PersistentBurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> path = os.path.join(tempfile.mkdtemp(), "ring.cf32")
@@ -541,7 +541,7 @@ void burst_capture_destroy (burst_capture_state_t *state);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -580,7 +580,7 @@ size_t burst_capture_push_max_out (burst_capture_state_t *state,
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -609,7 +609,7 @@ size_t burst_capture_detections_max_out (burst_capture_state_t *state,
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -634,7 +634,7 @@ size_t burst_capture_events_max_out (burst_capture_state_t *state, size_t n);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -692,7 +692,7 @@ burst_capture_event_at (const burst_capture_state_t *state, size_t i);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)
@@ -723,7 +723,7 @@ int burst_capture_release (burst_capture_state_t *state, size_t i);
  *
  * @code
  * >>> import numpy as np
- * >>> from doppler.dsss import BurstCapture
+ * >>> from doppler.acquire import BurstCapture
  * >>> code = np.array([1, 1, 1, 0, 1, 0, 0], dtype=np.uint8)
  * >>> pre = np.repeat(np.where(code, -1.0, 1.0), 2).astype(np.complex64)
  * >>> cap = BurstCapture(pre, burst_len=512, reps=4, fs=2e6)

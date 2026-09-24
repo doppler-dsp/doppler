@@ -44,7 +44,7 @@ Here is a list of all files with brief descriptions:
         * **dir** [**acq**](dir_25a1e6db36731e5901b5cfb158eaa462.md)     
             * **file** [**acq\_core.h**](acq__core_8h.md) _Streaming DSSS acquisition engine — burst and continuous front doors over one shared engine._     
         * **dir** [**acquire**](dir_88b93ea666fc84a6b60ee32ac90530e8.md)     
-            * **file** [**acquire\_core.h**](acquire__core_8h.md) _Acquire module — public C API._ 
+            * **file** [**acquire\_core.h**](acquire__core_8h.md) _Acquire module — public C API._     
         * **dir** [**adc**](dir_a6be6b8cb61d5f2be55c0b2f94afbd88.md)     
             * **file** [**adc\_core.h**](adc__core_8h.md) _Signed two's-complement ADC model._     
         * **dir** [**agc**](dir_947ec4d62e9dda8dbffe026d57cfb18d.md)     
@@ -133,7 +133,7 @@ Here is a list of all files with brief descriptions:
         * **dir** [**dp\_tlm\_capture**](dir_c53721efa35f9e05ec164f1aacd6bf30.md)     
             * **file** [**dp\_tlm\_capture\_core.h**](dp__tlm__capture__core_8h.md) _Lossless telemetry capture: sized by arithmetic, not by guesswork._     
         * **dir** [**dsss**](dir_8b18bfb9a64167292d2c60acbfcb2ae1.md)     
-            * **file** [**dsss\_core.h**](dsss__core_8h.md) _Dsss module — public C API._     
+            * **file** [**dsss\_core.h**](dsss__core_8h.md) _Dsss module — public C API._ 
         * **dir** [**dsss\_burst\_receiver**](dir_32a143d35207eb7d99f4a541895f77eb.md)     
             * **file** [**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md) _DsssBurstReceiver — the burst chain composed in C._     
         * **dir** [**dsss\_receiver**](dir_39e39d42b234cb6483b3a80e996300fe.md)     

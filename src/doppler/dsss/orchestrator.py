@@ -1,6 +1,6 @@
 """Elastic multi-channel DSSS acquirer — a coarse-Doppler mixer bank.
 
-A single :class:`~doppler.dsss.BurstAcquisition` searches only its *native*
+A single :class:`~doppler.acquire.BurstAcquisition` searches only its *native*
 Doppler span, ``±chip_rate/(2*sf)`` (the slow-time FFT's unambiguous range —
 beyond it the per-segment integrate-and-dump's ``sinc`` rolloff nulls the
 correlation at ``±2*span``).  To acquire a burst whose Doppler is uncertain
@@ -75,14 +75,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from doppler.cvt import bin_to_nrz
-from doppler.ddc import DDC
-from doppler.dsss import (
+from doppler.acquire import (
     BurstAcquisition,
     BurstCapture,
     PersistentBurstCapture,
     bin_to_signed,
 )
+from doppler.cvt import bin_to_nrz
+from doppler.ddc import DDC
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -229,7 +229,7 @@ class CoarseChannel:
 
     @property
     def acquisition(self) -> BurstAcquisition:
-        """The per-channel :class:`~doppler.dsss.BurstAcquisition`."""
+        """The per-channel :class:`~doppler.acquire.BurstAcquisition`."""
         return self._acq
 
     def _abs_doppler(self, doppler_bin: int) -> float:
@@ -424,16 +424,16 @@ class Acquirer:
     reps : int, default 1
         Max coherent code repetitions per channel (BurstAcquisition ceiling).
     cn0_dbhz, pfa, pd, noise_mode
-        Per-channel :class:`~doppler.dsss.BurstAcquisition` detect params.
+        Per-channel :class:`~doppler.acquire.BurstAcquisition` detect params.
     max_workers : int, optional
         Thread-pool size; defaults to the channel count.
     burst_len : int, default 0
         Samples in one burst, at the acquisition rate. Non-zero makes every
-        channel a :class:`~doppler.dsss.BurstCapture`; zero leaves it the
+        channel a :class:`~doppler.acquire.BurstCapture`; zero leaves it the
         detector it always was.
     ring_dir : path-like, optional
         Directory for one file-backed look-back ring per channel
-        (:class:`~doppler.dsss.PersistentBurstCapture`); created if absent.
+        (:class:`~doppler.acquire.PersistentBurstCapture`); created if absent.
         Needs ``burst_len``. Each ring is named by its channel's CENTER
         (``ch+32258Hz.cf32``), not its index: widening the bank adds
         channels at the edges and keeps every existing ring valid, where an

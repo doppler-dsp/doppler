@@ -2,7 +2,7 @@
 
 ![DSSS acquisition characterisation](../assets/dsss_acq_characterization.png)
 
-A performance characterisation of `doppler.dsss.Acquisition`: the probability
+A performance characterisation of `doppler.acquire.Acquisition`: the probability
 of detection (`Pd`) and probability of false alarm (`Pfa`) of a
 spread-spectrum burst acquirer, measured by Monte-Carlo against the data-link
 **Es/N0**.
@@ -106,11 +106,11 @@ for the distinction.
 make characterize          # every subject
 
 python -m \
-    doppler.dsss.tests.characterization.burst_acquisition.characterize
+    doppler.acquire.tests.characterization.burst_acquisition.characterize
 ```
 
 The waveform geometry, signal construction, and the `(Doppler bin, code phase)`
 mapping live in
-`doppler.dsss.tests.characterization.burst_acquisition.characterize`, shared
+`doppler.acquire.tests.characterization.burst_acquisition.characterize`, shared
 with the `test_acq_characterization` gate so the sweep and the test agree by
 construction.

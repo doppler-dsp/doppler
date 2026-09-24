@@ -3056,9 +3056,44 @@ dtype('uint8')
 (255, 223, 16)
 """
 
+# ── acquire — declared BEFORE dsss, deliberately ─────────────────────────────
+# The dsss receivers depend on acq/burst_acq/burst_capture. jm's apply replay
+# renders an object's link closure from the components declared so far, so a
+# dependency's module declared after its consumer's loses its transitive cores
+# from the consumer's test/bench link lines (just-makeit#1549). The failure
+# is loud (the C tests stop linking), but the fix is only this ordering.
+[module.acquire]
+doc = """
+Acquisition: the searches that find a signal before anything tracks it. Acquisition is the code-phase x Doppler engine; BurstAcquisition and BurstCapture find a burst of any repeated complex preamble (a PN code, Zadoff-Chu, a chirp or a QPSK sequence), and PersistentBurstCapture keeps one armed across calls. CarrierAcquisition is a coarse frequency/phase search that seeds a carrier tracking loop. bin_to_signed is the Doppler-bin fold convention the searches and their hand-offs share.
+
+Examples
+--------
+>>> import numpy as np
+>>> from doppler.acquire import CarrierAcquisition
+>>> ca = CarrierAcquisition(sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
+...                          resolution_hz=5.0)
+>>> ca.ready()
+False
+
+"""
+objects = ["carrier_acq", "acq", "burst_acq", "burst_capture"]
+
+[[module.acquire.functions]]
+name = "bin_to_signed"
+return_type = "int"
+doc = "Map an FFT bin index to its SIGNED frequency index -- numpy.fft.fftfreq(n) * n, exactly: 0 = DC, ascending positive to (n-1)/2, then wrapping negative, so an even grid's Nyquist bin is -n/2. Multiply by doppler_res_hz for Hz. Call this rather than writing the fold out: the search and its hand-off must agree on the convention, and a consumer seeded on the wrong side of it is off by the full search span -- a failure that once surfaced here as a receiver reporting tracking while decoding noise. A thin wrapper over dp_fftfreq_index() in clib_common.h, so C callers inline the same code."
+
+[[module.acquire.functions.params]]
+name = "bin"
+type = "size_t"
+
+[[module.acquire.functions.params]]
+name = "n_bins"
+type = "size_t"
+
 [module.dsss]
 doc = """
-Direct-sequence spread-spectrum: the full chain from acquisition (Acquisition, BurstAcquisition) through despreading (Despreader, BurstDespreader) and polynomial-phase estimation to end-to-end receivers (DsssReceiver, AsyncDsssReceiver).
+Direct-sequence spread-spectrum: despreading (Despreader, BurstDespreader), polynomial-phase estimation and end-to-end receivers (DsssReceiver, AsyncDsssReceiver, DsssBurstReceiver). The receivers compose the acquisition engines of doppler.acquire.
 
 Examples
 --------
@@ -3072,36 +3107,7 @@ Examples
 True
 
 """
-objects = ["despreader", "burst_despreader", "acq", "burst_acq", "ppe", "burst_demod", "burst_capture", "dsss_receiver", "async_dsss_receiver", "async_dsss_pool", "dsss_burst_receiver"]
-
-[[module.dsss.functions]]
-name = "bin_to_signed"
-return_type = "int"
-doc = "Map an FFT bin index to its SIGNED frequency index -- numpy.fft.fftfreq(n) * n, exactly: 0 = DC, ascending positive to (n-1)/2, then wrapping negative, so an even grid's Nyquist bin is -n/2. Multiply by doppler_res_hz for Hz. Call this rather than writing the fold out: the search and its hand-off must agree on the convention, and a consumer seeded on the wrong side of it is off by the full search span -- a failure that once surfaced here as a receiver reporting tracking while decoding noise. A thin wrapper over dp_fftfreq_index() in clib_common.h, so C callers inline the same code."
-
-[[module.dsss.functions.params]]
-name = "bin"
-type = "size_t"
-
-[[module.dsss.functions.params]]
-name = "n_bins"
-type = "size_t"
-
-[module.acquire]
-doc = """
-Cold-start carrier acquisition: a coarse frequency/phase search (CarrierAcquisition) that seeds a downstream tracking loop.
-
-Examples
---------
->>> import numpy as np
->>> from doppler.acquire import CarrierAcquisition
->>> ca = CarrierAcquisition(sample_rate_hz=8000.0, symbol_rate_hz=1000.0,
-...                          resolution_hz=5.0)
->>> ca.ready()
-False
-
-"""
-objects = ["carrier_acq"]
+objects = ["despreader", "burst_despreader", "ppe", "burst_demod", "dsss_receiver", "async_dsss_receiver", "async_dsss_pool", "dsss_burst_receiver"]
 
 # ── ber — error-rate measurement (the one tool) ──────────────────────────────
 # The settled window, the Pfa-gated alignment, inverse binomial sampling and

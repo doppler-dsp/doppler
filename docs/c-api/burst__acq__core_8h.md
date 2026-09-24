@@ -156,7 +156,7 @@ Forwards to [**acq\_configure\_search\_raw()**](acq__core_8h.md#function-acq_con
 0 on success, -1 if either argument is out of range or an allocation fails (the engine keeps its prior grid on failure). 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstAcquisition
+>>> from doppler.acquire import BurstAcquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -229,7 +229,7 @@ Heap-allocated state, or NULL on bad arguments / allocation failure.
 ```C++
 >>> import numpy as np
 >>> from doppler.cvt import bin_to_nrz
->>> from doppler.dsss import BurstAcquisition
+>>> from doppler.acquire import BurstAcquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -344,7 +344,7 @@ Forwards to [**acq\_push()**](acq__core_8h.md#function-acq_push) on the embedded
 Number of events written (0 … max\_results). 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstAcquisition
+>>> from doppler.acquire import BurstAcquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -389,7 +389,7 @@ Forwards to [**acq\_reset()**](acq__core_8h.md#function-acq_reset) on the embedd
 * `state` Must be non-NULL. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstAcquisition
+>>> from doppler.acquire import BurstAcquisition
 >>> from doppler.wfm import PN, mls_poly
 >>> code = np.asarray(PN(poly=mls_poly(5), seed=1,
 ...                      length=5).generate(31)).astype(np.uint8)
@@ -443,7 +443,7 @@ Forwards to [**acq\_set\_max\_peaks()**](acq__core_8h.md#function-acq_set_max_pe
 0, or -1 (engine untouched) when `n` is out of range. 
 ```C++
 >>> import numpy as np
->>> from doppler.dsss import BurstAcquisition
+>>> from doppler.acquire import BurstAcquisition
 >>> code = (np.arange(31) * 5 % 2).astype(np.uint8)
 >>> s0 = np.repeat(np.where(code & 1, -1.0, 1.0), 4).astype(
 ...     np.complex64)

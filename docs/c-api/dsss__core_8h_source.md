@@ -20,7 +20,6 @@ extern "C" {
 
 /* Declare module-level functions here. */
 
-int bin_to_signed(size_t bin, size_t n_bins);
 #ifdef __cplusplus
 }
 #endif

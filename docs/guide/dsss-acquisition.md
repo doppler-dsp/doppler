@@ -1,6 +1,6 @@
 # DSSS Burst Acquisition
 
-`doppler.dsss.BurstAcquisition` acquires a direct-sequence spread-spectrum burst —
+`doppler.acquire.BurstAcquisition` acquires a direct-sequence spread-spectrum burst —
 a run of repeated, BPSK-modulated PN-code segments — arriving with an **unknown
 code phase** and an **unknown carrier-frequency (Doppler) offset**, buried in
 noise. It owns the whole receive-side acquisition pipeline:
@@ -24,7 +24,7 @@ detections. You never pick a bin count or a threshold.
     isolated, data-free run of repeated code (a preamble). For a
     **continuous**, data-modulated signal instead — a beacon/telemetry
     stream where the code repeats forever with async data riding on top
-    — use `doppler.dsss.Acquisition` instead; see
+    — use `doppler.acquire.Acquisition` instead; see
     [Continuous, data-modulated signals](#continuous-data-modulated-signals-the-asynchronous-symbol-clock-case)
     below. Both are thin front doors over the same C engine and share the
     same `push`/streaming/property surface — they differ only in how the
@@ -39,7 +39,7 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
     ```python
     import numpy as np
     from doppler.cvt import bin_to_nrz
-    from doppler.dsss import BurstAcquisition
+    from doppler.acquire import BurstAcquisition
     from doppler.wfm import PN, mls_poly
 
     code = PN(poly=mls_poly(5), seed=1, length=5).generate(31)  # 31-chip PN
@@ -413,7 +413,7 @@ BPSK data rides on top continuously, with a symbol clock that is *not* an
 integer multiple of the code-epoch clock (`chip_rate / symbol_rate` not a
 whole number — the common case in real hardware, where the two clocks derive
 from independent budgets). `BurstAcquisition` is the wrong tool for this case
-full stop, not just a tuning risk — reach for `doppler.dsss.Acquisition`
+full stop, not just a tuning risk — reach for `doppler.acquire.Acquisition`
 instead (below).
 
 ### Why this changes the sizing decision
@@ -456,7 +456,7 @@ Given the high-level inputs a typical caller actually has — the `code`, the
 looks just like `BurstAcquisition`'s, minus `reps`:
 
 ```python
-from doppler.dsss import Acquisition
+from doppler.acquire import Acquisition
 
 chip_rate = 1.023e6            # Hz, the waveform (matches the code above)
 symbol_rate = 2400.0           # Hz -- present and asynchronous to chip_rate
@@ -662,7 +662,8 @@ DLL + Costas loop to track code phase and carrier and recover the payload
 bits. Both live in `doppler.dsss`:
 
 ```python
-from doppler.dsss import BurstAcquisition, BurstDespreader
+from doppler.acquire import BurstAcquisition
+from doppler.dsss import BurstDespreader
 ```
 
 ______________________________________________________________________

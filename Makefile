@@ -1757,7 +1757,7 @@ record-demo: ## Re-record the specan demo frames (docs/specan/frames.json)
 # entry would become the first script's argv[1]. Loop + derive the destination
 # before adding one — gh-694.
 GALLERY_CHARACTERIZATIONS := \
-    src/doppler/dsss/tests/characterization/burst_acquisition/characterize.py
+    src/doppler/acquire/tests/characterization/burst_acquisition/characterize.py
 
 GALLERY_SCRIPTS := \
     src/doppler/examples/agc_demo.py \

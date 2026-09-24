@@ -64,15 +64,15 @@ There is no list here to update.
 
 | object                                                                                                                                 | module       | limits | findings | still open                 |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------ | -------- | -------------------------- |
+| [acq](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/acq/results.md)                            | `acquire`    | 21/21  | 9        | 3 — F3, F6, F7             |
+| [BurstAcquisition](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_acq/results.md)         | `acquire`    | 16/16  | 4        | none                       |
+| [BurstCapture](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_capture/results.md)         | `acquire`    | 22/22  | 6        | 1 — F6                     |
 | [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)                                | `agc`        | 18/18  | 6        | 2 — F4, F6                 |
 | [The ring buffer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/buffer/tests/validation/buffer/results.md)              | `buffer`     | 34/34  | 8        | 1 — F8                     |
 | [Interleaver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/coding/tests/validation/interleaver/results.md)             | `coding`     | 20/20  | 8        | 2 — F7, F8                 |
 | [detection](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/detection/results.md)              | `detection`  | 24/24  | 6        | 1 — F5                     |
 | [LockDet](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/detection/tests/validation/lockdet/results.md)                  | `detection`  | 22/22  | 6        | none                       |
-| [acq](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/acq/results.md)                               | `dsss`       | 21/21  | 9        | 3 — F3, F6, F7             |
 | [AsyncDsssPool](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/async_dsss_pool/results.md)         | `dsss`       | 15/15  | 10       | 3 — F5, F9, F10            |
-| [BurstAcquisition](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_acq/results.md)            | `dsss`       | 16/16  | 4        | none                       |
-| [BurstCapture](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_capture/results.md)            | `dsss`       | 22/22  | 6        | 1 — F6                     |
 | [BurstDemod](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_demod/results.md)                | `dsss`       | 15/15  | 5        | none                       |
 | [BurstDespreader](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/burst_despreader/results.md)      | `dsss`       | 15/15  | 5        | none                       |
 | [DsssBurstReceiver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/dsss/tests/validation/dsss_burst_receiver/results.md) | `dsss`       | 27/27  | 10       | none                       |

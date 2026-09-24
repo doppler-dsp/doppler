@@ -93,7 +93,8 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  size\_t | [**burst\_capture\_get\_min\_gap**](#function-burst_capture_get_min_gap) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Dead air a caller must leave between bursts, edge to edge._  |
 |  uint64\_t | [**burst\_capture\_get\_n\_bursts**](#function-burst_capture_get_n_bursts) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  size\_t | [**burst\_capture\_get\_n\_noncoh**](#function-burst_capture_get_n_noncoh) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Non-coherent looks combined per decision._  |
-|  double | [**burst\_capture\_get\_pd\_predicted**](#function-burst_capture_get_pd_predicted) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Detection probability the sized grid actually predicts._  |
+|  double | [**burst\_capture\_get\_pd\_burst**](#function-burst_capture_get_pd_burst) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Detection probability of one burst: any dwell its preamble spans, at a uniform alignment (doppler#1498). What_ `underpowered` _reads._ |
+|  double | [**burst\_capture\_get\_pd\_predicted**](#function-burst_capture_get_pd_predicted) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Detection probability of one dwell wholly inside the preamble._  |
 |  size\_t | [**burst\_capture\_get\_pending**](#function-burst_capture_get_pending) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  uint64\_t | [**burst\_capture\_get\_preamble\_start**](#function-burst_capture_get_preamble_start) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  void | [**burst\_capture\_get\_state**](#function-burst_capture_get_state) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, void \* blob) <br>_Serialize into_ `blob` _, which must be state\_bytes() long._ |
@@ -735,9 +736,25 @@ size_t burst_capture_get_n_noncoh (
 
 
 
+### function burst\_capture\_get\_pd\_burst 
+
+_Detection probability of one burst: any dwell its preamble spans, at a uniform alignment (doppler#1498). What_ `underpowered` _reads._
+```C++
+double burst_capture_get_pd_burst (
+    const burst_capture_state_t * state
+) 
+```
+
+
+
+
+<hr>
+
+
+
 ### function burst\_capture\_get\_pd\_predicted 
 
-_Detection probability the sized grid actually predicts._ 
+_Detection probability of one dwell wholly inside the preamble._ 
 ```C++
 double burst_capture_get_pd_predicted (
     const burst_capture_state_t * state

@@ -437,7 +437,9 @@ extern "C"
     double pfa_cell;  /**< Bonferroni per-cell false-alarm probability.     */
     double pd;        /**< Target detection probability.                    */
     double pd_predicted;  /**< Predicted Pd at cn0_dbhz and the chosen
-                               grid: the AVERAGE Pd over the straddle
+                               grid of ONE dwell lying wholly inside the
+                               signal (a burst engine's is judged on
+                               pd_burst instead): the AVERAGE Pd over the straddle
                                priors (slow-time scalloping over the
                                INTERPOLATED bin the peak search samples,
                                intra-segment rotation, code sample offset
@@ -449,14 +451,31 @@ extern "C"
                                surface, which the Marcum form does not
                                credit (doppler#1183, #1064). NAN when no
                                design C/N0 was given. */
+    double pd_burst; /**< Predicted Pd of one BURST of `reps` repetitions
+                          at cn0_dbhz: the dwells are aligned to the stream,
+                          so the preamble lands at a uniform offset and
+                          spans about reps/D of them, whole or partial; the
+                          burst is detected when any one is. Averaged over
+                          that alignment and the same straddle nodes as
+                          pd_predicted (one node for every dwell of a
+                          burst: they share its Doppler and delay). What a
+                          burst engine sizes on and sets `underpowered`
+                          from (doppler#1498). Assumes the preamble is
+                          exactly `reps` periods. NAN on a continuous
+                          engine, with n_noncoh > 1, or with no design
+                          C/N0. */
     double straddle_loss; /**< Mean AMPLITUDE derating from grid straddle —
                                a diagnostic summary (~20*log10 of it in dB);
                                sizing and pd_predicted average Pd itself
                                over the priors. Derived config, recomputed
                                by create(). */
-    uint8_t underpowered; /**< 1 when pd_predicted < pd; never without a
-                               design C/N0 -- there is no target to be
-                               under. */
+    uint8_t underpowered; /**< 1 when the Pd the engine is judged on falls
+                               short of pd: pd_burst on a burst engine,
+                               pd_predicted where pd_burst is NAN. Never
+                               without a design C/N0 -- there is no target
+                               to be under. */
+    uint8_t burst; /**< 1 for an engine built by acq_create_burst(), 0 for
+                        acq_create_continuous(). Config.               */
 
     uint64_t
         samples_consumed; /**< Total framed samples (the state's offset).   */
@@ -590,11 +609,13 @@ extern "C"
    * and `code_phase` is the delay into the repetition, in samples. It
    * converts @p cn0_dbhz to a per-sample amplitude SNR
    * (snr = sqrt(10^(cn0_dbhz/10) / fs)), and picks the
-   * *smallest* coherent depth `coherent_bins` in `[1, reps]` whose
-   * coherent_bins*code_bins coherent samples meet @p pd at the Bonferroni
-   * threshold (minimum latency for a strong signal).  If the full ceiling
-   * still falls short the engine is `underpowered`; it does NOT add
-   * non-coherent looks.  A burst has one frame of preamble, so looks beyond
+   * *smallest* coherent depth `coherent_bins` in `[1, reps]` whose burst Pd
+   * `pd_burst` meets @p pd at the Bonferroni threshold (minimum latency for
+   * a strong signal). `pd_burst` treats the preamble as exactly @p reps
+   * periods at a uniform offset against the stream-aligned dwells, and
+   * credits every dwell it spans (doppler#1498). If no depth meets @p pd the
+   * engine takes the one with the most burst Pd and is `underpowered`; it
+   * does NOT add non-coherent looks.  A burst has one frame of preamble, so looks beyond
    * it add noise to the statistic and move the hit -- `samples_consumed` is
    * stamped at the end of the LAST accumulated look, so a consumer resolving
    * the preamble's position sees an anchor up to n_noncoh*coherent_bins
@@ -608,7 +629,7 @@ extern "C"
    * (@ref ACQ_CN0_NONE) means none was given, and the engine then integrates the whole preamble
    * (`coherent_bins = reps`) with the threshold set by @p pfa alone.  @p pd
    * is a sizing target only when a design C/N0 is given; without one
-   * `pd_predicted` is NAN and `underpowered` is never set.
+   * `pd_predicted` and `pd_burst` are NAN and `underpowered` is never set.
    *
    * A tighter @p doppler_uncertainty narrows the scanned Doppler band,
    * lowering the per-cell threshold (more sensitive).  When

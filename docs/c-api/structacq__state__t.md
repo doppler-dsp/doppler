@@ -40,6 +40,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  float \_Complex \* | [**blk**](#variable-blk)  <br> |
 |  size\_t | [**blk\_epoch**](#variable-blk_epoch)  <br> |
 |  float \_Complex \* | [**blk\_raw**](#variable-blk_raw)  <br> |
+|  uint8\_t | [**burst**](#variable-burst)  <br> |
 |  double | [**carrier\_freq\_hz**](#variable-carrier_freq_hz)  <br> |
 |  double | [**chip\_rate**](#variable-chip_rate)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
@@ -79,6 +80,7 @@ _Streaming acquisition-engine state._ [More...](#detailed-description)
 |  float \_Complex \* | [**out\_buf**](#variable-out_buf)  <br> |
 |  [**acq\_part\_t**](structacq__part__t.md) \* | [**parts**](#variable-parts)  <br> |
 |  double | [**pd**](#variable-pd)  <br> |
+|  double | [**pd\_burst**](#variable-pd_burst)  <br> |
 |  double | [**pd\_predicted**](#variable-pd_predicted)  <br> |
 |  size\_t | [**peak\_col**](#variable-peak_col)  <br> |
 |  float | [**peak\_conc**](#variable-peak_conc)  <br> |
@@ -244,6 +246,24 @@ float _Complex* acq_state_t::blk_raw;
 
 
 coherent\_bins \* code\_bins: the block's raw epochs as pushed, for the tile-edge test of acq\_resolve\_tile\_alias(); NULL unless blk is. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable burst 
+
+```C++
+uint8_t acq_state_t::burst;
+```
+
+
+
+1 for an engine built by [**acq\_create\_burst()**](acq__core_8h.md#function-acq_create_burst), 0 for [**acq\_create\_continuous()**](acq__core_8h.md#function-acq_create_continuous). Config. 
  
 
 
@@ -942,6 +962,23 @@ Target detection probability.
 
 
 
+### variable pd\_burst 
+
+```C++
+double acq_state_t::pd_burst;
+```
+
+
+
+Predicted Pd of one BURST of `reps` repetitions at cn0\_dbhz: the dwells are aligned to the stream, so the preamble lands at a uniform offset and spans about reps/D of them, whole or partial; the burst is detected when any one is. Averaged over that alignment and the same straddle nodes as pd\_predicted (one node for every dwell of a burst: they share its Doppler and delay). What a burst engine sizes on and sets `underpowered` from (doppler#1498). Assumes the preamble is exactly `reps` periods. NAN on a continuous engine, with n\_noncoh &gt; 1, or with no design C/N0. 
+
+
+        
+
+<hr>
+
+
+
 ### variable pd\_predicted 
 
 ```C++
@@ -950,7 +987,7 @@ double acq_state_t::pd_predicted;
 
 
 
-Predicted Pd at cn0\_dbhz and the chosen grid: the AVERAGE Pd over the straddle priors (slow-time scalloping over the INTERPOLATED bin the peak search samples, intra-segment rotation, code sample offset — quadrature over uniform priors), not the on-grid best case, and not Pd at the mean amplitude (which Jensen makes optimistic). Conservative by construction: the engine takes the maximum over an interpolated surface, which the Marcum form does not credit (doppler#1183, #1064). NAN when no design C/N0 was given. 
+Predicted Pd at cn0\_dbhz and the chosen grid of ONE dwell lying wholly inside the signal (a burst engine's is judged on pd\_burst instead): the AVERAGE Pd over the straddle priors (slow-time scalloping over the INTERPOLATED bin the peak search samples, intra-segment rotation, code sample offset — quadrature over uniform priors), not the on-grid best case, and not Pd at the mean amplitude (which Jensen makes optimistic). Conservative by construction: the engine takes the maximum over an interpolated surface, which the Marcum form does not credit (doppler#1183, #1064). NAN when no design C/N0 was given. 
 
 
         
@@ -1600,7 +1637,7 @@ uint8_t acq_state_t::underpowered;
 
 
 
-1 when pd\_predicted &lt; pd; never without a design C/N0  there is no target to be under. 
+1 when the Pd the engine is judged on falls short of pd: pd\_burst on a burst engine, pd\_predicted where pd\_burst is NAN. Never without a design C/N0  there is no target to be under. 
 
 
         

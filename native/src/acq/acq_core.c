@@ -770,15 +770,66 @@ acq_sinc (double u)
   return (u == 0.0) ? 1.0 : sin (M_PI * u) / (M_PI * u);
 }
 
+/* Midpoint nodes the burst Pd averages the preamble's alignment over. 8 is
+   within 0.0013 of a 128-node reference across Zadoff-Chu 127 x 8 at every
+   D (32 is within 1e-4 and costs 4x at every create, doppler#1498). */
+#define ACQ_ALIGN_NODES 8
+
+/* The Pd of one BURST of `reps` repetitions against non-overlapping dwells
+ * of D, at one straddle node's amplitude `amp` (doppler#1498). The dwells
+ * are aligned to the stream, not the burst, so the preamble starts a uniform
+ * s0 in [0, D) periods into a dwell. The dwells it overlaps each hold a
+ * fraction f of preamble and see amplitude f * amp: signal in f*D of the D
+ * epochs sums coherently to f of a whole dwell's peak, over the same noise.
+ * The burst is captured when ANY of them detects, and their noise is
+ * independent, so the burst misses with probability prod(1 - Pd_i).
+ *
+ * At most two dwells are partial (the first and the last); the rest are
+ * whole and share one det_pd. So a node costs 1 + 2*ACQ_ALIGN_NODES
+ * evaluations whatever reps is. At amp = 0 it is the burst's false-alarm
+ * floor: noise alone crossing the gate in some dwell it spans.
+ *
+ * The straddle is NOT drawn per dwell: one burst has one Doppler and one
+ * code delay, so every dwell it spans shares the node's `amp`. Combining
+ * dwells after averaging each over the straddle credits them as
+ * independent, and over-predicted Zadoff-Chu 127 x 8 by up to 0.05 at
+ * D = 1 against the engine. */
+static double
+acq_burst_pd_at (double amp, size_t D, size_t reps, int n, double eta)
+{
+  const double d = (double)D, r = (double)reps;
+  const double p1  = det_pd (amp, n, eta);
+  double       acc = 0.0;
+  for (int o = 0; o < ACQ_ALIGN_NODES; o++)
+    {
+      const double s0    = ((double)o + 0.5) / ACQ_ALIGN_NODES * d;
+      const double first = fmin (d - s0, r); /* preamble in the first dwell */
+      const double rest  = r - first;        /* after it, in periods */
+      const double whole = floor (rest / d);
+      const double tail  = rest - whole * d; /* the last, partial dwell */
+      double miss = 1.0 - (first >= d ? p1 : det_pd (amp * first / d, n, eta));
+      miss *= pow (1.0 - p1, whole);
+      if (tail > 0.0)
+        miss *= 1.0 - det_pd (amp * tail / d, n, eta);
+      acc += 1.0 - miss;
+    }
+  return acc / ACQ_ALIGN_NODES;
+}
+
 /* Average Pd over the straddle priors — Pd(snr) is concave over the loss
  * range, so Pd at the MEAN amplitude overstates the mean Pd (Jensen; ~0.11
  * at a marginal design point). Midpoint quadrature over the three
  * independent uniform factors (8 x 8 x 4 = 256 det_pd evaluations, setup
  * path only; each factor is symmetric, so half-ranges suffice). nc == 1
- * evaluates the coherent path, nc > 1 the non-coherent one. */
+ * evaluates the coherent path, nc > 1 the non-coherent one.
+ *
+ * `reps` == 0 is ONE dwell lying wholly inside the signal: `pd_predicted`,
+ * and every continuous engine. `reps` > 0 is a BURST of that many
+ * repetitions at a uniform alignment (acq_burst_pd_at, coherent only):
+ * `pd_burst`. Same nodes, so the two numbers differ by the alignment alone. */
 static double
 acq_mean_pd (double snr, size_t D, double umax, const acq_shape_t *sh, int n,
-             double eta, int nc, size_t interp)
+             double eta, int nc, size_t interp, size_t reps)
 {
   const int    nd = 8, nu = 8, nk = ACQ_DELAY_LOSS_NODES;
   const double half_bin = 0.5 / (double)interp; /* the SAMPLED bin */
@@ -794,7 +845,8 @@ acq_mean_pd (double snr, size_t D, double umax, const acq_shape_t *sh, int n,
           for (int k = 0; k < nk; k++)
             {
               double se = snr * ls * li * sh->delay_loss[k];
-              acc += (nc > 1) ? det_pd_noncoherent (se, n, nc, eta)
+              acc += reps     ? acq_burst_pd_at (se, D, reps, n, eta)
+                     : nc > 1 ? det_pd_noncoherent (se, n, nc, eta)
                               : det_pd (se, n, eta);
             }
         }
@@ -863,16 +915,23 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
       st->eta_nc    = 0.0f;
       st->threshold = st->eta * ACQ_SQRT_2_OVER_PI;
     }
+  st->pd_predicted = NAN;
+  st->pd_burst     = NAN;
+  st->underpowered = 0;
   if (snr > 0.0)
     {
       st->pd_predicted = acq_mean_pd (snr, D, umax, &st->shape, (int)st->n,
-                                      gate, (int)nc, st->interp);
-      st->underpowered = (uint8_t)(st->pd_predicted < pd);
-    }
-  else
-    {
-      st->pd_predicted = NAN;
-      st->underpowered = 0;
+                                      gate, (int)nc, st->interp, 0);
+      /* A burst is judged on the burst: the Pd a caller of a burst engine
+         gets is any dwell the preamble spans detecting. Non-coherent looks
+         on a burst have no alignment model (see acq_auto_config_burst for
+         why the sizer never picks them), so they keep the one-dwell Pd. */
+      if (st->burst && nc == 1)
+        st->pd_burst = acq_mean_pd (snr, D, umax, &st->shape, (int)st->n, gate,
+                                    1, st->interp, st->reps);
+      st->underpowered
+          = (uint8_t)((isnan (st->pd_burst) ? st->pd_predicted : st->pd_burst)
+                      < pd);
     }
   /* The band mask the peak list starts from: the cells outside the searched
      Doppler band are never candidates. searched_bins is decided just above,
@@ -906,7 +965,7 @@ acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
     {
       double e = (nc > 1) ? det_threshold_noncoherent (pc, (int)nc)
                           : det_threshold (pc);
-      if (acq_mean_pd (snr, D, umax, sh, (int)(D * cb), e, (int)nc, interp)
+      if (acq_mean_pd (snr, D, umax, sh, (int)(D * cb), e, (int)nc, interp, 0)
           >= pd)
         break;
       nc++;
@@ -982,14 +1041,14 @@ acq_cover_window_bins (double du, double span)
  * instead.
  *
  * du <= span: picks the smallest coherent depth D in [1, d_max] whose
- * D*code_bins coherent samples meet Pd at the (doppler_uncertainty-shrunk)
- * Bonferroni threshold (minimum latency for a strong signal); if the full
- * coherent ceiling still falls short, D is the ceiling and the engine is
- * underpowered. The ceiling d_max is `reps`, lowered by the Doppler rate's
- * drift bound (acq_drift_depth(), doppler#1482): a block deeper than that
- * smears the carrier across more than half a slow-time row, a loss the Pd
- * model does not carry, so a deeper D would be sized on a Pd it cannot
- * deliver. */
+ * burst Pd (pd_burst: every dwell a uniformly aligned preamble spans, at the
+ * (doppler_uncertainty-shrunk) Bonferroni threshold) meets pd -- minimum
+ * latency for a strong signal. If no depth does, D is the one with the most
+ * burst Pd and the engine is underpowered. The ceiling d_max is `reps`,
+ * lowered by the Doppler rate's drift bound (acq_drift_depth(), doppler#1482):
+ * a block deeper than that smears the carrier across more than half a
+ * slow-time row, a loss the Pd model does not carry, so a deeper D would be
+ * sized on a Pd it cannot deliver. */
 static void
 acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
                        double snr, double du, size_t *out_d, size_t *out_nc,
@@ -1019,27 +1078,51 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
       return;
     }
 
-  /* Smallest coherent depth D meeting Pd (minimum latency for strong
-   * signals); Bonferroni uses only the cells actually scanned at that
+  /* Smallest coherent depth D whose BURST Pd meets pd (minimum latency for
+   * strong signals); Bonferroni uses only the cells actually scanned at that
    * depth.  Sizing and prediction both use the straddle-derated SNR: the
    * on-grid best case would under-size the search (real Pd, averaged over
    * random Doppler/code phase, would miss the target — the gap the
-   * Monte-Carlo characterization measures). */
-  size_t best_d = d_max;
+   * Monte-Carlo characterization measures). And both use the burst's
+   * alignment: one aligned dwell under-credits a small D, which gets about
+   * reps/D dwells, and over-credits a large one, whose dwells straddle the
+   * preamble's edge (doppler#1498). */
+  size_t best_d = 1;
+  double best_p = -1.0;
+  int    met    = 0;
   for (size_t D = 1; D <= d_max; D++)
     {
       size_t sb   = acq_searched_bins (D, du, span);
       double umax = acq_intra_umax (D, sb, du, span);
       double pc   = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
       double eta  = det_threshold (pc);
-      if (acq_mean_pd (snr, D, umax, &st->shape, (int)(D * cb), eta, 1,
-                       acq_interp_for (D, 1))
-          >= pd)
+      double p = acq_mean_pd (snr, D, umax, &st->shape, (int)(D * cb), eta, 1,
+                              acq_interp_for (D, 1), st->reps);
+      if (p >= pd)
         {
           best_d = D;
+          met    = 1;
           break;
         }
+      /* Falling short everywhere, the best-effort grid is the depth with
+         the most burst Pd -- NOT the deepest: past (R + 1)/2 a deeper dwell
+         straddles the preamble's edge at more alignments and loses more
+         than its coherence gains (doppler#1498). Ranked ABOVE each depth's
+         own false-alarm floor: far below the design point every depth's Pd
+         is that floor, which grows with the dwell count and would pick
+         D = 1, the least sensitive depth, for no signal at all. */
+      p -= acq_burst_pd_at (0.0, D, st->reps, (int)(D * cb), eta);
+      if (p > best_p)
+        {
+          best_p = p;
+          best_d = D;
+        }
     }
+  /* A signal that adds less Pd than the false-alarm rate at every depth is
+     indistinguishable from none, and the ranking above is rounding. Do what
+     no design C/N0 does: integrate the whole preamble. */
+  if (!met && best_p < pfa)
+    best_d = d_max;
   *out_d = best_d;
 }
 
@@ -1588,6 +1671,7 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
 
   st->code_only_epochs = code_only_epochs;
   st->doppler_rate     = doppler_rate;
+  st->burst            = (uint8_t)!continuous;
   st->carrier_freq_hz  = 0.0;
 
   const double snr    = acq_design_snr (cn0_dbhz, st->fs);

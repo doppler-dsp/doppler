@@ -42,7 +42,11 @@ FAST_OFFSETS = 6
 def test_geometry_is_the_declared_one() -> None:
     """The subject's geometry still derives the way the sweep assumes."""
     assert CODE_PERIOD == ACQ_SF * 4  # spc = 4
-    assert ACQ_FRAME == REPS * CODE_PERIOD
+    # The frame is READ from a capture built as the receiver builds its
+    # own, not assumed to be the whole preamble (doppler#1498): a whole
+    # number of periods, at most REPS of them.
+    assert ACQ_FRAME % CODE_PERIOD == 0
+    assert CODE_PERIOD <= ACQ_FRAME <= REPS * CODE_PERIOD
     assert BURST_LEN > ACQ_FRAME
     # The sweep's base offset must sit on a frame boundary, or "offset
     # within one frame" means something different every run.

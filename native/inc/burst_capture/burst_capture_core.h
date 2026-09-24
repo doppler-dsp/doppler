@@ -763,8 +763,11 @@ double burst_capture_get_eta (const burst_capture_state_t *state);
 double burst_capture_get_eta_nc (const burst_capture_state_t *state);
 /** @brief Correlation kept, worst case, by a burst landing between bins. */
 double burst_capture_get_straddle_loss (const burst_capture_state_t *state);
-/** @brief Detection probability the sized grid actually predicts. */
+/** @brief Detection probability of one dwell wholly inside the preamble. */
 double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
+/** @brief Detection probability of one burst: any dwell its preamble spans,
+ *         at a uniform alignment (doppler#1498). What `underpowered` reads. */
+double burst_capture_get_pd_burst (const burst_capture_state_t *state);
 /** @brief Doppler rate (Hz/s) the coherent depth is bounded against; 0 is
  *         no bound. */
 double burst_capture_get_doppler_rate (const burst_capture_state_t *state);

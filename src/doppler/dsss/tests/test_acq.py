@@ -202,12 +202,15 @@ def _full_frames(l_pre):
 # interpolated one, so it over-bought depth. They moved again when the
 # preamble became its samples (doppler#1470): the delay straddle is now the
 # band-limited one a sampled chain has, not an ideal pulse's triangle, and
-# 53 dB-Hz needs D=6, not 7. Measured margins -- pd_predicted at the chosen
-# depth against one shallower -- are 0.977 vs 0.879 (57 dB-Hz, D=3) and
-# 0.918 vs 0.848 (53 dB-Hz, D=6): neither sits on the 0.9 knife-edge where a
-# libm can flip it.
+# 53 dB-Hz needs D=6, not 7. And again when the sizer began judging the
+# BURST (doppler#1498): 16 repetitions offer about 16/D dwells, so every
+# point needs less depth, and 57 dB-Hz collapsed onto 65's D=1 -- 55 dB-Hz
+# replaces it. Measured margins -- pd_burst at the chosen depth against one
+# shallower -- are 0.960 vs 0.853 (55 dB-Hz, D=2) and 0.935 vs 0.881
+# (53 dB-Hz, D=4): neither sits on the 0.9 knife-edge where a libm can flip
+# it.
 @pytest.mark.parametrize(
-    "cn0_dbhz, want_db", [(65.0, 1), (57.0, 3), (53.0, 6)]
+    "cn0_dbhz, want_db", [(65.0, 1), (55.0, 2), (53.0, 4)]
 )
 def test_config_physics(cn0_dbhz, want_db):
     """C/N0 → snr, smallest coherent depth meeting Pd, and grid math."""
@@ -225,9 +228,10 @@ def test_config_physics(cn0_dbhz, want_db):
     assert a.doppler_span_hz == pytest.approx(CHIP_RATE / (2 * SF))
     assert a.doppler_res_hz == pytest.approx(CHIP_RATE / (SF * a.doppler_bins))
 
-    # The engine picks the *smallest* coherent depth meeting Pd (min latency).
+    # The engine picks the *smallest* coherent depth whose BURST Pd meets
+    # Pd (min latency).
     assert a.doppler_bins == want_db
-    assert not a.underpowered and a.pd_predicted >= PD
+    assert not a.underpowered and a.pd_burst >= PD
 
     nx, db = a.code_bins, a.doppler_bins
     db * nx
@@ -240,34 +244,24 @@ def test_config_physics(cn0_dbhz, want_db):
     assert a.eta == pytest.approx(eta, rel=1e-5)
     assert a.threshold == pytest.approx(eta * SQRT_2_OVER_PI, rel=1e-5)
 
-    # Boundary/minimality through the engine itself: capping reps at
-    # db - 1 forces the next-smaller COHERENT-ONLY grid, which cannot meet
-    # pd (the sizing quadrature lives in C; replicating it here would just
-    # be a copy). Pinned to n_noncoh=1 explicitly -- with no caller-facing
-    # max_noncoh knob left to default to "coherent-only," the auto-sizer
-    # would otherwise auto-escalate non-coherent looks and potentially
-    # rescue this smaller grid, which isn't what this check is about (it's
-    # testing db's minimality AT THE COHERENT-ONLY operating point, not
-    # whether a joint coherent+non-coherent search could do better).
-    # Sanity-bracket pd_predicted instead of recomputing it: it is the
-    # straddle-AVERAGED Pd, so it sits at or above pd and strictly below
-    # the on-grid best case.
-    assert PD <= a.pd_predicted < det_pd(snr, db * nx, eta)
+    # Minimality through the engine itself: the SAME engine pinned one
+    # shallower, coherent-only, must fall short of pd on the burst (the
+    # sizing quadrature lives in C; replicating it here would just be a
+    # copy). The same engine, not a second one built with reps = db - 1:
+    # the burst's Pd depends on how many repetitions the preamble HAS
+    # (doppler#1498), so capping reps would change the preamble, not the
+    # grid. Sanity-bracket pd_predicted instead of recomputing it: it is
+    # the straddle-AVERAGED Pd of one dwell, strictly below the on-grid best
+    # case.
+    assert a.pd_burst >= PD
+    assert a.pd_predicted < det_pd(snr, db * nx, eta)
     assert 0.0 < a.straddle_loss < 1.0
     if db > 1:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
-            smaller = BurstAcquisition(
-                code_preamble(CODE, SPS),
-                reps=db - 1,
-                fs=CHIP_RATE * SPS,
-                cn0_dbhz=cn0_dbhz,
-                pfa=PFA,
-                pd=PD,
-            )
-            smaller.configure_search_raw(db - 1, 1)
-        assert smaller.underpowered
-        assert smaller.pd_predicted < PD
+            a.configure_search_raw(db - 1, 1)
+        assert a.underpowered
+        assert a.pd_burst < PD
 
 
 def test_d_selection_monotone():
@@ -483,11 +477,14 @@ def test_config_burst_never_autosplits():
         pfa=PFA,
         pd=PD,
     )
-    assert a.doppler_bins == 16  # coherent grown to the reps ceiling
+    # Coherent grown to the depth with the most BURST Pd -- 15, not the
+    # ceiling: a 16-deep dwell straddles the preamble's edge at nearly every
+    # alignment (doppler#1498).
+    assert a.doppler_bins == 15
     assert det_pd(snr, N, eta) < PD  # coherent-only falls short
     assert a.n_noncoh == 1  # ... and it STAYS coherent
     assert a.eta_nc == 0.0  # the non-coherent gate is unused
-    assert a.pd_predicted < PD and a.underpowered  # and says so
+    assert a.pd_burst < PD and a.underpowered  # and says so
     cont = Acquisition(
         CODE, spc=SPS, chip_rate=CHIP_RATE, cn0_dbhz=cn0, pfa=PFA, pd=PD
     )

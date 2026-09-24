@@ -47,7 +47,8 @@ BASE = {
     "reps": 8,
     "fs": CHIP_RATE * SPC,
     # 55 dB-Hz: a design point the COHERENT ceiling meets at this depth
-    # (D=6 of 8 predicts 0.935), so `cn0_dbhz` and `pd` each have somewhere
+    # (D=3 of 8, whose burst Pd is 0.939; it was D=6 until the sizer judged
+    # the burst, doppler#1498), so `cn0_dbhz` and `pd` each have somewhere
     # to move the grid. 45 sat here while a burst engine bought non-coherent
     # looks it could not fill; it no longer does (doppler#1181), and at 45
     # every depth is underpowered, so nothing a sizing input did was visible.
@@ -269,13 +270,17 @@ def _sec_forwarding(d: Data) -> None:
         ("preamble held 4 -> 8 samples a chip", {"spc": 8}),
         ("fs 4 -> 8 MHz", {"fs": 8.0e6}),
         ("cn0_dbhz 55 -> 60", {"cn0_dbhz": 60.0}),
-        ("doppler_uncertainty 0 -> 40 kHz", {"doppler_uncertainty": 40e3}),
+        # Wider than the native span, so the engine tiles windows. Not 40
+        # kHz: that tiles 3, the very cell count the base's D=3 searches,
+        # and moved nothing at all.
+        ("doppler_uncertainty 0 -> 60 kHz", {"doppler_uncertainty": 60e3}),
         ("pfa 1e-3 -> 1e-6", {"pfa": 1e-6}),
         ("pd 0.9 -> 0.99", {"pd": 0.99}),
-        # A rate whose drift cap is 3 repetitions (doppler#1482).
+        # A rate whose drift cap is 2 repetitions (doppler#1482), under the
+        # base's depth of 3 so the cap visibly bites.
         (
-            "doppler_rate 0 -> 42 MHz/s",
-            {"doppler_rate": (CHIP_RATE / SF) ** 2 / (2 * 3.5**2)},
+            "doppler_rate 0 -> 83 MHz/s",
+            {"doppler_rate": (CHIP_RATE / SF) ** 2 / (2 * 2.5**2)},
         ),
     ]
     rows, csv = [], []

@@ -15,7 +15,7 @@ create_error_message = "BurstAcquisition: invalid parameter (need a non-empty pr
 # bool field of burst_acq_state_t, which mirrors the engine's at
 # construction -- the same warning objects/acq.toml declares.
 warnings = [
-  { after = "__init__", condition = "underpowered", category = "UserWarning", message = "BurstAcquisition is under-powered: pd_predicted < pd at this reps/cn0_dbhz. Raise reps or cn0_dbhz, or narrow doppler_uncertainty." },
+  { after = "__init__", condition = "underpowered", category = "UserWarning", message = "BurstAcquisition is under-powered: pd_burst < pd at this reps/cn0_dbhz. Raise reps or cn0_dbhz, or narrow doppler_uncertainty." },
 ]
 # Composes acq's shared engine (acq_state_t/acq_core.c) -- this class is the
 # BURST front door (see docs/design/async-dsss-receiver.md's Acquisition/
@@ -204,6 +204,12 @@ expr = "self->handle->engine->pd_predicted"
 doc = "Predicted Pd at cn0_dbhz and the chosen grid: the average Pd over the straddle priors (slow-time scalloping, intra-segment rotation, code-phase sample offset - quadrature over uniform priors), matching what the Monte-Carlo characterization measures rather than the on-grid best case."
 
 [[burst_acq.properties]]
+name = "pd_burst"
+type = "double"
+expr = "self->handle->engine->pd_burst"
+doc = "Predicted Pd of one burst of `reps` repetitions at cn0_dbhz: the dwells are aligned to the stream, so the preamble lands at a uniform offset and spans about reps/doppler_bins of them, whole or partial, and the burst is detected when any one is. The number the sizer meets `pd` with and `underpowered` is set from; pd_predicted is one aligned dwell. NaN with no design cn0_dbhz or with n_noncoh > 1."
+
+[[burst_acq.properties]]
 name = "straddle_loss"
 type = "double"
 expr = "self->handle->engine->straddle_loss"
@@ -249,4 +255,4 @@ doc = "Target detection probability."
 name = "underpowered"
 type = "bool"
 expr = "self->handle->engine->underpowered"
-doc = "True when pd_predicted < pd -- the search cannot meet the target pd at this cn0_dbhz and geometry. The engine still builds a best-effort grid rather than failing; because C cannot raise a Python warning from a successful create, construction also emits a UserWarning in this case."
+doc = "True when pd_burst < pd -- the search cannot meet the target pd at this cn0_dbhz and geometry. The engine still builds a best-effort grid rather than failing; because C cannot raise a Python warning from a successful create, construction also emits a UserWarning in this case."

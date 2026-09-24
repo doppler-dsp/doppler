@@ -1,61 +1,57 @@
 /**
  * @file capture_dwell_pd.c
- * @brief The Pd a burst CAPTURE delivers as its coherent depth grows past
- *        half the preamble (doppler#1470 phase 5).
+ * @brief The Pd a burst CAPTURE delivers at each coherent depth, against the
+ *        burst Pd the engine predicts (doppler#1470 phase 5, doppler#1498).
  *
  * A burst engine searches non-overlapping dwells of D repetitions, aligned
  * to the stream and not to the preamble. A preamble of R repetitions at an
- * unknown offset holds a whole dwell at every alignment only when
- * R >= 2D - 1, the rule acq_create_continuous() already applies to its block
- * depth. Past D = (R + 1)/2 some alignments leave every dwell straddling the
- * preamble's edge -- into the noise before it, or the DATA after it -- while
- * `pd_predicted` assumes a whole dwell of preamble. The burst sizer lets D run
- * to R regardless.
+ * unknown offset spans about R/D of them, whole or partial; it holds a whole
+ * dwell at every alignment only while R >= 2D - 1. `pd_predicted` is ONE
+ * dwell wholly inside the preamble. `pd_burst` averages over the alignment,
+ * credits every dwell the preamble spans, and is what the sizer meets `pd`
+ * with (doppler#1498).
  *
- * This measures what that costs a caller of the CAPTURE, which is the unit
- * that resolves which repetition a burst began on:
+ * Measured through the CAPTURE, the unit that resolves which repetition a
+ * burst began on:
  *
  *   a Zadoff-Chu 127 preamble, R = 8 repetitions, then 2000 samples of random
  *   QPSK -- data, not preamble; for each D in 1..R the grid is pinned at D and
- *   one look, and the C/N0 is the one at which the engine itself predicts Pd
- *   0.6, so every row asks the same question: does the capture deliver the Pd
- *   it predicts? The burst lands at a uniform random offset in noise, with a
+ *   one look, and the C/N0 is the one at which the engine predicts a BURST Pd
+ *   of 0.6. The burst lands at a uniform random offset in noise, with a
  *   Doppler uniform over the native span, at a CONTINUOUS delay
- *   (dp_preamble_shift). A trial hits when the capture emits a window whose
- *   preamble_start is within 3 samples of the truth.
+ *   (dp_preamble_shift). Each trial is scored twice: the ENGINE hits when
+ *   some dwell overlapping the preamble names its code phase (from the raw
+ *   hits the capture records), and the CAPTURE hits when it emits a window
+ *   whose preamble_start is within 3 samples of the truth.
  *
  * The delay must be continuous. The first version put every burst on a whole
  * sample, which removes the code-phase straddle the model averages over half
- * a sample, and read up to 0.23 of Pd high (doppler#1498).
+ * a sample, and read up to 0.23 of Pd high.
  *
  * Usage:
  *   validate_capture_dwell_pd           every D, 1000 trials a row: reports,
  *                                       decides nothing
  *   validate_capture_dwell_pd --check   the spot checks CTest runs, 300
- *                                       trials each: D = 4 (a whole dwell
- *                                       always fits) delivers at least its
- *                                       prediction, and D = 8 (every dwell
- *                                       can straddle) delivers LESS -- the
- *                                       open defect, pinned so a fix to the
- *                                       model has to update this file
+ *                                       trials each, at D = 4 (a whole dwell
+ *                                       always fits) and D = 8 (every dwell
+ *                                       can straddle): the ENGINE never
+ *                                       below pd_burst by 2 sigma, never
+ *                                       above it by 0.15 -- acq's bounds
  *
- * Measured 2026-09-23 at 1000 trials a row, continuous delay:
+ * Measured 2026-09-23 at 1000 trials a row, each at pd_burst = 0.6:
  *
- *   D     1      2      3      4      5      6      7      8
- *   pred  0.611  0.604  0.623  0.608  0.631  0.628  0.608  0.614
- *   meas  0.900  0.839  0.742  0.631  0.563  0.453  0.359  0.263
+ *   D        1      2      3      4      5      6      7      8
+ *   dwell    0.179  0.325  0.460  0.567  0.670  0.772  0.868  0.927
+ *   burst    0.614  0.612  0.626  0.623  0.634  0.624  0.622  0.615
+ *   engine   0.570  0.632  0.621  0.630  0.656  0.661  0.689  0.689
+ *   capture  0.558  0.604  0.601  0.585  0.605  0.617  0.645  0.646
  *
- * The prediction is wrong in BOTH directions, and crosses at (R + 1)/2:
- *
- * - Small D is PESSIMISTIC: `pd_predicted` is one dwell's Pd, and a burst of
- *   R repetitions offers about R/D dwells to detect in.
- * - Past (R + 1)/2 it is OPTIMISTIC: some alignments leave no whole dwell
- *   of preamble, and the one that detects is diluted by noise or data.
- *
- * A hard cap at (R + 1)/2 would stop the optimism but give up the dwells a
- * deeper grid earns at the other alignments. The fix is a Pd model over the
- * burst's alignment that credits every dwell the preamble spans
- * (doppler#1498).
+ * One dwell's Pd ("dwell") runs from 0.18 to 0.93 across rows that all
+ * deliver about 0.6; the burst Pd holds the engine to within acq's bounds at
+ * every D but one. D = 1 is optimistic by 0.045, inherited from the
+ * one-dwell model, which is itself optimistic there (doppler#1501), so the
+ * check leaves it out. The capture then loses a further 0.01-0.05 after the
+ * engine has detected, which no model prices yet (doppler#1502).
  */
 #include "awgn/awgn_core.h"
 #include "burst_capture/burst_capture_core.h"
@@ -99,7 +95,7 @@ make (size_t depth, double cn0)
 }
 
 /* The C/N0 (per-sample SNR, dB, at fs = 1) at which the engine pinned at
-   `depth` first predicts `target`, in quarter-dB steps. */
+   `depth` first predicts a BURST Pd of `target`, in quarter-dB steps. */
 static double
 cn0_for (size_t depth, double target)
 {
@@ -107,7 +103,7 @@ cn0_for (size_t depth, double target)
     {
       double                 c = -30.0 + 0.25 * (double)step;
       burst_capture_state_t *s = make (depth, c);
-      double                 p = burst_capture_get_pd_predicted (s);
+      double                 p = burst_capture_get_pd_burst (s);
       burst_capture_destroy (s);
       if (p >= target)
         return c;
@@ -118,7 +114,7 @@ cn0_for (size_t depth, double target)
 typedef struct
 {
   size_t depth;
-  double cn0, pred, meas, se;
+  double cn0, dwell, pred, eng, eng_se, meas, se;
 } row_t;
 
 static row_t
@@ -129,12 +125,13 @@ measure (size_t depth, int trials, uint32_t seed)
   r.cn0   = cn0_for (depth, 0.6);
   if (isnan (r.cn0))
     {
-      fprintf (stderr, "no C/N0 reaches Pd 0.6 at D=%zu\n", depth);
+      fprintf (stderr, "no C/N0 reaches a burst Pd of 0.6 at D=%zu\n", depth);
       abort ();
     }
 
   burst_capture_state_t *s = make (depth, r.cn0);
-  r.pred                   = burst_capture_get_pd_predicted (s);
+  r.dwell                  = burst_capture_get_pd_predicted (s);
+  r.pred                   = burst_capture_get_pd_burst (s);
   const size_t    lead_max = 3u * depth * N;
   const size_t    len      = lead_max + BURST + 2u * s->refine_span + 4u * N;
   float _Complex *x        = dp_xmalloc (len * sizeof *x);
@@ -146,7 +143,7 @@ measure (size_t depth, int trials, uint32_t seed)
       awgn_create (seed, awgn_amplitude_for_snr ((float)r.cn0, 1.0f)));
   const double span = 1.0 / (2.0 * (double)N); /* cycles/sample */
   uint32_t     st   = seed;
-  int          hits = 0;
+  int          hits = 0, eng = 0;
 
   for (int t = 0; t < trials; t++)
     {
@@ -187,9 +184,29 @@ measure (size_t depth, int trials, uint32_t seed)
             hit = 1;
         }
       hits += hit;
+
+      /* The ENGINE's own verdict, from the raw hits the capture recorded
+         before claiming anything: some dwell overlapping the preamble named
+         its code phase. pd_burst models this; what the capture then fails
+         to resolve is its own loss. */
+      const double truth = fmod ((double)at + frac, (double)N);
+      int          e_hit = 0;
+      for (size_t k = 0; k < s->det_len; k++)
+        {
+          const double ep = (double)s->det[k].epoch;
+          double       d  = fabs (fmod (ep, (double)N) - truth);
+          if (d > 0.5 * (double)N)
+            d = (double)N - d;
+          if (d <= TOL && ep > (double)at - (double)((depth + 1u) * N)
+              && ep < (double)(at + R * N))
+            e_hit = 1;
+        }
+      eng += e_hit;
     }
-  r.meas = (double)hits / trials;
-  r.se   = sqrt (fmax (r.meas * (1.0 - r.meas), 1e-9) / trials);
+  r.eng    = (double)eng / trials;
+  r.eng_se = sqrt (fmax (r.eng * (1.0 - r.eng), 1e-9) / trials);
+  r.meas   = (double)hits / trials;
+  r.se     = sqrt (fmax (r.meas * (1.0 - r.meas), 1e-9) / trials);
   awgn_destroy (g);
   free (out);
   free (per);
@@ -205,25 +222,33 @@ main (int argc, char **argv)
   const int check = (argc > 1 && strcmp (argv[1], "--check") == 0);
   zadoff_chu ();
   printf ("Zadoff-Chu %u x %u then %u samples of QPSK; grid pinned at D, one "
-          "look, pfa %g; each row at the C/N0 the engine predicts Pd 0.6 at\n",
+          "look, pfa %g; each row at the C/N0 the engine predicts a burst "
+          "Pd of 0.6 at\n",
           N, R, PAYLOAD, PFA);
   printf (
       "a whole dwell fits at every alignment while D <= (R + 1)/2 = %u\n\n",
       (R + 1u) / 2u);
-  printf ("%3s %8s %6s %6s %6s %8s\n", "D", "C/N0", "pred", "meas", "1sig",
-          "gap");
+  printf ("%3s %8s %6s %6s %6s %6s %6s %6s %8s\n", "D", "C/N0", "dwell",
+          "burst", "engine", "1sig", "captur", "1sig", "lost");
   for (size_t depth = 1; depth <= R; depth++)
     {
+      /* D = 1 is left out: the ONE-dwell model under pd_burst is itself
+         optimistic there (doppler#1501), by less than 2 sigma at the
+         check's trial count, so pinning it either way would be flaky. */
       if (check && depth != 4u && depth != R)
         continue;
       row_t r = measure (depth, check ? 300 : 1000, 1470u + (uint32_t)depth);
-      printf ("%3zu %8.2f %6.3f %6.3f %6.3f %+8.3f%s\n", r.depth, r.cn0,
-              r.pred, r.meas, r.se, r.meas - r.pred,
-              r.depth > (R + 1u) / 2u ? "   (a dwell can straddle)" : "");
-      if (check && depth == 4u)
-        DP_CHECK (r.meas >= r.pred - 2.0 * r.se);
-      if (check && depth == R) /* the open defect, doppler#1498 */
-        DP_CHECK (r.meas < r.pred - 2.0 * r.se);
+      printf ("%3zu %8.2f %6.3f %6.3f %6.3f %6.3f %6.3f %6.3f %+8.3f\n",
+              r.depth, r.cn0, r.dwell, r.pred, r.eng, r.eng_se, r.meas, r.se,
+              r.meas - r.eng);
+      /* pd_burst holds for the engine it models, on both sides of
+         (R + 1)/2 and at the most dwells: never optimistic beyond 2 sigma,
+         never conservative beyond 0.15 -- acq's own bounds. */
+      if (check)
+        {
+          DP_CHECK (r.eng >= r.pred - 2.0 * r.eng_se);
+          DP_CHECK (r.eng - r.pred <= 0.15);
+        }
     }
   DP_TEST_END ("validate_capture_dwell_pd");
 }

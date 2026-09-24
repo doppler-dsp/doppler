@@ -55,14 +55,14 @@ One parameter is varied at a time and the object's whole derived state is compar
 
 | parameter varied | fields moved | which |
 |---|---|---|
-| reps 8 -> 16 | 1 | reps |
-| preamble held 4 -> 8 samples a chip | 3 | code_bins, doppler_bins, doppler_span_hz |
-| fs 4 -> 8 MHz | 5 | doppler_bins, doppler_span_hz, eta, fs, pfa_cell |
+| reps 8 -> 16 | 4 | doppler_bins, eta, pfa_cell, reps |
+| preamble held 4 -> 8 samples a chip | 5 | code_bins, doppler_bins, doppler_span_hz, eta, pfa_cell |
+| fs 4 -> 8 MHz | 6 | doppler_bins, doppler_span_hz, eta, fs, pfa_cell, underpowered |
 | cn0_dbhz 55 -> 60 | 4 | cn0_dbhz, doppler_bins, eta, pfa_cell |
-| doppler_uncertainty 0 -> 40 kHz | 4 | doppler_bins, eta, pfa_cell, underpowered |
-| pfa 1e-3 -> 1e-6 | 3 | doppler_bins, eta, pfa_cell |
-| pd 0.9 -> 0.99 | 4 | doppler_bins, eta, pd, pfa_cell |
-| doppler_rate 0 -> 42 MHz/s | 5 | doppler_bins, doppler_rate, eta, pfa_cell, underpowered |
+| doppler_uncertainty 0 -> 60 kHz | 3 | doppler_bins, eta, pfa_cell |
+| pfa 1e-3 -> 1e-6 | 4 | doppler_bins, eta, pfa_cell, underpowered |
+| pd 0.9 -> 0.99 | 5 | doppler_bins, eta, pd, pfa_cell, underpowered |
+| doppler_rate 0 -> 83 MHz/s | 5 | doppler_bins, doppler_rate, eta, pfa_cell, underpowered |
 
 All 8 move something (**True**), and all 8 signatures are distinct (**True**) — so no pair of arguments could be swapped without the table changing. `pfa` and `pd` are the pair worth naming: both are doubles in (0,1), and they move different things — `pfa` moves the threshold and the per-cell rate, `pd` moves the coherent depth (a burst engine never buys non-coherent looks, doppler#1181) and, past the ceiling, `underpowered`. Raw sweep: `data/forwarding.csv`.
 
@@ -97,9 +97,9 @@ Each of these is a documented relationship between a constructor argument and a 
 
 | geometry | fs | code_bins | span (Hz) | bins/reps |
 |---|---|---|---|---|
-| reps=8, 124 samples, 4 MS/s | 4M | 124 | 16129 | 8/8 |
-| reps=16, 62 samples, 6 MS/s | 6M | 62 | 48387 | 16/16 |
-| reps=4, 248 samples, 20 MS/s | 20M | 248 | 40323 | 4/4 |
+| reps=8, 124 samples, 4 MS/s | 4M | 124 | 16129 | 6/8 |
+| reps=16, 62 samples, 6 MS/s | 6M | 62 | 48387 | 15/16 |
+| reps=4, 248 samples, 20 MS/s | 20M | 248 | 40323 | 3/4 |
 
 `fs` is the rate given, `code_bins` is the preamble's length `n`, the native span is `fs/(2n)`, the resolution is `fs/(n * doppler_bins)`, and the coherent depth never exceeds `reps`. Five identities over three geometries: an `fs` that reached the `reps` slot, or a preamble length that never arrived, breaks several of them at once.
 

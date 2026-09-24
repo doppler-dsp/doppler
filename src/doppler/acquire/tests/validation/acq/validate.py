@@ -340,7 +340,9 @@ def _sec_templates(d: Data) -> None:
         "template runs at the C/N0 where the engine itself predicts 0.3, "
         "0.6 and 0.9, so a wrong slope shows. The code runs through the "
         "same harness as the control and lands on §2.6, so any gap in the "
-        "other rows is the engine's. Measured by "
+        "other rows is the engine's; it then runs at the same three design "
+        "points, because §2.6's one point is 0.65 and the constructors "
+        "default to pd = 0.9. Measured by "
         "`native/validation/acq_template_pd.c`; `|delay err|` is the mean "
         "distance of the reported delay from the injected one, in samples."
     )
@@ -375,8 +377,16 @@ def _sec_templates(d: Data) -> None:
     )
     R.md()
     R.md(
-        "Every template is conservative, the side the model is built to "
-        "err on: QPSK and Zadoff-Chu by ~0.04, the SHAPED QPSK by "
+        "Every row is conservative, the side the model is built to err "
+        "on. The code's margin thins toward the default: +0.09 and +0.10 "
+        "at 0.3 and 0.6, +0.03 at 0.9. So the 0.9 row is the one that "
+        "would see a model whose slope is wrong at the top, and the spot "
+        "check asserts it: a sabotage that made the model 0.08 optimistic "
+        "at 0.9 for the code alone (0.02 at 0.65) turned that row red and "
+        "left the 0.65 control green. Its resolution is that margin plus "
+        "2 sigma, about 0.05: a uniform +0.04 is absorbed, because the "
+        "harness finds the design point through the model it tests. QPSK "
+        "and Zadoff-Chu are conservative by ~0.04, the SHAPED QPSK by "
         "0.05-0.10, the chirp by up to ~0.12 -- a chirp's correlation peak "
         "slides along its delay-Doppler ridge (~0.3 samples) instead of "
         "shrinking, so the zero-delay rotation loss the model charges "
@@ -1302,10 +1312,12 @@ def limits(d: Data) -> None:
         "all four CFAR noise modes are exercised, not only the default",
     )
     ctl = [r for r in d.tmpl_rows if "(ctl)" in r["preamble"]]
+    code = [r for r in d.tmpl_rows if r["preamble"] == "code 31 x4"]
     held = [
         r
         for r in d.tmpl_rows
-        if "(ctl)" not in r["preamble"] and "shaped" not in r["preamble"]
+        if r["preamble"].split()[0] not in ("code",)
+        and "shaped" not in r["preamble"]
     ]
     shaped = [r for r in d.tmpl_rows if "shaped" in r["preamble"]]
     R.limit(
@@ -1314,6 +1326,14 @@ def limits(d: Data) -> None:
         "the template harness reproduces §2.6 on the code: its control "
         "row is never optimistic and within 0.15, so a gap in a template "
         "row is the engine's (§2.10)",
+    )
+    R.limit(
+        len(code) == 3
+        and all(ok and gap <= 0.15 for ok, gap in map(_pd_verdict, code)),
+        "`pd_predicted` holds for the code at Pd 0.3, 0.6 and 0.9 -- the "
+        "constructors' default pd, where the model's margin is thinnest: "
+        "never optimistic (2 sigma), never more than 0.15 pessimistic "
+        "(§2.10)",
     )
     R.limit(
         len(held) == 9
@@ -1382,11 +1402,12 @@ def build(write: bool = True) -> Report:
             "a multi-epoch coherent axis aliases a data-modulated stream's "
             "transitions across the whole Doppler axis (§2.1, F4).",
             "**Any repeated preamble works; give a long one its Doppler "
-            "rate.** Zadoff-Chu, chirp and QPSK meet `pd_predicted` at "
-            "every design point; a shaped preamble is optimistic by ~0.03 "
-            "(§2.10, F8). Without `doppler_rate` a long preamble is sized "
-            "at a depth the drift takes away, 0.92 promised and 0.65 "
-            "delivered (§2.11, F9).",
+            "rate.** The code, Zadoff-Chu, chirp, QPSK and a shaped QPSK "
+            "all meet `pd_predicted` at 0.3, 0.6 and the default 0.9. The "
+            "margin is thinnest at 0.9, +0.03 for the code (§2.10, F8). "
+            "Without `doppler_rate` a long preamble is sized at a depth the "
+            "drift takes away, 0.91 promised and 0.84 delivered (§2.11, "
+            "F9).",
         ],
     )
     R.summary(

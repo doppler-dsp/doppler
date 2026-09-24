@@ -24,12 +24,12 @@
  * §2.6 does, and must land on §2.6's numbers: that is what says the
  * harness, not the engine, produced any gap the other rows show.)
  *
- * Each template is measured at three design points -- the C/N0 at which the
- * engine itself first predicts Pd 0.3, 0.6 and 0.9 -- because one point
- * cannot show a model whose slope is wrong. Each hit's delay error is
- * recorded too: a chirp and a Zadoff-Chu sequence move their correlation
- * peak along the ambiguity ridge under Doppler, and this is the first
- * number on how far.
+ * Each template, and the code, is measured at three design points -- the
+ * C/N0 at which the engine itself first predicts Pd 0.3, 0.6 and 0.9 --
+ * because one point cannot show a model whose slope is wrong. Each hit's delay
+ * error is recorded too: a chirp and a Zadoff-Chu sequence move their
+ * correlation peak along the ambiguity ridge under Doppler, and this is the
+ * first number on how far.
  *
  * Each row is read against §2.6's bounds: measured Pd never below the
  * prediction by more than 2 sigma (never optimistic), never above it by more
@@ -60,7 +60,8 @@
  *                                       renders them and its limits()
  *                                       decide
  *   validate_acq_template_pd --check    the spot checks CTest runs, which
- *                                       ARE asserted: the control,
+ *                                       ARE asserted: the control, the
+ *                                       code at the 0.9 design point,
  *                                       Zadoff-Chu at the 0.6 design point,
  *                                       and the three drift rows at 500
  *                                       trials
@@ -278,9 +279,10 @@ measure (const tmpl_t *tp, const uint8_t *code, double cn0, uint32_t seed,
 }
 
 /* The C/N0 at which the engine first predicts `target`, pinned at D,
-   scanned in quarter-dB steps. */
+   scanned in quarter-dB steps: for a template (`pre` its samples at FS_T)
+   and for the code (`pre` its held chips at the control's rate) alike. */
 static double
-cn0_for (const tmpl_t *tp, double target)
+cn0_for (const float _Complex *pre, size_t n, double fs, double target)
 {
   /* Bisected on the quarter-dB grid 30..100 dB-Hz: Pd rises with C/N0 at a
      pinned grid, so this is the step a linear scan finds, in ~9
@@ -288,9 +290,8 @@ cn0_for (const tmpl_t *tp, double target)
      the scan alone put the spot check over its CI budget (doppler#1498). */
   int lo = 0, hi = 280;
   {
-    acq_state_t *a = dp_xnn (acq_create_burst (tp->t, tp->n, D, FS_T,
-                                               30.0 + 0.25 * (double)hi, 0.0,
-                                               PFA, 0.9, 0, 0.0));
+    acq_state_t *a = dp_xnn (acq_create_burst (
+        pre, n, D, fs, 30.0 + 0.25 * (double)hi, 0.0, PFA, 0.9, 0, 0.0));
     pin (a);
     const double p = a->pd_predicted;
     acq_destroy (a);
@@ -300,9 +301,8 @@ cn0_for (const tmpl_t *tp, double target)
   while (lo < hi)
     {
       const int    mid = (lo + hi) / 2;
-      acq_state_t *a   = dp_xnn (acq_create_burst (tp->t, tp->n, D, FS_T,
-                                                   30.0 + 0.25 * (double)mid,
-                                                   0.0, PFA, 0.9, 0, 0.0));
+      acq_state_t *a   = dp_xnn (acq_create_burst (
+          pre, n, D, fs, 30.0 + 0.25 * (double)mid, 0.0, PFA, 0.9, 0, 0.0));
       pin (a);
       const double p = a->pd_predicted;
       acq_destroy (a);
@@ -452,12 +452,32 @@ main (int argc, char **argv)
     DP_CHECK (ctl.ok);
 
   const double targets[3] = { 0.3, 0.6, 0.9 };
+  /* The code at the same three design points. The control above is one
+     point, 0.65, and the constructors default to pd = 0.9 -- the point a
+     caller sizes at, and where a model's margin is thinnest. The spot check
+     asserts that one. */
+  {
+    const size_t    spc  = 4;
+    float _Complex *cpre = dp_code_preamble (CODE31, 31, spc);
+    for (size_t j = 0; j < 3; j++)
+      {
+        if (check && j != 2)
+          continue;
+        double c = cn0_for (cpre, 31 * spc, 1.0e6 * (double)spc, targets[j]);
+        DP_REQUIRE (!isnan (c));
+        row_t r = measure (NULL, CODE31, c, (uint32_t)(1183u + j), &PINNED);
+        print_row ("code 31 x4", targets[j], &r);
+        if (check)
+          DP_CHECK (r.ok);
+      }
+    free (cpre);
+  }
   for (size_t i = 0; i < nt; i++)
     for (size_t j = 0; j < 3; j++)
       {
         if (check && (i != 0 || j != 1))
           continue;
-        double c = cn0_for (&tp[i], targets[j]);
+        double c = cn0_for (tp[i].t, tp[i].n, FS_T, targets[j]);
         DP_REQUIRE (!isnan (c));
         row_t r = measure (&tp[i], NULL, c, (uint32_t)(1470u + 7u * i + j),
                            &PINNED);

@@ -64,7 +64,7 @@ There is no list here to update.
 
 | object                                                                                                                                 | module       | limits | findings | still open                 |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------ | -------- | -------------------------- |
-| [acq](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/acq/results.md)                            | `acquire`    | 21/21  | 9        | 3 — F3, F6, F7             |
+| [acq](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/acq/results.md)                            | `acquire`    | 22/22  | 9        | 3 — F3, F6, F7             |
 | [BurstAcquisition](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_acq/results.md)         | `acquire`    | 16/16  | 4        | none                       |
 | [BurstCapture](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_capture/results.md)         | `acquire`    | 26/26  | 7        | 1 — F6                     |
 | [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)                                | `agc`        | 18/18  | 6        | 2 — F4, F6                 |

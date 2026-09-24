@@ -1835,6 +1835,67 @@ test_backed_captures_a_zadoff_chu_burst (void)
   return 0;
 }
 
+/**
+ * Refine names the right repetition for a burst at the band EDGE, at an
+ * even depth (doppler#1502).
+ *
+ * Refine scores each candidate with acquisition's statistic at Doppler
+ * cells around the engine's estimate, mixing WITHIN each period as well as
+ * across them. The engine's slow-time axis is periodic in the epoch rate,
+ * and at an even depth its Nyquist bin reads -fs/(2P) for a carrier at
+ * +fs/(2P): one frequency between periods, a whole span apart within one.
+ * Unwrapped into the native span, the cells sat on the wrong alias and
+ * every even depth lost Pd -- D = 2 a tenth of it. Zadoff-Chu 127 x 8 at a
+ * Doppler 0.9 of the half-span, strong, pinned at D = 2: the window must
+ * start exactly on the burst.
+ */
+static int
+test_refine_wraps_its_doppler_cells (void)
+{
+  enum
+  {
+    NZ = 127,
+    RZ = 8
+  };
+  static float _Complex zc[NZ];
+  for (size_t k = 0; k < NZ; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)NZ);
+  const size_t           burst = RZ * NZ + 400, at = 3 * NZ + 17;
+  burst_capture_state_t *s = burst_capture_create (zc, NZ, burst, RZ, 1.0, 0.0,
+                                                   0.0, 1e-3, 0.9, 0, 0.0);
+  DP_REQUIRE (s != NULL);
+  DP_REQUIRE (burst_capture_configure_search_raw (s, 2, 1) == 0);
+
+  const size_t    len = at + burst + 2 * s->refine_span + 4 * NZ;
+  float _Complex *x   = dp_xmalloc (len * sizeof *x);
+  /* 0.9 of the half-span: nearer the Nyquist bin than bin 0, so a D = 2
+     engine reports it at the OTHER edge. At 0.45 it reports bin 0 and the
+     alias never arises -- a first version sat there and passed with the
+     wrap removed. */
+  const double f  = 0.9 / (2.0 * (double)NZ); /* cycles/sample */
+  uint32_t     st = 1502u;
+  for (size_t i = 0; i < len; i++)
+    {
+      const float re = (float)dp_gauss (&st);
+      const float im = (float)dp_gauss (&st);
+      x[i]           = 0.05f * (re + I * im);
+    }
+  for (size_t i = 0; i < RZ * NZ; i++)
+    x[at + i]
+        += zc[i % NZ] * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
+
+  const size_t    cap = burst_capture_push_max_out (s, len);
+  float _Complex *out = dp_xmalloc ((cap ? cap : 1) * sizeof *out);
+  (void)burst_capture_push (s, x, len, out, cap);
+  DP_REQUIRE (burst_capture_ready (s) >= 1);
+  DP_CHECK (burst_capture_event_at (s, 0)->preamble_start == at);
+  free (out);
+  free (x);
+  burst_capture_destroy (s);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1847,6 +1908,8 @@ main (void)
   if (test_create_rejects_bad_parameters ())
     return 1;
   if (test_window_starts_at_the_burst ())
+    return 1;
+  if (test_refine_wraps_its_doppler_cells ())
     return 1;
   if (test_every_burst_is_emitted_once ())
     return 1;

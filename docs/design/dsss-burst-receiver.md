@@ -143,13 +143,14 @@ event chainable rather than merely consumable.
 
 §3.1 says a *code-period* correlation cannot name the repetition. The
 **preamble** can, because it has finite extent — its edges break exactly the
-periodicity a bare code correlation is blind to. Score a candidate offset by
-correlating one code period at each of the `REPS` positions the preamble
-would occupy, then combining those `REPS` correlations **coherently** across
-the repetitions — a zero-padded slow-time transform, strongest bin taken. The
-score at a whole-period offset `k` still follows the triangular overlap
-envelope `(REPS - abs(k)) / REPS`, because only `REPS - abs(k)` of those
-positions land on preamble.
+periodicity a bare code correlation is blind to. Score a candidate offset
+with **acquisition's own statistic** at the code phase acquisition settled:
+`acq_cell_corr()` of each of the `REPS` periods the preamble would occupy,
+mixed at one Doppler on one time reference and summed **coherently**, the
+strongest Doppler cell taken. Doppler is a nuisance parameter here; only the
+winning offset is kept. The score at a whole-period offset `k` still follows
+the triangular overlap envelope `(REPS - abs(k)) / REPS`, because only
+`REPS - abs(k)` of those positions land on preamble.
 
 **Coherent, but only with a Doppler search across the repetitions — not a
 fixed-phase sum.** This distinction cost a measurement: the first version
@@ -164,16 +165,17 @@ survive it:
 | 0.25 bin         | **wrong by 2 periods** (true position 639× below the peak) | exact                   |
 | 0.50 bin         | **wrong by 1 period** (310× below)                         | exact                   |
 
-So the per-period correlation is not an optimization, it is the mechanism.
-Each correlation spans one code period rather than `REPS` of them, so the
-phase rotation a half-bin residual produces stays small within a period —
-and the residual that remains ACROSS the periods is then searched rather
-than tolerated. That search is what lets the combining be coherent: its
-unambiguous span is `±1/(2P)` and acquisition can leave at most `1/(2·D·P)`,
-so it covers the residual by construction, with no hypothesis range to
-choose. Summing magnitudes instead was the original answer and sheds the
-combining loss as the preamble deepens — see doppler#1312 for the sweep that
-replaced it.
+So the residual is searched, not tolerated: acquisition settles the Doppler
+to its own bin, `1/(D·P)`, and combining `REPS` periods coherently needs
+`1/(REPS·P)`. Refine therefore evaluates the depth-`REPS` Doppler grid inside
+the detecting engine's bin, 4 cells a native bin
+(`BURST_CAPTURE_REFINE_INTERP`), and mixes **within** each period as well as
+across them, so a half-bin residual costs no intra-period rotation either.
+Summing magnitudes was the original answer and shed the combining loss as the
+preamble deepened (doppler#1312). A slow-time transform across per-period
+correlations came next; it rotated between periods only and, measured on
+Zadoff-Chu 127 × 8, chose the wrong period for 51 of 656 engine hits at
+`D = 5`. This statistic chooses it wrongly for 26 (doppler#1502).
 
 Measured at three noise levels, against a coarse guess deliberately placed
 two periods early:
@@ -445,10 +447,10 @@ decision already made.
 
 ### 6.1 The refine stage's margin and span
 
-The *mechanism* is settled (§3.4): correlate one code period at each of the
-preamble's `REPS` positions, combine those correlations coherently across
-the repetitions through a zero-padded slow-time transform, and take the
-strongest bin. What is not settled is its operating envelope.
+The *mechanism* is settled (§3.4): acquisition's statistic at the settled
+code phase, summed coherently over the preamble's `REPS` positions at the
+Doppler cells inside the engine's bin, strongest cell and offset taken. What
+is not settled is its operating envelope.
 
 - **Where it stops naming the right repetition — MEASURED** (phase 7,
     `src/doppler/dsss/tests/characterization/dsss_burst_receiver/`). At

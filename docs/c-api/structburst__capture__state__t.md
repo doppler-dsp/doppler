@@ -40,10 +40,10 @@ _BurstCapture state._ [More...](#detailed-description)
 |  size\_t | [**acq\_blob\_max**](#variable-acq_blob_max)  <br> |
 |  int | [**backed**](#variable-backed)  <br> |
 |  size\_t | [**burst\_len**](#variable-burst_len)  <br> |
+|  float \_Complex \* | [**cell\_buf**](#variable-cell_buf)  <br> |
 |  size\_t | [**chunk\_max**](#variable-chunk_max)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  size\_t | [**code\_period**](#variable-code_period)  <br> |
-|  float \_Complex \* | [**corr\_buf**](#variable-corr_buf)  <br> |
 |  size\_t | [**corr\_len**](#variable-corr_len)  <br> |
 |  [**burst\_capture\_detection\_t**](structburst__capture__detection__t.md) \* | [**det**](#variable-det)  <br> |
 |  size\_t | [**det\_cap**](#variable-det_cap)  <br> |
@@ -57,9 +57,9 @@ _BurstCapture state._ [More...](#detailed-description)
 |  dp\_f32\_t \* | [**hist**](#variable-hist)  <br> |
 |  size\_t | [**k\_hi**](#variable-k_hi)  <br> |
 |  size\_t | [**k\_lo**](#variable-k_lo)  <br> |
+|  size\_t | [**max\_cells**](#variable-max_cells)  <br> |
 |  size\_t | [**min\_gap**](#variable-min_gap)  <br> |
 |  uint64\_t | [**n\_bursts**](#variable-n_bursts)  <br> |
-|  [**corr2d\_state\_t**](structcorr2d__state__t.md) \* | [**pcorr**](#variable-pcorr)  <br> |
 |  size\_t | [**pending**](#variable-pending)  <br> |
 |  uint64\_t | [**preamble\_start**](#variable-preamble_start)  <br> |
 |  [**burst\_capture\_pending\_t**](structburst__capture__pending__t.md) \* | [**q**](#variable-q)  <br> |
@@ -71,10 +71,6 @@ _BurstCapture state._ [More...](#detailed-description)
 |  size\_t | [**reps**](#variable-reps)  <br> |
 |  size\_t | [**retain\_span**](#variable-retain_span)  <br> |
 |  uint64\_t | [**samples\_fed**](#variable-samples_fed)  <br> |
-|  [**fft\_state\_t**](structfft__state__t.md) \* | [**slow\_fft**](#variable-slow_fft)  <br> |
-|  float \_Complex \* | [**slow\_in**](#variable-slow_in)  <br> |
-|  size\_t | [**slow\_n**](#variable-slow_n)  <br> |
-|  float \_Complex \* | [**slow\_out**](#variable-slow_out)  <br> |
 |  uint64\_t | [**suppress\_base**](#variable-suppress_base)  <br> |
 |  uint64\_t | [**suppress\_until**](#variable-suppress_until)  <br> |
 |  int | [**underpowered**](#variable-underpowered)  <br> |
@@ -208,6 +204,23 @@ Samples in one emitted window. Acquisition has no notion of this  [**acq\_create
 
 
 
+### variable cell\_buf 
+
+```C++
+float _Complex* burst_capture_state_t::cell_buf;
+```
+
+
+
+Refine's cells: [**acq\_cell\_corr()**](acq__core_8h.md#function-acq_cell_corr) of every candidate preamble POSITION (one code period each) at every Doppler cell inside the detecting engine's bin, position-major, `corr_len * max_cells`. Computed once; each candidate sums `reps` consecutive rows of one cell coherently. The statistic is ACQUISITION'S, evaluated at the settled code phase: refine resolves which repetition, nothing else (doppler#1502). 
+
+
+        
+
+<hr>
+
+
+
 ### variable chunk\_max 
 
 ```C++
@@ -262,24 +275,6 @@ One preamble repetition, in SAMPLES. The modulus acq's code\_phase is a residue 
 
 
 
-### variable corr\_buf 
-
-```C++
-float _Complex* burst_capture_state_t::corr_buf;
-```
-
-
-
-Per-offset code-period correlations, reused across the candidate sweep so the sliding correlation is computed once and every candidate just indexes it. COMPLEX, and that is the point: it held `|c| + 0i` until doppler#1312 and the phase was discarded before any candidate could use it. 
- 
-
-
-        
-
-<hr>
-
-
-
 ### variable corr\_len 
 
 ```C++
@@ -288,7 +283,7 @@ size_t burst_capture_state_t::corr_len;
 
 
 
-Entries in corr\_buf. 
+Candidate positions refine can score. 
  
 
 
@@ -514,6 +509,24 @@ Whole code periods searched BEFORE the anchor: `3*reps + 2`, the detection lag's
 
 
 
+### variable max\_cells 
+
+```C++
+size_t burst_capture_state_t::max_cells;
+```
+
+
+
+Doppler cells refine can need: the most an engine bin spans at depth `reps`, which is at D = 1  `2 * ceil(reps * BURST_CAPTURE_REFINE_INTERP / 2) + 3`. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable min\_gap 
 
 ```C++
@@ -553,24 +566,6 @@ uint64_t burst_capture_state_t::n_bursts;
 
 
 Windows emitted, lifetime. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable pcorr 
-
-```C++
-corr2d_state_t* burst_capture_state_t::pcorr;
-```
-
-
-
-Per-period correlator against the preamble replica, at the ONE lag refine needs: the code phase is already fixed by acquisition, so this is `corr2d` in its known-lag mode (`col_out = 0`) rather than a private sum. One replica of the code, in one place  a second copy here is exactly how the norm\_freq -&gt; phase\_inc conversion came to disagree with itself in three files. 
  
 
 
@@ -774,76 +769,6 @@ uint64_t burst_capture_state_t::samples_fed;
 
 Stream position: total samples ever pushed. What makes an epoch stream-ABSOLUTE, and the reason preamble\_start is a quantity only this object can compute. 
  
-
-
-        
-
-<hr>
-
-
-
-### variable slow\_fft 
-
-```C++
-fft_state_t* burst_capture_state_t::slow_fft;
-```
-
-
-
-Slow-time transform across the repetitions: the Doppler search that turns the candidate score from a non-coherent sum into a coherent peak. Sized `slow_n`. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable slow\_in 
-
-```C++
-float _Complex* burst_capture_state_t::slow_in;
-```
-
-
-
-`reps` correlations, zero-padded to slow\_n. 
-
-
-        
-
-<hr>
-
-
-
-### variable slow\_n 
-
-```C++
-size_t burst_capture_state_t::slow_n;
-```
-
-
-
-Zero-padded slow-time length. Interpolates the Doppler axis so a residual between bins is not straddled; the UNAMBIGUOUS span is +-1/(2\*code\_period) either way, which is exactly what acquisition can leave behind (half its own Doppler bin), so the search covers the residual by construction and has no range to choose. 
- 
-
-
-        
-
-<hr>
-
-
-
-### variable slow\_out 
-
-```C++
-float _Complex* burst_capture_state_t::slow_out;
-```
-
-
-
-Its transform. Peak magnitude is the score. 
 
 
         

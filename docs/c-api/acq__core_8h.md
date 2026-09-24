@@ -82,6 +82,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  size\_t | [**acq\_block\_prompt**](#function-acq_block_prompt) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t tile, size\_t col, float \_Complex \* out, size\_t n\_out) <br>_One cell's column of the last whole block: the per-epoch complex correlations at a code phase, the despread stream at epoch rate._  |
 |  size\_t | [**acq\_block\_raw**](#function-acq_block_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last whole block's raw samples, as pushed._  |
 |  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._ |
+|  double \_Complex | [**acq\_cell\_corr**](#function-acq_cell_corr) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const float \_Complex \* x, size\_t col, double f\_hz, double t0) <br>_One epoch's correlation against the replica at ONE code phase and ONE frequency: the engine's surface, evaluated at a single cell, on raw samples._  |
 |  int | [**acq\_configure\_search\_raw**](#function-acq_configure_search_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst**](#function-acq_create_burst) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._ |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_continuous**](#function-acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
@@ -378,6 +379,54 @@ Two convention inversions live here, ported verbatim from `dsss_receiver_core.c`
   * `spc` Samples/chip — likewise. 
   * `out` Written on return (non-NULL). 
 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_cell\_corr 
+
+_One epoch's correlation against the replica at ONE code phase and ONE frequency: the engine's surface, evaluated at a single cell, on raw samples._ 
+```C++
+double _Complex acq_cell_corr (
+    const acq_state_t * state,
+    const float _Complex * x,
+    size_t col,
+    double f_hz,
+    double t0
+) 
+```
+
+
+
+`sum_m x[m] * conj(ref[(m - col) mod nx]) * exp(-j 2 pi f (t0 + m)/fs)` over the `code_bins` samples of `x`. The mixer phase is referenced to `t0`, so epochs evaluated at consecutive `t0` combine COHERENTLY: sum the returned values across epochs and the result is a depth-`len` cell of the slow-time surface at `f_hz`, with no intra-epoch rotation loss.
+
+
+It is what a caller does once acquisition has SETTLED the code phase and the Doppler: evaluate the same statistic elsewhere without searching the grid again. The engine's tile-alias check uses it; burst\_capture's refine uses it to score each candidate repetition (doppler#1502).
+
+
+
+
+**Parameters:**
+
+
+* `state` The engine whose replica, `code_bins` and `fs` are used. 
+* `x` One epoch, `code_bins` samples. 
+* `col` Code phase, samples, in [0, code\_bins). 
+* `f_hz` Mixer frequency, Hz. 
+* `t0` Time of the first sample of `x`, in samples, on the caller's reference. 
+
+
+
+**Returns:**
+
+The complex correlation. 
 
 
 

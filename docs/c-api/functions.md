@@ -73,6 +73,7 @@
 * **acq\_block\_prompt** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_block\_raw** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_build\_handoff** ([**acq\_core.h**](acq__core_8h.md))
+* **acq\_cell\_corr** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_configure\_search\_raw** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_create\_burst** ([**acq\_core.h**](acq__core_8h.md))
 * **acq\_create\_continuous** ([**acq\_core.h**](acq__core_8h.md))

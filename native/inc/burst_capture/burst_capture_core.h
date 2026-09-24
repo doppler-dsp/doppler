@@ -69,6 +69,15 @@
  */
 #define BURST_CAPTURE_HITS 16u
 
+/**
+ * Refine's Doppler cells per native bin at depth `reps`: twice acquisition's
+ * own zero-padding. Choosing a repetition compares two close scores, and the
+ * straddle that costs a detection little tips that comparison: measured on
+ * Zadoff-Chu 127 x 8, 2 cells a bin chose the wrong period for 45 of 656
+ * engine hits at D = 5, 4 for 26, and 8 for 25 (doppler#1502).
+ */
+#define BURST_CAPTURE_REFINE_INTERP 4u
+
 /** @brief State blob magic — a wrong blob is rejected, not reinterpreted. */
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
 /** @brief State blob layout version. */
@@ -208,36 +217,20 @@ typedef struct
   double   cn0_dbhz_est;   /**< C/N0 lower bound, dB-Hz (saturating).       */
 
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
-  corr2d_state_t *pcorr; /**< Per-period correlator against the preamble
-                              replica, at the ONE lag refine needs: the
-                              code phase is already fixed by acquisition,
-                              so this is `corr2d` in its known-lag mode
-                              (`col_out = 0`) rather than a private sum.
-                              One replica of the code, in one place --
-                              a second copy here is exactly how the
-                              norm_freq -> phase_inc conversion came to
-                              disagree with itself in three files.       */
-  float _Complex *corr_buf; /**< Per-offset code-period correlations, reused
-                                 across the candidate sweep so the sliding
-                                 correlation is computed once and every
-                                 candidate just indexes it. COMPLEX, and
-                                 that is the point: it held `|c| + 0i` until
-                                 doppler#1312 and the phase was discarded
-                                 before any candidate could use it.        */
-  fft_state_t *slow_fft;    /**< Slow-time transform across the repetitions:
-                                 the Doppler search that turns the candidate
-                                 score from a non-coherent sum into a
-                                 coherent peak. Sized `slow_n`.            */
-  float _Complex *slow_in;  /**< `reps` correlations, zero-padded to slow_n.*/
-  float _Complex *slow_out; /**< Its transform. Peak magnitude is the score.*/
-  size_t          slow_n;   /**< Zero-padded slow-time length. Interpolates
-                                 the Doppler axis so a residual between bins
-                                 is not straddled; the UNAMBIGUOUS span is
-                                 +-1/(2*code_period) either way, which is
-                                 exactly what acquisition can leave behind
-                                 (half its own Doppler bin), so the search
-                                 covers the residual by construction and
-                                 has no range to choose.                   */
+  float _Complex *cell_buf; /**< Refine's cells: acq_cell_corr() of every
+                                 candidate preamble POSITION (one code
+                                 period each) at every Doppler cell inside
+                                 the detecting engine's bin, position-major,
+                                 `corr_len * max_cells`. Computed once; each
+                                 candidate sums `reps` consecutive rows of
+                                 one cell coherently. The statistic is
+                                 ACQUISITION'S, evaluated at the settled
+                                 code phase: refine resolves which
+                                 repetition, nothing else (doppler#1502). */
+  size_t max_cells;         /**< Doppler cells refine can need: the most an
+                                 engine bin spans at depth `reps`, which is
+                                 at D = 1 -- `2 * ceil(reps *
+                                 BURST_CAPTURE_REFINE_INTERP / 2) + 3`.   */
   size_t refine_span;  /**< Candidate offsets searched, in samples:
                             `(k_lo + k_hi + reps) * code_period`. Read it
                             rather than restating the formula -- the design
@@ -253,7 +246,7 @@ typedef struct
                             a pair needs about two code periods of dead air,
                             against the 32 samples that formula gives at the
                             test geometry (doppler#1172).                 */
-  size_t corr_len;     /**< Entries in corr_buf.                            */
+  size_t corr_len;     /**< Candidate positions refine can score.         */
   size_t min_gap;      /**< Dead air a caller must leave BETWEEN bursts, in
                             samples -- edge to edge, not start to start.
 

@@ -454,6 +454,27 @@ acq_compute_stat_nc (acq_state_t *st)
  * epoch's column walked by the hypothesis's own code rate as
  * acq_tile_epoch walks the tile's. Returns the native row that wins;
  * the pick's own row when the engine is not block-coherent and tiled. */
+double _Complex acq_cell_corr (const acq_state_t *st, const float _Complex *x,
+                               size_t col, double f_hz, double t0)
+{
+  const size_t nx            = st->code_bins;
+  const double _Complex step = cexp (-2.0 * M_PI * I * f_hz / st->fs);
+  double _Complex ph         = 1.0;
+  double _Complex acc        = 0.0;
+  for (size_t m = 0; m < nx; m++)
+    {
+      /* The mixer: a recurrence from an exact start, resynced every 256
+         samples (acq_tile_epoch's pattern). */
+      if ((m & 255) == 0)
+        ph = cexp (-2.0 * M_PI * I * f_hz * (t0 + (double)m) / st->fs);
+      else
+        ph *= step;
+      const size_t k = (m + nx - col % nx) % nx;
+      acc += (double _Complex) (x[m] * conjf (st->ref[k])) * ph;
+    }
+  return acc;
+}
+
 static size_t
 acq_resolve_tile_alias (const acq_state_t *st, size_t row, size_t col)
 {
@@ -471,30 +492,16 @@ acq_resolve_tile_alias (const acq_state_t *st, size_t row, size_t col)
       /* The code-rate walk of this hypothesis, samples per epoch: a
          positive Doppler runs the chip clock fast and the peak sits
          EARLIER each epoch (acq_tile_epoch's convention). */
-      const double d             = st->carrier_freq_hz > 0.0
-                                       ? f / st->carrier_freq_hz * (double)nx
-                                       : 0.0;
-      const double _Complex step = cexp (-2.0 * M_PI * I * f / st->fs);
-      double pw                  = 0.0;
+      const double d  = st->carrier_freq_hz > 0.0
+                            ? f / st->carrier_freq_hz * (double)nx
+                            : 0.0;
+      double       pw = 0.0;
       for (size_t e = 0; e < D; e++)
         {
-          const float _Complex *x = st->blk_raw + e * nx;
           const long sh = lround (((double)e - 0.5 * (double)(D - 1)) * d);
           const long c0 = (((long)col - sh) % (long)nx + (long)nx) % (long)nx;
-          double _Complex ph  = 1.0;
-          double _Complex acc = 0.0;
-          for (size_t m = 0; m < nx; m++)
-            {
-              /* The mixer: a recurrence from an exact start, resynced
-                 every 256 samples (acq_tile_epoch's pattern). */
-              if ((m & 255) == 0)
-                ph = cexp (-2.0 * M_PI * I * f * (double)(e * nx + m)
-                           / st->fs);
-              else
-                ph *= step;
-              const size_t k = (m + nx - (size_t)c0) % nx;
-              acc += (double _Complex) (x[m] * conjf (st->ref[k])) * ph;
-            }
+          const double _Complex acc = acq_cell_corr (
+              st, st->blk_raw + e * nx, (size_t)c0, f, (double)(e * nx));
           pw += creal (acc) * creal (acc) + cimag (acc) * cimag (acc);
         }
       if (pw > best)

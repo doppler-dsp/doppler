@@ -78,10 +78,23 @@
  */
 #define BURST_CAPTURE_REFINE_INTERP 4u
 
+/**
+ * Distinct code phases a pending burst remembers for refine to score. Two
+ * is what a Zadoff-Chu preamble at the edge of the native span produces
+ * (doppler#1519); the rest is room for a false alarm merged into the same
+ * burst. A phase past the cap is not recorded, and refine then behaves as
+ * it did before phases were kept.
+ */
+#define BURST_CAPTURE_MAX_PHASES 4u
+
+/** Extra Doppler cells refine scores at the other alias when a cell sits
+ *  at the edge of the native span (doppler#1519). */
+#define BURST_CAPTURE_EDGE_TWINS 4u
+
 /** @brief State blob magic — a wrong blob is rejected, not reinterpreted. */
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
 /** @brief State blob layout version. */
-#define BURST_CAPTURE_STATE_VERSION 3u
+#define BURST_CAPTURE_STATE_VERSION 4u
 
 #ifdef __cplusplus
 extern "C" {
@@ -164,6 +177,15 @@ typedef struct
                             payload does. The raw peak measures what the
                             comparison actually means, how much preamble the
                             frame holds.                                   */
+  uint32_t phase[BURST_CAPTURE_MAX_PHASES]; /**< Distinct code phases
+                            (epoch mod period) among the detections merged
+                            into this burst, the anchor's first. Refine
+                            scores every one: at the edge of the native
+                            span a Zadoff-Chu preamble's detections split
+                            between the true phase and one u^-1 samples
+                            along its delay-Doppler ridge, and the stronger
+                            is not always the true one (doppler#1519).    */
+  uint32_t n_phase;    /**< Entries used in `phase`.                        */
   int      refined;    /**< Non-zero once `start` is known.                 */
   int      shadowed;   /**< Inside the span of a window already EMITTED.
                             Held rather than dropped, because whether that
@@ -764,12 +786,12 @@ double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
  *         at a uniform alignment (doppler#1498). What `underpowered` reads.
  *
  * It models the ENGINE; what refine loses afterwards is not in the model.
- * Measured on a Zadoff-Chu 127 x 8 preamble at every depth: at a 0.6
- * design point the capture delivers at least this, the engine's margin
- * absorbing refine's loss; at 0.9 (the default `pd`) it falls up to 0.026
- * short, from wrong repetitions and a code phase inherited along the ZC
- * delay-Doppler ridge (doppler#1519). Design with that margin until it is
- * fixed (native/validation/capture_dwell_pd.c; validation report §2.8). */
+ * Measured on a Zadoff-Chu 127 x 8 preamble at every depth, the capture
+ * delivers at least this at a 0.6 design point and at 0.9 (the default
+ * `pd`): its loss against the engine is refine naming the wrong repetition,
+ * about 2% of trials (native/validation/capture_dwell_pd.c; validation
+ * report §2.8). Until doppler#1519 it also lost a code phase along the ZC
+ * delay-Doppler ridge and fell 0.026 short at 0.9. */
 double burst_capture_get_pd_burst (const burst_capture_state_t *state);
 /** @brief Doppler rate (Hz/s) the coherent depth is bounded against; 0 is
  *         no bound. */

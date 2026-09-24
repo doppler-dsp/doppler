@@ -39,10 +39,8 @@
  *                                       dwell can straddle): the ENGINE
  *                                       never below pd_burst by 2 sigma,
  *                                       never above it by 0.15 -- acq's
- *                                       bounds -- and, at the 0.6 design
- *                                       point, the CAPTURE never below it
- *                                       by 2 sigma either (at 0.9 it is,
- *                                       doppler#1519)
+ *                                       bounds -- and the CAPTURE never
+ *                                       below it by 2 sigma either
  *   validate_capture_dwell_pd --emit    every D at both design points, 300
  *                                       trials a row (the --check count),
  *                                       as CSV for the burst_capture
@@ -67,13 +65,16 @@
  *   D        1      2      3      4      5      6      7      8
  *   burst    0.902  0.907  0.907  0.908  0.916  0.905  0.911  0.903
  *   engine   0.917  0.946  0.924  0.901  0.919  0.910  0.916  0.912
- *   capture  0.891  0.914  0.897  0.882  0.890  0.892  0.905  0.907
+ *   capture  0.918  0.935  0.913  0.892  0.899  0.896  0.906  0.907
  *
- * The capture is short of pd_burst there by up to 0.026 (D = 4, 5; about
- * 2.6 sigma): wrong repetitions at D >= 2, and at every D a window 51
- * samples off -- u^-1 mod 127, the Zadoff-Chu delay-Doppler ridge, a code
- * phase refine inherits from a detection at the neighbouring Doppler cell
- * (doppler#1519).
+ * There the capture USED to fall 0.026 short (D = 4, 5): besides wrong
+ * repetitions, windows 51 samples off -- u^-1 mod 127, the Zadoff-Chu
+ * delay-Doppler ridge. At the edge of the native span a burst's detections
+ * split between the true phase and the ridge phase; refine kept only the
+ * anchor's, and its wrapped Doppler cells gave the ridge hypothesis the
+ * better mix. Refine now scores every phase the detections carried, and
+ * scores edge cells at both aliases (doppler#1519): the capture's loss
+ * against the engine is now its wrong-repetition rate and nothing else.
  *
  * One dwell's Pd ("dwell") runs from 0.19 to 0.92 across rows that all
  * deliver about 0.65; the burst Pd holds the engine to within acq's bounds
@@ -336,13 +337,11 @@ main (int argc, char **argv)
           {
             DP_CHECK (r.eng >= r.pred - 2.0 * r.eng_se);
             DP_CHECK (r.eng - r.pred <= 0.15);
-            /* What a caller of the CAPTURE gets, after refine -- at 0.6
-               only. At 0.9 the engine's margin is gone and the capture
-               falls short by up to 0.026 on this Zadoff-Chu preamble
-               (doppler#1519); the burst_capture report holds that as a
-               ratchet, in one place, until the fix lands. */
-            if (r.target < 0.75)
-              DP_CHECK (r.meas >= r.pred - 2.0 * r.se);
+            /* What a caller of the CAPTURE gets, after refine, at both
+               design points. 0.9 is the one that needed doppler#1519:
+               there the engine's margin is gone, and a code phase
+               inherited along the Zadoff-Chu ridge cost 0.026. */
+            DP_CHECK (r.meas >= r.pred - 2.0 * r.se);
           }
       }
   if (emit)

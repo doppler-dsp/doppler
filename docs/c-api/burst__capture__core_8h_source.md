@@ -29,8 +29,12 @@
 
 #define BURST_CAPTURE_REFINE_INTERP 4u
 
+#define BURST_CAPTURE_MAX_PHASES 4u
+
+#define BURST_CAPTURE_EDGE_TWINS 4u
+
 #define BURST_CAPTURE_STATE_MAGIC DP_FOURCC ('B', 'C', 'A', 'P')
-#define BURST_CAPTURE_STATE_VERSION 3u
+#define BURST_CAPTURE_STATE_VERSION 4u
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,6 +64,8 @@ typedef struct
   double   doppler_hz; 
   double   cn0_dbhz;   
   double   peak_mag;   
+  uint32_t phase[BURST_CAPTURE_MAX_PHASES]; 
+  uint32_t n_phase;    
   int      refined;    
   int      shadowed;   
 } burst_capture_pending_t;

@@ -39,7 +39,9 @@ _One detection between acquisition and emission._ [More...](#detailed-descriptio
 |  uint64\_t | [**anchor**](#variable-anchor)  <br> |
 |  double | [**cn0\_dbhz**](#variable-cn0_dbhz)  <br> |
 |  double | [**doppler\_hz**](#variable-doppler_hz)  <br> |
+|  uint32\_t | [**n\_phase**](#variable-n_phase)  <br> |
 |  double | [**peak\_mag**](#variable-peak_mag)  <br> |
+|  uint32\_t | [**phase**](#variable-phase)  <br> |
 |  int | [**refined**](#variable-refined)  <br> |
 |  int | [**shadowed**](#variable-shadowed)  <br> |
 |  uint64\_t | [**start**](#variable-start)  <br> |
@@ -152,6 +154,24 @@ Signed coarse Doppler, Hz.
 
 
 
+### variable n\_phase 
+
+```C++
+uint32_t burst_capture_pending_t::n_phase;
+```
+
+
+
+Entries used in `phase`. 
+ 
+
+
+        
+
+<hr>
+
+
+
 ### variable peak\_mag 
 
 ```C++
@@ -161,6 +181,24 @@ double burst_capture_pending_t::peak_mag;
 
 
 The hit's RAW CFAR peak. Two detections naming the same preamble keep the stronger, so a weak hit that merely arrived first cannot own the slot a real burst needs (doppler#1004). Deliberately not `test_stat`: that is peak/noise\_est, and the noise estimate is a mean over the surface, so a BARE preamble  which raises no floor  outscores a real burst whose payload does. The raw peak measures what the comparison actually means, how much preamble the frame holds. 
+ 
+
+
+        
+
+<hr>
+
+
+
+### variable phase 
+
+```C++
+uint32_t burst_capture_pending_t::phase[BURST_CAPTURE_MAX_PHASES];
+```
+
+
+
+Distinct code phases (epoch mod period) among the detections merged into this burst, the anchor's first. Refine scores every one: at the edge of the native span a Zadoff-Chu preamble's detections split between the true phase and one u^-1 samples along its delay-Doppler ridge, and the stronger is not always the true one (doppler#1519). 
  
 
 

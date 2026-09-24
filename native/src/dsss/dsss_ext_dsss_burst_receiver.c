@@ -884,9 +884,10 @@ static PyGetSetDef DsssBurstReceiver_getset[] = {
     "burst_len`, floored at zero. Bursts spaced by exactly this all decode:\n"
     "measured at a 255-chip code, `reps=5`, `spc=2` over 40 lead offsets, "
     "every\n"
-    "burst at its exact sample (doppler#1514). Packed well inside it, bursts "
-    "are\n"
-    "lost rather than reported.\n",
+    "burst at its exact sample (doppler#1514). It is a guarantee, not the "
+    "edge:\n"
+    "at that geometry bursts an eighth of it apart decode too "
+    "(doppler#1530).\n",
     NULL },
   { "refine_span", (getter)DsssBurstReceiver_getprop_refine_span, NULL,
     "Coalescing window, in samples -- the reach over which two detections\n"

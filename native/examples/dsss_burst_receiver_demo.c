@@ -26,8 +26,10 @@
  *       1000 and 333-sample blocks, gives the same answer.
  *   §3  A burst split across two push() calls is HELD, not lost, and
  *       `pending` says so. Read it before you stop feeding a stream.
- *   §4  Bursts closer than `refine_span` coalesce — that span IS the
- *       minimum burst spacing, not a suggestion.
+ *   §4  `min_gap` is the dead air the object guarantees: four bursts at
+ *       exactly `min_gap`, edge to edge, all decode, whole and in blocks.
+ *       `refine_span` is a start-to-start reach, not a spacing
+ *       (doppler#1514).
  *   §5  Every read-back, for EVERY burst: the nine fields of
  *       `dsss_br_event_t`, each checked against what the scene says it must
  *       be. The scalar members describe only the LAST burst — that is why
@@ -175,12 +177,23 @@ decode_in_blocks (const float complex *cap, size_t cap_len, size_t block,
     {
       size_t n   = cap_len - off < block ? cap_len - off : block;
       size_t got = dsss_burst_receiver_push (rx, cap + off, n, out, cap_out);
-      if (got && !kept && first_payload)
+      /* A burst is a frame whose event says `frame_valid`. The receiver
+         stops at decisions, so a false alarm in the noise still returns a
+         frame; that flag is how a caller tells the two apart. */
+      dsss_br_event_t ev[8];
+      size_t          nev = dsss_burst_receiver_events_max_out (rx);
+      nev = dsss_burst_receiver_events (rx, nev, ev, sizeof ev / sizeof *ev);
+      for (size_t i = 0; i < nev && i < got / FRAME_SYMS; i++)
         {
-          memcpy (first_payload, out, FRAME_SYMS);
-          kept = 1;
+          if (!ev[i].frame_valid)
+            continue;
+          if (!kept && first_payload)
+            {
+              memcpy (first_payload, out + i * FRAME_SYMS, FRAME_SYMS);
+              kept = 1;
+            }
+          total++;
         }
-      total += got / FRAME_SYMS;
     }
   free (out);
   dsss_burst_receiver_destroy (rx);
@@ -199,10 +212,11 @@ main (void)
 
   wfm_source_t src = dsss_source (acode, dcode, sy, payload);
 
-  /* The two spans a caller must respect, read from the object rather than
-     restated: `refine_span` is the minimum burst spacing (anchors closer are
-     coalesced as one preamble) and `retain_span` is the history kept per
-     anchor. Both were internal until gh-1011. */
+  /* The spans a caller must respect, read from the object rather than
+     restated: `min_gap` is the dead air to leave between bursts, edge to
+     edge, and `retain_span` is the history kept per anchor. `refine_span`,
+     which `min_gap` is derived from, is a start-to-start reach -- reading it
+     as a spacing was doppler#1514. */
   dsss_burst_receiver_state_t *probe = make_rx (acode, dcode, sy);
   if (!probe)
     {
@@ -211,7 +225,7 @@ main (void)
     }
   /* Through the accessors: both spans are the CAPTURE's, derived there and
      forwarded here, so the receiver has no field of its own to read. */
-  const size_t refine_span = dsss_burst_receiver_get_refine_span (probe);
+  const size_t min_gap     = dsss_burst_receiver_get_min_gap (probe);
   const size_t retain_span = dsss_burst_receiver_get_retain_span (probe);
   dsss_burst_receiver_destroy (probe);
 
@@ -219,7 +233,8 @@ main (void)
   printf ("  waveform    one wfmgen segment via wfm_compose_create()\n");
   printf ("  burst_len   %6zu samples   (%u-chip preamble x%u, spc %u)\n",
           (size_t)BURST_LEN, ACQ_SF, REPS, SPC);
-  printf ("  refine_span %6zu           minimum burst spacing\n", refine_span);
+  printf ("  min_gap     %6zu           dead air to leave between bursts\n",
+          min_gap);
   printf ("  retain_span %6zu           history kept per anchor\n\n",
           retain_span);
 
@@ -291,22 +306,22 @@ main (void)
       }
   }
 
-  /* ── §4  closer than refine_span, and they coalesce ──────────────────── */
+  /* ── §4  min_gap is the guarantee ──────────────────────────────────── */
   {
-    /* Between one burst and one refine_span: the bursts do not overlap, they
-       are simply nearer than the window that decides "same preamble". */
-    size_t tight = (BURST_LEN + refine_span) / 2u;
-    size_t want  = 4u;
-    size_t n     = compose (&src, want, tight - BURST_LEN, cap, CAP_MAX);
-    size_t d     = decode_in_blocks (cap, n, n, acode, dcode, sy, NULL);
-    printf (
-        "§4  %zu bursts spaced %zu (inside refine_span %zu): %zu decoded\n",
-        want, tight, refine_span, d);
-    printf ("      -> coalesced. refine_span IS the minimum spacing.\n");
-    if (d >= want)
+    /* AT min_gap, with no margin: the guarantee is what is shown, and the
+       check below is what would catch it failing -- pushed whole and in
+       small blocks alike (doppler#1527). */
+    size_t want = 4u;
+    size_t n    = compose (&src, want, min_gap, cap, CAP_MAX);
+    size_t dw   = decode_in_blocks (cap, n, n, acode, dcode, sy, NULL);
+    size_t ds   = decode_in_blocks (cap, n, 333u, acode, dcode, sy, NULL);
+    printf ("§4  %zu bursts, %zu samples of dead air (min_gap): %zu decoded"
+            " whole, %zu in 333-sample blocks\n",
+            want, min_gap, dw, ds);
+    printf ("      -> leave min_gap between bursts; it is a guarantee.\n");
+    if (dw != want || ds != want)
       {
-        fprintf (stderr, "bursts inside refine_span were all decoded — the"
-                         " rule this demonstrates has changed\n");
+        fprintf (stderr, "bursts at min_gap were not all decoded\n");
         return 1;
       }
   }
@@ -321,9 +336,9 @@ main (void)
     const double cn0_true
         = ESN0_DB + 10.0 * log10 (CHIP_RATE / (double)DATA_SF);
 
-    const size_t spacing = refine_span + refine_span / 5u;
     const size_t want    = 4u;
-    size_t       n = compose (&src, want, spacing - BURST_LEN, cap, CAP_MAX);
+    const size_t spacing = BURST_LEN + min_gap; /* start to start */
+    size_t       n       = compose (&src, want, min_gap, cap, CAP_MAX);
 
     dsss_burst_receiver_state_t *rx = make_rx (acode, dcode, sy);
     if (!rx || !n)

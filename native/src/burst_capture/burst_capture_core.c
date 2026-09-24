@@ -63,6 +63,7 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
      size. */
   burst_capture_state_t *s = dp_xcalloc (1, sizeof *s);
 
+  s->horizon   = UINT64_MAX; /* unbounded outside push()'s claim loop */
   s->reps      = reps;
   s->burst_len = burst_len;
 
@@ -268,6 +269,7 @@ burst_capture_reset (burst_capture_state_t *state)
   state->det_len        = 0;
   state->suppress_until = 0;
   state->suppress_base  = 0;
+  state->horizon        = UINT64_MAX;
   state->preamble_start = 0;
   state->doppler_hz_est = 0.0;
   state->doppler_res_hz = 0.0;
@@ -290,7 +292,11 @@ burst_capture_at (const burst_capture_state_t *s, uint64_t pos)
 static int
 burst_capture_have (const burst_capture_state_t *s, uint64_t pos, size_t n)
 {
-  return pos >= s->hist->tail && pos + n <= s->hist->head;
+  /* Arrived means written AND not past the horizon: inside push()'s claim
+     loop, samples later than the detection being claimed have not arrived
+     yet as far as stream time is concerned (doppler#1527). */
+  const uint64_t end = s->hist->head < s->horizon ? s->hist->head : s->horizon;
+  return pos >= s->hist->tail && pos + n <= end;
 }
 
 /** @brief Correlation of one code period of preamble at @p pos, WITH phase.
@@ -549,19 +555,39 @@ burst_capture_trim (burst_capture_state_t *s)
   uint64_t head = s->hist->head;
   uint64_t keep
       = head > (uint64_t)s->retain_span ? head - (uint64_t)s->retain_span : 0;
-  if (s->pending)
+  /* One period beyond the anchor's reach: refine scores each remembered
+     phase on the anchor's grid shifted by up to half a period. */
+  const uint64_t back = (uint64_t)((s->k_lo + 1u) * s->code_period);
+  /* History is held for the oldest entry that can still be EMITTED -- not
+     for a shadowed one, which waits for a verdict and would otherwise pin
+     the ring for as long as a push lasts (doppler#1527). */
+  for (size_t j = 0; j < s->pending; j++)
     {
-      const burst_capture_pending_t *o    = &s->q[s->q_head];
-      uint64_t                       base = o->refined ? o->start : o->anchor;
-      /* One period beyond the anchor's reach: refine scores each remembered
-         phase on the anchor's grid shifted by up to half a period. */
-      uint64_t back = (uint64_t)((s->k_lo + 1u) * s->code_period);
+      const burst_capture_pending_t *o = &s->q[(s->q_head + j) % s->q_cap];
+      if (o->shadowed)
+        continue;
+      uint64_t base = o->refined ? o->start : o->anchor;
       uint64_t need = base > back ? base - back : 0;
       if (need < keep)
         keep = need;
     }
   if (keep > s->hist->tail)
     dp_f32_consume (s->hist, (size_t)(keep - s->hist->tail));
+
+  /* ...and a shadowed entry whose history is now gone can never be refined,
+     so a later release could not bring it back: it goes, as it would have
+     at the next push. Only a push long enough to trim past it gets here. */
+  size_t kept = 0;
+  for (size_t j = 0; j < s->pending; j++)
+    {
+      burst_capture_pending_t *o    = &s->q[(s->q_head + j) % s->q_cap];
+      uint64_t                 base = o->refined ? o->start : o->anchor;
+      if (o->shadowed && (base > back ? base - back : 0) < s->hist->tail)
+        continue;
+      s->q[(s->q_head + kept) % s->q_cap] = *o;
+      kept++;
+    }
+  s->pending = kept;
 }
 
 /**
@@ -793,6 +819,19 @@ burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
 
           for (size_t i = 0; i < nh; i++)
             {
+              /* STREAM TIME FIRST: emit every burst whose window was complete
+                 by the time this detection was made, before the detection
+                 is claimed. Without it a whole-capture push claimed every
+                 detection of a chunk before draining once, so a burst that a
+                 small-block caller had already been handed was still pending
+                 -- and a later burst within refine_span MERGED into it: four
+                 bursts at a quarter of min_gap came out as one wrong window
+                 pushed whole and as four exact ones in 1000-sample blocks
+                 (doppler#1527). */
+              state->horizon = hits[i].samples_consumed;
+              burst_capture_drain (state);
+              state->horizon = UINT64_MAX;
+
               /* The hit's own END anchor, made stream-absolute:
                  samples_consumed is where this detection's epoch ENDED, so
                  backing off one frame and adding the code phase names a code

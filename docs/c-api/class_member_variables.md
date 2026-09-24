@@ -388,6 +388,7 @@
 * **held\_phase** ([**async\_dsss\_receiver\_extra\_t**](structasync__dsss__receiver__extra__t.md), [**async\_dsss\_receiver\_state\_t**](structasync__dsss__receiver__state__t.md))
 * **hi** ([**ber\_interval\_t**](structber__interval__t.md))
 * **hist** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md))
+* **horizon** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md))
 * **have\_prev** ([**carrier\_mpsk\_state\_t**](structcarrier__mpsk__state__t.md), [**costas\_state\_t**](structcostas__state__t.md), [**despreader\_state\_t**](structdespreader__state__t.md), [**ratesync\_loop\_t**](structratesync__loop__t.md))
 * **head** ([**delay\_state\_t**](structdelay__state__t.md), [**viterbi\_state\_t**](structviterbi__state__t.md))
 * **have\_prev\_epoch** ([**dll\_state\_t**](structdll__state__t.md))

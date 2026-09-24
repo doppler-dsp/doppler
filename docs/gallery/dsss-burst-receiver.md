@@ -92,10 +92,12 @@ burst: a false alarm at the configured `pfa`, with its sync word and payload
 wrong and `frame_valid = 0`. The receiver stops at decisions, so a caller
 separates bursts from false alarms by that flag. The demo does.
 
-Below `min_gap` there is no promise. At a quarter of it, today's answer
-depends on how the stream is pushed: 1000-sample blocks decode all four
-bursts, a whole-capture push decodes none
-([#1527](https://github.com/doppler-dsp/doppler/issues/1527)). Both spans were internal until
+Below `min_gap` there is no promise, but the bound is conservative here.
+Since the capture emits in stream order
+([#1527](https://github.com/doppler-dsp/doppler/issues/1527)), bursts at an
+eighth of it still decode 4 of 4, at every block size. Whether `min_gap`
+should come down is
+[#1530](https://github.com/doppler-dsp/doppler/issues/1530). Both spans were internal until
 [#1011](https://github.com/doppler-dsp/doppler/issues/1011) — the only way
 to learn the minimum spacing was to read the C, and the header's own
 formula for it was 2.4x low.

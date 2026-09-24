@@ -3,6 +3,8 @@
 double
 det_threshold_noncoherent (double pfa, int n_noncoh)
 {
+  if (!(pfa > 0.0 && pfa < 1.0))
+    return NAN;
   /* Order-1 has the exact closed form; reuse it so n_noncoh == 1 is bit-
    * identical to det_threshold(). */
   if (n_noncoh <= 1)

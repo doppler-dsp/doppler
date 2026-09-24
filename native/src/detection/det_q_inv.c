@@ -32,11 +32,12 @@ erfcinv_ (double y)
  * sum of two tails only because Q_inv(pd) < 0 for the pd > 0.5 every
  * caller uses. Clamping this to 0 there silently halves the dwell -- it
  * is the first thing this function got wrong, caught by the sign check
- * in test_detection_core.c. Only p outside (0, 1) fails closed. */
+ * in test_detection_core.c. Only p outside (0, 1) fails closed, to NaN:
+ * 0.0 is the median's quantile, so it cannot also mean "invalid". */
 double
 det_q_inv (double p)
 {
   if (!(p > 0.0) || !(p < 1.0))
-    return 0.0;
+    return NAN;
   return M_SQRT2 * erfcinv_ (2.0 * p);
 }

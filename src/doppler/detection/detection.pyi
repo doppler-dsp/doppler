@@ -592,12 +592,12 @@ def det_threshold(pfa: float) -> float:
     Parameters
     ----------
     pfa : float
-        Desired false-alarm probability; must be in (0, 1).
+        Desired false-alarm probability, in (0, 1).
 
     Returns
     -------
     float
-        Threshold eta > 0.
+        Threshold eta > 0; NaN for pfa outside (0, 1).
 
     Examples
     --------
@@ -653,16 +653,17 @@ def det_dwell(snr: float, pd_min: float, pfa: float, max_dwell: int) -> int:
     snr : float
         Per-sample amplitude SNR (linear).
     pd_min : float
-        Required detection probability, e.g. 0.9.
+        Required detection probability, in (0, 1), e.g. 0.9.
     pfa : float
-        False-alarm probability; used to derive eta.
+        False-alarm probability, in (0, 1); used to derive eta.
     max_dwell : int
         Search upper bound; prevents infinite loops for low SNR.
 
     Returns
     -------
     int
-        Minimum dwell >= 1, or -1 if not achievable.
+        Minimum dwell >= 1, or -1 if not achievable or if either
+        probability is outside (0, 1).
 
     Examples
     --------
@@ -684,14 +685,15 @@ def det_snr(dwell: int, pd_min: float, pfa: float) -> float:
     dwell : int
         Coherent integration depth; must be >= 1.
     pd_min : float
-        Required detection probability.
+        Required detection probability, in (0, 1).
     pfa : float
-        False-alarm probability; used to derive eta.
+        False-alarm probability, in (0, 1); used to derive eta.
 
     Returns
     -------
     float
-        Minimum amplitude SNR >= 0.
+        Minimum amplitude SNR >= 0; NaN if either probability is outside
+        (0, 1).
 
     Examples
     --------
@@ -722,7 +724,8 @@ def det_threshold_noncoherent(pfa: float, n_noncoh: int) -> float:
     Returns
     -------
     float
-        Threshold eta_nc on the normalized statistic R.
+        Threshold eta_nc on the normalized statistic R; NaN for pfa outside
+        (0, 1).
 
     Examples
     --------
@@ -758,7 +761,8 @@ def det_q_inv(p: float) -> float:
     -------
     float
         Quantile in H0 sigmas -- positive below the median, exactly 0 at
-        it, negative above. Fails closed (0.0) for p outside (0, 1).
+        it, negative above. NaN for p outside (0, 1) -- not 0.0, which is
+        the median's quantile.
 
     Examples
     --------
@@ -837,7 +841,7 @@ def det_threshold_gauss(mean: float, pd: float, pfa: float) -> float:
     Returns
     -------
     float
-        Threshold in the statistic's units; 0.0 on invalid input.
+        Threshold in the statistic's units; NaN on invalid input.
 
     Examples
     --------
@@ -915,14 +919,15 @@ def det_verify_count(p_look: float, p_target: float) -> int:
     Parameters
     ----------
     p_look : float
-        Per-look probability (pfa or 1 - pd), in (0, 1).
+        Per-look probability (pfa or 1 - pd), in &#91;0, 1&#93;.
     p_target : float
         Compound probability budget, in (0, 1).
 
     Returns
     -------
     int
-        Smallest verify count n with p_look^n <= p_target.
+        Smallest verify count n with p_look^n <= p_target; -1 for a
+        probability outside its range.
 
     Examples
     --------
@@ -961,7 +966,8 @@ def det_verify_delay(p_look: float, n: int) -> float:
     Returns
     -------
     float
-        Expected number of looks to the first length-n run.
+        Expected number of looks to the first length-n run; NaN for p_look
+        outside &#91;0, 1&#93;.
 
     Examples
     --------
@@ -1001,7 +1007,7 @@ def det_threshold_f(pfa: float, n: int) -> float:
     Returns
     -------
     float
-        The F(n, n) upper-pfa quantile; 0 on invalid input.
+        The F(n, n) upper-pfa quantile; NaN on invalid input.
 
     Examples
     --------
@@ -1081,16 +1087,17 @@ def det_n_noncoh(
     n_coh : int
         Coherent integration length in samples (dwell * N).
     pd_min : float
-        Required detection probability, e.g. 0.9.
+        Required detection probability, in (0, 1), e.g. 0.9.
     pfa : float
-        Per-test false-alarm probability.
+        Per-test false-alarm probability, in (0, 1).
     max_n_noncoh : int
         Search upper bound on the look count.
 
     Returns
     -------
     int
-        Minimum n_noncoh >= 1, or -1 if not achievable.
+        Minimum n_noncoh >= 1, or -1 if not achievable or if either
+        probability is outside (0, 1).
 
     Examples
     --------
@@ -1111,12 +1118,12 @@ def det_threshold_power(pfa: float) -> float:
     Parameters
     ----------
     pfa : float
-        Desired false-alarm probability; must be in (0, 1).
+        Desired false-alarm probability, in (0, 1).
 
     Returns
     -------
     float
-        Threshold p > 0.
+        Threshold p > 0; NaN for pfa outside (0, 1).
 
     Examples
     --------
@@ -1177,16 +1184,17 @@ def det_dwell_power(
     snr_power : float
         Per-sample power SNR (linear).
     pd_min : float
-        Required detection probability.
+        Required detection probability, in (0, 1).
     pfa : float
-        False-alarm probability; used to derive p.
+        False-alarm probability, in (0, 1); used to derive p.
     max_dwell : int
         Search upper bound.
 
     Returns
     -------
     int
-        Minimum dwell >= 1, or -1 if not achievable.
+        Minimum dwell >= 1, or -1 if not achievable or if either
+        probability is outside (0, 1).
 
     Examples
     --------
@@ -1205,14 +1213,15 @@ def det_snr_power(dwell: int, pd_min: float, pfa: float) -> float:
     dwell : int
         Coherent integration depth; must be >= 1.
     pd_min : float
-        Required detection probability.
+        Required detection probability, in (0, 1).
     pfa : float
-        False-alarm probability.
+        False-alarm probability, in (0, 1).
 
     Returns
     -------
     float
-        Minimum power SNR >= 0.
+        Minimum power SNR >= 0; NaN if either probability is outside (0,
+        1).
 
     Examples
     --------

@@ -157,15 +157,15 @@ Iterates dwell = 1, 2, ..., max\_dwell, computing [**det\_pd()**](detection__cor
 
 
 * `snr` Per-sample amplitude SNR (linear). 
-* `pd_min` Required detection probability, e.g. 0.9. 
-* `pfa` False-alarm probability; used to derive eta. 
+* `pd_min` Required detection probability, in (0, 1), e.g. 0.9. 
+* `pfa` False-alarm probability, in (0, 1); used to derive eta. 
 * `max_dwell` Search upper bound; prevents infinite loops for low SNR. 
 
 
 
 **Returns:**
 
-Minimum dwell &gt;= 1, or -1 if not achievable.
+Minimum dwell &gt;= 1, or -1 if not achievable or if either probability is outside (0, 1).
 
 
 
@@ -262,15 +262,15 @@ int det_dwell_power (
 
 
 * `snr_power` Per-sample power SNR (linear). 
-* `pd_min` Required detection probability. 
-* `pfa` False-alarm probability; used to derive p. 
+* `pd_min` Required detection probability, in (0, 1). 
+* `pfa` False-alarm probability, in (0, 1); used to derive p. 
 * `max_dwell` Search upper bound. 
 
 
 
 **Returns:**
 
-Minimum dwell &gt;= 1, or -1 if not achievable.
+Minimum dwell &gt;= 1, or -1 if not achievable or if either probability is outside (0, 1).
 
 
 
@@ -369,15 +369,15 @@ Iterates n\_noncoh = 1, 2, ..., max\_n\_noncoh, recomputing the threshold (det\_
 
 * `snr` Per-sample amplitude SNR (linear). 
 * `n_coh` Coherent integration length in samples (dwell \* N). 
-* `pd_min` Required detection probability, e.g. 0.9. 
-* `pfa` Per-test false-alarm probability. 
+* `pd_min` Required detection probability, in (0, 1), e.g. 0.9. 
+* `pfa` Per-test false-alarm probability, in (0, 1). 
 * `max_n_noncoh` Search upper bound on the look count. 
 
 
 
 **Returns:**
 
-Minimum n\_noncoh &gt;= 1, or -1 if not achievable.
+Minimum n\_noncoh &gt;= 1, or -1 if not achievable or if either probability is outside (0, 1).
 
 
 
@@ -583,7 +583,7 @@ double det_q_inv (
 
 **Returns:**
 
-Quantile in H0 sigmas  positive below the median, exactly 0 at it, negative above. Fails closed (0.0) for p outside (0, 1).
+Quantile in H0 sigmas  positive below the median, exactly 0 at it, negative above. NaN for p outside (0, 1)  not 0.0, which is the median's quantile.
 
 
 
@@ -629,14 +629,14 @@ Binary search over SNR in &#91;0, hi&#93; where hi is doubled from 1.0 until det
 
 
 * `dwell` Coherent integration depth; must be &gt;= 1. 
-* `pd_min` Required detection probability. 
-* `pfa` False-alarm probability; used to derive eta. 
+* `pd_min` Required detection probability, in (0, 1). 
+* `pfa` False-alarm probability, in (0, 1); used to derive eta. 
 
 
 
 **Returns:**
 
-Minimum amplitude SNR &gt;= 0.
+Minimum amplitude SNR &gt;= 0; NaN if either probability is outside (0, 1).
 
 
 
@@ -677,14 +677,14 @@ double det_snr_power (
 
 
 * `dwell` Coherent integration depth; must be &gt;= 1. 
-* `pd_min` Required detection probability. 
-* `pfa` False-alarm probability. 
+* `pd_min` Required detection probability, in (0, 1). 
+* `pfa` False-alarm probability, in (0, 1). 
 
 
 
 **Returns:**
 
-Minimum power SNR &gt;= 0.
+Minimum power SNR &gt;= 0; NaN if either probability is outside (0, 1).
 
 
 
@@ -733,13 +733,13 @@ The threshold is independent of dwell and SNR; it depends only on the desired Pf
 **Parameters:**
 
 
-* `pfa` Desired false-alarm probability; must be in (0, 1). 
+* `pfa` Desired false-alarm probability, in (0, 1). 
 
 
 
 **Returns:**
 
-Threshold eta &gt; 0.
+Threshold eta &gt; 0; NaN for `pfa` outside (0, 1).
 
 
 
@@ -784,7 +784,7 @@ A chi-square threshold (det\_threshold\_noncoherent) prices a statistic normalis
 
 **Returns:**
 
-The F(n, n) upper-pfa quantile; 0 on invalid input.
+The F(n, n) upper-pfa quantile; NaN on invalid input.
 
 
 
@@ -841,7 +841,7 @@ Independent of the variance and of the look count  those set how many looks are 
 
 **Returns:**
 
-Threshold in the statistic's units; 0.0 on invalid input.
+Threshold in the statistic's units; NaN on invalid input.
 
 
 
@@ -888,7 +888,7 @@ Solves marcum\_q(n\_noncoh, 0, eta\_nc) = pfa (the order-M central tail, monoton
 
 **Returns:**
 
-Threshold eta\_nc on the normalized statistic R.
+Threshold eta\_nc on the normalized statistic R; NaN for `pfa` outside (0, 1).
 
 
 
@@ -932,13 +932,13 @@ p = -ln(Pfa)
 **Parameters:**
 
 
-* `pfa` Desired false-alarm probability; must be in (0, 1). 
+* `pfa` Desired false-alarm probability, in (0, 1). 
 
 
 
 **Returns:**
 
-Threshold p &gt; 0.
+Threshold p &gt; 0; NaN for `pfa` outside (0, 1).
 
 
 
@@ -982,14 +982,14 @@ One function serves both sides of a lock detector ([**lockdet\_core.h**](lockdet
 **Parameters:**
 
 
-* `p_look` Per-look probability (pfa or 1 - pd), in (0, 1). 
+* `p_look` Per-look probability (pfa or 1 - pd), in &#91;0, 1&#93;. 
 * `p_target` Compound probability budget, in (0, 1). 
 
 
 
 **Returns:**
 
-Smallest verify count n with p\_look^n &lt;= p\_target.
+Smallest verify count n with p\_look^n &lt;= p\_target; -1 for a probability outside its range.
 
 
 
@@ -1046,7 +1046,7 @@ which is the declare latency bought by a verify count of n (multiply by the look
 
 **Returns:**
 
-Expected number of looks to the first length-n run.
+Expected number of looks to the first length-n run; NaN for `p_look` outside &#91;0, 1&#93;.
 
 
 

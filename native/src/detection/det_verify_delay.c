@@ -8,6 +8,8 @@ det_verify_delay (double p_look, int n)
    * successes at per-look success probability p — the standard
    * consecutive-run result E[T] = (1 - p^n) / (p^n * (1 - p)). This is
    * the mean latency of a lockdet declare whose verify count is n. */
+  if (!(p_look >= 0.0 && p_look <= 1.0))
+    return NAN;
   if (n < 1)
     n = 1;
   if (p_look >= 1.0)

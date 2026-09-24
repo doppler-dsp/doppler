@@ -75,7 +75,7 @@ det_threshold_f (double pfa, int n)
    * regularized incomplete beta — half-integer orders included, no
    * even-n restriction. */
   if (!(pfa > 0.0 && pfa < 1.0) || n < 1)
-    return 0.0;
+    return NAN;
   double a = 0.5 * (double)n;
   /* Solve I_x(a, a) = pfa for x in (0, 1); g = (1 - x)/x.  I_x(a,a) is
    * strictly increasing in x, so plain bisection is unconditionally

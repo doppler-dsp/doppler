@@ -252,10 +252,10 @@ main (void)
     double g15 = det_threshold_f (1e-3, 15), g16 = det_threshold_f (1e-3, 16);
     DP_CHECK (g15 > g16 && g16 > 1.0);
 
-    /* Invalid inputs fail closed. */
-    DP_CHECK (det_threshold_f (0.0, 16) == 0.0);
-    DP_CHECK (det_threshold_f (1.0, 16) == 0.0);
-    DP_CHECK (det_threshold_f (1e-3, 0) == 0.0);
+    /* Invalid inputs fail closed, to NaN (gh-1513). */
+    DP_CHECK (isnan (det_threshold_f (0.0, 16)));
+    DP_CHECK (isnan (det_threshold_f (1.0, 16)));
+    DP_CHECK (isnan (det_threshold_f (1e-3, 0)));
   }
 
   /* ── det_q_inv ───────────────────────────────────────────────────── */
@@ -281,11 +281,12 @@ main (void)
     DP_CHECK (CLOSE (det_threshold (5e-6), 4.9409, 1e-4));
     DP_CHECK (det_threshold (5e-6) - det_q_inv (5e-6) > 0.5);
 
-    /* Monotone decreasing, and fails closed at or past the median. */
+    /* Monotone decreasing, exactly 0 at the median, and NaN -- not the
+     * median's 0.0 -- outside (0, 1) (gh-1513). */
     DP_CHECK (det_q_inv (1e-6) > det_q_inv (1e-3));
     DP_CHECK (det_q_inv (0.5) == 0.0);
-    DP_CHECK (det_q_inv (0.0) == 0.0);
-    DP_CHECK (det_q_inv (1.0) == 0.0);
+    DP_CHECK (isnan (det_q_inv (0.0)));
+    DP_CHECK (isnan (det_q_inv (1.0)));
   }
 
   /* ── det_dwell_gauss / det_threshold_gauss ───────────────────────── */
@@ -343,8 +344,8 @@ main (void)
     DP_CHECK (det_dwell_gauss (mean, var, 1.0, pfa) == -1);
     DP_CHECK (det_dwell_gauss (mean, var, pd, 0.0) == -1);
     DP_CHECK (det_dwell_gauss (1e6, var, pd, pfa) >= 1); /* clamps, not 0 */
-    DP_CHECK (det_threshold_gauss (0.0, pd, pfa) == 0.0);
-    DP_CHECK (det_threshold_gauss (mean, pfa, pd) == 0.0);
+    DP_CHECK (isnan (det_threshold_gauss (0.0, pd, pfa)));
+    DP_CHECK (isnan (det_threshold_gauss (mean, pfa, pd)));
   }
 
   /* ── det_threshold_noncoherent / det_pd_noncoherent / det_n_noncoh ─────
@@ -594,6 +595,93 @@ main (void)
         DP_CHECK (q >= 0.0 && q <= 1.0);
         DP_CHECK (marcum_q (m, 15.0, 15.0) > marcum_q (m, 15.0, 15.5));
       }
+  }
+
+  /* ── A probability outside its range fails closed (gh-1513) ─────────
+   *
+   * design/detection.md section 6 promises it. Before gh-1513 det_snr and
+   * det_snr_power never returned on a bad pfa (the bracket doubled
+   * forever), det_threshold gave NaN or inf and det_threshold_power a
+   * finite wrong value. One block per helper, each over every shape of
+   * "not a probability": both endpoints, both sides, NaN and both
+   * infinities. A double helper returns NaN -- a threshold every
+   * comparison is false against, so it never fires; an int helper returns
+   * -1, its existing "not achievable". The valid-argument slot in each
+   * call is a real design point, so only the probed argument is bad. */
+  {
+    const double bad[] = { 0.0, 1.0, -0.5, 1.5, NAN, INFINITY, -INFINITY };
+    const size_t nbad  = sizeof (bad) / sizeof (bad[0]);
+    const double pfa = 1e-3, pd = 0.9;
+
+    /* pfa-only thresholds. */
+    for (size_t i = 0; i < nbad; i++)
+      DP_CHECK (isnan (det_threshold (bad[i])));
+    for (size_t i = 0; i < nbad; i++)
+      DP_CHECK (isnan (det_threshold_power (bad[i])));
+    for (size_t i = 0; i < nbad; i++)
+      {
+        DP_CHECK (isnan (det_threshold_noncoherent (bad[i], 1)));
+        DP_CHECK (isnan (det_threshold_noncoherent (bad[i], 4)));
+      }
+    for (size_t i = 0; i < nbad; i++)
+      DP_CHECK (isnan (det_threshold_f (bad[i], 16)));
+    for (size_t i = 0; i < nbad; i++)
+      DP_CHECK (isnan (det_q_inv (bad[i])));
+
+    /* (pd, pfa) helpers: each probability probed on its own. */
+    for (size_t i = 0; i < nbad; i++)
+      {
+        DP_CHECK (isnan (det_threshold_gauss (0.4, bad[i], pfa)));
+        DP_CHECK (isnan (det_threshold_gauss (0.4, pd, bad[i])));
+      }
+    for (size_t i = 0; i < nbad; i++)
+      {
+        DP_CHECK (det_dwell_gauss (0.4, 1.0, bad[i], pfa) == -1);
+        DP_CHECK (det_dwell_gauss (0.4, 1.0, pd, bad[i]) == -1);
+      }
+    for (size_t i = 0; i < nbad; i++)
+      {
+        DP_CHECK (isnan (det_snr (8, bad[i], pfa)));
+        DP_CHECK (isnan (det_snr (8, pd, bad[i])));
+      }
+    for (size_t i = 0; i < nbad; i++)
+      {
+        DP_CHECK (isnan (det_snr_power (8, bad[i], pfa)));
+        DP_CHECK (isnan (det_snr_power (8, pd, bad[i])));
+      }
+    for (size_t i = 0; i < nbad; i++)
+      {
+        DP_CHECK (det_dwell (100.0, bad[i], pfa, 64) == -1);
+        DP_CHECK (det_dwell (100.0, pd, bad[i], 64) == -1);
+      }
+    for (size_t i = 0; i < nbad; i++)
+      {
+        DP_CHECK (det_dwell_power (100.0, bad[i], pfa, 64) == -1);
+        DP_CHECK (det_dwell_power (100.0, pd, bad[i], 64) == -1);
+      }
+    for (size_t i = 0; i < nbad; i++)
+      {
+        DP_CHECK (det_n_noncoh (100.0, 1, bad[i], pfa, 64) == -1);
+        DP_CHECK (det_n_noncoh (100.0, 1, pd, bad[i], 64) == -1);
+      }
+
+    /* The lock-detector pair takes p_look on the CLOSED [0, 1]: an
+     * impossible or a certain look is a real configuration with a pinned
+     * answer above, so only the four shapes past the ends are invalid.
+     * det_verify_count's budget stays open: 0 is never reached. */
+    const double past[] = { -0.5, 1.5, NAN, INFINITY, -INFINITY };
+    const size_t npast  = sizeof (past) / sizeof (past[0]);
+    for (size_t i = 0; i < npast; i++)
+      DP_CHECK (det_verify_count (past[i], 1e-6) == -1);
+    for (size_t i = 0; i < nbad; i++)
+      DP_CHECK (det_verify_count (1e-3, bad[i]) == -1);
+    for (size_t i = 0; i < npast; i++)
+      DP_CHECK (isnan (det_verify_delay (past[i], 8)));
+    /* ...and the closed ends still answer, not fail. */
+    DP_CHECK (det_verify_count (0.0, 1e-6) == 1);
+    DP_CHECK (det_verify_count (1.0, 0.5) == INT_MAX);
+    DP_CHECK (det_verify_delay (1.0, 8) == 8.0);
+    DP_CHECK (isinf (det_verify_delay (0.0, 3)));
   }
 
   DP_TEST_END ("test_detection_core");

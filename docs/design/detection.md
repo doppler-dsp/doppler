@@ -274,20 +274,27 @@ ______________________________________________________________________
 ## 6. The boundaries are part of the contract
 
 These are design-time helpers — a caller sizes a loop once, at startup, from
-numbers a config file supplied. A NaN propagated into a threshold is then
-compared against every sample for the life of the process, so the helpers in
-this table **fail closed on nonsense** instead. Not all of them do yet: out of
-range, `det_threshold` returns NaN or `inf`, `det_threshold_power` a finite
-wrong value, and `det_snr` / `det_snr_power` never return
-([#1513](https://github.com/doppler-dsp/doppler/issues/1513)). Validate a
-probability before you call those.
+numbers a config file supplied. A bad number there is not a transient: the
+threshold it produces is compared against every sample for the life of the
+process. So every helper here **fails closed on nonsense**, and returns in
+bounded time — a hang is the one failure a caller cannot recover from.
 
-| shape                                                        | returns                                                       |
-| ------------------------------------------------------------ | ------------------------------------------------------------- |
-| a probability outside (0, 1)                                 | `0.0` (`det_q_inv`, `det_threshold_f`, `det_threshold_gauss`) |
-| a requirement that cannot be met within the search bound     | `-1` (`det_dwell`, `det_n_noncoh`, `det_dwell_gauss`)         |
-| a per-look probability that can never compound to the target | `INT_MAX` (`det_verify_count`)                                |
-| `p_look = 0` with a run required                             | `inf` (`det_verify_delay`)                                    |
+| shape                                                        | returns                                                                                                                                                        |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a probability outside (0, 1)                                 | `NaN` (`det_threshold`, `det_threshold_power`, `det_threshold_noncoherent`, `det_threshold_f`, `det_threshold_gauss`, `det_q_inv`, `det_snr`, `det_snr_power`) |
+| the same, from a helper that returns a count                 | `-1` (`det_dwell`, `det_dwell_power`, `det_dwell_gauss`, `det_n_noncoh`, `det_verify_count`)                                                                   |
+| a requirement that cannot be met within the search bound     | `-1` (`det_dwell`, `det_dwell_power`, `det_n_noncoh`, `det_dwell_gauss`)                                                                                       |
+| a per-look probability that can never compound to the target | `INT_MAX` (`det_verify_count`)                                                                                                                                 |
+| `p_look = 0` with a run required                             | `inf` (`det_verify_delay`)                                                                                                                                     |
+
+`NaN` is the closed value for a threshold because every comparison against it
+is false: a detector gated on it never fires. `0.0`, which three of these
+returned before, fails *open* — every sample clears a zero threshold — and for
+`det_q_inv` it is also the median's legitimate answer. The lock-detector pair
+takes `p_look` on the closed `[0, 1]`: an impossible or a certain look is a
+real configuration with the answer in the last two rows, so only a value past
+either end is rejected (`-1`, and `NaN` from `det_verify_delay`). Each row is
+pinned per helper in `native/tests/test_detection_core.c`.
 
 `-1` and `INT_MAX` are both "not achievable", and they differ because one is
 a count that a caller may clamp and the other is a dwell that a caller must

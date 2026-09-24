@@ -92,8 +92,8 @@ double marcum_q(int m, double a, double b);
  * The threshold is independent of dwell and SNR; it depends only on the
  * desired Pfa.
  *
- * @param pfa  Desired false-alarm probability; must be in (0, 1).
- * @return     Threshold eta > 0.
+ * @param pfa  Desired false-alarm probability, in (0, 1).
+ * @return     Threshold eta > 0; NaN for @p pfa outside (0, 1).
  *
  * @code
  * >>> from doppler.detection import det_threshold
@@ -138,10 +138,11 @@ double det_pd(double snr, int dwell, double threshold);
  * is found within max_dwell iterations.
  *
  * @param snr        Per-sample amplitude SNR (linear).
- * @param pd_min     Required detection probability, e.g. 0.9.
- * @param pfa        False-alarm probability; used to derive eta.
+ * @param pd_min     Required detection probability, in (0, 1), e.g. 0.9.
+ * @param pfa        False-alarm probability, in (0, 1); used to derive eta.
  * @param max_dwell  Search upper bound; prevents infinite loops for low SNR.
- * @return           Minimum dwell >= 1, or -1 if not achievable.
+ * @return           Minimum dwell >= 1, or -1 if not achievable or if
+ *                   either probability is outside (0, 1).
  *
  * @code
  * >>> from doppler.detection import det_dwell
@@ -160,9 +161,10 @@ int det_dwell(double snr, double pd_min, double pfa, int max_dwell);
  * ~1e-19 relative precision on the final interval.
  *
  * @param dwell   Coherent integration depth; must be >= 1.
- * @param pd_min  Required detection probability.
- * @param pfa     False-alarm probability; used to derive eta.
- * @return        Minimum amplitude SNR >= 0.
+ * @param pd_min  Required detection probability, in (0, 1).
+ * @param pfa     False-alarm probability, in (0, 1); used to derive eta.
+ * @return        Minimum amplitude SNR >= 0; NaN if either probability is
+ *                outside (0, 1).
  *
  * @code
  * >>> from doppler.detection import det_snr, det_pd, det_threshold
@@ -195,7 +197,8 @@ double det_snr(int dwell, double pd_min, double pfa);
  *
  * @param pfa       Per-test false-alarm probability in (0, 1).
  * @param n_noncoh  Number of non-coherent looks; must be >= 1.
- * @return          Threshold eta_nc on the normalized statistic R.
+ * @return          Threshold eta_nc on the normalized statistic R; NaN for
+ *                  @p pfa outside (0, 1).
  *
  * @code
  * >>> from doppler.detection import det_threshold_noncoherent
@@ -238,7 +241,8 @@ double det_threshold_noncoherent(double pfa, int n_noncoh);
  *
  * @param p  Tail probability in (0, 1).
  * @return   Quantile in H0 sigmas -- positive below the median, exactly 0 at
- *           it, negative above. Fails closed (0.0) for p outside (0, 1).
+ *           it, negative above. NaN for p outside (0, 1) -- not 0.0, which
+ *           is the median's quantile.
  *
  * @code
  * >>> from doppler.detection import det_q_inv, det_threshold
@@ -301,7 +305,7 @@ int det_dwell_gauss(double mean, double var, double pd, double pfa);
  * @param mean  H1 mean of one look, > 0.
  * @param pd    Required detection probability, in (0, 1).
  * @param pfa   Allowed false-alarm probability, in (0, 1) and below @p pd.
- * @return      Threshold in the statistic's units; 0.0 on invalid input.
+ * @return      Threshold in the statistic's units; NaN on invalid input.
  *
  * @code
  * >>> from doppler.detection import det_threshold_gauss
@@ -369,9 +373,10 @@ double det_ema_alpha(double snr_in_db, double snr_out_db);
  * naturally: a target already met by one look returns 1; p_look >= 1
  * can never compound below a smaller target and returns INT_MAX.
  *
- * @param p_look    Per-look probability (pfa or 1 - pd), in (0, 1).
+ * @param p_look    Per-look probability (pfa or 1 - pd), in &#91;0, 1&#93;.
  * @param p_target  Compound probability budget, in (0, 1).
- * @return          Smallest verify count n with p_look^n <= p_target.
+ * @return          Smallest verify count n with p_look^n <= p_target; -1
+ *                  for a probability outside its range.
  *
  * @code
  * >>> from doppler.detection import det_verify_count
@@ -403,7 +408,8 @@ int det_verify_count(double p_look, double p_target);
  *
  * @param p_look  Per-look success probability (e.g. pd), in &#91;0, 1&#93;.
  * @param n       Run length (the verify count); clamped to >= 1.
- * @return        Expected number of looks to the first length-n run.
+ * @return        Expected number of looks to the first length-n run; NaN
+ *                for @p p_look outside &#91;0, 1&#93;.
  *
  * @code
  * >>> from doppler.detection import det_verify_delay
@@ -437,7 +443,7 @@ double det_verify_delay(double p_look, int n);
  *
  * @param pfa  Tail probability budget, in (0, 1).
  * @param n    Degrees of freedom on each side (>= 1).
- * @return     The F(n, n) upper-pfa quantile; 0 on invalid input.
+ * @return     The F(n, n) upper-pfa quantile; NaN on invalid input.
  *
  * @code
  * >>> from doppler.detection import det_threshold_f
@@ -493,10 +499,11 @@ double det_pd_noncoherent(double snr, int n_coh, int n_noncoh,
  *
  * @param snr            Per-sample amplitude SNR (linear).
  * @param n_coh          Coherent integration length in samples (dwell * N).
- * @param pd_min         Required detection probability, e.g. 0.9.
- * @param pfa            Per-test false-alarm probability.
+ * @param pd_min         Required detection probability, in (0, 1), e.g. 0.9.
+ * @param pfa            Per-test false-alarm probability, in (0, 1).
  * @param max_n_noncoh   Search upper bound on the look count.
- * @return               Minimum n_noncoh >= 1, or -1 if not achievable.
+ * @return               Minimum n_noncoh >= 1, or -1 if not achievable or
+ *                       if either probability is outside (0, 1).
  *
  * @code
  * >>> from doppler.detection import det_n_noncoh
@@ -536,8 +543,8 @@ int det_n_noncoh(double snr, int n_coh, double pd_min, double pfa,
  *
  *   p = -ln(Pfa)
  *
- * @param pfa  Desired false-alarm probability; must be in (0, 1).
- * @return     Threshold p > 0.
+ * @param pfa  Desired false-alarm probability, in (0, 1).
+ * @return     Threshold p > 0; NaN for @p pfa outside (0, 1).
  *
  * @code
  * >>> from doppler.detection import det_threshold_power
@@ -576,10 +583,11 @@ double det_pd_power(double snr_power, int dwell, double power_threshold);
  * @brief Minimum dwell such that Pd >= pd_min for the power detector.
  *
  * @param snr_power  Per-sample power SNR (linear).
- * @param pd_min     Required detection probability.
- * @param pfa        False-alarm probability; used to derive p.
+ * @param pd_min     Required detection probability, in (0, 1).
+ * @param pfa        False-alarm probability, in (0, 1); used to derive p.
  * @param max_dwell  Search upper bound.
- * @return           Minimum dwell >= 1, or -1 if not achievable.
+ * @return           Minimum dwell >= 1, or -1 if not achievable or if
+ *                   either probability is outside (0, 1).
  *
  * @code
  * >>> from doppler.detection import det_dwell_power
@@ -596,9 +604,10 @@ int det_dwell_power (double snr_power, double pd_min, double pfa,
  * @brief Minimum per-sample power SNR achieving Pd >= pd_min.
  *
  * @param dwell   Coherent integration depth; must be >= 1.
- * @param pd_min  Required detection probability.
- * @param pfa     False-alarm probability.
- * @return        Minimum power SNR >= 0.
+ * @param pd_min  Required detection probability, in (0, 1).
+ * @param pfa     False-alarm probability, in (0, 1).
+ * @return        Minimum power SNR >= 0; NaN if either probability is
+ *                outside (0, 1).
  *
  * @code
  * >>> from doppler.detection import (det_snr_power, det_pd_power,

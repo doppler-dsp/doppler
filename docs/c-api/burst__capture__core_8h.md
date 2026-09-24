@@ -748,6 +748,10 @@ double burst_capture_get_pd_burst (
 
 
 
+It models the ENGINE; what refine loses afterwards is not in the model. Measured on a Zadoff-Chu 127 x 8 preamble at every depth: at a 0.6 design point the capture delivers at least this, the engine's margin absorbing refine's loss; at 0.9 (the default `pd`) it falls up to 0.026 short, from wrong repetitions and a code phase inherited along the ZC delay-Doppler ridge (doppler#1519). Design with that margin until it is fixed (native/validation/capture\_dwell\_pd.c; validation report §2.8). 
+
+
+        
 
 <hr>
 

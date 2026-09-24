@@ -1,6 +1,6 @@
 """The validation reports' certified envelope, as tests that actually run.
 
-`dsss`'s copy of the campaign's limits gate. Each object under
+`acquire`'s copy of the campaign's limits gate. Each object under
 `validation/` ends its report with a **Limits** section headed "Claims a
 caller may rely on. A failure here is a regression, not a new finding" —
 and that sentence is only true if something executes it.
@@ -16,7 +16,7 @@ own gate: `validate.py --check`, run by `make validate-check`.
 
 Kept per-module rather than as one tree-wide collector because the
 validators import their own module's objects: this one pulls in
-`doppler.dsss`, and a shared collector would import every module's
+`doppler.acquire`, and a shared collector would import every module's
 extension to run any object's limits.
 """
 
@@ -24,51 +24,27 @@ from __future__ import annotations
 
 import pytest
 
-from doppler.dsss.tests.validation.async_dsss_pool import (
-    validate as async_dsss_pool_validate,
+from doppler.acquire.tests.validation.acq import (
+    validate as acq_validate,
 )
-from doppler.dsss.tests.validation.burst_demod import (
-    validate as burst_demod_validate,
+from doppler.acquire.tests.validation.burst_acq import (
+    validate as burst_acq_validate,
 )
-from doppler.dsss.tests.validation.burst_despreader import (
-    validate as burst_despreader_validate,
+from doppler.acquire.tests.validation.burst_capture import (
+    validate as burst_capture_validate,
 )
-from doppler.dsss.tests.validation.dsss_burst_receiver import (
-    validate as dsss_burst_receiver_validate,
-)
-from doppler.dsss.tests.validation.ppe import (
-    validate as ppe_validate,
-)
-from doppler.tests._platform import WINDOWS
 from doppler.tests._validation_common import assert_renders
 
 OBJECTS = {
-    "async_dsss_pool": async_dsss_pool_validate,
-    "burst_demod": burst_demod_validate,
-    "burst_despreader": burst_despreader_validate,
-    "dsss_burst_receiver": dsss_burst_receiver_validate,
-    "ppe": ppe_validate,
-}
-
-
-#: The soak harness behind async_dsss_pool is not built on Windows: it times
-#: itself with getrusage/clock_gettime, which the UCRT lacks -- recorded as a
-#: carve-out on doppler#1364 at native/validation/CMakeLists.txt, where the
-#: target is created only under if(NOT WIN32).
-_NOT_ON_WINDOWS = {
-    "async_dsss_pool": pytest.mark.skipif(
-        WINDOWS,
-        reason="its soak harness is not built on Windows (doppler#1364)",
-    ),
+    "acq": acq_validate,
+    "burst_acq": burst_acq_validate,
+    "burst_capture": burst_capture_validate,
 }
 
 
 @pytest.fixture(
     scope="module",
-    params=[
-        pytest.param(k, marks=_NOT_ON_WINDOWS.get(k, ()))
-        for k in sorted(OBJECTS)
-    ],
+    params=sorted(OBJECTS),
 )
 def report(request):
     """One object's measured report, built once and shared."""

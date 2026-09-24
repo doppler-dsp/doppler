@@ -1135,9 +1135,12 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "Detection probability of one burst at `cn0_dbhz`: every dwell its "
     "preamble spans, at a uniform alignment against the stream, any one "
     "detecting. The number behind `underpowered`, and the one to compare "
-    "against the `pd` that was asked for. It is the ENGINE's: a detection the "
-    "capture then cannot resolve to the right start is not priced in. NaN "
-    "with no design `cn0_dbhz`.\n",
+    "against the `pd` that was asked for. It models the ENGINE; what refine "
+    "loses afterwards is not in the model. Measured on a Zadoff-Chu 127 x 8 "
+    "preamble: at a 0.6 design point the capture delivers at least "
+    "`pd_burst`, but at 0.9 (the default `pd`) it falls up to 0.026 short "
+    "(doppler#1519; validation report §2.8), so leave that margin until it is "
+    "fixed. NaN with no design `cn0_dbhz`.\n",
     NULL },
   { "eta", (getter)PersistentBurstCapture_getprop_eta, NULL,
     "Coherent detection gate: the normalised statistic a single-look decision "

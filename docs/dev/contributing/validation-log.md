@@ -66,7 +66,7 @@ There is no list here to update.
 | -------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------ | -------- | -------------------------- |
 | [acq](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/acq/results.md)                            | `acquire`    | 21/21  | 9        | 3 — F3, F6, F7             |
 | [BurstAcquisition](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_acq/results.md)         | `acquire`    | 16/16  | 4        | none                       |
-| [BurstCapture](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_capture/results.md)         | `acquire`    | 22/22  | 6        | 1 — F6                     |
+| [BurstCapture](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/acquire/tests/validation/burst_capture/results.md)         | `acquire`    | 26/26  | 7        | 2 — F6, F7                 |
 | [AGC](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/agc/tests/validation/agc/results.md)                                | `agc`        | 18/18  | 6        | 2 — F4, F6                 |
 | [The ring buffer](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/buffer/tests/validation/buffer/results.md)              | `buffer`     | 34/34  | 8        | 1 — F8                     |
 | [Interleaver](https://github.com/doppler-dsp/doppler/blob/main/src/doppler/coding/tests/validation/interleaver/results.md)             | `coding`     | 20/20  | 8        | 2 — F7, F8                 |

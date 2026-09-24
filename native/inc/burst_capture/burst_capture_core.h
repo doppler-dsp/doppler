@@ -761,7 +761,15 @@ double burst_capture_get_straddle_loss (const burst_capture_state_t *state);
 /** @brief Detection probability of one dwell wholly inside the preamble. */
 double burst_capture_get_pd_predicted (const burst_capture_state_t *state);
 /** @brief Detection probability of one burst: any dwell its preamble spans,
- *         at a uniform alignment (doppler#1498). What `underpowered` reads. */
+ *         at a uniform alignment (doppler#1498). What `underpowered` reads.
+ *
+ * It models the ENGINE; what refine loses afterwards is not in the model.
+ * Measured on a Zadoff-Chu 127 x 8 preamble at every depth: at a 0.6
+ * design point the capture delivers at least this, the engine's margin
+ * absorbing refine's loss; at 0.9 (the default `pd`) it falls up to 0.026
+ * short, from wrong repetitions and a code phase inherited along the ZC
+ * delay-Doppler ridge (doppler#1519). Design with that margin until it is
+ * fixed (native/validation/capture_dwell_pd.c; validation report §2.8). */
 double burst_capture_get_pd_burst (const burst_capture_state_t *state);
 /** @brief Doppler rate (Hz/s) the coherent depth is bounded against; 0 is
  *         no bound. */

@@ -21,11 +21,15 @@ against the composition that shipped first.
 
 What is certified here is what this object owns alone: the **geometry** it
 derives, the **epoch** it resolves, the **retention** that lets it reach back,
-and the **two flavours' blobs**.
+the **two flavours' blobs**, and the **Pd it delivers** after refine names a
+repetition (§2.8). That last one is a Monte-Carlo, and the trial loop is C's
+(`native/validation/capture_dwell_pd.c --emit`, the same trials CTest runs):
+this file renders its rows and decides in `limits()`.
 """
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
@@ -47,9 +51,26 @@ from doppler.acquire.tests.characterization.burst_capture.characterize import (
     scene,
     separation,
 )
+from doppler.tests._repo import build_dir, exe, repo_root
 from doppler.tests._validation_common import Report, cli
 
 HERE = Path(__file__).resolve().parent
+ROOT = repo_root(__file__)
+#: The delivered-Pd Monte-Carlo (§2.8) is C's: one trial loop, one continuous
+#: delay and one scoring rule, in the harness CTest already runs.
+DWELL_PD = exe(
+    build_dir(__file__) / "native/validation/validate_capture_dwell_pd"
+)
+#: Refine's wrong-repetition share, pooled over every depth, may not exceed
+#: this. Measured 2026-09-24: 1.9% today; 2.8% with refine's Doppler grid
+#: halved (the setting doppler#1508 measured worse); 3.4% for the refine
+#: doppler#1502 replaced. The delivered-Pd limit alone passes all three,
+#: because pd_burst's margin absorbs the loss -- this is what sees refine.
+WRONG_REP_MAX = 0.025
+#: At the 0.9 design point the capture is SHORT of pd_burst (doppler#1519):
+#: up to 0.026 at 1000 trials, 0.035 at this report's 300. A RATCHET -- it
+#: may only tighten, and returns to "within 2 sigma" when #1519 is fixed.
+SHORTFALL_AT_09 = 0.04
 R = Report()
 
 # Geometry, stimulus and codes all come from the characterization subject, so
@@ -105,6 +126,8 @@ class Data:
     blob_disk: int = 0
     resume_ok: bool = False
     cross_reject: bool = False
+    pd_meta: list = field(default_factory=list)
+    pd_rows: list = field(default_factory=list)
 
 
 def section_object() -> None:
@@ -562,7 +585,121 @@ def characterise() -> Data:
         ],
     )
     R.md()
+    _sec_delivered_pd(d)
     return d
+
+
+def _dwell_pd_harness(d: Data) -> None:
+    """Run the delivered-Pd Monte-Carlo and parse its CSV.
+
+    A missing binary is a hard failure rather than a skip: a skipped
+    measurement is indistinguishable from a passing one in a log, and §2.8
+    comes from nowhere else. `make build` builds it, and CI builds before it
+    runs any Python.
+    """
+    if not DWELL_PD.exists():
+        raise SystemExit(
+            f"burst_capture: {DWELL_PD.relative_to(ROOT)} is not built — run "
+            "`make build` first. §2.8 is its measurement."
+        )
+    out = subprocess.run(
+        [str(DWELL_PD), "--emit"], capture_output=True, text=True, check=True
+    ).stdout
+    header: list[str] = []
+    for line in out.splitlines():
+        if line.startswith("# capture "):
+            d.pd_meta = line[len("# capture ") :].split(",")
+        elif not header:
+            header = line.split(",")
+        else:
+            d.pd_rows.append(
+                {k: float(v) for k, v in zip(header, line.split(","))}
+            )
+
+
+def _rows(d: Data, target: float) -> list[dict]:
+    """The harness rows at one design point."""
+    return [r for r in d.pd_rows if abs(r["target"] - target) < 1e-6]
+
+
+def _wrong(rows: list[dict]) -> float:
+    """Refine's wrong-repetition share, pooled over the rows' depths."""
+    return sum(r["wrong"] for r in rows) / max(len(rows), 1)
+
+
+def _sec_delivered_pd(d: Data) -> None:
+    """What a caller of the capture gets: bursts at their true start."""
+    _dwell_pd_harness(d)
+    n, reps, payload, trials, pfa = d.pd_meta
+    R.md("### 2.8 The Pd it delivers, and refine's choice of repetition")
+    R.md()
+    R.md(
+        "The engine's `pd_burst` models a detection: some dwell the preamble "
+        "spans names its code phase. What a caller gets is a WINDOW at the "
+        "burst's true start, and between the two sits refine, which must "
+        "name the repetition the burst began on (doppler#1502). This "
+        f"measures both, per trial: a Zadoff-Chu {n} preamble repeated "
+        f"{reps} times, then {payload} samples of random QPSK, at a uniform "
+        "random offset, a Doppler uniform over the native span, a "
+        "continuous delay and AWGN from the shipped `awgn`. The grid is "
+        f"pinned at each depth D with one look, pfa {pfa}, {trials} trials "
+        "a row. Each row runs at the C/N0 where the engine predicts its "
+        "design Pd: 0.6, on the steep part of the curve where a model error "
+        "shows most, and 0.9, the constructors' default `pd` and the point "
+        "a caller sizes at. `engine` scores the search's own detections; "
+        "`capture` scores windows emitted within 3 samples of the truth; "
+        "`wrong rep` is the share of trials whose window landed a whole "
+        "number of periods off, the one error refine owns. Measured by "
+        "`native/validation/capture_dwell_pd.c --emit`."
+    )
+    R.md()
+    R.table(
+        [
+            "design Pd",
+            "D",
+            "C/N0 (dB)",
+            "one dwell",
+            "`pd_burst`",
+            "engine",
+            "capture",
+            "± 1σ",
+            "wrong rep",
+        ],
+        [
+            [
+                f"{r['target']:.1f}",
+                str(int(r["depth"])),
+                f"{r['cn0']:.2f}",
+                f"{r['dwell']:.3f}",
+                f"{r['pred']:.3f}",
+                f"{r['eng']:.3f}",
+                f"{r['meas']:.3f}",
+                f"{r['se']:.3f}",
+                f"{r['wrong']:.3f}",
+            ]
+            for r in d.pd_rows
+        ],
+    )
+    R.md()
+    lo, hi = _rows(d, 0.6), _rows(d, 0.9)
+    worst = max((r["pred"] - r["meas"] for r in hi), default=0.0)
+    R.md(
+        "One dwell's Pd runs from "
+        f"{min(r['dwell'] for r in lo):.2f} to "
+        f"{max(r['dwell'] for r in lo):.2f} at the 0.6 design point, across "
+        "rows that all sit near `pd_burst`, so `pd_burst` is the number to "
+        "design to. At 0.6 the engine runs above `pd_burst` and the capture "
+        "delivers it: its loss against the engine, refine naming the wrong "
+        f"repetition in {_wrong(lo):.1%} of trials pooled, fits inside the "
+        "model's margin. At 0.9 that margin is gone, and the capture falls "
+        f"short of `pd_burst` by up to {worst:.3f} here. Two errors make up "
+        f"the loss: wrong repetitions ({_wrong(hi):.1%} pooled), and windows "
+        "51 samples off -- u⁻¹ mod 127, the Zadoff-Chu delay-Doppler ridge, "
+        "a code phase refine inherits from a detection at the neighbouring "
+        "Doppler cell (doppler#1519, F7). A PN preamble has no ridge; this "
+        "report does not measure one."
+    )
+    R.md()
 
 
 def review(d: Data) -> None:
@@ -642,6 +779,25 @@ def review(d: Data) -> None:
         "geometry (a 2.5 MB window rather than 20 kB) is a different "
         "measurement that has not been taken. Tracked as "
         "[gh-1173](https://github.com/doppler-dsp/doppler/issues/1173).",
+    )
+    worst = max((r["pred"] - r["meas"] for r in _rows(d, 0.9)), default=0.0)
+    R.find(
+        "F7",
+        "CONFIRMED",
+        "**At the 0.9 design point the capture falls short of "
+        "`pd_burst`.** At 0.6 the engine runs 0.03-0.12 above its model and "
+        "that margin absorbs refine's loss; at 0.9 the margin is 0.00-0.04, "
+        f"and the capture reads up to {worst:.3f} below `pd_burst` here (up "
+        "to 0.026, about 2.6σ, at 1000 trials). Sorting the misses by the "
+        "window's error found two classes: a whole period off (the wrong "
+        "repetition, most of the loss at D ≥ 2) and 51 samples off, "
+        "u⁻¹ mod 127 for root 5 -- the Zadoff-Chu delay-Doppler ridge. "
+        "Refine resolves the repetition but keeps the engine's code phase, "
+        "so a detection one Doppler cell off hands it a phase shifted along "
+        "the ridge; that is ALL of the loss at D = 1. The limit below holds "
+        "the shortfall as a ratchet until "
+        "[#1519](https://github.com/doppler-dsp/doppler/issues/1519) lets "
+        "refine re-derive the phase at its own Doppler cell (§2.8).",
     )
 
 
@@ -772,6 +928,34 @@ def limits(d: Data) -> None:
         "burst it became) — so a bank reads both faces from one engine "
         "(§2.7)",
     )
+    lo, hi = _rows(d, 0.6), _rows(d, 0.9)
+    short = [
+        int(r["depth"]) for r in lo if r["meas"] < r["pred"] - 2.0 * r["se"]
+    ]
+    R.limit(
+        bool(lo) and not short,
+        "at the 0.6 design point the capture delivers `pd_burst`: at every "
+        "depth D = 1..8, bursts emitted at their true start are never fewer "
+        "than `pd_burst` by more than 2σ "
+        f"(§2.8){'; short at D = ' + str(short) if short else ''}",
+    )
+    worst = max((r["pred"] - r["meas"] for r in hi), default=1.0)
+    R.limit(
+        bool(hi) and worst <= SHORTFALL_AT_09,
+        "at the 0.9 design point the capture is at most "
+        f"{SHORTFALL_AT_09} short of `pd_burst` at any depth ({worst:.3f} "
+        "measured) -- a RATCHET on a confirmed shortfall (F7, "
+        "doppler#1519): it may only tighten (§2.8)",
+    )
+    for tgt, rows in ((0.6, lo), (0.9, hi)):
+        R.limit(
+            bool(rows) and _wrong(rows) <= WRONG_REP_MAX,
+            f"at the {tgt} design point, refine names the wrong repetition "
+            f"in at most {WRONG_REP_MAX:.1%} of trials pooled over every "
+            f"depth ({_wrong(rows):.1%} measured) -- the check that sees "
+            "refine, since `pd_burst`'s margin can hide a worse one from a "
+            "Pd limit (§2.8)",
+        )
 
 
 def build(write: bool = True) -> Report:
@@ -798,6 +982,11 @@ def build(write: bool = True) -> Report:
             "C/N0 separates the two populations by "
             f"{d.sep.get('cn0_real', 0) - d.sep.get('cn0_spurious', 0):.1f} "
             "dB, and it is the only read-back that does (§2.5, F2).",
+            "**Design to `pd_burst`, but not blindly at 0.9.** At a 0.6 "
+            "design point the capture delivers `pd_burst`; at the default "
+            "`pd=0.9` it falls up to 0.026 short on a Zadoff-Chu preamble, "
+            "from wrong repetitions and a code phase inherited along the ZC "
+            "delay-Doppler ridge (§2.8, F7, #1519).",
             "**Block size is not a parameter of the answer.** From 333 "
             "samples to a push larger than the ring, the windows are "
             "bit-identical and nothing is dropped (§2.3).",

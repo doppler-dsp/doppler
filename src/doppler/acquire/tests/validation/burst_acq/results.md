@@ -115,7 +115,7 @@ Each of these is a documented relationship between a constructor argument and a 
 
 ## 4. Limits — the certified envelope
 
-Claims a caller may rely on. A failure here is a regression, not a new finding. Every one is asserted by `src/doppler/dsss/tests/test_validation_limits.py`. The detection envelope itself is [`acq`'s](../acq/results.md), not repeated here.
+Claims a caller may rely on. A failure here is a regression, not a new finding. Every one is asserted by `src/doppler/acquire/tests/test_validation_limits.py`. The detection envelope itself is [`acq`'s](../acq/results.md), not repeated here.
 
 
 | verdict | claim |

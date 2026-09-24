@@ -236,7 +236,7 @@ Not told the rate, the engine is sized at the depth the Pd target alone picks an
 
 ## 4. Limits — the certified envelope
 
-Claims a caller may rely on. A failure here is a regression, not a new finding. Every one is asserted by `src/doppler/dsss/tests/test_validation_limits.py`.
+Claims a caller may rely on. A failure here is a regression, not a new finding. Every one is asserted by `src/doppler/acquire/tests/test_validation_limits.py`.
 
 
 | verdict | claim |

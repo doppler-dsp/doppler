@@ -65,8 +65,8 @@ validate_async_dsss_pool_soak          128.1
 validate_async_dsss_receiver_release    34.7
 validate_receiver_pullin                26.1
 validate_acq_peak_list                  23.2
-validate_acq_template_pd                1.1
-validate_capture_dwell_pd               1.6
+validate_acq_template_pd                2.0  # prices the CFAR reference (doppler#1501): ~2x per construction
+validate_capture_dwell_pd               2.7  # prices the CFAR reference (doppler#1501): ~2x per construction
 validate_ratesync_scurve                22.1
 validate_tracker_through_window         17.2
 validate_acq_block_coherent             14.8

@@ -58,7 +58,7 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
         cn0_dbhz=52,           # sensitivity (carrier-to-noise density, dB-Hz)
         pfa=1e-3, pd=0.9,      # target false-alarm / detection rates
     )
-    # The engine sized the grid: doppler_bins=6, code_bins=124, res≈5500 Hz.
+    # The engine sized the grid: doppler_bins=7, code_bins=124, res≈4714 Hz.
     # Sizing is honest: pd_burst is the Pd of the whole BURST -- every dwell
     # its preamble spans, at an alignment it does not choose -- AVERAGED over
     # the straddle priors (random Doppler / code phase across the grid), not
@@ -184,7 +184,11 @@ one of them is. A shallow `D` gets several chances; a deep one straddles the
 preamble's edge at most alignments and loses more than its coherence gains, so
 the sizer does not simply run to `reps` on a weak signal (doppler#1498). Each
 dwell's Pd is AVERAGED over the straddle priors (quadrature), not taken
-on-grid, with one Doppler and one code delay shared by every dwell of a burst.
+on-grid, with one Doppler and one code delay shared by every dwell of a burst,
+and against the noise reference the gate actually divides by: the mean
+magnitude of the whole surface, which the preamble's own correlation energy off
+its peak inflates. A short code, or one with high sidelobes, therefore needs
+more depth than its raw coherent gain suggests (doppler#1501).
 
 The chosen grid is exposed as **read-only** properties:
 
@@ -192,8 +196,8 @@ The chosen grid is exposed as **read-only** properties:
 acq = BurstAcquisition(preamble, reps=16, fs=1.023e6 * 4, cn0_dbhz=52,
                        pfa=1e-3, pd=0.9)
 
-acq.doppler_bins, acq.code_bins   # 6, 124    — the grid the engine chose
-acq.doppler_span_hz, acq.doppler_res_hz   # ±16500 Hz, 5500 Hz
+acq.doppler_bins, acq.code_bins   # 7, 124    — the grid the engine chose
+acq.doppler_span_hz, acq.doppler_res_hz   # ±16500 Hz, 4714 Hz
 acq.fs                            # 4.092e6   — the rate given
 acq.pfa_cell                      # per-cell false-alarm prob (Bonferroni)
 acq.eta                           # raw Rayleigh threshold √(-2 ln pfa_cell)
@@ -232,9 +236,9 @@ mean amplitude derating), so the engine buys enough integration to meet
 
 | `cn0_dbhz` | chosen `doppler_bins` (reps=16) | `pd_burst` | `pd_predicted` (one dwell) |
 | ---------- | ------------------------------- | ---------- | -------------------------- |
-| 56         | 1                               | 0.94       | 0.31                       |
-| 54         | 3                               | 0.95       | 0.68                       |
-| 52         | 6                               | 0.92       | 0.80                       |
+| 56         | 2                               | 0.95       | 0.60                       |
+| 54         | 3                               | 0.90       | 0.58                       |
+| 52         | 7                               | 0.91       | 0.84                       |
 
 `noise_mode` selects the CFAR estimator (`"mean"` by default, which is what the
 analytic `threshold` assumes; `"median"` is more robust but is not analytically
@@ -320,10 +324,15 @@ default. The smallest robust call is:
 acq = BurstAcquisition(
     preamble,             # one period of the preamble's samples
     fs=1.023e6 * 4,       # their sample rate (Hz)
-    cn0_dbhz=61,          # your link-budget sensitivity (dB-Hz)
+    cn0_dbhz=66,          # your link-budget sensitivity (dB-Hz)
 )
-assert acq.pd_predicted >= acq.pd   # confirm the search can meet the target
+assert acq.pd_burst >= acq.pd       # confirm the search can meet the target
 ```
+
+`reps` defaults to 1: a preamble of one period, which almost always lands
+across two dwells and gives each only part of it. That costs about 5 dB here
+— at 61 dB-Hz one aligned dwell would predict 0.81, the burst gets 0.47 — so
+state the repetitions your preamble really has.
 
 The tiers:
 

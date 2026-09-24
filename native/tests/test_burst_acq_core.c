@@ -40,13 +40,15 @@ main (void)
 
   /* Noise-free burst at zero Doppler/code-phase, exactly one frame of it
    * (coherent_bins periods) -- exercises push() reaching the embedded
-   * engine, one dump, one hit. */
+   * engine, one dump, one hit. The buffer is sized from the frame it
+   * pushes: it was two periods, which held a frame only while the sizer
+   * picked D <= 2, and read past its end when it picked 3 (doppler#1501). */
   const size_t    frame = obj->engine->coherent_bins * nx;
-  float _Complex *burst = malloc (2 * nx * sizeof (float _Complex));
+  float _Complex *burst = malloc (frame * sizeof (float _Complex));
   DP_CHECK (burst != NULL);
   if (burst)
     {
-      for (size_t k = 0; k < 2 * nx; k++)
+      for (size_t k = 0; k < frame; k++)
         {
           uint8_t chip = CODE7[(k / spc) % 7];
           burst[k]     = (chip & 1u) ? -1.0f : 1.0f;

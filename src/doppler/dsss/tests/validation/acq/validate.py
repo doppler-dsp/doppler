@@ -375,13 +375,14 @@ def _sec_templates(d: Data) -> None:
     )
     R.md()
     R.md(
-        "QPSK sits on the model. Zadoff-Chu is conservative by ~0.03 and "
-        "the chirp by up to ~0.1: a chirp's correlation peak slides along "
-        "its delay-Doppler ridge (~0.3 samples) instead of shrinking, so "
-        "the zero-delay rotation loss the model charges overstates it. The "
-        "SHAPED QPSK -- the same symbols through a 5-tap low-pass -- is "
-        "optimistic by 0.02-0.03 at up to 3 sigma, while its unshaped twin "
-        "sits on the model, so the cause is the shaping (F8, doppler#1483). "
+        "Every template is conservative, the side the model is built to "
+        "err on: QPSK and Zadoff-Chu by ~0.04, the SHAPED QPSK by "
+        "0.05-0.10, the chirp by up to ~0.12 -- a chirp's correlation peak "
+        "slides along its delay-Doppler ridge (~0.3 samples) instead of "
+        "shrinking, so the zero-delay rotation loss the model charges "
+        "overstates it. The shaped QPSK was OPTIMISTIC by 0.02-0.03 until "
+        "the model priced the CFAR reference the gate divides by (F8, "
+        "doppler#1483, doppler#1501). "
         "Zadoff-Chu's delay error is whole samples at 0.9 because its "
         "Doppler sensitivity moves the peak: the capture's refine, not the "
         "detector, owns the exact start."
@@ -1178,16 +1179,19 @@ def review(d: Data) -> None:
     # ── 4. limits ─────────────────────────────────────────────────────────
     R.find(
         "F8",
-        "CONFIRMED",
-        "**A shaped template's `pd_predicted` is optimistic.** QPSK "
-        "through a 5-tap low-pass delivers 0.02-0.03 less Pd than it "
-        'predicts, at up to 3 sigma of 3000 trials, against the "never '
-        'optimistic" contract every other template class keeps (§2.10). '
-        "The same symbols unshaped sit on the model, so the cause is the "
-        "shaping: a varying envelope that the band-limited delay straddle "
-        "or the rotation loss under-charges. Small, but on the wrong side "
-        "for sizing. Ratcheted at 0.05 below; doppler#1483 lists the "
-        "candidates.",
+        "FIXED",
+        "**A shaped template's `pd_predicted` was optimistic.** QPSK "
+        "through a 5-tap low-pass delivered 0.02-0.03 less Pd than it "
+        "predicted, at up to 3 sigma of 3000 trials. The cause was not "
+        "the straddle but the noise reference: the gate divides by the "
+        "mean magnitude of the surface, peak included, and a template's "
+        "correlation energy OFF its peak lands in those cells. Shaping "
+        "spreads that energy; a code's sidelobes do the same, far more "
+        "(a 7-chip code at D = 1 delivered 0.23 against a predicted 0.92). "
+        "The model now prices the finite, self-inflated reference "
+        "(doppler#1501), and the shaped rows are conservative by "
+        "0.05-0.10 (§2.10). The ratchet this finding carried is now the "
+        "same bound every template keeps (doppler#1483).",
     )
     R.find(
         "F9",
@@ -1320,10 +1324,11 @@ def limits(d: Data) -> None:
     )
     R.limit(
         len(shaped) == 3
-        and all(gap >= -0.05 for _, gap in map(_pd_verdict, shaped)),
-        "a shaped QPSK preamble is optimistic by no more than 0.05 -- a "
-        "RATCHET, not a bound: it sits at ~0.03 today (F8, doppler#1483) "
-        "and may only shrink",
+        and all(ok and gap <= 0.15 for ok, gap in map(_pd_verdict, shaped)),
+        "a shaped QPSK preamble keeps the same bounds: never optimistic (2 "
+        "sigma), never more than 0.15 pessimistic -- it was a ratchet at "
+        "0.05 optimistic until the model priced the CFAR reference (F8, "
+        "doppler#1483, doppler#1501)",
     )
     by = {r["row"]: r for r in d.drift_rows}
     told = by.get("ramp (rate given)")

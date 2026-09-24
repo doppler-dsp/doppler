@@ -32,26 +32,29 @@
  *   validate_capture_dwell_pd           every D, 1000 trials a row: reports,
  *                                       decides nothing
  *   validate_capture_dwell_pd --check   the spot checks CTest runs, 300
- *                                       trials each, at D = 4 (a whole dwell
- *                                       always fits) and D = 8 (every dwell
- *                                       can straddle): the ENGINE never
- *                                       below pd_burst by 2 sigma, never
- *                                       above it by 0.15 -- acq's bounds
+ *                                       trials each, at D = 1 (the smallest
+ *                                       CFAR reference), D = 4 (a whole
+ *                                       dwell always fits) and D = 8 (every
+ *                                       dwell can straddle): the ENGINE
+ *                                       never below pd_burst by 2 sigma,
+ *                                       never above it by 0.15 -- acq's
+ *                                       bounds
  *
- * Measured 2026-09-23 at 1000 trials a row, each at pd_burst = 0.6:
+ * Measured 2026-09-24 at 1000 trials a row, each at pd_burst = 0.6:
  *
  *   D        1      2      3      4      5      6      7      8
- *   dwell    0.179  0.325  0.460  0.567  0.670  0.772  0.868  0.927
- *   burst    0.614  0.612  0.626  0.623  0.634  0.624  0.622  0.615
- *   engine   0.570  0.632  0.621  0.630  0.656  0.661  0.689  0.689
- *   capture  0.558  0.604  0.601  0.585  0.605  0.617  0.645  0.646
+ *   dwell    0.189  0.358  0.465  0.576  0.643  0.749  0.850  0.915
+ *   burst    0.606  0.635  0.626  0.631  0.609  0.603  0.605  0.601
+ *   engine   0.640  0.710  0.659  0.676  0.656  0.661  0.689  0.689
+ *   capture  0.629  0.688  0.639  0.631  0.605  0.617  0.645  0.646
  *
- * One dwell's Pd ("dwell") runs from 0.18 to 0.93 across rows that all
- * deliver about 0.6; the burst Pd holds the engine to within acq's bounds at
- * every D but one. D = 1 is optimistic by 0.045, inherited from the
- * one-dwell model, which is itself optimistic there (doppler#1501), so the
- * check leaves it out. The capture then loses a further 0.01-0.05 after the
- * engine has detected, which no model prices yet (doppler#1502).
+ * One dwell's Pd ("dwell") runs from 0.19 to 0.92 across rows that all
+ * deliver about 0.65; the burst Pd holds the engine to within acq's bounds
+ * at every D, conservative by 0.03-0.09. D = 1 was 0.045 OPTIMISTIC until
+ * the model priced the CFAR reference the gate divides by -- 127 cells
+ * there, inflated by the burst itself (doppler#1501). The capture then
+ * loses a further 0.01-0.05 after the engine has detected (doppler#1502),
+ * which the model's conservatism now covers but does not price.
  */
 #include "awgn/awgn_core.h"
 #include "burst_capture/burst_capture_core.h"
@@ -95,20 +98,33 @@ make (size_t depth, double cn0)
 }
 
 /* The C/N0 (per-sample SNR, dB, at fs = 1) at which the engine pinned at
-   `depth` first predicts a BURST Pd of `target`, in quarter-dB steps. */
+   `depth` first predicts a BURST Pd of `target`, on a quarter-dB grid from
+   -30 dB. Bisected: pd_burst rises with C/N0 at a pinned depth, so this is
+   the step a linear scan would find, in ~8 constructions rather than ~80
+   (each one sizes the whole grid). */
 static double
 cn0_for (size_t depth, double target)
 {
-  for (int step = 0; step <= 200; step++)
+  int lo = 0, hi = 200; /* steps: -30 dB .. +20 dB */
+  {
+    burst_capture_state_t *s = make (depth, -30.0 + 0.25 * (double)hi);
+    double                 p = burst_capture_get_pd_burst (s);
+    burst_capture_destroy (s);
+    if (!(p >= target))
+      return NAN;
+  }
+  while (lo < hi)
     {
-      double                 c = -30.0 + 0.25 * (double)step;
-      burst_capture_state_t *s = make (depth, c);
-      double                 p = burst_capture_get_pd_burst (s);
+      int                    mid = (lo + hi) / 2;
+      burst_capture_state_t *s   = make (depth, -30.0 + 0.25 * (double)mid);
+      double                 p   = burst_capture_get_pd_burst (s);
       burst_capture_destroy (s);
       if (p >= target)
-        return c;
+        hi = mid;
+      else
+        lo = mid + 1;
     }
-  return NAN;
+  return -30.0 + 0.25 * (double)lo;
 }
 
 typedef struct
@@ -232,10 +248,7 @@ main (int argc, char **argv)
           "burst", "engine", "1sig", "captur", "1sig", "lost");
   for (size_t depth = 1; depth <= R; depth++)
     {
-      /* D = 1 is left out: the ONE-dwell model under pd_burst is itself
-         optimistic there (doppler#1501), by less than 2 sigma at the
-         check's trial count, so pinning it either way would be flaky. */
-      if (check && depth != 4u && depth != R)
+      if (check && depth != 1u && depth != 4u && depth != R)
         continue;
       row_t r = measure (depth, check ? 300 : 1000, 1470u + (uint32_t)depth);
       printf ("%3zu %8.2f %6.3f %6.3f %6.3f %6.3f %6.3f %6.3f %+8.3f\n",

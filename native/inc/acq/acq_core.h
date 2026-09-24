@@ -288,6 +288,17 @@ extern "C"
     double delay_loss[ACQ_DELAY_LOSS_NODES]; /**< Amplitude kept at the
                                  midpoint nodes (k + 1/2)/nodes of that
                                  half-sample range, k = 0 … nodes-1.  */
+    double off_peak; /**< Correlation energy OFF the peak, relative to
+                          it: sum over m != 0 of |R(m)|^2 / R(0)^2 for
+                          the periodic autocorrelation R. It lands in the
+                          cells the CFAR reference averages, so the Pd
+                          model charges it (doppler#1501): ~0 for a
+                          perfect sequence. Filled by the constructor from
+                          the replica, whatever built the rest. */
+    double off_peak_amp; /**< The same lags' AMPLITUDE: sum over m != 0
+                              of |R(m)| / R(0). With off_peak it says how
+                              concentrated that energy is, which sets how
+                              much mean it adds to the reference. */
   } acq_shape_t;
 
   /**

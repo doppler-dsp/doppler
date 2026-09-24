@@ -1162,8 +1162,10 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "`pd_burst`.\n",
     NULL },
   { "doppler_bins", (getter)PersistentBurstCapture_getprop_doppler_bins, NULL,
-    "Doppler hypotheses searched — the coherent depth the sizer chose, "
-    "bounded by `reps`. `configure_search_raw` is what pins it.\n",
+    "Doppler hypotheses searched: the coherent depth the sizer chose (bounded "
+    "by `reps`), or, when `doppler_uncertainty` exceeds the native span, the "
+    "window-tile count. The same number `BurstAcquisition.doppler_bins` "
+    "reads. `configure_search_raw` pins it.\n",
     NULL },
   { "n_noncoh", (getter)PersistentBurstCapture_getprop_n_noncoh, NULL,
     "Non-coherent looks combined per decision. Above 1 the object needs that "

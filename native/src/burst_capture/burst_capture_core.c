@@ -419,15 +419,22 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
      (doppler#1519). So each cell within 1.5 fine steps of the edge is
      scored at its other alias too, and the finite preamble decides. */
   const double span = eng->fs / (double)P;
-  double       twin[BURST_CAPTURE_EDGE_TWINS];
-  size_t       n_twin = 0;
+  /* The fold is centred on the TILE the hit came from. A native search has
+     one, at 0; a tiled one (doppler_uncertainty past the native span) puts
+     each window at a multiple of the span, and folding about 0 mixed a
+     burst in any other window at the wrong frequency (doppler#1512). */
+  const double c
+      = eng->window_bins > 1 ? span * floor (doppler_hz / span + 0.5) : 0.0;
+  double twin[BURST_CAPTURE_EDGE_TWINS];
+  size_t n_twin = 0;
   for (size_t j = 0; j < cells; j++)
     {
-      double f = doppler_hz + (double)((long)j - hc) * fine;
+      double f = doppler_hz + (double)((long)j - hc) * fine - c;
       f -= span * floor (f / span + 0.5);
-      if (fabs (f) >= 0.5 * span - 1.5 * fine
+      f += c;
+      if (fabs (f - c) >= 0.5 * span - 1.5 * fine
           && n_twin < BURST_CAPTURE_EDGE_TWINS)
-        twin[n_twin++] = f - copysign (span, f);
+        twin[n_twin++] = f - copysign (span, f - c);
     }
   const size_t nf = cells + n_twin;
   for (size_t j = 0; j < nf; j++)
@@ -435,8 +442,9 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
       double f;
       if (j < cells)
         {
-          f = doppler_hz + (double)((long)j - hc) * fine;
+          f = doppler_hz + (double)((long)j - hc) * fine - c;
           f -= span * floor (f / span + 0.5);
+          f += c;
         }
       else
         f = twin[j - cells];
@@ -808,12 +816,10 @@ burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
               {
                 burst_capture_detection_t *d = &state->det[state->det_len++];
                 d->epoch                     = epoch;
-                d->doppler_hz                = dp_fftfreq (
-                    hits[i].doppler_bin, e->coherent_bins,
-                    e->doppler_res_hz * (double)e->coherent_bins);
-                d->cn0_dbhz  = hits[i].cn0_dbhz_est;
-                d->test_stat = (double)hits[i].test_stat;
-                d->peak_mag  = (double)hits[i].peak_mag;
+                d->doppler_hz = acq_bin_doppler_hz (e, hits[i].doppler_bin);
+                d->cn0_dbhz   = hits[i].cn0_dbhz_est;
+                d->test_stat  = (double)hits[i].test_stat;
+                d->peak_mag   = (double)hits[i].peak_mag;
               }
 
               /* Inside a burst already CAPTURED: acquisition fires on the
@@ -853,14 +859,13 @@ burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
                          the old one is stale -- clear `refined` and let it run
                          again rather than pairing a new anchor with an old
                          start. */
-                      cand->anchor     = epoch;
-                      cand->peak_mag   = (double)hits[i].peak_mag;
-                      cand->start      = 0;
-                      cand->shadowed   = shadow;
-                      cand->refined    = 0;
-                      cand->doppler_hz = dp_fftfreq (
-                          hits[i].doppler_bin, e->coherent_bins,
-                          e->doppler_res_hz * (double)e->coherent_bins);
+                      cand->anchor   = epoch;
+                      cand->peak_mag = (double)hits[i].peak_mag;
+                      cand->start    = 0;
+                      cand->shadowed = shadow;
+                      cand->refined  = 0;
+                      cand->doppler_hz
+                          = acq_bin_doppler_hz (e, hits[i].doppler_bin);
                       cand->cn0_dbhz = hits[i].cn0_dbhz_est;
                     }
                   break;
@@ -876,14 +881,12 @@ burst_capture_push (burst_capture_state_t *state, const float _Complex *x,
               q->anchor  = epoch;
               q->n_phase = 0;
               (void)burst_capture_note_phase (state, q, epoch);
-              q->start    = 0;
-              q->peak_mag = (double)hits[i].peak_mag;
-              q->refined  = 0;
-              q->shadowed = shadow;
-              q->doppler_hz
-                  = dp_fftfreq (hits[i].doppler_bin, e->coherent_bins,
-                                e->doppler_res_hz * (double)e->coherent_bins);
-              q->cn0_dbhz = hits[i].cn0_dbhz_est;
+              q->start      = 0;
+              q->peak_mag   = (double)hits[i].peak_mag;
+              q->refined    = 0;
+              q->shadowed   = shadow;
+              q->doppler_hz = acq_bin_doppler_hz (e, hits[i].doppler_bin);
+              q->cn0_dbhz   = hits[i].cn0_dbhz_est;
               state->pending++;
             }
 
@@ -1152,7 +1155,9 @@ burst_capture_get_doppler_rate (const burst_capture_state_t *state)
 size_t
 burst_capture_get_doppler_bins (const burst_capture_state_t *state)
 {
-  return state->acq->engine->coherent_bins;
+  /* The grid the search covers, tiles included -- the same number
+     BurstAcquisition's doppler_bins reads (doppler#1512). */
+  return acq_grid_bins (state->acq->engine);
 }
 
 size_t

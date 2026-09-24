@@ -1409,6 +1409,38 @@ extern "C"
    * SAME inline rather than restating the formula. */
 
   /**
+   * @brief The Doppler grid a hit's `doppler_bin` indexes: `window_bins *
+   *        coherent_bins` bins.
+   *
+   * One bin in a native search; the window-tile count once a
+   * @p doppler_uncertainty wider than the native span is tiled; tiles times
+   * the block depth on a continuous engine with code-only epochs. Every
+   * consumer that folds a `doppler_bin` must fold it over THIS, not over
+   * `coherent_bins`: a capture that did read every tiled hit as 0 Hz
+   * (doppler#1512).
+   */
+  static inline size_t
+  acq_grid_bins (const acq_state_t *state)
+  {
+    return state->window_bins * state->coherent_bins;
+  }
+
+  /**
+   * @brief A hit's signed Doppler, Hz: its `doppler_bin` folded over
+   *        acq_grid_bins() by numpy's fftfreq convention (dp_fftfreq_index)
+   *        and scaled by the grid's resolution.
+   *
+   * The one conversion from a bin to Hz; acq_build_handoff() and every
+   * composing object call it rather than restating the fold.
+   */
+  static inline double
+  acq_bin_doppler_hz (const acq_state_t *state, size_t doppler_bin)
+  {
+    return (double)dp_fftfreq_index (doppler_bin, acq_grid_bins (state))
+           * state->doppler_res_hz;
+  }
+
+  /**
    * @brief Convert one acq_push() hit into a wire-ready hand-off record.
    *
    * Two convention inversions live here, ported verbatim from

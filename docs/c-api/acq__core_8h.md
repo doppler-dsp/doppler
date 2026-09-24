@@ -104,6 +104,12 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  size\_t | [**acq\_surface\_doppler\_hz**](#function-acq_surface_doppler_hz) ([**acq\_state\_t**](structacq__state__t.md) \* state, double \* out, size\_t n\_out) <br>_The surface's Doppler axis: the frequency of each row, in Hz._  |
 
 
+## Public Static Functions
+
+| Type | Name |
+| ---: | :--- |
+|  double | [**acq\_bin\_doppler\_hz**](#function-acq_bin_doppler_hz) (const [**acq\_state\_t**](structacq__state__t.md) \* state, size\_t doppler\_bin) <br>_A hit's signed Doppler, Hz: its_ `doppler_bin` _folded over acq\_grid\_bins() by numpy's fftfreq convention (dp\_fftfreq\_index) and scaled by the grid's resolution._ |
+|  size\_t | [**acq\_grid\_bins**](#function-acq_grid_bins) (const [**acq\_state\_t**](structacq__state__t.md) \* state) <br>_The Doppler grid a hit's_ `doppler_bin` _indexes:_`window_bins * coherent_bins` _bins._ |
 
 
 
@@ -1380,6 +1386,49 @@ True
 
 
 
+
+
+        
+
+<hr>
+## Public Static Functions Documentation
+
+
+
+
+### function acq\_bin\_doppler\_hz 
+
+_A hit's signed Doppler, Hz: its_ `doppler_bin` _folded over acq\_grid\_bins() by numpy's fftfreq convention (dp\_fftfreq\_index) and scaled by the grid's resolution._
+```C++
+static inline double acq_bin_doppler_hz (
+    const acq_state_t * state,
+    size_t doppler_bin
+) 
+```
+
+
+
+The one conversion from a bin to Hz; [**acq\_build\_handoff()**](acq__core_8h.md#function-acq_build_handoff) and every composing object call it rather than restating the fold. 
+
+
+        
+
+<hr>
+
+
+
+### function acq\_grid\_bins 
+
+_The Doppler grid a hit's_ `doppler_bin` _indexes:_`window_bins * coherent_bins` _bins._
+```C++
+static inline size_t acq_grid_bins (
+    const acq_state_t * state
+) 
+```
+
+
+
+One bin in a native search; the window-tile count once a `doppler_uncertainty` wider than the native span is tiled; tiles times the block depth on a continuous engine with code-only epochs. Every consumer that folds a `doppler_bin` must fold it over THIS, not over `coherent_bins`: a capture that did read every tiled hit as 0 Hz (doppler#1512). 
 
 
         

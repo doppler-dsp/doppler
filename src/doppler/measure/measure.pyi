@@ -358,6 +358,7 @@ class ToneMeasure:
     ... )
 
     """
+
     def __init__(
         self,
         n: int = 8192,
@@ -368,7 +369,6 @@ class ToneMeasure:
         dynamic_range_db: float = 0.0,
         dc_guard: int = 0,
     ) -> None: ...
-
     def reset(self) -> None:
         """Reset the analyser (a no-op: it holds no state between calls).
 
@@ -567,7 +567,6 @@ class ToneMeasure:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "ToneMeasure":
         """Enter a context manager, returning this object.
 
@@ -635,6 +634,7 @@ class NPRMeasure:
     ... )
 
     """
+
     def __init__(
         self,
         n: int = 8192,
@@ -643,7 +643,6 @@ class NPRMeasure:
         bits: int = 0,
         dynamic_range_db: float = 0.0,
     ) -> None: ...
-
     def reset(self) -> None:
         """Reset the analyser (a no-op: each analyze() call is independent).
 
@@ -790,7 +789,6 @@ class NPRMeasure:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "NPRMeasure":
         """Enter a context manager, returning this object.
 
@@ -858,6 +856,7 @@ class IMDMeasure:
     ... )
 
     """
+
     def __init__(
         self,
         n: int = 8192,
@@ -866,7 +865,6 @@ class IMDMeasure:
         bits: int = 0,
         dynamic_range_db: float = 0.0,
     ) -> None: ...
-
     def reset(self) -> None:
         """Reset the analyser (a no-op: each analyze() call is independent).
 
@@ -988,7 +986,6 @@ class IMDMeasure:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "IMDMeasure":
         """Enter a context manager, returning this object.
 
@@ -1091,8 +1088,7 @@ def measure_proc_gain(nfft: int) -> float:
     """
 
 def dp_coherent_freq(fs: float, f_target: float, N: int) -> float:
-    """Nearest leakage-free coherent test frequency (J cycles, J coprime
-    N).
+    """Nearest leakage-free coherent test frequency (J cycles, J coprime N).
 
     Snaps `f_target` to `J * fs / N` where J is the nearest integer cycle
     count that is coprime with N — an integer number of cycles in the

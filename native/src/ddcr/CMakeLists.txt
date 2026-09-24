@@ -22,12 +22,12 @@ target_link_libraries(ddcr_core PUBLIC
     RateConverter_core
     resamp_core
     hbdecim_core
-    hbdecim_r2c_core
     cic_core
     fir_core
     resample_core
     agc_core
-    dp_tlm_core)
+    dp_tlm_core
+    hbdecim_r2c_core)
 
 add_executable(test_ddcr_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_ddcr_core.c
@@ -37,12 +37,12 @@ target_link_libraries(test_ddcr_core
     RateConverter_core
     resamp_core
     hbdecim_core
-    hbdecim_r2c_core
     cic_core
     fir_core
     resample_core
     agc_core
     dp_tlm_core
+    hbdecim_r2c_core
     ${JM_MATH_LIBRARY})
 target_include_directories(test_ddcr_core
                            PRIVATE ${CMAKE_SOURCE_DIR}/native/inc)
@@ -56,12 +56,12 @@ target_link_libraries(bench_ddcr_core
     RateConverter_core
     resamp_core
     hbdecim_core
-    hbdecim_r2c_core
     cic_core
     fir_core
     resample_core
     agc_core
     dp_tlm_core
+    hbdecim_r2c_core
     ${JM_MATH_LIBRARY})
 target_include_directories(
   bench_ddcr_core PRIVATE ${CMAKE_SOURCE_DIR}/native/inc

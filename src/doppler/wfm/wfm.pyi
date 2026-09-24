@@ -17,25 +17,18 @@ class FrameLayout(tuple[int, int, int, int, int, int, int, int, int]):
 
     @property
     def preamble_off(self) -> int: ...
-
     @property
     def preamble_bits(self) -> int: ...
-
     @property
     def sync_off(self) -> int: ...
-
     @property
     def sync_bits(self) -> int: ...
-
     @property
     def payload_off(self) -> int: ...
-
     @property
     def payload_bits(self) -> int: ...
-
     @property
     def crc_off(self) -> int: ...
-
     @property
     def crc_bits(self) -> int:
         """16, or 0 when crc is unset or the payload is empty — a CRC over
@@ -142,6 +135,7 @@ class PN:
     64
 
     """
+
     def __init__(
         self,
         poly: int = 0,
@@ -149,7 +143,6 @@ class PN:
         length: int = 0,
         lfsr: Literal["galois", "fibonacci"] = "galois",
     ) -> None: ...
-
     def reset(self) -> None:
         """Reset PN to its post-create state. Reloads the LFSR register from
         the original seed so the sequence restarts from chip 0. Useful for
@@ -287,7 +280,6 @@ class PN:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "PN":
         """Enter a context manager, returning this object.
 
@@ -386,6 +378,7 @@ class _SynthEngine:
     [(1+0j), (1+0j), (1+0j), (1+0j)]
 
     """
+
     def __init__(
         self,
         type: Literal["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"] = "tone",
@@ -400,7 +393,6 @@ class _SynthEngine:
         lfsr: Literal["galois", "fibonacci"] = "galois",
         f_end: float = 0.0,
     ) -> None: ...
-
     def reset(self) -> None:
         """Reset Synth to its post-create state. Resets the LO phase
         accumulator, AWGN internal state, and PN LFSR register to their initial
@@ -666,7 +658,6 @@ class _SynthEngine:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "_SynthEngine":
         """Enter a context manager, returning this object.
 
@@ -755,6 +746,7 @@ class Gold:
     (512, 511)
 
     """
+
     def __init__(
         self,
         taps_a: int = 934,
@@ -763,7 +755,6 @@ class Gold:
         seed_b: int = 73,
         length: int = 10,
     ) -> None: ...
-
     def reset(self) -> None:
         """Reset Gold to its post-create state. Reloads both LFSR registers
         from their original seeds so the sequence restarts from chip 0. Useful
@@ -897,7 +888,6 @@ class Gold:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Gold":
         """Enter a context manager, returning this object.
@@ -1055,6 +1045,7 @@ class Frame:
     1053
 
     """
+
     def __init__(
         self,
         preamble: NDArray[np.uint8],
@@ -1093,7 +1084,6 @@ class Frame:
         payload_seed_b: int = 0,
         crc: Literal["none", "crc16"] = "none",
     ) -> None: ...
-
     def bits(
         self,
         count: int = 1,
@@ -2123,7 +2113,6 @@ class Frame:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Frame":
         """Enter a context manager, returning this object.
@@ -2281,6 +2270,7 @@ class FrameDesc:
     1
 
     """
+
     def __init__(
         self,
         preamble: NDArray[np.uint8],
@@ -2319,7 +2309,6 @@ class FrameDesc:
         payload_seed_b: int = 0,
         crc: Literal["none", "crc16"] = "none",
     ) -> None: ...
-
     def bits(
         self,
         count: int = 1,
@@ -3350,7 +3339,6 @@ class FrameDesc:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "FrameDesc":
         """Enter a context manager, returning this object.
 
@@ -3493,8 +3481,7 @@ def wfm_ebno_to_snr_db(
     """
 
 def mls_poly(n: int) -> int:
-    """Maximal-length-sequence primitive polynomial for an LFSR of length
-    n.
+    """Maximal-length-sequence primitive polynomial for an LFSR of length n.
 
     Parameters
     ----------
@@ -3515,9 +3502,9 @@ def mls_poly(n: int) -> int:
     """
 
 def crc16(bits: NDArray[np.uint8]) -> int:
-    """CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit
-    array, MSB-first — the DSSS burst frame trailer wfmgen appends and
-    BurstDemod validates.
+    """CRC-16-CCITT (poly 0x1021, init 0xFFFF) over an unpacked 0/1 bit array,
+    MSB-first — the DSSS burst frame trailer wfmgen appends and BurstDemod
+    validates.
 
     Parameters
     ----------

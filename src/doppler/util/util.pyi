@@ -34,13 +34,12 @@ def square_clip(y: complex, lin: float) -> complex:
     """
 
 def next_pow_two(n: int) -> int:
-    """Smallest power of two greater than or equal to n. The
-    transform-sizing primitive: zero-padded FFT lengths, ring capacities
-    and grow-on-demand buffers all want the same rounding, and five
-    identical private copies of it were in the tree before this one.
-    Saturating rather than wrapping -- 0 is returned when the answer
-    exceeds SIZE_MAX, because a doubling loop run past the top shifts to
-    zero and spins forever.
+    """Smallest power of two greater than or equal to n. The transform-sizing
+    primitive: zero-padded FFT lengths, ring capacities and grow-on-demand
+    buffers all want the same rounding, and five identical private copies of it
+    were in the tree before this one. Saturating rather than wrapping -- 0 is
+    returned when the answer exceeds SIZE_MAX, because a doubling loop run past
+    the top shifts to zero and spins forever.
 
     The transform-sizing primitive. A zero-padded FFT length, a ring
     capacity, a grow-on-demand buffer -- all of them want the same "round
@@ -84,12 +83,12 @@ def next_pow_two(n: int) -> int:
     """
 
 def saturate(v: float, lo: float, hi: float, nan_to: float) -> float:
-    """Saturate a value into [lo, hi], total over every double including
-    NaN and both infinities. The NaN destination is a parameter because
-    which end is safe is domain knowledge: a gain control guarding a
-    measured power wants the ceiling, a lock statistic wants the floor. Use
-    it at the boundary where an untrusted value first becomes persistent
-    state -- the input of an EMA, accumulator or integrator.
+    """Saturate a value into [lo, hi], total over every double including NaN
+    and both infinities. The NaN destination is a parameter because which end
+    is safe is domain knowledge: a gain control guarding a measured power wants
+    the ceiling, a lock statistic wants the floor. Use it at the boundary where
+    an untrusted value first becomes persistent state -- the input of an EMA,
+    accumulator or integrator.
 
     `fmin`/`fmax` are not enough for this job. A plain `fmin(fmax(v, lo),
     hi)` propagates NaN on some platforms and silently returns a bound on
@@ -152,15 +151,15 @@ def saturate(v: float, lo: float, hi: float, nan_to: float) -> float:
     """
 
 def ema_step(state: float, x: float, alpha: float) -> float:
-    """One step of a first-order exponential moving average, state +
-    alpha*(x - state). The canonical EMA for the library: it was written
-    out four times in two different algebraic forms before this existed,
-    and duplicated implementations drift. The incremental form is the more
-    accurate of the two everywhere the library operates, by a margin that
-    grows as the average lengthens; alpha == 1 (pass-through) and alpha ==
-    0 (frozen) are both exact. NOT total in x -- a non-finite observation
-    poisons the state permanently, because an EMA remembers, so saturate()
-    belongs on this function's input.
+    """One step of a first-order exponential moving average, state + alpha*(x -
+    state). The canonical EMA for the library: it was written out four times in
+    two different algebraic forms before this existed, and duplicated
+    implementations drift. The incremental form is the more accurate of the two
+    everywhere the library operates, by a margin that grows as the average
+    lengthens; alpha == 1 (pass-through) and alpha == 0 (frozen) are both
+    exact. NOT total in x -- a non-finite observation poisons the state
+    permanently, because an EMA remembers, so saturate() belongs on this
+    function's input.
 
     The canonical EMA for the whole library. It was written out four times
     before this existed — `agc` (power detector), `async_dsss_receiver`
@@ -231,11 +230,11 @@ def ema_step(state: float, x: float, alpha: float) -> float:
 
 def ema_alpha_decim(alpha: float, d: int) -> float:
     """The EMA coefficient that advances d samples in one step, 1 - (1 -
-    alpha)^d. A decimated loop updates once per chunk of d samples and must
-    not thereby change its own time constant. Computed through expm1/log1p
-    because the direct expression cancels catastrophically for small alpha
-    -- 26865 ulps off at alpha 1e-5, d 1 -- and being exact at d == 1 is
-    what lets the decimated and per-sample paths be compared bit-for-bit.
+    alpha)^d. A decimated loop updates once per chunk of d samples and must not
+    thereby change its own time constant. Computed through expm1/log1p because
+    the direct expression cancels catastrophically for small alpha -- 26865
+    ulps off at alpha 1e-5, d 1 -- and being exact at d == 1 is what lets the
+    decimated and per-sample paths be compared bit-for-bit.
 
     A decimated loop updates its average once per chunk of `d` samples and
     must not thereby change its own time constant. Compounding the pole

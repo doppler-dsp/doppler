@@ -6,9 +6,6 @@ from __future__ import annotations
 
 from typing import Any, final
 
-import numpy as np
-from numpy.typing import NDArray
-
 @final
 class SampleClock:
     """SampleClock handle.
@@ -18,6 +15,7 @@ class SampleClock:
     fs : float
     resync : int, default 0
     """
+
     def __init__(self, fs: float, resync: int = ...) -> None: ...
     def pace(self, count: int) -> float:
         """Advance by count samples and sleep until that block's deadline

@@ -111,6 +111,7 @@ class Writer:
     >>> tmp.cleanup()
 
     """
+
     def __init__(
         self,
         path: str | os.PathLike,
@@ -124,7 +125,6 @@ class Writer:
         t0: float = 0.0,
         sidecar: bool = True,
     ) -> None: ...
-
     def write(self, x: NDArray[np.complex64]) -> int:
         """Convert and write a block of samples.
 
@@ -283,7 +283,6 @@ class Writer:
             and from ``__exit__`` alike, so a failing teardown propagates out
             of a ``with`` block (gh-541).
         """
-
 
     def __enter__(self) -> "Writer":
         """Enter a context manager, returning this object.

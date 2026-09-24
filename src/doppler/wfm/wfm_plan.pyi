@@ -7,7 +7,6 @@ from __future__ import annotations
 from typing import Any, final
 
 import os
-import numpy as np
 from numpy.typing import NDArray
 
 @final
@@ -35,6 +34,7 @@ class Plan:
     spec_json : str
         A NUL-terminated composer spec JSON string.
     """
+
     def __init__(self, spec_json: str) -> None: ...
     def render(self, overrides_json: str) -> NDArray[Any]:
         """General render: apply a JSON override spec, return a cf32 array.

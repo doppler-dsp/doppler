@@ -24,8 +24,8 @@ class AccQ15:
     100
 
     """
-    def __init__(self, acc: int = 0) -> None: ...
 
+    def __init__(self, acc: int = 0) -> None: ...
     def reset(self) -> None:
         """Reset the accumulator to zero, mirroring the post-create state. Does
         not re-initialise to the constructor's acc value — always resets to
@@ -255,7 +255,6 @@ class AccQ15:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "AccQ15":
         """Enter a context manager, returning this object.
 
@@ -311,8 +310,8 @@ class AccQ8:
     10
 
     """
-    def __init__(self, acc: int = 0) -> None: ...
 
+    def __init__(self, acc: int = 0) -> None: ...
     def reset(self) -> None:
         """Reset the accumulator to zero, mirroring the post-create state.
         Always resets to zero regardless of the original constructor value, so
@@ -537,7 +536,6 @@ class AccQ8:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "AccQ8":
         """Enter a context manager, returning this object.
 
@@ -625,8 +623,8 @@ def sub_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
     """
 
 def mul_q15(a: NDArray[np.int16], b: NDArray[np.int16]) -> NDArray[np.int16]:
-    """Elementwise Q15 multiply with round-half-up: out[i] =
-    sat16((a[i]*b[i] + 16384) >> 15).
+    """Elementwise Q15 multiply with round-half-up: out[i] = sat16((a[i]*b[i] +
+    16384) >> 15).
 
     Parameters
     ----------
@@ -705,8 +703,8 @@ def shl_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
     """
 
 def shr_q15(a: NDArray[np.int16], n: int) -> NDArray[np.int16]:
-    """Elementwise arithmetic right shift of a Q15 array with
-    round-half-up. Equivalent to dividing by 2^n.
+    """Elementwise arithmetic right shift of a Q15 array with round-half-up.
+    Equivalent to dividing by 2^n.
 
     Parameters
     ----------
@@ -783,8 +781,8 @@ def sub_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
     """
 
 def mul_q8(a: NDArray[np.int8], b: NDArray[np.int8]) -> NDArray[np.int8]:
-    """Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i]
-    + 64) >> 7).
+    """Elementwise Q8 multiply with round-half-up: out[i] = sat8((a[i]*b[i] +
+    64) >> 7).
 
     Parameters
     ----------

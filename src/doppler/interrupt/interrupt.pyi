@@ -1,5 +1,7 @@
 # interrupt/interrupt.pyi — type stubs for the interrupt C extension.
 from typing import final
+import numpy as np
+from numpy.typing import NDArray
 
 @final
 class Interrupt:
@@ -28,12 +30,12 @@ class Interrupt:
     0
 
     """
+
     def __init__(
         self,
         signals: NDArray[np.int32],
         latency_ms: int = 0,
     ) -> None: ...
-
     def interrupt(self) -> None:
         """Ask every blocking wait in this process to stop.
 
@@ -121,7 +123,6 @@ class Interrupt:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Interrupt":
         """Enter a context manager, returning this object.

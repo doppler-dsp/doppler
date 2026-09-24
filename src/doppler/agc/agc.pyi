@@ -41,13 +41,13 @@ class AGC:
     (8, 120.0)
 
     """
+
     def __init__(
         self,
         ref_db: float = 0.0,
         loop_bw: float = 0.0025,
         alpha: float = 0.05,
     ) -> None: ...
-
     def reset(self) -> None:
         """Reset the AGC loop state to its post-create condition. Sets gain_db
         back to 0 dB (unity), clears g_last, and re-seeds the power-detector
@@ -295,19 +295,16 @@ class AGC:
         """Ref db."""
     @ref_db.setter
     def ref_db(self, value: float) -> None: ...
-
     @property
     def loop_bw(self) -> float:
         """Loop bw."""
     @loop_bw.setter
     def loop_bw(self, value: float) -> None: ...
-
     @property
     def alpha(self) -> float:
         """Alpha."""
     @alpha.setter
     def alpha(self, value: float) -> None: ...
-
     @property
     def decim(self) -> int:
         """Envelope decimation: the detector and loop filter run once per chunk
@@ -315,19 +312,16 @@ class AGC:
         """
     @decim.setter
     def decim(self, value: int) -> None: ...
-
     @property
     def clip_db(self) -> float:
         """Clip db."""
     @clip_db.setter
     def clip_db(self, value: float) -> None: ...
-
     @property
     def gain_update_period(self) -> int:
         """Gain update period."""
     @gain_update_period.setter
     def gain_update_period(self, value: int) -> None: ...
-
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
@@ -339,7 +333,6 @@ class AGC:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "AGC":
         """Enter a context manager, returning this object.

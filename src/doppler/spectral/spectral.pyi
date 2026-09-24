@@ -33,13 +33,13 @@ class FFT:
     [(1+0j), (1+0j), (1+0j), (1+0j)]
 
     """
+
     def __init__(
         self,
         n: int = 1024,
         sign: int = -1,
         nthreads: int = 1,
     ) -> None: ...
-
     def reset(self) -> None:
         """No-op reset (plans are immutable after creation).
         """
@@ -262,7 +262,6 @@ class FFT:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "FFT":
         """Enter a context manager, returning this object.
 
@@ -331,6 +330,7 @@ class FFT2D:
     True
 
     """
+
     def __init__(
         self,
         ny: int = 64,
@@ -338,7 +338,6 @@ class FFT2D:
         sign: int = -1,
         nthreads: int = 1,
     ) -> None: ...
-
     def reset(self) -> None:
         """No-op reset (plans are immutable after creation).
         """
@@ -542,7 +541,6 @@ class FFT2D:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "FFT2D":
         """Enter a context manager, returning this object.
 
@@ -611,6 +609,7 @@ class Corr:
     (4, 1, 0)
 
     """
+
     def __init__(
         self,
         ref: NDArray[np.complex64],
@@ -618,7 +617,6 @@ class Corr:
         nthreads: int = 1,
         n_out: int = 0,
     ) -> None: ...
-
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without tearing down the FFT
@@ -774,7 +772,6 @@ class Corr:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "Corr":
         """Enter a context manager, returning this object.
 
@@ -857,6 +854,7 @@ class Corr2D:
     (4, 4, 1, 0)
 
     """
+
     def __init__(
         self,
         ref: NDArray[np.complex64],
@@ -866,7 +864,6 @@ class Corr2D:
         nx_out: int = 0,
         col_out: int = -1,
     ) -> None: ...
-
     def reset(self) -> None:
         """Zero the accumulator and reset the integration counter to 0.
         Equivalent to starting a fresh dwell cycle without rebuilding FFT plans
@@ -1038,7 +1035,6 @@ class Corr2D:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "Corr2D":
         """Enter a context manager, returning this object.
 
@@ -1111,6 +1107,7 @@ class CorrDetector:
     (8, 1, 512)
 
     """
+
     def __init__(
         self,
         ref: NDArray[np.complex64],
@@ -1121,7 +1118,6 @@ class CorrDetector:
         threshold: float = 0.0,
         nthreads: int = 1,
     ) -> None: ...
-
     def reset(self) -> None:
         """Reset the correlator, ring buffer, and last-corr flag. Discards any
         partial frame buffered in the ring and zeroes the coherent accumulator.
@@ -1281,7 +1277,6 @@ class CorrDetector:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "CorrDetector":
         """Enter a context manager, returning this object.
 
@@ -1355,6 +1350,7 @@ class CorrDetector2D:
     (4, 4, 16, 1)
 
     """
+
     def __init__(
         self,
         ref: NDArray[np.complex64],
@@ -1365,7 +1361,6 @@ class CorrDetector2D:
         threshold: float = 0.0,
         nthreads: int = 1,
     ) -> None: ...
-
     def reset(self) -> None:
         """Reset the 2-D correlator, ring buffer, and last-corr flag. Discards
         any partial frame buffered in the ring and zeroes the coherent
@@ -1532,7 +1527,6 @@ class CorrDetector2D:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "CorrDetector2D":
         """Enter a context manager, returning this object.
 
@@ -1604,6 +1598,7 @@ class PSD:
     True
 
     """
+
     def __init__(
         self,
         n: int = 1024,
@@ -1616,7 +1611,6 @@ class PSD:
         mode: Literal["mean", "exp", "maxhold", "minhold"] = "mean",
         alpha: float = 0.1,
     ) -> None: ...
-
     def accumulate(self, x: NDArray[np.complex64]) -> None:
         """Window, FFT and fold floor(n_in/n) cf32 frames into the average.
 
@@ -2008,7 +2002,6 @@ class PSD:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "PSD":
         """Enter a context manager, returning this object.

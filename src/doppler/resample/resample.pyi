@@ -27,8 +27,8 @@ class Resampler:
     2.0
 
     """
-    def __init__(self, rate: float = 0.0) -> None: ...
 
+    def __init__(self, rate: float = 0.0) -> None: ...
     def execute(
         self,
         x: NDArray[np.complex64],
@@ -213,7 +213,6 @@ class Resampler:
         """
     @rate.setter
     def rate(self, value: float) -> None: ...
-
     @property
     def ctrl_acc(self) -> float:
         """The control accumulator's fractional phase, in [0, 1)."""
@@ -244,7 +243,6 @@ class Resampler:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Resampler":
         """Enter a context manager, returning this object.
@@ -305,8 +303,8 @@ class HalfbandDecimator:
     (5, 0.5)
 
     """
-    def __init__(self, h: NDArray[np.float32]) -> None: ...
 
+    def __init__(self, h: NDArray[np.float32]) -> None: ...
     def execute(
         self,
         x: NDArray[np.complex64],
@@ -454,7 +452,6 @@ class HalfbandDecimator:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "HalfbandDecimator":
         """Enter a context manager, returning this object.
 
@@ -516,8 +513,8 @@ class CIC:
     (16, 16)
 
     """
-    def __init__(self, R: int = 16) -> None: ...
 
+    def __init__(self, R: int = 16) -> None: ...
     def reset(self) -> None:
         """Zero all integrator and comb accumulators; preserve R and shift. The
         first output sample after reset arrives after R more input samples,
@@ -701,7 +698,6 @@ class CIC:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "CIC":
         """Enter a context manager, returning this object.
 
@@ -768,8 +764,8 @@ class RateConverter:
     0.5
 
     """
-    def __init__(self, rate: float = 1.0, compensate: int = 0) -> None: ...
 
+    def __init__(self, rate: float = 1.0, compensate: int = 0) -> None: ...
     def execute(
         self,
         x: NDArray[np.complex64],
@@ -1005,7 +1001,6 @@ class RateConverter:
         """
     @rate.setter
     def rate(self, value: float) -> None: ...
-
     @property
     def clipped(self) -> bool:
         """True if any planned CIC stage has clipped its input since the last
@@ -1056,7 +1051,6 @@ class RateConverter:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "RateConverter":
         """Enter a context manager, returning this object.
@@ -1145,6 +1139,7 @@ class MatchedRateConverter:
     ... )
 
     """
+
     def __init__(
         self,
         rate: float = 1.0,
@@ -1155,7 +1150,6 @@ class MatchedRateConverter:
         pulse_sps: float = 2.0,
         num_phases: int = 1024,
     ) -> None: ...
-
     def execute(
         self,
         x: NDArray[np.complex64],
@@ -1392,7 +1386,6 @@ class MatchedRateConverter:
         """
     @rate.setter
     def rate(self, value: float) -> None: ...
-
     @property
     def clipped(self) -> bool:
         """True if any planned CIC stage has clipped its input since the last
@@ -1443,7 +1436,6 @@ class MatchedRateConverter:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "MatchedRateConverter":
         """Enter a context manager, returning this object.
@@ -1497,11 +1489,11 @@ class Farrow:
     >>> obj = Farrow(order="cubic")
 
     """
+
     def __init__(
         self,
         order: Literal["linear", "parabolic", "cubic"] = "cubic",
     ) -> None: ...
-
     def delay(
         self,
         x: NDArray[np.complex64],
@@ -1663,7 +1655,6 @@ class Farrow:
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
 
-
     def __enter__(self) -> "Farrow":
         """Enter a context manager, returning this object.
 
@@ -1724,8 +1715,8 @@ class HalfbandDecimatorQ15:
     0.5
 
     """
-    def __init__(self, h: NDArray[np.float32]) -> None: ...
 
+    def __init__(self, h: NDArray[np.float32]) -> None: ...
     def execute(
         self,
         x: NDArray[np.int16],
@@ -1887,7 +1878,6 @@ class HalfbandDecimatorQ15:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "HalfbandDecimatorQ15":
         """Enter a context manager, returning this object.

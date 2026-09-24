@@ -44,6 +44,7 @@ class Specan:
     True
 
     """
+
     def __init__(
         self,
         fs: float,
@@ -57,7 +58,6 @@ class Specan:
         window: Literal["hann", "kaiser"] = "kaiser",
         navg: int = 1,
     ) -> None: ...
-
     def execute(
         self,
         x: NDArray[np.complex64],
@@ -225,7 +225,6 @@ class Specan:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Specan":
         """Enter a context manager, returning this object.

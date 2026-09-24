@@ -36,8 +36,8 @@ class DDC:
     0.25
 
     """
-    def __init__(self, norm_freq: float = 0.0, rate: float = 0.25) -> None: ...
 
+    def __init__(self, norm_freq: float = 0.0, rate: float = 0.25) -> None: ...
     def execute(
         self,
         x: NDArray[np.complex64],
@@ -289,7 +289,6 @@ class DDC:
         """Return the current LO normalised frequency (cycles/sample)."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def rate(self) -> float:
         """Return the configured output/input rate ratio (read-only). The rate
@@ -316,7 +315,6 @@ class DDC:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "DDC":
         """Enter a context manager, returning this object.
@@ -394,6 +392,7 @@ class MatchedDDC:
     0.125
 
     """
+
     def __init__(
         self,
         norm_freq: float = 0.0,
@@ -404,7 +403,6 @@ class MatchedDDC:
         pulse_sps: float = 2.0,
         num_phases: int = 1024,
     ) -> None: ...
-
     def execute(
         self,
         x: NDArray[np.complex64],
@@ -656,7 +654,6 @@ class MatchedDDC:
         """Return the current LO normalised frequency (cycles/sample)."""
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def rate(self) -> float:
         """Return the configured output/input rate ratio (read-only). The rate
@@ -683,7 +680,6 @@ class MatchedDDC:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "MatchedDDC":
         """Enter a context manager, returning this object.
@@ -757,8 +753,8 @@ class Ddcr:
     0.25
 
     """
-    def __init__(self, norm_freq: float = 0.0, rate: float = 0.25) -> None: ...
 
+    def __init__(self, norm_freq: float = 0.0, rate: float = 0.25) -> None: ...
     def execute(
         self,
         x: NDArray[np.float32],
@@ -983,7 +979,6 @@ class Ddcr:
         """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def rate(self) -> float:
         """Return the total configured rate (fs_out / fs_in, read-only). This
@@ -1022,7 +1017,6 @@ class Ddcr:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "Ddcr":
         """Enter a context manager, returning this object.
@@ -1096,6 +1090,7 @@ class MatchedDdcr:
     0.125
 
     """
+
     def __init__(
         self,
         norm_freq: float = 0.0,
@@ -1106,7 +1101,6 @@ class MatchedDdcr:
         pulse_sps: float = 2.0,
         num_phases: int = 1024,
     ) -> None: ...
-
     def execute(
         self,
         x: NDArray[np.float32],
@@ -1331,7 +1325,6 @@ class MatchedDdcr:
         """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def rate(self) -> float:
         """Return the total configured rate (fs_out / fs_in, read-only). This
@@ -1370,7 +1363,6 @@ class MatchedDdcr:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "MatchedDdcr":
         """Enter a context manager, returning this object.

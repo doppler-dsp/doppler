@@ -88,7 +88,7 @@ _bind_ema_alpha_decim (PyObject *self, PyObject *args, PyObject *kwds)
 static PyMethodDef util_module_methods[] = {
   { "square_clip", (PyCFunction)(void *)_bind_square_clip,
     METH_VARARGS | METH_KEYWORDS,
-    "Square-clip a complex sample: clip the real and imaginary parts\n"
+    "Square-clip a complex sample: clip the real and imaginary parts "
     "independently to [-lin, lin] (a square region in the IQ plane).\n"
     "\n"
     "Parameters\n"
@@ -120,13 +120,12 @@ static PyMethodDef util_module_methods[] = {
     "(-1+0j)\n" },
   { "next_pow_two", (PyCFunction)(void *)_bind_next_pow_two,
     METH_VARARGS | METH_KEYWORDS,
-    "Smallest power of two greater than or equal to n. The\n"
-    "transform-sizing primitive: zero-padded FFT lengths, ring capacities\n"
-    "and grow-on-demand buffers all want the same rounding, and five\n"
-    "identical private copies of it were in the tree before this one.\n"
-    "Saturating rather than wrapping -- 0 is returned when the answer\n"
-    "exceeds SIZE_MAX, because a doubling loop run past the top shifts to\n"
-    "zero and spins forever.\n"
+    "Smallest power of two greater than or equal to n. The transform-sizing "
+    "primitive: zero-padded FFT lengths, ring capacities and grow-on-demand "
+    "buffers all want the same rounding, and five identical private copies of "
+    "it were in the tree before this one. Saturating rather than wrapping -- "
+    "0 is returned when the answer exceeds SIZE_MAX, because a doubling loop "
+    "run past the top shifts to zero and spins forever.\n"
     "\n"
     "The transform-sizing primitive. A zero-padded FFT length, a ring\n"
     "capacity, a grow-on-demand buffer -- all of them want the same \"round\n"
@@ -168,12 +167,12 @@ static PyMethodDef util_module_methods[] = {
     "1048576\n" },
   { "saturate", (PyCFunction)(void *)_bind_saturate,
     METH_VARARGS | METH_KEYWORDS,
-    "Saturate a value into [lo, hi], total over every double including\n"
-    "NaN and both infinities. The NaN destination is a parameter because\n"
-    "which end is safe is domain knowledge: a gain control guarding a\n"
-    "measured power wants the ceiling, a lock statistic wants the floor. Use\n"
-    "it at the boundary where an untrusted value first becomes persistent\n"
-    "state -- the input of an EMA, accumulator or integrator.\n"
+    "Saturate a value into [lo, hi], total over every double including NaN "
+    "and both infinities. The NaN destination is a parameter because which "
+    "end is safe is domain knowledge: a gain control guarding a measured "
+    "power wants the ceiling, a lock statistic wants the floor. Use it at the "
+    "boundary where an untrusted value first becomes persistent state -- the "
+    "input of an EMA, accumulator or integrator.\n"
     "\n"
     "`fmin`/`fmax` are not enough for this job. A plain `fmin(fmax(v, lo),\n"
     "hi)` propagates NaN on some platforms and silently returns a bound on\n"
@@ -236,15 +235,15 @@ static PyMethodDef util_module_methods[] = {
     "0.0\n" },
   { "ema_step", (PyCFunction)(void *)_bind_ema_step,
     METH_VARARGS | METH_KEYWORDS,
-    "One step of a first-order exponential moving average, state +\n"
-    "alpha*(x - state). The canonical EMA for the library: it was written\n"
-    "out four times in two different algebraic forms before this existed,\n"
-    "and duplicated implementations drift. The incremental form is the more\n"
-    "accurate of the two everywhere the library operates, by a margin that\n"
-    "grows as the average lengthens; alpha == 1 (pass-through) and alpha ==\n"
-    "0 (frozen) are both exact. NOT total in x -- a non-finite observation\n"
-    "poisons the state permanently, because an EMA remembers, so saturate()\n"
-    "belongs on this function's input.\n"
+    "One step of a first-order exponential moving average, state + alpha*(x - "
+    "state). The canonical EMA for the library: it was written out four times "
+    "in two different algebraic forms before this existed, and duplicated "
+    "implementations drift. The incremental form is the more accurate of the "
+    "two everywhere the library operates, by a margin that grows as the "
+    "average lengthens; alpha == 1 (pass-through) and alpha == 0 (frozen) are "
+    "both exact. NOT total in x -- a non-finite observation poisons the state "
+    "permanently, because an EMA remembers, so saturate() belongs on this "
+    "function's input.\n"
     "\n"
     "The canonical EMA for the whole library. It was written out four times\n"
     "before this existed — `agc` (power detector), `async_dsss_receiver`\n"
@@ -312,11 +311,11 @@ static PyMethodDef util_module_methods[] = {
     "1.0\n" },
   { "ema_alpha_decim", (PyCFunction)(void *)_bind_ema_alpha_decim,
     METH_VARARGS | METH_KEYWORDS,
-    "The EMA coefficient that advances d samples in one step, 1 - (1 -\n"
-    "alpha)^d. A decimated loop updates once per chunk of d samples and must\n"
-    "not thereby change its own time constant. Computed through expm1/log1p\n"
-    "because the direct expression cancels catastrophically for small alpha\n"
-    "-- 26865 ulps off at alpha 1e-5, d 1 -- and being exact at d == 1 is\n"
+    "The EMA coefficient that advances d samples in one step, 1 - (1 - "
+    "alpha)^d. A decimated loop updates once per chunk of d samples and must "
+    "not thereby change its own time constant. Computed through expm1/log1p "
+    "because the direct expression cancels catastrophically for small alpha "
+    "-- 26865 ulps off at alpha 1e-5, d 1 -- and being exact at d == 1 is "
     "what lets the decimated and per-sample paths be compared bit-for-bit.\n"
     "\n"
     "A decimated loop updates its average once per chunk of `d` samples and\n"

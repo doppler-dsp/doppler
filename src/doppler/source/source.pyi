@@ -29,8 +29,8 @@ class NCO:
     1073741824
 
     """
-    def __init__(self, norm_freq: float = 0.0, nmax: int = 0) -> None: ...
 
+    def __init__(self, norm_freq: float = 0.0, nmax: int = 0) -> None: ...
     def reset(self) -> None:
         """Zero the phase accumulator. Sets phase to 0 so the next
         nco_steps_u32 call starts from the beginning of the cycle. norm_freq,
@@ -461,7 +461,6 @@ class NCO:
         """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def phase(self) -> int:
         """Current phase accumulator value (read/write). Reading returns the
@@ -471,7 +470,6 @@ class NCO:
         """
     @phase.setter
     def phase(self, value: int) -> None: ...
-
     @property
     def phase_inc(self) -> int:
         """Per-sample phase increment (read-only). Derived from norm_freq as
@@ -491,7 +489,6 @@ class NCO:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "NCO":
         """Enter a context manager, returning this object.
@@ -548,8 +545,8 @@ class LO:
     1073741824
 
     """
-    def __init__(self, norm_freq: float = 0.0) -> None: ...
 
+    def __init__(self, norm_freq: float = 0.0) -> None: ...
     def reset(self) -> None:
         """Zero the phase accumulator. Sets phase to 0 so the next lo_steps
         call starts at angle 0 (1+0j). norm_freq and phase_inc are unchanged.
@@ -736,7 +733,6 @@ class LO:
         """
     @norm_freq.setter
     def norm_freq(self, value: float) -> None: ...
-
     @property
     def phase(self) -> int:
         """Current phase accumulator value (read/write). Returns the current
@@ -745,7 +741,6 @@ class LO:
         """
     @phase.setter
     def phase(self, value: int) -> None: ...
-
     @property
     def phase_inc(self) -> int:
         """Per-sample phase increment (read-only). Derived from norm_freq as
@@ -764,7 +759,6 @@ class LO:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "LO":
         """Enter a context manager, returning this object.
@@ -824,8 +818,8 @@ class AWGN:
     1.0
 
     """
-    def __init__(self, seed: int = 0, amplitude: float = 1.0) -> None: ...
 
+    def __init__(self, seed: int = 0, amplitude: float = 1.0) -> None: ...
     def reset(self) -> None:
         """Reset RNG to the seed supplied at create time. Re-runs the
         SplitMix64 seeding procedure with the original seed so the next
@@ -982,7 +976,6 @@ class AWGN:
         """Return the current amplitude (per-component std dev)."""
     @amplitude.setter
     def amplitude(self, value: float) -> None: ...
-
     def destroy(self) -> None:
         """Release the underlying C resources immediately.
 
@@ -994,7 +987,6 @@ class AWGN:
         Idempotent: calling it again on an already-released object does
         nothing. Every other method raises ``RuntimeError`` once it has run.
         """
-
 
     def __enter__(self) -> "AWGN":
         """Enter a context manager, returning this object.

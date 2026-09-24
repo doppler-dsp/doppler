@@ -83,10 +83,6 @@
 * `#include "viterbi/viterbi_core.h"`
 * `#include "rs_codec/rs_codec_core.h"`
 * `#include "interleaver/interleaver_core.h"`
-* `#include "carrier_acq/carrier_acq_core.h"`
-* `#include "acq/acq_core.h"`
-* `#include "burst_acq/burst_acq_core.h"`
-* `#include "burst_capture/burst_capture_core.h"`
 * `#include "despreader/despreader_core.h"`
 * `#include "burst_despreader/burst_despreader_core.h"`
 * `#include "ppe/ppe_core.h"`
@@ -95,6 +91,10 @@
 * `#include "async_dsss_receiver/async_dsss_receiver_core.h"`
 * `#include "async_dsss_pool/async_dsss_pool_core.h"`
 * `#include "dsss_burst_receiver/dsss_burst_receiver_core.h"`
+* `#include "carrier_acq/carrier_acq_core.h"`
+* `#include "acq/acq_core.h"`
+* `#include "burst_acq/burst_acq_core.h"`
+* `#include "burst_capture/burst_capture_core.h"`
 * `#include "ber_meter/ber_meter_core.h"`
 * `#include "frame_meter/frame_meter_core.h"`
 

@@ -444,6 +444,11 @@ test_true_burst_once_and_false_alarms_marked (void)
 {
   dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
+  /* The grid this scene is timed for: one frame = the whole preamble. The
+     sizer picks from the burst's alignment (doppler#1498) and may choose
+     shallower; this test is about the claim rule and the false alarm seed 11
+     carries on it, not the sizer. */
+  DP_REQUIRE (burst_capture_configure_search_raw (s->cap, REPS, 1) == 0);
 
   const size_t AT = 5000;
   static float _Complex cap[40000];
@@ -1144,6 +1149,11 @@ test_a_failed_frame_gives_its_span_back (void)
 
   dsss_burst_receiver_state_t *s = make_rx ();
   DP_REQUIRE (s != NULL);
+  /* The grid this scene is timed for: one frame = the whole preamble. The
+     sizer picks from the burst's alignment (doppler#1498) and may choose
+     shallower; this test is about the span a failed frame gives back, not the
+     sizer. */
+  DP_REQUIRE (burst_capture_configure_search_raw (s->cap, REPS, 1) == 0);
   uint8_t out[4 * FRAME_SYMS];
 
   /* The decoy's window: demodulated, and its frame fails. */

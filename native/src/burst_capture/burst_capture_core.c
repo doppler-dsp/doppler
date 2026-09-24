@@ -1050,6 +1050,12 @@ burst_capture_get_pd_predicted (const burst_capture_state_t *state)
 }
 
 double
+burst_capture_get_pd_burst (const burst_capture_state_t *state)
+{
+  return state->acq->engine->pd_burst;
+}
+
+double
 burst_capture_get_doppler_rate (const burst_capture_state_t *state)
 {
   return state->acq->engine->doppler_rate;

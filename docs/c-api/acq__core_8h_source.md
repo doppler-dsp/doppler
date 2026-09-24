@@ -157,8 +157,10 @@ extern "C"
     double pfa_cell;  
     double pd;        
     double pd_predicted;  
+    double pd_burst; 
     double straddle_loss; 
     uint8_t underpowered; 
+    uint8_t burst; 
     uint64_t
         samples_consumed; 
     /* The peak list (docs/design/async-dsss-receiver.md §7.1): up to

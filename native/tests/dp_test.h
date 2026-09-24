@@ -265,6 +265,30 @@ static int dp_test_checks_ = 0;
     }                                                                         \
   while (0)
 
+/**
+ * DP_TEST_END for a main() whose stdout is DATA (an `--emit` mode a report
+ * parses): the same failing status, with nothing on stdout.
+ *
+ * A data mode that returned 0 unconditionally, to keep the PASSED banner
+ * out of its CSV, swallowed every DP_REQUIRE behind it: acq_template_pd's
+ * drift block failed its REQUIRE, emitted nothing, and exited 0, and the
+ * report died on a parse error two layers away (doppler#1498). The floor on
+ * zero checks does not apply -- a data mode may assert nothing by design.
+ *
+ * @param name  the harness's name, for the stderr line.
+ */
+#define DP_TEST_EMIT_END(name)                                                \
+  do                                                                          \
+    {                                                                         \
+      if (dp_test_fails_)                                                     \
+        {                                                                     \
+          fprintf (stderr, "%s FAILED (%d)\n", (name), dp_test_fails_);       \
+          return 1;                                                           \
+        }                                                                     \
+      return 0;                                                               \
+    }                                                                         \
+  while (0)
+
 /* ── Comparisons ─────────────────────────────────────────────────────────
  *
  * Seventeen copies of `_almost_eq`, seventeen of `_almost_eq_c`, five of

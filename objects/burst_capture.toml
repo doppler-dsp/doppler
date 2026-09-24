@@ -24,7 +24,7 @@ create_error_message = "BurstCapture: invalid parameter (need a non-empty preamb
 # BurstAcquisition's copy of this warning lives in its sacred fragment (see
 # the note at the top of objects/burst_acq.toml).
 warnings = [
-  { after = "__init__", condition = "underpowered", category = "UserWarning", message = "BurstCapture: the search cannot meet the requested pd at this cn0_dbhz and geometry (pd_predicted < pd). It still builds a best-effort grid, so the symptom is bursts that are never captured rather than an error. Lower pd, raise cn0_dbhz, or give the preamble more repetitions." },
+  { after = "__init__", condition = "underpowered", category = "UserWarning", message = "BurstCapture: the search cannot meet the requested pd at this cn0_dbhz and geometry (pd_burst < pd). It still builds a best-effort grid, so the symptom is bursts that are never captured rather than an error. Lower pd, raise cn0_dbhz, or give the preamble more repetitions." },
 ]
 # burst_acq and its transitive closure -- jm's depends_on linking is not
 # recursive, the same reason objects/dsss_burst_receiver.toml repeats it:
@@ -308,7 +308,7 @@ a capture never comes out."""
 name = "underpowered"
 type = "bool"
 field = true
-doc = "True when the search cannot meet the requested `pd` at this `cn0_dbhz` and geometry — `pd_predicted < pd`. The grid is still built, best-effort, so the symptom is bursts that are never captured rather than a failure. Construction also emits a UserWarning; this is the same fact as a value, for a caller that would rather ask than catch."
+doc = "True when the search cannot meet the requested `pd` at this `cn0_dbhz` and geometry — `pd_burst < pd`. The grid is still built, best-effort, so the symptom is bursts that are never captured rather than a failure. Construction also emits a UserWarning; this is the same fact as a value, for a caller that would rather ask than catch."
 
 [[burst_capture.properties]]
 name = "doppler_rate"
@@ -318,7 +318,12 @@ doc = "Doppler rate (Hz/s) the acquisition's coherent depth is bounded against: 
 [[burst_capture.properties]]
 name = "pd_predicted"
 type = "double"
-doc = "Detection probability the sized grid actually predicts at `cn0_dbhz`. The number behind `underpowered`, and the one to compare against the `pd` that was asked for."
+doc = "Detection probability of ONE dwell of the sized grid lying wholly inside the preamble, at `cn0_dbhz`. A burst gets about `reps/doppler_bins` dwells at an alignment it does not choose, so compare `pd_burst`, not this, against the `pd` that was asked for."
+
+[[burst_capture.properties]]
+name = "pd_burst"
+type = "double"
+doc = "Detection probability of one burst at `cn0_dbhz`: every dwell its preamble spans, at a uniform alignment against the stream, any one detecting. The number behind `underpowered`, and the one to compare against the `pd` that was asked for. It is the ENGINE's: a detection the capture then cannot resolve to the right start is not priced in. NaN with no design `cn0_dbhz`."
 
 # NOT `threshold`, which the engine also carries: it is the COHERENT gate and
 # is deliberately zeroed on the non-coherent path (acq_core.c:354), so it
@@ -339,7 +344,7 @@ doc = "Non-coherent detection gate — the one in force when `n_noncoh > 1`, whi
 [[burst_capture.properties]]
 name = "straddle_loss"
 type = "double"
-doc = "Correlation kept, worst case, by a burst landing BETWEEN grid points rather than on one. The search is a finite grid in Doppler and code phase, so a real burst almost never sits on a hypothesis exactly; this is what that costs, and it is already priced into `pd_predicted`."
+doc = "Correlation kept, worst case, by a burst landing BETWEEN grid points rather than on one. The search is a finite grid in Doppler and code phase, so a real burst almost never sits on a hypothesis exactly; this is what that costs, and it is already priced into `pd_predicted` and `pd_burst`."
 
 [[burst_capture.properties]]
 name = "doppler_bins"

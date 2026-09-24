@@ -266,6 +266,7 @@
 * **burst\_capture\_get\_min\_gap** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_n\_bursts** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_n\_noncoh** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
+* **burst\_capture\_get\_pd\_burst** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_pd\_predicted** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_pending** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))
 * **burst\_capture\_get\_preamble\_start** ([**burst\_capture\_core.h**](burst__capture__core_8h.md))

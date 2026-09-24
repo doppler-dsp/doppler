@@ -455,8 +455,10 @@ _acq_half_bin_check (void)
   if (!a)
     return 0;
 
-  /* The depth that makes the null sharp -- asserted so a future sizing
-     change cannot quietly move this test off the geometry it needs. */
+  /* The depth that makes the null sharp -- PINNED, not asserted of the
+     sizer: sizing on the burst's alignment picks a shallower depth here
+     (doppler#1498), and this test is about the geometry, not the sizer. */
+  DP_REQUIRE (acq_configure_search_raw (a, reps, 1) == 0);
   DP_CHECK (a->coherent_bins == reps);
   DP_CHECK (a->interp > 1);
   DP_CHECK (a->n_surf == a->n * a->interp);
@@ -1001,6 +1003,84 @@ _acq_template_check (void)
   return 0;
 }
 
+/* A burst engine is judged on the BURST (doppler#1498): its dwells are
+ * aligned to the stream, so a preamble of R repetitions at a uniform offset
+ * spans about R/D of them, whole or partial, and is detected when any one
+ * is. pd_burst is that Pd; pd_predicted stays ONE aligned dwell.
+ *
+ * Two facts hold by construction, at every C/N0, and are what this pins:
+ * while D <= (R + 1)/2 every alignment holds a whole dwell, so the burst can
+ * only add (pd_burst >= pd_predicted); at D = R almost no alignment does,
+ * so it must lose (pd_burst < pd_predicted). Then the sizer's three
+ * branches, on a 31-chip code at R = 8: a design point it meets picks the
+ * smallest D whose BURST Pd meets pd (54 dB-Hz: D = 4, where one dwell would
+ * have asked for 6); one it cannot meet takes the depth with the most burst
+ * Pd, not the deepest (50 dB-Hz: D = 6, not 8); one no depth gives the
+ * signal anything integrates the whole preamble, as no design C/N0 does
+ * (40 dB-Hz: D = 8). The Monte-Carlo evidence that the number itself is
+ * right is native/validation/capture_dwell_pd.c. */
+static int
+_acq_burst_pd_check (void)
+{
+  const size_t   sf = 31, spc = 4, reps = 8;
+  static uint8_t code31[31];
+  for (size_t i = 0; i < sf; i++)
+    code31[i] = (uint8_t)(((i * 2654435761u) >> 13) & 1u);
+
+  /* Pinned at every depth: the by-construction ordering. */
+  {
+    acq_state_t *a = burst_from_code (code31, sf, reps, spc, 1.0e6, 50.0, 0.0,
+                                      1e-3, 0.9, 0, 0.0);
+    DP_REQUIRE (a != NULL);
+    for (size_t d = 1; d <= reps; d++)
+      {
+        DP_REQUIRE (acq_configure_search_raw (a, d, 1) == 0);
+        DP_CHECK (!isnan (a->pd_burst));
+        if (2 * d <= reps + 1)
+          DP_CHECK (a->pd_burst >= a->pd_predicted);
+      }
+    DP_CHECK (a->pd_burst < a->pd_predicted); /* d == reps */
+    /* underpowered reads the burst: pinned at D = 6 the one dwell predicts
+       0.50 and the burst 0.34 -- both short of 0.9, but by the burst. */
+    DP_REQUIRE (acq_configure_search_raw (a, 6, 1) == 0);
+    DP_CHECK (a->underpowered == (a->pd_burst < 0.9));
+    /* Non-coherent looks on a burst have no alignment model. */
+    DP_REQUIRE (acq_configure_search_raw (a, 2, 2) == 0);
+    DP_CHECK (isnan (a->pd_burst) && !isnan (a->pd_predicted));
+    acq_destroy (a);
+  }
+
+  /* The sizer, at each of its three branches. */
+  {
+    const double cn0[3]   = { 54.0, 50.0, 40.0 };
+    const size_t depth[3] = { 4, 6, reps };
+    const int    under[3] = { 0, 1, 1 };
+    for (int k = 0; k < 3; k++)
+      {
+        acq_state_t *a = burst_from_code (code31, sf, reps, spc, 1.0e6, cn0[k],
+                                          0.0, 1e-3, 0.9, 0, 0.0);
+        DP_REQUIRE (a != NULL);
+        DP_CHECK (a->coherent_bins == depth[k]);
+        DP_CHECK (a->underpowered == under[k]);
+        DP_CHECK (a->underpowered == (a->pd_burst < 0.9));
+        acq_destroy (a);
+      }
+  }
+
+  /* A continuous engine has no burst to align -- checked where it runs ONE
+     coherent look, since non-coherent looks are NAN for their own reason
+     and would pass this vacuously (a first version did, at 50 dB-Hz). */
+  {
+    acq_state_t *c = acq_create_continuous (code31, sf, spc, 1.0e6, 0.0, 80.0,
+                                            0.0, 1e-3, 0.9, 0, 1, 0.0);
+    DP_REQUIRE (c != NULL);
+    DP_CHECK (c->n_noncoh == 1);
+    DP_CHECK (isnan (c->pd_burst) && !isnan (c->pd_predicted));
+    acq_destroy (c);
+  }
+  return 0;
+}
+
 /* The burst engine's coherent depth is bounded by a Doppler rate
  * (doppler#1482): at most floor(f_epoch / sqrt(2 * rate)) repetitions, so
  * the carrier's drift over one block stays inside half a slow-time row --
@@ -1430,6 +1510,7 @@ main (void)
   (void)_acq_configure_search_raw_check ();
   (void)_acq_template_check ();
   (void)_acq_doppler_rate_check ();
+  (void)_acq_burst_pd_check ();
   (void)_acq_half_bin_check ();
   (void)_acq_band_edge_check ();
   (void)_acq_band_mask_check ();

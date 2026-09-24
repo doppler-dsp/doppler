@@ -108,9 +108,9 @@ The per-cell false-alarm rate is the system rate divided across every searched c
 
 | uncertainty | doppler_bins | pfa per cell | threshold eta |
 |---|---|---|---|
-| 0.25 x span | 8 | 2.690e-06 | 5.0648 |
-| 0.5 x span | 8 | 1.614e-06 | 5.1647 |
-| 1 x span | 8 | 1.009e-06 | 5.2549 |
+| 0.25 x span | 7 | 2.690e-06 | 5.0648 |
+| 0.5 x span | 7 | 1.614e-06 | 5.1647 |
+| 1 x span | 7 | 1.153e-06 | 5.2294 |
 | 2 x span | 3 | 2.690e-06 | 5.0648 |
 | 4 x span | 5 | 1.614e-06 | 5.1647 |
 
@@ -207,9 +207,9 @@ A Doppler rate moves the carrier during a block and smears it across slow-time r
 
 | engine | D | `pd_predicted` | measured | +/- (1 sigma) | gap | never optimistic? |
 |---|---|---|---|---|---|---|
-| no ramp (control) | 12 | 0.921 | 0.952 | 0.004 | +0.031 | yes |
-| ramp (rate not given) | 12 | 0.921 | 0.648 | 0.009 | -0.273 | **no** |
-| ramp (rate given) | 4 | 0.325 | 0.329 | 0.009 | +0.004 | yes |
+| no ramp (control) | 10 | 0.922 | 0.955 | 0.004 | +0.033 | yes |
+| ramp (rate not given) | 10 | 0.922 | 0.843 | 0.007 | -0.079 | **no** |
+| ramp (rate given) | 4 | 0.443 | 0.455 | 0.009 | +0.012 | yes |
 
 
 Not told the rate, the engine is sized at the depth the Pd target alone picks and promises a Pd the ramp takes away. Told it, the depth is capped, the engine reports `underpowered`, and it predicts the Pd it delivers. A caller learns at construction that this link cannot be closed coherently, instead of from a quiet stream.

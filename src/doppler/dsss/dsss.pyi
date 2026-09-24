@@ -2106,7 +2106,7 @@ class BurstAcquisition:
     -----
     UserWarning
         Emitted after construction when ``underpowered`` holds:
-        ``BurstAcquisition is under-powered: pd_predicted < pd at this
+        ``BurstAcquisition is under-powered: pd_burst < pd at this
         reps/cn0_dbhz. Raise reps or cn0_dbhz, or narrow
         doppler_uncertainty.``.
 
@@ -2438,6 +2438,16 @@ class BurstAcquisition:
         """
 
     @property
+    def pd_burst(self) -> float:
+        """Predicted Pd of one burst of `reps` repetitions at cn0_dbhz: the
+        dwells are aligned to the stream, so the preamble lands at a uniform
+        offset and spans about reps/doppler_bins of them, whole or partial, and
+        the burst is detected when any one is. The number the sizer meets `pd`
+        with and `underpowered` is set from; pd_predicted is one aligned dwell.
+        NaN with no design cn0_dbhz or with n_noncoh > 1.
+        """
+
+    @property
     def straddle_loss(self) -> float:
         """Mean amplitude derating of the correlation peak from grid straddle
         (slow-time Doppler scalloping x intra-segment rotation x code-phase
@@ -2477,10 +2487,10 @@ class BurstAcquisition:
 
     @property
     def underpowered(self) -> bool:
-        """True when pd_predicted < pd -- the search cannot meet the target pd
-        at this cn0_dbhz and geometry. The engine still builds a best-effort
-        grid rather than failing; because C cannot raise a Python warning from
-        a successful create, construction also emits a UserWarning in this
+        """True when pd_burst < pd -- the search cannot meet the target pd at
+        this cn0_dbhz and geometry. The engine still builds a best-effort grid
+        rather than failing; because C cannot raise a Python warning from a
+        successful create, construction also emits a UserWarning in this
         case.
         """
 
@@ -3199,8 +3209,8 @@ class BurstCapture:
     UserWarning
         Emitted after construction when ``underpowered`` holds: ``BurstCapture:
         the search cannot meet the requested pd at this cn0_dbhz and geometry
-        (pd_predicted < pd). It still builds a best-effort grid, so the symptom
-        is bursts that are never captured rather than an error. Lower pd, raise
+        (pd_burst < pd). It still builds a best-effort grid, so the symptom is
+        bursts that are never captured rather than an error. Lower pd, raise
         cn0_dbhz, or give the preamble more repetitions.``.
 
     Examples
@@ -3673,7 +3683,7 @@ class BurstCapture:
     @property
     def underpowered(self) -> bool:
         """True when the search cannot meet the requested `pd` at this
-        `cn0_dbhz` and geometry — `pd_predicted < pd`. The grid is still built,
+        `cn0_dbhz` and geometry — `pd_burst < pd`. The grid is still built,
         best-effort, so the symptom is bursts that are never captured rather
         than a failure. Construction also emits a UserWarning; this is the same
         fact as a value, for a caller that would rather ask than catch.
@@ -3688,9 +3698,20 @@ class BurstCapture:
 
     @property
     def pd_predicted(self) -> float:
-        """Detection probability the sized grid actually predicts at
-        `cn0_dbhz`. The number behind `underpowered`, and the one to compare
-        against the `pd` that was asked for.
+        """Detection probability of ONE dwell of the sized grid lying wholly
+        inside the preamble, at `cn0_dbhz`. A burst gets about
+        `reps/doppler_bins` dwells at an alignment it does not choose, so
+        compare `pd_burst`, not this, against the `pd` that was asked for.
+        """
+
+    @property
+    def pd_burst(self) -> float:
+        """Detection probability of one burst at `cn0_dbhz`: every dwell its
+        preamble spans, at a uniform alignment against the stream, any one
+        detecting. The number behind `underpowered`, and the one to compare
+        against the `pd` that was asked for. It is the ENGINE's: a detection
+        the capture then cannot resolve to the right start is not priced in.
+        NaN with no design `cn0_dbhz`.
         """
 
     @property
@@ -3712,7 +3733,8 @@ class BurstCapture:
         """Correlation kept, worst case, by a burst landing BETWEEN grid points
         rather than on one. The search is a finite grid in Doppler and code
         phase, so a real burst almost never sits on a hypothesis exactly; this
-        is what that costs, and it is already priced into `pd_predicted`.
+        is what that costs, and it is already priced into `pd_predicted` and
+        `pd_burst`.
         """
 
     @property
@@ -3853,8 +3875,8 @@ class PersistentBurstCapture:
     UserWarning
         Emitted after construction when ``underpowered`` holds: ``BurstCapture:
         the search cannot meet the requested pd at this cn0_dbhz and geometry
-        (pd_predicted < pd). It still builds a best-effort grid, so the symptom
-        is bursts that are never captured rather than an error. Lower pd, raise
+        (pd_burst < pd). It still builds a best-effort grid, so the symptom is
+        bursts that are never captured rather than an error. Lower pd, raise
         cn0_dbhz, or give the preamble more repetitions.``.
 
     Examples
@@ -4336,7 +4358,7 @@ class PersistentBurstCapture:
     @property
     def underpowered(self) -> bool:
         """True when the search cannot meet the requested `pd` at this
-        `cn0_dbhz` and geometry — `pd_predicted < pd`. The grid is still built,
+        `cn0_dbhz` and geometry — `pd_burst < pd`. The grid is still built,
         best-effort, so the symptom is bursts that are never captured rather
         than a failure. Construction also emits a UserWarning; this is the same
         fact as a value, for a caller that would rather ask than catch.
@@ -4351,9 +4373,20 @@ class PersistentBurstCapture:
 
     @property
     def pd_predicted(self) -> float:
-        """Detection probability the sized grid actually predicts at
-        `cn0_dbhz`. The number behind `underpowered`, and the one to compare
-        against the `pd` that was asked for.
+        """Detection probability of ONE dwell of the sized grid lying wholly
+        inside the preamble, at `cn0_dbhz`. A burst gets about
+        `reps/doppler_bins` dwells at an alignment it does not choose, so
+        compare `pd_burst`, not this, against the `pd` that was asked for.
+        """
+
+    @property
+    def pd_burst(self) -> float:
+        """Detection probability of one burst at `cn0_dbhz`: every dwell its
+        preamble spans, at a uniform alignment against the stream, any one
+        detecting. The number behind `underpowered`, and the one to compare
+        against the `pd` that was asked for. It is the ENGINE's: a detection
+        the capture then cannot resolve to the right start is not priced in.
+        NaN with no design `cn0_dbhz`.
         """
 
     @property
@@ -4375,7 +4408,8 @@ class PersistentBurstCapture:
         """Correlation kept, worst case, by a burst landing BETWEEN grid points
         rather than on one. The search is a finite grid in Doppler and code
         phase, so a real burst almost never sits on a hypothesis exactly; this
-        is what that costs, and it is already priced into `pd_predicted`.
+        is what that costs, and it is already priced into `pd_predicted` and
+        `pd_burst`.
         """
 
     @property

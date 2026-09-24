@@ -212,13 +212,17 @@ def test_context_manager_releases_it():
 
 
 def make_persistent(path) -> PersistentBurstCapture:
+    """No design C/N0, as `make()`: these tests are about the file-backed
+    history, not the search. 55 dB-Hz used to sit here; sizing on the burst
+    (doppler#1498) then picks 3 of the 4 repetitions, and the extra dwells a
+    shallower grid searches put one seeded false alarm into a scene that
+    asserts exactly one window."""
     return PersistentBurstCapture(
         path,
         code_preamble(acq_code(), SPC),
         burst_len=BURST_LEN,
         reps=REPS,
         fs=CHIP_RATE * SPC,
-        cn0_dbhz=55.0,
     )
 
 
@@ -343,6 +347,7 @@ def test_the_search_is_visible():
     assert cap.doppler_span_hz > 0.0
     assert cap.doppler_res_hz > 0.0  # the engine's, readable before a push
     assert math.isnan(cap.pd_predicted)  # nothing to predict against
+    assert math.isnan(cap.pd_burst)
     assert cap.underpowered is False  # nothing to be under
     # The gates are real numbers, not zeros. `eta_nc` is the non-coherent
     # gate and reads 0.0 on the one-look grid a capture always sizes.
@@ -361,6 +366,8 @@ def test_the_search_is_visible():
         )
     assert weak.n_noncoh == 1 and weak.underpowered
     assert 0.0 <= weak.pd_predicted < 0.9
+    # `underpowered` reads the BURST Pd (doppler#1498).
+    assert 0.0 <= weak.pd_burst < 0.9
 
 
 def test_an_impossible_pd_says_so_rather_than_failing_quietly():
@@ -385,7 +392,7 @@ def test_an_impossible_pd_says_so_rather_than_failing_quietly():
             pd=0.99,
         )
     assert cap.underpowered is True
-    assert cap.pd_predicted < 0.99
+    assert cap.pd_burst < 0.99  # the number `underpowered` reads
 
 
 def test_the_cfar_mode_is_a_caller_choice():
@@ -479,6 +486,7 @@ def test_no_design_point_refines_exactly_at_any_depth(reps):
     )
     assert cap.doppler_bins == reps and cap.n_noncoh == 1
     assert not cap.underpowered and math.isnan(cap.pd_predicted)
+    assert math.isnan(cap.pd_burst)
 
     cap.push(x)
     starts = sorted(int(v) for v in cap.events()["preamble_start"])

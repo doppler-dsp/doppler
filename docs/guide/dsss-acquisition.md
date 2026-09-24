@@ -58,11 +58,12 @@ This is the usage walk-through. For the matched-filter surface it builds on, see
         cn0_dbhz=52,           # sensitivity (carrier-to-noise density, dB-Hz)
         pfa=1e-3, pd=0.9,      # target false-alarm / detection rates
     )
-    # The engine sized the grid: doppler_bins=8, code_bins=124, res≈4125 Hz.
-    # Sizing is honest: pd_predicted is the AVERAGE Pd over the straddle
-    # priors (random Doppler / code phase across the grid), not the
-    # on-grid best case — see acq.straddle_loss for the mean derating.
-    assert acq.pd_predicted >= acq.pd          # confirm it can meet the target
+    # The engine sized the grid: doppler_bins=6, code_bins=124, res≈5500 Hz.
+    # Sizing is honest: pd_burst is the Pd of the whole BURST -- every dwell
+    # its preamble spans, at an alignment it does not choose -- AVERAGED over
+    # the straddle priors (random Doppler / code phase across the grid), not
+    # the on-grid best case.
+    assert acq.pd_burst >= acq.pd              # confirm it can meet the target
 
     # demo capture: a real 31-chip DSSS burst in light noise, split into
     # cf32 blocks (any block size works — the engine reframes internally).
@@ -162,20 +163,28 @@ math uses (noise power = `N0·fs` over the sampled bandwidth):
 snr  = sqrt( 10**(cn0_dbhz/10) / fs )      # per-sample amplitude SNR
 ```
 
-Then it picks the **smallest** coherent depth `D ∈ [1, reps]` whose `D·code_bins`
-coherent samples meet `pd` — least latency for a strong signal, full `reps` for a
-weak one:
+Then it picks the **smallest** coherent depth `D ∈ [1, reps]` whose **burst** Pd
+meets `pd` — least latency for a strong signal:
 
 ```
 for D in 1 .. reps:
     cells     = searched_bins(D) · code_bins      # Bonferroni population
     pfa_cell  = 1 - (1 - pfa)**(1/cells)
     eta       = det_threshold(pfa_cell)           # √(-2 ln pfa_cell)
-    if mean_pd(snr, D, eta) ≥ pd: break  # Pd AVERAGED over the straddle
-                                         # priors (quadrature), not on-grid
-doppler_bins = D
+    if burst_pd(snr, D, reps, eta) ≥ pd: break
+doppler_bins = D     # none met: the D with the most burst Pd, underpowered
 threshold    = eta · √(2/π)                        # eta in mean-CFAR units
 ```
+
+`burst_pd` is what a caller actually gets from a burst. The engine searches
+non-overlapping dwells of `D` repetitions aligned to the stream, not to the
+burst, so a preamble of `reps` repetitions lands at a uniform offset and spans
+about `reps/D` dwells, some of them only partly. The burst is detected when any
+one of them is. A shallow `D` gets several chances; a deep one straddles the
+preamble's edge at most alignments and loses more than its coherence gains, so
+the sizer does not simply run to `reps` on a weak signal (doppler#1498). Each
+dwell's Pd is AVERAGED over the straddle priors (quadrature), not taken
+on-grid, with one Doppler and one code delay shared by every dwell of a burst.
 
 The chosen grid is exposed as **read-only** properties:
 
@@ -183,34 +192,34 @@ The chosen grid is exposed as **read-only** properties:
 acq = BurstAcquisition(preamble, reps=16, fs=1.023e6 * 4, cn0_dbhz=52,
                        pfa=1e-3, pd=0.9)
 
-acq.doppler_bins, acq.code_bins   # 8, 124    — the grid the engine chose
-acq.doppler_span_hz, acq.doppler_res_hz   # ±16500 Hz, 4125 Hz
+acq.doppler_bins, acq.code_bins   # 6, 124    — the grid the engine chose
+acq.doppler_span_hz, acq.doppler_res_hz   # ±16500 Hz, 5500 Hz
 acq.fs                            # 4.092e6   — the rate given
 acq.pfa_cell                      # per-cell false-alarm prob (Bonferroni)
 acq.eta                           # raw Rayleigh threshold √(-2 ln pfa_cell)
 acq.threshold                     # the CFAR gate actually applied (eta·√(2/π))
 acq.n_noncoh                      # non-coherent looks (1 = pure coherent)
-acq.pd_predicted, acq.underpowered   # achieved Pd, and whether it fell short
+acq.pd_burst, acq.underpowered    # the burst's Pd, and whether it fell short
+acq.pd_predicted                  # one dwell wholly inside the preamble
 ```
 
 ### Check `underpowered` after construction
 
-When the operating point is infeasible — even `reps` coherent repetitions plus
-the auto-selected non-coherent looks (up to an internal safety-valve ceiling of
-256 — not a caller-facing knob; see [Waveform vs. operator
-knobs](#waveform-vs-operator-knobs) below) cannot reach `pd` — auto-config does
-**not** raise; it builds a best-effort grid with `pd_predicted < pd`, sets
-`acq.underpowered = True`, and emits a `UserWarning`. Guard against shipping an
+When the operating point is infeasible — no coherent depth up to `reps` gives
+the burst `pd` — auto-config does **not** raise; it builds a best-effort grid
+at the depth with the most burst Pd, with `pd_burst < pd`, sets
+`acq.underpowered = True`, and emits a `UserWarning`. It does not add
+non-coherent looks: a burst has one frame of preamble, so a second look adds
+noise and moves the hit a frame late (doppler#1181). Guard against shipping an
 under-powered acquirer:
 
 ```python
-assert acq.pd_predicted >= acq.pd, f"under-powered: {acq.pd_predicted:.2f}"
+assert acq.pd_burst >= acq.pd, f"under-powered: {acq.pd_burst:.2f}"
 ```
 
 The levers that close a shortfall are a higher `cn0_dbhz` (if the signal really
-is stronger), more `reps` (deeper coherent integration), or a tighter
-`doppler_uncertainty`. Non-coherent looks (`n_noncoh`) already auto-engage once
-`reps` is exhausted — there's no separate opt-in for them.
+is stronger), more `reps` (a longer preamble), or a tighter
+`doppler_uncertainty`.
 
 `cn0_dbhz` is the universal sensitivity spec — carrier-to-noise **density** in
 dB-Hz, independent of sample rate. A stronger `cn0_dbhz` lets the engine reach
@@ -221,11 +230,11 @@ Doppler and code phase across the grid — see `acq.straddle_loss` for the
 mean amplitude derating), so the engine buys enough integration to meet
 `pd` in operation, not just on-grid:
 
-| `cn0_dbhz` | chosen `doppler_bins` (reps=16) | `pd_predicted` |
-| ---------- | ------------------------------- | -------------- |
-| 56         | 5                               | 0.94           |
-| 54         | 7                               | 0.91           |
-| 52         | 12                              | 0.92           |
+| `cn0_dbhz` | chosen `doppler_bins` (reps=16) | `pd_burst` | `pd_predicted` (one dwell) |
+| ---------- | ------------------------------- | ---------- | -------------------------- |
+| 56         | 1                               | 0.94       | 0.31                       |
+| 54         | 3                               | 0.95       | 0.68                       |
+| 52         | 6                               | 0.92       | 0.80                       |
 
 `noise_mode` selects the CFAR estimator (`"mean"` by default, which is what the
 analytic `threshold` assumes; `"median"` is more robust but is not analytically
@@ -358,12 +367,11 @@ The genuine receiver / operator knobs:
 | More sensitive within a known offset | tighter **`doppler_uncertainty`** (fewer cells → lower gate) |
 | Robust noise estimate (uncalibrated) | **`noise_mode="median"`**                                    |
 
-`reps` sets the coherent ceiling; the engine uses the *smallest* depth that meets
-`pd`, so raising `reps` only helps weak signals (a strong one still resolves in a
-few repetitions). Reaching below the coherent ceiling isn't a separate lever —
-once `reps` is exhausted, the engine auto-escalates non-coherent looks
-(`n_noncoh`, read-only) on its own, up to the internal 256-look safety valve;
-there's no `max_noncoh` to raise.
+`reps` is the preamble's length and the coherent ceiling; the engine uses the
+*smallest* depth whose burst Pd meets `pd`, so a strong signal resolves in a few
+repetitions. A longer preamble helps twice over: deeper dwells are possible, and
+every depth gets more dwells to detect in. A burst engine never adds
+non-coherent looks (`n_noncoh` stays 1), and there's no `max_noncoh` to raise.
 
 !!! warning "`reps` assumes a data-free coherent window"
 

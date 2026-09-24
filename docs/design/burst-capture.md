@@ -274,23 +274,29 @@ Written down first, so a later sweep measures them rather than confirming a
 decision already made.
 
 - **Does a dwell that runs into the data cost the capture Pd? — MEASURED, and
-    the burst Pd model is wrong in both directions.** A burst engine's dwells
-    of D repetitions are aligned to the stream, not the burst. Measured on
-    Zadoff-Chu 127 × R = 8 followed by QPSK data, each depth at the C/N0 where
-    the engine predicts 0.6 (`native/validation/capture_dwell_pd.c`, 1000
-    trials a row, each burst at a continuous delay). Delivered Pd falls from
-    0.900 at D = 1 to 0.631 at D = 4, 0.453 at D = 6 and 0.263 at D = 8.
+    the engine now sizes on the burst.** A burst engine's dwells of D
+    repetitions are aligned to the stream, not the burst, so a preamble of R
+    repetitions spans about R/D of them, whole or partial. One aligned dwell's
+    Pd (`pd_predicted`) was wrong in both directions: pessimistic at small D,
+    where a burst offers several dwells, and optimistic past D = (R + 1)/2,
+    where the detecting dwell straddles noise or data. Measured on Zadoff-Chu
+    127 × R = 8 then QPSK data, each depth at the C/N0 where one dwell
+    predicts 0.6, delivered Pd fell from 0.900 at D = 1 to 0.263 at D = 8.
 
-    - Up to D = (R + 1)/2 a whole dwell fits at every alignment. The capture
-        delivers more than predicted, because a burst offers about R/D
-        dwells and the model credits one.
-    - Past that it is optimistic, −0.07 at D = 5 and −0.35 at D = 8. The
-        detecting dwell straddles noise or data.
-    - The delay must be continuous. A first run put every burst on a whole
-        sample, which removes the code-phase straddle the model averages
-        over, and read up to 0.23 high. The fix is a Pd model over the
-        burst's alignment
-        ([#1498](https://github.com/doppler-dsp/doppler/issues/1498)).
+    `pd_burst` averages over the alignment, credits every dwell the preamble
+    spans, and shares one Doppler and code delay across them (drawing them
+    per dwell over-credited small D by up to 0.05). The sizer meets `pd` with
+    it, and `underpowered` reads it
+    ([#1498](https://github.com/doppler-dsp/doppler/issues/1498)). With each
+    depth at `pd_burst` = 0.6, the engine delivers 0.57–0.69 against it
+    (`native/validation/capture_dwell_pd.c`): within acq's bounds at every D
+    except D = 1, where the one-dwell model underneath is itself optimistic
+    ([#1501](https://github.com/doppler-dsp/doppler/issues/1501)). The
+    capture then loses a further 0.01–0.05 after the engine detects, which
+    nothing prices yet
+    ([#1502](https://github.com/doppler-dsp/doppler/issues/1502)). The delay
+    must be continuous: a first run put every burst on a whole sample and
+    read up to 0.23 high.
 
 - **Does the per-burst copy cost anything? — MEASURED at the test geometry,
     and no.** §5.1 chose a copy over a lifetime contract.

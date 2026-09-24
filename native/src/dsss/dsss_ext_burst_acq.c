@@ -99,9 +99,9 @@ BurstAcquisitionObj_init (BurstAcquisitionObject *self, PyObject *args,
   if (self->handle->underpowered)
     {
       if (PyErr_WarnEx (PyExc_UserWarning,
-                        "BurstAcquisition is under-powered: pd_predicted < "
-                        "pd at this reps/cn0_dbhz. Raise reps or cn0_dbhz, "
-                        "or narrow doppler_uncertainty.",
+                        "BurstAcquisition is under-powered: pd_burst < pd at "
+                        "this reps/cn0_dbhz. Raise reps or cn0_dbhz, or "
+                        "narrow doppler_uncertainty.",
                         1)
           < 0)
         return -1;
@@ -438,6 +438,17 @@ BurstAcquisition_getprop_pd_predicted (BurstAcquisitionObject *self,
   return PyFloat_FromDouble ((self->handle->engine->pd_predicted));
 }
 static PyObject *
+BurstAcquisition_getprop_pd_burst (BurstAcquisitionObject *self,
+                                   void                   *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  return PyFloat_FromDouble ((self->handle->engine->pd_burst));
+}
+static PyObject *
 BurstAcquisition_getprop_straddle_loss (BurstAcquisitionObject *self,
                                         void *Py_UNUSED (closure))
 {
@@ -567,6 +578,14 @@ static PyGetSetDef BurstAcquisition_getset[] = {
     "what the Monte-Carlo characterization measures rather than the on-grid "
     "best case.\n",
     NULL },
+  { "pd_burst", (getter)BurstAcquisition_getprop_pd_burst, NULL,
+    "Predicted Pd of one burst of `reps` repetitions at cn0_dbhz: the dwells "
+    "are aligned to the stream, so the preamble lands at a uniform offset and "
+    "spans about reps/doppler_bins of them, whole or partial, and the burst "
+    "is detected when any one is. The number the sizer meets `pd` with and "
+    "`underpowered` is set from; pd_predicted is one aligned dwell. NaN with "
+    "no design cn0_dbhz or with n_noncoh > 1.\n",
+    NULL },
   { "straddle_loss", (getter)BurstAcquisition_getprop_straddle_loss, NULL,
     "Mean amplitude derating of the correlation peak from grid straddle "
     "(slow-time Doppler scalloping x intra-segment rotation x code-phase "
@@ -591,10 +610,10 @@ static PyGetSetDef BurstAcquisition_getset[] = {
   { "pd", (getter)BurstAcquisition_getprop_pd, NULL,
     "Target detection probability.\n", NULL },
   { "underpowered", (getter)BurstAcquisition_getprop_underpowered, NULL,
-    "True when pd_predicted < pd -- the search cannot meet the target pd at "
-    "this cn0_dbhz and geometry. The engine still builds a best-effort grid "
-    "rather than failing; because C cannot raise a Python warning from a "
-    "successful create, construction also emits a UserWarning in this case.\n",
+    "True when pd_burst < pd -- the search cannot meet the target pd at this "
+    "cn0_dbhz and geometry. The engine still builds a best-effort grid rather "
+    "than failing; because C cannot raise a Python warning from a successful "
+    "create, construction also emits a UserWarning in this case.\n",
     NULL },
   { NULL }
 };
@@ -933,7 +952,7 @@ static PyTypeObject BurstAcquisitionObjType = {
     "-----\n"
     "UserWarning\n"
     "    Emitted after construction when ``underpowered`` holds:\n"
-    "    ``BurstAcquisition is under-powered: pd_predicted < pd at this\n"
+    "    ``BurstAcquisition is under-powered: pd_burst < pd at this\n"
     "    reps/cn0_dbhz. Raise reps or cn0_dbhz, or narrow\n"
     "    doppler_uncertainty.``.\n"
     "\n"

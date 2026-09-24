@@ -890,6 +890,18 @@ PersistentBurstCapture_getprop_pd_predicted (
   return PyFloat_FromDouble (burst_capture_get_pd_predicted (self->handle));
 }
 static PyObject *
+PersistentBurstCapture_getprop_pd_burst (PersistentBurstCaptureObject *self,
+                                         void *Py_UNUSED (closure))
+{
+  if (!self->handle)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "destroyed");
+      return NULL;
+    }
+  /* <<IMPLEMENT: return the computed or stored value>> */
+  return PyFloat_FromDouble (burst_capture_get_pd_burst (self->handle));
+}
+static PyObject *
 PersistentBurstCapture_getprop_eta (PersistentBurstCaptureObject *self,
                                     void *Py_UNUSED (closure))
 {
@@ -1103,10 +1115,10 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     NULL },
   { "underpowered", (getter)PersistentBurstCapture_getprop_underpowered, NULL,
     "True when the search cannot meet the requested `pd` at this `cn0_dbhz` "
-    "and geometry — `pd_predicted < pd`. The grid is still built, "
-    "best-effort, so the symptom is bursts that are never captured rather "
-    "than a failure. Construction also emits a UserWarning; this is the same "
-    "fact as a value, for a caller that would rather ask than catch.\n",
+    "and geometry — `pd_burst < pd`. The grid is still built, best-effort, so "
+    "the symptom is bursts that are never captured rather than a failure. "
+    "Construction also emits a UserWarning; this is the same fact as a value, "
+    "for a caller that would rather ask than catch.\n",
     NULL },
   { "doppler_rate", (getter)PersistentBurstCapture_getprop_doppler_rate, NULL,
     "Doppler rate (Hz/s) the acquisition's coherent depth is bounded against: "
@@ -1114,9 +1126,18 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "less than half a slow-time row per block. 0 is no bound.\n",
     NULL },
   { "pd_predicted", (getter)PersistentBurstCapture_getprop_pd_predicted, NULL,
-    "Detection probability the sized grid actually predicts at `cn0_dbhz`. "
-    "The number behind `underpowered`, and the one to compare against the "
-    "`pd` that was asked for.\n",
+    "Detection probability of ONE dwell of the sized grid lying wholly inside "
+    "the preamble, at `cn0_dbhz`. A burst gets about `reps/doppler_bins` "
+    "dwells at an alignment it does not choose, so compare `pd_burst`, not "
+    "this, against the `pd` that was asked for.\n",
+    NULL },
+  { "pd_burst", (getter)PersistentBurstCapture_getprop_pd_burst, NULL,
+    "Detection probability of one burst at `cn0_dbhz`: every dwell its "
+    "preamble spans, at a uniform alignment against the stream, any one "
+    "detecting. The number behind `underpowered`, and the one to compare "
+    "against the `pd` that was asked for. It is the ENGINE's: a detection the "
+    "capture then cannot resolve to the right start is not priced in. NaN "
+    "with no design `cn0_dbhz`.\n",
     NULL },
   { "eta", (getter)PersistentBurstCapture_getprop_eta, NULL,
     "Coherent detection gate: the normalised statistic a single-look decision "
@@ -1133,7 +1154,8 @@ static PyGetSetDef PersistentBurstCapture_getset[] = {
     "Correlation kept, worst case, by a burst landing BETWEEN grid points "
     "rather than on one. The search is a finite grid in Doppler and code "
     "phase, so a real burst almost never sits on a hypothesis exactly; this "
-    "is what that costs, and it is already priced into `pd_predicted`.\n",
+    "is what that costs, and it is already priced into `pd_predicted` and "
+    "`pd_burst`.\n",
     NULL },
   { "doppler_bins", (getter)PersistentBurstCapture_getprop_doppler_bins, NULL,
     "Doppler hypotheses searched — the coherent depth the sizer chose, "

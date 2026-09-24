@@ -23,12 +23,15 @@ for a code with good autocorrelation and one with poor. Both effects are
 real, and they are not the same size.
 
 The code dominates: at 59 dB-Hz a structured code whose peak-to-worst-
-sidelobe ratio is 1.07 finds 6% of offsets where an m-sequence finds 77%.
+sidelobe ratio is 1.07 finds 2% of offsets where a random code (2.07)
+finds 74%
+(measured 2026-09-23, `make characterize`, across one 372-sample frame).
 The mechanism is the CFAR reference — with a poor code the noise estimate
 is set by the code's own autocorrelation sidelobes rather than by noise, so
 a straddled preamble has no margin to give away.
 
-The framing is the residual: even a good code loses a band around mid-frame,
+The framing is the residual: even a good code loses a band of offsets (the
+first half of the frame, at the 3-of-4 depth the sizer picks here),
 because acquisition frames without overlap and a preamble falling across a
 boundary is split between two of them. That is doppler#1006.
 
@@ -73,18 +76,16 @@ from doppler.dsss import DsssBurstReceiver
 from doppler.wfm import crc16
 
 # ── Geometry ─────────────────────────────────────────────────────────────
-# Small enough to sweep in minutes, large enough that the coherent depth is
-# 4 -- which is what gives the refine stage four preamble positions to
-# discriminate between, and the slow-time FFT a Doppler axis worth having.
+# Small enough to sweep in minutes, large enough that the preamble is 4
+# repetitions -- which is what gives the refine stage four preamble
+# positions to discriminate between, and the slow-time FFT a Doppler axis
+# worth having.
 ACQ_SF, DATA_SF, SYNC_LEN = 31, 8, 13
 REPS, SPC, PAYLOAD = 4, 4, 32
 CHIP_RATE = 1.0e6
 FS = CHIP_RATE * SPC
 CODE_PERIOD = ACQ_SF * SPC  # one preamble repetition, in samples
-ACQ_FRAME = REPS * CODE_PERIOD  # acquisition's non-overlapping frame
-
 N_CAP = 40_000
-BASE_AT = 4 * ACQ_FRAME * 2  # a frame boundary, comfortably into the stream
 PUSH = 2048
 
 #: Offsets swept across one whole acquisition frame (left panel).
@@ -105,6 +106,35 @@ def _codes():
 
 
 ACQ_CODE, DATA_CODE, SYNC = _codes()
+
+
+def _acq_frame() -> int:
+    """Acquisition's non-overlapping frame, in samples, READ from a capture
+    built exactly as the receiver builds its own (its chips by bin_to_nrz,
+    held SPC samples, at the receiver's 55 dB-Hz).
+
+    It was ``REPS * CODE_PERIOD`` -- "the whole preamble" -- written down
+    rather than read. The sizer chose that depth until it began judging the
+    burst (doppler#1498), which picks 3 of the 4 repetitions here; a sweep
+    across the old constant then spanned a frame and a third.
+    """
+    from doppler.cvt import bin_to_nrz
+    from doppler.dsss import BurstCapture
+
+    nrz = np.zeros(ACQ_CODE.size, np.float32)
+    bin_to_nrz(np.asarray(ACQ_CODE, np.uint8), nrz)
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        cap = BurstCapture(
+            np.repeat(nrz, SPC).astype(np.complex64),
+            burst_len=BURST_LEN,
+            reps=REPS,
+            fs=FS,
+            cn0_dbhz=55.0,
+        )
+    return int(cap.doppler_bins) * CODE_PERIOD
 
 
 def _structured_codes():
@@ -154,6 +184,8 @@ def _burst(acq_code=None, data_code=None, sync=None) -> np.ndarray:
 
 BURST = _burst()
 BURST_LEN = BURST.size
+ACQ_FRAME = _acq_frame()  # acquisition's non-overlapping frame
+BASE_AT = 4 * ACQ_FRAME * 2  # a frame boundary, comfortably into the stream
 
 
 def cn0_dbhz(sigma: float) -> float:
@@ -266,7 +298,8 @@ def main(out_path: str | None = None) -> None:
 
     print(
         f"geometry: code period {CODE_PERIOD} samples, "
-        f"acquisition frame {ACQ_FRAME} (= the whole preamble), "
+        f"acquisition frame {ACQ_FRAME} "
+        f"({ACQ_FRAME // CODE_PERIOD} of the preamble's {REPS} periods), "
         f"burst {BURST_LEN}"
     )
 
@@ -307,7 +340,7 @@ def main(out_path: str | None = None) -> None:
     )
     print(
         "       A good code recovers most of it -- but not all. The "
-        "residual band around mid-frame"
+        "residual band of offsets"
     )
     print(
         "       is acquisition's NON-OVERLAPPING framing, and near the "

@@ -853,7 +853,12 @@ def _sec_blocks(d: Data) -> None:
     R.md()
 
     burst_len = BURST.size
-    gap = 3 * CODE_PERIOD
+    # The dead air the capture says a caller must leave, read from it. This
+    # was 3 code periods, under half of it: the scene broke the contract it
+    # certifies, and passed only while the sizer's depth happened to keep
+    # adjacent hits out of one claim (doppler#1498 moved it, and the first
+    # burst vanished at every block above 777).
+    gap = _rx().min_gap
     starts = [5000]
     for _ in range(2):
         starts.append(starts[-1] + burst_len + gap)
@@ -896,9 +901,17 @@ def _sec_blocks(d: Data) -> None:
 
     # One call carrying the whole capture must return all three, from THAT
     # call -- not one per call with the rest of the input abandoned.
+    # Counted by the payloads that decode, as `found` above: a false alarm
+    # in the noise also returns a frame, and its CRC is what marks it.
     rx = _rx()
     bits = rx.push(cap)
-    d.block_multi_in_one = bits.size == len(starts) * FRAME_SYMS
+    got = {
+        int(ev[0])
+        for i, ev in enumerate(rx.events())
+        if int(ev[0]) in starts
+        and _frame_ok(bits[i * FRAME_SYMS : (i + 1) * FRAME_SYMS])
+    }
+    d.block_multi_in_one = got == set(starts)
 
     R.table(["block size (samples)", "bursts decoded", "dropped"], rows)
     R.md()

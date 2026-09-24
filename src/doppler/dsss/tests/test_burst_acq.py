@@ -200,6 +200,7 @@ def test_no_design_point_is_the_default():
             code_preamble(CODE, SPC), reps=8, fs=CHIP_RATE * SPC
         )
     assert math.isnan(b.cn0_dbhz) and math.isnan(b.pd_predicted)
+    assert math.isnan(b.pd_burst)
     assert not b.underpowered and b.doppler_bins == 8
 
 
@@ -213,6 +214,7 @@ def test_a_negative_design_point_is_a_design_point():
         )
     assert b.cn0_dbhz == -5.0 and b.underpowered
     assert not np.isnan(b.pd_predicted)
+    assert not np.isnan(b.pd_burst)
 
 
 def test_an_infinite_design_point_is_refused():

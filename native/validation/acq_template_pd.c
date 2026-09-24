@@ -42,10 +42,12 @@
  *
  * A Doppler RATE is measured last (doppler#1482): a long Zadoff-Chu
  * preamble, sized by the engine, under a ramp -- once with the rate
- * withheld (the sizer picks D = 12 and promises a Pd the drift takes away)
+ * withheld (the sizer picks D = 10 and promises a Pd the drift takes away)
  * and once with it given (the depth caps at f_epoch/sqrt(2 rate) = 4 and
- * the prediction holds). Measured 2026-09-23 at 3000 trials: 0.921
- * promised, 0.648 delivered; told, 0.325 promised, 0.329 delivered.
+ * the prediction holds). Measured 2026-09-23 at 3000 trials: 0.922
+ * promised, 0.843 delivered; told, 0.443 promised, 0.455 delivered. (D was
+ * 12 and 0.648 delivered until the sizer judged the burst, doppler#1498:
+ * it no longer reaches so deep a block of 16.)
  *
  * Usage:
  *   validate_acq_template_pd            every template, every design point:
@@ -326,7 +328,11 @@ drift_rows (const tmpl_t *zc, int check)
       double       c = 70.0 - 0.25 * (double)step;
       acq_state_t *a = dp_xnn (acq_create_burst (zc->t, zc->n, reps, FS_T, c,
                                                  0.0, PFA, 0.9, 0, 0.0));
-      int          deep = a->coherent_bins >= 12 && !a->underpowered;
+      /* Deep, whether or not the sizer can also MEET pd there: sizing on
+         the burst (doppler#1498) no longer buys a 12-deep block of 16 that
+         meets it, since such a dwell straddles the preamble at most
+         alignments. What this needs is only a depth well past the cap. */
+      int deep = a->coherent_bins >= 10;
       acq_destroy (a);
       if (deep)
         {
@@ -429,7 +435,7 @@ main (int argc, char **argv)
           DP_CHECK (r.ok);
       }
   (void)drift_rows (&tp[0], check);
-  if (g_emit)
-    return 0; /* stdout is data: DP_TEST_END's banner would corrupt it */
+  if (g_emit) /* stdout is data: DP_TEST_END's banner would corrupt it */
+    DP_TEST_EMIT_END ("validate_acq_template_pd");
   DP_TEST_END ("validate_acq_template_pd");
 }

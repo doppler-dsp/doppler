@@ -673,12 +673,18 @@ jobs:
   # Documentation build (zensical)
   # ------------------------------------------------------------------
   docs:
-    needs: changes
+    needs: [pin, changes]
     # A version bump alone skips this (ci-changes, standard.mk); see `changes`.
     if: needs.changes.outputs.src == 'true'
     name: Docs
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # The pinned CI image (doppler#1524): measured against the bare runner.
+    container:
+      image: ${{ needs.pin.outputs.image_2404 }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
     - uses: actions/checkout@v7
@@ -763,9 +769,16 @@ jobs:
   # native/inc headers, generated CMakeLists, re-export __init__.py, wavegen.py)
   # is excluded in .pre-commit-config.yaml and guarded instead by manifest-drift.
   pre-commit:
+    needs: pin
     name: pre-commit (lint + format)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # The pinned CI image (doppler#1524): measured against the bare runner.
+    container:
+      image: ${{ needs.pin.outputs.image_2404 }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
     - uses: actions/checkout@v7
@@ -854,9 +867,16 @@ jobs:
       run: make ci-image-repin-check
 
   manifest-drift:
+    needs: pin
     name: jm manifest drift gate
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # The pinned CI image (doppler#1524): measured against the bare runner.
+    container:
+      image: ${{ needs.pin.outputs.image_2404 }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
     - uses: actions/checkout@v7

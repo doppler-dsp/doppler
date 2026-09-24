@@ -465,7 +465,9 @@ is not settled is its operating envelope.
     coherent slide reverses that, gaining about `10·log10(REPS)` where the
     boxcar gained `5·log10(REPS)` — swept at 300 trials a point, the
     correct-repetition rate at 39 dB-Hz went 0.59 → 0.70 at `REPS=5`,
-    0.60 → 0.81 at 10 and 0.54 → 0.80 at 16 (doppler#1312).
+    0.60 → 0.81 at 10 and 0.54 → 0.80 at 16 (doppler#1312). The slide has
+    since been replaced by scoring each repetition with acquisition's own
+    statistic (§3.4, doppler#1502); these figures record the step before.
 
     **`refine_margin` was removed** (doppler#1312). It reported the
     runner-up period over the winner, nothing in the library branched on
@@ -514,9 +516,10 @@ is not settled is its operating envelope.
     `dsss_burst_receiver_core.c`; it moved into the capture as
     `burst_capture_refine()` (`burst_capture_core.c`, §11.3). It does not compose `Corr` as this bullet
     guessed: the candidates are `anchor + k·P` and nothing between, so the
-    stage correlates one code period at each preamble position — through
-    `corr2d`'s known-lag mode, so the code replica has one home — and
-    combines the results coherently over a Doppler search (§3.4). The
+    stage scores each with acquisition's own statistic — `acq_cell_corr()`
+    of every period the preamble would occupy, so the replica has one home —
+    summed coherently over a Doppler search (§3.4; doppler#1502 replaced the
+    earlier per-period `corr2d` correlation with it). The
     decision followed phase 3, as this bullet asked — the wording stayed
     open long after the code closed it. Where refine LIVES is a separate
     question, and §11 answers it: out of this object, into `BurstCapture`,
@@ -955,7 +958,8 @@ A user of that bank who wants the burst has two routes, and both are bad.
     stream-absolute and there is no sweep — and §3.1 bites in full:
     `code_phase` is `burst_start mod code_bins`, so the caller must write
     refine themselves (one code-period correlation at each preamble position
-    across ±`REPS·P` candidates, non-coherently summed), plus the ring to
+    across ±`REPS·P` candidates, summed coherently over a Doppler search as
+    §3.4 does), plus the ring to
     reach back into, plus a retention rule, plus a claim rule keyed on
     `refine_span`. §3.2 says getting it wrong is a cliff: a burst one period
     out decodes as noise, not as a degraded frame.

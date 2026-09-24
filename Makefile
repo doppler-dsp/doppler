@@ -2301,15 +2301,30 @@ package-linux: ## Build the .deb and .rpm packages inside the manylinux_2_28 ima
 # consumer against /usr with nothing but find_package and pkg-config. The
 # floor (almalinux:8, glibc 2.28) is in the list on purpose: it is the claim
 # the manylinux build makes.
-PKG_SMOKE_DISTROS ?= debian:stable ubuntu:24.04 almalinux:8 fedora:latest
+#
+# The Ubuntu 24.04 leg runs on the pinned CI image, not stock ubuntu:24.04
+# (doppler#1524). What it checks is OUR packages, whose only archive
+# dependencies are libc6 and libc6-dev; what stock 24.04 had to download was
+# the consumer's toolchain, which the image already carries. So the leg loses
+# nothing and stops reaching a mirror that 404s mid-sync. The other three
+# stay stock: we have no image for them, and there the archive is the point.
+PKG_SMOKE_DISTROS ?= debian:stable $(CI_IMAGE_2404) almalinux:8 fedora:latest
 
 # $(call PKG_SMOKE_RUN,<target>,<packages dir, relative to the checkout>) --
 # the distro loop both package smokes run, so the packages CI just built and
 # the packages a user downloads are held to one script and one distro list.
 # Read-only mount: the script only reads the checkout (consumer sources).
+# The pinned-image leg runs with NO network: that is the claim it exists to
+# keep (the toolchain is baked, our packages install from local files). A
+# change that makes it NEED the archive -- a package the image lacks --
+# fails here ("Unable to locate package"), rather than quietly returning the
+# leg to the mirror it was moved off (doppler#1524). Offline, an
+# `apt-get update` only warns, so it can never fetch a newer candidate for
+# an install to upgrade to: the 404's other route is closed, not just seen.
 PKG_SMOKE_RUN = for d in $(PKG_SMOKE_DISTROS); do \
 	    echo ">> $$d"; \
-	    docker run --rm -v "$(CURDIR)":/w:ro -w /w $$d \
+	    net=; [ "$$d" = "$(CI_IMAGE_2404)" ] && net=--network=none; \
+	    docker run --rm $$net -v "$(CURDIR)":/w:ro -w /w $$d \
 	        bash tests/install/linux-package-smoke.sh /w/$(2) \
 	        || { echo "$(1): FAILED in $$d"; exit 1; }; \
 	 done; \
@@ -4041,6 +4056,7 @@ docker-runtime: ## Build+smoke the runtime "try it" image (needs the wheel on Py
 
 docker-sdk: ## Build+smoke the SDK / develop image (doppler-sdk)
 	docker build -f $(EXAMPLES_DOCKERFILE) --target sdk \
+	    --build-arg BUILD_BASE=$(CI_IMAGE_2404) \
 	    --build-arg JM_VERSION=$(JM_VERSION) \
 	    -t $(DOCKER_IMAGE)-sdk:$(DOCKER_TAG) .
 	bash scripts/smoke-image.sh sdk $(DOCKER_IMAGE)-sdk:$(DOCKER_TAG)
@@ -4049,6 +4065,7 @@ docker-downstream: ## Build+smoke the iqtools showcase image (doppler-downstream
 # The build itself runs `make test` inside the image, so a green build IS the
 # smoke; the run only confirms the shipped, pre-built package imports.
 	docker build -f $(EXAMPLES_DOCKERFILE) --target downstream-jm \
+	    --build-arg BUILD_BASE=$(CI_IMAGE_2404) \
 	    --build-arg JM_VERSION=$(JM_VERSION) \
 	    -t $(DOCKER_IMAGE)-downstream-jm:$(DOCKER_TAG) .
 	bash scripts/smoke-image.sh downstream \

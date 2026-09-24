@@ -39,16 +39,30 @@
 # entry point for the stream image. Keep the default in step with the
 # Makefile's GLIBC_IMAGE (= $(DOCKER_IMAGE)-glibc228:$(DOCKER_TAG)).
 ARG GLIBC_BASE=doppler-glibc228:dev
+# The builder's base. `make docker-sdk`/`docker-downstream` pass the pinned
+# CI image (.github/ci-images.env, doppler#1524): it is Ubuntu 24.04 with
+# the toolchain baked, so the builder installs nothing and never reaches a
+# live mirror. Only /opt/doppler leaves that stage, so the images people
+# pull are unchanged. The default keeps a raw `docker build` working.
+ARG BUILD_BASE=ubuntu:24.04
 
 # ── Stage 1: build + install doppler from this checkout ────────────────────
 # BUILD_PYTHON=OFF: none of these images need doppler's own Python extension
 # (the SDK builds downstream *bindings*, not doppler's), so the builder stays
 # a pure C toolchain. The build tree is kept in the stage so stream-services
 # can lift the native/examples streaming binaries straight out of it.
-FROM ubuntu:24.04 AS doppler-build
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential cmake ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+FROM ${BUILD_BASE} AS doppler-build
+# Only what is MISSING: on the CI image that is nothing, and an unconditional
+# install there would UPGRADE the baked packages to the index's candidates --
+# pool fetches, the request a mid-sync mirror 404s.
+RUN missing=""; \
+    for p in build-essential cmake ca-certificates; do \
+        dpkg -s "$p" >/dev/null 2>&1 || missing="$missing $p"; \
+    done; \
+    if [ -n "$missing" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends $missing \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 WORKDIR /src
 COPY . .
 RUN cmake -B build -S . -DBUILD_PYTHON=OFF -DCMAKE_BUILD_TYPE=Release \

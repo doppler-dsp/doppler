@@ -617,6 +617,8 @@
 
 ## o
 
+* **off\_peak** ([**acq\_shape\_t**](structacq__shape__t.md))
+* **off\_peak\_amp** ([**acq\_shape\_t**](structacq__shape__t.md))
 * **out\_buf** ([**acq\_state\_t**](structacq__state__t.md), [**detector2d\_state\_t**](structdetector2d__state__t.md), [**detector\_state\_t**](structdetector__state__t.md))
 * **occurrences** ([**ber\_align\_t**](structber__align__t.md))
 * **ok** ([**ber\_align\_t**](structber__align__t.md), [**frame\_check\_t**](structframe__check__t.md), [**wfm\_frame\_stage\_rx\_t**](structwfm__frame__stage__rx__t.md))

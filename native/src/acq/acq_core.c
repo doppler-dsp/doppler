@@ -770,6 +770,78 @@ acq_sinc (double u)
   return (u == 0.0) ? 1.0 : sin (M_PI * u) / (M_PI * u);
 }
 
+/* Gauss-Hermite nodes and weights (physicists') for E[f(X)], X Gaussian:
+   3 match 6 to 1e-5 on the Pd below (doppler#1501). */
+static const double ACQ_GH_X[3]
+    = { -1.224744871391589, 0.0, 1.224744871391589 };
+static const double ACQ_GH_W[3]
+    = { 0.295408975150919, 1.181635900603677, 0.295408975150919 };
+
+/* The Pd of one coherent cell at amplitude SNR `se` against the gate the
+ * engine actually runs: `eta` scaled by a noise reference MEASURED from the
+ * surface -- the mean magnitude of all `k` cells, the peak's own included
+ * (doppler#1501). `k` == 0 is noise known exactly: det_pd.
+ *
+ * The gate fires when the peak R clears T times the mean of the k cells, T
+ * = eta*sqrt(2/pi) in mean-magnitude units. Moving the peak's own share of
+ * that mean to the left: R (1 - T/k) > T (k-1)/k * S, so the peak faces an
+ * effective eta of T (k-1)/(k-T) * S, S the mean of the OTHER k-1 cells.
+ * S is Gaussian to good approximation -- Rayleigh cells of mean sqrt(pi/2)
+ * and variance (4-pi)/2 -- raised by the signal energy the straddle moved
+ * out of the peak and into them (`se_tot` is the node's unstraddled
+ * amplitude) and by the preamble's own correlation OFF the peak (`rho`,
+ * acq_shape_t.off_peak): a code's sidelobes and its chip triangle's
+ * neighbours sit in the reference's cells. Measured on a 7-chip code held 2
+ * samples a chip (14 cells at D = 1, 65 dB-Hz): the reference 72% high,
+ * the engine 0.229 against 0.955 with the noise known. A cell holding signal
+ * nu has mean magnitude ~ sqrt(pi/2 + nu^2): exact at nu = 0, nu for a large
+ * one, a few percent HIGH between. The energy is spread evenly over the k-1
+ * cells, and because the root is concave that is the most mean it can add -- a
+ * bound, not a guess. (A first version used the small-signal nu^2/4 and let
+ * the reference grow with the signal's POWER: a 28-cell surface at 90 dB-Hz
+ * could then never meet pd.) The limit k -> infinity is det_pd at eta exactly.
+ *
+ * Measured at D = 1 (127 cells; Zadoff-Chu 127, continuous delay, 6000
+ * trials): the engine 0.558 and 0.146 against a known-noise model of 0.611
+ * and 0.179 -- optimistic -- and 0.525 and 0.147 from this one. Excluding
+ * the peak from the reference recovered 0.045 of it, so the signal in its
+ * own reference is most of the loss. */
+static double
+acq_cfar_pd (double se, double se_tot, int n, double eta, double k,
+             const acq_shape_t *sh)
+{
+  const double t = eta * sqrt (2.0 / M_PI);
+  if (!(k > t + 1.0))
+    return det_pd (se, n, eta);
+  const double kk  = k - 1.0;
+  const double a2p = 2.0 * (double)n * se * se;
+  const double a2t = 2.0 * (double)n * se_tot * se_tot;
+  /* Everything off the peak: the preamble's own sidelobes plus what the
+     straddle slid out of the peak. A band-limited delay conserves the
+     correlation's energy, so the two are ONE budget, a2t (1 + E2) - a2p,
+     and it lies where the autocorrelation puts it: m = E1^2/E2 cells at
+     one level, which matches the true profile's added mean in both limits
+     (E2/(2 mu0) per unit power when weak, E1 per unit amplitude when
+     strong). Charging the straddle again on top counted a chip code's
+     triangle twice and capped its Pd below 1 at any SNR. A perfect
+     sequence has no profile (E2 = 0); its leak is spread over every cell,
+     which, the root being concave, is the most mean it can add. */
+  const double off = a2t * (1.0 + sh->off_peak) - a2p;
+  const double eo  = off > 0.0 ? off : 0.0;
+  const double m
+      = (sh->off_peak > 0.0 && sh->off_peak_amp > 0.0)
+            ? fmin (sh->off_peak_amp * sh->off_peak_amp / sh->off_peak, kk)
+            : kk;
+  const double mu
+      = (m * sqrt (M_PI / 2.0 + eo / m) + (kk - m) * sqrt (M_PI / 2.0)) / kk;
+  const double sd  = sqrt ((4.0 - M_PI) / 2.0 / (k - 1.0));
+  const double g   = t * (k - 1.0) / (k - t);
+  double       acc = 0.0;
+  for (int j = 0; j < 3; j++)
+    acc += ACQ_GH_W[j] * det_pd (se, n, g * (mu + M_SQRT2 * sd * ACQ_GH_X[j]));
+  return acc / sqrt (M_PI);
+}
+
 /* Midpoint nodes the burst Pd averages the preamble's alignment over. 8 is
    within 0.0013 of a 128-node reference across Zadoff-Chu 127 x 8 at every
    D (32 is within 1e-4 and costs 4x at every create, doppler#1498). */
@@ -795,10 +867,11 @@ acq_sinc (double u)
  * independent, and over-predicted Zadoff-Chu 127 x 8 by up to 0.05 at
  * D = 1 against the engine. */
 static double
-acq_burst_pd_at (double amp, size_t D, size_t reps, int n, double eta)
+acq_burst_pd_at (double amp, double tot, size_t D, size_t reps, int n,
+                 double eta, double k, const acq_shape_t *sh)
 {
   const double d = (double)D, r = (double)reps;
-  const double p1  = det_pd (amp, n, eta);
+  const double p1  = acq_cfar_pd (amp, tot, n, eta, k, sh);
   double       acc = 0.0;
   for (int o = 0; o < ACQ_ALIGN_NODES; o++)
     {
@@ -807,10 +880,15 @@ acq_burst_pd_at (double amp, size_t D, size_t reps, int n, double eta)
       const double rest  = r - first;        /* after it, in periods */
       const double whole = floor (rest / d);
       const double tail  = rest - whole * d; /* the last, partial dwell */
-      double miss = 1.0 - (first >= d ? p1 : det_pd (amp * first / d, n, eta));
+      double       miss
+          = 1.0
+            - (first >= d ? p1
+                          : acq_cfar_pd (amp * first / d, tot * first / d, n,
+                                         eta, k, sh));
       miss *= pow (1.0 - p1, whole);
       if (tail > 0.0)
-        miss *= 1.0 - det_pd (amp * tail / d, n, eta);
+        miss *= 1.0
+                - acq_cfar_pd (amp * tail / d, tot * tail / d, n, eta, k, sh);
       acc += 1.0 - miss;
     }
   return acc / ACQ_ALIGN_NODES;
@@ -826,10 +904,14 @@ acq_burst_pd_at (double amp, size_t D, size_t reps, int n, double eta)
  * `reps` == 0 is ONE dwell lying wholly inside the signal: `pd_predicted`,
  * and every continuous engine. `reps` > 0 is a BURST of that many
  * repetitions at a uniform alignment (acq_burst_pd_at, coherent only):
- * `pd_burst`. Same nodes, so the two numbers differ by the alignment alone. */
+ * `pd_burst`. Same nodes, so the two numbers differ by the alignment alone.
+ *
+ * `k_ref` is the cell count of the noise reference the coherent gate
+ * divides by (acq_cfar_pd); 0 prices the noise as known, as the
+ * non-coherent path and the uncalibrated CFAR modes still do. */
 static double
 acq_mean_pd (double snr, size_t D, double umax, const acq_shape_t *sh, int n,
-             double eta, int nc, size_t interp, size_t reps)
+             double eta, int nc, size_t interp, size_t reps, double k_ref)
 {
   const int    nd = 8, nu = 8, nk = ACQ_DELAY_LOSS_NODES;
   const double half_bin = 0.5 / (double)interp; /* the SAMPLED bin */
@@ -845,9 +927,10 @@ acq_mean_pd (double snr, size_t D, double umax, const acq_shape_t *sh, int n,
           for (int k = 0; k < nk; k++)
             {
               double se = snr * ls * li * sh->delay_loss[k];
-              acc += reps     ? acq_burst_pd_at (se, D, reps, n, eta)
+              acc += reps ? acq_burst_pd_at (se, snr, D, reps, n, eta, k_ref,
+                                             sh)
                      : nc > 1 ? det_pd_noncoherent (se, n, nc, eta)
-                              : det_pd (se, n, eta);
+                              : acq_cfar_pd (se, snr, n, eta, k_ref, sh);
             }
         }
     }
@@ -920,15 +1003,19 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
   st->underpowered = 0;
   if (snr > 0.0)
     {
+      /* The coherent gate divides by a reference measured over the whole
+         native surface: price that, in the mode the gate is derived for. */
+      const double k_ref
+          = st->noise_mode == DET_NOISE_MEAN ? (double)st->n : 0.0;
       st->pd_predicted = acq_mean_pd (snr, D, umax, &st->shape, (int)st->n,
-                                      gate, (int)nc, st->interp, 0);
+                                      gate, (int)nc, st->interp, 0, k_ref);
       /* A burst is judged on the burst: the Pd a caller of a burst engine
          gets is any dwell the preamble spans detecting. Non-coherent looks
          on a burst have no alignment model (see acq_auto_config_burst for
          why the sizer never picks them), so they keep the one-dwell Pd. */
       if (st->burst && nc == 1)
         st->pd_burst = acq_mean_pd (snr, D, umax, &st->shape, (int)st->n, gate,
-                                    1, st->interp, st->reps);
+                                    1, st->interp, st->reps, k_ref);
       st->underpowered
           = (uint8_t)((isnan (st->pd_burst) ? st->pd_predicted : st->pd_burst)
                       < pd);
@@ -951,7 +1038,8 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
  * target. */
 static size_t
 acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
-                     double pd, const acq_shape_t *sh, double du, double span)
+                     double pd, const acq_shape_t *sh, double du, double span,
+                     double k_ref)
 {
   const size_t interp = acq_interp_for (D, 1);
   const double umax   = acq_intra_umax (D, sb, du, span);
@@ -965,7 +1053,8 @@ acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
     {
       double e = (nc > 1) ? det_threshold_noncoherent (pc, (int)nc)
                           : det_threshold (pc);
-      if (acq_mean_pd (snr, D, umax, sh, (int)(D * cb), e, (int)nc, interp, 0)
+      if (acq_mean_pd (snr, D, umax, sh, (int)(D * cb), e, (int)nc, interp, 0,
+                       k_ref)
           >= pd)
         break;
       nc++;
@@ -1092,12 +1181,14 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
   int    met    = 0;
   for (size_t D = 1; D <= d_max; D++)
     {
-      size_t sb   = acq_searched_bins (D, du, span);
-      double umax = acq_intra_umax (D, sb, du, span);
-      double pc   = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
-      double eta  = det_threshold (pc);
+      size_t       sb   = acq_searched_bins (D, du, span);
+      double       umax = acq_intra_umax (D, sb, du, span);
+      double       pc   = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
+      double       eta  = det_threshold (pc);
+      const double k_ref
+          = st->noise_mode == DET_NOISE_MEAN ? (double)(D * cb) : 0.0;
       double p = acq_mean_pd (snr, D, umax, &st->shape, (int)(D * cb), eta, 1,
-                              acq_interp_for (D, 1), st->reps);
+                              acq_interp_for (D, 1), st->reps, k_ref);
       if (p >= pd)
         {
           best_d = D;
@@ -1111,7 +1202,8 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
          own false-alarm floor: far below the design point every depth's Pd
          is that floor, which grows with the dwell count and would pick
          D = 1, the least sensitive depth, for no signal at all. */
-      p -= acq_burst_pd_at (0.0, D, st->reps, (int)(D * cb), eta);
+      p -= acq_burst_pd_at (0.0, 0.0, D, st->reps, (int)(D * cb), eta, k_ref,
+                            &st->shape);
       if (p > best_p)
         {
           best_p = p;
@@ -1145,8 +1237,9 @@ acq_auto_config_continuous (const acq_state_t *st, size_t D, double pfa,
 
   *out_window_bins = window_bins;
   /* The searched Doppler cells are the tiles times the rows inside each. */
-  *out_nc = acq_ascend_n_noncoh (snr, D, window_bins * D, cb, pfa, pd,
-                                 &st->shape, du, span);
+  *out_nc = acq_ascend_n_noncoh (
+      snr, D, window_bins * D, cb, pfa, pd, &st->shape, du, span,
+      st->noise_mode == DET_NOISE_MEAN ? (double)(window_bins * D * cb) : 0.0);
 }
 
 /* ── Lifecycle ──────────────────────────────────────────────────────────── */
@@ -1609,6 +1702,44 @@ acq_shape_of_template (const float _Complex *t, size_t n, acq_shape_t *sh)
   free (buf);
 }
 
+/* The periodic autocorrelation OFF the peak, relative to it: its energy
+ * sum |R(m)|^2 / R(0)^2 and its amplitude sum |R(m)| / R(0) over m != 0,
+ * into sh->off_peak and sh->off_peak_amp. R is the inverse transform of
+ * the replica's power spectrum. The ONE home of both, for a code and a
+ * template alike (doppler#1501). A perfect sequence's off-peak lags are
+ * rounding (~1e-9 of R(0)); below 1e-6 they are counted as nothing. */
+static void
+acq_off_peak (const float _Complex *replica, size_t n, acq_shape_t *sh)
+{
+  double _Complex *buf  = dp_xmalloc (n * sizeof *buf);
+  double _Complex *spec = dp_xmalloc (n * sizeof *spec);
+  fft_state_t     *fwd  = dp_xnn (fft_create (n, -1, 1));
+  fft_state_t     *inv  = dp_xnn (fft_create (n, +1, 1));
+  for (size_t i = 0; i < n; i++)
+    buf[i] = (double)crealf (replica[i]) + I * (double)cimagf (replica[i]);
+  fft_execute_cf64 (fwd, buf, n, spec, n);
+  for (size_t k = 0; k < n; k++)
+    buf[k] = creal (spec[k]) * creal (spec[k])
+             + cimag (spec[k]) * cimag (spec[k]);
+  fft_execute_cf64 (inv, buf, n, spec, n); /* n * R(m) */
+  const double r0 = cabs (spec[0]);
+  double       e1 = 0.0, e2 = 0.0;
+  for (size_t m = 1; m < n; m++)
+    {
+      const double r = r0 > 0.0 ? cabs (spec[m]) / r0 : 0.0;
+      if (r < 1e-6)
+        continue;
+      e1 += r;
+      e2 += r * r;
+    }
+  sh->off_peak     = e2;
+  sh->off_peak_amp = e1;
+  fft_destroy (fwd);
+  fft_destroy (inv);
+  free (spec);
+  free (buf);
+}
+
 /* Shared builder: allocates and configures the engine, dropping straight
  * into whichever auto-sizer `continuous` selects.  Not declared in the
  * header -- acq_create_burst()/acq_create_continuous() are the only public
@@ -1651,9 +1782,10 @@ acq_acq_create_impl (const float _Complex *replica, size_t sf,
   if (!st)
     return NULL;
 
-  st->sf                  = sf;
-  st->spc                 = spc;
-  st->shape               = *shape;
+  st->sf    = sf;
+  st->spc   = spc;
+  st->shape = *shape;
+  acq_off_peak (replica, sf * spc, &st->shape);
   st->reps                = reps;
   st->code_bins           = sf * spc;
   st->chip_rate           = chip_rate;

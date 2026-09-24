@@ -127,7 +127,7 @@ Acquisition frames the stream sequentially and **without overlap**, so a preambl
 | acquisition code | peak / worst sidelobe | bursts found | rate |
 |---|---|---|---|
 | m-sequence | 31.00 | 8/8 | 100% |
-| structured | 1.07 | 3/8 | 38% |
+| structured | 1.07 | 4/8 | 50% |
 
 Same framing, same offsets, same noise — only the code differs. A peak-to-worst-sidelobe of 1.07 is barely a spreading code, and with sidelobes that high the CFAR reference is set by the code's own autocorrelation rather than by noise, so a straddled preamble has no margin left to give away. An m-sequence (31) absorbs the straddle (**True**).
 

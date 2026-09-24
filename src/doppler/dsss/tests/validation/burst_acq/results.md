@@ -56,7 +56,7 @@ One parameter is varied at a time and the object's whole derived state is compar
 | parameter varied | fields moved | which |
 |---|---|---|
 | reps 8 -> 16 | 4 | doppler_bins, eta, pfa_cell, reps |
-| preamble held 4 -> 8 samples a chip | 5 | code_bins, doppler_bins, doppler_span_hz, eta, pfa_cell |
+| preamble held 4 -> 8 samples a chip | 3 | code_bins, doppler_bins, doppler_span_hz |
 | fs 4 -> 8 MHz | 6 | doppler_bins, doppler_span_hz, eta, fs, pfa_cell, underpowered |
 | cn0_dbhz 55 -> 60 | 4 | cn0_dbhz, doppler_bins, eta, pfa_cell |
 | doppler_uncertainty 0 -> 60 kHz | 3 | doppler_bins, eta, pfa_cell |

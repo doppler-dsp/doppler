@@ -1012,25 +1012,29 @@ _acq_template_check (void)
  * while D <= (R + 1)/2 every alignment holds a whole dwell, so the burst can
  * only add (pd_burst >= pd_predicted); at D = R almost no alignment does,
  * so it must lose (pd_burst < pd_predicted). Then the sizer's three
- * branches, on a 31-chip code at R = 8: a design point it meets picks the
- * smallest D whose BURST Pd meets pd (54 dB-Hz: D = 4, where one dwell would
- * have asked for 6); one it cannot meet takes the depth with the most burst
- * Pd, not the deepest (50 dB-Hz: D = 6, not 8); one no depth gives the
+ * branches, on Zadoff-Chu 127 at R = 8 and fs = 1 (C/N0 is the per-sample
+ * SNR): a design point it meets picks the smallest D whose BURST Pd meets
+ * pd (-9 dB: D = 3); one it cannot meet takes the depth with the most burst
+ * Pd, not the deepest (-13 dB: D = 5, not 8); one no depth gives the
  * signal anything integrates the whole preamble, as no design C/N0 does
- * (40 dB-Hz: D = 8). The Monte-Carlo evidence that the number itself is
- * right is native/validation/capture_dwell_pd.c. */
+ * (-30 dB: D = 8). Zadoff-Chu, not a code: its correlation is clean, so the
+ * sizer's branches are not confounded with a code's sidelobes filling the
+ * CFAR reference (doppler#1501) -- the 31-chip code this used first needs
+ * D = R at every design point for that reason. The Monte-Carlo evidence
+ * that the number itself is right is native/validation/capture_dwell_pd.c. */
 static int
 _acq_burst_pd_check (void)
 {
-  const size_t   sf = 31, spc = 4, reps = 8;
-  static uint8_t code31[31];
-  for (size_t i = 0; i < sf; i++)
-    code31[i] = (uint8_t)(((i * 2654435761u) >> 13) & 1u);
+  const size_t n = 127, reps = 8;
+  static float _Complex zc[127];
+  for (size_t k = 0; k < n; k++)
+    zc[k] = (float _Complex)cexp (-I * M_PI * 5.0 * (double)k * (double)(k + 1)
+                                  / (double)n);
 
   /* Pinned at every depth: the by-construction ordering. */
   {
-    acq_state_t *a = burst_from_code (code31, sf, reps, spc, 1.0e6, 50.0, 0.0,
-                                      1e-3, 0.9, 0, 0.0);
+    acq_state_t *a
+        = acq_create_burst (zc, n, reps, 1.0, -13.0, 0.0, 1e-3, 0.9, 0, 0.0);
     DP_REQUIRE (a != NULL);
     for (size_t d = 1; d <= reps; d++)
       {
@@ -1040,8 +1044,7 @@ _acq_burst_pd_check (void)
           DP_CHECK (a->pd_burst >= a->pd_predicted);
       }
     DP_CHECK (a->pd_burst < a->pd_predicted); /* d == reps */
-    /* underpowered reads the burst: pinned at D = 6 the one dwell predicts
-       0.50 and the burst 0.34 -- both short of 0.9, but by the burst. */
+    /* underpowered reads the burst, at a depth where the two differ. */
     DP_REQUIRE (acq_configure_search_raw (a, 6, 1) == 0);
     DP_CHECK (a->underpowered == (a->pd_burst < 0.9));
     /* Non-coherent looks on a burst have no alignment model. */
@@ -1052,13 +1055,13 @@ _acq_burst_pd_check (void)
 
   /* The sizer, at each of its three branches. */
   {
-    const double cn0[3]   = { 54.0, 50.0, 40.0 };
-    const size_t depth[3] = { 4, 6, reps };
+    const double cn0[3]   = { -9.0, -13.0, -30.0 };
+    const size_t depth[3] = { 3, 5, reps };
     const int    under[3] = { 0, 1, 1 };
     for (int k = 0; k < 3; k++)
       {
-        acq_state_t *a = burst_from_code (code31, sf, reps, spc, 1.0e6, cn0[k],
-                                          0.0, 1e-3, 0.9, 0, 0.0);
+        acq_state_t *a = acq_create_burst (zc, n, reps, 1.0, cn0[k], 0.0, 1e-3,
+                                           0.9, 0, 0.0);
         DP_REQUIRE (a != NULL);
         DP_CHECK (a->coherent_bins == depth[k]);
         DP_CHECK (a->underpowered == under[k]);
@@ -1071,8 +1074,8 @@ _acq_burst_pd_check (void)
      coherent look, since non-coherent looks are NAN for their own reason
      and would pass this vacuously (a first version did, at 50 dB-Hz). */
   {
-    acq_state_t *c = acq_create_continuous (code31, sf, spc, 1.0e6, 0.0, 80.0,
-                                            0.0, 1e-3, 0.9, 0, 1, 0.0);
+    acq_state_t *c = acq_create_continuous (CODE7, 7, 2, 1.0e6, 0.0, 80.0,
+                                            200.0e3, 1e-2, 0.9, 0, 1, 0.0);
     DP_REQUIRE (c != NULL);
     DP_CHECK (c->n_noncoh == 1);
     DP_CHECK (isnan (c->pd_burst) && !isnan (c->pd_predicted));
@@ -1340,7 +1343,7 @@ main (void)
       }
   }
 
-  /* ── auto-config: a strong C/N0 needs only one coherent rep ──────────── */
+  /* ── auto-config: a strong C/N0 needs only a few coherent reps ───────── */
   acq_state_t *a = burst_from_code (CODE7, 7, 8, spc, crate, 65.0, 0.0, 1e-2,
                                     0.9, 0, 0.0);
   DP_CHECK (a != NULL);
@@ -1350,14 +1353,15 @@ main (void)
      period in samples (doppler#1470). */
   DP_CHECK (a->sf == nx && a->spc == 1);
   DP_CHECK (a->code_bins == nx);
-  /* Sizing averages Pd over the straddle priors (Jensen-honest). The
-   * delay straddle is the band-limited one a sampled chain has; with it one
-   * rep's AVERAGE Pd meets 0.9 at 65 dB-Hz (0.920). The analytic triangle
-   * of an ideal rectangular pulse charged a heavier tail and bought a
-   * second rep here. */
-  DP_CHECK (a->coherent_bins == 1);
+  /* Sizing averages Pd over the straddle priors (Jensen-honest) and prices
+   * the CFAR reference the gate divides by (doppler#1501). This said one
+   * rep met 0.9 here, predicting 0.920; the engine delivered 0.229 at one
+   * rep, 20000 trials. Its reference is 14 cells, and the code's own
+   * triangle and sidelobes inflated it 72%. Priced, the burst meets pd at
+   * three. */
+  DP_CHECK (a->coherent_bins == 3);
   DP_CHECK (a->n == a->coherent_bins * nx);
-  DP_CHECK (!a->underpowered && a->pd_predicted >= 0.9);
+  DP_CHECK (!a->underpowered && a->pd_burst >= 0.9);
   /* The CFAR reference spans the SURFACE, which is the interpolated grid
      the peak search runs over -- not the native cell count `n`. The two
      differ by `interp` since gh-1002; asserting `n - 1` here would pin the
@@ -1904,11 +1908,14 @@ main (void)
       DP_REQUIRE (sc != NULL);
       DP_CHECK (c->n_noncoh > 1);
       DP_CHECK (acq_surface_complex (c, sc, c->n_surf) == 0);
+      /* 80 dB-Hz: 70 did until the model priced the CFAR reference
+         (doppler#1501); a 7-chip code's sidelobes fill it, and 75 is the
+         first design point one look meets. */
       acq_state_t *cc = acq_create_continuous (
-          CODE7, sf, spc, crate, 0.0, 70.0, 200.0e3, 1e-2, 0.9, 0, 1, 0.0);
+          CODE7, sf, spc, crate, 0.0, 80.0, 200.0e3, 1e-2, 0.9, 0, 1, 0.0);
       DP_REQUIRE (cc != NULL);
       DP_REQUIRE_MSG (cc->n_noncoh == 1 && cc->n_surf == c->n_surf,
-                      "70 dB-Hz sizes one look on the same grid");
+                      "80 dB-Hz sizes one look on the same grid");
       DP_CHECK (acq_surface_complex (cc, sc, c->n_surf) == 0); /* no dwell */
       (void)acq_push (cc, x, nx, own, 16);
       DP_CHECK (cc->dwells == 1);

@@ -180,17 +180,20 @@ normalized units a design point cannot be stated yet (#1484).
     3000 trials a row, measured − predicted at the C/N0 where the model
     predicts 0.3 / 0.6 / 0.9):
 
-    | preamble                                                              | Δ Pd                      | mean \|delay error\| | reads as                            |
-    | --------------------------------------------------------------------- | ------------------------- | -------------------- | ----------------------------------- |
-    | code, 31 chips × 4 (control: §2.6 measured 0.740 ± 0.025, this 0.729) | +0.10                     | 0.4 samples          | the harness reproduces §2.6         |
-    | random-phase QPSK, 96                                                 | +0.01 / −0.00 / +0.01     | 0.2–0.3              | on the model                        |
-    | Zadoff-Chu, 127                                                       | +0.03 / +0.04 / +0.04     | 0.9–2.6              | conservative                        |
-    | chirp, 128                                                            | +0.07 / +0.11 / +0.07     | 0.3                  | conservative: the ridge slide above |
-    | QPSK 96, 5-tap low-passed                                             | **−0.03 / −0.01 / −0.02** | 0.4                  | **optimistic, 3σ: open (#1483)**    |
+    | preamble                                                              | Δ Pd                  | mean \|delay error\| | reads as                            |
+    | --------------------------------------------------------------------- | --------------------- | -------------------- | ----------------------------------- |
+    | code, 31 chips × 4 (control: §2.6 measured 0.740 ± 0.025, this 0.729) | +0.08                 | 0.4 samples          | the harness reproduces §2.6         |
+    | random-phase QPSK, 96                                                 | +0.04 / +0.04 / +0.04 | 0.2–0.3              | conservative                        |
+    | Zadoff-Chu, 127                                                       | +0.04 / +0.05 / +0.04 | 0.9–2.6              | conservative                        |
+    | chirp, 128                                                            | +0.08 / +0.12 / +0.08 | 0.3                  | conservative: the ridge slide above |
+    | QPSK 96, 5-tap low-passed                                             | +0.07 / +0.10 / +0.05 | 0.4                  | conservative                        |
 
-    One class breaks the "never optimistic" contract: a band-limited, shaped
-    template. The same symbols unshaped sit on the model, so the cause is the
-    shaping; #1483 lists the candidates.
+    Every class keeps the "never optimistic" contract. The shaped template
+    broke it (−0.01 to −0.03 at 3σ, #1483) until the model priced the CFAR
+    reference the gate divides by (#1501). That reference is the mean
+    magnitude of the whole surface, peak included, and a template's
+    correlation energy off its peak lands in it. Shaping spreads that energy;
+    a code's sidelobes spread far more.
 
 - **Delay–Doppler coupling is measured, not corrected.** A hit's reported
     delay is off by 0.3 samples on average for a chirp and up to 2.6 for

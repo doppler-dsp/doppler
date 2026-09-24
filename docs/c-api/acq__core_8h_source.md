@@ -74,6 +74,8 @@ extern "C"
     size_t zone; 
     double delay_loss_mean; 
     double delay_loss[ACQ_DELAY_LOSS_NODES]; 
+    double off_peak; 
+    double off_peak_amp; 
   } acq_shape_t;
 
   typedef struct

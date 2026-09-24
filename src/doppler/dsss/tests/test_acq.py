@@ -204,13 +204,14 @@ def _full_frames(l_pre):
 # band-limited one a sampled chain has, not an ideal pulse's triangle, and
 # 53 dB-Hz needs D=6, not 7. And again when the sizer began judging the
 # BURST (doppler#1498): 16 repetitions offer about 16/D dwells, so every
-# point needs less depth, and 57 dB-Hz collapsed onto 65's D=1 -- 55 dB-Hz
-# replaces it. Measured margins -- pd_burst at the chosen depth against one
-# shallower -- are 0.960 vs 0.853 (55 dB-Hz, D=2) and 0.935 vs 0.881
-# (53 dB-Hz, D=4): neither sits on the 0.9 knife-edge where a libm can flip
-# it.
+# point needs less depth, and 57 dB-Hz collapsed onto 65's D=1. And once
+# more when the model priced the CFAR reference the gate divides by
+# (doppler#1501), which buys a little depth back. Measured margins --
+# pd_burst at the chosen depth against one shallower -- are 0.953 vs 0.781
+# (56 dB-Hz, D=2) and 0.935 vs 0.893 (53 dB-Hz, D=5): neither sits on the
+# 0.9 knife-edge where a libm can flip it.
 @pytest.mark.parametrize(
-    "cn0_dbhz, want_db", [(65.0, 1), (55.0, 2), (53.0, 4)]
+    "cn0_dbhz, want_db", [(65.0, 1), (56.0, 2), (53.0, 5)]
 )
 def test_config_physics(cn0_dbhz, want_db):
     """C/N0 → snr, smallest coherent depth meeting Pd, and grid math."""

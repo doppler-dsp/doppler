@@ -23,15 +23,16 @@ for a code with good autocorrelation and one with poor. Both effects are
 real, and they are not the same size.
 
 The code dominates: at 59 dB-Hz a structured code whose peak-to-worst-
-sidelobe ratio is 1.07 finds 2% of offsets where a random code (2.07)
-finds 74%
-(measured 2026-09-23, `make characterize`, across one 372-sample frame).
+sidelobe ratio is 1.07 finds 3% of offsets where a random code (2.07)
+finds 65% (measured 2026-09-24, `make characterize`, across one 496-sample
+frame -- the whole preamble, the depth the sizer picks for this code once
+it prices the CFAR reference its sidelobes fill, doppler#1501).
 The mechanism is the CFAR reference — with a poor code the noise estimate
 is set by the code's own autocorrelation sidelobes rather than by noise, so
 a straddled preamble has no margin to give away.
 
-The framing is the residual: even a good code loses a band of offsets (the
-first half of the frame, at the 3-of-4 depth the sizer picks here),
+The framing is the residual: even a good code loses a band of offsets
+around mid-frame,
 because acquisition frames without overlap and a preamble falling across a
 boundary is split between two of them. That is doppler#1006.
 
@@ -114,9 +115,11 @@ def _acq_frame() -> int:
     held SPC samples, at the receiver's 55 dB-Hz).
 
     It was ``REPS * CODE_PERIOD`` -- "the whole preamble" -- written down
-    rather than read. The sizer chose that depth until it began judging the
-    burst (doppler#1498), which picks 3 of the 4 repetitions here; a sweep
-    across the old constant then spanned a frame and a third.
+    rather than read. It happens to be the depth again today, but it
+    moved twice in one week: judging the burst (doppler#1498) picked 3 of
+    the 4 repetitions, and pricing the CFAR reference (doppler#1501) went
+    back to 4. A sweep across a written-down frame is wrong the moment the
+    sizer disagrees with it.
     """
     from doppler.cvt import bin_to_nrz
     from doppler.dsss import BurstCapture

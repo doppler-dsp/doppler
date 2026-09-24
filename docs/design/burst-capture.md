@@ -288,12 +288,13 @@ decision already made.
     per dwell over-credited small D by up to 0.05). The sizer meets `pd` with
     it, and `underpowered` reads it
     ([#1498](https://github.com/doppler-dsp/doppler/issues/1498)). With each
-    depth at `pd_burst` = 0.6, the engine delivers 0.57–0.69 against it
-    (`native/validation/capture_dwell_pd.c`): within acq's bounds at every D
-    except D = 1, where the one-dwell model underneath is itself optimistic
+    depth at `pd_burst` = 0.6, the engine delivers 0.61–0.71 against it
+    (`native/validation/capture_dwell_pd.c`): conservative within acq's
+    bounds at every D. D = 1 was 0.045 optimistic until the model priced the
+    CFAR reference, 127 cells there and inflated by the burst itself
     ([#1501](https://github.com/doppler-dsp/doppler/issues/1501)). The
     capture then loses a further 0.01–0.05 after the engine detects, which
-    nothing prices yet
+    the model's margin covers but does not price
     ([#1502](https://github.com/doppler-dsp/doppler/issues/1502)). The delay
     must be continuous: a first run put every burst on a whole sample and
     read up to 0.23 high.

@@ -38,6 +38,8 @@ _What the engine knows about the SHAPE of the repeated preamble, beyond its samp
 | ---: | :--- |
 |  double | [**delay\_loss**](#variable-delay_loss)  <br> |
 |  double | [**delay\_loss\_mean**](#variable-delay_loss_mean)  <br> |
+|  double | [**off\_peak**](#variable-off_peak)  <br> |
+|  double | [**off\_peak\_amp**](#variable-off_peak_amp)  <br> |
 |  size\_t | [**zone**](#variable-zone)  <br> |
 
 
@@ -133,6 +135,40 @@ double acq_shape_t::delay_loss_mean;
 
 Mean amplitude kept over a uniform delay straddle of 0 to 1/2 sample. 
  
+
+
+        
+
+<hr>
+
+
+
+### variable off\_peak 
+
+```C++
+double acq_shape_t::off_peak;
+```
+
+
+
+Correlation energy OFF the peak, relative to it: sum over m != 0 of \|R(m)\|^2 / R(0)^2 for the periodic autocorrelation R. It lands in the cells the CFAR reference averages, so the Pd model charges it (doppler#1501): ~0 for a perfect sequence. Filled by the constructor from the replica, whatever built the rest. 
+
+
+        
+
+<hr>
+
+
+
+### variable off\_peak\_amp 
+
+```C++
+double acq_shape_t::off_peak_amp;
+```
+
+
+
+The same lags' AMPLITUDE: sum over m != 0 of \|R(m)\| / R(0). With off\_peak it says how concentrated that energy is, which sets how much mean it adds to the reference. 
 
 
         

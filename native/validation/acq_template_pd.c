@@ -33,19 +33,21 @@
  *
  * Each row is read against §2.6's bounds: measured Pd never below the
  * prediction by more than 2 sigma (never optimistic), never above it by more
- * than 0.15. Measured 2026-09-23 at 3000 trials a row (1.9 s): the control
- * lands on §2.6 (0.729 against its 0.740 +/- 0.025); QPSK sits on the model;
- * Zadoff-Chu is +0.03 conservative and the chirp +0.07..+0.10 -- the chirp's
- * peak slides along its ridge (~0.3 samples) instead of shrinking, so the
- * model's zero-delay rotation loss overstates it; the SHAPED QPSK is -0.02..
- * -0.03 optimistic at 3 sigma, an open finding (doppler#1483).
+ * than 0.15. Measured 2026-09-24 at 3000 trials a row: the control lands on
+ * §2.6 (0.729 against its 0.740 +/- 0.025); QPSK and Zadoff-Chu are ~+0.04
+ * conservative, the SHAPED QPSK +0.05..+0.10 and the chirp +0.08..+0.12 --
+ * the chirp's peak slides along its ridge (~0.3 samples) instead of
+ * shrinking, so the model's zero-delay rotation loss overstates it. The
+ * shaped QPSK was -0.02..-0.03 OPTIMISTIC (doppler#1483) until the model
+ * priced the CFAR reference its correlation energy off the peak inflates
+ * (doppler#1501).
  *
  * A Doppler RATE is measured last (doppler#1482): a long Zadoff-Chu
  * preamble, sized by the engine, under a ramp -- once with the rate
  * withheld (the sizer picks D = 10 and promises a Pd the drift takes away)
  * and once with it given (the depth caps at f_epoch/sqrt(2 rate) = 4 and
- * the prediction holds). Measured 2026-09-23 at 3000 trials: 0.922
- * promised, 0.843 delivered; told, 0.443 promised, 0.455 delivered. (D was
+ * the prediction holds). Measured 2026-09-24 at 3000 trials: 0.911
+ * promised, 0.843 delivered; told, 0.418 promised, 0.455 delivered. (D was
  * 12 and 0.648 delivered until the sizer judged the burst, doppler#1498:
  * it no longer reaches so deep a block of 16.)
  *

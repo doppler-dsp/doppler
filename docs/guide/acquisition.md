@@ -137,10 +137,16 @@ differ:
     A Zadoff-Chu sequence's ambiguity function is a ridge, not a spike. A
     carrier offset of one native bin (`fs / N`) moves its correlation peak
     by `u⁻¹ mod N` samples, where `u` is the root. With `u = 5`, `N = 127`
-    that is 51 samples a bin. Inside the native span the engine resolves
-    the Doppler before it correlates, so the delay comes out right. Beyond
-    it (see [Doppler](#doppler-span-uncertainty-and-rate)), a window tile's
-    reported delay carries that shift. A PN code has no such ridge.
+    that is 51 samples a bin, and the ridge is PERFECT: `k` bins of
+    Doppler with `k·u⁻¹` samples of delay correlate at full magnitude, for
+    every `k`. Inside the native span that is harmless, because the engine
+    resolves the Doppler before it correlates. Beyond it (see
+    [Doppler](#doppler-span-uncertainty-and-rate)), a periodic Zadoff-Chu
+    preamble cannot tell which tile its Doppler is in from its delay: every
+    tile finds an equally strong peak at a different lag. No search can fix
+    that; it is the sequence. Keep a Zadoff-Chu preamble's Doppler inside
+    `±fs / (2N)`, or choose a sequence with a single-peak ambiguity (a PN
+    code has no ridge).
 
 ______________________________________________________________________
 
@@ -296,14 +302,11 @@ ______________________________________________________________________
     span builds 7. Mind the [Zadoff-Chu coupling](#what-the-choice-of-sequence-costs)
     there.
 
-    !!! bug "`BurstCapture` does not widen yet"
-
-        `BurstCapture` accepts a wider `doppler_uncertainty` but still
-        searches only the native span, so a burst outside it aliases in:
-        with Zadoff-Chu, a start 51 samples off and a Doppler of 0
-        ([#1512](https://github.com/doppler-dsp/doppler/issues/1512)). Until
-        that is fixed, keep a capture's Doppler inside `±fs / (2N)`, or put
-        a coarse bank in front of it.
+    `BurstCapture` searches the same tiles and reports the burst's start
+    and its absolute Doppler, tile included
+    ([#1512](https://github.com/doppler-dsp/doppler/issues/1512)). That
+    holds for a preamble whose correlation has a single peak, such as a PN
+    code. It does not hold for Zadoff-Chu: see below.
 
 - **`doppler_rate`** (Hz/s) caps the coherent depth, so a carrier that moves
     during the preamble does not smear it. Leave it at 0 for a carrier that

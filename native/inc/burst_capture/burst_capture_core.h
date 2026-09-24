@@ -426,8 +426,13 @@ typedef struct
  * Give it the preamble -- one period of its SAMPLES -- and the geometry, say
  * how long a burst is, and stream samples in. It searches blindly, recovers
  * the exact preamble start, and hands back the burst's samples once they have
- * all arrived. The Doppler must lie inside the native span `+/- fs/(2n)`: a
- * wider @p doppler_uncertainty is accepted but not yet searched (#1512).
+ * all arrived. A @p doppler_uncertainty wider than the native span
+ * `+/- fs/(2n)` is searched in window tiles, and the event carries the
+ * absolute Doppler, tile included (doppler#1512) -- for a preamble with a
+ * single-peak ambiguity, such as a PN code. A Zadoff-Chu preamble cannot be
+ * resolved past the native span: its delay-Doppler ridge correlates at full
+ * magnitude at (k tiles, k*u^-1 samples) for every k, so keep its Doppler
+ * inside the span.
  *
  * The look-back buffer is NOT a parameter. Its span is derived from the
  * geometry here (detection lag + refine search + the burst itself), because
@@ -796,7 +801,8 @@ double burst_capture_get_pd_burst (const burst_capture_state_t *state);
 /** @brief Doppler rate (Hz/s) the coherent depth is bounded against; 0 is
  *         no bound. */
 double burst_capture_get_doppler_rate (const burst_capture_state_t *state);
-/** @brief Doppler hypotheses searched (the coherent depth). */
+/** @brief Doppler hypotheses searched: the coherent depth, or the window-tile
+ *         count past the native span -- acq_grid_bins() (doppler#1512). */
 size_t burst_capture_get_doppler_bins (const burst_capture_state_t *state);
 /** @brief Non-coherent looks combined per decision. */
 size_t burst_capture_get_n_noncoh (const burst_capture_state_t *state);

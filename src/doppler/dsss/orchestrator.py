@@ -5,9 +5,9 @@ within its *native* Doppler span, ``±chip_rate/(2*sf)`` (the slow-time FFT's
 unambiguous range — beyond it the per-segment integrate-and-dump's ``sinc``
 rolloff nulls the correlation at ``±2*span``).  Given a wider
 ``doppler_uncertainty`` it tiles the range itself, one epoch per window and no
-coherent depth.  To keep the coherent depth over a *wider* range — or to
-capture bursts there (``BurstCapture`` does not widen yet, doppler#1512) —
-this tiles ``K`` coarse-Doppler **channels**: each
+coherent depth, and ``BurstCapture`` captures across those tiles
+(doppler#1512).  To keep the coherent depth over a *wider* range, this tiles
+``K`` coarse-Doppler **channels**: each
 down-mixes its sub-band to baseband with a :class:`~doppler.ddc.DDC` and runs
 its own ``BurstAcquisition`` there, so the bank spans ``±doppler_uncertainty``.
 

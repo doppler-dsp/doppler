@@ -345,7 +345,7 @@ doc = "Correlation kept, worst case, by a burst landing BETWEEN grid points rath
 [[burst_capture.properties]]
 name = "doppler_bins"
 type = "size_t"
-doc = "Doppler hypotheses searched — the coherent depth the sizer chose, bounded by `reps`. `configure_search_raw` is what pins it."
+doc = "Doppler hypotheses searched: the coherent depth the sizer chose (bounded by `reps`), or, when `doppler_uncertainty` exceeds the native span, the window-tile count. The same number `BurstAcquisition.doppler_bins` reads. `configure_search_raw` pins it."
 
 [[burst_capture.properties]]
 name = "n_noncoh"

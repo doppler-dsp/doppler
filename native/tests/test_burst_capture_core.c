@@ -1966,6 +1966,83 @@ test_refine_scores_every_detected_phase (void)
   return 0;
 }
 
+/** A doppler_uncertainty wider than the native span is SEARCHED, and a
+ *  burst in any tile comes back at its true start and its true Doppler --
+ *  not modulo the span (doppler#1512).
+ *
+ * The engine tiles the range with windows one span wide. The capture used
+ * to read back only the coherent depth (1), convert every hit's bin over
+ * that one bin (so each tiled hit read 0 Hz), and fold refine's cells about
+ * 0, mixing a burst in any other tile at the wrong frequency. A 127-chip
+ * m-sequence, one sample a chip, 8 repetitions, uncertainty two spans each
+ * side: carriers inside the native span, mid-tile and near tile edges, both
+ * signs.
+ *
+ * A PN code, deliberately. A periodic Zadoff-Chu preamble cannot pass this
+ * and no capture could make it: its delay-Doppler ridge correlates at FULL
+ * magnitude at (k tiles, k*u^-1 samples) for every k, so beyond the native
+ * span its Doppler tile and its delay are one unknown. That is documented
+ * on burst_capture_create(), not a defect to pin.
+ */
+static int
+test_a_wide_doppler_search_is_searched (void)
+{
+  enum
+  {
+    NP  = 127,
+    RP  = 8,
+    PAY = 400
+  };
+  uint8_t     code[NP];
+  pn_state_t *pn = pn_create (pn_mls_poly (7), 1u, 7u, 0);
+  DP_REQUIRE (pn != NULL);
+  for (size_t i = 0; i < NP; i++)
+    code[i] = pn_step (pn);
+  pn_destroy (pn);
+  float _Complex *pre = dp_code_preamble (code, NP, 1);
+
+  static float _Complex cap[40000];
+  static float _Complex out[4 * (RP * NP + PAY)];
+  const size_t n_cap = sizeof cap / sizeof *cap;
+  const size_t at    = 9001u;
+  const double span  = 1.0 / (double)NP; /* one tile, cycles/sample */
+  const double fr[]  = { 0.3, 0.9, 1.5, 2.2, 2.45, -1.2, -1.9, -2.45 };
+  for (size_t j = 0; j < sizeof fr / sizeof *fr; j++)
+    {
+      const double f  = fr[j] * span;
+      uint32_t     st = 1512u + (uint32_t)j;
+      for (size_t i = 0; i < n_cap; i++)
+        {
+          const float re = (float)(0.02 * dp_gauss (&st));
+          const float im = (float)(0.02 * dp_gauss (&st));
+          cap[i]         = re + im * I;
+        }
+      for (size_t i = 0; i < RP * NP; i++)
+        cap[at + i] += pre[i % NP]
+                       * (float _Complex)cexp (I * 2.0 * M_PI * f * (double)i);
+
+      burst_capture_state_t *s
+          = burst_capture_create (pre, NP, RP * NP + PAY, RP, 1.0,
+                                  ACQ_CN0_NONE, 2.5 * span, 1e-6, 0.9, 0, 0.0);
+      DP_REQUIRE (s != NULL);
+      /* The read-back is the grid the engine searches. */
+      DP_CHECK (burst_capture_get_doppler_bins (s)
+                == acq_grid_bins (s->acq->engine));
+      DP_CHECK (burst_capture_get_doppler_bins (s) > 1);
+      size_t n
+          = burst_capture_push (s, cap, n_cap, out, sizeof out / sizeof *out);
+      const burst_capture_event_t *ev = burst_capture_event_at (s, 0);
+      DP_CHECK (n == RP * NP + PAY);
+      DP_REQUIRE (ev != NULL);
+      DP_CHECK (ev->preamble_start == at);
+      /* Absolute, not modulo 1/P: the tile is part of the answer. */
+      DP_CHECK (fabs (ev->doppler_hz_est - f) <= ev->doppler_res_hz);
+      burst_capture_destroy (s);
+    }
+  free (pre);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1982,6 +2059,8 @@ main (void)
   if (test_refine_wraps_its_doppler_cells ())
     return 1;
   if (test_refine_scores_every_detected_phase ())
+    return 1;
+  if (test_a_wide_doppler_search_is_searched ())
     return 1;
   if (test_every_burst_is_emitted_once ())
     return 1;

@@ -309,6 +309,19 @@ extern "C"
    * search, its hand-off, and any composing receiver -- now includes the
    * SAME inline rather than restating the formula. */
 
+  static inline size_t
+  acq_grid_bins (const acq_state_t *state)
+  {
+    return state->window_bins * state->coherent_bins;
+  }
+
+  static inline double
+  acq_bin_doppler_hz (const acq_state_t *state, size_t doppler_bin)
+  {
+    return (double)dp_fftfreq_index (doppler_bin, acq_grid_bins (state))
+           * state->doppler_res_hz;
+  }
+
   void acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
                           size_t code_len, size_t spc, acq_handoff_t *out);
 

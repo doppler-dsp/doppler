@@ -2340,8 +2340,11 @@ class BurstCapture:
 
     @property
     def doppler_bins(self) -> int:
-        """Doppler hypotheses searched — the coherent depth the sizer chose,
-        bounded by `reps`. `configure_search_raw` is what pins it.
+        """Doppler hypotheses searched: the coherent depth the sizer chose
+        (bounded by `reps`), or, when `doppler_uncertainty` exceeds the native
+        span, the window-tile count. The same number
+        `BurstAcquisition.doppler_bins` reads. `configure_search_raw` pins
+        it.
         """
 
     @property
@@ -3019,8 +3022,11 @@ class PersistentBurstCapture:
 
     @property
     def doppler_bins(self) -> int:
-        """Doppler hypotheses searched — the coherent depth the sizer chose,
-        bounded by `reps`. `configure_search_raw` is what pins it.
+        """Doppler hypotheses searched: the coherent depth the sizer chose
+        (bounded by `reps`), or, when `doppler_uncertainty` exceeds the native
+        span, the window-tile count. The same number
+        `BurstAcquisition.doppler_bins` reads. `configure_search_raw` pins
+        it.
         """
 
     @property

@@ -82,7 +82,7 @@ _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#d
 |  size\_t | [**burst\_capture\_events\_max\_out**](#function-burst_capture_events_max_out) ([**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state, size\_t n) <br>_Records available from the last push()._ `n` _is ignored._ |
 |  double | [**burst\_capture\_get\_cn0\_dbhz\_est**](#function-burst_capture_get_cn0_dbhz_est) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  size\_t | [**burst\_capture\_get\_code\_bins**](#function-burst_capture_get_code_bins) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Code-phase hypotheses per Doppler row._  |
-|  size\_t | [**burst\_capture\_get\_doppler\_bins**](#function-burst_capture_get_doppler_bins) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Doppler hypotheses searched (the coherent depth)._  |
+|  size\_t | [**burst\_capture\_get\_doppler\_bins**](#function-burst_capture_get_doppler_bins) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Doppler hypotheses searched: the coherent depth, or the window-tile count past the native span_  _acq\_grid\_bins() (doppler#1512)._ |
 |  double | [**burst\_capture\_get\_doppler\_hz\_est**](#function-burst_capture_get_doppler_hz_est) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
 |  double | [**burst\_capture\_get\_doppler\_rate**](#function-burst_capture_get_doppler_rate) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br>_Doppler rate (Hz/s) the coherent depth is bounded against; 0 is no bound._  |
 |  double | [**burst\_capture\_get\_doppler\_res\_hz**](#function-burst_capture_get_doppler_res_hz) (const [**burst\_capture\_state\_t**](structburst__capture__state__t.md) \* state) <br> |
@@ -248,7 +248,7 @@ burst_capture_state_t * burst_capture_create (
 
 
 
-Give it the preamble  one period of its SAMPLES  and the geometry, say how long a burst is, and stream samples in. It searches blindly, recovers the exact preamble start, and hands back the burst's samples once they have all arrived. The Doppler must lie inside the native span `+/- fs/(2n)`: a wider `doppler_uncertainty` is accepted but not yet searched (#1512).
+Give it the preamble  one period of its SAMPLES  and the geometry, say how long a burst is, and stream samples in. It searches blindly, recovers the exact preamble start, and hands back the burst's samples once they have all arrived. A `doppler_uncertainty` wider than the native span `+/- fs/(2n)` is searched in window tiles, and the event carries the absolute Doppler, tile included (doppler#1512)  for a preamble with a single-peak ambiguity, such as a PN code. A Zadoff-Chu preamble cannot be resolved past the native span: its delay-Doppler ridge correlates at full magnitude at (k tiles, k\*u^-1 samples) for every k, so keep its Doppler inside the span.
 
 
 The look-back buffer is NOT a parameter. Its span is derived from the geometry here (detection lag + refine search + the burst itself), because every term is already known and a caller asked to size a history buffer is a caller handed a way to lose bursts silently.
@@ -569,7 +569,7 @@ size_t burst_capture_get_code_bins (
 
 ### function burst\_capture\_get\_doppler\_bins 
 
-_Doppler hypotheses searched (the coherent depth)._ 
+_Doppler hypotheses searched: the coherent depth, or the window-tile count past the native span_  _acq\_grid\_bins() (doppler#1512)._
 ```C++
 size_t burst_capture_get_doppler_bins (
     const burst_capture_state_t * state

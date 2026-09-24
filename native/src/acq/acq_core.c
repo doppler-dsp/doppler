@@ -2317,9 +2317,7 @@ acq_build_handoff (const acq_state_t *state, const acq_result_t *hit,
   /* Shared with the wideband search's own row->roll mapping — see
      dp_fftfreq_index()'s doc comment for the sign inversion that a second,
      drifted copy of this formula used to cause here. */
-  long   k_fold = dp_fftfreq_index (hit->doppler_bin,
-                                    state->window_bins * state->coherent_bins);
-  double doppler_hz = (double)k_fold * state->doppler_res_hz;
+  double doppler_hz = acq_bin_doppler_hz (state, hit->doppler_bin);
 
   /* The dwell's dilation (doppler#1254): the non-coherent sum's peak is the
      phase at the middle of the dwell; the seed is wanted at its end. A

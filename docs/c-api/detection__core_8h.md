@@ -538,7 +538,7 @@ k -&gt; infinity is [**det\_pd()**](detection__core_8h.md#function-det_pd) at `t
 
 **Returns:**
 
-Detection probability in [0, 1].
+Detection probability, between 0 and 1.
 
 
 

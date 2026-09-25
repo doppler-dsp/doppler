@@ -733,7 +733,7 @@ double det_snr_to_cn0(double snr, double fs);
  *                    none.
  * @param leak_cells  Cells that energy is spread over, at most k-1; <= 0
  *                    spreads it over all of them.
- * @return            Detection probability in [0, 1].
+ * @return            Detection probability, between 0 and 1.
  *
  * @code
  * >>> from doppler.detection import det_pd, det_pd_cfar, det_threshold

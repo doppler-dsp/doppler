@@ -1132,7 +1132,7 @@ static PyMethodDef detection_module_methods[] = {
     "Returns\n"
     "-------\n"
     "float\n"
-    "    Detection probability in [0, 1].\n"
+    "    Detection probability, between 0 and 1.\n"
     "\n"
     "Examples\n"
     "--------\n"

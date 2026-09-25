@@ -1377,7 +1377,7 @@ def det_pd_cfar(
     Returns
     -------
     float
-        Detection probability in [0, 1].
+        Detection probability, between 0 and 1.
 
     Examples
     --------

@@ -128,7 +128,7 @@
 
 /** @brief Half-width of the per-CADU marker CONFIRMATION window, in decoded
  *  bits. Narrow on purpose: a tracking receiver does not re-acquire every
- *  frame, and searching wide here would turn a Bonferroni correction over 33
+ *  frame, and searching wide here would turn a Sidak correction over 33
  *  lags into one over tens of thousands — measuring the search rather than
  *  the marker. `rx_frame_fer.c` draws the same distinction. */
 #define SYNC_SPAN 16u

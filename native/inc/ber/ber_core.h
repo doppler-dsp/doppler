@@ -44,7 +44,7 @@
  * truth exists — a stretch of the truth sequence itself). It returns the lag
  * and the absolute carrier phase from the correlation peak, gated by a
  * false-alarm probability through the canonical detection primitives and
- * Bonferroni-corrected over the lags searched. A marker too short to identify
+ * Sidak-corrected over the lags searched. A marker too short to identify
  * an alignment reports `ok = 0` rather than a plausible wrong lag, and the
  * marker's own symbols are excluded from scoring so the symbols that fixed the
  * alignment cannot also flatter the rate.

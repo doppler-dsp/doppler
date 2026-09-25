@@ -244,8 +244,9 @@ ber_align_detect (const float _Complex *rx, size_t rx_len,
       /* Normalize to the unit-variance-per-quadrature convention the detection
          module's thresholds use: R^2 = sum_k |C_k|^2 / (sigma^2/2), whose null
          distribution is exactly marcum_q(K, 0, R). */
-      a.stat      = sqrt (2.0 * stat[best] / floor_pk);
-      a.threshold = det_threshold_noncoherent (pfa / (double)nl, ki);
+      a.stat = sqrt (2.0 * stat[best] / floor_pk);
+      a.threshold
+          = det_threshold_noncoherent (det_pfa_cell (pfa, (double)nl), ki);
       a.runner_db
           = (runner > 0.0) ? 10.0 * log10 (stat[best] / runner) : INFINITY;
       a.occurrences = K;

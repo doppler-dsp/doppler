@@ -2238,6 +2238,70 @@ type = "double"
 name = "pfa"
 type = "double"
 
+[[module.detection.functions]]
+name = "det_pfa_cell"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "pfa"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "n_cells"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_cn0_to_snr"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "cn0_dbhz"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "fs"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_snr_to_cn0"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "fs"
+type = "double"
+
+[[module.detection.functions]]
+name = "det_pd_cfar"
+return_type = "double"
+
+[[module.detection.functions.params]]
+name = "snr"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "dwell"
+type = "int"
+
+[[module.detection.functions.params]]
+name = "threshold"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "k"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "leak"
+type = "double"
+
+[[module.detection.functions.params]]
+name = "leak_cells"
+type = "double"
+
 [module.snr]
 doc = """
 Signal-to-noise estimation: data-aided and moment-based (M2M4) SNR / Es-N0 estimators for a recovered symbol stream.

@@ -238,7 +238,7 @@ def test_config_physics(cn0_dbhz, want_db):
     db * nx
     snr = math.sqrt(10.0 ** (cn0_dbhz / 10.0) / a.fs)
 
-    # Bonferroni over the searched cells (du=0 → all db Doppler bins).
+    # Sidak over the searched cells (du=0 → all db Doppler bins).
     pfa_cell = 1.0 - (1.0 - PFA) ** (1.0 / (db * nx))
     eta = det_threshold(pfa_cell)
     assert a.pfa_cell == pytest.approx(pfa_cell, rel=1e-9)

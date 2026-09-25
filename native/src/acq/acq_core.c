@@ -44,7 +44,7 @@
 static inline float
 acq_cn0_dbhz_from_amp_snr (float amp_snr, double fs)
 {
-  return (float)(20.0 * log10 ((double)amp_snr) + 10.0 * log10 (fs));
+  return (float)det_snr_to_cn0 ((double)amp_snr, fs);
 }
 
 /* The chip phase a surface column reports, in chips: acq_build_handoff()'s
@@ -58,7 +58,7 @@ acq_chip_phase_of_col (size_t col, size_t code_len, size_t spc)
 }
 /* Doppler-band mask: with a doppler_uncertainty prior the engine scans only
  * searched_bins rows centred on DC, so the peak search must match (else the
- * lowered Bonferroni threshold over-counts and realized Pfa exceeds target).
+ * lowered Sidak threshold over-counts and realized Pfa exceeds target).
  * Returns 1 if the cell at flat index k is inside the scanned band.  The
  * folded distance |k_row| from DC (rows >coherent_bins/2 are negative
  * Doppler) must not exceed half = (searched_bins-1)/2.  When searched_bins ==
@@ -765,7 +765,7 @@ acq_mag_sqrt (float value)
 /* Scanned Doppler bins for a coherent depth D under a doppler_uncertainty
  * prior du (Hz, one-sided half-range).  The slow-time FFT always spans the
  * full +/- span = chip_rate/(2*sf); a tighter du restricts the search to the
- * central band, shrinking the Bonferroni cell count.  Returns an odd count
+ * central band, shrinking the Sidak cell count.  Returns an odd count
  * (2*half+1) centred on DC, capped at D; du <= 0 (or >= span) means full. */
 static size_t
 acq_searched_bins (size_t D, double du, double span)
@@ -883,41 +883,27 @@ acq_straddle_loss (size_t D, size_t sb, const acq_shape_t *sh, double du,
   return l_scallop * l_intra * l_code;
 }
 
-/* Gauss-Hermite nodes and weights (physicists') for E[f(X)], X Gaussian:
-   2 match 6 to 5e-5 on the Pd below, far under anything a certification
-   resolves, and every burst sizing evaluates them ~13k times a depth
-   (doppler#1501). */
-#define ACQ_GH_NODES 2
-static const double ACQ_GH_X[ACQ_GH_NODES]
-    = { -0.707106781186548, 0.707106781186548 };
-static const double ACQ_GH_W[ACQ_GH_NODES]
-    = { 0.886226925452758, 0.886226925452758 };
-
 /* The Pd of one coherent cell at amplitude SNR `se` against the gate the
  * engine actually runs: `eta` scaled by a noise reference MEASURED from the
  * surface -- the mean magnitude of all `k` cells, the peak's own included
- * (doppler#1501). `k` == 0 is noise known exactly: det_pd.
+ * (doppler#1501). The CFAR model itself is det_pd_cfar(); what is the
+ * engine's is WHERE the signal sits in that reference.
  *
- * The gate fires when the peak R clears T times the mean of the k cells, T
- * = eta*sqrt(2/pi) in mean-magnitude units. Moving the peak's own share of
- * that mean to the left: R (1 - T/k) > T (k-1)/k * S, so the peak faces an
- * effective eta of T (k-1)/(k-T) * S, S the mean of the OTHER k-1 cells.
- * S is Gaussian to good approximation -- Rayleigh cells of mean sqrt(pi/2)
- * and variance (4-pi)/2 -- raised by the signal energy the straddle moved
- * out of the peak and into them (`se_tot` is the node's unstraddled
- * amplitude) and by the preamble's own correlation OFF the peak (`rho`,
- * acq_shape_t.off_peak): a code's sidelobes and its chip triangle's
- * neighbours sit in the reference's cells. Measured on a 7-chip code held 2
- * samples a chip (14 cells at D = 1, 65 dB-Hz): the reference 72% high,
- * the engine 0.229 against 0.955 with the noise known. A cell holding signal
- * nu has mean magnitude ~ sqrt(pi/2 + nu^2): exact at nu = 0, nu for a large
- * one, a few percent HIGH between. The energy is spread evenly over the k-1
- * cells, and because the root is concave that is the most mean it can add -- a
- * bound, not a guess. (A first version used the small-signal nu^2/4 and let
- * the reference grow with the signal's POWER: a 28-cell surface at 90 dB-Hz
- * could then never meet pd.) The limit k -> infinity is det_pd at eta exactly.
+ * Everything off the peak: the preamble's own sidelobes plus what the
+ * straddle slid out of the peak (`se_tot` is the node's unstraddled
+ * amplitude). A band-limited delay conserves the correlation's energy, so
+ * the two are ONE budget, a2t (1 + E2) - a2p, and it lies where the
+ * autocorrelation puts it: m = E1^2/E2 cells at one level (acq_shape_t's
+ * off_peak_amp and off_peak), which matches the true profile's added mean
+ * in both limits (E2/(2 mu0) per unit power when weak, E1 per unit amplitude
+ * when strong). Charging the straddle again on top counted a chip code's
+ * triangle twice and capped its Pd below 1 at any SNR. A perfect sequence
+ * has no profile (E2 = 0); its leak is spread over every cell, which, the
+ * root being concave, is the most mean it can add.
  *
- * Measured at D = 1 (127 cells; Zadoff-Chu 127, continuous delay, 6000
+ * Measured on a 7-chip code held 2 samples a chip (14 cells at D = 1, 65
+ * dB-Hz): the reference 72% high, the engine 0.229 against 0.955 with the
+ * noise known. At D = 1 (127 cells; Zadoff-Chu 127, continuous delay, 6000
  * trials): the engine 0.558 and 0.146 against a known-noise model of 0.611
  * and 0.179 -- optimistic -- and 0.525 and 0.147 from this one. Excluding
  * the peak from the reference recovered 0.045 of it, so the signal in its
@@ -926,36 +912,13 @@ static double
 acq_cfar_pd (double se, double se_tot, int n, double eta, double k,
              const acq_shape_t *sh)
 {
-  const double t = eta * sqrt (2.0 / M_PI);
-  if (!(k > t + 1.0))
-    return det_pd (se, n, eta);
-  const double kk  = k - 1.0;
   const double a2p = 2.0 * (double)n * se * se;
   const double a2t = 2.0 * (double)n * se_tot * se_tot;
-  /* Everything off the peak: the preamble's own sidelobes plus what the
-     straddle slid out of the peak. A band-limited delay conserves the
-     correlation's energy, so the two are ONE budget, a2t (1 + E2) - a2p,
-     and it lies where the autocorrelation puts it: m = E1^2/E2 cells at
-     one level, which matches the true profile's added mean in both limits
-     (E2/(2 mu0) per unit power when weak, E1 per unit amplitude when
-     strong). Charging the straddle again on top counted a chip code's
-     triangle twice and capped its Pd below 1 at any SNR. A perfect
-     sequence has no profile (E2 = 0); its leak is spread over every cell,
-     which, the root being concave, is the most mean it can add. */
   const double off = a2t * (1.0 + sh->off_peak) - a2p;
-  const double eo  = off > 0.0 ? off : 0.0;
-  const double m
-      = (sh->off_peak > 0.0 && sh->off_peak_amp > 0.0)
-            ? fmin (sh->off_peak_amp * sh->off_peak_amp / sh->off_peak, kk)
-            : kk;
-  const double mu
-      = (m * sqrt (M_PI / 2.0 + eo / m) + (kk - m) * sqrt (M_PI / 2.0)) / kk;
-  const double sd  = sqrt ((4.0 - M_PI) / 2.0 / (k - 1.0));
-  const double g   = t * (k - 1.0) / (k - t);
-  double       acc = 0.0;
-  for (int j = 0; j < ACQ_GH_NODES; j++)
-    acc += ACQ_GH_W[j] * det_pd (se, n, g * (mu + M_SQRT2 * sd * ACQ_GH_X[j]));
-  return acc / sqrt (M_PI);
+  const double m   = (sh->off_peak > 0.0 && sh->off_peak_amp > 0.0)
+                         ? sh->off_peak_amp * sh->off_peak_amp / sh->off_peak
+                         : 0.0;
+  return det_pd_cfar (se, n, eta, k, off, m);
 }
 
 /* Midpoint nodes the burst Pd averages the preamble's alignment over. 8 is
@@ -1073,7 +1036,7 @@ acq_mean_pd (double snr, size_t D, double umax, const acq_shape_t *sh, int n,
 static double
 acq_design_snr (double cn0_dbhz, double fs)
 {
-  return isnan (cn0_dbhz) ? 0.0 : sqrt (pow (10.0, cn0_dbhz / 10.0) / fs);
+  return isnan (cn0_dbhz) ? 0.0 : det_cn0_to_snr (cn0_dbhz, fs);
 }
 
 /* Derive and commit the threshold ladder (searched_bins / pfa_cell / eta /
@@ -1103,11 +1066,11 @@ acq_commit_thresholds (acq_state_t *st, double pfa, double pd, double snr,
   st->searched_bins  = (st->window_bins > 1) ? st->window_bins * D
                                              : acq_searched_bins (D, du, span);
   st->doppler_res_hz = st->chip_rate / ((double)st->sf * (double)D);
-  st->pfa_cell = 1.0 - pow (1.0 - pfa, 1.0 / (double)(st->searched_bins * cb));
-  double umax  = acq_intra_umax (D, st->searched_bins, du, span);
-  st->straddle_loss = acq_straddle_loss (D, st->searched_bins, &st->shape, du,
-                                         span, st->interp);
-  st->eta           = (float)det_threshold (st->pfa_cell);
+  st->pfa_cell       = det_pfa_cell (pfa, (double)(st->searched_bins * cb));
+  double umax        = acq_intra_umax (D, st->searched_bins, du, span);
+  st->straddle_loss  = acq_straddle_loss (D, st->searched_bins, &st->shape, du,
+                                          span, st->interp);
+  st->eta            = (float)det_threshold (st->pfa_cell);
 
   double gate;
   if (nc > 1)
@@ -1167,7 +1130,7 @@ acq_ascend_n_noncoh (double snr, size_t D, size_t sb, size_t cb, double pfa,
 {
   const size_t interp = acq_interp_for (D, 1);
   const double umax   = acq_intra_umax (D, sb, du, span);
-  const double pc     = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
+  const double pc     = det_pfa_cell (pfa, (double)(sb * cb));
   const double sloss  = acq_straddle_loss (D, sb, sh, du, span, interp);
 
   int    k  = det_n_noncoh (snr * sloss, (int)(D * cb), pd, pc,
@@ -1255,7 +1218,7 @@ acq_cover_window_bins (double du, double span)
  *
  * du <= span: picks the smallest coherent depth D in [1, d_max] whose
  * burst Pd (pd_burst: every dwell a uniformly aligned preamble spans, at the
- * (doppler_uncertainty-shrunk) Bonferroni threshold) meets pd -- minimum
+ * (doppler_uncertainty-shrunk) Sidak threshold) meets pd -- minimum
  * latency for a strong signal. If no depth does, D is the one with the most
  * burst Pd and the engine is underpowered. The ceiling d_max is `reps`,
  * lowered by the Doppler rate's drift bound (acq_drift_depth(), doppler#1482):
@@ -1292,7 +1255,7 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
     }
 
   /* Smallest coherent depth D whose BURST Pd meets pd (minimum latency for
-   * strong signals); Bonferroni uses only the cells actually scanned at that
+   * strong signals); Sidak uses only the cells actually scanned at that
    * depth.  Sizing and prediction both use the straddle-derated SNR: the
    * on-grid best case would under-size the search (real Pd, averaged over
    * random Doppler/code phase, would miss the target — the gap the
@@ -1307,7 +1270,7 @@ acq_auto_config_burst (const acq_state_t *st, double pfa, double pd,
     {
       size_t       sb   = acq_searched_bins (D, du, span);
       double       umax = acq_intra_umax (D, sb, du, span);
-      double       pc   = 1.0 - pow (1.0 - pfa, 1.0 / (double)(sb * cb));
+      double       pc   = det_pfa_cell (pfa, (double)(sb * cb));
       double       eta  = det_threshold (pc);
       const double k_ref
           = st->noise_mode == DET_NOISE_MEAN ? (double)(D * cb) : 0.0;

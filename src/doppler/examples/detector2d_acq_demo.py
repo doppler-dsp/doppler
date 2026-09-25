@@ -45,7 +45,7 @@ Three panels (saved to ``detector2d_acq_demo.png``)
 2. ``Pd`` vs per-sample SNR — Monte-Carlo points with a Marcum-Q theory guide
    and the operating-SNR marker.
 3. ROC at the operating SNR — empirical swept-threshold curve, the MC operating
-   point, and the Bonferroni system-Pfa target.
+   point, and the Šidák system-Pfa target.
 
 Run::
 
@@ -59,7 +59,7 @@ import math
 import numpy as np
 from numpy.typing import NDArray
 
-from doppler.detection import det_pd, det_threshold
+from doppler.detection import det_pd, det_pfa_cell, det_threshold
 from doppler.spectral import Corr2D, CorrDetector2D
 from doppler.wfm import PN, mls_poly
 
@@ -395,8 +395,8 @@ def main() -> None:
     assert loc[-1] > 0.95, "high-SNR detections not at the true cell"
 
     # Marcum-Q theory guide: per-sample amplitude SNR amplified by the coherent
-    # gain sqrt(N); Bonferroni per-cell threshold for the N-cell search.
-    pfa_cell = 1.0 - (1.0 - PFA_SYS) ** (1.0 / N)
+    # gain sqrt(N); Šidák per-cell threshold for the N-cell search.
+    pfa_cell = det_pfa_cell(PFA_SYS, N)
     eta = det_threshold(pfa_cell)
     snr_eff = np.sqrt(N) * 10.0 ** (snr_grid / 20.0)
     pd_theory = np.array([det_pd(float(s), 1, eta) for s in snr_eff])

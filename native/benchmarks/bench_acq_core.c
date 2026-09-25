@@ -22,7 +22,7 @@
  * auto-sizer at three pd targets (0.9/0.99/0.999) rather than forced to
  * SPEC.md's earlier n_noncoh=96/128/192 sweep -- that sweep was a
  * standalone Python sizing sketch predating this wideband mode's C
- * implementation, and the REAL 34-bin Bonferroni-corrected model here turns
+ * implementation, and the REAL 34-bin Sidak-corrected model here turns
  * out considerably more optimistic (pd_predicted ~0.999 already by
  * n_noncoh~96-123 at this cn0, not ~0.917 at 96 / ~0.994 at 192 as
  * estimated there) -- see the memory note accompanying this benchmark. The

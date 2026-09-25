@@ -58,6 +58,46 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
+## A search, a measured reference, a C/N0
+
+Real detectors differ from the single known-noise cell above in three ways,
+and each has one function here:
+
+- **Many cells.** A search false-alarms when any cell does, so the per-cell
+    Pfa is `det_pfa_cell(pfa, n_cells)` (Šidák), and each threshold comes from
+    that.
+- **A measured reference.** A cell-averaging CFAR divides by the mean
+    magnitude of k cells, its own included, and loses Pd to it:
+    `det_pd_cfar` models that, with room for signal leaking into the reference.
+- **C/N0.** `det_cn0_to_snr` and `det_snr_to_cn0` convert to and from the
+    per-sample amplitude SNR every function here takes.
+
+```python
+from doppler.detection import (
+    det_cn0_to_snr,
+    det_pd,
+    det_pd_cfar,
+    det_pfa_cell,
+    det_threshold,
+)
+
+snr = det_cn0_to_snr(45.0, 2e6)           # 45 dB-Hz at 2 MS/s
+eta = det_threshold(det_pfa_cell(1e-3, 256))   # a 256-cell search at 1e-3
+known = det_pd(snr, 2000, eta)             # noise known exactly
+cfar = det_pd_cfar(snr, 2000, eta, 256.0, 0.0, 0.0)  # measured from 256 cells
+assert cfar < known
+```
+
+::: doppler.detection.det_pfa_cell
+
+::: doppler.detection.det_pd_cfar
+
+::: doppler.detection.det_cn0_to_snr
+
+::: doppler.detection.det_snr_to_cn0
+
+______________________________________________________________________
+
 ## Non-coherent integration
 
 When coherent integration is capped (Doppler walk, data bits, oscillator drift,

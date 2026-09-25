@@ -37,7 +37,7 @@
  * - **The per-frame sync detection is a CONFIRMATION.** A tracking receiver
  *   does not re-acquire every frame; it looks in a narrow window where the
  *   frame is due. So that detection searches +-DP_RX_SYNC_SPAN, which is
- *   also what makes it a fair question: the Bonferroni correction over 25 lags
+ *   also what makes it a fair question: the Sidak correction over 25 lags
  *   is a very different bar from the one over 401, and quoting a sync miss
  *   rate from a full re-acquisition would be measuring the search, not the
  *   sync word.
@@ -86,6 +86,7 @@
  */
 #include "dp_rx_test.h"      /* dp_rx_score_frames -- the per-frame scorer  */
 #include "mpsk_ber_common.h" /* MPSK_BER_AMP, MPSK_BER_MAX_BURSTS */
+#include "util/util_core.h"
 
 #include "frame_meter/frame_meter_core.h"
 #include "mpsk/mpsk_core.h"
@@ -433,7 +434,7 @@ done:
                                : NAN;
   r.crc_fail_pred
       = (r.rep.ber.symbols && r.prot_bits)
-            ? 1.0 - pow (1.0 - r.rep.ber.p_hat, (double)r.prot_bits)
+            ? complement_power (r.rep.ber.p_hat, (double)r.prot_bits)
             : NAN;
   /* A frame is delivered when its sync was found AND its CRC checked, so the
      FER those two imply is the miss rate plus what the bit errors do to the

@@ -684,5 +684,102 @@ main (void)
     DP_CHECK (isinf (det_verify_delay (0.0, 3)));
   }
 
+  /* ── det_pfa_cell: the Sidak split, inverted exactly ─────────────────
+   *
+   * n cells at det_pfa_cell(pfa, n) false-alarm together with
+   * probability pfa -- the definition, checked by recomposing it. One
+   * cell is pfa itself, and the split sits just above Bonferroni's pfa/n.
+   *
+   * Sabotage: return pfa / n_cells (Bonferroni) -- the recomposition
+   * goes red. */
+  {
+    DP_CHECK (det_pfa_cell (1e-3, 1.0) == 1e-3);
+    DP_CHECK (isnan (det_pfa_cell (0.0, 10.0)));
+    DP_CHECK (isnan (det_pfa_cell (1e-3, 0.5)));
+    const double ns[] = { 2.0, 37.0, 1000.0, 1e6 };
+    for (int i = 0; i < 4; i++)
+      {
+        const double pc   = det_pfa_cell (1e-3, ns[i]);
+        const double back = -expm1 (ns[i] * log1p (-pc));
+        DP_CHECK (fabs (back - 1e-3) < 1e-15);
+        DP_CHECK (pc > 1e-3 / ns[i] && pc < 1e-3);
+      }
+  }
+
+  /* ── det_cn0_to_snr / det_snr_to_cn0: one convention, both ways ──────
+   *
+   * 60 dB-Hz at 1 MHz is 0 dB per sample, amplitude 1; and the two are
+   * inverses. Sabotage: drop the sqrt -- the anchor goes red. */
+  DP_CHECK (fabs (det_cn0_to_snr (60.0, 1e6) - 1.0) < 1e-15);
+  DP_CHECK (fabs (det_cn0_to_snr (70.0, 1e6) - sqrt (10.0)) < 1e-14);
+  for (double c = 20.0; c <= 90.0; c += 7.5)
+    DP_CHECK (fabs (det_snr_to_cn0 (det_cn0_to_snr (c, 2.5e6), 2.5e6) - c)
+              < 1e-12);
+
+  /* ── det_pd_cfar: a model of the detector it names ───────────────────
+   *
+   * A Monte-Carlo of the cell-averaging test itself -- the peak Rice(a, 1)
+   * against T = eta sqrt(2/pi) times the mean magnitude of k cells, its
+   * own included -- must match the model: within 0.02 at k = 16 and 128
+   * (5 standard errors at 20000 trials; measured 0.003), and with signal
+   * leaked into 4 reference cells the model must not be optimistic by
+   * more than one standard error (measured 0.007 CONSERVATIVE). The known-
+   * noise det_pd is 0.17 high at k = 16, which is why this exists. The
+   * limits: k -> infinity is det_pd; a reference too small to hold the
+   * gate is answered as det_pd; more leak can only lower Pd.
+   *
+   * Sabotage: g = t (drop the peak's own share of the reference) -- the
+   * Monte-Carlo comparison goes red; return det_pd -- both go red. */
+  {
+    const double eta = det_threshold (1e-3);
+    const double T   = eta * sqrt (2.0 / M_PI);
+    uint32_t     st  = 20260925u;
+    struct
+    {
+      int    k, m;
+      double leak;
+    } cs[] = { { 16, 0, 0.0 }, { 128, 0, 0.0 }, { 32, 4, 40.0 } };
+    for (int c = 0; c < 3; c++)
+      {
+        const double a   = sqrt (2.0 * 64.0) * 0.3;
+        const double nu  = cs[c].m ? sqrt (cs[c].leak / cs[c].m) : 0.0;
+        const int    N   = 20000;
+        int          hit = 0;
+        for (int t = 0; t < N; t++)
+          {
+            const double pk
+                = cabs (a + M_SQRT2 * (double _Complex)dp_cgauss (&st));
+            double sum = pk;
+            for (int i = 1; i < cs[c].k; i++)
+              sum += cabs ((i <= cs[c].m ? nu : 0.0)
+                           + M_SQRT2 * (double _Complex)dp_cgauss (&st));
+            hit += pk > T * sum / (double)cs[c].k;
+          }
+        const double mc    = (double)hit / (double)N;
+        const double model = det_pd_cfar (0.3, 64, eta, (double)cs[c].k,
+                                          cs[c].leak, (double)cs[c].m);
+        if (cs[c].m == 0)
+          DP_CHECK (fabs (model - mc) < 0.02);
+        else
+          DP_CHECK (model < mc + 0.0035 && mc - model < 0.03);
+        if (cs[c].k == 16)
+          DP_CHECK (det_pd (0.3, 64, eta) - mc > 0.1);
+      }
+    DP_CHECK (fabs (det_pd_cfar (0.3, 64, eta, 1e12, 0.0, 0.0)
+                    - det_pd (0.3, 64, eta))
+              < 1e-5);
+    DP_CHECK (det_pd_cfar (0.3, 64, eta, T + 0.5, 0.0, 0.0)
+              == det_pd (0.3, 64, eta));
+    DP_CHECK (det_pd_cfar (0.3, 64, eta, 32.0, 10.0, 0.0)
+              == det_pd_cfar (0.3, 64, eta, 32.0, 10.0, 31.0));
+    double prev = 2.0;
+    for (double l = 0.0; l <= 100.0; l += 10.0)
+      {
+        const double v = det_pd_cfar (0.3, 64, eta, 32.0, l, 4.0);
+        DP_CHECK (v <= prev);
+        prev = v;
+      }
+  }
+
   DP_TEST_END ("test_detection_core");
 }

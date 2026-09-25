@@ -1,5 +1,6 @@
 /*
- * test_util_core.c — the shared EMA primitive.
+ * test_util_core.c — the shared numeric primitives: the EMA (§1-§8),
+ * complement_power, sinc and the quadrature rules (§9-§14).
  *
  * `ema_step` and `ema_alpha_decim` are the library's one first-order
  * exponential moving average. Four sites had written the recursion out by
@@ -206,6 +207,169 @@ main (void)
             DP_CHECK (v >= 0.0 && v <= 1.0);
             DP_CHECK (v >= prev);
             prev = v;
+          }
+      }
+  }
+
+  /* ── §9 — complement_power is accurate where 1 - pow cancels ───────
+   *
+   * The reason it exists. Against a long-double reference, which has 11
+   * more bits to lose to the cancellation, it stays within 1e-12 at
+   * p = 1e-9; `1 - pow(1 - p, x)` in double is ~1e-7 off there. It is
+   * exactly the kernel ema_alpha_decim runs for an integer d, and the
+   * Šidák split it serves inverts: n cells at complement_power(pfa, 1/n)
+   * false-alarm with probability pfa.
+   *
+   * Sabotage: return 1.0 - pow (1.0 - p, x) -- the accuracy check goes
+   * red. */
+  {
+    const double ps[] = { 1e-9, 1e-6, 1e-3, 0.05, 0.5 };
+    const double xs[] = { 1e-4, 0.125, 1.0 / 3.0, 7.0, 1000.0 };
+    for (int i = 0; i < 5; i++)
+      for (int j = 0; j < 5; j++)
+        {
+          const double      v = complement_power (ps[i], xs[j]);
+          const long double ref
+              = -expm1l ((long double)xs[j] * log1pl (-(long double)ps[i]));
+          DP_CHECK (fabs ((double)(((long double)v - ref) / ref)) < 1e-12);
+        }
+    for (size_t d = 2; d <= 64; d++)
+      DP_CHECK (complement_power (0.05, (double)d)
+                == ema_alpha_decim (0.05, d));
+    DP_CHECK (complement_power (0.37, 1.0) == 0.37);
+    DP_CHECK (complement_power (0.37, 0.0) == 0.0);
+    DP_CHECK (complement_power (1.0, 0.5) == 1.0);
+    for (int n = 2; n <= 4096; n *= 4)
+      {
+        const double pc = complement_power (1e-3, 1.0 / (double)n);
+        DP_CHECK (fabs (complement_power (pc, (double)n) - 1e-3) < 1e-15);
+      }
+  }
+
+  /* ── §10 — sinc: 1 at 0, its nulls, even ───────────────────────────
+   *
+   * Sabotage: sin (u) / u (unnormalized) -- the nulls move off the
+   * integers and the half-bin value is wrong. */
+  DP_CHECK (sinc (0.0) == 1.0);
+  for (int k = 1; k <= 8; k++)
+    {
+      DP_CHECK (fabs (sinc ((double)k)) < 1e-15);
+      DP_CHECK (sinc (-(double)k - 0.3) == sinc ((double)k + 0.3));
+    }
+  DP_CHECK (fabs (sinc (0.5) - 2.0 / M_PI) < 1e-15);
+
+  /* ── §11 — simpson_weights: a mean, exact on cubics ────────────────
+   *
+   * The weights sum to 1 and integrate every cubic exactly, which is what
+   * the rule is; an even or short length is refused and the buffer left
+   * alone.
+   *
+   * Sabotage: swap the 4 and the 2 -- the cubic check goes red. */
+  {
+    double w[65];
+    for (size_t bad = 0; bad <= 4; bad += (bad == 2 ? 2 : 1))
+      {
+        w[0] = -7.0;
+        DP_CHECK (simpson_weights (w, bad) == DP_ERR_INVALID);
+        DP_CHECK (w[0] == -7.0);
+      }
+    const size_t lens[] = { 3, 5, 9, 65 };
+    for (int i = 0; i < 4; i++)
+      {
+        const size_t n = lens[i];
+        DP_CHECK (simpson_weights (w, n) == DP_OK);
+        double sum = 0.0, m2 = 0.0, m3 = 0.0;
+        for (size_t k = 0; k < n; k++)
+          {
+            const double u = (double)k / (double)(n - 1);
+            sum += w[k];
+            m2 += w[k] * u * u;
+            m3 += w[k] * u * u * u;
+          }
+        DP_CHECK (fabs (sum - 1.0) < 1e-15);
+        DP_CHECK (fabs (m2 - 1.0 / 3.0) < 1e-15);
+        DP_CHECK (fabs (m3 - 0.25) < 1e-15);
+      }
+  }
+
+  /* ── §12 — mean_sinc is the mean of sinc ───────────────────────────
+   *
+   * Against a 100000-cell midpoint sum of the same integral. 1 when there
+   * is no range to average over.
+   *
+   * Sabotage: divide by 64 intervals as if they were 65 points -- off by
+   * ~1.5%, red. */
+  DP_CHECK (mean_sinc (0.0) == 1.0);
+  DP_CHECK (mean_sinc (-1.0) == 1.0);
+  {
+    const double us[] = { 0.1, 0.5, 1.0, 2.5 };
+    for (int i = 0; i < 4; i++)
+      {
+        const int N   = 100000;
+        double    ref = 0.0;
+        for (int k = 0; k < N; k++)
+          ref += sinc (us[i] * ((double)k + 0.5) / (double)N);
+        ref /= (double)N;
+        DP_CHECK (fabs (mean_sinc (us[i]) - ref) < 1e-9);
+      }
+  }
+
+  /* ── §13 — midpoint_nodes: cell centres, averaging to 1/2 ──────────
+   *
+   * Sabotage: k / n (left edges) -- red. */
+  {
+    double u[7];
+    midpoint_nodes (u, 7);
+    double sum = 0.0;
+    for (int k = 0; k < 7; k++)
+      {
+        DP_CHECK (u[k] == ((double)k + 0.5) / 7.0);
+        sum += u[k];
+      }
+    DP_CHECK (fabs (sum / 7.0 - 0.5) < 1e-15);
+  }
+
+  /* ── §14 — gauss_hermite integrates the normal's moments exactly ───
+   *
+   * The defining property: exact for every polynomial of degree up to
+   * 2n - 1, so E[Z^k] = 0 for odd k and (k-1)!! for even k, at every n.
+   * Nodes ascend and are symmetric; weights are positive and sum to 1.
+   * n = 2 is +-1 at 1/2 each, exactly the two nodes a CFAR Pd model uses.
+   * Mismatched or zero lengths are refused.
+   *
+   * Sabotage: weight 1/(n h[n]^2) instead of h[n-1] -- the sum and the
+   * moments go red; stop Newton after one step -- the moments go red. */
+  {
+    double z[40], pw[40];
+    DP_CHECK (gauss_hermite (z, 0, pw, 0) == DP_ERR_INVALID);
+    DP_CHECK (gauss_hermite (z, 3, pw, 4) == DP_ERR_INVALID);
+    DP_CHECK (gauss_hermite (z, 2, pw, 2) == DP_OK);
+    DP_CHECK (z[0] == -1.0 && z[1] == 1.0 && pw[0] == 0.5 && pw[1] == 0.5);
+    for (size_t n = 1; n <= 40; n++)
+      {
+        DP_CHECK (gauss_hermite (z, n, pw, n) == DP_OK);
+        double sum = 0.0;
+        for (size_t i = 0; i < n; i++)
+          {
+            sum += pw[i];
+            DP_CHECK (pw[i] > 0.0);
+            DP_CHECK (i == 0 || z[i] > z[i - 1]);
+            DP_CHECK (fabs (z[i] + z[n - 1 - i]) < 1e-13);
+          }
+        DP_CHECK (fabs (sum - 1.0) < 1e-13);
+        double dfact = 1.0; /* (k-1)!! for the even k below */
+        for (size_t k = 1; k <= 2 * n - 1 && k <= 12; k++)
+          {
+            double m = 0.0;
+            for (size_t i = 0; i < n; i++)
+              m += pw[i] * pow (z[i], (double)k);
+            if (k & 1u)
+              DP_CHECK (fabs (m) < 1e-11 * dfact);
+            else
+              {
+                dfact *= (double)(k - 1);
+                DP_CHECK (fabs (m - dfact) < 1e-11 * dfact);
+              }
           }
       }
   }

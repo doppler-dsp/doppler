@@ -18,6 +18,7 @@
  * statics.
  */
 #include "detector/det_private.h"
+#include "util/util_core.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -777,26 +778,6 @@ acq_searched_bins (size_t D, double du, double span)
   return (sb > D) ? D : sb;
 }
 
-/* Mean of sinc(u) = sin(pi*u)/(pi*u) over u in [0, umax] — equals
- * Si(pi*umax)/(pi*umax).  64-interval Simpson: setup path, and the
- * quadrature error (~1e-12 here) is far below the model's own fidelity. */
-static double
-acq_mean_sinc (double umax)
-{
-  if (umax <= 0.0)
-    return 1.0;
-  const int n = 64;
-  double    h = umax / (double)n;
-  double    s = 1.0; /* sinc(0) */
-  for (int i = 1; i <= n; i++)
-    {
-      double u = h * (double)i;
-      double v = sin (M_PI * u) / (M_PI * u);
-      s += (i == n) ? v : ((i & 1) ? 4.0 : 2.0) * v;
-    }
-  return s * h / (3.0 * umax);
-}
-
 /* Mean amplitude derating of the correlation peak from grid straddle — the
  * gap between the on-grid best case det_pd() sees and the operating average
  * the Monte-Carlo characterization measures.  Three independent losses, each
@@ -896,16 +877,10 @@ acq_straddle_loss (size_t D, size_t sb, const acq_shape_t *sh, double du,
 {
   /* Half of the bin the peak search actually samples: the slow-time axis is
      interpolated, so the worst straddle is half an INTERPOLATED bin. */
-  double l_scallop = (D > 1) ? acq_mean_sinc (0.5 / (double)interp) : 1.0;
-  double l_intra   = acq_mean_sinc (acq_intra_umax (D, sb, du, span));
+  double l_scallop = (D > 1) ? mean_sinc (0.5 / (double)interp) : 1.0;
+  double l_intra   = mean_sinc (acq_intra_umax (D, sb, du, span));
   double l_code    = sh->delay_loss_mean;
   return l_scallop * l_intra * l_code;
-}
-
-static double
-acq_sinc (double u)
-{
-  return (u == 0.0) ? 1.0 : sin (M_PI * u) / (M_PI * u);
 }
 
 /* Gauss-Hermite nodes and weights (physicists') for E[f(X)], X Gaussian:
@@ -1014,9 +989,11 @@ acq_burst_pd_at (double amp, double tot, size_t D, size_t reps, int n,
   const double d = (double)D, r = (double)reps;
   const double p1  = acq_cfar_pd (amp, tot, n, eta, k, sh);
   double       acc = 0.0;
+  double       u[ACQ_ALIGN_NODES];
+  midpoint_nodes (u, ACQ_ALIGN_NODES);
   for (int o = 0; o < ACQ_ALIGN_NODES; o++)
     {
-      const double s0    = ((double)o + 0.5) / ACQ_ALIGN_NODES * d;
+      const double s0    = u[o] * d;
       const double first = fmin (d - s0, r); /* preamble in the first dwell */
       const double rest  = r - first;        /* after it, in periods */
       const double whole = floor (rest / d);
@@ -1054,17 +1031,23 @@ static double
 acq_mean_pd (double snr, size_t D, double umax, const acq_shape_t *sh, int n,
              double eta, int nc, size_t interp, size_t reps, double k_ref)
 {
-  const int    nd = 8, nu = 8, nk = ACQ_DELAY_LOSS_NODES;
+  enum
+  {
+    nd = 8,
+    nu = 8,
+    nk = ACQ_DELAY_LOSS_NODES
+  };
+  double ud[nd], uu[nu];
+  midpoint_nodes (ud, nd);
+  midpoint_nodes (uu, nu);
   const double half_bin = 0.5 / (double)interp; /* the SAMPLED bin */
   double       acc      = 0.0;
   for (int i = 0; i < nd; i++)
     {
-      double ls = (D > 1)
-                      ? acq_sinc (half_bin * ((double)i + 0.5) / (double)nd)
-                      : 1.0;
+      double ls = (D > 1) ? sinc (half_bin * ud[i]) : 1.0;
       for (int j = 0; j < nu; j++)
         {
-          double li = acq_sinc (umax * ((double)j + 0.5) / (double)nu);
+          double li = sinc (umax * uu[j]);
           for (int k = 0; k < nk; k++)
             {
               double se = snr * ls * li * sh->delay_loss[k];
@@ -1729,13 +1712,13 @@ fail:
 static acq_shape_t
 acq_shape_of_chips (size_t spc)
 {
-  acq_shape_t sh     = { 0 };
-  const int   nk     = ACQ_DELAY_LOSS_NODES;
+  acq_shape_t sh = { 0 };
+  double      u[ACQ_DELAY_LOSS_NODES];
   sh.zone            = spc;
   sh.delay_loss_mean = 1.0 - 1.0 / (4.0 * (double)spc);
-  for (int k = 0; k < nk; k++)
-    sh.delay_loss[k]
-        = 1.0 - (0.5 / (double)spc) * ((double)k + 0.5) / (double)nk;
+  midpoint_nodes (u, ACQ_DELAY_LOSS_NODES);
+  for (int k = 0; k < ACQ_DELAY_LOSS_NODES; k++)
+    sh.delay_loss[k] = 1.0 - (0.5 / (double)spc) * u[k];
   return sh;
 }
 
@@ -1782,7 +1765,7 @@ acq_lag_amplitude (const double *P, size_t n, double delta, double p_sum)
  *   floor sits below the triangle's last step (a 31-chip code: 0.226, then
  *   0.032).
  * - The delay straddle is acq_lag_amplitude() at the Pd model's nodes and
- *   averaged over [0, 1/2] sample (64-interval Simpson, as acq_mean_sinc).
+ *   averaged over [0, 1/2] sample (64-interval Simpson, simpson_weights()).
  */
 static void
 acq_shape_of_template (const float _Complex *t, size_t n, acq_shape_t *sh)
@@ -1821,20 +1804,17 @@ acq_shape_of_template (const float _Complex *t, size_t n, acq_shape_t *sh)
     }
   sh->zone = zone;
 
-  const int nk = ACQ_DELAY_LOSS_NODES;
-  for (int k = 0; k < nk; k++)
-    sh->delay_loss[k] = acq_lag_amplitude (
-        P, n, 0.5 * ((double)k + 0.5) / (double)nk, p_sum);
+  double u[ACQ_DELAY_LOSS_NODES];
+  midpoint_nodes (u, ACQ_DELAY_LOSS_NODES);
+  for (int k = 0; k < ACQ_DELAY_LOSS_NODES; k++)
+    sh->delay_loss[k] = acq_lag_amplitude (P, n, 0.5 * u[k], p_sum);
 
-  const int    ns = 64;
-  const double h  = 0.5 / (double)ns;
-  double       s  = 1.0; /* acq_lag_amplitude(0) */
-  for (int i = 1; i <= ns; i++)
-    {
-      double v = acq_lag_amplitude (P, n, h * (double)i, p_sum);
-      s += (i == ns) ? v : ((i & 1) ? 4.0 : 2.0) * v;
-    }
-  sh->delay_loss_mean = s * h / (3.0 * 0.5);
+  double w[65];
+  (void)simpson_weights (w, 65);
+  double m = 0.0;
+  for (int i = 0; i < 65; i++)
+    m += w[i] * acq_lag_amplitude (P, n, 0.5 * (double)i / 64.0, p_sum);
+  sh->delay_loss_mean = m;
 
   fft_destroy (fwd);
   fft_destroy (inv);

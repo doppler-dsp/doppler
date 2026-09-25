@@ -480,6 +480,7 @@
 * **cvt\_bit\_slot** ([**cvt\_core.h**](cvt__core_8h.md))
 * **cvt\_unit\_width** ([**cvt\_core.h**](cvt__core_8h.md))
 * **ciccompmf** ([**resample\_core.h**](resample__core_8h.md))
+* **complement\_power** ([**util\_core.h**](util__core_8h.md))
 * **crc16** ([**wfm\_core.h**](wfm__core_8h.md))
 
 
@@ -1076,6 +1077,7 @@
 * **gold\_state\_bytes** ([**gold\_core.h**](gold__core_8h.md))
 * **gold\_step** ([**gold\_core.h**](gold__core_8h.md))
 * **gardner\_ted** ([**symsync\_core.h**](symsync__core_8h.md))
+* **gauss\_hermite** ([**util\_core.h**](util__core_8h.md))
 
 
 ## h
@@ -1321,6 +1323,8 @@
 * **mpsk\_rx\_updates\_per\_symbol** ([**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md))
 * **magnitude\_db\_cf32** ([**spectral\_core.h**](spectral__core_8h.md))
 * **magnitude\_db\_cf64** ([**spectral\_core.h**](spectral__core_8h.md))
+* **mean\_sinc** ([**util\_core.h**](util__core_8h.md))
+* **midpoint\_nodes** ([**util\_core.h**](util__core_8h.md))
 * **mls\_poly** ([**wfm\_core.h**](wfm__core_8h.md))
 
 
@@ -1610,6 +1614,8 @@
 * **syncword\_max\_errors\_for** ([**syncword\_core.h**](syncword__core_8h.md))
 * **syncword\_pfa** ([**syncword\_core.h**](syncword__core_8h.md))
 * **saturate** ([**util\_core.h**](util__core_8h.md))
+* **simpson\_weights** ([**util\_core.h**](util__core_8h.md))
+* **sinc** ([**util\_core.h**](util__core_8h.md))
 * **square\_clip** ([**util\_core.h**](util__core_8h.md))
 
 

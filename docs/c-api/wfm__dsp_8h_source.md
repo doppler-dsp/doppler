@@ -13,6 +13,7 @@
 #define WFM_DSP_H
 
 #include "clib_common.h"
+#include "util/util_core.h"
 
 #include <math.h>
 
@@ -60,10 +61,8 @@ wfm_rc_h(double t, double beta)
            so their ratio → π/4 and g → sinc(1/(2β)) * π/4. */
         return (beta / 2.0) * sin(M_PI / (2.0 * beta));
     }
-    double pt   = M_PI * t;
-    double sinc = sin(pt) / pt;
-    double den  = 1.0 - (2.0 * beta * t) * (2.0 * beta * t);
-    return sinc * cos(M_PI * beta * t) / den;
+    double den = 1.0 - (2.0 * beta * t) * (2.0 * beta * t);
+    return sinc(t) * cos(M_PI * beta * t) / den;
 }
 
 void wfm_rrc_taps(double beta, int sps, int span, float *taps);

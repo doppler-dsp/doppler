@@ -12,7 +12,7 @@ if(NOT JM_MATH_LIBRARY)
   set(JM_MATH_LIBRARY "")
 endif()
 
-add_library(util_core OBJECT util_core.c square_clip.c next_pow_two.c saturate.c ema_step.c ema_alpha_decim.c)
+add_library(util_core OBJECT util_core.c square_clip.c next_pow_two.c saturate.c ema_step.c ema_alpha_decim.c complement_power.c sinc.c mean_sinc.c simpson_weights.c midpoint_nodes.c gauss_hermite.c)
 target_include_directories(util_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc)
 
 if(BUILD_PYTHON)

@@ -4,6 +4,7 @@
 #include "filter/filter_core.h"
 #include "resample/resample_core.h" /* kaiser_num_taps, kaiser_beta */
 #include "spectral/spectral_core.h" /* kaiser_window */
+#include "util/util_core.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -37,9 +38,7 @@ design_lowpass (double fpass, double fstop, double atten_db, float *out)
   for (int i = 0; i < n_taps; i++)
     {
       double m = i - m0;
-      double sinc
-          = (m == 0.0) ? 2.0 * fc : sin (2.0 * M_PI * fc * m) / (M_PI * m);
-      out[i] = (float)(sinc * w[i]);
+      out[i]   = (float)(2.0 * fc * sinc (2.0 * fc * m) * w[i]);
     }
   free (w);
 }

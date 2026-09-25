@@ -233,6 +233,48 @@ extern "C"
   }
 
   /**
+   * @brief `1 - (1 - p)^x`, accurate for small `p`: the probability that at
+   * least one of `x` independent trials succeeds, each with probability `p`.
+   *
+   * Written directly, `1 - pow(1 - p, x)` loses everything `1 - p` rounded
+   * away: at `p = 1e-5` it is 26865 ulps off. `-expm1(x * log1p(-p))` is
+   * the same quantity with nothing cancelled.
+   *
+   * Two library quantities are this one expression, and both call it:
+   * - the EMA coefficient that advances `d` samples in one step,
+   *   ema_alpha_decim(alpha, d) (`x = d`);
+   * - the per-cell false-alarm probability that splits a search's `pfa`
+   *   over `n` independent cells, det_pfa_cell(pfa, n) (`x = 1/n`, Šidák).
+   *
+   * @param p  Per-trial probability, in `[0, 1]`.
+   * @param x  Number of trials, any real `x >= 0`.
+   * @return `1 - (1 - p)^x`; exactly `p` at `x == 1`, 0 at `x == 0` or
+   *         `p <= 0`, and 1 at `p >= 1` (for `x > 0`).
+   * @code
+   * >>> from doppler.util import complement_power
+   * >>> complement_power(0.05, 1.0)          # one trial is p exactly
+   * 0.05
+   * >>> round(complement_power(0.5, 2.0), 12)  # 1 - 0.25
+   * 0.75
+   * >>> round(complement_power(1e-3, 1 / 1000) * 1e6, 6)  # Sidak split
+   * 1.0005
+   * >>> complement_power(0.3, 0.0)
+   * 0.0
+   * @endcode
+   */
+  JM_FORCEINLINE double
+  complement_power (double p, double x)
+  {
+    if (x == 1.0)
+      return p; /* exact by construction, not by luck */
+    if (x == 0.0 || p <= 0.0)
+      return 0.0;
+    if (p >= 1.0)
+      return 1.0; /* log1p(-1) is -inf; answer it directly */
+    return -expm1 (x * log1p (-p));
+  }
+
+  /**
    * @brief The EMA coefficient that advances `d` samples in one step:
    * `1 - (1 - alpha)^d`.
    *
@@ -279,12 +321,230 @@ extern "C"
   {
     if (d <= 1)
       return alpha; /* exact by construction, not by luck */
-    if (alpha <= 0.0)
-      return 0.0;
-    if (alpha >= 1.0)
-      return 1.0; /* log1p(-1) is -inf; answer it directly */
-    return -expm1 ((double)d * log1p (-alpha));
+    return complement_power (alpha, (double)d);
   }
+
+  /**
+   * @brief Normalized sinc, `sin(pi u) / (pi u)`, with `sinc(0) = 1`.
+   *
+   * The amplitude response of a rectangular window, which makes it the
+   * straddle loss of every correlator and DFT: a signal `u` bins off a
+   * bin's centre keeps `sinc(u)` of its amplitude in that bin.
+   *
+   * @param u  Offset, in bins (any real).
+   * @return `sin(pi u) / (pi u)`, and exactly 1 at `u == 0`.
+   * @code
+   * >>> from doppler.util import sinc
+   * >>> sinc(0.0)
+   * 1.0
+   * >>> round(sinc(0.5), 12)                 # half a bin: 2/pi
+   * 0.636619772368
+   * >>> abs(sinc(1.0)) < 1e-15               # the first null
+   * True
+   * @endcode
+   */
+  JM_FORCEINLINE double
+  sinc (double u)
+  {
+    return (u == 0.0) ? 1.0 : sin (M_PI * u) / (M_PI * u);
+  }
+
+  /**
+   * @brief Fill @p w with composite Simpson weights for the MEAN of a
+   * function over an interval.
+   *
+   * With `n = w_len` points, `sum(w[i] * f(a + i*(b - a)/(n - 1)))` is the
+   * mean of `f` over `[a, b]` (multiply by `b - a` for the integral). The
+   * weights are `1, 4, 2, 4, ..., 2, 4, 1` over `3 (n - 1)` and sum to 1.
+   * Exact for any cubic; the error falls as `(n - 1)^-4` for a smooth `f`.
+   *
+   * @param w      Output, `w_len` weights.
+   * @param w_len  Number of points: odd and at least 3.
+   * @return DP_OK, or DP_ERR_INVALID (and @p w untouched) for any other
+   *         length.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.util import simpson_weights
+   * >>> w = np.empty(5)
+   * >>> simpson_weights(w)
+   * >>> w * 12                               # 1, 4, 2, 4, 1 over 12
+   * array([1., 4., 2., 4., 1.])
+   * >>> u = np.linspace(0.0, 1.0, 5)
+   * >>> round(float(w @ u**3), 12)           # mean of u^3 over [0, 1]
+   * 0.25
+   * @endcode
+   */
+  JM_FORCEINLINE int
+  simpson_weights (double *w, size_t w_len)
+  {
+    if (w_len < 3 || (w_len & 1u) == 0)
+      return DP_ERR_INVALID;
+    const double s = 3.0 * (double)(w_len - 1);
+    for (size_t i = 0; i < w_len; i++)
+      w[i] = (i == 0 || i + 1 == w_len ? 1.0 : (i & 1u) ? 4.0 : 2.0) / s;
+    return DP_OK;
+  }
+
+  /**
+   * @brief The mean of sinc(u) over `u` in `[0, umax]`.
+   *
+   * The average amplitude loss of a signal whose offset from the nearest
+   * bin centre is uniform over `umax` bins: the scalloping a Pd model
+   * averages over, where sinc(umax) would be only the worst case.
+   * 64-interval Simpson (simpson_weights()) over segments of at most half a
+   * bin: within 3e-10 at any umax, far below any model this feeds.
+   *
+   * @param umax  Upper end of the offset, in bins.
+   * @return The mean; 1 for `umax <= 0`.
+   * @code
+   * >>> from doppler.util import mean_sinc
+   * >>> mean_sinc(0.0)
+   * 1.0
+   * >>> round(mean_sinc(0.5), 9)             # uniform over half a bin
+   * 0.8726543
+   * @endcode
+   */
+  JM_FORCEINLINE double
+  mean_sinc (double umax)
+  {
+    if (umax <= 0.0)
+      return 1.0;
+    /* 64-interval Simpson over segments of at most half a bin, so the error
+       is one bound at any umax rather than growing with it. */
+    double w[65];
+    (void)simpson_weights (w, 65);
+    const size_t segs = umax > 0.5 ? (size_t)ceil (2.0 * umax) : 1u;
+    const double len  = umax / (double)segs;
+    double       m    = 0.0;
+    for (size_t s = 0; s < segs; s++)
+      for (size_t i = 0; i < 65; i++)
+        m += w[i] * sinc (len * ((double)s + (double)i / 64.0));
+    return m / (double)segs;
+  }
+
+  /**
+   * @brief Fill @p u with the midpoint-rule nodes on `[0, 1]`:
+   * `u[k] = (k + 1/2) / n` for `n = u_len`.
+   *
+   * The points a uniform average over `n` equal cells is evaluated at, each
+   * weighted `1/n`. Scale to `[a, b]` as `a + (b - a) * u[k]`.
+   *
+   * @param u      Output, `u_len` nodes, ascending.
+   * @param u_len  Number of cells.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.util import midpoint_nodes
+   * >>> u = np.empty(4)
+   * >>> midpoint_nodes(u)
+   * >>> u
+   * array([0.125, 0.375, 0.625, 0.875])
+   * @endcode
+   */
+  JM_FORCEINLINE void
+  midpoint_nodes (double *u, size_t u_len)
+  {
+    for (size_t k = 0; k < u_len; k++)
+      u[k] = ((double)k + 0.5) / (double)u_len;
+  }
+
+  /**
+   * @brief Fill @p z and @p p with the n-point Gauss-Hermite rule for a
+   * STANDARD NORMAL.
+   *
+   * `sum(p[i] * f(z[i]))` approximates `E[f(Z)]`, `Z ~ N(0, 1)`, and is
+   * exact for any polynomial `f` of degree up to `2n - 1`. For
+   * `X ~ N(mu, sigma^2)`, evaluate `f(mu + sigma * z[i])`. The nodes ascend
+   * and are symmetric about 0; the weights sum to 1.
+   *
+   * The nodes are the roots of the probabilists' Hermite polynomial
+   * `He_n`, found by Newton's method on its orthonormal recurrence
+   * `h[k+1] = (z h[k] - sqrt(k) h[k-1]) / sqrt(k+1)`, which cannot
+   * overflow the way `He_n` and `n!` do. Each starts from the classical
+   * asymptotic guesses (Numerical Recipes' `gauher`). The weight of a root
+   * is `1 / (n h[n-1](z)^2)`.
+   *
+   * @param z      Output, `n` nodes.
+   * @param z_len  `n`, at least 1.
+   * @param p      Output, `n` weights.
+   * @param p_len  Must equal @p z_len.
+   * @return DP_OK, or DP_ERR_INVALID (outputs untouched) for mismatched or
+   *         zero lengths.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.util import gauss_hermite
+   * >>> z, p = np.empty(2), np.empty(2)
+   * >>> gauss_hermite(z, p)
+   * >>> z, p                                 # +-1, each half
+   * (array([-1.,  1.]), array([0.5, 0.5]))
+   * >>> z, p = np.empty(5), np.empty(5)
+   * >>> gauss_hermite(z, p)
+   * >>> round(float(p @ z**4), 12)           # E[Z^4] = 3
+   * 3.0
+   * @endcode
+   */
+  JM_FORCEINLINE int
+  gauss_hermite (double *z, size_t z_len, double *p, size_t p_len)
+  {
+    if (z_len == 0 || z_len != p_len)
+      return DP_ERR_INVALID;
+    const size_t n = z_len;
+    double       x = 0.0; /* the guess, in physicists' units: z = x sqrt 2 */
+    for (size_t i = 0; i < (n + 1) / 2; i++)
+      {
+        /* The i-th largest root. Guesses from the roots already found,
+           which sit at z[n-1], z[n-2], ... */
+        if (i == 0)
+          x = sqrt (2.0 * (double)n + 1.0)
+              - 1.85575 * pow (2.0 * (double)n + 1.0, -1.0 / 6.0);
+        else if (i == 1)
+          x -= 1.14 * pow ((double)n, 0.426) / x;
+        else if (i == 2)
+          x = 1.86 * x - 0.86 * z[n - 1] / M_SQRT2;
+        else if (i == 3)
+          x = 1.91 * x - 0.91 * z[n - 2] / M_SQRT2;
+        else
+          x = 2.0 * x - z[n - 1 - (i - 2)] / M_SQRT2;
+        double r = M_SQRT2 * x, hm;
+        for (int it = 0; it < 100; it++)
+          {
+            double h0 = 1.0, h1 = r; /* h[k-1], h[k] from k = 1 */
+            for (size_t k = 1; k < n; k++)
+              {
+                const double h2
+                    = (r * h1 - sqrt ((double)k) * h0) / sqrt ((double)k + 1.0);
+                h0 = h1;
+                h1 = h2;
+              }
+            /* h1 is h[n]; its derivative is sqrt(n) h[n-1] = sqrt(n) h0. */
+            const double dz = h1 / (sqrt ((double)n) * h0);
+            r -= dz;
+            if (fabs (dz) <= 1e-15 * fmax (1.0, fabs (r)))
+              break;
+          }
+        /* h[n-1] at the converged root, for its weight. */
+        {
+          double h0 = 1.0, h1 = r;
+          for (size_t k = 1; k + 1 < n; k++)
+            {
+              const double h2
+                  = (r * h1 - sqrt ((double)k) * h0) / sqrt ((double)k + 1.0);
+              h0 = h1;
+              h1 = h2;
+            }
+          hm = n == 1 ? 1.0 : h1;
+        }
+        x              = r / M_SQRT2;
+        const double w = 1.0 / ((double)n * hm * hm);
+        z[n - 1 - i]   = r;
+        p[n - 1 - i]   = w;
+        z[i]           = -r;
+        p[i]           = w;
+      }
+    if (n & 1u)
+      z[n / 2] = 0.0; /* the middle root, exactly */
+    return DP_OK;
+  }
+
 #ifdef __cplusplus
 }
 #endif

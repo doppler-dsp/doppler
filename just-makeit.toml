@@ -2563,6 +2563,73 @@ type = "double"
 name = "d"
 type = "size_t"
 
+[[module.util.functions]]
+name = "complement_power"
+doc = "1 - (1 - p)^x for p in [0, 1] and real x >= 0, computed through expm1/log1p so it stays accurate when p is small. The one kernel behind two library quantities: the EMA coefficient that advances d samples (ema_alpha_decim, x = d) and the per-cell false-alarm probability that splits a search's Pfa over n independent cells (det_pfa_cell, x = 1/n)."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "p"
+type = "double"
+
+[[module.util.functions.params]]
+name = "x"
+type = "double"
+
+[[module.util.functions]]
+name = "sinc"
+doc = "Normalized sinc, sin(pi u)/(pi u), with sinc(0) = 1: the amplitude response of a rectangular window, so the straddle loss of a signal u bins off a DFT bin's centre."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "u"
+type = "double"
+
+[[module.util.functions]]
+name = "mean_sinc"
+doc = "The mean of sinc(u) over u in [0, umax]: the average amplitude loss of a signal whose offset from the nearest bin centre is uniform over umax bins. 1 for umax <= 0. 64-interval Simpson (simpson_weights) over segments of at most half a bin: within 3e-10 at any umax."
+return_type = "double"
+
+[[module.util.functions.params]]
+name = "umax"
+type = "double"
+
+[[module.util.functions]]
+name = "simpson_weights"
+doc = "Fill w with composite Simpson weights for the MEAN of a function over an interval: sum(w[i] * f(a + i*(b - a)/(n - 1))) approximates the mean of f over [a, b], for n = len(w) odd and at least 3. The weights sum to 1. Raises for any other length."
+return_type = "int"
+check_return = true
+
+[[module.util.functions.params]]
+name = "w"
+type = "double[]"
+out = true
+
+[[module.util.functions]]
+name = "midpoint_nodes"
+doc = "Fill u with the midpoint-rule nodes on [0, 1], u[k] = (k + 1/2)/n for n = len(u): the points a uniform average over n equal cells is evaluated at, each weighted 1/n."
+
+[[module.util.functions.params]]
+name = "u"
+type = "double[]"
+out = true
+
+[[module.util.functions]]
+name = "gauss_hermite"
+doc = "Fill z and p with the n-point Gauss-Hermite rule for a STANDARD NORMAL: sum(p[i] * f(z[i])) approximates E[f(Z)], Z ~ N(0, 1), exactly for any polynomial f of degree up to 2n - 1. For X ~ N(mu, sigma^2) evaluate f(mu + sigma * z[i]). Nodes ascend and the weights sum to 1. z and p must be the same length n >= 1; raises otherwise."
+return_type = "int"
+check_return = true
+
+[[module.util.functions.params]]
+name = "z"
+type = "double[]"
+out = true
+
+[[module.util.functions.params]]
+name = "p"
+type = "double[]"
+out = true
+
 [module.arith]
 doc = """
 Fixed-point accumulators: Q8 and Q15 scalar sums (AccQ8, AccQ15) with exact integer arithmetic for bit-true pipelines.

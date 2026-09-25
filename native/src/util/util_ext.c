@@ -81,6 +81,171 @@ _bind_ema_alpha_decim (PyObject *self, PyObject *args, PyObject *kwds)
   return PyFloat_FromDouble (ema_alpha_decim (alpha, d));
 }
 
+static PyObject *
+_bind_complement_power (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "p", "x", NULL };
+  double       p         = 0.0;
+  double       x         = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &p, &x))
+    return NULL;
+  return PyFloat_FromDouble (complement_power (p, x));
+}
+
+static PyObject *
+_bind_sinc (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "u", NULL };
+  double       u         = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &u))
+    return NULL;
+  return PyFloat_FromDouble (sinc (u));
+}
+
+static PyObject *
+_bind_mean_sinc (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "umax", NULL };
+  double       umax      = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "d", _kwlist, &umax))
+    return NULL;
+  return PyFloat_FromDouble (mean_sinc (umax));
+}
+
+static PyObject *
+_bind_simpson_weights (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "w", NULL };
+  PyObject    *w_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &w_obj))
+    return NULL;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (w_obj)
+      || PyArray_TYPE ((PyArrayObject *)w_obj) != NPY_DOUBLE
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)w_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)w_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "w must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *w_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      w_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!w_arr)
+    {
+      return NULL;
+    }
+  double *w     = (double *)PyArray_DATA (w_arr);
+  size_t  w_len = (size_t)PyArray_SIZE (w_arr);
+  int     _rc   = simpson_weights (w, w_len);
+  Py_DECREF (w_arr);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_RuntimeError, "simpson_weights failed (rc=%d)",
+                    (int)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+_bind_midpoint_nodes (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "u", NULL };
+  PyObject    *u_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "O", _kwlist, &u_obj))
+    return NULL;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (u_obj)
+      || PyArray_TYPE ((PyArrayObject *)u_obj) != NPY_DOUBLE
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)u_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)u_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "u must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *u_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      u_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!u_arr)
+    {
+      return NULL;
+    }
+  double *u     = (double *)PyArray_DATA (u_arr);
+  size_t  u_len = (size_t)PyArray_SIZE (u_arr);
+  midpoint_nodes (u, u_len);
+  Py_DECREF (u_arr);
+  Py_RETURN_NONE;
+}
+
+static PyObject *
+_bind_gauss_hermite (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "z", "p", NULL };
+  PyObject    *z_obj     = NULL;
+  PyObject    *p_obj     = NULL;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "OO", _kwlist, &z_obj, &p_obj))
+    return NULL;
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (z_obj)
+      || PyArray_TYPE ((PyArrayObject *)z_obj) != NPY_DOUBLE
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)z_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)z_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "z must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      return NULL;
+    }
+  PyArrayObject *z_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      z_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!z_arr)
+    {
+      return NULL;
+    }
+  double *z     = (double *)PyArray_DATA (z_arr);
+  size_t  z_len = (size_t)PyArray_SIZE (z_arr);
+  /* Require the exact dtype AND C-contiguity — either mismatch makes
+   * the marshal write into a temp copy, not the caller's buffer. */
+  if (!PyArray_Check (p_obj)
+      || PyArray_TYPE ((PyArrayObject *)p_obj) != NPY_DOUBLE
+      || !PyArray_IS_C_CONTIGUOUS ((PyArrayObject *)p_obj)
+      || !PyArray_ISWRITEABLE ((PyArrayObject *)p_obj))
+    {
+      PyErr_SetString (PyExc_TypeError, "p must be a writable, C-contiguous"
+                                        " ndarray of the output dtype");
+      Py_DECREF (z_arr);
+      return NULL;
+    }
+  PyArrayObject *p_arr = (PyArrayObject *)PyArray_FROM_OTF (
+      p_obj, NPY_DOUBLE, NPY_ARRAY_C_CONTIGUOUS | NPY_ARRAY_WRITEABLE);
+  if (!p_arr)
+    {
+      Py_DECREF (z_arr);
+      return NULL;
+    }
+  double *p     = (double *)PyArray_DATA (p_arr);
+  size_t  p_len = (size_t)PyArray_SIZE (p_arr);
+  int     _rc   = gauss_hermite (z, z_len, p, p_len);
+  Py_DECREF (z_arr);
+  Py_DECREF (p_arr);
+  if (_rc != 0)
+    {
+      PyErr_Format (PyExc_RuntimeError, "gauss_hermite failed (rc=%d)",
+                    (int)_rc);
+      return NULL;
+    }
+  Py_RETURN_NONE;
+}
+
 /* ======================================================== */
 /* Module                                                    */
 /* ======================================================== */
@@ -362,6 +527,196 @@ static PyMethodDef util_module_methods[] = {
     "1.0\n"
     ">>> ema_alpha_decim(0.0, 8)          # frozen stays frozen\n"
     "0.0\n" },
+  { "complement_power", (PyCFunction)(void *)_bind_complement_power,
+    METH_VARARGS | METH_KEYWORDS,
+    "1 - (1 - p)^x for p in [0, 1] and real x >= 0, computed through "
+    "expm1/log1p so it stays accurate when p is small. The one kernel behind "
+    "two library quantities: the EMA coefficient that advances d samples "
+    "(ema_alpha_decim, x = d) and the per-cell false-alarm probability that "
+    "splits a search's Pfa over n independent cells (det_pfa_cell, x = 1/n).\n"
+    "\n"
+    "Written directly, `1 - pow(1 - p, x)` loses everything `1 - p` rounded\n"
+    "away: at `p = 1e-5` it is 26865 ulps off. `-expm1(x * log1p(-p))` is\n"
+    "the same quantity with nothing cancelled.\n"
+    "\n"
+    "Two library quantities are this one expression, and both call it:\n"
+    "\n"
+    "- the EMA coefficient that advances `d` samples in one step,\n"
+    "  ema_alpha_decim(alpha, d) (`x = d`);\n"
+    "- the per-cell false-alarm probability that splits a search's `pfa`\n"
+    "  over `n` independent cells, det_pfa_cell(pfa, n) (`x = 1/n`, Šidák).\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "p : float\n"
+    "    Per-trial probability, in `[0, 1]`.\n"
+    "x : float\n"
+    "    Number of trials, any real `x >= 0`.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    `1 - (1 - p)^x`; exactly `p` at `x == 1`, 0 at `x == 0` or `p <=\n"
+    "    0`, and 1 at `p >= 1` (for `x > 0`).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.util import complement_power\n"
+    ">>> complement_power(0.05, 1.0)          # one trial is p exactly\n"
+    "0.05\n"
+    ">>> round(complement_power(0.5, 2.0), 12)  # 1 - 0.25\n"
+    "0.75\n"
+    ">>> round(complement_power(1e-3, 1 / 1000) * 1e6, 6)  # Sidak split\n"
+    "1.0005\n"
+    ">>> complement_power(0.3, 0.0)\n"
+    "0.0\n" },
+  { "sinc", (PyCFunction)(void *)_bind_sinc, METH_VARARGS | METH_KEYWORDS,
+    "Normalized sinc, sin(pi u)/(pi u), with sinc(0) = 1: the amplitude "
+    "response of a rectangular window, so the straddle loss of a signal u "
+    "bins off a DFT bin's centre.\n"
+    "\n"
+    "The amplitude response of a rectangular window, which makes it the\n"
+    "straddle loss of every correlator and DFT: a signal `u` bins off a\n"
+    "bin's centre keeps `sinc(u)` of its amplitude in that bin.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "u : float\n"
+    "    Offset, in bins (any real).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    `sin(pi u) / (pi u)`, and exactly 1 at `u == 0`.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.util import sinc\n"
+    ">>> sinc(0.0)\n"
+    "1.0\n"
+    ">>> round(sinc(0.5), 12)                 # half a bin: 2/pi\n"
+    "0.636619772368\n"
+    ">>> abs(sinc(1.0)) < 1e-15               # the first null\n"
+    "True\n" },
+  { "mean_sinc", (PyCFunction)(void *)_bind_mean_sinc,
+    METH_VARARGS | METH_KEYWORDS,
+    "The mean of sinc(u) over u in [0, umax]: the average amplitude loss of a "
+    "signal whose offset from the nearest bin centre is uniform over umax "
+    "bins. 1 for umax <= 0. 64-interval Simpson (simpson_weights) over "
+    "segments of at most half a bin: within 3e-10 at any umax.\n"
+    "\n"
+    "The average amplitude loss of a signal whose offset from the nearest\n"
+    "bin centre is uniform over `umax` bins: the scalloping a Pd model\n"
+    "averages over, where sinc(umax) would be only the worst case.\n"
+    "64-interval Simpson (simpson_weights()) over segments of at most half a\n"
+    "bin: within 3e-10 at any umax, far below any model this feeds.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "umax : float\n"
+    "    Upper end of the offset, in bins.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    The mean; 1 for `umax <= 0`.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.util import mean_sinc\n"
+    ">>> mean_sinc(0.0)\n"
+    "1.0\n"
+    ">>> round(mean_sinc(0.5), 9)             # uniform over half a bin\n"
+    "0.8726543\n" },
+  { "simpson_weights", (PyCFunction)(void *)_bind_simpson_weights,
+    METH_VARARGS | METH_KEYWORDS,
+    "Fill w with composite Simpson weights for the MEAN of a function over an "
+    "interval: sum(w[i] * f(a + i*(b - a)/(n - 1))) approximates the mean of "
+    "f over [a, b], for n = len(w) odd and at least 3. The weights sum to 1. "
+    "Raises for any other length.\n"
+    "\n"
+    "With `n = w_len` points, `sum(w[i] * f(a + i*(b - a)/(n - 1)))` is the\n"
+    "mean of `f` over `[a, b]` (multiply by `b - a` for the integral). The\n"
+    "weights are `1, 4, 2, 4, ..., 2, 4, 1` over `3 (n - 1)` and sum to 1.\n"
+    "Exact for any cubic; the error falls as `(n - 1)^-4` for a smooth `f`.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "w : NDArray[np.float64]\n"
+    "    Output, `w_len` weights.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.util import simpson_weights\n"
+    ">>> w = np.empty(5)\n"
+    ">>> simpson_weights(w)\n"
+    ">>> w * 12                               # 1, 4, 2, 4, 1 over 12\n"
+    "array([1., 4., 2., 4., 1.])\n"
+    ">>> u = np.linspace(0.0, 1.0, 5)\n"
+    ">>> round(float(w @ u**3), 12)           # mean of u^3 over [0, 1]\n"
+    "0.25\n" },
+  { "midpoint_nodes", (PyCFunction)(void *)_bind_midpoint_nodes,
+    METH_VARARGS | METH_KEYWORDS,
+    "Fill u with the midpoint-rule nodes on [0, 1], u[k] = (k + 1/2)/n for n "
+    "= len(u): the points a uniform average over n equal cells is evaluated "
+    "at, each weighted 1/n.\n"
+    "\n"
+    "The points a uniform average over `n` equal cells is evaluated at, each\n"
+    "weighted `1/n`. Scale to `[a, b]` as `a + (b - a) * u[k]`.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "u : NDArray[np.float64]\n"
+    "    Output, `u_len` nodes, ascending.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.util import midpoint_nodes\n"
+    ">>> u = np.empty(4)\n"
+    ">>> midpoint_nodes(u)\n"
+    ">>> u\n"
+    "array([0.125, 0.375, 0.625, 0.875])\n" },
+  { "gauss_hermite", (PyCFunction)(void *)_bind_gauss_hermite,
+    METH_VARARGS | METH_KEYWORDS,
+    "Fill z and p with the n-point Gauss-Hermite rule for a STANDARD NORMAL: "
+    "sum(p[i] * f(z[i])) approximates E[f(Z)], Z ~ N(0, 1), exactly for any "
+    "polynomial f of degree up to 2n - 1. For X ~ N(mu, sigma^2) evaluate "
+    "f(mu + sigma * z[i]). Nodes ascend and the weights sum to 1. z and p "
+    "must be the same length n >= 1; raises otherwise.\n"
+    "\n"
+    "`sum(p[i] * f(z[i]))` approximates `E[f(Z)]`, `Z ~ N(0, 1)`, and is\n"
+    "exact for any polynomial `f` of degree up to `2n - 1`. For `X ~ N(mu,\n"
+    "sigma^2)`, evaluate `f(mu + sigma * z[i])`. The nodes ascend and are\n"
+    "symmetric about 0; the weights sum to 1.\n"
+    "\n"
+    "The nodes are the roots of the probabilists' Hermite polynomial `He_n`,\n"
+    "found by Newton's method on its orthonormal recurrence `h[k+1] = (z\n"
+    "h[k] - sqrt(k) h[k-1]) / sqrt(k+1)`, which cannot overflow the way\n"
+    "`He_n` and `n!` do. Each starts from the classical asymptotic guesses\n"
+    "(Numerical Recipes' `gauher`). The weight of a root is `1 / (n\n"
+    "h[n-1](z)^2)`.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "z : NDArray[np.float64]\n"
+    "    Output, `n` nodes.\n"
+    "p : NDArray[np.float64]\n"
+    "    Output, `n` weights.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> import numpy as np\n"
+    ">>> from doppler.util import gauss_hermite\n"
+    ">>> z, p = np.empty(2), np.empty(2)\n"
+    ">>> gauss_hermite(z, p)\n"
+    ">>> z, p                                 # +-1, each half\n"
+    "(array([-1.,  1.]), array([0.5, 0.5]))\n"
+    ">>> z, p = np.empty(5), np.empty(5)\n"
+    ">>> gauss_hermite(z, p)\n"
+    ">>> round(float(p @ z**4), 12)           # E[Z^4] = 3\n"
+    "3.0\n" },
   { NULL, NULL, 0, NULL }
 };
 

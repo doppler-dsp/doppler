@@ -1,5 +1,6 @@
 #include "carrier_acq/carrier_acq_core.h"
 #include "dp_complex.h"
+#include "util/util_core.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,14 +8,6 @@
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
-
-/* sin(pi*u)/(pi*u), sinc(0) = 1 -- same idiom as acq_core.c's own
- * carrier_acq_sinc(). */
-static double
-carrier_acq_sinc (double u)
-{
-  return (u == 0.0) ? 1.0 : sin (M_PI * u) / (M_PI * u);
-}
 
 /* The average PSD of a random +-1 rectangular-pulse (NRZ) BPSK symbol
  * stream at symbol_rate_hz: sinc^2(f/symbol_rate_hz), DC-centred to
@@ -30,7 +23,7 @@ carrier_acq_default_template (float *out, size_t nfft, double sample_rate_hz,
     {
       double freq_hz
           = ((double)i - (double)nfft / 2.0) * sample_rate_hz / (double)nfft;
-      double s = carrier_acq_sinc (freq_hz / symbol_rate_hz);
+      double s = sinc (freq_hz / symbol_rate_hz);
       out[i]   = (float)(s * s);
     }
 }

@@ -9,7 +9,7 @@
 /* FrameDescObject — wraps frame_state_t *       */
 /* ======================================================== */
 
-#include "frame/frame_core.h"
+#include "doppler/frame/frame_core.h"
 
 typedef struct
 {

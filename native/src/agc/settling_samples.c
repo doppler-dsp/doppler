@@ -12,7 +12,7 @@
  * Same shape as write_blue_header.c in wfm_writer, for the same reason.
  * There is no logic here to drift: the body is one call.
  */
-#include "agc/agc_core.h"
+#include "doppler/agc/agc_core.h"
 
 size_t
 settling_samples (double loop_bw, double alpha, double gain_err_db,

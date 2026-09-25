@@ -322,5 +322,5 @@ int16_t hbdecim_q15_state_t::pending_Q;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/hbdecim_q15/hbdecim_q15_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/hbdecim_q15/hbdecim_q15_core.h`
 

@@ -10,7 +10,7 @@
 /* PersistentBurstCaptureObject — wraps burst_capture_state_t *       */
 /* ======================================================== */
 
-#include "burst_capture/burst_capture_core.h"
+#include "doppler/burst_capture/burst_capture_core.h"
 
 typedef struct
 {

@@ -84,9 +84,9 @@
  * xoshiro256++: Blackman & Vigna, ACM TOMS 47(4), 2021.
  * SplitMix64:   Steele et al., PLDI 2014.
  */
-#include "awgn/awgn_core.h"
+#include "doppler/awgn/awgn_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 

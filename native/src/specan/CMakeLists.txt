@@ -16,7 +16,7 @@ endif()
 add_library(specan_core OBJECT specan_core.c)
 target_include_directories(
   specan_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                     ${CMAKE_SOURCE_DIR}/native/inc/specan)
+                     ${CMAKE_SOURCE_DIR}/native/inc/doppler/specan)
 target_link_libraries(specan_core PUBLIC
     ddc_core
     lo_core

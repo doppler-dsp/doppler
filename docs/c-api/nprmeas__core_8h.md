@@ -4,17 +4,17 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**nprmeas**](dir_2ffe7a00bca5d7665b823d0b8c1040c3.md) **>** [**nprmeas\_core.h**](nprmeas__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**nprmeas**](dir_df189228e030028408da81bd0afea7e3.md) **>** [**nprmeas\_core.h**](nprmeas__core_8h.md)
 
 [Go to the source code of this file](nprmeas__core_8h_source.md)
 
 _NPRMeasure — notched-noise Noise Power Ratio._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "measure/measure_core.h"`
-* `#include "psd/psd_core.h"`
-* `#include "dp_complex.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/measure/measure_core.h"`
+* `#include "doppler/psd/psd_core.h"`
+* `#include "doppler/dp_complex.h"`
 
 
 
@@ -357,5 +357,5 @@ size_t nprmeas_spectrum_dbfs_max_out (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/nprmeas/nprmeas_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/nprmeas/nprmeas_core.h`
 

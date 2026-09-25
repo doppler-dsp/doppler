@@ -19,8 +19,8 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
+#include "doppler/pn/pn_core.h"
 #include "jm_bench.h"
-#include "pn/pn_core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

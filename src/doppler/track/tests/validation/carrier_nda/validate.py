@@ -630,8 +630,8 @@ def section_summary() -> None:
         ["source", "holds"],
         [
             [
-                "[`native/inc/carrier_nda/carrier_nda_core.h`]"
-                "(../../../../../../native/inc/carrier_nda/carrier_nda_core.h)",
+                "[`native/inc/doppler/carrier_nda/carrier_nda_core.h`]"
+                "(../../../../../../native/inc/doppler/carrier_nda/carrier_nda_core.h)",
                 "the contract: the acquisition bounds and which one is "
                 "silent, what the arm window costs, the threshold chain, and "
                 "why the verify count is not derived from it",

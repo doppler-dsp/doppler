@@ -9,7 +9,7 @@
 /* F64BufferObject — wraps f64_buffer_state_t *       */
 /* ======================================================== */
 
-#include "f64_buffer/f64_buffer_core.h"
+#include "doppler/f64_buffer/f64_buffer_core.h"
 
 typedef struct
 {

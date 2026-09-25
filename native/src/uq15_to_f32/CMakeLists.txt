@@ -16,7 +16,7 @@ endif()
 add_library(uq15_to_f32_core OBJECT uq15_to_f32_core.c)
 target_include_directories(
   uq15_to_f32_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                          ${CMAKE_SOURCE_DIR}/native/inc/uq15_to_f32)
+                          ${CMAKE_SOURCE_DIR}/native/inc/doppler/uq15_to_f32)
 
 add_executable(test_uq15_to_f32_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_uq15_to_f32_core.c

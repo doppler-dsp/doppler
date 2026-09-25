@@ -1,13 +1,13 @@
 /*
  * wfm_dsp.c — DSSS spreading + root-raised-cosine taps (Phase B).
  */
-#include "wfm/wfm_dsp.h"
+#include "doppler/wfm/wfm_dsp.h"
 
-#include "wfm/wfm_frame.h"
+#include "doppler/wfm/wfm_frame.h"
 
-#include "dp_crc16.h"
+#include "doppler/dp_crc16.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 

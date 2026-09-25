@@ -2,7 +2,7 @@
 
 # File dp\_state.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**dp\_state.h**](dp__state_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_state.h**](dp__state_8h.md)
 
 [Go to the documentation of this file](dp__state_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef DP_STATE_H
 #define DP_STATE_H
 
-#include "clib_common.h" /* DP_OK, DP_ERR_INVALID, fixed-width ints, memcpy */
+#include "doppler/clib_common.h" /* DP_OK, DP_ERR_INVALID, fixed-width ints, memcpy */
 
 /* FourCC type tag, e.g. DP_FOURCC('A','C','Q','R'). Stored little-end-first so
  * the bytes read as "ACQR" in a hex dump on a little-endian host. */

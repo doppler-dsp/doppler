@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**dsss**](dir_8b18bfb9a64167292d2c60acbfcb2ae1.md) **>** [**dsss\_core.h**](dsss__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dsss**](dir_c33ba84b8db3f8ead33f9dfeadf377c6.md) **>** [**dsss\_core.h**](dsss__core_8h.md)
 
 [Go to the source code of this file](dsss__core_8h_source.md)
 
 _Dsss module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -78,5 +78,5 @@ _Dsss module — public C API._
 
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dsss/dsss_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dsss/dsss_core.h`
 

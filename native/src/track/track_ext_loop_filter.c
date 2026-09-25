@@ -9,7 +9,7 @@
 /* LoopFilterObject — wraps loop_filter_state_t *       */
 /* ======================================================== */
 
-#include "loop_filter/loop_filter_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
 
 typedef struct
 {

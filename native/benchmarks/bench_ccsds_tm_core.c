@@ -27,10 +27,10 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
-#include "ccsds_tm/ccsds_tm.h"
-#include "ccsds_tm/ccsds_tm_frame.h"
-#include "ccsds_tm/ccsds_tm_rs.h"
-#include "conv/conv_core.h"
+#include "doppler/ccsds_tm/ccsds_tm.h"
+#include "doppler/ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/ccsds_tm/ccsds_tm_rs.h"
+#include "doppler/conv/conv_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

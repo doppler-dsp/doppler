@@ -49,7 +49,7 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 
-#include "dp_state.h"
+#include "doppler/dp_state.h"
 
 #include <stdio.h>
 #include <string.h>

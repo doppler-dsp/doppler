@@ -2,7 +2,7 @@
 
 # File doppler\_channel\_core.h
 
-[**File List**](files.md) **>** [**doppler\_channel**](dir_597302de6cb0d177e5e89858f2abab7e.md) **>** [**doppler\_channel\_core.h**](doppler__channel__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**doppler\_channel**](dir_8380ecb58e2e244790f54835382515ec.md) **>** [**doppler\_channel\_core.h**](doppler__channel__core_8h.md)
 
 [Go to the documentation of this file](doppler__channel__core_8h.md)
 
@@ -12,10 +12,10 @@
 #ifndef DOPPLER_CHANNEL_CORE_H
 #define DOPPLER_CHANNEL_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
-#include "resamp/resamp_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
+#include "doppler/resamp/resamp_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

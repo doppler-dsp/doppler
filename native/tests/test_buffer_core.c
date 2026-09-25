@@ -8,10 +8,10 @@
  * to a whole-page, power-of-two capacity, and the double-mapping must still
  * wrap correctly afterwards.
  */
-#include "buffer/buffer.h"
+#include "doppler/buffer/buffer.h"
+#include "doppler/dp_thread.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
-#include "dp_thread.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

@@ -6,7 +6,7 @@
  * and docs/design/mpsk.md §9.7 for why this is one general path rather than a
  * closed form per M.
  */
-#include "mpsk/mpsk_core.h"
+#include "doppler/mpsk/mpsk_core.h"
 
 #include <float.h>
 

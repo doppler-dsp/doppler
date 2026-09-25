@@ -30,9 +30,9 @@
  *   wfmgen_certify --render <name> <path> raw interleaved cf32, native LE
  *   wfmgen_certify --check                render every scene, exit 0 if sane
  */
-#include "wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_compose.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

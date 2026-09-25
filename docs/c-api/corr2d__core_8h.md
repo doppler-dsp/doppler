@@ -4,16 +4,16 @@
 
 
 
-[**FileList**](files.md) **>** [**corr2d**](dir_55247951d314f4b4a6db9bf46862b830.md) **>** [**corr2d\_core.h**](corr2d__core_8h.md)
+[**FileList**](files.md) **>** [**corr2d**](dir_ac96ca94cfbb355eb7a82b081cfe387c.md) **>** [**corr2d\_core.h**](corr2d__core_8h.md)
 
 [Go to the source code of this file](corr2d__core_8h_source.md)
 
 _2-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "fft/fft_core.h"`
-* `#include "fft2d/fft2d_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/fft/fft_core.h"`
+* `#include "doppler/fft2d/fft2d_core.h"`
 
 
 
@@ -439,5 +439,5 @@ size_t corr2d_state_bytes (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/corr2d/corr2d_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/corr2d/corr2d_core.h`
 

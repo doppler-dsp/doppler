@@ -16,7 +16,7 @@ endif()
 add_library(wfm_reader_core OBJECT wfm_reader_core.c)
 target_include_directories(
   wfm_reader_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                         ${CMAKE_SOURCE_DIR}/native/inc/wfm_reader)
+                         ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm_reader)
 target_link_libraries(wfm_reader_core PUBLIC
     dp_interrupt_guard_core
     wfm_cjson_core

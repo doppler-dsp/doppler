@@ -2,12 +2,12 @@
  * test_wfm_reader.c — round-trip wfm_writer → wfm_reader across every
  * file type, plus file type auto-detection and the BLUE-magic gate.
  */
+#include "doppler/wfm/wfm_keywords.h"
+#include "doppler/wfm_reader/wfm_reader_core.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 #include "dp_test.h"
-#include "wfm/wfm_keywords.h"
-#include "wfm_reader/wfm_reader_core.h"
-#include "wfm_writer/wfm_writer_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>

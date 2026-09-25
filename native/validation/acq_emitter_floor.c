@@ -43,11 +43,11 @@
  *                                         centred, data-free same-tile
  *                                         maximum is the Gold bound
  */
-#include "acq/acq_core.h"
-#include "dp_complex.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/gold/gold_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_test.h"
-#include "gold/gold_core.h"
-#include "wfm_synth/wfm_synth_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,7 +1,7 @@
 /*
  * int_to_bin.c — cvt module-level function.
  */
-#include "cvt/cvt_core.h"
+#include "doppler/cvt/cvt_core.h"
 
 /* Where the i-th bit of a unit lands, given its width and the bit order.
    BIG is the identity — the order the value reads. LITTLE reverses within

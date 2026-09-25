@@ -223,7 +223,7 @@ def section_object() -> None:
                 "loop",
             ],
             [
-                "`native/inc/burst_demod/burst_demod_core.h`",
+                "`native/inc/doppler/burst_demod/burst_demod_core.h`",
                 "the contract — the SSOT this report audits",
             ],
         ],

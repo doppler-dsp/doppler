@@ -4,14 +4,14 @@
 
 
 
-[**FileList**](files.md) **>** [**i16u32\_to\_f32**](dir_a216b988e44f4b34f41ebc1122731aa5.md) **>** [**i16u32\_to\_f32\_core.h**](i16u32__to__f32__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**i16u32\_to\_f32**](dir_c1ecd6bb977db755472db2284b0a6806.md) **>** [**i16u32\_to\_f32\_core.h**](i16u32__to__f32__core_8h.md)
 
 [Go to the source code of this file](i16u32__to__f32__core_8h_source.md)
 
 _Q15-in-uint32 to float converter._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
 
 
 
@@ -327,5 +327,5 @@ Applies step() to every element. Accepts an optional pre-allocated output array;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/i16u32_to_f32/i16u32_to_f32_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/i16u32_to_f32/i16u32_to_f32_core.h`
 

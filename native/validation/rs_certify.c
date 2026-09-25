@@ -43,14 +43,14 @@
  * independent variable — and using one generator for both keeps a row here
  * and an assertion there talking about the same thing.
  */
-#include "awgn/awgn_core.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/mpsk/mpsk_core.h"
+#include "doppler/pn/pn_core.h"
+#include "doppler/rs/rs_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_rng_test.h"
-#include "mpsk/mpsk_core.h"
-#include "pn/pn_core.h"
-#include "rs/rs_core.h"
-#include "wfm_synth/wfm_synth_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

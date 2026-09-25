@@ -2,7 +2,7 @@
 
 # File snr\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**snr**](dir_a0dc77cb6789ae5cf19b2d0651b00ce2.md) **>** [**snr\_core.h**](snr__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**snr**](dir_02c47206b4cbe462773a89d72d8a4c36.md) **>** [**snr\_core.h**](snr__core_8h.md)
 
 [Go to the documentation of this file](snr__core_8h.md)
 
@@ -12,8 +12,8 @@
 #ifndef SNR_CORE_H
 #define SNR_CORE_H
 
-#include "clib_common.h"
-#include "dp_complex.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_complex.h"
 
 #ifdef __cplusplus
 extern "C"

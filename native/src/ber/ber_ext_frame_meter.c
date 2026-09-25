@@ -9,7 +9,7 @@
 /* FrameMeterObject — wraps frame_meter_state_t *       */
 /* ======================================================== */
 
-#include "frame_meter/frame_meter_core.h"
+#include "doppler/frame_meter/frame_meter_core.h"
 
 typedef struct
 {

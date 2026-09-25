@@ -24,8 +24,8 @@
  * so part of what it costs is bandwidth, not arithmetic, and the two are
  * not separable from this row alone.
  */
+#include "doppler/nco/nco_core.h"
 #include "dp_bench.h"
-#include "nco/nco_core.h"
 #include <stdio.h>
 #include <stdlib.h>
 

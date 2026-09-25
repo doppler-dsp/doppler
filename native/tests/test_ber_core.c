@@ -26,11 +26,11 @@
  * test_snr_core.c: an estimator has to be checked against a signal whose Es/N0
  * is known by construction.
  */
-#include "ber/ber_core.h"
+#include "doppler/ber/ber_core.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

@@ -1,7 +1,7 @@
 /*
  * bpsk_map.c — wfmgen module-level function.
  */
-#include "wfm/wfm_core.h"
+#include "doppler/wfm/wfm_core.h"
 
 /* Map bits {0,1} to BPSK symbols: 0 -> +1, 1 -> -1 (unit energy, cf32). */
 void

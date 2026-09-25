@@ -4,14 +4,14 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**util**](dir_301ecbdb0604927cf0b3895ddfaba60f.md) **>** [**util\_core.h**](util__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**util**](dir_7dd94ac9e5a2e34ed236c6361f93c476.md) **>** [**util\_core.h**](util__core_8h.md)
 
 [Go to the source code of this file](util__core_8h_source.md)
 
 _Util module — public C API._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
 * `#include <math.h>`
 
 
@@ -739,5 +739,5 @@ Sample with each component limited to `[-lin, lin]`.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/util/util_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/util/util_core.h`
 

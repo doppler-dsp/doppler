@@ -336,7 +336,7 @@ is the price of phase-robustness.
 (looks) to close the remaining `Pd` gap. The detection module already has the
 primitives — `det_threshold(pfa)` → `eta`, `det_pd(snr, dwell, eta)` (coherent,
 order 1), and crucially `marcum_q(m, a, b)` with **arbitrary integer order `m`**,
-which *is* the non-coherent detector for `m = N_nc` looks (`native/inc/detection/`).
+which *is* the non-coherent detector for `m = N_nc` looks (`native/inc/doppler/detection/`).
 The packaged `det_pd_noncoherent(snr, n_coh, n_noncoh, threshold)` (plus its look inverse
 `det_n_noncoh`) lets the engine **auto-split** `(M, N_nc)` from `(Pfa, Pd, cn0_dbhz)` and the ceilings — `cn0_dbhz` is converted to the per-sample amplitude
 `snr = sqrt(10^(cn0_dbhz/10)/fs)` at construction.

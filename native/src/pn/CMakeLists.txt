@@ -16,7 +16,7 @@ endif()
 add_library(pn_core OBJECT pn_core.c)
 target_include_directories(
   pn_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                 ${CMAKE_SOURCE_DIR}/native/inc/pn)
+                 ${CMAKE_SOURCE_DIR}/native/inc/doppler/pn)
 
 add_executable(test_pn_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_pn_core.c

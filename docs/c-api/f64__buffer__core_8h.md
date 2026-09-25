@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**f64\_buffer**](dir_5630daeef65defa73cbccdb3de4b4d2a.md) **>** [**f64\_buffer\_core.h**](f64__buffer__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**f64\_buffer**](dir_d7320aa8439c659edb0fbbfd27af0c55.md) **>** [**f64\_buffer\_core.h**](f64__buffer__core_8h.md)
 
 [Go to the source code of this file](f64__buffer__core_8h_source.md)
 
 _The complex128 ring as the component just-makeit binds._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "buffer/buffer.h"`
-* `#include "dp_interrupt_guard/dp_interrupt_guard_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/buffer/buffer.h"`
+* `#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"`
 
 
 
@@ -770,5 +770,5 @@ True
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/f64_buffer/f64_buffer_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/f64_buffer/f64_buffer_core.h`
 

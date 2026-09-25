@@ -19,7 +19,7 @@
  * self-contained.
  */
 
-#include "wfm/wfm_sink.h"
+#include "doppler/wfm/wfm_sink.h"
 
 #if defined(__GNUC__)
 #define WFM_STUB __attribute__ ((weak))

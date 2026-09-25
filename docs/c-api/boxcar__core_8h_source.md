@@ -2,7 +2,7 @@
 
 # File boxcar\_core.h
 
-[**File List**](files.md) **>** [**boxcar**](dir_4075e3d5389fc37fde93604059f4dd85.md) **>** [**boxcar\_core.h**](boxcar__core_8h.md)
+[**File List**](files.md) **>** [**boxcar**](dir_5b2ea30dc12e54f23750507f860119fd.md) **>** [**boxcar\_core.h**](boxcar__core_8h.md)
 
 [Go to the documentation of this file](boxcar__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef BOXCAR_CORE_H
 #define BOXCAR_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
 #ifdef __cplusplus
 extern "C"
 {

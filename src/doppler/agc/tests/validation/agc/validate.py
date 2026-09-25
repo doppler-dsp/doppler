@@ -9,7 +9,8 @@ Run directly to regenerate `results.md`, the plots and the CSVs:
 records is asserted by `src/doppler/agc/tests/test_validation_limits.py`,
 which runs this same `build(write=False)`.
 
-The order is the campaign's, not this file's: `native/inc/agc/agc_core.h`
+The order is the campaign's, not this file's:
+`native/inc/doppler/agc/agc_core.h`
 is the SSOT, `native/tests/test_agc_core.c` §1-§24 certifies it in C, and
 this measures the same properties through `doppler.agc.AGC` to show the
 binding delivers them. Claims that cannot be reached from Python are
@@ -148,7 +149,7 @@ def section_object() -> None:
     R.md()
     R.md("Design and API, not restated here:")
     R.md()
-    R.md("- `native/inc/agc/agc_core.h` — the SSOT for every claim")
+    R.md("- `native/inc/doppler/agc/agc_core.h` — the SSOT for every claim")
     R.md("- `native/tests/test_agc_core.c` §1-§24 — the C certification")
     R.md(
         "- [AGC design](../../../../../../docs/design/agc.md) — why the "

@@ -19,7 +19,7 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
-#include "acc_trace/acc_trace_core.h"
+#include "doppler/acc_trace/acc_trace_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

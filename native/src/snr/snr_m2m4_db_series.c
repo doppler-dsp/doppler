@@ -4,7 +4,7 @@
  * Sliding-window wrapper: one snr_m2m4_db() call per output index, over a
  * [i - window/2, i + window/2] span clamped at the edges.
  */
-#include "snr/snr_core.h"
+#include "doppler/snr/snr_core.h"
 
 void
 snr_m2m4_db_series (const float _Complex *x, size_t x_len, size_t window,

@@ -4,16 +4,16 @@
 
 
 
-[**FileList**](files.md) **>** [**farrow**](dir_3474bb67440308cdab2155867b5160e7.md) **>** [**farrow\_core.h**](farrow__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**farrow**](dir_f5d5da611c5546f094b053d8a6116219.md) **>** [**farrow\_core.h**](farrow__core_8h.md)
 
 [Go to the source code of this file](farrow__core_8h_source.md)
 
 _Farrow fractional-delay interpolator — linear / parabolic / cubic._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "dp_state.h"`
-* `#include "dp_complex.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/dp_complex.h"`
 
 
 
@@ -516,5 +516,5 @@ size_t farrow_state_bytes (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/farrow/farrow_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/farrow/farrow_core.h`
 

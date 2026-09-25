@@ -9,7 +9,7 @@
 /* GoldObject — wraps gold_state_t *       */
 /* ======================================================== */
 
-#include "gold/gold_core.h"
+#include "doppler/gold/gold_core.h"
 
 typedef struct
 {

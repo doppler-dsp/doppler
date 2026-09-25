@@ -6,18 +6,18 @@
  * grow-on-demand scratch buffer, and publishes it. POSIX-only (links the
  * vendored nats.c).
  */
-#include "wfm/wfm_sink.h"
+#include "doppler/wfm/wfm_sink.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "dp_format.h"
-#include "f32_to_i16/f32_to_i16_core.h"
-#include "f32_to_i32/f32_to_i32_core.h"
-#include "f32_to_i8/f32_to_i8_core.h"
-#include "stream/stream.h"
+#include "doppler/dp_format.h"
+#include "doppler/f32_to_i16/f32_to_i16_core.h"
+#include "doppler/f32_to_i32/f32_to_i32_core.h"
+#include "doppler/f32_to_i8/f32_to_i8_core.h"
+#include "doppler/stream/stream.h"
 
 /* wavegen wire-type index: 0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8. */
 enum

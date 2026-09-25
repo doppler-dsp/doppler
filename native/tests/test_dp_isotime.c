@@ -21,7 +21,7 @@
  * `assert` and reported "all passed" while printing every mismatch, so a
  * deliberately broken formatter still exited 0.
  */
-#include "dp_isotime.h"
+#include "doppler/dp_isotime.h"
 #include "dp_test.h"
 
 #include <stdio.h>

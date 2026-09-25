@@ -20,7 +20,7 @@
  * The hot path is fully unrolled (CIC_N=4 stages, M=1 comb).
  */
 
-#include "cic/cic_core.h"
+#include "doppler/cic/cic_core.h"
 
 #include <math.h>
 

@@ -11,7 +11,7 @@
 #ifndef DP_STREAM_INTERNAL_H
 #define DP_STREAM_INTERNAL_H
 
-#include "stream/stream.h"
+#include "doppler/stream/stream.h"
 
 /* The wire constants -- magic, version, the flag set and the chunk block --
  * are PUBLIC (stream/stream.h). They were private here while the public

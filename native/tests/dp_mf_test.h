@@ -19,8 +19,8 @@
 #ifndef DP_MF_TEST_H
 #define DP_MF_TEST_H
 
-#include "dp_complex.h"
-#include "wfm/wfm_dsp.h" /* wfm_rrc_h — static inline, no link edge */
+#include "doppler/dp_complex.h"
+#include "doppler/wfm/wfm_dsp.h" /* wfm_rrc_h — static inline, no link edge */
 #include <math.h>
 #include <stdlib.h>
 

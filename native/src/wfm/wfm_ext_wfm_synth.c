@@ -9,7 +9,7 @@
 /* _SynthEngineObject — wraps wfm_synth_state_t *       */
 /* ======================================================== */
 
-#include "wfm_synth/wfm_synth_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 
 typedef struct
 {

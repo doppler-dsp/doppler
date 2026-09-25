@@ -8,7 +8,7 @@
  */
 #include "wfm_draw.h"
 
-#include "wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_compose.h"
 
 /* Deterministic uniform double in [0,1) from a 64-bit key (splitmix64). */
 static double

@@ -1,6 +1,6 @@
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/tonemeas/tonemeas_core.h"
 #include "dp_test.h"
-#include "tonemeas/tonemeas_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

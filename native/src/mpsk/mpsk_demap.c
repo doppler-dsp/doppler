@@ -4,7 +4,7 @@
  * Element-wise hard decision: each symbol -> nearest constellation point's
  * Gray label byte. Inverse of mpsk_map; uses the mpsk_core.h inline slicer.
  */
-#include "mpsk/mpsk_core.h"
+#include "doppler/mpsk/mpsk_core.h"
 
 void
 mpsk_demap (const float _Complex *x, size_t x_len, uint8_t *out, int m)

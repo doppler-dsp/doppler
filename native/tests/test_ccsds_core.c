@@ -13,8 +13,8 @@
  */
 #include "dp_test.h"
 
-#include "ccsds/ccsds_core.h"
-#include "ccsds_tm/ccsds_tm.h"
+#include "doppler/ccsds/ccsds_core.h"
+#include "doppler/ccsds_tm/ccsds_tm.h"
 #include <stdio.h>
 #include <string.h>
 

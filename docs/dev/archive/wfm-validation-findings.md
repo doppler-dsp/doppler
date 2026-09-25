@@ -124,7 +124,7 @@ common case, contra the "shared wire formats" architecture rule)
 **xfail:** `TestStreamSinkAndClock::test_streamsink_cf32_decodes_in_stream`
 
 **Expected.** `ZmqSink` and `doppler.stream` share one wire enum
-(`dp_sample_type_t`, `native/inc/stream/stream.h:84`):
+(`dp_sample_type_t`, `native/inc/doppler/stream/stream.h:84`):
 
 ```
 CI32 = 0, CF64 = 1, CF128 = 2, CI8 = 3, CI16 = 4, CF32 = 5

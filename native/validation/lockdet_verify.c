@@ -42,10 +42,10 @@
  *   lockdet_verify            full table over (p, n_up)
  *   lockdet_verify --check    fast CI gate on the default cell
  */
-#include "awgn/awgn_core.h"
-#include "detection/detection_core.h"
-#include "dp_complex.h"
-#include "lockdet/lockdet_core.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/lockdet/lockdet_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

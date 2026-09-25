@@ -143,7 +143,7 @@ def section_object() -> None:
                 "re-derived here",
             ],
             [
-                "`native/inc/detector2d/detector2d_core.h`",
+                "`native/inc/doppler/detector2d/detector2d_core.h`",
                 "the contract per function — the SSOT this report audits",
             ],
         ],

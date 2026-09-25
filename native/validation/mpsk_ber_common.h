@@ -63,10 +63,10 @@
 #ifndef MPSK_BER_COMMON_H
 #define MPSK_BER_COMMON_H
 
+#include "doppler/dp_complex.h"
+#include "doppler/mpsk_receiver/mpsk_receiver_core.h"
 #include "dp_ber_test.h"
-#include "dp_complex.h"
 #include "dp_rng_test.h"
-#include "mpsk_receiver/mpsk_receiver_core.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

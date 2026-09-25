@@ -167,7 +167,7 @@ def section_object() -> None:
                 "the Pd/threshold sizing this engine calls — not re-derived",
             ],
             [
-                "`native/inc/acq/acq_core.h`",
+                "`native/inc/doppler/acq/acq_core.h`",
                 "the contract — the SSOT this report audits",
             ],
         ],

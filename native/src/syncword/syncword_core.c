@@ -6,7 +6,7 @@
  * `SyncFinder(asm_bits())` — a temporary that numpy frees the moment
  * the constructor returns — is a valid searcher rather than a dangling one.
  */
-#include "syncword/syncword_core.h"
+#include "doppler/syncword/syncword_core.h"
 
 #include <stdlib.h>
 

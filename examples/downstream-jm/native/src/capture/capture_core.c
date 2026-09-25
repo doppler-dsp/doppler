@@ -6,12 +6,12 @@
  * example adds beyond doppler's own handle is the pair of numbers a headerless
  * capture cannot carry (`fs`, `fc`) and a note saying where they came from.
  */
-#include "capture/capture_core.h"
+#include "iqtools/capture/capture_core.h"
 
 #include <stdlib.h>
 
 /* doppler's public C API — from the installed/built headers, not vendored. */
-#include "wfm_reader/wfm_reader_core.h"
+#include "doppler/wfm_reader/wfm_reader_core.h"
 
 /**
  * @brief The hand-written state: doppler's handle, plus provenance.

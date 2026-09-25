@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**dp\_state.h**](dp__state_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_state.h**](dp__state_8h.md)
 
 [Go to the source code of this file](dp__state_8h_source.md)
 
 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -645,5 +645,5 @@ Blobs are native-endian POD for same-machine / same-arch resume (thread, process
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_state.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_state.h`
 

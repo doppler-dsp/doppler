@@ -11,11 +11,11 @@
  * needs to exist is built here, so the remaining work is the three stages
  * and nothing else.
  */
-#include "dsss_burst_receiver/dsss_burst_receiver_core.h"
+#include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"
 
-#include "cvt/cvt_core.h"
-#include "dp_crc16.h"
-#include "util/util_core.h"
+#include "doppler/cvt/cvt_core.h"
+#include "doppler/dp_crc16.h"
+#include "doppler/util/util_core.h"
 
 #include <stdbool.h>
 

@@ -2,7 +2,7 @@
 
 # File dp\_tlm\_core.h
 
-[**File List**](files.md) **>** [**dp\_tlm**](dir_76b7d6d4427bc094138fa987d2f2ac6b.md) **>** [**dp\_tlm\_core.h**](dp__tlm__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_tlm**](dir_6b0129a28aff69bb09c5c8857f722994.md) **>** [**dp\_tlm\_core.h**](dp__tlm__core_8h.md)
 
 [Go to the documentation of this file](dp__tlm__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef DP_TELEMETRY_H
 #define DP_TELEMETRY_H
 
-#include "buffer/buffer.h"
-#include "clib_common.h" /* DP_OK, DP_ERR_INVALID */
-#include "jm_perf.h"      /* JM_FORCEINLINE */
+#include "doppler/buffer/buffer.h"
+#include "doppler/clib_common.h" /* DP_OK, DP_ERR_INVALID */
+#include "doppler/jm_perf.h"      /* JM_FORCEINLINE */
 
 /* 16-byte ring slots: sizeof(uint64_t)*2 per "complex sample" — exactly one
  * telemetry record each, buying the VM-mirrored contiguity, acquire/release

@@ -4,17 +4,17 @@
 
 
 
-[**FileList**](files.md) **>** [**agc**](dir_947ec4d62e9dda8dbffe026d57cfb18d.md) **>** [**agc\_core.h**](agc__core_8h.md)
+[**FileList**](files.md) **>** [**agc**](dir_da2fce83534b434d126c978bac57abe5.md) **>** [**agc\_core.h**](agc__core_8h.md)
 
 [Go to the source code of this file](agc__core_8h_source.md)
 
 _Log-domain automatic gain control (AGC)._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "dp_state.h"`
-* `#include "dp_tlm/dp_tlm_core.h"`
-* `#include "util/util_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/util/util_core.h"`
 * `#include <math.h>`
 
 
@@ -916,5 +916,5 @@ the reference power at create/reset", which is true of the seed and says nothing
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/agc/agc_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/agc/agc_core.h`
 

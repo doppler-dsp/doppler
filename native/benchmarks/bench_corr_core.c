@@ -27,9 +27,9 @@
  * should be close to flat in n and any drift in it is the O(n) parts
  * moving against the O(n log n) ones.
  */
-#include "corr/corr_core.h"
+#include "doppler/corr/corr_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_bench.h"
-#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

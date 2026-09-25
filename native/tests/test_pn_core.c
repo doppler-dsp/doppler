@@ -1,7 +1,7 @@
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/pn/pn_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h" /* wfm_synth_mls_poly() — the primitive-poly table */
 #include "dp_test.h"
-#include "pn/pn_core.h"
-#include "wfm_synth/wfm_synth_core.h" /* wfm_synth_mls_poly() — the primitive-poly table */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,5 +1,5 @@
-#include "acc_q15/acc_q15_core.h"
-#include "q15_mac.h"
+#include "doppler/acc_q15/acc_q15_core.h"
+#include "doppler/q15_mac.h"
 
 acc_q15_state_t *
 acc_q15_create (int64_t acc)

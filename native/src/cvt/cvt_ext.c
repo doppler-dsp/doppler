@@ -10,10 +10,10 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 #include <numpy/arrayobject.h>
 
-#include "cvt/cvt_core.h"
+#include "doppler/cvt/cvt_core.h"
 
 #include "cvt_ext_adc.c"
 #include "cvt_ext_f32_to_i16.c"

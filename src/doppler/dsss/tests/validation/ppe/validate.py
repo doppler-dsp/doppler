@@ -129,7 +129,7 @@ def section_object() -> None:
                 "alternative it is chosen over",
             ],
             [
-                "`native/inc/ppe/ppe_core.h`",
+                "`native/inc/doppler/ppe/ppe_core.h`",
                 "the contract — the SSOT this report audits",
             ],
         ],

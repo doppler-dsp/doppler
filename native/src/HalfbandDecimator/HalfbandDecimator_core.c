@@ -1,4 +1,4 @@
-#include "HalfbandDecimator/HalfbandDecimator_core.h"
+#include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"
 
 HalfbandDecimator_state_t *
 HalfbandDecimator_create (const float *h, size_t h_len)

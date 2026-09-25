@@ -1,7 +1,7 @@
 /*
  * wfm_ebno_to_snr_db.c — wfmgen module-level function.
  */
-#include "wfm/wfm_core.h"
+#include "doppler/wfm/wfm_core.h"
 #include <math.h>
 
 /*

@@ -2,7 +2,7 @@
 
 # File wfm\_compose.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md) **>** [**wfm\_compose.h**](wfm__compose_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wfm**](dir_d559aca39cc004340b6be1a6e35e20bd.md) **>** [**wfm\_compose.h**](wfm__compose_8h.md)
 
 [Go to the documentation of this file](wfm__compose_8h.md)
 
@@ -12,10 +12,10 @@
 #ifndef WFM_COMPOSE_H
 #define WFM_COMPOSE_H
 
-#include "clib_common.h"
-#include "wfm_synth/wfm_synth_core.h"
-#include "wfm/wfm_frame.h" /* wfm_frame_desc_t — a source's frame, described */
-#include "doppler_channel/doppler_channel_core.h" /* a source's clock Doppler */
+#include "doppler/clib_common.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
+#include "doppler/wfm/wfm_frame.h" /* wfm_frame_desc_t — a source's frame, described */
+#include "doppler/doppler_channel/doppler_channel_core.h" /* a source's clock Doppler */
 
 #ifdef __cplusplus
 extern "C" {

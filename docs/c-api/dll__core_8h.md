@@ -4,23 +4,23 @@
 
 
 
-[**FileList**](files.md) **>** [**dll**](dir_f3da3e2048ea3a8b9e723d3c5367d8f8.md) **>** [**dll\_core.h**](dll__core_8h.md)
+[**FileList**](files.md) **>** [**dll**](dir_c5ff741ba8e1e68126223ee4df379547.md) **>** [**dll\_core.h**](dll__core_8h.md)
 
 [Go to the source code of this file](dll__core_8h_source.md)
 
 _Delay-lock loop (DLL) — non-coherent early/prompt/late code tracking._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
-* `#include "lockdet/lockdet_core.h"`
-* `#include "loop_filter/loop_filter_core.h"`
-* `#include "nco/nco_core.h"`
-* `#include "dp_tlm/dp_tlm_core.h"`
-* `#include "dp_complex.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/lockdet/lockdet_core.h"`
+* `#include "doppler/loop_filter/loop_filter_core.h"`
+* `#include "doppler/nco/nco_core.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/dp_complex.h"`
 * `#include <math.h>`
-* `#include "detection/detection_core.h"`
-* `#include "telemetry/telemetry_core.h"`
+* `#include "doppler/detection/detection_core.h"`
+* `#include "doppler/telemetry/telemetry_core.h"`
 
 
 
@@ -1693,5 +1693,5 @@ Takes the powers of `acc_e`/`acc_l`/`acc_p` and hands them to [**dll\_steer()**]
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dll/dll_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dll/dll_core.h`
 

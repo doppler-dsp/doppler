@@ -11,7 +11,7 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
-#include "gold/gold_core.h"
+#include "doppler/gold/gold_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

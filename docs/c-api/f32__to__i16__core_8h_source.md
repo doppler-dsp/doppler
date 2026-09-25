@@ -2,7 +2,7 @@
 
 # File f32\_to\_i16\_core.h
 
-[**File List**](files.md) **>** [**f32\_to\_i16**](dir_e25c96329f88166d8f87eefdc2ba64fa.md) **>** [**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**f32\_to\_i16**](dir_70d41be9b98525952faca7fac2a162b6.md) **>** [**f32\_to\_i16\_core.h**](f32__to__i16__core_8h.md)
 
 [Go to the documentation of this file](f32__to__i16__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef F32_TO_I16_CORE_H
 #define F32_TO_I16_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
 #include <math.h>
 #ifdef __cplusplus
 extern "C" {

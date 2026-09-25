@@ -22,7 +22,7 @@
  * Coefficients are baked as h_mod[k] = h_fir[k] × (-1)^k × 0.5.
  */
 
-#include "hbdecim/hbdecim_r2c_core.h"
+#include "doppler/hbdecim/hbdecim_r2c_core.h"
 
 #include <stdlib.h>
 #include <string.h>

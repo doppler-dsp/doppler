@@ -29,11 +29,11 @@
  * Builds against either link mode; see CMakeLists.txt (find_package) and the
  * pkg-config commands in docs/install/c.md.
  */
-#include "dp_complex.h"
-#include "dp_thread.h"
-#include <agc/agc_core.h>
-#include <buffer/buffer.h>
-#include <lo/lo_core.h>
+#include "doppler/dp_complex.h"
+#include "doppler/dp_thread.h"
+#include <doppler/agc/agc_core.h>
+#include <doppler/buffer/buffer.h>
+#include <doppler/lo/lo_core.h>
 #include <math.h>
 #include <stdio.h>
 

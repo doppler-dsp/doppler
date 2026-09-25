@@ -20,7 +20,7 @@
 
 #include "dp_rx_test.h"
 
-#include "mpsk_receiver/mpsk_receiver_core.h"
+#include "doppler/mpsk_receiver/mpsk_receiver_core.h"
 
 /* ── The adapter: the only receiver-specific code in a battery ──────────── */
 

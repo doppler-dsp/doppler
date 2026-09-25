@@ -20,16 +20,16 @@ Only `lo` knows it holds a phase; only `fir` knows it holds a delay line; only
 `acq` knows it holds a sample ring and a non-coherent surface. *What* to pack is
 the module's business. But the envelope around those bytes — the type tag, the
 version, the validation, the language faces — is identical for every object, and
-is owned **once**, centrally, in [`native/inc/dp_state.h`](../c-api/index.md).
+is owned **once**, centrally, in [`native/inc/doppler/dp_state.h`](../c-api/index.md).
 
 ______________________________________________________________________
 
 ## The two layers
 
-| Layer                           | Owns                                                                       | Where                                                                                   |
-| ------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| **Bytes interface** (universal) | the envelope, cursors, validation, the ABI contract, the Python/test faces | `native/inc/dp_state.h`, `native/inc/dp_state_pyhelp.h`, `native/tests/dp_state_test.h` |
-| **Serialization** (per-module)  | which fields to pack, in what order                                        | each `native/src/<obj>/<obj>_core.c`                                                    |
+| Layer                           | Owns                                                                       | Where                                                                                                   |
+| ------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Bytes interface** (universal) | the envelope, cursors, validation, the ABI contract, the Python/test faces | `native/inc/doppler/dp_state.h`, `native/inc/doppler/dp_state_pyhelp.h`, `native/tests/dp_state_test.h` |
+| **Serialization** (per-module)  | which fields to pack, in what order                                        | each `native/src/<obj>/<obj>_core.c`                                                                    |
 
 A module's `get_state`/`set_state` stamps the standard header (one call), then
 packs or unpacks **its own** fields through the cursor helpers. The build system
@@ -322,7 +322,7 @@ that does more than nothing, it needs the triplet.* Stateless objects (pure
 converters, FFT plans, by-value analyzers) are exempt.
 
 1. **Write the C triplet** beside `reset` in `<obj>_core.c`, with a per-object
-    `<OBJ>_STATE_MAGIC`/`_VERSION` in the header (`#include "dp_state.h"`).
+    `<OBJ>_STATE_MAGIC`/`_VERSION` in the header (`#include "doppler/dp_state.h"`).
     Serialize only the *running* state — config is restored by `create()`. Pick
     the macro for the shape (see [Helper macros](#helper-macros-the-three-serializer-shapes)):
 

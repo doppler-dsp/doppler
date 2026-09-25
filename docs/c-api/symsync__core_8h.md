@@ -4,22 +4,22 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**symsync**](dir_bee143323fe2e99a30a6d3a881f82f29.md) **>** [**symsync\_core.h**](symsync__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**symsync**](dir_f3bf1d4e9482041dff7e7824fe611ddf.md) **>** [**symsync\_core.h**](symsync__core_8h.md)
 
 [Go to the source code of this file](symsync__core_8h_source.md)
 
 _SymbolSync component API._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "farrow/farrow_core.h"`
-* `#include "jm_perf.h"`
-* `#include "lockdet/lockdet_core.h"`
-* `#include "loop_filter/loop_filter_core.h"`
-* `#include "nco/nco_core.h"`
-* `#include "dp_tlm/dp_tlm_core.h"`
-* `#include "telemetry/telemetry_core.h"`
-* `#include "detection/detection_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/farrow/farrow_core.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/lockdet/lockdet_core.h"`
+* `#include "doppler/loop_filter/loop_filter_core.h"`
+* `#include "doppler/nco/nco_core.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/telemetry/telemetry_core.h"`
+* `#include "doppler/detection/detection_core.h"`
 
 
 
@@ -1088,5 +1088,5 @@ Out-of-line on purpose: the emit machinery must not inline into the per-sample h
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/symsync/symsync_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/symsync/symsync_core.h`
 

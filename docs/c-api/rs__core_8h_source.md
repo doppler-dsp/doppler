@@ -2,7 +2,7 @@
 
 # File rs\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**rs**](dir_a447329db54f84e06767f7e282ab2567.md) **>** [**rs\_core.h**](rs__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**rs**](dir_947c1c4c0fb4d4a4d0adf0ec99900cc5.md) **>** [**rs\_core.h**](rs__core_8h.md)
 
 [Go to the documentation of this file](rs__core_8h.md)
 

@@ -18,7 +18,7 @@
  * mpsk_rx_loops.h, and the design arguments (why the carrier loop runs at two
  * rates, why the symbol rather than the filter input is rotated) live there.
  */
-#include "mpsk_receiver/mpsk_receiver_core.h"
+#include "doppler/mpsk_receiver/mpsk_receiver_core.h"
 
 #include <math.h>
 #include <stdio.h>

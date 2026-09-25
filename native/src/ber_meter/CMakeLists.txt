@@ -16,7 +16,7 @@ endif()
 add_library(ber_meter_core OBJECT ber_meter_core.c)
 target_include_directories(
   ber_meter_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                        ${CMAKE_SOURCE_DIR}/native/inc/ber_meter)
+                        ${CMAKE_SOURCE_DIR}/native/inc/doppler/ber_meter)
 target_link_libraries(ber_meter_core PUBLIC
     detection_core
     ber_core)

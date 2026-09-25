@@ -16,7 +16,7 @@ endif()
 add_library(ppe_core OBJECT ppe_core.c)
 target_include_directories(
   ppe_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                  ${CMAKE_SOURCE_DIR}/native/inc/ppe)
+                  ${CMAKE_SOURCE_DIR}/native/inc/doppler/ppe)
 target_link_libraries(ppe_core PUBLIC
     fft_core
     spectral_core)

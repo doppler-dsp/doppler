@@ -29,8 +29,8 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
+#include "doppler/rs/rs_core.h"
 #include "jm_bench.h"
-#include "rs/rs_core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

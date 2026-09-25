@@ -1,7 +1,7 @@
-#include "corr2d/corr2d_core.h"
+#include "doppler/corr2d/corr2d_core.h"
 
-#include "clib_common.h"
-#include "dp_complex.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <string.h>
 

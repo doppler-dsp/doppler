@@ -4,7 +4,7 @@ Doppler's loops already *compute* every diagnostic worth watching — the
 symbol-sync timing error, the Costas lock metric, the DLL code phase, the AGC
 gain — as named fields in their state structs, refreshed every event. What was
 missing is a way to watch them **as time series from a live pipeline** without
-perturbing the signal path. `dp_tlm` (`native/inc/dp_tlm/dp_tlm_core.h`) is
+perturbing the signal path. `dp_tlm` (`native/inc/doppler/dp_tlm/dp_tlm_core.h`) is
 that tap: a probe registry plus a lock-free record ring, designed around one
 budget:
 
@@ -82,7 +82,7 @@ Probes are registered at **setup time** — never on the hot path — and named
 with dotted paths so a consumer can build a channel map once:
 
 ```c
-#include <dp_tlm/dp_tlm_core.h>
+#include <doppler/dp_tlm/dp_tlm_core.h>
 
 int main(void)
 {
@@ -129,7 +129,7 @@ Instrumentation is a four-part, ~15-line pattern. Using the AGC as the
 canonical example:
 
 **1. Attachment member** — a small POD tail on the state struct
-(`native/inc/agc/agc_core.h`):
+(`native/inc/doppler/agc/agc_core.h`):
 
 <!-- docs-snippet: skip=struct layout illustration (design spec), not a compilable usage example -->
 
@@ -238,7 +238,7 @@ pointer-free POD structs whole (`DP_DEFINE_POD_STATE`). A telemetry
 attachment breaks that premise in both directions: `get_state` would leak a
 live heap address into the blob (nondeterministic bytes, useless on restore),
 and `set_state` would clobber the *receiving* instance's attachment with the
-sender's stale pointer. The TLM variant (`native/inc/dp_state.h`) fixes both:
+sender's stale pointer. The TLM variant (`native/inc/doppler/dp_state.h`) fixes both:
 the named member is **zeroed in the serialized copy** — so blobs are
 deterministic and attachment-independent — and **preserved across restore** —
 so a live attachment survives a state hand-off. Telemetry is observation; it
@@ -386,7 +386,7 @@ one while the producer fills the other. If the writer falls behind, the
 `dp_tlm_set_now()` delegates to an open capture, and callers already put it at
 the top of the block loop before stepping — so an existing loop becomes
 lossless by opening a capture and changing nothing else. See
-`native/inc/dp_tlm_capture/dp_tlm_capture_core.h`.
+`native/inc/doppler/dp_tlm_capture/dp_tlm_capture_core.h`.
 
 The Python surface (`Telemetry.capture(...)`, per-probe views, a time axis)
 lands with the jm migration rather than as more hand-written binding — see
@@ -414,7 +414,7 @@ t(record) = t0 + n / fs
     produced the samples*.
 
 > **This already exists — do not build a second one.** That pair, and that
-> computation, are `dp_sample_clock_t` (`native/inc/timing/timing_core.h`),
+> computation, are `dp_sample_clock_t` (`native/inc/doppler/timing/timing_core.h`),
 > exposed to Python as `wfm.SampleClock`. Its
 > `{ double fs; uint64_t epoch_real_ns; uint64_t n; }` **is** the time base,
 > and `dp_sample_clock_stamp_at(c, n)` **is** this formula — documented as

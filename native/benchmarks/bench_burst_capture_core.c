@@ -12,12 +12,12 @@
  * stream, because "does backing the ring with a file cost anything" is the
  * question the feature has to answer and a claim nobody times is prose.
  */
-#include "burst_capture/burst_capture_core.h"
-#include "cvt/cvt_core.h"
+#include "doppler/burst_capture/burst_capture_core.h"
+#include "doppler/cvt/cvt_core.h"
+#include "doppler/pn/pn_core.h"
 #include "jm_bench.h"
-#include "pn/pn_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,7 +1,7 @@
 /*
  * shl_i64.c — arith module-level function.
  */
-#include "arith/arith_core.h"
+#include "doppler/arith/arith_core.h"
 
 void
 shl_i64 (const int64_t *a, size_t a_len, int64_t *out, int n)

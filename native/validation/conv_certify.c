@@ -31,14 +31,14 @@
  * Es/N0, with traceback depth, and with hard versus soft decisions, plus how
  * far node synchronization separates its hypotheses.
  */
-#include "awgn/awgn_core.h"
-#include "conv/conv_core.h"
-#include "mpsk/mpsk_core.h"
-#include "pn/pn_core.h"
-#include "viterbi/viterbi_core.h"
-#include "wfm_synth/wfm_synth_core.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/conv/conv_core.h"
+#include "doppler/mpsk/mpsk_core.h"
+#include "doppler/pn/pn_core.h"
+#include "doppler/viterbi/viterbi_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

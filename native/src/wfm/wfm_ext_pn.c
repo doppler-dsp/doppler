@@ -9,7 +9,7 @@
 /* PNObject — wraps pn_state_t *       */
 /* ======================================================== */
 
-#include "pn/pn_core.h"
+#include "doppler/pn/pn_core.h"
 
 typedef struct
 {

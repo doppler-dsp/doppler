@@ -17,7 +17,7 @@
  * realistic -- a kernel measured out of DRAM reports the memory system,
  * and the memory system is the same for all fourteen entries.
  */
-#include "arith/arith_core.h"
+#include "doppler/arith/arith_core.h"
 #include "dp_bench.h"
 #include <stdint.h>
 #include <stdio.h>

@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**ccsds\_tm**](dir_c2a51186254da91e75ac1924b4969fdd.md) **>** [**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md)
+[**FileList**](files.md) **>** [**ccsds\_tm**](dir_755172a25247ef56b5f4144aad408377.md) **>** [**ccsds\_tm\_rs.h**](ccsds__tm__rs_8h.md)
 
 [Go to the source code of this file](ccsds__tm__rs_8h_source.md)
 
 _CCSDS Reed-Solomon (255,223) — the outer code as a CONFIGURATION, and the conventions that only a published value catches._ [More...](#detailed-description)
 
-* `#include "rs/rs_core.h"`
+* `#include "doppler/rs/rs_core.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 
@@ -525,5 +525,5 @@ _Symbols per codeword,_ `n = 2^J - 1` _(4.3.2b)._
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ccsds_tm/ccsds_tm_rs.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ccsds_tm/ccsds_tm_rs.h`
 

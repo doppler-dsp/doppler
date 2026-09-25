@@ -7,7 +7,7 @@
  * algorithm lives exactly once (C-first) without a separate kernel file
  * jm's CMakeLists reconciliation would otherwise drop on regeneration.
  */
-#include "snr/snr_core.h"
+#include "doppler/snr/snr_core.h"
 
 #include <math.h>
 

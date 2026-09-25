@@ -2,7 +2,7 @@
 
 # File lockdet\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**lockdet**](dir_87531a87e500e672b7d093c5682794b4.md) **>** [**lockdet\_core.h**](lockdet__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**lockdet**](dir_0a3dcc380b80b2c01366f0cb5ed7ee07.md) **>** [**lockdet\_core.h**](lockdet__core_8h.md)
 
 [Go to the documentation of this file](lockdet__core_8h.md)
 
@@ -12,10 +12,10 @@
 #ifndef LOCKDET_CORE_H
 #define LOCKDET_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
-#include "util/util_core.h" /* saturate() — the NaN policy, shared */
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
+#include "doppler/util/util_core.h" /* saturate() — the NaN policy, shared */
 #include <math.h>
 #ifdef __cplusplus
 extern "C"

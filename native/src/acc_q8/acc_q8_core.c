@@ -1,4 +1,4 @@
-#include "acc_q8/acc_q8_core.h"
+#include "doppler/acc_q8/acc_q8_core.h"
 
 acc_q8_state_t *
 acc_q8_create (int32_t acc)

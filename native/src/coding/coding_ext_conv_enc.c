@@ -9,7 +9,7 @@
 /* ConvEncoderObject — wraps conv_enc_state_t *       */
 /* ======================================================== */
 
-#include "conv_enc/conv_enc_core.h"
+#include "doppler/conv_enc/conv_enc_core.h"
 
 typedef struct
 {

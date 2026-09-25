@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**dp\_thread.h**](dp__thread_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_thread.h**](dp__thread_8h.md)
 
 [Go to the source code of this file](dp__thread_8h_source.md)
 
@@ -444,5 +444,5 @@ _Returns from a_ [_**DP\_THREAD\_FN**_](dp__thread_8h.md#define-dp_thread_fn) _b
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_thread.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_thread.h`
 

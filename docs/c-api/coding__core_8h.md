@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**coding**](dir_926dd95c6532485b4c2774b3c84508b0.md) **>** [**coding\_core.h**](coding__core_8h.md)
+[**FileList**](files.md) **>** [**coding**](dir_69d8a89cba5242a3dfe9624bc2e7c6f6.md) **>** [**coding\_core.h**](coding__core_8h.md)
 
 [Go to the source code of this file](coding__core_8h_source.md)
 
 _Coding module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -78,5 +78,5 @@ _Coding module — public C API._
 
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/coding/coding_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/coding/coding_core.h`
 

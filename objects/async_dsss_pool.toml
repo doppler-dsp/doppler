@@ -225,7 +225,7 @@ arg_type = "void"
 return_type = "int"
 status_return = true
 params = [
-  { name = "log", type = "dp_event_log_t *", capsule = "doppler.telemetry.dp_event_log", header = "dp_event_log/dp_event_log_core.h" },
+  { name = "log", type = "dp_event_log_t *", capsule = "doppler.telemetry.dp_event_log", header = "doppler/dp_event_log/dp_event_log_core.h" },
 ]
 
 # ── Read-back ────────────────────────────────────────────────────────────

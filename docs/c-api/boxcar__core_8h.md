@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**boxcar**](dir_4075e3d5389fc37fde93604059f4dd85.md) **>** [**boxcar\_core.h**](boxcar__core_8h.md)
+[**FileList**](files.md) **>** [**boxcar**](dir_5b2ea30dc12e54f23750507f860119fd.md) **>** [**boxcar\_core.h**](boxcar__core_8h.md)
 
 [Go to the source code of this file](boxcar__core_8h_source.md)
 
 _Boxcar (rectangular) moving-average filter — cf32, fixed window._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
 
 
 
@@ -505,5 +505,5 @@ Applies [**boxcar\_step()**](boxcar__core_8h.md#function-boxcar_step) to each in
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/boxcar/boxcar_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/boxcar/boxcar_core.h`
 

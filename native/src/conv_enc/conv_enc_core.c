@@ -6,7 +6,7 @@
  * implementation of a code family is how an inversion or an output order
  * comes to differ between the two and interoperate with neither.
  */
-#include "conv_enc/conv_enc_core.h"
+#include "doppler/conv_enc/conv_enc_core.h"
 
 #include <stdlib.h>
 #include <string.h>

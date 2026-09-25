@@ -1,6 +1,6 @@
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/uq15_to_f32/uq15_to_f32_core.h"
 #include "jm_bench.h"
-#include "uq15_to_f32/uq15_to_f32_core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

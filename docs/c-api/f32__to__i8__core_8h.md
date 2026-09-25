@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**f32\_to\_i8**](dir_b1f46cddbee3624386fd88f96d7cfb35.md) **>** [**f32\_to\_i8\_core.h**](f32__to__i8__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**f32\_to\_i8**](dir_ed78fc1c59eed5a28e12ccfcd3b5d37e.md) **>** [**f32\_to\_i8\_core.h**](f32__to__i8__core_8h.md)
 
 [Go to the source code of this file](f32__to__i8__core_8h_source.md)
 
 _Scale-and-saturate float-to-int8 converter._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
 * `#include <math.h>`
 
 
@@ -425,5 +425,5 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/f32_to_i8/f32_to_i8_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/f32_to_i8/f32_to_i8_core.h`
 

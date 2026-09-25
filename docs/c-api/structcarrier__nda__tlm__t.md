@@ -178,5 +178,5 @@ int32_t carrier_nda_tlm_t::id_locked;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/carrier_nda/carrier_nda_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/carrier_nda/carrier_nda_core.h`
 

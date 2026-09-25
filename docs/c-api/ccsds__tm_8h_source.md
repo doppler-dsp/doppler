@@ -2,7 +2,7 @@
 
 # File ccsds\_tm.h
 
-[**File List**](files.md) **>** [**ccsds\_tm**](dir_c2a51186254da91e75ac1924b4969fdd.md) **>** [**ccsds\_tm.h**](ccsds__tm_8h.md)
+[**File List**](files.md) **>** [**ccsds\_tm**](dir_755172a25247ef56b5f4144aad408377.md) **>** [**ccsds\_tm.h**](ccsds__tm_8h.md)
 
 [Go to the documentation of this file](ccsds__tm_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef CCSDS_TM_H
 #define CCSDS_TM_H
 
-#include "conv/conv_core.h"
-#include "dp_syncword.h"
-#include "viterbi/viterbi_core.h"
+#include "doppler/conv/conv_core.h"
+#include "doppler/dp_syncword.h"
+#include "doppler/viterbi/viterbi_core.h"
 
 #include <stddef.h>
 #include <stdint.h>

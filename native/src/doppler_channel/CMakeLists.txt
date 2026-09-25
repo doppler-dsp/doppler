@@ -16,7 +16,7 @@ endif()
 add_library(doppler_channel_core OBJECT doppler_channel_core.c)
 target_include_directories(
   doppler_channel_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                              ${CMAKE_SOURCE_DIR}/native/inc/doppler_channel)
+                              ${CMAKE_SOURCE_DIR}/native/inc/doppler/doppler_channel)
 target_link_libraries(doppler_channel_core PUBLIC
     resamp_core)
 

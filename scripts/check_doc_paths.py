@@ -7,7 +7,7 @@ text, not a link, so a page can cite a file that has never existed and
 every docs gate stays green. Three did, and they were found by hand rather
 than by anything that runs:
 
-- ``native/inc/dsss_receiver/dsss_receiver_core.h`` cited
+- ``native/inc/doppler/dsss_receiver/dsss_receiver_core.h`` cited
   ``docs/gallery/dsss-acq-async-data.md`` and
   ``docs/gallery/dsss-despread-async-data.md``. Neither was ever committed
   under those names -- git records ``async-dsss-receiver.md`` and

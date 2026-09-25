@@ -1,5 +1,5 @@
 /* bench_Resampler_core.c — no step() to benchmark */
-#include "Resampler/Resampler_core.h"
+#include "doppler/Resampler/Resampler_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

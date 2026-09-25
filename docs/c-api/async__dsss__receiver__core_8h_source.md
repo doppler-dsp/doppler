@@ -2,7 +2,7 @@
 
 # File async\_dsss\_receiver\_core.h
 
-[**File List**](files.md) **>** [**async\_dsss\_receiver**](dir_385ab33ef0b6337dfa5d36daa80c4b8c.md) **>** [**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md)
+[**File List**](files.md) **>** [**async\_dsss\_receiver**](dir_565c73e0c8995e904663dd9fb6485ceb.md) **>** [**async\_dsss\_receiver\_core.h**](async__dsss__receiver__core_8h.md)
 
 [Go to the documentation of this file](async__dsss__receiver__core_8h.md)
 
@@ -12,30 +12,30 @@
 #ifndef ASYNC_DSSS_RECEIVER_CORE_H
 #define ASYNC_DSSS_RECEIVER_CORE_H
 
-#include "RateConverter/RateConverter_core.h"
-#include "acq/acq_core.h"
-#include "carrier_acq/carrier_acq_core.h"
-#include "cic/cic_core.h"
-#include "costas/costas_core.h"
-#include "dll/dll_core.h"
-#include "dp_state.h"
-#include "hbdecim/hbdecim_core.h"
-#include "lockdet/lockdet_core.h"
-#include "mpsk_receiver/mpsk_receiver_core.h"
-#include "resamp/resamp_core.h"
-#include "resample/resample_core.h"
-#include "dp_complex.h"
+#include "doppler/RateConverter/RateConverter_core.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/carrier_acq/carrier_acq_core.h"
+#include "doppler/cic/cic_core.h"
+#include "doppler/costas/costas_core.h"
+#include "doppler/dll/dll_core.h"
+#include "doppler/dp_state.h"
+#include "doppler/hbdecim/hbdecim_core.h"
+#include "doppler/lockdet/lockdet_core.h"
+#include "doppler/mpsk_receiver/mpsk_receiver_core.h"
+#include "doppler/resamp/resamp_core.h"
+#include "doppler/resample/resample_core.h"
+#include "doppler/dp_complex.h"
 #include <stdbool.h>
 #include <stddef.h>
-#include "psd/psd_core.h"
-#include "detector/detector_core.h"
-#include "detection/detection_core.h"
-#include "spectral/spectral_core.h"
-#include "corr/corr_core.h"
-#include "fft/fft_core.h"
-#include "acc_trace/acc_trace_core.h"
-#include "ber/ber_core.h"
-#include "doppler_channel/doppler_channel_core.h"
+#include "doppler/psd/psd_core.h"
+#include "doppler/detector/detector_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/spectral/spectral_core.h"
+#include "doppler/corr/corr_core.h"
+#include "doppler/fft/fft_core.h"
+#include "doppler/acc_trace/acc_trace_core.h"
+#include "doppler/ber/ber_core.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
 
 #ifdef __cplusplus
 extern "C"

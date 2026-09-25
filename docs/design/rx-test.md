@@ -103,7 +103,7 @@ ______________________________________________________________________
 
 ### 1.1 The library generator (the sanctioned home)
 
-`wfm_synth_*` (`native/inc/wfm_synth/wfm_synth_core.h`) is the C generator.
+`wfm_synth_*` (`native/inc/doppler/wfm_synth/wfm_synth_core.h`) is the C generator.
 Nine waveform types:
 
 | type                | value | notes                                  |
@@ -132,9 +132,9 @@ including the output axes (`--file-type`, `--endian`, `--record`,
 
 ### 1.3 Framing — exists, but only for DSSS
 
-The frame layout lives in `native/inc/wfm/wfm_dsp.h`:
+The frame layout lives in `native/inc/doppler/wfm/wfm_dsp.h`:
 
-<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/wfm/wfm_frame.h, native/inc/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
+<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/doppler/wfm/wfm_frame.h, native/inc/doppler/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
 ```c
 size_t wfm_frame_dsss_nchips (size_t acq_len, size_t acq_reps, size_t data_len, …);
@@ -160,7 +160,7 @@ Barker-13 is not a library constant. It appears as the literal
 
 ### 1.4 Sequence primitives
 
-`pn_create(poly, seed, length, lfsr)` / `pn_generate` (`native/inc/pn/`) and
+`pn_create(poly, seed, length, lfsr)` / `pn_generate` (`native/inc/doppler/pn/`) and
 `gold_core` are the sequence sources. A PN payload is therefore reproducible
 from three numbers rather than a stored array.
 
@@ -169,7 +169,7 @@ from three numbers rather than a stored array.
 `native/tests/dp_tx_test.h` (307 lines) calls itself "the SSOT for harness
 STIMULUS: one shaped symbol stream, one place." Its configuration is:
 
-<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/wfm/wfm_frame.h, native/inc/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
+<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/doppler/wfm/wfm_frame.h, native/inc/doppler/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
 ```c
 dp_tx_pulse_t pulse;  double sps;   double beta;  int span;
@@ -231,7 +231,7 @@ close, on the external side as much as ours.
 
 Owns the settled window, the marker model and the sync decision:
 
-<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/wfm/wfm_frame.h, native/inc/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
+<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/doppler/wfm/wfm_frame.h, native/inc/doppler/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
 ```c
 typedef struct { …; size_t period; size_t reps; } dp_ber_marker_t;
@@ -258,11 +258,11 @@ The settling budget it documents is
 Three numbers describe a receiver's output, and the reason to carry all three
 is that **they fail differently**. Each already exists in the library:
 
-| metric        | needs                                            | primitive                                                             | test-layer wrapper                |
-| ------------- | ------------------------------------------------ | --------------------------------------------------------------------- | --------------------------------- |
-| **BER / SER** | external truth **and** alignment                 | `ber_meter_score`, `ber_align_detect`                                 | `dp_ber_measure`                  |
-| **EVM**       | nothing — self-referenced against hard decisions | `ber_evm_db`                                                          | `dp_test_evm_db_hard{,_m,_range}` |
-| **M2M4**      | nothing — blind, from 2nd/4th moments            | `snr_m2m4_db` (`native/inc/snr/snr_core.h`, Pauluzzi & Beaulieu 2000) | `dp_test_m2m4_snr_db{,_range}`    |
+| metric        | needs                                            | primitive                                                                     | test-layer wrapper                |
+| ------------- | ------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------- |
+| **BER / SER** | external truth **and** alignment                 | `ber_meter_score`, `ber_align_detect`                                         | `dp_ber_measure`                  |
+| **EVM**       | nothing — self-referenced against hard decisions | `ber_evm_db`                                                                  | `dp_test_evm_db_hard{,_m,_range}` |
+| **M2M4**      | nothing — blind, from 2nd/4th moments            | `snr_m2m4_db` (`native/inc/doppler/snr/snr_core.h`, Pauluzzi & Beaulieu 2000) | `dp_test_m2m4_snr_db{,_range}`    |
 
 A fourth sits alongside them: `snr_data_aided_db` (and the sliding-window
 `*_series` forms of both estimators), which is the truth-using counterpart to
@@ -308,7 +308,7 @@ failure".
 
 What exists today:
 
-- `dp_crc16_ccitt (const uint8_t *bits, size_t n)` — `native/inc/dp_crc16.h`,
+- `dp_crc16_ccitt (const uint8_t *bits, size_t n)` — `native/inc/doppler/dp_crc16.h`,
     header-only.
 - `wfmgen --crc none|crc16` emits the trailer; `wfm_frame_dsss_chips()`
     assembles `[preamble | sync | payload | CRC-16]`.
@@ -318,7 +318,7 @@ What exists today:
     `est_timing_chips`.
 
 ~~What does not exist: **any accumulation across frames.**~~ **`frame_meter`
-now does** (`native/inc/frame_meter/frame_meter_core.h`,
+now does** (`native/inc/doppler/frame_meter/frame_meter_core.h`,
 `doppler.ber.FrameMeter`): frames attempted / sync detected / CRC passed, an
 FER and a sync-MISS rate each with `ber_confidence`'s exact interval, the same
 stop-on-errors rule as `ber_meter`, and the state triplet so a record can be
@@ -632,7 +632,7 @@ sequence descriptor reused for the preamble, the sync word and the payload
 alike. That makes "a Gold-code sync" a configuration rather than a feature,
 and it keeps `pn_create()` / `gold_create()` as the only implementations.
 
-<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/wfm/wfm_frame.h, native/inc/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
+<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/doppler/wfm/wfm_frame.h, native/inc/doppler/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
 ```c
 /** Where a run of bits comes from. */
@@ -710,7 +710,7 @@ Both directions need to know where each field sits. Today that arithmetic is
 inline in `wfm_frame_dsss_nchips()`; a receiver scoring a frame would have to
 recompute it, which is exactly how TX and RX drift.
 
-<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/wfm/wfm_frame.h, native/inc/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
+<!-- docs-snippet: skip=a DECLARATION SKETCH with `…` elisions, not a translation unit; the real headers are native/inc/doppler/wfm/wfm_frame.h, native/inc/doppler/wfm/wfm_dsp.h and native/tests/dp_ber_test.h, each compiled and tested where it lives -->
 
 ```c
 /** @brief Where each field lands, in bits from the start of the frame. */
@@ -828,7 +828,7 @@ own payload, and that Barker-13 matches the literal every caller types.
 
 ### 7.6 What landed
 
-`native/inc/wfm/wfm_frame.h` + `native/src/wfm/wfm_frame.c`: the structs of
+`native/inc/doppler/wfm/wfm_frame.h` + `native/src/wfm/wfm_frame.c`: the structs of
 §7.1, the geometry of §7.2 (`wfm_frame_layout` / `nbits` / `bits` /
 `crc_ok`), all four sequence kinds, and the §7.3 refactor —
 `wfm_frame_dsss_chips()` now assembles the frame and spreads it, with the

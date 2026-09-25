@@ -222,5 +222,5 @@ symbols per codeword, `2^J - 1`
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/rs/rs_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/rs/rs_core.h`
 

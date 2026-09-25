@@ -2,7 +2,7 @@
 
 # File tlm\_sink.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**stream**](dir_21b896cdbc030a0ded493211142b7733.md) **>** [**tlm\_sink.h**](tlm__sink_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**stream**](dir_2fbcc177cba4f14addc502f26acbb8f7.md) **>** [**tlm\_sink.h**](tlm__sink_8h.md)
 
 [Go to the documentation of this file](tlm__sink_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef TLM_SINK_H
 #define TLM_SINK_H
 
-#include "dp_tlm/dp_tlm_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
 extern "C"

@@ -2,7 +2,7 @@
 
 # File ber\_core.h
 
-[**File List**](files.md) **>** [**ber**](dir_b6e9705448f5ec813187161d6664687c.md) **>** [**ber\_core.h**](ber__core_8h.md)
+[**File List**](files.md) **>** [**ber**](dir_742028dd4040117c60c3f886fa044d64.md) **>** [**ber\_core.h**](ber__core_8h.md)
 
 [Go to the documentation of this file](ber__core_8h.md)
 
@@ -12,8 +12,8 @@
 #ifndef BER_CORE_H
 #define BER_CORE_H
 
-#include "dp_state.h"
-#include "dp_complex.h"
+#include "doppler/dp_state.h"
+#include "doppler/dp_complex.h"
 #include <stddef.h>
 #include <stdint.h>
 

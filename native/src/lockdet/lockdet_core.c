@@ -1,4 +1,4 @@
-#include "lockdet/lockdet_core.h"
+#include "doppler/lockdet/lockdet_core.h"
 #include <stdlib.h>
 
 void

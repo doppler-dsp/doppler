@@ -21,7 +21,7 @@
  *
  * A volatile sink keeps the loops from being optimised away.
  */
-#include "dp_interrupt_guard/dp_interrupt_guard_core.h"
+#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"
 
 #include "jm_bench.h"
 

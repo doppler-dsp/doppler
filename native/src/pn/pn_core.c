@@ -1,4 +1,4 @@
-#include "pn/pn_core.h"
+#include "doppler/pn/pn_core.h"
 
 /*
  * Galois LFSR PN-sequence generator.

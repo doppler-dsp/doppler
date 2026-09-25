@@ -107,11 +107,11 @@
 #ifndef DP_TX_TEST_H
 #define DP_TX_TEST_H
 
-#include "pn/pn_core.h"               /* the canonical PRBS               */
-#include "wfm/wfm_dsp.h"              /* wfm_rrc_h / wfm_rc_h — inline    */
-#include "wfm_synth/wfm_synth_core.h" /* wfm_synth_mls_poly — inline      */
+#include "doppler/pn/pn_core.h"  /* the canonical PRBS               */
+#include "doppler/wfm/wfm_dsp.h" /* wfm_rrc_h / wfm_rc_h — inline    */
+#include "doppler/wfm_synth/wfm_synth_core.h" /* wfm_synth_mls_poly — inline      */
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>

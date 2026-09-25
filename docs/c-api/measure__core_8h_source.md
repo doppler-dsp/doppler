@@ -2,7 +2,7 @@
 
 # File measure\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**measure**](dir_4f61a452d1df39cf8c2e8be27f29f1f2.md) **>** [**measure\_core.h**](measure__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**measure**](dir_0caaff9683efc5ec33140a5572570268.md) **>** [**measure\_core.h**](measure__core_8h.md)
 
 [Go to the documentation of this file](measure__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef MEASURE_CORE_H
 #define MEASURE_CORE_H
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
 #ifdef __cplusplus
 extern "C" {

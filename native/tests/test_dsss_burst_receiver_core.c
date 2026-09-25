@@ -13,9 +13,9 @@
  * repo forbids -- see just-makeit.toml's status_allow note and gh-730), so
  * a scaffolded test is converted to DP_CHECK/DP_REQUIRE on arrival.
  */
-#include "dsss_burst_receiver/dsss_burst_receiver_core.h"
+#include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"
 
-#include "pn/pn_core.h"
+#include "doppler/pn/pn_core.h"
 
 #include "dp_rng_test.h"
 #include "dp_test.h"

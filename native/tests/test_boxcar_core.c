@@ -8,8 +8,8 @@
  *   3. Lifecycle: init==create parity, length clamp/reject, reset, set_gain
  *   4. Serialization: mid-stream split resumes bit-for-bit; envelope reject
  */
-#include "boxcar/boxcar_core.h"
-#include "dp_complex.h"
+#include "doppler/boxcar/boxcar_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>

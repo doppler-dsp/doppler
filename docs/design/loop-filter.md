@@ -13,7 +13,7 @@ This page is the **why**: what the filter promises, what its one parameter
 the part that is easy to violate and invisible when you do — and what it
 deliberately does not do.
 
-The contract lives in `native/inc/loop_filter/loop_filter_core.h` and the
+The contract lives in `native/inc/doppler/loop_filter/loop_filter_core.h` and the
 C-level evidence in `native/tests/test_loop_filter_core.c`. This page does
 not restate either; it explains the reasoning they assume.
 

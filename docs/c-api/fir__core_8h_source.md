@@ -2,7 +2,7 @@
 
 # File fir\_core.h
 
-[**File List**](files.md) **>** [**fir**](dir_37fd0118bf34c485dd22fe4d261d6eac.md) **>** [**fir\_core.h**](fir__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**fir**](dir_057b0102e9f7b23965a3d08d49a38aec.md) **>** [**fir\_core.h**](fir__core_8h.md)
 
 [Go to the documentation of this file](fir__core_8h.md)
 
@@ -12,11 +12,11 @@
 #ifndef FIR_CORE_H
 #define FIR_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stddef.h>
 
 #ifdef __cplusplus

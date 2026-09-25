@@ -5,7 +5,7 @@
  * directory is split per stage: a receiver that only wants to correlate
  * against the marker should not have to link an R-S encoder to get it.
  */
-#include "ccsds_tm/ccsds_tm.h"
+#include "doppler/ccsds_tm/ccsds_tm.h"
 
 void
 ccsds_tm_asm_bits (uint8_t *out)

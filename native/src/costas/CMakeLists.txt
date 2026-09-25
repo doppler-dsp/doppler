@@ -16,7 +16,7 @@ endif()
 add_library(costas_core OBJECT costas_core.c)
 target_include_directories(
   costas_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                     ${CMAKE_SOURCE_DIR}/native/inc/costas)
+                     ${CMAKE_SOURCE_DIR}/native/inc/doppler/costas)
 target_link_libraries(costas_core PUBLIC
     lo_core
     lockdet_core

@@ -9,7 +9,7 @@
 /* IMDMeasureObject — wraps imdmeas_state_t *       */
 /* ======================================================== */
 
-#include "imdmeas/imdmeas_core.h"
+#include "doppler/imdmeas/imdmeas_core.h"
 
 typedef struct
 {

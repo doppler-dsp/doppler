@@ -50,7 +50,7 @@ ______________________________________________________________________
 ### 2.1 Two front doors, one engine
 
 `Acquisition` (continuous) and `BurstAcquisition` are two public constructors
-over one `acq_state_t` (`native/inc/acq/acq_core.h`), each exposing only the
+over one `acq_state_t` (`native/inc/doppler/acq/acq_core.h`), each exposing only the
 parameters that mean something for it rather than one class with a `mode` and
 per-parameter "ignored here" caveats. State, auto-sizing, `push()` and
 serialization are shared. `Acquisition` takes the code, `spc`, `chip_rate`,
@@ -92,17 +92,17 @@ and the record is a flat, pointer-free POD. In C it is what
 `acq_build_handoff()` produces and what seeds the receiver of §4; one record is
 emitted per hit, on both classes.
 
-| Field              | Type       | Description                                                                                             |
-| ------------------ | ---------- | ------------------------------------------------------------------------------------------------------- |
-| `timestamp_ns`     | `uint64_t` | `epoch_real_ns + samples_consumed/fs` per `native/inc/timing/timing_core.h`, not a syscall at emit time |
-| `samples_consumed` | `uint64_t` | Sample offset since this engine's stream start that the detection's epoch ended at — replay-safe        |
-| `chip_phase`       | `float`    | Code phase in CHIPS, the code-tracking seed for the next stage                                          |
-| `doppler_hz_est`   | `float`    | Coarse Doppler in Hz, already folded, signed and scaled from the raw bin index                          |
-| `doppler_res_hz`   | `float`    | Width of that estimate — the ±`doppler_res_hz`/2 a refine or tracking stage still has to close          |
-| `cn0_dbhz_est`     | `float`    | C/N0 estimate, dB-Hz — sizes downstream loop bandwidth and dwell                                        |
-| `peak_mag`         | `float`    | Raw CFAR peak magnitude — observability passthrough                                                     |
-| `noise_est`        | `float`    | Raw CFAR noise-floor estimate — observability passthrough                                               |
-| `test_stat`        | `float`    | Raw CFAR gating statistic — observability passthrough                                                   |
+| Field              | Type       | Description                                                                                                     |
+| ------------------ | ---------- | --------------------------------------------------------------------------------------------------------------- |
+| `timestamp_ns`     | `uint64_t` | `epoch_real_ns + samples_consumed/fs` per `native/inc/doppler/timing/timing_core.h`, not a syscall at emit time |
+| `samples_consumed` | `uint64_t` | Sample offset since this engine's stream start that the detection's epoch ended at — replay-safe                |
+| `chip_phase`       | `float`    | Code phase in CHIPS, the code-tracking seed for the next stage                                                  |
+| `doppler_hz_est`   | `float`    | Coarse Doppler in Hz, already folded, signed and scaled from the raw bin index                                  |
+| `doppler_res_hz`   | `float`    | Width of that estimate — the ±`doppler_res_hz`/2 a refine or tracking stage still has to close                  |
+| `cn0_dbhz_est`     | `float`    | C/N0 estimate, dB-Hz — sizes downstream loop bandwidth and dwell                                                |
+| `peak_mag`         | `float`    | Raw CFAR peak magnitude — observability passthrough                                                             |
+| `noise_est`        | `float`    | Raw CFAR noise-floor estimate — observability passthrough                                                       |
+| `test_stat`        | `float`    | Raw CFAR gating statistic — observability passthrough                                                           |
 
 **`chip_phase` is where the code will be, not where it was.** A hit is decided
 at its dwell's end and the seed is wanted at the next sample, so
@@ -168,7 +168,7 @@ mid-block resume decides as an unbroken run would. Pinned by
 `native/validation/acq_block_coherent.c`.
 
 **A roll per thread.** The tiles are independent after the one forward transform,
-so the tile loop is a `dp_parallel_for` (`native/inc/dp_parallel.h`) over
+so the tile loop is a `dp_parallel_for` (`native/inc/doppler/dp_parallel.h`) over
 **persistent** workers — pthreads created once at `create()` and parked between
 pushes, so a fan costs a hand-off per push rather than a thread creation. The
 per-cell passes that decide a surface — magnitude, CFAR reference, working mask,
@@ -341,7 +341,7 @@ inside the normal `steps()`, with no opt-in.
 
 The code loop's error comes from the one-epoch window with the **most prompt
 power**, found per epoch across the current and the previous epoch, on the
-assumption of at most one data transition per epoch. `native/inc/dll/dll_core.h`
+assumption of at most one data transition per epoch. `native/inc/doppler/dll/dll_core.h`
 is the C port of this design and names its artifacts after it, so the two can be
 read against each other.
 
@@ -442,7 +442,7 @@ ______________________________________________________________________
 ## 4. The receiver is one object with five states
 
 `AsyncDsssReceiver`
-(`native/inc/async_dsss_receiver/async_dsss_receiver_core.h`) is the composed
+(`native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`) is the composed
 continuous receiver, one C object, read back through the `get_*()` family and
 §11.3's status record:
 
@@ -484,7 +484,7 @@ receiver that has locked cannot be reset back onto the same signal.
 `DsssReceiver` is the same composition without the refining stage — a hit's
 coarse Doppler goes straight to tracking — and §1's pull-in cliff is why the
 refine exists. Both carry the standard
-`state_bytes`/`get_state`/`set_state` triplet (`native/inc/dp_state.h`), every
+`state_bytes`/`get_state`/`set_state` triplet (`native/inc/doppler/dp_state.h`), every
 child included; the blob's layout key is `segments`/`sps`/`n`/`refine_segments` and the
 flavour, and a blob does not travel between flavours.
 
@@ -725,7 +725,7 @@ with time; a held twin takes a slot without being reported. The searcher sees
 every emitter, so the list holds all ten plus the false peaks the gate admits,
 and `max_peaks` is of order 16.
 
-**In the code**, `det_peak_list` (`native/inc/detector/det_private.h`) is the
+**In the code**, `det_peak_list` (`native/inc/doppler/detector/det_private.h`) is the
 iterated maximum with the zone, circular on both axes, over a caller-initialised
 mask; the engine seeds the mask with the cells outside its searched band, sets
 the gate in the surface's own units (`eta · noise_est` on the coherent surface,
@@ -827,7 +827,7 @@ orchestrator, in whatever language — is the one component that owns a clock.
     field carries the path and the record dtype, and one sidecar indexes the
     dataset, the events and the telemetry, each in the format that suits its rate.
 
-`dp_event_log` (`native/inc/dp_event_log/dp_event_log_core.h`,
+`dp_event_log` (`native/inc/doppler/dp_event_log/dp_event_log_core.h`,
 `telemetry.EventLog`) is that object, in C so the holder can call it from Python
 and C++ alike. `append()` renders one annotation as a line of JSON and flushes
 it, so the file is tail-able live and a kill costs at most the event being
@@ -839,7 +839,7 @@ ignorant of any receiver's record and allocation-free per event.
 ### 8.2 The pool holds the population in one object
 
 `async_dsss_pool` (`AsyncDsssPool`,
-`native/inc/async_dsss_pool/async_dsss_pool_core.h`) is a C object with the
+`native/inc/doppler/async_dsss_pool/async_dsss_pool_core.h`) is a C object with the
 Python face as glue, and **nothing about this waveform or this population is
 baked into it**: every number is a create parameter whose default is §6.1's
 operating point, the searcher's and the receivers' own parameters pass through
@@ -937,7 +937,7 @@ ______________________________________________________________________
 ## 10. The release — both lock flags decide "gone"
 
 `AsyncDsssReceiver` carries two de-chattered lock flags, each a `lockdet`
-(`native/inc/lockdet/lockdet_core.h`: level hysteresis between a declare and a
+(`native/inc/doppler/lockdet/lockdet_core.h`: level hysteresis between a declare and a
 drop threshold, time hysteresis of consecutive looks either way, a NaN look
 counted as a miss). **Code lock** (`get_code_locked()`) is the live `Dll`'s
 CFAR-based, verify-counted detector — "am I despreading", the fundamental DSSS

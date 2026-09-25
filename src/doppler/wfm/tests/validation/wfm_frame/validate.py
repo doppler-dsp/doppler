@@ -9,7 +9,7 @@ Run directly to regenerate `results.md` and the CSVs:
 records is asserted by
 `src/doppler/wfm/tests/test_validation_limits.py`.
 
-The order is the campaign's: `native/inc/wfm/wfm_frame.h` is the SSOT
+The order is the campaign's: `native/inc/doppler/wfm/wfm_frame.h` is the SSOT
 and `native/tests/test_wfm_frame.c` certifies it in C. This file
 measures the same properties through `doppler.wfm.FrameDesc`.
 
@@ -130,7 +130,7 @@ def section_object() -> None:
         "of fields it covers. The design is "
         "[docs/design/frame-description.md]"
         "(../../../../../../docs/design/frame-description.md); "
-        "the API is `native/inc/wfm/wfm_frame.h`, certified in C by "
+        "the API is `native/inc/doppler/wfm/wfm_frame.h`, certified in C by "
         "`native/tests/test_wfm_frame.c`. Neither is restated here."
     )
     R.md()

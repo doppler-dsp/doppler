@@ -2,7 +2,7 @@
 
 # File dsss\_receiver\_core.h
 
-[**File List**](files.md) **>** [**dsss\_receiver**](dir_39e39d42b234cb6483b3a80e996300fe.md) **>** [**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dsss\_receiver**](dir_6f60e61f873068f58aa42ec05bfb1a20.md) **>** [**dsss\_receiver\_core.h**](dsss__receiver__core_8h.md)
 
 [Go to the documentation of this file](dsss__receiver__core_8h.md)
 
@@ -12,20 +12,20 @@
 #ifndef DSSS_RECEIVER_CORE_H
 #define DSSS_RECEIVER_CORE_H
 
-#include "RateConverter/RateConverter_core.h"
-#include "acq/acq_core.h"
-#include "cic/cic_core.h"
-#include "dll/dll_core.h"
-#include "dp_state.h"
-#include "hbdecim/hbdecim_core.h"
-#include "mpsk_receiver/mpsk_receiver_core.h"
-#include "resamp/resamp_core.h"
-#include "resample/resample_core.h"
-#include "dp_complex.h"
+#include "doppler/RateConverter/RateConverter_core.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/cic/cic_core.h"
+#include "doppler/dll/dll_core.h"
+#include "doppler/dp_state.h"
+#include "doppler/hbdecim/hbdecim_core.h"
+#include "doppler/mpsk_receiver/mpsk_receiver_core.h"
+#include "doppler/resamp/resamp_core.h"
+#include "doppler/resample/resample_core.h"
+#include "doppler/dp_complex.h"
 #include <stddef.h>
-#include "costas/costas_core.h"
-#include "snr/snr_core.h"
-#include "ber/ber_core.h"
+#include "doppler/costas/costas_core.h"
+#include "doppler/snr/snr_core.h"
+#include "doppler/ber/ber_core.h"
 
 #ifdef __cplusplus
 extern "C"

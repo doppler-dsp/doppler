@@ -4,18 +4,18 @@
 
 
 
-[**FileList**](files.md) **>** [**frame\_meter**](dir_7d049e2511dda4d27f50479ac6f6567b.md) **>** [**frame\_meter\_core.h**](frame__meter__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**frame\_meter**](dir_ea37d4cf1a6c64bbd4d366fb73a4d95d.md) **>** [**frame\_meter\_core.h**](frame__meter__core_8h.md)
 
 [Go to the source code of this file](frame__meter__core_8h_source.md)
 
 _Frame outcomes accumulated across a record: FER, and sync detection._ [More...](#detailed-description)
 
-* `#include "ber/ber_core.h"`
-* `#include "dp_state.h"`
+* `#include "doppler/ber/ber_core.h"`
+* `#include "doppler/dp_state.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
-* `#include "detection/detection_core.h"`
-* `#include "ber_meter/ber_meter_core.h"`
+* `#include "doppler/detection/detection_core.h"`
+* `#include "doppler/ber_meter/ber_meter_core.h"`
 
 
 
@@ -547,5 +547,5 @@ the miss rate with its exact interval.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/frame_meter/frame_meter_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/frame_meter/frame_meter_core.h`
 

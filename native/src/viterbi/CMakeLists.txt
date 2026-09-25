@@ -16,7 +16,7 @@ endif()
 add_library(viterbi_core OBJECT viterbi_core.c)
 target_include_directories(
   viterbi_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                      ${CMAKE_SOURCE_DIR}/native/inc/viterbi)
+                      ${CMAKE_SOURCE_DIR}/native/inc/doppler/viterbi)
 target_link_libraries(viterbi_core PUBLIC
     conv_core)
 

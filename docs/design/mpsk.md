@@ -261,7 +261,7 @@ that line a thing sits on.
 
 The pre-terminal stream is the fixed-rate side, and `RateConverter` already
 says why, in the AGC's own words
-(`native/inc/RateConverter/RateConverter_core.h`):
+(`native/inc/doppler/RateConverter/RateConverter_core.h`):
 
 > The tap is pre-terminal rather than post because the terminal stage's OUTPUT
 > rate is the one a timing loop is actively steering, and an AGC whose
@@ -1273,7 +1273,7 @@ parameters while a caller supplies four.
 The minimal call, with every derivable knob left at zero:
 
 ```c
-#include "mpsk_receiver/mpsk_receiver_core.h"
+#include "doppler/mpsk_receiver/mpsk_receiver_core.h"
 #include <math.h>
 #include <stdio.h>
 

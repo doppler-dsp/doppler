@@ -9,7 +9,7 @@
 /* SpecanObject — wraps specan_state_t *       */
 /* ======================================================== */
 
-#include "specan/specan_core.h"
+#include "doppler/specan/specan_core.h"
 
 typedef struct
 {

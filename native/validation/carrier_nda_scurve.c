@@ -17,8 +17,8 @@
  *
  * Usage:  carrier_nda_scurve [--check]
  */
-#include "carrier_nda/carrier_nda_core.h"
-#include "dp_complex.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

@@ -189,5 +189,5 @@ Symbol errors repaired across the block
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ccsds_tm/ccsds_tm_frame.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ccsds_tm/ccsds_tm_frame.h`
 

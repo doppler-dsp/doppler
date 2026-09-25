@@ -1,4 +1,4 @@
-#include "i16u64_to_f32/i16u64_to_f32_core.h"
+#include "doppler/i16u64_to_f32/i16u64_to_f32_core.h"
 
 i16u64_to_f32_state_t *
 i16u64_to_f32_create (float scale)

@@ -57,12 +57,12 @@
  *                                      within its measured relation at 45
  *                                      and 40 dB-Hz, and pull-in at 40
  */
-#include "awgn/awgn_core.h"
-#include "dll/dll_core.h"
-#include "dp_complex.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/dll/dll_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/gold/gold_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_test.h"
-#include "gold/gold_core.h"
-#include "wfm_synth/wfm_synth_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

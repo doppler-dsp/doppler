@@ -9,7 +9,7 @@
  * until the cascade is primed, why the T/2 parity does not matter) live there
  * too.
  */
-#include "ratesync/ratesync_core.h"
+#include "doppler/ratesync/ratesync_core.h"
 
 #include <math.h>
 #include <stdio.h>

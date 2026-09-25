@@ -4,14 +4,14 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**uq15\_to\_f32**](dir_b44b8aae78dd39801a4344596faf709f.md) **>** [**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**uq15\_to\_f32**](dir_289e6f8543a5d0b92e78da373782efe4.md) **>** [**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md)
 
 [Go to the source code of this file](uq15__to__f32__core_8h_source.md)
 
 _UQ15 (offset-binary uint16) to float converter._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
 
 
 
@@ -331,5 +331,5 @@ Applies step() to every element. State is not mutated (no clipped flag). Accepts
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/uq15_to_f32/uq15_to_f32_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/uq15_to_f32/uq15_to_f32_core.h`
 

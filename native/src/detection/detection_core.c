@@ -3,4 +3,4 @@
  *
  * Implementations live in per-function .c files per jm 0.14 layout.
  */
-#include "detection/detection_core.h"
+#include "doppler/detection/detection_core.h"

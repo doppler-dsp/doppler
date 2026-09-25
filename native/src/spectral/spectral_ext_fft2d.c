@@ -9,7 +9,7 @@
 /* FFT2DObject — wraps fft2d_state_t *       */
 /* ======================================================== */
 
-#include "fft2d/fft2d_core.h"
+#include "doppler/fft2d/fft2d_core.h"
 
 typedef struct
 {

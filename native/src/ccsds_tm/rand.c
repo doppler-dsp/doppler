@@ -14,7 +14,7 @@
  * write in several self-consistent ways that produce different sequences;
  * only the published prefix separates them.
  */
-#include "ccsds_tm/ccsds_tm.h"
+#include "doppler/ccsds_tm/ccsds_tm.h"
 
 /* The feedback mask is DERIVED from the recurrence, not transcribed from the
  * polynomial's exponents, and that distinction has already cost this file

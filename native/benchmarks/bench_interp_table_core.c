@@ -10,8 +10,8 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
-#include "dp_complex.h"
-#include "interp_table/interp_table_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/interp_table/interp_table_core.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdio.h>

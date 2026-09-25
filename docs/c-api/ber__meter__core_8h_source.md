@@ -2,7 +2,7 @@
 
 # File ber\_meter\_core.h
 
-[**File List**](files.md) **>** [**ber\_meter**](dir_01b99f726e31084c217a09fa5a432d53.md) **>** [**ber\_meter\_core.h**](ber__meter__core_8h.md)
+[**File List**](files.md) **>** [**ber\_meter**](dir_88fe8aa1742881a2471cfb33f972e762.md) **>** [**ber\_meter\_core.h**](ber__meter__core_8h.md)
 
 [Go to the documentation of this file](ber__meter__core_8h.md)
 
@@ -12,12 +12,12 @@
 #ifndef BER_METER_CORE_H
 #define BER_METER_CORE_H
 
-#include "ber/ber_core.h" /* the records and the free functions */
-#include "clib_common.h"
-#include "detection/detection_core.h"
-#include "dp_state.h"
-#include "jm_perf.h"
-#include "dp_complex.h"
+#include "doppler/ber/ber_core.h" /* the records and the free functions */
+#include "doppler/clib_common.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
+#include "doppler/dp_complex.h"
 #include <stdint.h>
 
 #ifdef __cplusplus

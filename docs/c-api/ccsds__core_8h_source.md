@@ -2,7 +2,7 @@
 
 # File ccsds\_core.h
 
-[**File List**](files.md) **>** [**ccsds**](dir_dc3b6b0faf00f348f137e45d38cdc7fa.md) **>** [**ccsds\_core.h**](ccsds__core_8h.md)
+[**File List**](files.md) **>** [**ccsds**](dir_c033bcb1c91e23f54b625bfe2cf0448c.md) **>** [**ccsds\_core.h**](ccsds__core_8h.md)
 
 [Go to the documentation of this file](ccsds__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef CCSDS_CORE_H
 #define CCSDS_CORE_H
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
 #ifdef __cplusplus
 extern "C" {

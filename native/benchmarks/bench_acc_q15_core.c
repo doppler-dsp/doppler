@@ -1,5 +1,5 @@
-#include "acc_q15/acc_q15_core.h"
-#include "dp_complex.h"
+#include "doppler/acc_q15/acc_q15_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

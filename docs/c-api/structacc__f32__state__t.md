@@ -105,5 +105,5 @@ float acc_f32_state_t::acc;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acc_f32/acc_f32_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acc_f32/acc_f32_core.h`
 

@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**impairment**](dir_e387feada4efddcbd9f1bef4a6cef9f7.md) **>** [**impairment\_core.h**](impairment__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**impairment**](dir_110bd2cfc83959b687efb664e4fc8d2d.md) **>** [**impairment\_core.h**](impairment__core_8h.md)
 
 [Go to the source code of this file](impairment__core_8h_source.md)
 
 _Impairment module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -78,5 +78,5 @@ _Impairment module — public C API._
 
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/impairment/impairment_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/impairment/impairment_core.h`
 

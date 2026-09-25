@@ -26,9 +26,9 @@
  */
 #include "dp_rng_test.h"
 
-#include "awgn/awgn_core.h"
-#include "carrier_mpsk/carrier_mpsk_core.h"
-#include "dp_complex.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/carrier_mpsk/carrier_mpsk_core.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

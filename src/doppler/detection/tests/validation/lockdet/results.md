@@ -28,7 +28,7 @@ Four pages already own parts of this, and none is restated here:
 | [`docs/design/lock-detect.md`](../../../../../../docs/design/lock-detect.md) | the sizing chain every Gaussian-statistic detector shares |
 | [`docs/guide/lock-detection.md`](../../../../../../docs/guide/lock-detection.md) | which loop carries a detector, and which config entry point to call |
 | [`docs/gallery/lockdet.md`](../../../../../../docs/gallery/lockdet.md) | the mechanics, runnable: hysteresis, verify counts, and the non-finite rule |
-| `native/inc/lockdet/lockdet_core.h` | the contract itself |
+| `native/inc/doppler/lockdet/lockdet_core.h` | the contract itself |
 
 Evidence sits in three places. `native/tests/test_lockdet_core.c` asks whether each claim still holds per look; `native/validation/lockdet_verify.c` measures the probabilistic contract in C; this report measures the same properties through the binding, so a caller reading `LockDet` gets the object the header describes.
 

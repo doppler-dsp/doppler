@@ -32,12 +32,12 @@
  *   7. marker symbols are excluded from scoring and land in `skipped`, so
  *      the symbols that fixed the alignment cannot also flatter the rate.
  */
-#include "ber_meter/ber_meter_core.h"
+#include "doppler/ber_meter/ber_meter_core.h"
 
 #include "dp_rng_test.h"
 #include "dp_test.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

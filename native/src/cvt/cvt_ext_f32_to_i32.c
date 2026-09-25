@@ -9,7 +9,7 @@
 /* F32ToI32Object — wraps f32_to_i32_state_t *       */
 /* ======================================================== */
 
-#include "f32_to_i32/f32_to_i32_core.h"
+#include "doppler/f32_to_i32/f32_to_i32_core.h"
 
 typedef struct
 {

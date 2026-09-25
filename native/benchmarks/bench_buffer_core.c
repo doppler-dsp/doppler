@@ -34,9 +34,9 @@
  * two-thread throughput number needs a different harness and belongs with
  * whoever adds one.
  */
-#include "buffer/buffer.h"
+#include "doppler/buffer/buffer.h"
+#include "doppler/dp_thread.h"
 #include "dp_bench.h"
-#include "dp_thread.h"
 #include <stdio.h>
 #include <stdlib.h>
 

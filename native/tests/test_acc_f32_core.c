@@ -1,5 +1,5 @@
-#include "acc_f32/acc_f32_core.h"
-#include "dp_complex.h"
+#include "doppler/acc_f32/acc_f32_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>

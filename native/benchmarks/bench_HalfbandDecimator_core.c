@@ -19,8 +19,8 @@
  *
  * Timing is MIN over rounds, not mean, after a WARMUP_S settle.
  */
-#include "HalfbandDecimator/HalfbandDecimator_core.h"
-#include "dp_complex.h"
+#include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdio.h>

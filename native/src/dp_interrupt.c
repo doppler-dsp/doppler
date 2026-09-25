@@ -10,10 +10,10 @@
  * See docs/design/io-termination.md.
  */
 
-#include "dp_interrupt.h"
+#include "doppler/dp_interrupt.h"
 
-#include "clib_common.h"
-#include "dp_interrupt_guard/dp_interrupt_guard_procglobal.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_interrupt_guard/dp_interrupt_guard_procglobal.h"
 
 #include <signal.h>
 #include <stdlib.h>

@@ -167,5 +167,5 @@ How many the decoder refused
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ccsds_tm/ccsds_tm_rs.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ccsds_tm/ccsds_tm_rs.h`
 

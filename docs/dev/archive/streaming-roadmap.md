@@ -24,7 +24,7 @@ doppler already ships **three ZMQ messaging patterns** via `libdoppler_stream`
 
 All three are exposed as Python handles (`Publisher`/`Subscriber`,
 `Push`/`Pull`, `Requester`/`Replier`) and as C senders/receivers in
-`native/inc/stream/stream.h`. The existing surface covers **six wire types**
+`native/inc/doppler/stream/stream.h`. The existing surface covers **six wire types**
 (`CF32`, `CF64`, `CF128`, `CI8`, `CI16`, `CI32`) with a shared `dp_header_t`
 envelope.
 

@@ -16,7 +16,7 @@ endif()
 add_library(carrier_acq_core OBJECT carrier_acq_core.c)
 target_include_directories(
   carrier_acq_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                          ${CMAKE_SOURCE_DIR}/native/inc/carrier_acq)
+                          ${CMAKE_SOURCE_DIR}/native/inc/doppler/carrier_acq)
 target_link_libraries(carrier_acq_core PUBLIC
     psd_core
     fft_core

@@ -4,24 +4,24 @@
 
 
 
-[**FileList**](files.md) **>** [**burst\_capture**](dir_8eab18aa96a66319f16718502165a0b6.md) **>** [**burst\_capture\_core.h**](burst__capture__core_8h.md)
+[**FileList**](files.md) **>** [**burst\_capture**](dir_5fb975a28c31ccaec359941e78dbfe20.md) **>** [**burst\_capture\_core.h**](burst__capture__core_8h.md)
 
 [Go to the source code of this file](burst__capture__core_8h_source.md)
 
 _BurstCapture — acquisition's output turned into aligned bursts._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "buffer/buffer.h"`
-* `#include "dp_state.h"`
-* `#include "burst_acq/burst_acq_core.h"`
-* `#include "acq/acq_core.h"`
-* `#include "corr2d/corr2d_core.h"`
-* `#include "fft2d/fft2d_core.h"`
-* `#include "fft/fft_core.h"`
-* `#include "detection/detection_core.h"`
-* `#include "pn/pn_core.h"`
-* `#include "cvt/cvt_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/buffer/buffer.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/burst_acq/burst_acq_core.h"`
+* `#include "doppler/acq/acq_core.h"`
+* `#include "doppler/corr2d/corr2d_core.h"`
+* `#include "doppler/fft2d/fft2d_core.h"`
+* `#include "doppler/fft/fft_core.h"`
+* `#include "doppler/detection/detection_core.h"`
+* `#include "doppler/pn/pn_core.h"`
+* `#include "doppler/cvt/cvt_core.h"`
 
 
 
@@ -1204,5 +1204,5 @@ _State blob layout version._
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/burst_capture/burst_capture_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/burst_capture/burst_capture_core.h`
 

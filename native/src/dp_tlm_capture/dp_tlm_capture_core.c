@@ -12,9 +12,9 @@
  * exactly one producer and exactly one consumer at every instant, which is the
  * SPSC contract it has always had.
  */
-#include "dp_tlm_capture/dp_tlm_capture_core.h"
+#include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
 
-#include "dp_thread.h"
+#include "doppler/dp_thread.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

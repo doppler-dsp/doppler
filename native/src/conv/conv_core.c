@@ -5,7 +5,7 @@
  * Both directions go through conv_outputs(), which is the only place in the
  * tree that says what this family of codes emits. See conv_core.h.
  */
-#include "conv/conv_core.h"
+#include "doppler/conv/conv_core.h"
 
 #include <float.h>
 #include <stdlib.h>

@@ -25,9 +25,9 @@
  * Everything is normalised per BIN, so the rows are directly comparable to
  * each other and to the FFT row in `bench_fft_core.c`.
  */
+#include "doppler/dp_complex.h"
+#include "doppler/spectral/spectral_core.h"
 #include "dp_bench.h"
-#include "dp_complex.h"
-#include "spectral/spectral_core.h"
 #include <math.h>
 #include <stdio.h>
 

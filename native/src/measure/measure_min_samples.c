@@ -8,9 +8,9 @@
  * bins-per-RBW.  RBW = ENBW * fs / n, so n = ceil(ENBW * fs / target_rbw).
  * A non-positive target_rbw defaults to span/1000 (span = fs/2 real, fs cplx).
  */
-#include "measure/measure_core.h"
+#include "doppler/measure/measure_core.h"
 
-#include "spectral/spectral_core.h"
+#include "doppler/spectral/spectral_core.h"
 
 #include <math.h>
 #include <stdlib.h>

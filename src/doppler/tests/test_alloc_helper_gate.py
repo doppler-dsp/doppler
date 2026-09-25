@@ -1,7 +1,8 @@
 """The allocation-helper gate, exercised over a seeded tree.
 
 `scripts/check_alloc_helpers.py` exists because the rule it enforces spent a
-month enforced by nothing. `native/inc/clib_common.h` gained `dp_xmalloc`,
+month enforced by nothing. `native/inc/doppler/clib_common.h` gained
+`dp_xmalloc`,
 `dp_xcalloc` and `dp_xnn` on 2026-07-21, three cores adopted them, and the
 instruction to extend that to other cores as they were touched lived in a
 memory file and in no gate. The check that found this asked a simpler
@@ -130,7 +131,7 @@ def test_the_helpers_own_home_is_exempt(tmp_path: Path) -> None:
     a = _seed(
         tmp_path,
         {
-            "native/inc/clib_common.h": "void *dp_xmalloc (size_t n)"
+            "native/inc/doppler/clib_common.h": "void *dp_xmalloc (size_t n)"
             " { return dp_xnn (malloc (n)); }\n"
         },
         allow="",

@@ -7,7 +7,7 @@ built on it fit together, and which of its conventions are load-bearing
 rather than incidental.
 
 The contract itself — what each function promises, argument by argument —
-lives in `native/inc/nco/nco_core.h`, and the measured envelope lives in
+lives in `native/inc/doppler/nco/nco_core.h`, and the measured envelope lives in
 `src/doppler/source/tests/validation/nco/results.md`. This page does not restate
 either; it explains the reasoning they assume.
 

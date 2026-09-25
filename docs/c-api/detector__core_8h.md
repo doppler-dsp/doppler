@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**detector**](dir_f93f7a52d403868792375ffc90a1c1d7.md) **>** [**detector\_core.h**](detector__core_8h.md)
+[**FileList**](files.md) **>** [**detector**](dir_4cdf6fdfdd426ef1a31e056182554d6b.md) **>** [**detector\_core.h**](detector__core_8h.md)
 
 [Go to the source code of this file](detector__core_8h_source.md)
 
 _1-D streaming signal detector with FFT-based correlation, integrate-and-dump, and configurable noise-referenced threshold._ [More...](#detailed-description)
 
-* `#include "buffer/buffer.h"`
-* `#include "corr/corr_core.h"`
-* `#include "dp_state.h"`
+* `#include "doppler/buffer/buffer.h"`
+* `#include "doppler/corr/corr_core.h"`
+* `#include "doppler/dp_state.h"`
 
 
 
@@ -494,5 +494,5 @@ The test statistic is peak\_mag / noise\_est. A zero noise\_est (e.g., when all 
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/detector/detector_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/detector/detector_core.h`
 

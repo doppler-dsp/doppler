@@ -9,7 +9,7 @@
 /* InterpolatedTableObject — wraps interp_table_state_t *       */
 /* ======================================================== */
 
-#include "interp_table/interp_table_core.h"
+#include "doppler/interp_table/interp_table_core.h"
 
 typedef struct
 {

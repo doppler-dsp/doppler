@@ -45,8 +45,8 @@
  * because the util module has no C test harness at all and its per-module
  * CMakeLists is jm-generated. Filed rather than worked around here.
  */
-#include "agc/agc_core.h"
-#include "dp_complex.h"
+#include "doppler/agc/agc_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <float.h>

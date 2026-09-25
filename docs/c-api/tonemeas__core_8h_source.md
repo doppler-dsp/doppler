@@ -2,7 +2,7 @@
 
 # File tonemeas\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**tonemeas**](dir_78c9bf326243d2be956f1c1b5de2ee56.md) **>** [**tonemeas\_core.h**](tonemeas__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**tonemeas**](dir_e0665d68cb2c2ff7feb28506d37a8bd1.md) **>** [**tonemeas\_core.h**](tonemeas__core_8h.md)
 
 [Go to the documentation of this file](tonemeas__core_8h.md)
 
@@ -12,14 +12,14 @@
 #ifndef TONEMEAS_CORE_H
 #define TONEMEAS_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "measure/measure_core.h"
-#include "psd/psd_core.h"
-#include "dp_complex.h"
-#include "fft/fft_core.h"
-#include "spectral/spectral_core.h"
-#include "acc_trace/acc_trace_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/measure/measure_core.h"
+#include "doppler/psd/psd_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/fft/fft_core.h"
+#include "doppler/spectral/spectral_core.h"
+#include "doppler/acc_trace/acc_trace_core.h"
 
 #ifdef __cplusplus
 extern "C" {

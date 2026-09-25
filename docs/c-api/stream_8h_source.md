@@ -2,7 +2,7 @@
 
 # File stream.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**stream**](dir_21b896cdbc030a0ded493211142b7733.md) **>** [**stream.h**](stream_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**stream**](dir_2fbcc177cba4f14addc502f26acbb8f7.md) **>** [**stream.h**](stream_8h.md)
 
 [Go to the documentation of this file](stream_8h.md)
 
@@ -12,16 +12,16 @@
 #ifndef DP_STREAM_H
 #define DP_STREAM_H
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stddef.h>
 #include <stdint.h>
 
 /* CMPLXF/CMPLX/CMPLXL fallbacks and the shared DP_OK/DP_ERR_* error codes
  * live in clib_common.h — the streaming API uses the one doppler-wide scheme.
  */
-#include "clib_common.h"
-#include "dp_interrupt.h"
-#include "dp_format.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_interrupt.h"
+#include "doppler/dp_format.h"
 
 #ifdef __cplusplus
 extern "C"

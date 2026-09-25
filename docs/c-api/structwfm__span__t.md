@@ -175,5 +175,5 @@ size_t wfm_span_t::start;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfm/wfm_compose.h`
+The documentation for this class was generated from the following file `native/inc/doppler/wfm/wfm_compose.h`
 

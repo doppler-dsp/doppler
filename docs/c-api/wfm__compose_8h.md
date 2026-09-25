@@ -4,16 +4,16 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md) **>** [**wfm\_compose.h**](wfm__compose_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wfm**](dir_d559aca39cc004340b6be1a6e35e20bd.md) **>** [**wfm\_compose.h**](wfm__compose_8h.md)
 
 [Go to the source code of this file](wfm__compose_8h_source.md)
 
 _Multi-segment waveform composer (Phase B)._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "wfm_synth/wfm_synth_core.h"`
-* `#include "wfm/wfm_frame.h"`
-* `#include "doppler_channel/doppler_channel_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/wfm_synth/wfm_synth_core.h"`
+* `#include "doppler/wfm/wfm_frame.h"`
+* `#include "doppler/doppler_channel/doppler_channel_core.h"`
 
 
 
@@ -1358,5 +1358,5 @@ malloc'd JSON (caller frees), or NULL on allocation failure.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfm/wfm_compose.h`
+The documentation for this class was generated from the following file `native/inc/doppler/wfm/wfm_compose.h`
 

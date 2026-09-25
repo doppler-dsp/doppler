@@ -13,13 +13,13 @@
 # whenever anything above it is edited, and the waiver then covers the wrong
 # call without saying so.
 
-native/inc/async_dsss_receiver/async_dsss_receiver_core.h async_dsss_receiver_create
-native/inc/ber_meter/ber_meter_core.h ber_meter_score
-native/inc/corr/corr_core.h corr_create
-native/inc/delay/delay_core.h delay_create
-native/inc/dll/dll_core.h dll_create
-native/inc/dsss_receiver/dsss_receiver_core.h dsss_receiver_create
-native/inc/pn/pn_core.h pn_create
-native/inc/specan/specan_core.h specan_create
-native/inc/symsync/symsync_core.h symsync_step
-native/inc/wfm_synth/wfm_synth_core.h wfm_synth_create
+native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h async_dsss_receiver_create
+native/inc/doppler/ber_meter/ber_meter_core.h ber_meter_score
+native/inc/doppler/corr/corr_core.h corr_create
+native/inc/doppler/delay/delay_core.h delay_create
+native/inc/doppler/dll/dll_core.h dll_create
+native/inc/doppler/dsss_receiver/dsss_receiver_core.h dsss_receiver_create
+native/inc/doppler/pn/pn_core.h pn_create
+native/inc/doppler/specan/specan_core.h specan_create
+native/inc/doppler/symsync/symsync_core.h symsync_step
+native/inc/doppler/wfm_synth/wfm_synth_core.h wfm_synth_create

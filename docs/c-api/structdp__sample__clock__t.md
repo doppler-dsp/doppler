@@ -235,5 +235,5 @@ pace() calls that arrived past deadline.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/timing/timing_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/timing/timing_core.h`
 

@@ -128,5 +128,5 @@ the k-1 previous inputs, newest high
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/conv_enc/conv_enc_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/conv_enc/conv_enc_core.h`
 

@@ -89,7 +89,7 @@ reinterpreted.
 ```c
 #include <assert.h>
 #include <complex.h>
-#include <fir/fir_core.h>
+#include <doppler/fir/fir_core.h>
 #include <stdlib.h>
 #include <string.h>
 

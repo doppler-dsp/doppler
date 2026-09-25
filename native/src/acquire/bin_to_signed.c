@@ -14,7 +14,7 @@
  * formula ported in from numpy now agrees; this wrapper is what makes
  * porting one unnecessary.
  */
-#include "acquire/acquire_core.h"
+#include "doppler/acquire/acquire_core.h"
 
 int
 bin_to_signed (size_t bin, size_t n_bins)

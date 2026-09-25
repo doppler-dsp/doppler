@@ -1,8 +1,8 @@
-#include "stream/stream.h"
+#include "doppler/stream/stream.h"
 #include "stream_internal.h"
 
-#include "dp_complex.h"
-#include "dp_interrupt.h"
+#include "doppler/dp_complex.h"
+#include "doppler/dp_interrupt.h"
 #include <signal.h>
 #include <stddef.h> /* offsetof — the wire-layout assertions */
 #include <stdint.h>

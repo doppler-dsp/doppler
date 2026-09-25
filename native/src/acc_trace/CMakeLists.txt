@@ -16,7 +16,7 @@ endif()
 add_library(acc_trace_core OBJECT acc_trace_core.c)
 target_include_directories(
   acc_trace_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                        ${CMAKE_SOURCE_DIR}/native/inc/acc_trace)
+                        ${CMAKE_SOURCE_DIR}/native/inc/doppler/acc_trace)
 
 add_executable(test_acc_trace_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_acc_trace_core.c

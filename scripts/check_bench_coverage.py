@@ -116,8 +116,10 @@ import re
 import sys
 from pathlib import Path
 
+from _layout import HEADER_ROOT
+
 ROOT = Path(__file__).resolve().parent.parent
-INC = ROOT / "native" / "inc"
+INC = ROOT / HEADER_ROOT
 TESTS = ROOT / "native" / "tests"
 BENCH = ROOT / "native" / "benchmarks"
 SRC = ROOT / "src" / "doppler"  # the Python face, for rule 5

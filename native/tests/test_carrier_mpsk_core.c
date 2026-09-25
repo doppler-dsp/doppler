@@ -14,8 +14,8 @@
  * The m=2 ≡ BPSK Costas identity (the headline anchor) is asserted in the
  * Python test (test_carrier_mpsk.py), where both types live in track.so.
  */
-#include "carrier_mpsk/carrier_mpsk_core.h"
-#include "dp_complex.h"
+#include "doppler/carrier_mpsk/carrier_mpsk_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>

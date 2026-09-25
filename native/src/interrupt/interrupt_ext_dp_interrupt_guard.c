@@ -10,7 +10,7 @@
 /* InterruptObject — wraps dp_interrupt_guard_state_t *       */
 /* ======================================================== */
 
-#include "dp_interrupt_guard/dp_interrupt_guard_core.h"
+#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"
 
 typedef struct
 {

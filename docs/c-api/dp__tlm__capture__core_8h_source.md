@@ -2,7 +2,7 @@
 
 # File dp\_tlm\_capture\_core.h
 
-[**File List**](files.md) **>** [**dp\_tlm\_capture**](dir_c53721efa35f9e05ec164f1aacd6bf30.md) **>** [**dp\_tlm\_capture\_core.h**](dp__tlm__capture__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_tlm\_capture**](dir_d9291c2a213cf080735d669eb6078971.md) **>** [**dp\_tlm\_capture\_core.h**](dp__tlm__capture__core_8h.md)
 
 [Go to the documentation of this file](dp__tlm__capture__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef DP_TLM_CAPTURE_H
 #define DP_TLM_CAPTURE_H
 
-#include "dp_tlm/dp_tlm_core.h"
-#include "timing/timing_core.h" /* dp_sample_clock_t — the ONE time base */
-#include "dp_interrupt_guard/dp_interrupt_guard_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/timing/timing_core.h" /* dp_sample_clock_t — the ONE time base */
+#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"
 
 #ifdef __cplusplus
 extern "C" {

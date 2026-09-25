@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**f32\_to\_i16u64**](dir_212e21299d76aa740bbad8810e4bf50a.md) **>** [**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**f32\_to\_i16u64**](dir_9062d1e43f9eb10312d10225fea9c765.md) **>** [**f32\_to\_i16u64\_core.h**](f32__to__i16u64__core_8h.md)
 
 [Go to the source code of this file](f32__to__i16u64__core_8h_source.md)
 
 _Scale-and-saturate float to Q15-in-uint64 converter._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
 * `#include <math.h>`
 
 
@@ -419,5 +419,5 @@ Applies step() to every element. The `clipped` flag is updated cumulatively acro
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/f32_to_i16u64/f32_to_i16u64_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/f32_to_i16u64/f32_to_i16u64_core.h`
 

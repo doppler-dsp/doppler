@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**detection**](dir_3a1e0e8c534208cc3745b2f53a028862.md) **>** [**detection\_core.h**](detection__core_8h.md)
+[**FileList**](files.md) **>** [**detection**](dir_c7528e0bd68524c48f260a564c045102.md) **>** [**detection\_core.h**](detection__core_8h.md)
 
 [Go to the source code of this file](detection__core_8h_source.md)
 
@@ -1348,5 +1348,5 @@ Q\_M(a, b) in &#91;0, 1&#93;.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/detection/detection_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/detection/detection_core.h`
 

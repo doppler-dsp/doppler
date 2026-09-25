@@ -9,7 +9,7 @@
 /* AGCObject — wraps agc_state_t *       */
 /* ======================================================== */
 
-#include "agc/agc_core.h"
+#include "doppler/agc/agc_core.h"
 
 typedef struct
 {

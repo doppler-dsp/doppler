@@ -2,7 +2,7 @@
 
 # File cic\_core.h
 
-[**File List**](files.md) **>** [**cic**](dir_cf560077cc62991e7289ea57a3d930a1.md) **>** [**cic\_core.h**](cic__core_8h.md)
+[**File List**](files.md) **>** [**cic**](dir_b18ea702eaae2e8004fd6583c8b1e641.md) **>** [**cic\_core.h**](cic__core_8h.md)
 
 [Go to the documentation of this file](cic__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef CIC_CORE_H
 #define CIC_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
 
 #ifdef __cplusplus
 extern "C" {

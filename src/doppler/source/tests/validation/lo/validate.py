@@ -254,15 +254,15 @@ def section_summary() -> None:
         ["source", "holds"],
         [
             [
-                "[`native/inc/lo/lo_core.h`]"
-                "(../../../../../../native/inc/lo/lo_core.h)",
+                "[`native/inc/doppler/lo/lo_core.h`]"
+                "(../../../../../../native/inc/doppler/lo/lo_core.h)",
                 "the contract: the LUT geometry, the emit-before-increment "
                 "convention, the SFDR claim, the inline composition API and "
                 "the control port",
             ],
             [
-                "[`native/inc/nco/nco_core.h`]"
-                "(../../../../../../native/inc/nco/nco_core.h)",
+                "[`native/inc/doppler/nco/nco_core.h`]"
+                "(../../../../../../native/inc/doppler/nco/nco_core.h)",
                 "the conversion: `nco_norm_freq_to_inc` is the one "
                 "double→integer boundary, and the LO calls it for both its "
                 "configured rate and its control port",

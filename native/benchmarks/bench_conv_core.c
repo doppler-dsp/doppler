@@ -17,7 +17,7 @@
  * -- an interrupt or a migration only ever adds time -- so the minimum is the
  * least-biased estimate and the mean reports whatever else the machine did.
  */
-#include "conv/conv_core.h"
+#include "doppler/conv/conv_core.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdio.h>

@@ -9,7 +9,7 @@
 /* DdcrObject — wraps ddcr_state_t *       */
 /* ======================================================== */
 
-#include "ddcr/ddcr_core.h"
+#include "doppler/ddcr/ddcr_core.h"
 
 typedef struct
 {

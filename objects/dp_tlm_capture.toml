@@ -84,7 +84,7 @@ doc = "The LARGEST number of input samples processed between two boundaries — 
 name = "clock"
 type = "const dp_sample_clock_t *"
 capsule = "doppler.wfm.dp_sample_clock"
-header = "timing/timing_core.h"
+header = "doppler/timing/timing_core.h"
 doc = "The pipeline's sample clock, borrowed for the sidecar's time base. Read at close(), so later track() corrections are picked up. Must outlive the capture. Pass None to state that there is no time base: the sidecar then omits the rate and epoch keys rather than fabricating them into a file that outlives the process. The argument itself is not omittable — say None deliberately."
 
 # ── the file flavour ────────────────────────────────────────────────────────
@@ -114,7 +114,7 @@ init_params = [
   { name = "tlm", object = "dp_tlm", required = true, doc = "Telemetry context to capture. Must outlive the capture." },
   { name = "block_samples", type = "size_t", required = true, doc = "The LARGEST number of input samples processed between two boundaries — the step of your own block loop." },
   { name = "path", type = "path", required = true, doc = "Output file, truncated if it exists. The 16-byte record layout IS the file, so np.fromfile reads it directly; a <path>-meta JSON sidecar carries the probe table, the counters and the time base." },
-  { name = "clock", type = "const dp_sample_clock_t *", capsule = "doppler.wfm.dp_sample_clock", header = "timing/timing_core.h", doc = "The pipeline's sample clock, borrowed for the sidecar's time base — see MemoryCapture. Pass None to state that there is no time base; the argument itself is not omittable." },
+  { name = "clock", type = "const dp_sample_clock_t *", capsule = "doppler.wfm.dp_sample_clock", header = "doppler/timing/timing_core.h", doc = "The pipeline's sample clock, borrowed for the sidecar's time base — see MemoryCapture. Pass None to state that there is no time base; the argument itself is not omittable." },
 ]
 
 # ── methods ─────────────────────────────────────────────────────────────────

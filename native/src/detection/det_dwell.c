@@ -1,4 +1,4 @@
-#include "detection/detection_core.h"
+#include "doppler/detection/detection_core.h"
 int
 det_dwell (double snr, double pd_min, double pfa, int max_dwell)
 {

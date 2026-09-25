@@ -9,7 +9,7 @@
 /* FFTObject — wraps fft_state_t *       */
 /* ======================================================== */
 
-#include "fft/fft_core.h"
+#include "doppler/fft/fft_core.h"
 
 typedef struct
 {

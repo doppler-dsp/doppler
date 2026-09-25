@@ -16,7 +16,7 @@ endif()
 add_library(farrow_core OBJECT farrow_core.c)
 target_include_directories(
   farrow_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                     ${CMAKE_SOURCE_DIR}/native/inc/farrow)
+                     ${CMAKE_SOURCE_DIR}/native/inc/doppler/farrow)
 
 add_executable(test_farrow_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_farrow_core.c

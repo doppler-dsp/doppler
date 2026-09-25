@@ -9,7 +9,7 @@
 /* DllObject — wraps dll_state_t *       */
 /* ======================================================== */
 
-#include "dll/dll_core.h"
+#include "doppler/dll/dll_core.h"
 
 typedef struct
 {

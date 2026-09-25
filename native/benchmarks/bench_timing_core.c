@@ -7,8 +7,8 @@
  * pytest-benchmark-compatible JSON via make bench. */
 #define _POSIX_C_SOURCE 200809L
 
+#include "doppler/timing/timing_core.h"
 #include "jm_bench.h"
-#include "timing/timing_core.h"
 
 #include <stdio.h>
 #include <time.h>

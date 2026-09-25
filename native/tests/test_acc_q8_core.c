@@ -1,5 +1,5 @@
-#include "acc_q8/acc_q8_core.h"
-#include "dp_complex.h"
+#include "doppler/acc_q8/acc_q8_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>

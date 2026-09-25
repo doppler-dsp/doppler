@@ -14,8 +14,8 @@
  * flags as `wavegen`, so `wfmgen --type qpsk --count 4096 …` and
  * `wavegen --type qpsk --count 4096 …` agree sample-for-sample.
  */
-#include "cvt/cvt_core.h"
-#include "dp_complex.h"
+#include "doppler/cvt/cvt_core.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <signal.h>
 #include <stddef.h> /* offsetof — the option table names fields by offset */
@@ -24,15 +24,15 @@
 #include <string.h>
 #include <unistd.h> /* isatty */
 
+#include "doppler/dp_interrupt.h"
+#include "doppler/timing/timing_core.h"
 #include "doppler/version.h" /* DOPPLER_VERSION (configure-time stamp) */
-#include "dp_interrupt.h"
-#include "timing/timing_core.h"
-#include "wfm/wfm_compose.h"
-#include "wfm/wfm_defaults.h" /* WFM_SOURCE/SEGMENT_DEFAULTS */
-#include "wfm/wfm_names.h"    /* every choice table -- the one C home (#760) */
-#include "wfm/wfm_sink.h"
-#include "wfm/wfmgen.h"
-#include "wfm_writer/wfm_writer_core.h"
+#include "doppler/wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_defaults.h" /* WFM_SOURCE/SEGMENT_DEFAULTS */
+#include "doppler/wfm/wfm_names.h" /* every choice table -- the one C home (#760) */
+#include "doppler/wfm/wfm_sink.h"
+#include "doppler/wfm/wfmgen.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 
 #define BLK 4096
 

@@ -23,7 +23,7 @@ PREFIX="$HOME/.local/doppler"
 <!-- docs-snippet: broker=publishes to a live broker; CI's python-tests job provides one, compile-checked everywhere -->
 
 ```c
-#include <stream/stream.h>
+#include <doppler/stream/stream.h>
 #include <complex.h>
 #include <math.h>
 
@@ -47,7 +47,7 @@ int main(void) {
 <!-- docs-snippet: no-run=blocking recv needs a live transmitter; compile-checked against the real wire API, round-trip covered by stream tests -->
 
 ```c
-#include <stream/stream.h>
+#include <doppler/stream/stream.h>
 #include <stdio.h>
 
 int main(void) {
@@ -76,7 +76,7 @@ round-robin across every connected `Pull`.
 <!-- docs-snippet: skip=illustrative excerpt (undeclared samples/count), needs a live broker; see native/examples/pipeline_demo for the tested version -->
 
 ```c
-#include <stream/stream.h>
+#include <doppler/stream/stream.h>
 #include <stdio.h>
 
 // Producer

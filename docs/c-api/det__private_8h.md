@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**detector**](dir_f93f7a52d403868792375ffc90a1c1d7.md) **>** [**det\_private.h**](det__private_8h.md)
+[**FileList**](files.md) **>** [**detector**](dir_4cdf6fdfdd426ef1a31e056182554d6b.md) **>** [**det\_private.h**](det__private_8h.md)
 
 [Go to the source code of this file](det__private_8h_source.md)
 
@@ -13,7 +13,7 @@ _Shared internals for detector\_core.c and detector2d\_core.c._ [More...](#detai
 * `#include <stdint.h>`
 * `#include <stdlib.h>`
 * `#include <string.h>`
-* `#include "util/util_core.h"`
+* `#include "doppler/util/util_core.h"`
 
 
 
@@ -305,5 +305,5 @@ static dp_f32_t * det_ring_create (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/detector/det_private.h`
+The documentation for this class was generated from the following file `native/inc/doppler/detector/det_private.h`
 

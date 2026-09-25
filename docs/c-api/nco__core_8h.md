@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**nco**](dir_2f9ed967bc16fefd26d0244d883adb58.md) **>** [**nco\_core.h**](nco__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**nco**](dir_64d3c3497a73d925321234bd516bd8bf.md) **>** [**nco\_core.h**](nco__core_8h.md)
 
 [Go to the source code of this file](nco__core_8h_source.md)
 
 _Phase-accumulator NCO, and the one float-&gt;integer boundary everything that steers one has to pass through._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
 * `#include <math.h>`
 
 
@@ -1051,7 +1051,7 @@ size_t nco_steps_u32_ctrl (
 
 
 
-The NCO **control port** for a tracking loop: `ctrl` is a per-sample frequency control in normalised cycles/sample, added to the centre increment `phase_inc` for that step only. `phase_inc` / `norm_freq` are NEVER modified by this call  only the running `phase` advances, by `phase_inc + ctrl_inc` each sample  so a loop filter can drive the NCO with its full per-sample output (integrator + proportional term) without the caller ever touching the NCO's own configured rate. Mirrors `lo_step_ctrl`/`lo_steps_ctrl` ([**native/inc/lo/lo\_core.h**](lo__core_8h.md)), which does this for the CF32 phasor output; this is the same control-port pattern for NCO's raw phase output. With every `ctrl[i] == 0` this is bit-identical to [**nco\_steps\_u32()**](nco__core_8h.md#function-nco_steps_u32). Returns ctrl\_len.
+The NCO **control port** for a tracking loop: `ctrl` is a per-sample frequency control in normalised cycles/sample, added to the centre increment `phase_inc` for that step only. `phase_inc` / `norm_freq` are NEVER modified by this call  only the running `phase` advances, by `phase_inc + ctrl_inc` each sample  so a loop filter can drive the NCO with its full per-sample output (integrator + proportional term) without the caller ever touching the NCO's own configured rate. Mirrors `lo_step_ctrl`/`lo_steps_ctrl` ([**native/inc/doppler/lo/lo\_core.h**](lo__core_8h.md)), which does this for the CF32 phasor output; this is the same control-port pattern for NCO's raw phase output. With every `ctrl[i] == 0` this is bit-identical to [**nco\_steps\_u32()**](nco__core_8h.md#function-nco_steps_u32). Returns ctrl\_len.
 
 
 Python's `out=` keyword writes into a caller-supplied buffer instead of allocating a fresh one. This used to claim it was "essential for
@@ -1523,5 +1523,5 @@ static inline uint8_t nco_add_ovf_ (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/nco/nco_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/nco/nco_core.h`
 

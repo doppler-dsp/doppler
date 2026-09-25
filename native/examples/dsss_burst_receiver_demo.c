@@ -41,12 +41,12 @@
  *   ./build/native/examples/dsss_burst_receiver_demo
  */
 
-#include <dsss_burst_receiver/dsss_burst_receiver_core.h>
-#include <frame/frame_core.h>
-#include <pn/pn_core.h>
-#include <wfm/wfm_compose.h>
+#include <doppler/dsss_burst_receiver/dsss_burst_receiver_core.h>
+#include <doppler/frame/frame_core.h>
+#include <doppler/pn/pn_core.h>
+#include <doppler/wfm/wfm_compose.h>
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

@@ -2,7 +2,7 @@
 
 # File fft\_core.h
 
-[**File List**](files.md) **>** [**fft**](dir_5dc24668fb1cbe963321608da9e9d4ca.md) **>** [**fft\_core.h**](fft__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**fft**](dir_1dec96a47631eec21a10469aab3e9a96.md) **>** [**fft\_core.h**](fft__core_8h.md)
 
 [Go to the documentation of this file](fft__core_8h.md)
 
@@ -12,8 +12,8 @@
 #ifndef FFT_CORE_H
 #define FFT_CORE_H
 
-#include "clib_common.h"
-#include "pocketfft/pocketfft.h"
+#include "doppler/clib_common.h"
+#include "doppler/pocketfft/pocketfft.h"
 
 #ifdef __cplusplus
 extern "C"

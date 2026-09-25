@@ -16,7 +16,7 @@ endif()
 add_library(Resampler_core OBJECT Resampler_core.c)
 target_include_directories(
   Resampler_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                        ${CMAKE_SOURCE_DIR}/native/inc/Resampler)
+                        ${CMAKE_SOURCE_DIR}/native/inc/doppler/Resampler)
 target_link_libraries(Resampler_core PUBLIC
     resamp_core)
 

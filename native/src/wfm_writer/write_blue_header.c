@@ -11,7 +11,7 @@
  * It lives on the wfm_writer module because that is where wfm_writer_core is
  * already linked (with its keyword/cJSON/draw deps).
  */
-#include "wfm_writer/wfm_writer_core.h" /* wfm_blue_write_hcb */
+#include "doppler/wfm_writer/wfm_writer_core.h" /* wfm_blue_write_hcb */
 
 #include <stddef.h>
 #include <stdio.h>

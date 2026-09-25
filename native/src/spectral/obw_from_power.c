@@ -8,7 +8,7 @@
  * non-negative power array; any constant per-bin normalisation cancels in the
  * ratio.
  */
-#include "spectral/spectral_core.h"
+#include "doppler/spectral/spectral_core.h"
 
 double
 obw_from_power (const double *pwr, size_t pwr_len, double fs, double frac)

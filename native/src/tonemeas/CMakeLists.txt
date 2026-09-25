@@ -16,7 +16,7 @@ endif()
 add_library(tonemeas_core OBJECT tonemeas_core.c)
 target_include_directories(
   tonemeas_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                       ${CMAKE_SOURCE_DIR}/native/inc/tonemeas)
+                       ${CMAKE_SOURCE_DIR}/native/inc/doppler/tonemeas)
 target_link_libraries(tonemeas_core PUBLIC
     fft_core
     spectral_core

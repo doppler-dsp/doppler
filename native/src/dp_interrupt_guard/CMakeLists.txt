@@ -16,7 +16,7 @@ endif()
 add_library(dp_interrupt_guard_core OBJECT dp_interrupt_guard_core.c)
 target_include_directories(
   dp_interrupt_guard_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                                 ${CMAKE_SOURCE_DIR}/native/inc/dp_interrupt_guard)
+                                 ${CMAKE_SOURCE_DIR}/native/inc/doppler/dp_interrupt_guard)
 target_link_libraries(dp_interrupt_guard_core PUBLIC
     $<TARGET_OBJECTS:dp_interrupt_obj>)
 

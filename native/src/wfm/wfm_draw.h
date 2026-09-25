@@ -11,7 +11,7 @@
 #ifndef WFM_DRAW_H
 #define WFM_DRAW_H
 
-#include "wfm/wfm_compose.h" /* wfm_segment_t / wfm_source_t */
+#include "doppler/wfm/wfm_compose.h" /* wfm_segment_t / wfm_source_t */
 
 #include <stddef.h>
 #include <stdint.h>

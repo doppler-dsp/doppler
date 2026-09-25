@@ -8,11 +8,11 @@
  * constant time, a CSV seek scans. Emits pytest-benchmark JSON. */
 #define _POSIX_C_SOURCE 200809L
 
+#include "doppler/wfm_reader/wfm_reader_core.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 #include "jm_bench.h"
-#include "wfm_reader/wfm_reader_core.h"
-#include "wfm_writer/wfm_writer_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

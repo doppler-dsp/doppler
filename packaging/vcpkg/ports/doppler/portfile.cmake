@@ -11,7 +11,7 @@
 #
 # Not upstream microsoft/vcpkg: its default x64-windows triplet compiles with
 # cl.exe, which cannot build doppler and cannot even include its headers
-# (native/inc/dp_complex.h #errors on it). The clang-cl triplet beside this
+# (native/inc/doppler/dp_complex.h #errors on it). The clang-cl triplet beside this
 # port is the supported Windows toolchain.
 get_filename_component(SOURCE_PATH
     "${CMAKE_CURRENT_LIST_DIR}/../../../.." ABSOLUTE)

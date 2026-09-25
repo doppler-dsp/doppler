@@ -2,7 +2,7 @@
 
 # File dp\_parallel.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**dp\_parallel.h**](dp__parallel_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_parallel.h**](dp__parallel_8h.md)
 
 [Go to the documentation of this file](dp__parallel_8h.md)
 
@@ -30,8 +30,8 @@
 #ifndef DP_PARALLEL_H
 #define DP_PARALLEL_H
 
-#include "clib_common.h" /* dp_xmalloc / dp_xcalloc */
-#include "dp_thread.h"
+#include "doppler/clib_common.h" /* dp_xmalloc / dp_xcalloc */
+#include "doppler/dp_thread.h"
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdlib.h>

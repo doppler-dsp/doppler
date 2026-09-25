@@ -6,8 +6,8 @@
  *   acq     — acquisition time: samples until the lock metric first crosses
  *             0.9 from a cold start on a fixed carrier residual.
  */
-#include "costas/costas_core.h"
-#include "dp_complex.h"
+#include "doppler/costas/costas_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdio.h>

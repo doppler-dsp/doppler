@@ -16,7 +16,7 @@ endif()
 add_library(loop_filter_core OBJECT loop_filter_core.c)
 target_include_directories(
   loop_filter_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                          ${CMAKE_SOURCE_DIR}/native/inc/loop_filter)
+                          ${CMAKE_SOURCE_DIR}/native/inc/doppler/loop_filter)
 
 add_executable(test_loop_filter_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_loop_filter_core.c

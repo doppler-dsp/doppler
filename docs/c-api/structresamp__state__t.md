@@ -322,5 +322,5 @@ int resamp_state_t::upsample;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/resamp/resamp_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/resamp/resamp_core.h`
 

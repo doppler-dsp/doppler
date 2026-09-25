@@ -319,5 +319,5 @@ telemetry gate: non-NULL when the embedded loops are attached (despreader\_set\_
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/despreader/despreader_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/despreader/despreader_core.h`
 

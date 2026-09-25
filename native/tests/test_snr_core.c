@@ -19,11 +19,11 @@
  * same carve-out scripts/.stimulus-sources-allow makes for oracles). The
  * Box-Muller draw below is the reference, not a convenience.
  */
+#include "doppler/snr/snr_core.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
-#include "snr/snr_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

@@ -166,5 +166,5 @@ generator polynomials, k bits each
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/conv/conv_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/conv/conv_core.h`
 

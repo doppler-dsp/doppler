@@ -88,9 +88,9 @@
  * each candidate with acquisition's own statistic, mixed within every
  * period, over the Doppler cells of the engine's bin (doppler#1502).
  */
-#include "awgn/awgn_core.h"
-#include "burst_capture/burst_capture_core.h"
-#include "dp_complex.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/burst_capture/burst_capture_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"

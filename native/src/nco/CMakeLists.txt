@@ -16,7 +16,7 @@ endif()
 add_library(nco_core OBJECT nco_core.c)
 target_include_directories(
   nco_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                  ${CMAKE_SOURCE_DIR}/native/inc/nco)
+                  ${CMAKE_SOURCE_DIR}/native/inc/doppler/nco)
 
 add_executable(test_nco_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_nco_core.c

@@ -139,7 +139,7 @@ ______________________________________________________________________
 
 ## The four enumerations — three closed, one open
 
-`native/inc/wfm/wfm_frame.h` is the SSOT for every name here; this page owns
+`native/inc/doppler/wfm/wfm_frame.h` is the SSOT for every name here; this page owns
 the reasoning, not the declarations. The fourth enumeration being open is what
 decides whether the generalization is real: a set only doppler can extend is a
 third framer with extra steps.

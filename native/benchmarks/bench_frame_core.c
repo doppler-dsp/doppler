@@ -24,7 +24,7 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
-#include "frame/frame_core.h"
+#include "doppler/frame/frame_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

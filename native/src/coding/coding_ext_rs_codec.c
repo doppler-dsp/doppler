@@ -9,7 +9,7 @@
 /* ReedSolomonObject — wraps rs_codec_state_t *       */
 /* ======================================================== */
 
-#include "rs_codec/rs_codec_core.h"
+#include "doppler/rs_codec/rs_codec_core.h"
 
 typedef struct
 {

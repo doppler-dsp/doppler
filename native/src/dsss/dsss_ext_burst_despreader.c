@@ -9,7 +9,7 @@
 /* BurstDespreaderObject — wraps burst_despreader_state_t *       */
 /* ======================================================== */
 
-#include "burst_despreader/burst_despreader_core.h"
+#include "doppler/burst_despreader/burst_despreader_core.h"
 
 typedef struct
 {

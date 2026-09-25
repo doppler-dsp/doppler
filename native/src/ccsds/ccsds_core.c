@@ -3,4 +3,4 @@
  *
  * Add extra #includes below, then implement module-level functions.
  */
-#include "ccsds/ccsds_core.h"
+#include "doppler/ccsds/ccsds_core.h"

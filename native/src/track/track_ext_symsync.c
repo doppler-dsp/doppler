@@ -9,7 +9,7 @@
 /* SymbolSyncObject — wraps symsync_state_t *       */
 /* ======================================================== */
 
-#include "symsync/symsync_core.h"
+#include "doppler/symsync/symsync_core.h"
 
 typedef struct
 {

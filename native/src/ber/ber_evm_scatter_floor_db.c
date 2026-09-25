@@ -3,8 +3,8 @@
  * and the measured consequences of getting each one wrong live on the
  * declaration in ber/ber_core.h.
  */
-#include "ber/ber_core.h"
-#include "mpsk/mpsk_core.h"
+#include "doppler/ber/ber_core.h"
+#include "doppler/mpsk/mpsk_core.h"
 #include <math.h>
 
 #ifndef M_PI

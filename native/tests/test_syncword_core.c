@@ -24,7 +24,7 @@
 #include "dp_rng_test.h"
 #include "dp_test.h"
 
-#include "syncword/syncword_core.h"
+#include "doppler/syncword/syncword_core.h"
 
 #include <stdlib.h>
 #include <string.h>

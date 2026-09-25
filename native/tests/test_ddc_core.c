@@ -5,8 +5,8 @@
  * (ddc_create_matched), the two control ports, and serialization. The
  * real-input twin has its own suite in test_ddcr_core.c.
  */
-#include "ddc/ddc_core.h"
-#include "dp_complex.h"
+#include "doppler/ddc/ddc_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_mf_test.h"
 #include "dp_test.h"
 #include <math.h>

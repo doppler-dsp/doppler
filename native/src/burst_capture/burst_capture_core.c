@@ -7,9 +7,9 @@
  * measurements behind each constant (docs/design/dsss-burst-receiver.md §3,
  * §6.1, §7.1) still describe this code.
  */
-#include "burst_capture/burst_capture_core.h"
+#include "doppler/burst_capture/burst_capture_core.h"
 
-#include "util/util_core.h"
+#include "doppler/util/util_core.h"
 
 #include <math.h>
 #include <stdlib.h>

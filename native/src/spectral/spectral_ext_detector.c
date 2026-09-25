@@ -9,7 +9,7 @@
 /* CorrDetectorObject — wraps detector_state_t *       */
 /* ======================================================== */
 
-#include "detector/detector_core.h"
+#include "doppler/detector/detector_core.h"
 
 typedef struct
 {

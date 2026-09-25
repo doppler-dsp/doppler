@@ -18,8 +18,8 @@
  *   - the sanity gate rejects "better than theory" and rejects a spinning
  *     constellation that both truth-free validators would otherwise pass.
  */
+#include "doppler/dp_complex.h"
 #include "dp_ber_test.h"
-#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>

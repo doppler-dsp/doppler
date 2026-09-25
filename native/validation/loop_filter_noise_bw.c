@@ -74,8 +74,8 @@
  *                                  (d) the excess obeys the closed form
  *                                  above at every damping
  */
-#include "dp_complex.h"
-#include "loop_filter/loop_filter_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/loop_filter/loop_filter_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

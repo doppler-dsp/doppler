@@ -9,7 +9,7 @@
 /* I8ToF32Object — wraps i8_to_f32_state_t *       */
 /* ======================================================== */
 
-#include "i8_to_f32/i8_to_f32_core.h"
+#include "doppler/i8_to_f32/i8_to_f32_core.h"
 
 typedef struct
 {

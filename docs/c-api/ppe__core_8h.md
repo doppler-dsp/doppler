@@ -4,17 +4,17 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**ppe**](dir_d640b2c624b0e530b2e913b3aa05ce26.md) **>** [**ppe\_core.h**](ppe__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**ppe**](dir_2835f10376dc04900139beed5b4d2457.md) **>** [**ppe\_core.h**](ppe__core_8h.md)
 
 [Go to the source code of this file](ppe__core_8h_source.md)
 
 _Feedforward polynomial-phase estimator (frequency + chirp rate)._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "fft/fft_core.h"`
-* `#include "spectral/spectral_core.h"`
-* `#include "dp_complex.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/fft/fft_core.h"`
+* `#include "doppler/spectral/spectral_core.h"`
+* `#include "doppler/dp_complex.h"`
 
 
 
@@ -276,5 +276,5 @@ A feedforward analyzer computes each estimate purely from the segment it is hand
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ppe/ppe_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ppe/ppe_core.h`
 

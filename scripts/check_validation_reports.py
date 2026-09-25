@@ -75,6 +75,8 @@ import re
 import sys
 from pathlib import Path
 
+from _layout import HEADER_ROOT, PKG
+
 ROOT = Path(__file__).resolve().parent.parent
 # Two shapes, because a component with no Python face is certified by a C
 # harness rendered by a validator under `src/doppler/tests/validation/`
@@ -353,7 +355,8 @@ def check_lifecycle(path: Path) -> list[str]:
         if not (ROOT / d).is_file():
             bad.append(f"{rel}: links '{d}', which does not exist")
 
-    # An `#include "<obj>/..."` from anywhere under native/inc/<obj>/, or a
+    # An `#include "<pkg>/<obj>/..."` (schema 8; the bare `<obj>/` still
+    # counts) from anywhere under native/inc/<pkg>/<obj>/, or a
     # call to a symbol the object prefixes. The narrower `<obj>_core.h` this
     # used to require assumed every component's public header is named after
     # it that way, which held for thirteen objects and then did not:
@@ -363,7 +366,7 @@ def check_lifecycle(path: Path) -> list[str]:
     # about which objects comply is the failure the docstring above already
     # names; a header NAME is not the fact being checked.
     pat = re.compile(
-        rf'#include\s*"{re.escape(obj)}/|'
+        rf'#include\s*"(?:{re.escape(PKG)}/)?{re.escape(obj)}/|'
         rf"\b{re.escape(obj)}_[A-Za-z0-9_]*\s*\("
     )
     tests = ROOT / "native" / "tests"
@@ -384,13 +387,13 @@ def check_lifecycle(path: Path) -> list[str]:
     # validator as its C pin -- that would let phase 8 satisfy phase 4 with
     # itself, which is the whole thing this rule exists to stop. The branch
     # is reachable only when there is no component header directory at all.
-    if not pinned and not (ROOT / "native" / "inc" / obj).is_dir():
+    if not pinned and not (ROOT / HEADER_ROOT / obj).is_dir():
         harness = ROOT / "native" / "validation" / f"{obj}_certify.c"
         if harness.is_file():
             pinned = True
         else:
             bad.append(
-                f"{rel}: '{obj}' has no native/inc/{obj}/, so it is being "
+                f"{rel}: '{obj}' has no {HEADER_ROOT}/{obj}/, so it is being "
                 f"certified as a tool -- which requires "
                 f"native/validation/{obj}_certify.c as its C-level evidence, "
                 "and there is none"

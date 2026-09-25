@@ -2,7 +2,7 @@
 
 # File conv\_core.h
 
-[**File List**](files.md) **>** [**conv**](dir_779d3467bbcde033259ac71c6a9863bb.md) **>** [**conv\_core.h**](conv__core_8h.md)
+[**File List**](files.md) **>** [**conv**](dir_dadcb1d47e07452fac6fef665f736671.md) **>** [**conv\_core.h**](conv__core_8h.md)
 
 [Go to the documentation of this file](conv__core_8h.md)
 
@@ -12,8 +12,8 @@
 #ifndef CONV_CORE_H
 #define CONV_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
 
 #include <stddef.h>
 #include <stdint.h>

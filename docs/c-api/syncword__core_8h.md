@@ -4,16 +4,16 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**syncword**](dir_8170b734982c9e3c4a0c2955e2cfa64d.md) **>** [**syncword\_core.h**](syncword__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**syncword**](dir_e299403a0e03806f7aa46ec15fc4c91a.md) **>** [**syncword\_core.h**](syncword__core_8h.md)
 
 [Go to the source code of this file](syncword__core_8h_source.md)
 
 _Frame synchronisation: find a known marker in a bit stream, and choose the threshold that decides what counts as finding it._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_syncword.h"`
-* `#include "jm_perf.h"`
-* `#include "detection/detection_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_syncword.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/detection/detection_core.h"`
 
 
 
@@ -386,5 +386,5 @@ Probability in &#91;0, 1&#93;.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/syncword/syncword_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/syncword/syncword_core.h`
 

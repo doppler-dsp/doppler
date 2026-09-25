@@ -30,9 +30,9 @@
  * so the boundary is as visible as it can be. Against a dearer waveform
  * the absolute boundary cost is the same and its share is smaller.
  */
+#include "doppler/dp_complex.h"
+#include "doppler/wfm/wfm_compose.h"
 #include "dp_bench.h"
-#include "dp_complex.h"
-#include "wfm/wfm_compose.h"
 #include <stdio.h>
 #include <stdlib.h>
 

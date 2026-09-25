@@ -26,9 +26,9 @@
  * same as `cf32` and exists only to save a buffer. A row that says
  * otherwise is a finding about the copy, not about the FFT.
  */
+#include "doppler/dp_complex.h"
+#include "doppler/fft/fft_core.h"
 #include "dp_bench.h"
-#include "dp_complex.h"
-#include "fft/fft_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

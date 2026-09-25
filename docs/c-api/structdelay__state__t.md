@@ -164,5 +164,5 @@ size_t delay_state_t::num_taps;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/delay/delay_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/delay/delay_core.h`
 

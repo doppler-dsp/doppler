@@ -23,9 +23,9 @@
  * 255 it is not. `ns/sample` divided by the tap count is what separates
  * the two effects.
  */
+#include "doppler/dp_complex.h"
+#include "doppler/fir/fir_core.h"
 #include "dp_bench.h"
-#include "dp_complex.h"
-#include "fir/fir_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

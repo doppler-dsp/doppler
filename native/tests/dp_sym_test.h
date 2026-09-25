@@ -54,9 +54,9 @@
 #ifndef DP_SYM_TEST_H
 #define DP_SYM_TEST_H
 
-#include "ber/ber_core.h" /* the EVM / scatter-floor / settling primitives */
-#include "dp_complex.h"
-#include "snr/snr_core.h" /* snr_m2m4_db — the canonical blind estimator */
+#include "doppler/ber/ber_core.h" /* the EVM / scatter-floor / settling primitives */
+#include "doppler/dp_complex.h"
+#include "doppler/snr/snr_core.h" /* snr_m2m4_db — the canonical blind estimator */
 #include <math.h>
 #include <stddef.h>
 

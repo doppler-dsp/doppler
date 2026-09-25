@@ -44,11 +44,11 @@
  * experiment. The spectrum is `psd_core`'s — the shipped meter, not a private
  * periodogram, so a number here is one a caller can reproduce from Python.
  */
-#include "ccsds_tm/ccsds_tm.h"
-#include "ccsds_tm/ccsds_tm_frame.h"
-#include "ccsds_tm/ccsds_tm_rs.h"
+#include "doppler/ccsds_tm/ccsds_tm.h"
+#include "doppler/ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/ccsds_tm/ccsds_tm_rs.h"
+#include "doppler/psd/psd_core.h"
 #include "dp_rng_test.h"
-#include "psd/psd_core.h"
 
 #include <math.h>
 #include <stdint.h>

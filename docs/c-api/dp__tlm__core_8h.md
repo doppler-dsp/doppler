@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**dp\_tlm**](dir_76b7d6d4427bc094138fa987d2f2ac6b.md) **>** [**dp\_tlm\_core.h**](dp__tlm__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_tlm**](dir_6b0129a28aff69bb09c5c8857f722994.md) **>** [**dp\_tlm\_core.h**](dp__tlm__core_8h.md)
 
 [Go to the source code of this file](dp__tlm__core_8h_source.md)
 
 _Lightweight scalar telemetry taps for running DSP objects._ [More...](#detailed-description)
 
-* `#include "buffer/buffer.h"`
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/buffer/buffer.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
 
 
 
@@ -1171,5 +1171,5 @@ A record file is just these 16 bytes repeated, so the dtype is what makes it sel
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_tlm/dp_tlm_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_tlm/dp_tlm_core.h`
 

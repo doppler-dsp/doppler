@@ -16,9 +16,9 @@
  *   ./build/native/examples/agc_demo
  */
 
-#include <agc/agc_core.h>
+#include <doppler/agc/agc_core.h>
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 

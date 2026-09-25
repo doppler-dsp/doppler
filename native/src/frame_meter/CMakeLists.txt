@@ -16,7 +16,7 @@ endif()
 add_library(frame_meter_core OBJECT frame_meter_core.c)
 target_include_directories(
   frame_meter_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                          ${CMAKE_SOURCE_DIR}/native/inc/frame_meter)
+                          ${CMAKE_SOURCE_DIR}/native/inc/doppler/frame_meter)
 target_link_libraries(frame_meter_core PUBLIC
     ber_core
     ber_meter_core

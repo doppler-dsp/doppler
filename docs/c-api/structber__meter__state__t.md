@@ -395,5 +395,5 @@ How many.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ber_meter/ber_meter_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ber_meter/ber_meter_core.h`
 

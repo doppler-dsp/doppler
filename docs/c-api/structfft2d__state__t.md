@@ -194,5 +194,5 @@ Scratch for a short `out`. A pocketfft 2-D plan is fixed at ny\*nx and writes th
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/fft2d/fft2d_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/fft2d/fft2d_core.h`
 

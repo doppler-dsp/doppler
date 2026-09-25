@@ -1,7 +1,7 @@
 include = ["objects/*.toml"]
 
 [project]
-jm_version = "0.89.0"
+jm_version = "0.90.1"
 name = "doppler"
 version = "0.57.0"
 build = "cmake"
@@ -42,7 +42,7 @@ py_format_command = ["uv", "run", "--group", "dev", "ruff", "format"]
 perf = "true"
 pytest = "true"
 pytest_benchmark = "true"
-schema = "7"
+schema = "8"
 c_deps = ["hbdecim", "resamp", "wfmcompose", "ccsds_tm", "conv", "rs"]
 # dsss.pyi came OFF this list in jm 0.28.3 (gh-428): its ten hand-maintained
 # has_params-single-array-param members (despreader.steps/bits,
@@ -220,7 +220,7 @@ entries = [
 # TWO consumers, and it took gh-760 to make the second one true. jm renders
 # the [[enum]] blocks into the binding's own lookup tables (`_enum_*` in
 # wfm_compose_ext.c). The C side reads them through ONE hand-written header,
-# native/inc/wfm/wfm_names.h, whose tables `make lint-wfm-enum-tables` holds
+# native/inc/doppler/wfm/wfm_names.h, whose tables `make lint-wfm-enum-tables` holds
 # to the blocks below.
 #
 # This comment used to claim the collapse was already done "across wfmgen.c /
@@ -243,7 +243,7 @@ package = "wfm"
 [module.wfm_plan]
 kind            = "handle"
 backing         = "wfm_plan"
-header          = "wfm/wfm_plan.h"
+header          = "doppler/wfm/wfm_plan.h"
 package         = "wfm"
 type_name       = "Plan"
 context_manager = true
@@ -258,12 +258,6 @@ extra_link_libs = ["wfm_draw_core", "wfm_cjson_core"]
 name = "doppler_channel"
 link = true
 
-[[module.wfm_plan.create_args]]
-name = "spec_json"
-type = "string"
-
-# link=true cores (jm appends _core): wfm_compose_core carries wfm_plan.o +
-# the composer/json/resolve; the rest are the synth engine it reuses.
 [[module.wfm_plan.depends_on]]
 name = "wfm_compose"
 link = true
@@ -312,6 +306,12 @@ link = true
 
 # General render: a small JSON override object → cf32 array (length from the
 # handle). Baseline (empty object) reproduces a full compose bit-for-bit.
+[[module.wfm_plan.create_args]]
+name = "spec_json"
+type = "string"
+
+# link=true cores (jm appends _core): wfm_compose_core carries wfm_plan.o +
+# the composer/json/resolve; the rest are the synth engine it reuses.
 [[module.wfm_plan.methods]]
 name = "render"
 fn = "wfm_plan_render"
@@ -393,7 +393,7 @@ init_params = [{ name = "path", type = "path" }]
 kind            = "handle"
 backing         = "dp_sample_clock"
 handle_type     = "dp_sample_clock_t"
-header          = "timing/timing_core.h"
+header          = "doppler/timing/timing_core.h"
 package         = "wfm"
 type_name       = "SampleClock"
 init_fn         = "dp_sample_clock_init"
@@ -412,6 +412,9 @@ close_fn        = ""
 name = "dp_interrupt_guard"
 link = true
 
+[[module.sample_clock.depends_on]]
+name = "timing"
+link = true
 [[module.sample_clock.create_args]]
 name = "fs"
 type = "double"
@@ -421,9 +424,6 @@ name = "resync"
 type = "int"
 default = "0"
 kwonly = true
-[[module.sample_clock.depends_on]]
-name = "timing"
-link = true
 [[module.sample_clock.methods]]
 name = "pace"
 fn = "dp_sample_clock_pace"
@@ -575,7 +575,7 @@ kind            = "handle"
 platforms       = ["linux", "macos"]
 backing         = "wfm_stream_sink"
 handle_type     = "wfm_stream_sink_t"
-header          = "wfm/wfm_sink.h"
+header          = "doppler/wfm/wfm_sink.h"
 package         = "wfm"
 type_name       = "StreamSink"
 context_manager = true
@@ -594,6 +594,9 @@ extra_link_libs = ["$<TARGET_OBJECTS:stream_core_obj>", "dp_tlm_core", "nats_ven
 name = "dp_interrupt_guard"
 link = true
 
+[[module.wfm_sink.depends_on]]
+name = "wfm_sink"
+link = true
 [[module.wfm_sink.create_args]]
 name = "endpoint"
 type = "const char *"
@@ -604,9 +607,6 @@ type = "int"
 enum = "stype"
 default = "cf32"
 kwonly = true
-[[module.wfm_sink.depends_on]]
-name = "wfm_sink"
-link = true
 [[module.wfm_sink.methods]]
 name = "send"
 fn = "wfm_stream_sink_send"
@@ -1039,7 +1039,7 @@ kind         = "composer"
 backing      = "wfm_compose"
 capsule_name = "doppler.wfm.compose_state"
 package      = "wfm"
-header       = "wfm/wfm_compose.h"
+header       = "doppler/wfm/wfm_compose.h"
 composes     = ["wfm_synth"]
 sample_type  = true
 # link=true cores (jm appends _core): wfm_compose (composer + wfm_json + resolve),
@@ -1452,7 +1452,7 @@ to_dict = true
 clock_create = "dp_sample_clock_create"
 pace = "dp_sample_clock_pace"
 destroy = "dp_sample_clock_destroy"
-header = "timing/timing_core.h"
+header = "doppler/timing/timing_core.h"
 
 [module.wfm_compose.json]
 enabled = true
@@ -1477,13 +1477,13 @@ to_json_trailing = ["wfm_compose_seed_advance (self->state)", "0.0"]
 name = "_draws_json"
 fn = "wfm_draws_json"
 returns = "str"
-header = "wfm/wfm_compose.h"
+header = "doppler/wfm/wfm_compose.h"
 
 [[module.wfm_compose.serializers]]
 name = "to_sigmf"
 fn = "wfm_sigmf_meta_json"
 returns = "str"
-header = "wfm_writer/wfm_writer_core.h"
+header = "doppler/wfm_writer/wfm_writer_core.h"
 
 [[module.wfm_compose.serializers.params]]
 name = "sample_type"
@@ -2891,159 +2891,6 @@ type = "int64_t[]"
 name = "n"
 type = "int"
 
-[[enum]]
-name = "wfm_type"
-values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"]
-
-[[enum]]
-# Order IS rc_pulse_t (RateConverter_core.h): iandd = 0, rrc = 1, none = 2.
-name = "rc_pulse"
-values = ["iandd", "rrc", "none"]
-
-[[enum]]
-name = "crc"
-values = ["none", "crc16"]
-
-[[enum]]
-name = "gap_noise"
-values = ["auto", "off"]
-
-[[enum]]
-name = "snr_mode"
-values = ["auto", "fs", "ebno", "esno"]
-
-[[enum]]
-name = "wfm_lfsr"
-values = ["galois", "fibonacci"]
-
-# The stage kinds doppler itself names. Order IS wfm_stage_kind_t
-# (native/inc/wfm/wfm_frame.h): crc16 = 0 through interleave = 4.
-#
-# This list is deliberately NOT the whole enum. A stage's kind is an open
-# uint32_t, and WFM_STAGE_USER (0x1000) is the sentinel a caller allocates
-# from -- a boundary, not a name. So the scene JSON writes a NAME for a kind
-# this list holds and the raw INTEGER for anything else, which is the only
-# encoding that can round-trip a kind doppler has never heard of.
-[[enum]]
-name = "stage_kind"
-values = ["crc16", "rs", "randomise", "conv", "interleave"]
-
-# How long a source's Doppler channel lives (gh-942). Order IS
-# wfm_doppler_lifetime_t (native/inc/wfm/wfm_compose.h): per_instance = 0 so
-# an undeclared lifetime is the repeated-trial shape, persist = 1.
-[[enum]]
-name = "doppler_lifetime"
-values = ["per_instance", "persist"]
-
-# The three below name tables that no binding renders — the C side is their
-# only consumer. They are declared here anyway because doppler#760 made this
-# file the SSOT for the C tables too (native/inc/wfm/wfm_names.h, gated by
-# scripts/check_wfm_enum_tables.py), and an enum the gate cannot reach here
-# would be an enum with no declaration at all.
-
-# How much of a source's seed advances per repeat. Order IS
-# wfm_seed_advance_t (native/inc/wfm/wfm_compose.h): none = 0, then the two
-# cumulative levels.
-[[enum]]
-name = "seed_advance"
-values = ["none", "noise", "all"]
-
-# Where a continuous-DSSS source's data bits come from. Order IS
-# wfm_source_t.dsss_code_only: "prbs" is the seeded PN (0, the default) and
-# "none" is code-only (1), so the chosen index IS the field.
-[[enum]]
-name = "data_src"
-values = ["prbs", "none"]
-
-# WHICH CCSDS 131.0-B-6 section-10 randomiser ran. Order IS
-# wfm_source_t.randomise: "off" is 0 so an absent flag and an explicit off are
-# one value, "ccsds" is 10.4.1's `shall`, "legacy" is 10.4.2's 255-bit
-# sequence. Only the matching receiver derandomises a given waveform, so this
-# is three values rather than a bool.
-[[enum]]
-name = "randomise"
-values = ["off", "ccsds", "legacy"]
-
-# Where a frame field's bits come from. Order IS wfm_seq_kind_t
-# (native/inc/wfm/wfm_frame.h): literal = 0, then the three generated kinds.
-# The C enum stays the SSOT — this names its indices for the Python face.
-[[enum]]
-name = "wfm_seq_kind"
-values = ["literal", "pn", "gold", "dotted"]
-
-# What a frame stage does to the fields it covers. Order IS wfm_stage_kind_t
-# (native/inc/wfm/wfm_frame.h); the C enum stays the SSOT and this names its
-# indices for the Python face.
-[[enum]]
-name = "wfm_stage_kind"
-values = ["crc16", "rs", "randomise", "conv"]
-
-[[enum]]
-name = "bitmod"
-values = ["none", "bpsk", "qpsk"]
-
-[[enum]]
-name = "wfm_pulse"
-values = ["rect", "rrc"]
-
-[[enum]]
-name = "ftype"
-values = ["raw", "csv", "blue", "sigmf"]
-
-# Wire sample type: five element encodings in each of BLUE's two modes.
-# The five complex names come first and their indices are load-bearing --
-# STYPE_FMT[], KIND[] and the reader's `hint % 5` all index by this order, so
-# APPEND, never reorder. The real five drop Q: `f32` writes one float per
-# sample where `cf32` writes two (doppler#1032).
-[[enum]]
-name = "stype"
-values = [
-  "cf32", "cf64", "ci32", "ci16", "ci8",
-  "f32",  "f64",  "i32",  "i16",  "i8",
-]
-
-[[enum]]
-name = "endian"
-values = ["le", "be"]
-
-# BLUE `format` mode designator (HCB byte 52): components per sample.
-[[enum]]
-name = "sample_mode"
-values = ["complex", "scalar"]
-
-# Where Reader.fc was read from. Order IS wfm_fc_source_t
-# (wfm_reader_core.h): "none" is index 0, then one entry per tag in the
-# reader's FC_TAGS search order, then the SigMF JSON key.
-[[enum]]
-name = "fc_source"
-values = ["none", "FREQ", "RF_FREQ", "CENTER_FREQ", "F_C", "core:frequency"]
-
-# Where `fs` came from. Same shape and same reason as fc_source: index 0 is
-# "none", and the rest name the metadata that carried the rate. Order matches
-# wfm_fs_source_t (wfm_reader_core.h).
-[[enum]]
-name = "fs_source"
-values = ["none", "xdelta", "core:sample_rate"]
-
-# Where the capture's start time came from. "none" is the COMMON answer, not
-# an edge case: doppler's own BLUE writer leaves the timecode field zero, so
-# every capture this library writes lands here. Order matches
-# wfm_t0_source_t (wfm_reader_core.h).
-[[enum]]
-name = "t0_source"
-values = ["none", "timecode", "sigmf"]
-
-# How a following read ended (docs/design/end-of-capture.md). "none" is index
-# 0 and is the state while the capture is still live; the rest name the three
-# ways a wait can stop. Order matches wfm_follow_end_t (wfm_reader_core.h).
-[[enum]]
-name = "follow_end"
-values = ["none", "eof", "timeout", "interrupted"]
-
-[[enum]]
-name = "interp_method"
-values = ["floor", "nearest", "linear"]
-
 [module.interp]
 doc = """
 Interpolation: a table-driven resampling interpolator (InterpolatedTable) for fractional-delay and rate-change lookups.
@@ -3376,3 +3223,155 @@ default = "-1"
 name = "carrier_lock"
 type = "int"
 default = "-1"
+[[enum]]
+name = "wfm_type"
+values = ["tone", "noise", "pn", "bpsk", "qpsk", "chirp", "bits", "symbols", "dsss"]
+
+[[enum]]
+# Order IS rc_pulse_t (RateConverter_core.h): iandd = 0, rrc = 1, none = 2.
+name = "rc_pulse"
+values = ["iandd", "rrc", "none"]
+
+[[enum]]
+name = "crc"
+values = ["none", "crc16"]
+
+[[enum]]
+name = "gap_noise"
+values = ["auto", "off"]
+
+[[enum]]
+name = "snr_mode"
+values = ["auto", "fs", "ebno", "esno"]
+
+[[enum]]
+name = "wfm_lfsr"
+values = ["galois", "fibonacci"]
+
+# The stage kinds doppler itself names. Order IS wfm_stage_kind_t
+# (native/inc/doppler/wfm/wfm_frame.h): crc16 = 0 through interleave = 4.
+#
+# This list is deliberately NOT the whole enum. A stage's kind is an open
+# uint32_t, and WFM_STAGE_USER (0x1000) is the sentinel a caller allocates
+# from -- a boundary, not a name. So the scene JSON writes a NAME for a kind
+# this list holds and the raw INTEGER for anything else, which is the only
+# encoding that can round-trip a kind doppler has never heard of.
+[[enum]]
+name = "stage_kind"
+values = ["crc16", "rs", "randomise", "conv", "interleave"]
+
+# How long a source's Doppler channel lives (gh-942). Order IS
+# wfm_doppler_lifetime_t (native/inc/doppler/wfm/wfm_compose.h): per_instance = 0 so
+# an undeclared lifetime is the repeated-trial shape, persist = 1.
+[[enum]]
+name = "doppler_lifetime"
+values = ["per_instance", "persist"]
+
+# The three below name tables that no binding renders — the C side is their
+# only consumer. They are declared here anyway because doppler#760 made this
+# file the SSOT for the C tables too (native/inc/doppler/wfm/wfm_names.h, gated by
+# scripts/check_wfm_enum_tables.py), and an enum the gate cannot reach here
+# would be an enum with no declaration at all.
+
+# How much of a source's seed advances per repeat. Order IS
+# wfm_seed_advance_t (native/inc/doppler/wfm/wfm_compose.h): none = 0, then the two
+# cumulative levels.
+[[enum]]
+name = "seed_advance"
+values = ["none", "noise", "all"]
+
+# Where a continuous-DSSS source's data bits come from. Order IS
+# wfm_source_t.dsss_code_only: "prbs" is the seeded PN (0, the default) and
+# "none" is code-only (1), so the chosen index IS the field.
+[[enum]]
+name = "data_src"
+values = ["prbs", "none"]
+
+# WHICH CCSDS 131.0-B-6 section-10 randomiser ran. Order IS
+# wfm_source_t.randomise: "off" is 0 so an absent flag and an explicit off are
+# one value, "ccsds" is 10.4.1's `shall`, "legacy" is 10.4.2's 255-bit
+# sequence. Only the matching receiver derandomises a given waveform, so this
+# is three values rather than a bool.
+[[enum]]
+name = "randomise"
+values = ["off", "ccsds", "legacy"]
+
+# Where a frame field's bits come from. Order IS wfm_seq_kind_t
+# (native/inc/doppler/wfm/wfm_frame.h): literal = 0, then the three generated kinds.
+# The C enum stays the SSOT — this names its indices for the Python face.
+[[enum]]
+name = "wfm_seq_kind"
+values = ["literal", "pn", "gold", "dotted"]
+
+# What a frame stage does to the fields it covers. Order IS wfm_stage_kind_t
+# (native/inc/doppler/wfm/wfm_frame.h); the C enum stays the SSOT and this names its
+# indices for the Python face.
+[[enum]]
+name = "wfm_stage_kind"
+values = ["crc16", "rs", "randomise", "conv"]
+
+[[enum]]
+name = "bitmod"
+values = ["none", "bpsk", "qpsk"]
+
+[[enum]]
+name = "wfm_pulse"
+values = ["rect", "rrc"]
+
+[[enum]]
+name = "ftype"
+values = ["raw", "csv", "blue", "sigmf"]
+
+# Wire sample type: five element encodings in each of BLUE's two modes.
+# The five complex names come first and their indices are load-bearing --
+# STYPE_FMT[], KIND[] and the reader's `hint % 5` all index by this order, so
+# APPEND, never reorder. The real five drop Q: `f32` writes one float per
+# sample where `cf32` writes two (doppler#1032).
+[[enum]]
+name = "stype"
+values = [
+  "cf32", "cf64", "ci32", "ci16", "ci8",
+  "f32",  "f64",  "i32",  "i16",  "i8",
+]
+
+[[enum]]
+name = "endian"
+values = ["le", "be"]
+
+# BLUE `format` mode designator (HCB byte 52): components per sample.
+[[enum]]
+name = "sample_mode"
+values = ["complex", "scalar"]
+
+# Where Reader.fc was read from. Order IS wfm_fc_source_t
+# (wfm_reader_core.h): "none" is index 0, then one entry per tag in the
+# reader's FC_TAGS search order, then the SigMF JSON key.
+[[enum]]
+name = "fc_source"
+values = ["none", "FREQ", "RF_FREQ", "CENTER_FREQ", "F_C", "core:frequency"]
+
+# Where `fs` came from. Same shape and same reason as fc_source: index 0 is
+# "none", and the rest name the metadata that carried the rate. Order matches
+# wfm_fs_source_t (wfm_reader_core.h).
+[[enum]]
+name = "fs_source"
+values = ["none", "xdelta", "core:sample_rate"]
+
+# Where the capture's start time came from. "none" is the COMMON answer, not
+# an edge case: doppler's own BLUE writer leaves the timecode field zero, so
+# every capture this library writes lands here. Order matches
+# wfm_t0_source_t (wfm_reader_core.h).
+[[enum]]
+name = "t0_source"
+values = ["none", "timecode", "sigmf"]
+
+# How a following read ended (docs/design/end-of-capture.md). "none" is index
+# 0 and is the state while the capture is still live; the rest name the three
+# ways a wait can stop. Order matches wfm_follow_end_t (wfm_reader_core.h).
+[[enum]]
+name = "follow_end"
+values = ["none", "eof", "timeout", "interrupted"]
+
+[[enum]]
+name = "interp_method"
+values = ["floor", "nearest", "linear"]

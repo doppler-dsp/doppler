@@ -1,8 +1,9 @@
 /*
  * pocketfft.c — pure-C99 wrapper exposing doppler's small FFT C API
- * (native/inc/pocketfft/pocketfft.h) over the upstream pure-C pocketfft
- * core (pocketfft_c99.c).  Replaces the former C++ wrapper (pocketfft.cc
- * over the header-only C++ pocketfft); doppler links only -lm now.
+ * (native/inc/doppler/pocketfft/pocketfft.h) over the upstream pure-C
+ * pocketfft core (pocketfft_c99.c).  Replaces the former C++ wrapper
+ * (pocketfft.cc over the header-only C++ pocketfft); doppler links only -lm
+ * now.
  *
  * The upstream `cfft` core is double-precision, 1-D, and transforms
  * in-place on an interleaved double[2*n] (re,im,...).  This wrapper adds
@@ -21,14 +22,14 @@
  * model uses a distinct instance per thread.
  */
 
-#include "pocketfft/pocketfft.h"
-#include "dp_format.h"
-#include "i16_to_f32/i16_to_f32_core.h"
-#include "i8_to_f32/i8_to_f32_core.h"
+#include "doppler/pocketfft/pocketfft.h"
+#include "doppler/dp_format.h"
+#include "doppler/i16_to_f32/i16_to_f32_core.h"
+#include "doppler/i8_to_f32/i8_to_f32_core.h"
 #include "pffft/pffft.h"
 #include "pocketfft/pocketfft_c99.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

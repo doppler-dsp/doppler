@@ -1,7 +1,7 @@
 add_library(resamp_core OBJECT resamp_core.c)
 target_include_directories(resamp_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/resamp)
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/resamp)
 target_link_libraries(resamp_core PUBLIC ${DP_MATH_LIBRARY})
 
 add_executable(test_resamp_core

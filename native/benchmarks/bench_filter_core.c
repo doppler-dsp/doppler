@@ -18,9 +18,9 @@
  * out what that costs before doing it, which is the question the number
  * in `bench_fir_core.c` cannot answer.
  */
+#include "doppler/filter/filter_core.h"
+#include "doppler/resample/resample_core.h"
 #include "dp_bench.h"
-#include "filter/filter_core.h"
-#include "resample/resample_core.h"
 #include <stdio.h>
 #include <stdlib.h>
 

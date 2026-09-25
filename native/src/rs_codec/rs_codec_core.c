@@ -6,7 +6,7 @@
  * and the placement of a systematic codeword (so `encode` answers in the
  * same unit every other method takes).
  */
-#include "rs_codec/rs_codec_core.h"
+#include "doppler/rs_codec/rs_codec_core.h"
 
 #include <stdlib.h>
 #include <string.h>

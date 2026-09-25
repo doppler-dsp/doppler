@@ -205,5 +205,5 @@ one-sided RRC span, symbols.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ratesync/ratesync_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ratesync/ratesync_core.h`
 

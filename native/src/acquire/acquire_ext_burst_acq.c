@@ -9,7 +9,7 @@
 /* BurstAcquisitionObject — wraps burst_acq_state_t *       */
 /* ======================================================== */
 
-#include "burst_acq/burst_acq_core.h"
+#include "doppler/burst_acq/burst_acq_core.h"
 
 typedef struct
 {

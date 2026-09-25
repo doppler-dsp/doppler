@@ -9,7 +9,7 @@
 /* PolynomialPhaseEstimatorObject — wraps ppe_state_t *       */
 /* ======================================================== */
 
-#include "ppe/ppe_core.h"
+#include "doppler/ppe/ppe_core.h"
 
 typedef struct
 {

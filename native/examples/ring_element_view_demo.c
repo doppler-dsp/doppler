@@ -21,8 +21,8 @@
  *   make build
  *   ./build/native/examples/ring_element_view_demo
  */
-#include "f32_buffer/f32_buffer_core.h"
-#include "i16_buffer/i16_buffer_core.h"
+#include "doppler/f32_buffer/f32_buffer_core.h"
+#include "doppler/i16_buffer/i16_buffer_core.h"
 #include <stdio.h>
 
 #define CHECK(cond)                                                           \

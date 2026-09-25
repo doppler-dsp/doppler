@@ -90,12 +90,12 @@
  *   rx_dynamics --check      the CI gate
  *   rx_dynamics --out DIR    also write DIR/rx-dyn-<tap>.tlm for plotting
  */
-#include "doppler_channel/doppler_channel_core.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
+#include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
+#include "doppler/mpsk_receiver/mpsk_receiver_core.h"
 #include "dp_rng_test.h"
-#include "dp_tlm_capture/dp_tlm_capture_core.h"
-#include "mpsk_receiver/mpsk_receiver_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

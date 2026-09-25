@@ -9,7 +9,7 @@
 /* AsyncDsssReceiverObject — wraps async_dsss_receiver_state_t *       */
 /* ======================================================== */
 
-#include "async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 
 typedef struct
 {

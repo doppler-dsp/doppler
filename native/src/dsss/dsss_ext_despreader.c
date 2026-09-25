@@ -9,7 +9,7 @@
 /* DespreaderObject — wraps despreader_state_t *       */
 /* ======================================================== */
 
-#include "despreader/despreader_core.h"
+#include "doppler/despreader/despreader_core.h"
 
 typedef struct
 {

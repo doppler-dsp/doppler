@@ -392,5 +392,5 @@ damping factor (retained).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/carrier_mpsk/carrier_mpsk_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/carrier_mpsk/carrier_mpsk_core.h`
 

@@ -17,11 +17,11 @@
  * do the same one sample at a time.  Nothing else differs — the two ports are
  * the LO's and the terminal stage's own accumulators, steered in place.
  */
-#include "ddc/ddc_core.h"
-#include "RateConverter/RateConverter_core.h"
-#include "lo/lo_core.h"
+#include "doppler/ddc/ddc_core.h"
+#include "doppler/RateConverter/RateConverter_core.h"
+#include "doppler/lo/lo_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stdlib.h>
 #include <string.h>
 

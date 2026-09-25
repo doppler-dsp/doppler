@@ -63,6 +63,10 @@ endif()
 
 # ── External deps
 find_package(doppler REQUIRED)
+set(JM_FIND_DEPENDENCIES [=[
+include(CMakeFindDependencyMacro)
+find_dependency(doppler)
+]=])
 # ── End external deps
 
 # ── Components (add_subdirectory lines appended here by just-makeit)
@@ -96,7 +100,7 @@ get_target_property(_dp_inc doppler::doppler-static
 set(CMAKE_REQUIRED_INCLUDES ${_dp_inc})
 set(CMAKE_REQUIRED_LIBRARIES doppler::doppler-static)
 check_symbol_exists(wfm_reader_get_fc_source
-                    "wfm_reader/wfm_reader_core.h" IQTOOLS_HAVE_FC_SOURCE)
+                    "doppler/wfm_reader/wfm_reader_core.h" IQTOOLS_HAVE_FC_SOURCE)
 unset(CMAKE_REQUIRED_INCLUDES)
 unset(CMAKE_REQUIRED_LIBRARIES)
 if(NOT IQTOOLS_HAVE_FC_SOURCE)

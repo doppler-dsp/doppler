@@ -4,14 +4,14 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**snr**](dir_a0dc77cb6789ae5cf19b2d0651b00ce2.md) **>** [**snr\_core.h**](snr__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**snr**](dir_02c47206b4cbe462773a89d72d8a4c36.md) **>** [**snr\_core.h**](snr__core_8h.md)
 
 [Go to the source code of this file](snr__core_8h_source.md)
 
 _Stateless SNR / Es-N0 estimators, data-aided and non-data-aided._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_complex.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_complex.h"`
 
 
 
@@ -299,5 +299,5 @@ Same estimator as [**snr\_m2m4\_db()**](snr__core_8h.md#function-snr_m2m4_db), a
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/snr/snr_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/snr/snr_core.h`
 

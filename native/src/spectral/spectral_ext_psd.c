@@ -9,7 +9,7 @@
 /* PSDObject — wraps psd_state_t *       */
 /* ======================================================== */
 
-#include "psd/psd_core.h"
+#include "doppler/psd/psd_core.h"
 
 typedef struct
 {

@@ -1,5 +1,5 @@
-#include "resamp/resamp_core.h"
-#include "nco/nco_core.h"
+#include "doppler/resamp/resamp_core.h"
+#include "doppler/nco/nco_core.h"
 #include <math.h>
 #include <string.h>
 

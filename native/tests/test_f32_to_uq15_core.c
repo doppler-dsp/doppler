@@ -1,7 +1,7 @@
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/f32_to_uq15/f32_to_uq15_core.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
-#include "f32_to_uq15/f32_to_uq15_core.h"
 #include <math.h>
 #include <stdio.h>
 

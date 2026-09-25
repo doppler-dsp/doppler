@@ -22,9 +22,9 @@
  * A caller who reads this and picks the cheap shape has done real work; a
  * caller whose shape is fixed by the physics at least knows what it costs.
  */
+#include "doppler/dp_complex.h"
+#include "doppler/fft2d/fft2d_core.h"
 #include "dp_bench.h"
-#include "dp_complex.h"
-#include "fft2d/fft2d_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

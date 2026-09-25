@@ -24,7 +24,7 @@ import os
 import sys
 from pathlib import Path
 
-__all__ = ["build_dir", "exe", "repo_root"]
+__all__ = ["build_dir", "exe", "header_root", "repo_root"]
 
 
 def repo_root(start: Path | str | None = None) -> Path:
@@ -139,3 +139,27 @@ def exe(path: Path | str) -> Path:
     """
     p = Path(path)
     return p.with_name(p.name + ".exe") if sys.platform == "win32" else p
+
+
+def header_root(start: Path | str | None = None) -> Path:
+    """Return the directory doppler's C headers live in (jm schema 8).
+
+    The layout is answered once, by ``scripts/_layout.py``, which the gate
+    scripts import; loading that file here gives the tests the same answer
+    rather than a second spelling of ``native/inc/doppler``.
+
+    Returns
+    -------
+    Path
+        ``<root>/native/inc/<pkg>``.
+    """
+    import importlib.util
+
+    root = repo_root(start)
+    spec = importlib.util.spec_from_file_location(
+        "_layout", root / "scripts" / "_layout.py"
+    )
+    assert spec is not None and spec.loader is not None
+    layout = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(layout)
+    return root / layout.HEADER_ROOT

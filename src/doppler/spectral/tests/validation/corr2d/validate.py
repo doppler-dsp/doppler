@@ -149,7 +149,7 @@ def section_object() -> None:
                 "zero-pad maths, and the single-row fast path",
             ],
             [
-                "`native/inc/corr2d/corr2d_core.h`",
+                "`native/inc/doppler/corr2d/corr2d_core.h`",
                 "the contract per function — the SSOT this report audits",
             ],
         ],

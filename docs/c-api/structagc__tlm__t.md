@@ -126,5 +126,5 @@ int32_t agc_tlm_t::id_level;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/agc/agc_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/agc/agc_core.h`
 

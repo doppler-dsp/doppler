@@ -470,5 +470,5 @@ damping factor (retained).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/symsync/symsync_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/symsync/symsync_core.h`
 

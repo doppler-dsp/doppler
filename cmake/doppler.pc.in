@@ -33,4 +33,4 @@ Libs: -L${libdir} -ldoppler -lm -lpthread
 # first reached -- so it has to be on the compile line, and only this file can
 # put it there for a pkg-config consumer (doppler#1451). Substituted from the
 # one declaration the build and the exported CMake target also read.
-Cflags: -I${includedir}/doppler@DOPPLER_PC_FEATURE_CFLAGS@
+Cflags: -I${includedir}@DOPPLER_PC_FEATURE_CFLAGS@

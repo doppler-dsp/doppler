@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**stream**](dir_21b896cdbc030a0ded493211142b7733.md) **>** [**tlm\_sink.h**](tlm__sink_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**stream**](dir_2fbcc177cba4f14addc502f26acbb8f7.md) **>** [**tlm\_sink.h**](tlm__sink_8h.md)
 
 [Go to the source code of this file](tlm__sink_8h_source.md)
 
 _NATS PUB sink for telemetry records._ [More...](#detailed-description)
 
-* `#include "dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
 
 
 
@@ -277,5 +277,5 @@ uint64_t dp_tlm_sink_sent (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/stream/tlm_sink.h`
+The documentation for this class was generated from the following file `native/inc/doppler/stream/tlm_sink.h`
 

@@ -16,7 +16,7 @@ endif()
 add_library(psd_core OBJECT psd_core.c)
 target_include_directories(
   psd_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                  ${CMAKE_SOURCE_DIR}/native/inc/psd)
+                  ${CMAKE_SOURCE_DIR}/native/inc/doppler/psd)
 target_link_libraries(psd_core PUBLIC
     fft_core
     spectral_core

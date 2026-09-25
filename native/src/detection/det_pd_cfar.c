@@ -1,5 +1,5 @@
-#include "detection/detection_core.h"
-#include "util/util_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/util/util_core.h"
 #include <math.h>
 
 /* Gauss-Hermite nodes over the reference's Gaussian spread: 2 match 6 to

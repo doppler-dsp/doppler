@@ -2,7 +2,7 @@
 
 # File burst\_demod\_core.h
 
-[**File List**](files.md) **>** [**burst\_demod**](dir_96a22b0098c79a5049df57065c5b8df4.md) **>** [**burst\_demod\_core.h**](burst__demod__core_8h.md)
+[**File List**](files.md) **>** [**burst\_demod**](dir_ab0fdf036101e4998629894503e143b8.md) **>** [**burst\_demod\_core.h**](burst__demod__core_8h.md)
 
 [Go to the documentation of this file](burst__demod__core_8h.md)
 
@@ -12,17 +12,17 @@
 #ifndef BURST_DEMOD_CORE_H
 #define BURST_DEMOD_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "ppe/ppe_core.h"
-#include "fft/fft_core.h"
-#include "spectral/spectral_core.h"
-#include "dp_complex.h"
-#include "conv/conv_core.h"
-#include "rs/rs_core.h"
-#include "pn/pn_core.h"
-#include "gold/gold_core.h"
-#include "mpsk/mpsk_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/ppe/ppe_core.h"
+#include "doppler/fft/fft_core.h"
+#include "doppler/spectral/spectral_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/conv/conv_core.h"
+#include "doppler/rs/rs_core.h"
+#include "doppler/pn/pn_core.h"
+#include "doppler/gold/gold_core.h"
+#include "doppler/mpsk/mpsk_core.h"
 #ifdef __cplusplus
 extern "C"
 {

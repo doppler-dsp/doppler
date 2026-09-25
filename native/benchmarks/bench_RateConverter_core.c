@@ -1,5 +1,5 @@
-#include "RateConverter/RateConverter_core.h"
-#include "dp_complex.h"
+#include "doppler/RateConverter/RateConverter_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

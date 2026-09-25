@@ -211,7 +211,7 @@ is a compiled program and the fence fails CI the moment a signature drifts:
 #include <stddef.h>
 #include <stdio.h>
 
-#include "lo/lo_core.h"
+#include "doppler/lo/lo_core.h"
 
 int
 main (void)

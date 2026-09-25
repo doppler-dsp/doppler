@@ -7,8 +7,8 @@
  * viterbi_decode read -- so the G2 inversion cannot be present in one
  * direction and absent in the other.
  */
-#include "ccsds_tm/ccsds_tm.h"
-#include "viterbi/viterbi_core.h"
+#include "doppler/ccsds_tm/ccsds_tm.h"
+#include "doppler/viterbi/viterbi_core.h"
 
 const conv_code_t CCSDS_TM_CONV = {
   /* .k      */ 7u,

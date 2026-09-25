@@ -16,7 +16,7 @@ endif()
 add_library(dll_core OBJECT dll_core.c)
 target_include_directories(
   dll_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                  ${CMAKE_SOURCE_DIR}/native/inc/dll)
+                  ${CMAKE_SOURCE_DIR}/native/inc/doppler/dll)
 target_link_libraries(dll_core PUBLIC
     loop_filter_core
     lockdet_core

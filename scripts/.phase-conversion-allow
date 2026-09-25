@@ -1,7 +1,7 @@
 # Allowlist for scripts/check_phase_conversion_sites.py -- a RATCHET.
 #
 # One occurrence of the 2^32 scaling constant per line, outside the
-# sanctioned home (native/inc/nco/nco_core.h), each with a reason.
+# sanctioned home (native/inc/doppler/nco/nco_core.h), each with a reason.
 #
 # THIS LIST MAY ONLY SHRINK. Adding an entry means a new private copy of
 # the conversion nco_core.h calls "structural, not stylistic" -- do that
@@ -14,9 +14,9 @@
 # exactly representable and the quotient is finite. C99 6.3.1.4 has
 # nothing to say about it. These are not conversions the rule is about.
 
-native/inc/adc/adc_core.h::* (1.0 / 4294967296.0); | inverse: scales a u32 down to the unit interval
-native/inc/dll/dll_core.h::return ((double)mid / 4294967296.0) * (double)s->sf; | inverse: phase word -> chips
-native/inc/dll/dll_core.h::s->chip_pos = ((double)s->code_nco.phase / 4294967296.0) * sfd; | inverse: phase word -> chips
+native/inc/doppler/adc/adc_core.h::* (1.0 / 4294967296.0); | inverse: scales a u32 down to the unit interval
+native/inc/doppler/dll/dll_core.h::return ((double)mid / 4294967296.0) * (double)s->sf; | inverse: phase word -> chips
+native/inc/doppler/dll/dll_core.h::s->chip_pos = ((double)s->code_nco.phase / 4294967296.0) * sfd; | inverse: phase word -> chips
 
 # ── SAFE: deliberate, guarded, and documented ─────────────────────────
 

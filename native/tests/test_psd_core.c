@@ -1,7 +1,7 @@
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/psd/psd_core.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
-#include "psd/psd_core.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

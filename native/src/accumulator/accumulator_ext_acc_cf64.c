@@ -9,7 +9,7 @@
 /* AccCf64Object — wraps acc_cf64_state_t *       */
 /* ======================================================== */
 
-#include "acc_cf64/acc_cf64_core.h"
+#include "doppler/acc_cf64/acc_cf64_core.h"
 
 typedef struct
 {

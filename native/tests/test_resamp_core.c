@@ -39,10 +39,10 @@
  * the interpolator's structure.
  */
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/resamp/resamp_impl.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
-#include "resamp/resamp_impl.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

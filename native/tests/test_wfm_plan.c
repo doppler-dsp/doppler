@@ -8,11 +8,11 @@
  * per-axis tests re-materialize a variation and memcmp it against a full
  * compose of the equivalently-modified spec.
  */
+#include "doppler/wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_plan.h"
 #include "dp_test.h"
-#include "wfm/wfm_compose.h"
-#include "wfm/wfm_plan.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

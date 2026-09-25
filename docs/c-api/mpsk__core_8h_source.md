@@ -2,7 +2,7 @@
 
 # File mpsk\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**mpsk**](dir_ca9d413705226c109a44c5982d79aa0f.md) **>** [**mpsk\_core.h**](mpsk__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**mpsk**](dir_c69176d330fb67baeda366bef5232651.md) **>** [**mpsk\_core.h**](mpsk__core_8h.md)
 
 [Go to the documentation of this file](mpsk__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef MPSK_CORE_H
 #define MPSK_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "dp_complex.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #ifdef __cplusplus
 extern "C" {

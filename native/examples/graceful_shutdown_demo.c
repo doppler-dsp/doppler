@@ -22,8 +22,8 @@
  * See docs/design/io-termination.md for the wider contract.
  */
 
-#include "dp_interrupt.h"
-#include "wfm/wfmgen.h"
+#include "doppler/dp_interrupt.h"
+#include "doppler/wfm/wfmgen.h"
 
 #include <pthread.h>
 #include <stdio.h>

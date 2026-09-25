@@ -7,7 +7,7 @@
  * library carry the generator without a `main` symbol colliding in a
  * downstream that links libdoppler.a alongside its own `main`.
  */
-#include "wfm/wfmgen.h"
+#include "doppler/wfm/wfmgen.h"
 
 int
 main (int argc, char *argv[])

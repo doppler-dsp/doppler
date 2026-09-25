@@ -2,7 +2,7 @@
 
 # File dsss\_core.h
 
-[**File List**](files.md) **>** [**dsss**](dir_8b18bfb9a64167292d2c60acbfcb2ae1.md) **>** [**dsss\_core.h**](dsss__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dsss**](dir_c33ba84b8db3f8ead33f9dfeadf377c6.md) **>** [**dsss\_core.h**](dsss__core_8h.md)
 
 [Go to the documentation of this file](dsss__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef DSSS_CORE_H
 #define DSSS_CORE_H
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
 #ifdef __cplusplus
 extern "C" {

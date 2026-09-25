@@ -2,7 +2,7 @@
 
 # File gold\_core.h
 
-[**File List**](files.md) **>** [**gold**](dir_eaad5c90f79e5666c89030cb43ebb96d.md) **>** [**gold\_core.h**](gold__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**gold**](dir_3809e94b548bea726f665dae5e933c35.md) **>** [**gold\_core.h**](gold__core_8h.md)
 
 [Go to the documentation of this file](gold__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef GOLD_CORE_H
 #define GOLD_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -11,7 +11,7 @@ records is asserted by
 `build(write=False)`.
 
 The order is the campaign's, not this file's:
-`native/inc/interleaver/interleaver_core.h` is the SSOT,
+`native/inc/doppler/interleaver/interleaver_core.h` is the SSOT,
 `native/tests/test_interleaver_core.c` certifies it in C, and
 `native/validation/interleave_burst_gain.c` measures the coding gain over
 a real outer code. This file measures the same properties through
@@ -191,11 +191,11 @@ def section_object() -> None:
         ["page", "owns"],
         [
             [
-                "`native/inc/interleaver/interleaver_core.h`",
+                "`native/inc/doppler/interleaver/interleaver_core.h`",
                 "the SSOT for every claim below",
             ],
             [
-                "`native/inc/dp_interleave.h`",
+                "`native/inc/doppler/dp_interleave.h`",
                 "the permutation itself, and why the unit is a parameter",
             ],
             [

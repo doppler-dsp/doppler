@@ -177,5 +177,5 @@ Trace length (bins).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acc_trace/acc_trace_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acc_trace/acc_trace_core.h`
 

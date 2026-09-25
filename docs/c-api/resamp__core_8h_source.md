@@ -2,7 +2,7 @@
 
 # File resamp\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**resamp**](dir_289a9297ce406b952fab973539197d1c.md) **>** [**resamp\_core.h**](resamp__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**resamp**](dir_9d8524a806701f72e323943267d27190.md) **>** [**resamp\_core.h**](resamp__core_8h.md)
 
 [Go to the documentation of this file](resamp__core_8h.md)
 
@@ -12,8 +12,8 @@
 #ifndef RESAMP_CORE_H
 #define RESAMP_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
 
 #ifdef __cplusplus
 extern "C"

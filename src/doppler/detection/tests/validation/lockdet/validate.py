@@ -11,7 +11,7 @@ records is asserted by
 same `build(write=False)`.
 
 The order is the campaign's, not this file's:
-`native/inc/lockdet/lockdet_core.h` is the SSOT,
+`native/inc/doppler/lockdet/lockdet_core.h` is the SSOT,
 `native/tests/test_lockdet_core.c` certifies it in C, and
 `native/validation/lockdet_verify.c` measures the probabilistic contract
 by Monte Carlo. This file measures the same properties through
@@ -46,7 +46,7 @@ R = Report()
 NOISE_SEED = 2024
 NOISE_N = 300_000
 
-HEADER = ROOT / "native/inc/lockdet/lockdet_core.h"
+HEADER = ROOT / "native/inc/doppler/lockdet/lockdet_core.h"
 CORE_C = ROOT / "native/src/lockdet/lockdet_core.c"
 
 
@@ -138,7 +138,7 @@ def section_object() -> None:
                 "the non-finite rule",
             ],
             [
-                "`native/inc/lockdet/lockdet_core.h`",
+                "`native/inc/doppler/lockdet/lockdet_core.h`",
                 "the contract itself",
             ],
         ],

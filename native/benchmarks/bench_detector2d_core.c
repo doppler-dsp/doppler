@@ -19,9 +19,9 @@
  * emit carries a row and a column instead of one lag, and this says
  * whether that changes anything.
  */
-#include "detector2d/detector2d_core.h"
+#include "doppler/detector2d/detector2d_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_bench.h"
-#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

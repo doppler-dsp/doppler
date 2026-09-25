@@ -25,9 +25,9 @@ description that produced them.
 #include <complex.h>
 #include <stdio.h>
 #include <string.h>
-#include <wfm/wfm_compose.h>
-#include <wfm/wfm_frame.h>
-#include <wfm_synth/wfm_synth_core.h>
+#include <doppler/wfm/wfm_compose.h>
+#include <doppler/wfm/wfm_frame.h>
+#include <doppler/wfm_synth/wfm_synth_core.h>
 
 #define NBITS 56u /* 16 header + 24 payload + 16 CRC */
 #define SPS 4u

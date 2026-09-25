@@ -4,7 +4,7 @@
  * Provides the external linkage definition of square_clip; the
  * header-only static inline copy is used by all other callers.
  */
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 
 float _Complex square_clip (float _Complex y, float lin)

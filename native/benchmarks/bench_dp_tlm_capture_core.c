@@ -27,8 +27,8 @@
  * hand-owned by necessity, not by preference. See just-makeit#806 for the
  * general shape of that problem.
  */
-#include "dp_tlm/dp_tlm_core.h"
-#include "dp_tlm_capture/dp_tlm_capture_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
 #include "jm_bench.h"
 
 #include <stdio.h>

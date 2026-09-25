@@ -553,5 +553,5 @@ int wfm_synth_state_t::wtype;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfm_synth/wfm_synth_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/wfm_synth/wfm_synth_core.h`
 

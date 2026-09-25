@@ -1,4 +1,4 @@
-#include "detector/detector_core.h"
+#include "doppler/detector/detector_core.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
 #include <math.h>

@@ -9,7 +9,7 @@
 /* TelemetryObject — wraps dp_tlm_state_t *       */
 /* ======================================================== */
 
-#include "dp_tlm/dp_tlm_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 #include "tlm_read_dict.h"
 
 typedef struct

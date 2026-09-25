@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**q15\_mac.h**](q15__mac_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**q15\_mac.h**](q15__mac_8h.md)
 
 [Go to the source code of this file](q15__mac_8h_source.md)
 
@@ -142,5 +142,5 @@ Each product is widened to int32\_t before accumulation into int64\_t to avoid o
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/q15_mac.h`
+The documentation for this class was generated from the following file `native/inc/doppler/q15_mac.h`
 

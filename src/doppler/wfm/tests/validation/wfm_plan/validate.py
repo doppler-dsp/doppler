@@ -22,7 +22,8 @@ both --
   against `compose()`, and that refusal is the honest half of the
   contract.
 
-The order is the campaign's: `native/inc/wfm/wfm_plan.h` is the SSOT and
+The order is the campaign's: `native/inc/doppler/wfm/wfm_plan.h` is the SSOT
+and
 `native/tests/test_wfm_plan.c` certifies it in C.
 """
 
@@ -208,7 +209,7 @@ def section_object() -> None:
         "the LO) lives in the signal terms, which do not move when a "
         "level, a phase, the SNR or the noise seed does. The design is "
         "[docs/design/wfmgen.md](../../../../../../docs/design/wfmgen.md); "
-        "the API is `native/inc/wfm/wfm_plan.h`, certified in C by "
+        "the API is `native/inc/doppler/wfm/wfm_plan.h`, certified in C by "
         "`native/tests/test_wfm_plan.c`."
     )
     R.md()

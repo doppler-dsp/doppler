@@ -1,5 +1,5 @@
-#include "acc_q8/acc_q8_core.h"
-#include "dp_complex.h"
+#include "doppler/acc_q8/acc_q8_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

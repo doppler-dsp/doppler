@@ -4,24 +4,24 @@
 
 
 
-[**FileList**](files.md) **>** [**despreader**](dir_9949992fff5aebed427f83f9eaa478ca.md) **>** [**despreader\_core.h**](despreader__core_8h.md)
+[**FileList**](files.md) **>** [**despreader**](dir_0568e7ebbbbb935946ff07943e2ec07c.md) **>** [**despreader\_core.h**](despreader__core_8h.md)
 
 [Go to the source code of this file](despreader__core_8h_source.md)
 
 _Continuous DSSS despreader — Costas carrier loop + DLL code loop._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "costas/costas_core.h"`
-* `#include "detection/detection_core.h"`
-* `#include "dll/dll_core.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
-* `#include "lo/lo_core.h"`
-* `#include "lockdet/lockdet_core.h"`
-* `#include "loop_filter/loop_filter_core.h"`
-* `#include "dp_tlm/dp_tlm_core.h"`
-* `#include "dp_complex.h"`
-* `#include "telemetry/telemetry_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/costas/costas_core.h"`
+* `#include "doppler/detection/detection_core.h"`
+* `#include "doppler/dll/dll_core.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/lo/lo_core.h"`
+* `#include "doppler/lockdet/lockdet_core.h"`
+* `#include "doppler/loop_filter/loop_filter_core.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/dp_complex.h"`
+* `#include "doppler/telemetry/telemetry_core.h"`
 
 
 
@@ -937,5 +937,5 @@ size_t despreader_steps_max_out (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/despreader/despreader_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/despreader/despreader_core.h`
 

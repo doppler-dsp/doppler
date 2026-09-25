@@ -93,7 +93,7 @@
 #ifndef DP_TEST_H
 #define DP_TEST_H
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

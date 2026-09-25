@@ -16,7 +16,7 @@ endif()
 add_library(RateConverter_core OBJECT RateConverter_core.c)
 target_include_directories(
   RateConverter_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                            ${CMAKE_SOURCE_DIR}/native/inc/RateConverter)
+                            ${CMAKE_SOURCE_DIR}/native/inc/doppler/RateConverter)
 target_link_libraries(RateConverter_core PUBLIC
     resamp_core
     hbdecim_core

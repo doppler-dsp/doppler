@@ -20,7 +20,7 @@ A first-order exponential moving average: `state + alpha * (x - state)`, the run
 
 Design and API, not restated here:
 
-- `native/inc/util/util_core.h` — the SSOT for every claim below (`ema_step`, `ema_alpha_decim`)
+- `native/inc/doppler/util/util_core.h` — the SSOT for every claim below (`ema_step`, `ema_alpha_decim`)
 - `native/tests/test_util_core.c` §1-§8 — the C certification
 - [EMA design](../../../../../../docs/design/ema.md) — why this algebraic form, why the boundaries are contract, and why an EMA is not a loop filter
 - `doppler.util.ema_step` / `ema_alpha_decim` — measured below

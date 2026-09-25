@@ -104,20 +104,20 @@
  *                                          holds under three quarters of
  *                                          gain 1's jitter
  */
-#include "acq/acq_core.h"
-#include "async_dsss_receiver/async_dsss_receiver_core.h"
-#include "awgn/awgn_core.h"
-#include "clib_common.h"
-#include "dll/dll_core.h"
-#include "doppler_channel/doppler_channel_core.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/dll/dll_core.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/gold/gold_core.h"
+#include "doppler/lo/lo_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_ber_test.h"
-#include "dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
-#include "dp_tlm/dp_tlm_core.h"
-#include "gold/gold_core.h"
-#include "lo/lo_core.h"
-#include "wfm_synth/wfm_synth_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -16,7 +16,7 @@ endif()
 add_library(lockdet_core OBJECT lockdet_core.c)
 target_include_directories(
   lockdet_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                      ${CMAKE_SOURCE_DIR}/native/inc/lockdet)
+                      ${CMAKE_SOURCE_DIR}/native/inc/doppler/lockdet)
 
 add_executable(test_lockdet_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_lockdet_core.c

@@ -2,7 +2,7 @@
 
 # File dll\_core.h
 
-[**File List**](files.md) **>** [**dll**](dir_f3da3e2048ea3a8b9e723d3c5367d8f8.md) **>** [**dll\_core.h**](dll__core_8h.md)
+[**File List**](files.md) **>** [**dll**](dir_c5ff741ba8e1e68126223ee4df379547.md) **>** [**dll\_core.h**](dll__core_8h.md)
 
 [Go to the documentation of this file](dll__core_8h.md)
 
@@ -12,17 +12,17 @@
 #ifndef DLL_CORE_H
 #define DLL_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
-#include "lockdet/lockdet_core.h"
-#include "loop_filter/loop_filter_core.h"
-#include "nco/nco_core.h"
-#include "dp_tlm/dp_tlm_core.h"
-#include "dp_complex.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
+#include "doppler/lockdet/lockdet_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/nco/nco_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
-#include "detection/detection_core.h"
-#include "telemetry/telemetry_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/telemetry/telemetry_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -178,7 +178,7 @@ dll_replica(const dll_state_t *s, double c)
     return (float)((1.0 - mu) * v0 + mu * v1);
 }
 
-/* Cycles -> u32 phase delta: nco_norm_freq_to_inc() (native/inc/nco/nco_core.h)
+/* Cycles -> u32 phase delta: nco_norm_freq_to_inc() (native/inc/doppler/nco/nco_core.h)
  * is the ONE shared primitive for this conversion -- do not grow a
  * private copy here (a prior copy of this exact formula existed under
  * the name dll_cycles_to_phase_delta() and has been consolidated away;
@@ -209,7 +209,7 @@ dll_accumulate(dll_state_t *s, float _Complex d)
     s->acc_p += d * dll_replica(s, cp);
     s->acc_e += d * dll_replica(s, ce);
     s->acc_l += d * dll_replica(s, cl);
-    /* nco_step_u32_ovf() (native/inc/nco/nco_core.h) is the ONE shared
+    /* nco_step_u32_ovf() (native/inc/doppler/nco/nco_core.h) is the ONE shared
        primitive for "advance one sample, report whether it wrapped" --
        this used to be a private inline reimplementation of exactly that. */
     uint8_t carry;

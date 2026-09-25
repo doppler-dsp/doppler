@@ -16,7 +16,7 @@ endif()
 add_library(rs_codec_core OBJECT rs_codec_core.c)
 target_include_directories(
   rs_codec_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                       ${CMAKE_SOURCE_DIR}/native/inc/rs_codec)
+                       ${CMAKE_SOURCE_DIR}/native/inc/doppler/rs_codec)
 target_link_libraries(rs_codec_core PUBLIC
     rs_core)
 

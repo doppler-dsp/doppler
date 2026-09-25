@@ -6,11 +6,11 @@
  * optional libdoppler_stream component (links the vendored nats.c);
  * see stream/tlm_sink.h for the contract.
  */
-#include "stream/tlm_sink.h"
+#include "doppler/stream/tlm_sink.h"
 
 #include <stdlib.h>
 
-#include "stream/stream.h"
+#include "doppler/stream/stream.h"
 
 /* Records per published frame: 512 x 16 B = 8 KiB payloads — far below any
  * NATS max_payload, big enough that a busy ring drains in a few frames. */

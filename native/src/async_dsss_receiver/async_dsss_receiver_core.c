@@ -1,6 +1,6 @@
-#include "async_dsss_receiver/async_dsss_receiver_core.h"
-#include "detection/detection_core.h"
-#include "util/util_core.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/util/util_core.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

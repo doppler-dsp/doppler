@@ -33,8 +33,8 @@
  */
 #include "dp_test.h"
 
-#include "ccsds_tm/ccsds_tm_frame.h"
-#include "wfm/wfm_frame.h"
+#include "doppler/ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/wfm/wfm_frame.h"
 
 #include <string.h>
 

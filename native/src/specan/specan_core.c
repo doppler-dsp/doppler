@@ -7,14 +7,14 @@
  * display crop) and the per-call plumbing between the Ddc and the PSD core;
  * the signal processing itself lives in those composed objects.
  */
-#include "specan/specan_core.h"
-#include "util/util_core.h"
+#include "doppler/specan/specan_core.h"
+#include "doppler/util/util_core.h"
 
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "spectral/spectral_core.h" /* kaiser_window, kaiser_enbw */
+#include "doppler/spectral/spectral_core.h" /* kaiser_window, kaiser_enbw */
 
 /* fs_out = span * 1.28 places the display window (±span/2) inside the DDC
  * passband (±0.4·fs_out = ±0.512·span); the transition/stop bands are cropped

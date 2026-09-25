@@ -291,5 +291,5 @@ int frame_state_t::rx_units;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/frame/frame_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/frame/frame_core.h`
 

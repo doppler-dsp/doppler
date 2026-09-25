@@ -16,7 +16,7 @@ endif()
 add_library(async_dsss_pool_core OBJECT async_dsss_pool_core.c)
 target_include_directories(
   async_dsss_pool_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                              ${CMAKE_SOURCE_DIR}/native/inc/async_dsss_pool)
+                              ${CMAKE_SOURCE_DIR}/native/inc/doppler/async_dsss_pool)
 target_link_libraries(async_dsss_pool_core PUBLIC
     Threads::Threads
     async_dsss_receiver_core
@@ -61,6 +61,20 @@ target_link_libraries(async_dsss_pool_core PUBLIC
     wfm_cjson_core
     wfm_keywords_core
     wfm_draw_core)
+if(TARGET ${PROJECT_NAME}_lib)
+  target_link_libraries(${PROJECT_NAME}_lib PRIVATE
+      Threads::Threads)
+  target_include_directories(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_INCLUDE_DIRECTORIES>>)
+  target_compile_definitions(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_COMPILE_DEFINITIONS>>)
+  target_compile_options(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_COMPILE_OPTIONS>>)
+endif()
+if(TARGET ${PROJECT_NAME}_lib_static)
+  target_link_libraries(${PROJECT_NAME}_lib_static PUBLIC
+      Threads::Threads)
+endif()
 
 add_executable(test_async_dsss_pool_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_async_dsss_pool_core.c

@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**accumulator**](dir_06136a2119985c3c219633f937232576.md) **>** [**accumulator\_core.h**](accumulator__core_8h.md)
+[**FileList**](files.md) **>** [**accumulator**](dir_36cdc8980ffec967038c3fbc81b64143.md) **>** [**accumulator\_core.h**](accumulator__core_8h.md)
 
 [Go to the source code of this file](accumulator__core_8h_source.md)
 
 _Accumulator module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -78,5 +78,5 @@ _Accumulator module — public C API._
 
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/accumulator/accumulator_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/accumulator/accumulator_core.h`
 

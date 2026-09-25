@@ -105,5 +105,5 @@ int32_t acc_q8_state_t::acc;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acc_q8/acc_q8_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acc_q8/acc_q8_core.h`
 

@@ -29,7 +29,7 @@ cd "$work"
 
 echo "== face 1: bare cc (static) =="
 # --8<-- [start:cc]
-cc app.c -I "$PREFIX/include/doppler" \
+cc app.c -I "$PREFIX/include" \
    "$PREFIX/lib/libdoppler_stream.a" \
    "$PREFIX/lib/libdoppler.a" \
    -lm -lpthread -o app

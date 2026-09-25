@@ -18,13 +18,13 @@
  * src/doppler/track/tests/validation/ratesync/results.md.
  */
 
+#include "doppler/ratesync/ratesync_core.h"
 #include "dp_test.h"
-#include "ratesync/ratesync_core.h"
 
 #include "dp_sym_test.h" /* EVM / M2M4 / settling — the shared primitives */
 #include "dp_tx_test.h"  /* the shaped symbol stream — the shared stimulus */
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

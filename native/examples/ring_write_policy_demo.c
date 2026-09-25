@@ -22,7 +22,7 @@
  *   make build
  *   ./build/native/examples/ring_write_policy_demo
  */
-#include "buffer/buffer.h"
+#include "doppler/buffer/buffer.h"
 #include <stdio.h>
 #include <stdlib.h>
 

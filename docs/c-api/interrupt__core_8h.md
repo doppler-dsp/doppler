@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**interrupt**](dir_c129c9820da25930d499ea809db42198.md) **>** [**interrupt\_core.h**](interrupt__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**interrupt**](dir_bb0d81ed85f0a381609b116697c05606.md) **>** [**interrupt\_core.h**](interrupt__core_8h.md)
 
 [Go to the source code of this file](interrupt__core_8h_source.md)
 
 _Interrupt module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -78,5 +78,5 @@ _Interrupt module — public C API._
 
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/interrupt/interrupt_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/interrupt/interrupt_core.h`
 

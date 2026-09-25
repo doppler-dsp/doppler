@@ -24,7 +24,7 @@
 #include "dp_rng_test.h"
 #include "dp_test.h"
 
-#include "rs_codec/rs_codec_core.h"
+#include "doppler/rs_codec/rs_codec_core.h"
 
 #include <stdlib.h>
 #include <string.h>

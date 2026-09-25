@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**acquire**](dir_88b93ea666fc84a6b60ee32ac90530e8.md) **>** [**acquire\_core.h**](acquire__core_8h.md)
+[**FileList**](files.md) **>** [**acquire**](dir_684079cd19bcefcd0ee51c221517a041.md) **>** [**acquire\_core.h**](acquire__core_8h.md)
 
 [Go to the source code of this file](acquire__core_8h_source.md)
 
 _Acquire module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -132,5 +132,5 @@ Signed index in `[-(n_bins/2), +((n_bins-1)/2)]`.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acquire/acquire_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acquire/acquire_core.h`
 

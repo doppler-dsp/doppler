@@ -4,14 +4,14 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**dp\_simd.h**](dp__simd_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_simd.h**](dp__simd_8h.md)
 
 [Go to the source code of this file](dp__simd_8h_source.md)
 
 _doppler's own composite SIMD reductions, layered over_ `jm_simd.h` _._[More...](#detailed-description)
 
 * `#include <stddef.h>`
-* `#include "jm_simd.h"`
+* `#include "doppler/jm_simd.h"`
 
 
 
@@ -88,7 +88,7 @@ _doppler's own composite SIMD reductions, layered over_ `jm_simd.h` _._[More...]
 just-makeit ships the TIER primitives — `JM_VEC_F32`, `JM_LOAD_F32`, `JM_FMA_F32`, `JM_HSUM_F32`, `JM_SIMD_WIDTH_F32` — one set per ISA (AVX-512 / AVX2 / NEON / scalar). Anything doppler builds ON those belongs here, in a header doppler owns.
 
 
-That distinction is the whole reason this file exists. `DP_SUMSQ_F32` lived in `native/inc/jm_simd.h` from `bda43475` (the log-domain AGC) until it was lost, and the way it was lost is worth recording: jm's headers are **create-only**, so `jm apply` never rewrites them — which is exactly what let a local addition survive there for months, and exactly why nothing warned when the create-only migration (delete, re-apply, pick up the newer upstream file) discarded it. A local extension inside a vendored file is protected by nothing but the tool's reluctance to touch it.
+That distinction is the whole reason this file exists. `DP_SUMSQ_F32` lived in `native/inc/doppler/jm_simd.h` from `bda43475` (the log-domain AGC) until it was lost, and the way it was lost is worth recording: jm's headers are **create-only**, so `jm apply` never rewrites them — which is exactly what let a local addition survive there for months, and exactly why nothing warned when the create-only migration (delete, re-apply, pick up the newer upstream file) discarded it. A local extension inside a vendored file is protected by nothing but the tool's reluctance to touch it.
 
 
 It also carried the wrong namespace. `JM_` belongs to just-makeit, and a future release is free to define `JM_SUMSQ_F32` itself with different semantics or arity; this is doppler's primitive, so it is `DP_`. 
@@ -142,5 +142,5 @@ DP_SUMSQ_F32 (e, buf, 256);   // e = energy of buf[0..255]
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_simd.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_simd.h`
 

@@ -17,8 +17,8 @@
  * which this component correctly REFUSES, so it failed on its own first
  * assertion. That refusal is pinned in section 1 rather than worked around.
  */
-#include "conv/conv_core.h"
-#include "conv_enc/conv_enc_core.h"
+#include "doppler/conv/conv_core.h"
+#include "doppler/conv_enc/conv_enc_core.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <stdlib.h>

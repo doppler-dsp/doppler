@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**acc\_trace**](dir_51e33d48c4bde6f60a2f27e75677a784.md) **>** [**acc\_trace\_core.h**](acc__trace__core_8h.md)
+[**FileList**](files.md) **>** [**acc\_trace**](dir_ea4259ba3dd1c044f0efb519286a18a5.md) **>** [**acc\_trace\_core.h**](acc__trace__core_8h.md)
 
 [Go to the source code of this file](acc__trace__core_8h_source.md)
 
 _AccTrace — per-bin vector trace accumulator._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "dp_state.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/dp_state.h"`
 
 
 
@@ -452,5 +452,5 @@ size_t acc_trace_value_max_out (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acc_trace/acc_trace_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acc_trace/acc_trace_core.h`
 

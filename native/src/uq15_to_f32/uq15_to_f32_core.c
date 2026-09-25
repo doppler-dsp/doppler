@@ -1,4 +1,4 @@
-#include "uq15_to_f32/uq15_to_f32_core.h"
+#include "doppler/uq15_to_f32/uq15_to_f32_core.h"
 
 uq15_to_f32_state_t *
 uq15_to_f32_create (float scale)

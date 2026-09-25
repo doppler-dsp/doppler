@@ -1,4 +1,4 @@
-/// Per-instance 1-D and 2-D FFT (`native/inc/fft/fft_core.h`).
+/// Per-instance 1-D and 2-D FFT (`native/inc/doppler/fft/fft_core.h`).
 ///
 /// Each [`Fft`] holds its own pocketfft plan — create once, reuse across
 /// calls.  CF32 is roughly 2× faster than CF64 for the same transform

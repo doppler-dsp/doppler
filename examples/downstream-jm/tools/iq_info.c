@@ -19,7 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "capture/capture_core.h"
+#include "iqtools/capture/capture_core.h"
 
 /** Sample-type names, in the order doppler encodes them (0..4). */
 static const char *const SAMPLE_TYPES[]

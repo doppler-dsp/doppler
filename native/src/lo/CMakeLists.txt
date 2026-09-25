@@ -16,7 +16,7 @@ endif()
 add_library(lo_core OBJECT lo_core.c)
 target_include_directories(
   lo_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                 ${CMAKE_SOURCE_DIR}/native/inc/lo)
+                 ${CMAKE_SOURCE_DIR}/native/inc/doppler/lo)
 
 add_executable(test_lo_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_lo_core.c

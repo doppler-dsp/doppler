@@ -25,9 +25,9 @@
  * rather than anything about the sample type -- which is the useful
  * decomposition, since the loop's granularity is not negotiable.
  */
-#include "ddcr/ddcr_core.h"
+#include "doppler/ddcr/ddcr_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_bench.h"
-#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -230,8 +230,8 @@ def section_summary() -> None:
                 "why the event is signed, what was tried and removed",
             ],
             [
-                "[`native/inc/nco/nco_core.h`]"
-                "(../../../../../../native/inc/nco/nco_core.h)",
+                "[`native/inc/doppler/nco/nco_core.h`]"
+                "(../../../../../../native/inc/doppler/nco/nco_core.h)",
                 "the contract: the two layers, the two faces over one fold, "
                 "the three output mappings and their `_ctrl` variants",
             ],

@@ -12,8 +12,8 @@
  * perfectly. So the published CCSDS ASM expansion pins the order first, and
  * only then is a round-trip worth anything.
  */
-#include "cvt/cvt_core.h"
-#include "mpsk/mpsk_core.h"
+#include "doppler/cvt/cvt_core.h"
+#include "doppler/mpsk/mpsk_core.h"
 
 #include "dp_test.h"
 

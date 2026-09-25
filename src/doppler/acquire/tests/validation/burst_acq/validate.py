@@ -168,7 +168,7 @@ def section_object() -> None:
                 "sizing, its statistics. **Not re-derived here.**",
             ],
             [
-                "`native/inc/burst_acq/burst_acq_core.h`",
+                "`native/inc/doppler/burst_acq/burst_acq_core.h`",
                 "the forwarding contract — the SSOT this report audits",
             ],
         ],

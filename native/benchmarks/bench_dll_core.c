@@ -3,8 +3,8 @@
  *   steps — end-to-end throughput (MSa/s) of the per-sample E/P/L correlate
  *           + per-period discriminator + loop update over a 64k burst.
  */
-#include "dll/dll_core.h"
-#include "dp_complex.h"
+#include "doppler/dll/dll_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <stdlib.h>
 #include <time.h>

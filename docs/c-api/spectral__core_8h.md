@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**spectral**](dir_2aadf81c4f49e887d76ad198d657298d.md) **>** [**spectral\_core.h**](spectral__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**spectral**](dir_bb80cb4693a043f62f72e53e1f90a405.md) **>** [**spectral\_core.h**](spectral__core_8h.md)
 
 [Go to the source code of this file](spectral__core_8h_source.md)
 
 _Spectral module — public C API._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -494,5 +494,5 @@ double obw_from_power (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/spectral/spectral_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/spectral/spectral_core.h`
 

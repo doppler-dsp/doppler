@@ -3,4 +3,4 @@
  *
  * Add extra #includes below, then implement module-level functions.
  */
-#include "impairment/impairment_core.h"
+#include "doppler/impairment/impairment_core.h"

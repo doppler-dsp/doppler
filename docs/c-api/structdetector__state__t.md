@@ -370,5 +370,5 @@ float detector_state_t::threshold;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/detector/detector_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/detector/detector_core.h`
 

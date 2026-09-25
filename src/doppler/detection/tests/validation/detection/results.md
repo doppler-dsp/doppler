@@ -26,7 +26,7 @@ Neither of these is restated here:
 | page | owns |
 |---|---|
 | [`docs/design/detection.md`](../../../../../../docs/design/detection.md) | why the five families exist, why they must not be crossed, and what each errs toward |
-| `native/inc/detection/detection_core.h` | the contract per function — the SSOT this report audits |
+| `native/inc/doppler/detection/detection_core.h` | the contract per function — the SSOT this report audits |
 
 ### 1.1 The claim inventory
 

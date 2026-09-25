@@ -2,7 +2,7 @@
 
 # File arith\_core.h
 
-[**File List**](files.md) **>** [**arith**](dir_51d42af7a43550d997314136379d62d2.md) **>** [**arith\_core.h**](arith__core_8h.md)
+[**File List**](files.md) **>** [**arith**](dir_d0f844c85d44525a1700464c9da275c4.md) **>** [**arith\_core.h**](arith__core_8h.md)
 
 [Go to the documentation of this file](arith__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef ARITH_CORE_H
 #define ARITH_CORE_H
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
 #ifdef __cplusplus
 extern "C" {

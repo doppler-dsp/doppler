@@ -158,7 +158,7 @@ exactly what `MpskReceiver` does, steering the same accumulator through its
 DDC's `rate_ctrl` port. The object form is the same call from C:
 
 ```c
-#include <ratesync/ratesync_core.h>
+#include <doppler/ratesync/ratesync_core.h>
 #include <complex.h>
 #include <stdio.h>
 

@@ -2,7 +2,7 @@
 
 # File agc\_core.h
 
-[**File List**](files.md) **>** [**agc**](dir_947ec4d62e9dda8dbffe026d57cfb18d.md) **>** [**agc\_core.h**](agc__core_8h.md)
+[**File List**](files.md) **>** [**agc**](dir_da2fce83534b434d126c978bac57abe5.md) **>** [**agc\_core.h**](agc__core_8h.md)
 
 [Go to the documentation of this file](agc__core_8h.md)
 
@@ -12,11 +12,11 @@
 #ifndef AGC_CORE_H
 #define AGC_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "dp_state.h"
-#include "dp_tlm/dp_tlm_core.h"
-#include "util/util_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/dp_state.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/util/util_core.h"
 #include <math.h>
 
 #ifdef __cplusplus

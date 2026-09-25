@@ -14,9 +14,9 @@
  * an RRC is NOT a raised cosine, an RC has the Nyquist zero-ISI property
  * at every symbol instant, and both are even in t.
  */
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/wfm/wfm_core.h"
 #include "dp_test.h"
-#include "wfm/wfm_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

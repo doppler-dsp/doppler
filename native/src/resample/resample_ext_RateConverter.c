@@ -9,7 +9,7 @@
 /* RateConverterObject — wraps RateConverter_state_t *       */
 /* ======================================================== */
 
-#include "RateConverter/RateConverter_core.h"
+#include "doppler/RateConverter/RateConverter_core.h"
 
 typedef struct
 {

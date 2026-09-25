@@ -32,8 +32,8 @@
  * warm row is what one assigned receiver costs per sample in the pool,
  * against the 100 ns-per-sample budget of §6.4.
  */
-#include "async_dsss_receiver/async_dsss_receiver_core.h"
-#include "dp_complex.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdint.h>

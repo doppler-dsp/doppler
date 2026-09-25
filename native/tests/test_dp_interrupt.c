@@ -5,9 +5,9 @@
  * silent everywhere at once. See docs/design/io-termination.md.
  */
 
-#include "dp_interrupt.h"
+#include "doppler/dp_interrupt.h"
 
-#include "dp_interrupt_guard/dp_interrupt_guard_procglobal.h"
+#include "doppler/dp_interrupt_guard/dp_interrupt_guard_procglobal.h"
 #include "dp_test.h"
 
 #include <signal.h>

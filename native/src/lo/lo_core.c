@@ -12,7 +12,7 @@
  * implementations, one of them unreachable and the two disagreeing, is
  * strictly worse than one.  See docs/design/nco.md §10.
  */
-#include "lo/lo_core.h"
+#include "doppler/lo/lo_core.h"
 
 #include <math.h>
 #include <string.h>

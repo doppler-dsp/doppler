@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**analyzer**](dir_1d8187026dc08a4fbbc894d9c056e51f.md) **>** [**analyzer\_core.h**](analyzer__core_8h.md)
+[**FileList**](files.md) **>** [**analyzer**](dir_bc9ffe1c503aeccbb822ea34694fc346.md) **>** [**analyzer\_core.h**](analyzer__core_8h.md)
 
 [Go to the source code of this file](analyzer__core_8h_source.md)
 
 _Analyzer module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -78,5 +78,5 @@ _Analyzer module — public C API._
 
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/analyzer/analyzer_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/analyzer/analyzer_core.h`
 

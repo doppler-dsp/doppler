@@ -39,9 +39,9 @@
  *
  * Usage:  dll_jitter [--check]
  */
-#include "awgn/awgn_core.h"
-#include "dll/dll_core.h"
-#include "dp_complex.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/dll/dll_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_rng_test.h"
 #include <math.h>
 #include <stdio.h>

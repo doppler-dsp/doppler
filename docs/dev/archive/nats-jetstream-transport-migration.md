@@ -12,7 +12,7 @@
 ## Context
 
 doppler's live I/Q transport (`native/src/stream/stream_core.c`, public API
-`native/inc/stream/stream.h`) is a thin layer over **vendored static libzmq**,
+`native/inc/doppler/stream/stream.h`) is a thin layer over **vendored static libzmq**,
 exposing three ZMQ patterns — PUB/SUB (fan-out), PUSH/PULL (pipeline), REQ/REP
 (control) — all framed with the 96-byte `dp_header_t` wire header (magic
 `0x53494753` "SIGS", per-sender `sequence`, `timestamp_ns`, `sample_rate`,
@@ -253,7 +253,7 @@ ______________________________________________________________________
 
 - `native/src/stream/stream_core.c` — tagged-union refactor + backend dispatch
 - `native/src/stream/stream_nats.c` — **new**, all nats.c logic
-- `native/inc/stream/stream.h` — no API change; add chunk-flag macros, document
+- `native/inc/doppler/stream/stream.h` — no API change; add chunk-flag macros, document
     `nats://` scheme, keep `dp_header_t` 96 bytes
 - `CMakeLists.txt` + `native/src/stream/CMakeLists.txt` — vendor nats.c static,
     link, fold into `doppler_stream_static`

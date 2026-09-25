@@ -19,11 +19,11 @@
  *   ./build/native/examples/spectrum_analyzer
  */
 
-#include <doppler.h>
-#include <fft/fft_core.h>
-#include <stream/stream.h>
+#include <doppler/doppler.h>
+#include <doppler/fft/fft_core.h>
+#include <doppler/stream/stream.h>
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>

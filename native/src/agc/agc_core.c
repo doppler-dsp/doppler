@@ -1,6 +1,6 @@
-#include "agc/agc_core.h"
-#include "dp_simd.h"
-#include "util/util_core.h"
+#include "doppler/agc/agc_core.h"
+#include "doppler/dp_simd.h"
+#include "doppler/util/util_core.h"
 #include <float.h>
 #include <stdio.h>
 

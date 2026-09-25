@@ -12,7 +12,7 @@ time.
 doppler#911 is what that costs. `lo_steps_ctrl` declared its control port
 ``*const f32`` while the C had been widened to ``const double *``:
 
-    /* native/inc/lo/lo_core.h */
+    /* native/inc/doppler/lo/lo_core.h */
     size_t lo_steps_ctrl (lo_state_t *state, const double *ctrl, ...);
 
     // ffi/rust/src/lo.rs

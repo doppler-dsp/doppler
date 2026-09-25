@@ -29,8 +29,8 @@
  * auto-sizer's internal safety-valve ceiling (ACQ_N_NONCOH_SAFETY_CEILING =
  * 256, replacing the old caller-supplied max_noncoh cap) comfortably covers
  * the n_noncoh~96-123 this waveform actually lands on. */
-#include "acq/acq_core.h"
-#include "dp_complex.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdint.h>

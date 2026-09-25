@@ -1,5 +1,5 @@
-#include "dp_complex.h"
-#include "f32_to_i16u32/f32_to_i16u32_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/f32_to_i16u32/f32_to_i16u32_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

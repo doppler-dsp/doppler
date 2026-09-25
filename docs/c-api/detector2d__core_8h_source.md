@@ -2,7 +2,7 @@
 
 # File detector2d\_core.h
 
-[**File List**](files.md) **>** [**detector2d**](dir_bd7354e9665bd912180ec22b3c69b55c.md) **>** [**detector2d\_core.h**](detector2d__core_8h.md)
+[**File List**](files.md) **>** [**detector2d**](dir_8496bb9d19545edf0ab852f69ada11c8.md) **>** [**detector2d\_core.h**](detector2d__core_8h.md)
 
 [Go to the documentation of this file](detector2d__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef DETECTOR2D_CORE_H
 #define DETECTOR2D_CORE_H
 
-#include "buffer/buffer.h"
-#include "corr2d/corr2d_core.h"
-#include "dp_state.h"
+#include "doppler/buffer/buffer.h"
+#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/dp_state.h"
 
 #ifdef __cplusplus
 extern "C" {

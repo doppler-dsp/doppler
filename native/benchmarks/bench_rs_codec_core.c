@@ -28,8 +28,8 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
+#include "doppler/rs_codec/rs_codec_core.h"
 #include "jm_bench.h"
-#include "rs_codec/rs_codec_core.h"
 
 #include <stdio.h>
 #include <stdlib.h>

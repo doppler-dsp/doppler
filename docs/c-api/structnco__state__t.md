@@ -147,5 +147,5 @@ uint32_t nco_state_t::phase_inc;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/nco/nco_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/nco/nco_core.h`
 

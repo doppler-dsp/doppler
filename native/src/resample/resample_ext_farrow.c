@@ -9,7 +9,7 @@
 /* FarrowObject — wraps farrow_state_t *       */
 /* ======================================================== */
 
-#include "farrow/farrow_core.h"
+#include "doppler/farrow/farrow_core.h"
 
 typedef struct
 {

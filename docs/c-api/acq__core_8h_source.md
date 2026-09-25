@@ -2,7 +2,7 @@
 
 # File acq\_core.h
 
-[**File List**](files.md) **>** [**acq**](dir_25a1e6db36731e5901b5cfb158eaa462.md) **>** [**acq\_core.h**](acq__core_8h.md)
+[**File List**](files.md) **>** [**acq**](dir_34926d0c3adbcf3f65d9e19727d3354d.md) **>** [**acq\_core.h**](acq__core_8h.md)
 
 [Go to the documentation of this file](acq__core_8h.md)
 
@@ -12,19 +12,19 @@
 #ifndef ACQ_CORE_H
 #define ACQ_CORE_H
 
-#include "buffer/buffer.h"
-#include "clib_common.h"
-#include "corr2d/corr2d_core.h"
-#include "detection/detection_core.h"
-#include "dp_state.h"
-#include "fft/fft_core.h"
-#include "jm_perf.h"
+#include "doppler/buffer/buffer.h"
+#include "doppler/clib_common.h"
+#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/dp_state.h"
+#include "doppler/fft/fft_core.h"
+#include "doppler/jm_perf.h"
 /* detector2d_core.h supplies det_noise_mode_t (guarded typedef). */
-#include "detector2d/detector2d_core.h"
-#include "fft2d/fft2d_core.h"
-#include "dp_parallel.h"
-#include "dp_tlm/dp_tlm_core.h"
-#include "cvt/cvt_core.h"
+#include "doppler/detector2d/detector2d_core.h"
+#include "doppler/fft2d/fft2d_core.h"
+#include "doppler/dp_parallel.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/cvt/cvt_core.h"
 
 #ifdef __cplusplus
 extern "C"

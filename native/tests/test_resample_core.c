@@ -13,8 +13,8 @@
  * every caller until this file existed. The degenerate-argument checks
  * below are the regression for both halves of that.
  */
+#include "doppler/resample/resample_core.h"
 #include "dp_test.h"
-#include "resample/resample_core.h"
 #include <math.h>
 #include <stdio.h>
 

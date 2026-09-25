@@ -4,7 +4,7 @@
  * Everything here is setup- or consumer-side; the producer hot path
  * (dp_tlm_emit / dp_tlm_set_now) is inline in dp_tlm/dp_tlm_core.h.
  */
-#include "dp_tlm/dp_tlm_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 
 #include <stdint.h>
 #include <stdlib.h>

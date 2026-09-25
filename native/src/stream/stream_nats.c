@@ -24,7 +24,7 @@
  * load-balance and a crashed consumer's un-acked frames redeliver.
  */
 
-#include "stream/stream.h"
+#include "doppler/stream/stream.h"
 #include "stream_internal.h"
 #include <nats.h>
 #include <stdint.h>

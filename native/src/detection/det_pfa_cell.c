@@ -1,5 +1,5 @@
-#include "detection/detection_core.h"
-#include "util/util_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/util/util_core.h"
 #include <math.h>
 double
 det_pfa_cell (double pfa, double n_cells)

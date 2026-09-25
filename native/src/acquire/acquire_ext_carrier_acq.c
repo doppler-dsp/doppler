@@ -9,7 +9,7 @@
 /* CarrierAcquisitionObject — wraps carrier_acq_state_t *       */
 /* ======================================================== */
 
-#include "carrier_acq/carrier_acq_core.h"
+#include "doppler/carrier_acq/carrier_acq_core.h"
 
 typedef struct
 {

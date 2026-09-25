@@ -16,7 +16,7 @@ endif()
 add_library(despreader_core OBJECT despreader_core.c)
 target_include_directories(
   despreader_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                         ${CMAKE_SOURCE_DIR}/native/inc/despreader)
+                         ${CMAKE_SOURCE_DIR}/native/inc/doppler/despreader)
 target_link_libraries(despreader_core PUBLIC
     costas_core
     lo_core

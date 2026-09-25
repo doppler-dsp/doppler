@@ -10,8 +10,8 @@
 /* HalfbandDecimatorObject — wraps HalfbandDecimator_state_t *       */
 /* ======================================================== */
 
-#include "HalfbandDecimator/HalfbandDecimator_core.h"
-#include "dp_state_pyhelp.h"
+#include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"
+#include "doppler/dp_state_pyhelp.h"
 
 typedef struct
 {

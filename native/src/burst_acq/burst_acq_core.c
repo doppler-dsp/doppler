@@ -1,4 +1,4 @@
-#include "burst_acq/burst_acq_core.h"
+#include "doppler/burst_acq/burst_acq_core.h"
 
 #include <stdlib.h>
 

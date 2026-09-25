@@ -16,7 +16,7 @@ endif()
 add_library(hbdecim_q15_core OBJECT hbdecim_q15_core.c)
 target_include_directories(
   hbdecim_q15_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                          ${CMAKE_SOURCE_DIR}/native/inc/hbdecim_q15)
+                          ${CMAKE_SOURCE_DIR}/native/inc/doppler/hbdecim_q15)
 
 add_executable(test_hbdecim_q15_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_hbdecim_q15_core.c

@@ -170,5 +170,5 @@ feedback mask over `stages` bits
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ccsds_tm/ccsds_tm.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ccsds_tm/ccsds_tm.h`
 

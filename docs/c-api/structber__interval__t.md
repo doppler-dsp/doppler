@@ -224,5 +224,5 @@ size_t ber_interval_t::symbols;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ber/ber_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ber/ber_core.h`
 

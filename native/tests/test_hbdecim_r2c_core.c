@@ -10,10 +10,10 @@
  * test.)
  */
 
+#include "doppler/hbdecim/hbdecim_r2c_core.h"
 #include "dp_test.h"
-#include "hbdecim/hbdecim_r2c_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

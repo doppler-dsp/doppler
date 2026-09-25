@@ -9,7 +9,7 @@
 /* F32BufferObject — wraps f32_buffer_state_t *       */
 /* ======================================================== */
 
-#include "f32_buffer/f32_buffer_core.h"
+#include "doppler/f32_buffer/f32_buffer_core.h"
 
 typedef struct
 {

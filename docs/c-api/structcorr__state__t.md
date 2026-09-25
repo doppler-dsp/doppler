@@ -296,5 +296,5 @@ Bounce buffer for a dump into an under-sized `out` (jm gh-138). The inverse FFT'
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/corr/corr_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/corr/corr_core.h`
 

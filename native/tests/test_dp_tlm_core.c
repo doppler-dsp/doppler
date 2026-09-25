@@ -9,11 +9,11 @@
  * DP_DEFINE_POD_STATE_TLM serialization rule (attachment zeroed in blobs,
  * preserved across restore) exercised on a local mock object.
  */
-#include "dp_state.h"
+#include "doppler/dp_state.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 #include "dp_test.h"
-#include "dp_tlm/dp_tlm_core.h"
 
-#include "dp_thread.h"
+#include "doppler/dp_thread.h"
 #include <stdio.h>
 
 /* ── mock instrumented object for the POD_STATE_TLM rule ────────────────── */

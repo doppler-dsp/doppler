@@ -25,8 +25,8 @@
 #define _POSIX_C_SOURCE 200809L
 #endif
 
-#include "timing/timing_core.h"
-#include "dp_interrupt.h"
+#include "doppler/timing/timing_core.h"
+#include "doppler/dp_interrupt.h"
 
 #include <errno.h>
 #include <stdlib.h>

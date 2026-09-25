@@ -182,5 +182,5 @@ uint32_t pn_state_t::topshift;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/pn/pn_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/pn/pn_core.h`
 

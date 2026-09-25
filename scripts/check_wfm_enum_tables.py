@@ -7,7 +7,8 @@ truth for every waveform string<->int mapping. Measured (doppler#760), that was
 true of the *Python binding* only: jm renders `[[enum]]` into
 `wfm_compose_ext.c`, and the C side kept its own tables -- twelve in
 `native/src/app/wfmgen.c`, seven in `native/src/wfm/wfm_json.c`, three in
-`native/inc/wfm/wfm_names.h` -- maintained by hand and by nobody's gate.
+`native/inc/doppler/wfm/wfm_names.h` -- maintained by hand and by nobody's
+gate.
 
 Why that is worse than ordinary duplication: **list order IS the C enum
 value**. A table that drifts does not fail to compile and does not raise; it
@@ -20,7 +21,8 @@ assigned it.
 
 So this gate makes the SSOT claim a check rather than a comment:
 
-1. **One C home.** Every enum name table lives in `native/inc/wfm/wfm_names.h`.
+1. **One C home.** Every enum name table lives in
+`native/inc/doppler/wfm/wfm_names.h`.
    No other hand-written C file may declare a table with the same contents.
 2. **The header matches the manifest.** Each table's strings equal its
    `[[enum]]` `values`, in order.
@@ -42,7 +44,8 @@ The annotation is a plain `/* ... */` comment -- doxygen reads only `/**` and
 previous declaration and the table it describes::
 
     /* SSOT: enum=wfm_type, count=N_TYPES */
-    /* SSOT: enum=ftype, cenum=wfm_writer/wfm_writer_core.h:wfm_filetype_t */
+    /* SSOT: enum=ftype,
+       cenum=doppler/wfm_writer/wfm_writer_core.h:wfm_filetype_t */
 
 It lives beside the table rather than in a list here on purpose: a mapping kept
 in a second file is a second thing to update, and the table it describes is
@@ -60,6 +63,8 @@ import re
 import sys
 from pathlib import Path
 
+from _layout import INC_DIR, header
+
 # `tomllib` is 3.11+. Every OTHER gate under scripts/ that a test in
 # src/doppler/tests/ drives is stdlib-only and so runs on the floor Python,
 # because those tests invoke the script with `sys.executable` -- which, in the
@@ -76,7 +81,7 @@ else:  # pragma: no cover - exercised by the 3.9/3.10 CI matrix jobs
 #: Where the one C home lives, and the manifest that owns its contents. Both
 #: are relative to `--root` so the gate can be exercised over a seeded tree --
 #: a gate that can only run against the real tree cannot be sabotaged.
-NAMES_H_REL = "native/inc/wfm/wfm_names.h"
+NAMES_H_REL = header("wfm/wfm_names.h")
 MANIFEST_REL = "just-makeit.toml"
 
 #: Hand-written C scanned for rule 1. jm owns the `*_ext*.c` bindings and
@@ -277,7 +282,7 @@ def check(root: Path) -> list[str]:
                 )
         if t.cenum is not None:
             rel, _, typedef = t.cenum.partition(":")
-            path = root / "native" / "inc" / rel
+            path = root / INC_DIR / rel
             if not typedef or not path.is_file():
                 errs.append(
                     f"{t.name}[]: cenum={t.cenum} does not resolve to a header"
@@ -391,7 +396,7 @@ def main() -> int:
         print(
             "\nList order IS the C enum value: a table that drifts maps a flag"
             " to the\nwrong waveform rather than failing. One home"
-            " (native/inc/wfm/wfm_names.h),\none declaration"
+            " (native/inc/doppler/wfm/wfm_names.h),\none declaration"
             " (just-makeit.toml [[enum]]). See doppler#760."
         )
         return 1

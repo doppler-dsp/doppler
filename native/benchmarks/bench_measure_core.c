@@ -27,8 +27,8 @@
  * caller choosing a capture length for an unrelated reason -- a power of
  * two for the FFT, say -- is choosing this too.
  */
+#include "doppler/measure/measure_core.h"
 #include "dp_bench.h"
-#include "measure/measure_core.h"
 #include <stdio.h>
 
 #define ITERATIONS 200

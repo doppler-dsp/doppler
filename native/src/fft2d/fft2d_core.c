@@ -1,4 +1,4 @@
-#include "fft2d/fft2d_core.h"
+#include "doppler/fft2d/fft2d_core.h"
 #include <string.h>
 
 /* A pocketfft 2-D plan is fixed at ny*nx and writes the whole surface, so

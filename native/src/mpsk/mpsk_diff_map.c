@@ -6,7 +6,7 @@
  * Sequential over the array; the receiver (mpsk_diff_demap) recovers the
  * labels from phase differences, so an unknown constant carrier phase cancels.
  */
-#include "mpsk/mpsk_core.h"
+#include "doppler/mpsk/mpsk_core.h"
 
 void
 mpsk_diff_map (const uint8_t *sym, size_t sym_len, float _Complex *out, int m)

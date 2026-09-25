@@ -9,7 +9,7 @@
 /* ReaderObject — wraps wfm_reader_state_t *       */
 /* ======================================================== */
 
-#include "wfm_reader/wfm_reader_core.h"
+#include "doppler/wfm_reader/wfm_reader_core.h"
 
 /* The stop predicate the Python face installs below. The CORE deliberately
    does not call dp_interrupted() itself -- that would put dp_interrupt.c on
@@ -18,7 +18,7 @@
    A binding is the layer that CAN link it, and doppler's own answer to "what
    should stop a follow read?" is the process interrupt, exactly as
    wfm_reader_core.h's own example says. */
-#include "dp_interrupt.h"
+#include "doppler/dp_interrupt.h"
 
 typedef struct
 {

@@ -46,13 +46,13 @@
  *   ./build/native/examples/wfmgen_frame_demo
  */
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include <doppler/wfm/wfm_compose.h>
+#include <doppler/wfm/wfm_frame.h>
+#include <doppler/wfm_synth/wfm_synth_core.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wfm/wfm_compose.h>
-#include <wfm/wfm_frame.h>
-#include <wfm_synth/wfm_synth_core.h>
 
 #define FS 1.0e6 /* sample rate, Hz */
 #define SPS 4    /* samples per symbol; rectangular, so a symbol is 4 copies */

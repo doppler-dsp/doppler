@@ -16,7 +16,7 @@ endif()
 add_library(carrier_nda_core OBJECT carrier_nda_core.c)
 target_include_directories(
   carrier_nda_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                          ${CMAKE_SOURCE_DIR}/native/inc/carrier_nda)
+                          ${CMAKE_SOURCE_DIR}/native/inc/doppler/carrier_nda)
 target_link_libraries(carrier_nda_core PUBLIC
     lo_core
     loop_filter_core

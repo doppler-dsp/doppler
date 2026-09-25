@@ -1,7 +1,7 @@
-#include "ppe/ppe_core.h"
-#include "util/util_core.h"
+#include "doppler/ppe/ppe_core.h"
+#include "doppler/util/util_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 

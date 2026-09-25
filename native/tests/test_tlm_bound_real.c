@@ -21,11 +21,11 @@
  * would also hold if the ring merely happened to be roomy; only the measured
  * emission count can falsify the audit.
  */
-#include "carrier_nda/carrier_nda_core.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
+#include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
 #include "dp_test.h"
-#include "dp_tlm_capture/dp_tlm_capture_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -102,5 +102,5 @@ Total rate; must equal the engine's (layout key).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ddcr/ddcr_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ddcr/ddcr_core.h`
 

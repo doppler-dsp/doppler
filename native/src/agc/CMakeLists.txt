@@ -16,7 +16,7 @@ endif()
 add_library(agc_core OBJECT agc_core.c settling_samples.c)
 target_include_directories(
   agc_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                  ${CMAKE_SOURCE_DIR}/native/inc/agc)
+                  ${CMAKE_SOURCE_DIR}/native/inc/doppler/agc)
 target_link_libraries(agc_core PUBLIC
     dp_tlm_core)
 

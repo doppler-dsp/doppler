@@ -10,7 +10,7 @@ it, who owns which buffer, and what the layer does not promise. It is the
 page to read before writing a receiver that is not doppler's own.
 
 - Calling the API: [Python Streaming API](../api/python-streaming.md) and
-    [`native/inc/stream/stream.h`](../c-api/stream_8h.md)
+    [`native/inc/doppler/stream/stream.h`](../c-api/stream_8h.md)
 - Runnable both-sides walk-throughs, network topologies, troubleshooting:
     [Streaming examples](../examples/streaming.md)
 - The telemetry payload that rides the same envelope:
@@ -149,7 +149,7 @@ stream's own, `wfm_writer`'s `stype` in "wavegen order", and
 table mapping one of them to BLUE and a `BPS[]` table restating the
 sizes. Every boundary between them was a hand-written switch. Naming a
 format by the code the file format already defines leaves one vocabulary
-and nothing to translate, so the codes live in `native/inc/dp_format.h`
+and nothing to translate, so the codes live in `native/inc/doppler/dp_format.h`
 (a header, all `static inline`) rather than in either container: the
 transport is the wrong thing to link in order to name a file's samples.
 

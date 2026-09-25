@@ -13,8 +13,8 @@
  * does NOT do is demodulate, so there is no sync word and no CRC here — a
  * capture is finished when the samples come back.
  */
-#include "burst_capture/burst_capture_core.h"
-#include "pn/pn_core.h"
+#include "doppler/burst_capture/burst_capture_core.h"
+#include "doppler/pn/pn_core.h"
 
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"

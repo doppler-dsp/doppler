@@ -16,10 +16,10 @@
 
 #include <signal.h>
 
-#include "dp_tlm/dp_tlm_core.h" /* dp_tlm_rec_t (TLM16 frames) */
-#include "stream/stream.h"
+#include "doppler/dp_tlm/dp_tlm_core.h" /* dp_tlm_rec_t (TLM16 frames) */
+#include "doppler/stream/stream.h"
 
-#include "dp_interrupt_pyadopt.h"
+#include "doppler/dp_interrupt_pyadopt.h"
 
 /* =========================================================================
  * dpMsgObject — prevents premature dp_msg_free via NumPy base object

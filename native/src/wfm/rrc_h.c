@@ -18,8 +18,8 @@
  * A gate that says "use the library" has to be answerable in the language it
  * is scolding.
  */
-#include "wfm/wfm_core.h"
-#include "wfm/wfm_dsp.h" /* wfm_rrc_h — header-inline, no link edge */
+#include "doppler/wfm/wfm_core.h"
+#include "doppler/wfm/wfm_dsp.h" /* wfm_rrc_h — header-inline, no link edge */
 
 void
 rrc_h (const double *t, size_t t_len, double *out, double beta)

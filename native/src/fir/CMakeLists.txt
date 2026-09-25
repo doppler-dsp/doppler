@@ -16,7 +16,7 @@ endif()
 add_library(fir_core OBJECT fir_core.c)
 target_include_directories(
   fir_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                  ${CMAKE_SOURCE_DIR}/native/inc/fir)
+                  ${CMAKE_SOURCE_DIR}/native/inc/doppler/fir)
 
 add_executable(test_fir_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_fir_core.c

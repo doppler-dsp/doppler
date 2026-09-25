@@ -9,7 +9,7 @@
 /* InterleaverObject — wraps interleaver_state_t *       */
 /* ======================================================== */
 
-#include "interleaver/interleaver_core.h"
+#include "doppler/interleaver/interleaver_core.h"
 
 typedef struct
 {

@@ -11,14 +11,14 @@
  * state-serialization round trip in both the searching and tracking phases,
  * and an envelope-reject check.
  */
-#include "costas/costas_core.h"
-#include "dll/dll_core.h"
-#include "dp_complex.h"
+#include "doppler/costas/costas_core.h"
+#include "doppler/dll/dll_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/dsss_receiver/dsss_receiver_core.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
-#include "dsss_receiver/dsss_receiver_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

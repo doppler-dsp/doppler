@@ -9,7 +9,7 @@
 /* I16U64ToF32Object — wraps i16u64_to_f32_state_t *       */
 /* ======================================================== */
 
-#include "i16u64_to_f32/i16u64_to_f32_core.h"
+#include "doppler/i16u64_to_f32/i16u64_to_f32_core.h"
 
 typedef struct
 {

@@ -28,7 +28,7 @@
  *
  * Timing is MIN over rounds, not mean — benchmark noise is one-sided.
  */
-#include "syncword/syncword_core.h"
+#include "doppler/syncword/syncword_core.h"
 
 #include "jm_bench.h"
 #include <stdio.h>

@@ -14,9 +14,9 @@
  *   ./build/native/examples/fir_demo
  */
 
-#include <fir/fir_core.h>
+#include <doppler/fir/fir_core.h>
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

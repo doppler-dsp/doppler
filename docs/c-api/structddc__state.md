@@ -146,5 +146,5 @@ the cascade; matched when a pulse was selected at construction
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ddc/ddc_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ddc/ddc_core.h`
 

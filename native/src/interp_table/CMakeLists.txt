@@ -16,7 +16,7 @@ endif()
 add_library(interp_table_core OBJECT interp_table_core.c)
 target_include_directories(
   interp_table_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                           ${CMAKE_SOURCE_DIR}/native/inc/interp_table)
+                           ${CMAKE_SOURCE_DIR}/native/inc/doppler/interp_table)
 
 add_executable(test_interp_table_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_interp_table_core.c

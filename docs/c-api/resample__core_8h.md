@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**resample**](dir_430486ea22038fad478027f2dc6550c6.md) **>** [**resample\_core.h**](resample__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**resample**](dir_4efb1181c8663bd7a6953f73a4eb8dc9.md) **>** [**resample\_core.h**](resample__core_8h.md)
 
 [Go to the source code of this file](resample__core_8h_source.md)
 
 _Resample module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -218,5 +218,5 @@ Taps per polyphase branch (&gt;= 1).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/resample/resample_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/resample/resample_core.h`
 

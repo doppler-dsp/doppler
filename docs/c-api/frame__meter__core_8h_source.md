@@ -2,7 +2,7 @@
 
 # File frame\_meter\_core.h
 
-[**File List**](files.md) **>** [**frame\_meter**](dir_7d049e2511dda4d27f50479ac6f6567b.md) **>** [**frame\_meter\_core.h**](frame__meter__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**frame\_meter**](dir_ea37d4cf1a6c64bbd4d366fb73a4d95d.md) **>** [**frame\_meter\_core.h**](frame__meter__core_8h.md)
 
 [Go to the documentation of this file](frame__meter__core_8h.md)
 
@@ -12,13 +12,13 @@
 #ifndef FRAME_METER_CORE_H
 #define FRAME_METER_CORE_H
 
-#include "ber/ber_core.h"
-#include "dp_state.h"
+#include "doppler/ber/ber_core.h"
+#include "doppler/dp_state.h"
 
 #include <stddef.h>
 #include <stdint.h>
-#include "detection/detection_core.h"
-#include "ber_meter/ber_meter_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/ber_meter/ber_meter_core.h"
 
 #ifdef __cplusplus
 extern "C"

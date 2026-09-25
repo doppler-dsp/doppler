@@ -7,9 +7,9 @@
  * zero-input passthrough, decimation ratio, odd-block buffering, and
  * reset behaviour — all verifiable without a filter-design library.
  */
+#include "doppler/hbdecim_q15/hbdecim_q15_core.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
-#include "hbdecim_q15/hbdecim_q15_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -10,7 +10,7 @@
 /* MemoryCaptureObject — wraps dp_tlm_capture_state_t *       */
 /* ======================================================== */
 
-#include "dp_tlm_capture/dp_tlm_capture_core.h"
+#include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
 #include "tlm_read_dict.h"
 
 typedef struct

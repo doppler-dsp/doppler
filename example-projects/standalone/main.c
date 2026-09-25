@@ -22,9 +22,9 @@
  *       build/libdoppler.a -lm
  */
 
-#include <awgn/awgn_core.h>
-#include <clib_common.h>
 #include <complex.h>
+#include <doppler/awgn/awgn_core.h>
+#include <doppler/clib_common.h>
 #include <math.h>
 #include <stdio.h>
 

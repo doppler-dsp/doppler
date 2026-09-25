@@ -1,7 +1,7 @@
 /*
  * measure_proc_gain.c — FFT processing gain in dB: 10*log10(nfft / 2).
  */
-#include "measure/measure_core.h"
+#include "doppler/measure/measure_core.h"
 
 #include <math.h>
 

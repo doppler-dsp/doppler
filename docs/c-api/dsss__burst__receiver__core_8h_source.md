@@ -2,7 +2,7 @@
 
 # File dsss\_burst\_receiver\_core.h
 
-[**File List**](files.md) **>** [**dsss\_burst\_receiver**](dir_32a143d35207eb7d99f4a541895f77eb.md) **>** [**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dsss\_burst\_receiver**](dir_630068a67b306c85c8348e5ba842eaef.md) **>** [**dsss\_burst\_receiver\_core.h**](dsss__burst__receiver__core_8h.md)
 
 [Go to the documentation of this file](dsss__burst__receiver__core_8h.md)
 
@@ -12,10 +12,10 @@
 #ifndef DSSS_BURST_RECEIVER_CORE_H
 #define DSSS_BURST_RECEIVER_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "buffer/buffer.h"
-#include "dp_state.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/buffer/buffer.h"
+#include "doppler/dp_state.h"
 
 typedef struct
 {
@@ -30,25 +30,25 @@ typedef struct
   uint8_t  frame_valid;    
 } dsss_br_event_t;
 
-#include "burst_capture/burst_capture_core.h"
-#include "burst_acq/burst_acq_core.h"
-#include "acq/acq_core.h"
-#include "burst_demod/burst_demod_core.h"
-#include "burst_despreader/burst_despreader_core.h"
-#include "ppe/ppe_core.h"
-#include "corr/corr_core.h"
-#include "corr2d/corr2d_core.h"
-#include "fft2d/fft2d_core.h"
-#include "spectral/spectral_core.h"
-#include "loop_filter/loop_filter_core.h"
-#include "detection/detection_core.h"
-#include "fft/fft_core.h"
-#include "pn/pn_core.h"
-#include "conv/conv_core.h"
-#include "rs/rs_core.h"
-#include "gold/gold_core.h"
-#include "mpsk/mpsk_core.h"
-#include "cvt/cvt_core.h"
+#include "doppler/burst_capture/burst_capture_core.h"
+#include "doppler/burst_acq/burst_acq_core.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/burst_demod/burst_demod_core.h"
+#include "doppler/burst_despreader/burst_despreader_core.h"
+#include "doppler/ppe/ppe_core.h"
+#include "doppler/corr/corr_core.h"
+#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/fft2d/fft2d_core.h"
+#include "doppler/spectral/spectral_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/fft/fft_core.h"
+#include "doppler/pn/pn_core.h"
+#include "doppler/conv/conv_core.h"
+#include "doppler/rs/rs_core.h"
+#include "doppler/gold/gold_core.h"
+#include "doppler/mpsk/mpsk_core.h"
+#include "doppler/cvt/cvt_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

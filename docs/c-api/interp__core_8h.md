@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**interp**](dir_af5ecbc8fae4d9dc167c6ab2381d74df.md) **>** [**interp\_core.h**](interp__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**interp**](dir_50f22f4a69ea3c5d52671b7845e67b28.md) **>** [**interp\_core.h**](interp__core_8h.md)
 
 [Go to the source code of this file](interp__core_8h_source.md)
 
 _Interp module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -78,5 +78,5 @@ _Interp module — public C API._
 
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/interp/interp_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/interp/interp_core.h`
 

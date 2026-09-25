@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**adc**](dir_a6be6b8cb61d5f2be55c0b2f94afbd88.md) **>** [**adc\_core.h**](adc__core_8h.md)
+[**FileList**](files.md) **>** [**adc**](dir_eddcd1edcea89729b407f545f79f2d08.md) **>** [**adc\_core.h**](adc__core_8h.md)
 
 [Go to the source code of this file](adc__core_8h_source.md)
 
 _Signed two's-complement ADC model._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
 * `#include <math.h>`
 
 
@@ -444,5 +444,5 @@ When dithering is disabled the float-to-double multiply can use SIMD widening ([
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/adc/adc_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/adc/adc_core.h`
 

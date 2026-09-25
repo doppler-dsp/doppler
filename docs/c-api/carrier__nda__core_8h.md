@@ -4,22 +4,22 @@
 
 
 
-[**FileList**](files.md) **>** [**carrier\_nda**](dir_425637d1941eacd8ae8cdd8750b207f0.md) **>** [**carrier\_nda\_core.h**](carrier__nda__core_8h.md)
+[**FileList**](files.md) **>** [**carrier\_nda**](dir_6eb92e8a380cf8a945db661ecf671c65.md) **>** [**carrier\_nda\_core.h**](carrier__nda__core_8h.md)
 
 [Go to the source code of this file](carrier__nda__core_8h_source.md)
 
 _Non-data-aided (NDA) M-th-power carrier-tracking loop._ [More...](#detailed-description)
 
-* `#include "boxcar/boxcar_core.h"`
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
-* `#include "lo/lo_core.h"`
-* `#include "lockdet/lockdet_core.h"`
-* `#include "loop_filter/loop_filter_core.h"`
-* `#include "dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/boxcar/boxcar_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/lo/lo_core.h"`
+* `#include "doppler/lockdet/lockdet_core.h"`
+* `#include "doppler/loop_filter/loop_filter_core.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
 * `#include <math.h>`
-* `#include "telemetry/telemetry_core.h"`
+* `#include "doppler/telemetry/telemetry_core.h"`
 
 
 
@@ -1038,5 +1038,5 @@ The de-rotated sample to feed the moving-average arm.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/carrier_nda/carrier_nda_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/carrier_nda/carrier_nda_core.h`
 

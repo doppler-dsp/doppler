@@ -167,5 +167,5 @@ Registered probes.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_tlm/dp_tlm_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_tlm/dp_tlm_core.h`
 

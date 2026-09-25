@@ -23,9 +23,9 @@
  *
  * Usage:  costas_jitter [--check]
  */
-#include "awgn/awgn_core.h"
-#include "costas/costas_core.h"
-#include "dp_complex.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/costas/costas_core.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -16,7 +16,7 @@ endif()
 add_library(adc_core OBJECT adc_core.c)
 target_include_directories(
   adc_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                  ${CMAKE_SOURCE_DIR}/native/inc/adc)
+                  ${CMAKE_SOURCE_DIR}/native/inc/doppler/adc)
 
 add_executable(test_adc_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_adc_core.c

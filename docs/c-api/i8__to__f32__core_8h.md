@@ -4,14 +4,14 @@
 
 
 
-[**FileList**](files.md) **>** [**i8\_to\_f32**](dir_fd8e995fbd9a7d674714f99e992f90b2.md) **>** [**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**i8\_to\_f32**](dir_fc9b7ccc74f65689d9e6b216ebcebff3.md) **>** [**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md)
 
 [Go to the source code of this file](i8__to__f32__core_8h_source.md)
 
 _int8-to-float converter with configurable inverse scale._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
 
 
 
@@ -321,5 +321,5 @@ Applies step() to every element. Accepts an optional pre-allocated output array;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/i8_to_f32/i8_to_f32_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/i8_to_f32/i8_to_f32_core.h`
 

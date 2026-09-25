@@ -9,7 +9,7 @@
  * substitution in bm_solve's caller and the X^-(j0-1) in forney_value. See
  * docs/design/reed-solomon.md.
  */
-#include "rs/rs_core.h"
+#include "doppler/rs/rs_core.h"
 
 #include <string.h>
 

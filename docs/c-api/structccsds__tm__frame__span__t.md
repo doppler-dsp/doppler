@@ -127,5 +127,5 @@ Bits covered, or 0 if the stage did not run
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ccsds_tm/ccsds_tm_frame.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ccsds_tm/ccsds_tm_frame.h`
 

@@ -121,5 +121,5 @@ det\_noise\_estimate() over the chunk (MEAN/MIN/MAX).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acq/acq_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acq/acq_core.h`
 

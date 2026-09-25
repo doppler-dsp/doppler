@@ -16,7 +16,7 @@ endif()
 add_library(gold_core OBJECT gold_core.c)
 target_include_directories(
   gold_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                   ${CMAKE_SOURCE_DIR}/native/inc/gold)
+                   ${CMAKE_SOURCE_DIR}/native/inc/doppler/gold)
 
 add_executable(test_gold_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_gold_core.c

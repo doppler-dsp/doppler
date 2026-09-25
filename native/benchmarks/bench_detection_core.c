@@ -24,7 +24,7 @@
  * threshold does -- so each entry carries its own, and `ops` in the JSON
  * is calls per second in every row regardless.
  */
-#include "detection/detection_core.h"
+#include "doppler/detection/detection_core.h"
 #include "dp_bench.h"
 #include <stdio.h>
 

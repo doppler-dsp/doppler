@@ -2,7 +2,7 @@
 #
 # Bare malloc/calloc/realloc calls per file in doppler's library C, all of
 # them predating the dp_xmalloc/dp_xcalloc/dp_xnn helpers in
-# native/inc/clib_common.h.
+# native/inc/doppler/clib_common.h.
 #
 # A COUNT MAY ONLY SHRINK, UNLESS THE LINE CARRIES A REASON. A file not
 # listed may not allocate at all. Converting a call means the number here
@@ -21,11 +21,11 @@
 #
 # Format:  <path> <count>[  # why this file is allowed to have gone UP]
 
-native/inc/buffer/buffer.h 1
-native/inc/ccsds_tm/ccsds_tm_frame.h 1
-native/inc/doppler_channel/doppler_channel_core.h 1
-native/inc/dp_parallel.h 1
-native/inc/frame/frame_core.h 1
+native/inc/doppler/buffer/buffer.h 1
+native/inc/doppler/ccsds_tm/ccsds_tm_frame.h 1
+native/inc/doppler/doppler_channel/doppler_channel_core.h 1
+native/inc/doppler/dp_parallel.h 1
+native/inc/doppler/frame/frame_core.h 1
 native/src/RateConverter/RateConverter_core.c 8
 native/src/acc_cf64/acc_cf64_core.c 1
 native/src/acc_f32/acc_f32_core.c 1

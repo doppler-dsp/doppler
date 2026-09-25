@@ -1,6 +1,6 @@
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/fft/fft_core.h"
 #include "dp_test.h"
-#include "fft/fft_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

@@ -6,7 +6,7 @@
  * object exists to hold the geometry so a caller cannot accidentally hand
  * the two ends of a link different numbers.
  */
-#include "interleaver/interleaver_core.h"
+#include "doppler/interleaver/interleaver_core.h"
 
 #include <stdlib.h>
 

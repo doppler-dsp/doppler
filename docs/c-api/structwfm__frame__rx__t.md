@@ -138,5 +138,5 @@ wfm_frame_stage_rx_t wfm_frame_rx_t::stage[WFM_FRAME_MAX_STAGES];
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfm/wfm_frame.h`
+The documentation for this class was generated from the following file `native/inc/doppler/wfm/wfm_frame.h`
 

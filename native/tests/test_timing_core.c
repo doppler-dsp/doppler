@@ -5,9 +5,9 @@
  * checks are that pacing actually waits ~n/fs, that the stamp arithmetic is
  * exact, and that underruns are counted / resync re-anchors.
  */
-#include "dp_interrupt.h"
+#include "doppler/dp_interrupt.h"
+#include "doppler/timing/timing_core.h"
 #include "dp_test.h"
-#include "timing/timing_core.h"
 
 #include <inttypes.h>
 #include <stdio.h>

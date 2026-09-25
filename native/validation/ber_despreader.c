@@ -19,13 +19,13 @@
  *   ber_despreader              full sweep (proves 1e-5 @ 9.6 dB), ~8 s
  *   ber_despreader --check      fast CI assert vs theory at 2..6 dB, ~2 s
  */
-#include "awgn/awgn_core.h"
-#include "ber/ber_core.h"
-#include "dp_complex.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/ber/ber_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/pn/pn_core.h"
+#include "doppler/timing/timing_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_rng_test.h"
-#include "pn/pn_core.h"
-#include "timing/timing_core.h"
-#include "wfm_synth/wfm_synth_core.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

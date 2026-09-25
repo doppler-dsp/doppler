@@ -13,7 +13,7 @@
 #include "dp_test.h"
 
 #include "cJSON.h"
-#include "dp_event_log/dp_event_log_core.h"
+#include "doppler/dp_event_log/dp_event_log_core.h"
 
 #include <stdio.h>
 #include <stdlib.h>

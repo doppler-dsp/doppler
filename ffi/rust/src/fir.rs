@@ -1,4 +1,4 @@
-/// Finite impulse response filter (`native/inc/fir/fir_core.h`).
+/// Finite impulse response filter (`native/inc/doppler/fir/fir_core.h`).
 use crate::types::DpCf32;
 use num_complex::Complex;
 

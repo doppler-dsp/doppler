@@ -2,7 +2,7 @@
 
 # File detection\_core.h
 
-[**File List**](files.md) **>** [**detection**](dir_3a1e0e8c534208cc3745b2f53a028862.md) **>** [**detection\_core.h**](detection__core_8h.md)
+[**File List**](files.md) **>** [**detection**](dir_c7528e0bd68524c48f260a564c045102.md) **>** [**detection\_core.h**](detection__core_8h.md)
 
 [Go to the documentation of this file](detection__core_8h.md)
 

@@ -34,11 +34,11 @@
  *   ./build/native/examples/spool_follow_demo 3      # or stop itself at 3s
  */
 
-#include "dp_interrupt.h"
-#include "wfm_reader/wfm_reader_core.h"
-#include "wfm_writer/wfm_writer_core.h"
+#include "doppler/dp_interrupt.h"
+#include "doppler/wfm_reader/wfm_reader_core.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <pthread.h>
 #include <signal.h>

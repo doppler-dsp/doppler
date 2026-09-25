@@ -17,7 +17,7 @@ endif()
 add_library(f64_buffer_core INTERFACE)
 target_include_directories(
   f64_buffer_core INTERFACE ${CMAKE_SOURCE_DIR}/native/inc
-                            ${CMAKE_SOURCE_DIR}/native/inc/f64_buffer)
+                            ${CMAKE_SOURCE_DIR}/native/inc/doppler/f64_buffer)
 target_link_libraries(f64_buffer_core INTERFACE
     dp_interrupt_guard_core)
 

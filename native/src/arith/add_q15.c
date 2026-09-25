@@ -1,7 +1,7 @@
 /*
  * add_q15.c — arith module-level function.
  */
-#include "arith/arith_core.h"
+#include "doppler/arith/arith_core.h"
 
 void
 add_q15 (const int16_t *a, size_t a_len, const int16_t *b, size_t b_len,

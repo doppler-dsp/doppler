@@ -108,5 +108,5 @@ rs_t rs_codec_state_t::rs;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/rs_codec/rs_codec_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/rs_codec/rs_codec_core.h`
 

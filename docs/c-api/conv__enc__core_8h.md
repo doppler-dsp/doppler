@@ -4,16 +4,16 @@
 
 
 
-[**FileList**](files.md) **>** [**conv\_enc**](dir_b689baf1ac742b6ceba235289d5a286b.md) **>** [**conv\_enc\_core.h**](conv__enc__core_8h.md)
+[**FileList**](files.md) **>** [**conv\_enc**](dir_c22965c7b72380eff65e84661867f314.md) **>** [**conv\_enc\_core.h**](conv__enc__core_8h.md)
 
 [Go to the source code of this file](conv__enc__core_8h_source.md)
 
 _The convolutional encoder, as a stateful object over_ `conv` _._[More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "conv/conv_core.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/conv/conv_core.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
 
 
 
@@ -552,5 +552,5 @@ _Blob format version._
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/conv_enc/conv_enc_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/conv_enc/conv_enc_core.h`
 

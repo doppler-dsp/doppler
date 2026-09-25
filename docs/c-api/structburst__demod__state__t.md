@@ -625,5 +625,5 @@ sync word length (symbols).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/burst_demod/burst_demod_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/burst_demod/burst_demod_core.h`
 

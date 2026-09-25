@@ -20,7 +20,7 @@
  *   Falls back to scalar on non-AVX-512 targets.
  */
 
-#include "fir/fir_core.h"
+#include "doppler/fir/fir_core.h"
 
 #include <stdlib.h>
 #include <string.h>

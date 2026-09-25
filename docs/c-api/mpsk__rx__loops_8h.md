@@ -4,24 +4,24 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**mpsk\_receiver**](dir_a1dc26622ebd32726f4fc723db7ccb3b.md) **>** [**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**mpsk\_receiver**](dir_7dd9db0064eee02f2344cc7ae60c611e.md) **>** [**mpsk\_rx\_loops.h**](mpsk__rx__loops_8h.md)
 
 [Go to the source code of this file](mpsk__rx__loops_8h_source.md)
 
 _The two loops an M-PSK receiver closes, independent of its front end._ [More...](#detailed-description)
 
-* `#include "agc/agc_core.h"`
-* `#include "viterbi/viterbi_core.h"`
-* `#include "carrier_nda/carrier_nda_core.h"`
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
-* `#include "lockdet/lockdet_core.h"`
-* `#include "loop_filter/loop_filter_core.h"`
-* `#include "mpsk/mpsk_core.h"`
-* `#include "ratesync/ratesync_core.h"`
-* `#include "dp_tlm/dp_tlm_core.h"`
-* `#include "dp_complex.h"`
+* `#include "doppler/agc/agc_core.h"`
+* `#include "doppler/viterbi/viterbi_core.h"`
+* `#include "doppler/carrier_nda/carrier_nda_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/lockdet/lockdet_core.h"`
+* `#include "doppler/loop_filter/loop_filter_core.h"`
+* `#include "doppler/mpsk/mpsk_core.h"`
+* `#include "doppler/ratesync/ratesync_core.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/dp_complex.h"`
 * `#include <math.h>`
 
 
@@ -916,5 +916,5 @@ A constant, not a computation — nothing in this receiver moves the optimal dam
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/mpsk_receiver/mpsk_rx_loops.h`
+The documentation for this class was generated from the following file `native/inc/doppler/mpsk_receiver/mpsk_rx_loops.h`
 

@@ -9,7 +9,7 @@
 /* CICObject — wraps cic_state_t *       */
 /* ======================================================== */
 
-#include "cic/cic_core.h"
+#include "doppler/cic/cic_core.h"
 
 typedef struct
 {

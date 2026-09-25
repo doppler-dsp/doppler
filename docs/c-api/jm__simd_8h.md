@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**jm\_simd.h**](jm__simd_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**jm\_simd.h**](jm__simd_8h.md)
 
 [Go to the source code of this file](jm__simd_8h_source.md)
 
@@ -544,5 +544,5 @@ Can be included standalone; reuses JM\_RESTRICT from [**jm\_perf.h**](jm__perf_8
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/jm_simd.h`
+The documentation for this class was generated from the following file `native/inc/doppler/jm_simd.h`
 

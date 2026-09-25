@@ -137,7 +137,7 @@ def section_object() -> None:
                 "the two embedded loops — not re-derived here",
             ],
             [
-                "`native/inc/burst_despreader/burst_despreader_core.h`",
+                "`native/inc/doppler/burst_despreader/burst_despreader_core.h`",
                 "the contract — the SSOT this report audits",
             ],
         ],

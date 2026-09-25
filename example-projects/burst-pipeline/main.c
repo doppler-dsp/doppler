@@ -51,15 +51,15 @@
 #include <string.h>
 #include <time.h>
 
-#include "mpsk/mpsk_core.h"
-#include "snr/snr_core.h"
-#include "syncword/syncword_core.h"
-#include "wfm/wfm_compose.h"
-#include "wfm/wfm_frame.h"
-#include "wfm/wfm_plan.h"
-#include "wfm_reader/wfm_reader_core.h"
-#include "wfm_synth/wfm_synth_core.h"
-#include "wfm_writer/wfm_writer_core.h"
+#include "doppler/mpsk/mpsk_core.h"
+#include "doppler/snr/snr_core.h"
+#include "doppler/syncword/syncword_core.h"
+#include "doppler/wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_frame.h"
+#include "doppler/wfm/wfm_plan.h"
+#include "doppler/wfm_reader/wfm_reader_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 
 #define FS 1.0e6 /* sample rate, Hz                                  */
 /* ONE SAMPLE PER SYMBOL. The frame, the sync search and the CRC are all

@@ -50,7 +50,7 @@ cmake --build build
 The same program, compiled directly:
 
 ```sh
-cc main.c -o consumer -I ~/.local/include/doppler -L ~/.local/lib -ldoppler -lm
+cc main.c -o consumer -I ~/.local/include -L ~/.local/lib -ldoppler -lm
 ```
 
 or letting pkg-config answer:

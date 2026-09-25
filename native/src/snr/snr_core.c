@@ -6,4 +6,4 @@
  * directly on sliding-window slices, so each algorithm lives exactly
  * once. Mirrors the detection/wfm module layout.
  */
-#include "snr/snr_core.h"
+#include "doppler/snr/snr_core.h"

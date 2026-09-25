@@ -24,8 +24,8 @@ Design and API, not restated here:
 
 | page | owns |
 |---|---|
-| `native/inc/interleaver/interleaver_core.h` | the SSOT for every claim below |
-| `native/inc/dp_interleave.h` | the permutation itself, and why the unit is a parameter |
+| `native/inc/doppler/interleaver/interleaver_core.h` | the SSOT for every claim below |
+| `native/inc/doppler/dp_interleave.h` | the permutation itself, and why the unit is a parameter |
 | [Interleaving](../../../../../../docs/design/interleaving.md) | what it buys, the three ways to get it wrong, where it sits in a frame |
 | `native/tests/test_interleaver_core.c` | the object's C certification |
 | `native/tests/test_dp_interleave.c` | the permutation's C certification, against its index map |

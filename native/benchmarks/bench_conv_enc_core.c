@@ -17,8 +17,8 @@
  * charges the whole clock ramp to whichever runs first, which turned a real
  * 1.42x into 0.99x in bench_viterbi_core.c (doppler#896).
  */
-#include "conv/conv_core.h"
-#include "conv_enc/conv_enc_core.h"
+#include "doppler/conv/conv_core.h"
+#include "doppler/conv_enc/conv_enc_core.h"
 #include "jm_bench.h"
 
 #include <stdio.h>

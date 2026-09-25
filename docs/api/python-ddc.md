@@ -464,7 +464,7 @@ ______________________________________________________________________
 #### Architecture A — one call
 
 ```c
-#include <ddc/ddc_core.h>
+#include <doppler/ddc/ddc_core.h>
 
 int main(void)
 {

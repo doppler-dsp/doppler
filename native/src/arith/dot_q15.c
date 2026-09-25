@@ -1,8 +1,8 @@
 /*
  * dot_q15.c — arith module-level function.
  */
-#include "arith/arith_core.h"
-#include "q15_mac.h"
+#include "doppler/arith/arith_core.h"
+#include "doppler/q15_mac.h"
 
 int64_t
 dot_q15 (const int16_t *a, size_t a_len, const int16_t *b, size_t b_len)

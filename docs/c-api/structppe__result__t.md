@@ -141,5 +141,5 @@ winning-row peak-to-mean (rough confidence).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ppe/ppe_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ppe/ppe_core.h`
 

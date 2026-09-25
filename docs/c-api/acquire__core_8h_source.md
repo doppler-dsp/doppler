@@ -2,7 +2,7 @@
 
 # File acquire\_core.h
 
-[**File List**](files.md) **>** [**acquire**](dir_88b93ea666fc84a6b60ee32ac90530e8.md) **>** [**acquire\_core.h**](acquire__core_8h.md)
+[**File List**](files.md) **>** [**acquire**](dir_684079cd19bcefcd0ee51c221517a041.md) **>** [**acquire\_core.h**](acquire__core_8h.md)
 
 [Go to the documentation of this file](acquire__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef ACQUIRE_CORE_H
 #define ACQUIRE_CORE_H
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
 #ifdef __cplusplus
 extern "C" {

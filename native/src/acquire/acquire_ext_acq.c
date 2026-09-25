@@ -9,7 +9,7 @@
 /* AcquisitionObject — wraps acq_state_t *       */
 /* ======================================================== */
 
-#include "acq/acq_core.h"
+#include "doppler/acq/acq_core.h"
 
 typedef struct
 {

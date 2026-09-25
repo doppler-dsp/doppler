@@ -87,15 +87,15 @@
  *                                              channel's truth, the code
  *                                              rate, the lock metric
  */
-#include "acq/acq_core.h"
-#include "async_dsss_receiver/async_dsss_receiver_core.h"
-#include "awgn/awgn_core.h"
-#include "clib_common.h"
-#include "doppler_channel/doppler_channel_core.h"
-#include "dp_complex.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/gold/gold_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_test.h"
-#include "gold/gold_core.h"
-#include "wfm_synth/wfm_synth_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

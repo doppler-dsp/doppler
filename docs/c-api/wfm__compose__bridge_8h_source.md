@@ -2,7 +2,7 @@
 
 # File wfm\_compose\_bridge.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm\_compose**](dir_cd921e547fe04d2978fad26e616ea160.md) **>** [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wfm\_compose**](dir_6d794a7fa9423fe9f7b14be42b83e035.md) **>** [**wfm\_compose\_bridge.h**](wfm__compose__bridge_8h.md)
 
 [Go to the documentation of this file](wfm__compose__bridge_8h.md)
 
@@ -19,8 +19,8 @@
 #ifndef WFM_COMPOSE_BRIDGE_H
 #define WFM_COMPOSE_BRIDGE_H
 
-#include "wfm/wfm_compose.h"
-#include "wfm_synth/wfm_synth_core.h"
+#include "doppler/wfm/wfm_compose.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 
 #ifdef __cplusplus
 extern "C" {

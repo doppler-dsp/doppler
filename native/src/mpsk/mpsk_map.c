@@ -5,7 +5,7 @@
  * mpsk_demap). Logic lives in the mpsk_core.h inline helpers; this is the
  * loop.
  */
-#include "mpsk/mpsk_core.h"
+#include "doppler/mpsk/mpsk_core.h"
 
 void
 mpsk_map (const uint8_t *sym, size_t sym_len, float _Complex *out, int m)

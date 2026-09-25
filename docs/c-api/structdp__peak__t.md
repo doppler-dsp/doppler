@@ -127,5 +127,5 @@ Normalised frequency −0.5..+0.5 (DC-centred).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/spectral/spectral_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/spectral/spectral_core.h`
 

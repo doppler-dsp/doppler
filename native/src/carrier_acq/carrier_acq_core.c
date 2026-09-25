@@ -1,6 +1,6 @@
-#include "carrier_acq/carrier_acq_core.h"
-#include "dp_complex.h"
-#include "util/util_core.h"
+#include "doppler/carrier_acq/carrier_acq_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/util/util_core.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

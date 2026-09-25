@@ -2,7 +2,7 @@
 
 # File resample\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**resample**](dir_430486ea22038fad478027f2dc6550c6.md) **>** [**resample\_core.h**](resample__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**resample**](dir_4efb1181c8663bd7a6953f73a4eb8dc9.md) **>** [**resample\_core.h**](resample__core_8h.md)
 
 [Go to the documentation of this file](resample__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef RESAMPLE_CORE_H
 #define RESAMPLE_CORE_H
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
 #ifdef __cplusplus
 extern "C"

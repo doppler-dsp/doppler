@@ -145,7 +145,7 @@ CF32 IQ phasors at ~96 dBc SFDR.
 ### Free-running IQ
 
 ```c
-#include <lo/lo_core.h>
+#include <doppler/lo/lo_core.h>
 #include <complex.h>
 #include <stdio.h>
 
@@ -172,7 +172,7 @@ int main(void) {
 ### FM modulation via control port
 
 ```c
-#include <lo/lo_core.h>
+#include <doppler/lo/lo_core.h>
 #include <complex.h>
 #include <math.h>
 
@@ -198,7 +198,7 @@ ______________________________________________________________________
 ### One-shot (no persistent state)
 
 ```c
-#include <awgn/awgn_core.h>
+#include <doppler/awgn/awgn_core.h>
 #include <complex.h>
 
 int main(void) {
@@ -211,7 +211,7 @@ int main(void) {
 ### Stateful generator (streaming / reproducible replay)
 
 ```c
-#include <awgn/awgn_core.h>
+#include <doppler/awgn/awgn_core.h>
 #include <complex.h>
 #include <stdio.h>
 
@@ -237,8 +237,8 @@ int main(void) {
 ### Noisy carrier
 
 ```c
-#include <awgn/awgn_core.h>
-#include <lo/lo_core.h>
+#include <doppler/awgn/awgn_core.h>
+#include <doppler/lo/lo_core.h>
 #include <complex.h>
 #include <stdio.h>
 
@@ -271,7 +271,7 @@ a polyphase resampler clock or generating carry events.
 ### Raw uint32 phase + overflow carry
 
 ```c
-#include <nco/nco_core.h>
+#include <doppler/nco/nco_core.h>
 
 int main(void) {
     nco_state_t *nco = nco_create(0.25, 0);  // nmax=0 → raw [0, 2^32)
@@ -291,7 +291,7 @@ ______________________________________________________________________
 ## FIR filter
 
 ```c
-#include <fir/fir_core.h>
+#include <doppler/fir/fir_core.h>
 #include <complex.h>
 #include <math.h>
 
@@ -329,7 +329,7 @@ CF32 is ~2× faster than CF64 for the same transform length.
 ### 1D FFT (double precision)
 
 ```c
-#include "fft/fft_core.h"
+#include "doppler/fft/fft_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -353,7 +353,7 @@ int main(void) {
 ### 1D FFT (single precision / CF32, ~2× faster)
 
 ```c
-#include "fft/fft_core.h"
+#include "doppler/fft/fft_core.h"
 #include <complex.h>
 #include <math.h>
 
@@ -376,7 +376,7 @@ int main(void) {
 ### 2D FFT
 
 ```c
-#include "fft2d/fft2d_core.h"
+#include "doppler/fft2d/fft2d_core.h"
 #include <complex.h>
 
 int main(void) {
@@ -401,7 +401,7 @@ ______________________________________________________________________
 output length is exactly `n_in / 2`.
 
 ```c
-#include <HalfbandDecimator/HalfbandDecimator_core.h>
+#include <doppler/HalfbandDecimator/HalfbandDecimator_core.h>
 #include <complex.h>
 #include <stdio.h>
 
@@ -443,7 +443,7 @@ The AGC drives output power to `ref_db` using a first-order loop filter.
 dB domain so settling time is independent of the step size.
 
 ```c
-#include <agc/agc_core.h>
+#include <doppler/agc/agc_core.h>
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
@@ -492,8 +492,8 @@ receives and prints power.
 <!-- docs-snippet: skip=illustrative excerpt (undeclared samples, needs a live NATS broker); see native/examples/pipeline_demo for the tested version -->
 
 ```c
-#include <doppler.h>
-#include <stream/stream.h>
+#include <doppler/doppler.h>
+#include <doppler/stream/stream.h>
 #include <complex.h>
 
 /* Producer thread — rate/freq travel in the header the send builds */

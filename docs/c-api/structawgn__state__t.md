@@ -140,5 +140,5 @@ uint64_t awgn_state_t::vs[4][8];
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/awgn/awgn_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/awgn/awgn_core.h`
 

@@ -17,8 +17,8 @@
  * and is released one interval later -- so every expectation below is
  * about the EMITTER's slot, never an exact count of slots.
  */
-#include "async_dsss_pool/async_dsss_pool_core.h"
-#include "dp_complex.h"
+#include "doppler/async_dsss_pool/async_dsss_pool_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"

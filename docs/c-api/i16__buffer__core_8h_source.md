@@ -2,7 +2,7 @@
 
 # File i16\_buffer\_core.h
 
-[**File List**](files.md) **>** [**i16\_buffer**](dir_214119e05624f58881fdbfa30e65f3ff.md) **>** [**i16\_buffer\_core.h**](i16__buffer__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**i16\_buffer**](dir_5e38c689ce67e24fea3517ffd89658ee.md) **>** [**i16\_buffer\_core.h**](i16__buffer__core_8h.md)
 
 [Go to the documentation of this file](i16__buffer__core_8h.md)
 
@@ -12,10 +12,10 @@
 #ifndef I16_BUFFER_CORE_H
 #define I16_BUFFER_CORE_H
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
-#include "buffer/buffer.h"
-#include "dp_interrupt_guard/dp_interrupt_guard_core.h"
+#include "doppler/buffer/buffer.h"
+#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"
 
 #ifdef __cplusplus
 extern "C"

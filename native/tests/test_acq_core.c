@@ -1192,11 +1192,11 @@ _acq_doppler_rate_check (void)
  * An engine with a 510-sample epoch -- uneven blocks (510/16), a mixer
  * resync mid-epoch -- and three epochs at an odd t0 and code phase, so a
  * wrong block edge, resync or epoch advance shows. Frequencies: a fine grid
- * across 1.6 cycles per epoch plus twins 1.3 spans out (three groups),
+ * plus twins, spread just under a cycle per epoch either side,
  * scored on a coherent tone at the residual's worst and on noise, where
  * the error is normalized by the epoch's sum |x * ref| (what either face
- * of a correlation can reach). Past four groups it is the primitive
- * itself, equal to rounding. */
+ * of a correlation can reach). Spread wider than that, it is the
+ * primitive itself, equal to rounding. */
 static int
 _acq_cell_corr_grid_check (void)
 {
@@ -1217,16 +1217,16 @@ _acq_cell_corr_grid_check (void)
     NF = 45
   };
   double f[NF];
-  /* A fine grid over +-0.8 of a span about fc, twins 1.3 spans out, and
-     the residual's worst either side of the base f[NF/2] = f[22]: groups
-     -1, 0 and +1 about it. */
+  /* A fine grid over +-0.8 of a span about fc, twins 0.99 of a span out
+     -- the widest spread the grid expands, so the most blocks -- and two
+     cells near either edge, where the residual turns fastest. */
   const double fc = 3.1e3;
   for (size_t j = 0; j < 41; j++)
     f[j] = fc + ((double)j - 20.0) * span / 25.0;
-  f[41] = fc - 1.3 * span;
-  f[42] = fc + 1.3 * span;
-  f[43] = f[22] + 0.499 * span;
-  f[44] = f[22] - 0.499 * span;
+  f[41] = fc - 0.99 * span;
+  f[42] = fc + 0.99 * span;
+  f[43] = fc + 0.95 * span;
+  f[44] = fc - 0.97 * span;
   double _Complex got[E * NF];
 
   for (int kind = 0; kind < 2; kind++)
@@ -1261,8 +1261,8 @@ _acq_cell_corr_grid_check (void)
       DP_CHECK (worst < 1e-5);
     }
 
-  /* Five whole-cycle groups: the fallback, the primitive itself. Equal to
-     rounding, not bit for bit: arm64 clang contracts to FMA by default, and
+  /* Spread two cycles either side: the fallback, the primitive itself. Equal
+     to rounding, not bit for bit: arm64 clang contracts to FMA by default, and
      differently where acq_cell_corr() is inlined than where it is called. */
   /* Off the whole-cycle grid: at a multiple of `span` an epoch's time
      offset is whole turns, and a wrong one would pass unseen. */

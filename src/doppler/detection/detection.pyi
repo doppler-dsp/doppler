@@ -1241,8 +1241,16 @@ def det_pfa_cell(pfa: float, n_cells: float) -> float:
     together with probability (1 - pc)^n. Solving 1 - (1 - pc)^n = pfa
     gives pc = 1 - (1 - pfa)^(1/n), computed through complement_power()
     because the direct form cancels at the small pfa every search uses.
-    Slightly above the Bonferroni pfa/n, which is the first term of the
-    same series.
+
+    Exact for independent cells, and for Gaussian noise an upper bound on
+    the search's Pfa at ANY correlation between cells (Sidak's inequality):
+    the events |z_i| <= c are symmetric convex sets, whose joint
+    probability under a Gaussian is at least their product. Bonferroni's
+    pfa/n, the first term of the same series, holds for any noise
+    distribution too, at a cost of about pfa/2 relative -- ~1e-4 dB of
+    threshold at pfa = 1e-3. A shared CFAR reference makes the cells' test
+    sets data-dependent, where the inequality is well motivated rather than
+    proven.
 
     Parameters
     ----------

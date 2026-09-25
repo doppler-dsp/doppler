@@ -681,7 +681,10 @@ double det_pfa_cell (
 
 
 
-The search false-alarms when ANY cell does, so n cells each at pc miss together with probability (1 - pc)^n. Solving 1 - (1 - pc)^n = pfa gives pc = 1 - (1 - pfa)^(1/n), computed through [**complement\_power()**](util__core_8h.md#function-complement_power) because the direct form cancels at the small pfa every search uses. Slightly above the Bonferroni pfa/n, which is the first term of the same series.
+The search false-alarms when ANY cell does, so n cells each at pc miss together with probability (1 - pc)^n. Solving 1 - (1 - pc)^n = pfa gives pc = 1 - (1 - pfa)^(1/n), computed through [**complement\_power()**](util__core_8h.md#function-complement_power) because the direct form cancels at the small pfa every search uses.
+
+
+Exact for independent cells, and for Gaussian noise an upper bound on the search's Pfa at ANY correlation between cells (Sidak's inequality): the events \|z\_i\| &lt;= c are symmetric convex sets, whose joint probability under a Gaussian is at least their product. Bonferroni's pfa/n, the first term of the same series, holds for any noise distribution too, at a cost of about pfa/2 relative  ~1e-4 dB of threshold at pfa = 1e-3. A shared CFAR reference makes the cells' test sets data-dependent, where the inequality is well motivated rather than proven.
 
 
 

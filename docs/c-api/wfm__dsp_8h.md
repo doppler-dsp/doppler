@@ -11,6 +11,7 @@
 _DSSS spreading + root-raised-cosine pulse shaping (Phase B)._ [More...](#detailed-description)
 
 * `#include "clib_common.h"`
+* `#include "util/util_core.h"`
 * `#include <math.h>`
 
 

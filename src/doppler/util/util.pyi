@@ -1,4 +1,6 @@
 # util/util.pyi — type stubs for the util C extension.
+import numpy as np
+from numpy.typing import NDArray
 def square_clip(y: complex, lin: float) -> complex:
     """Square-clip a complex sample: clip the real and imaginary parts
     independently to [-lin, lin] (a square region in the IQ plane).
@@ -280,5 +282,208 @@ def ema_alpha_decim(alpha: float, d: int) -> float:
     1.0
     >>> ema_alpha_decim(0.0, 8)          # frozen stays frozen
     0.0
+
+    """
+
+def complement_power(p: float, x: float) -> float:
+    """1 - (1 - p)^x for p in [0, 1] and real x >= 0, computed through
+    expm1/log1p so it stays accurate when p is small. The one kernel behind two
+    library quantities: the EMA coefficient that advances d samples
+    (ema_alpha_decim, x = d) and the per-cell false-alarm probability that
+    splits a search's Pfa over n independent cells (det_pfa_cell, x = 1/n).
+
+    Written directly, `1 - pow(1 - p, x)` loses everything `1 - p` rounded
+    away: at `p = 1e-5` it is 26865 ulps off. `-expm1(x * log1p(-p))` is
+    the same quantity with nothing cancelled.
+
+    Two library quantities are this one expression, and both call it:
+
+    - the EMA coefficient that advances `d` samples in one step,
+      ema_alpha_decim(alpha, d) (`x = d`);
+    - the per-cell false-alarm probability that splits a search's `pfa`
+      over `n` independent cells, det_pfa_cell(pfa, n) (`x = 1/n`, Šidák).
+
+    Parameters
+    ----------
+    p : float
+        Per-trial probability, in `[0, 1]`.
+    x : float
+        Number of trials, any real `x >= 0`.
+
+    Returns
+    -------
+    float
+        `1 - (1 - p)^x`; exactly `p` at `x == 1`, 0 at `x == 0` or `p <=
+        0`, and 1 at `p >= 1` (for `x > 0`).
+
+    Examples
+    --------
+    >>> from doppler.util import complement_power
+    >>> complement_power(0.05, 1.0)          # one trial is p exactly
+    0.05
+    >>> round(complement_power(0.5, 2.0), 12)  # 1 - 0.25
+    0.75
+    >>> round(complement_power(1e-3, 1 / 1000) * 1e6, 6)  # Sidak split
+    1.0005
+    >>> complement_power(0.3, 0.0)
+    0.0
+
+    """
+
+def sinc(u: float) -> float:
+    """Normalized sinc, sin(pi u)/(pi u), with sinc(0) = 1: the amplitude
+    response of a rectangular window, so the straddle loss of a signal u bins
+    off a DFT bin's centre.
+
+    The amplitude response of a rectangular window, which makes it the
+    straddle loss of every correlator and DFT: a signal `u` bins off a
+    bin's centre keeps `sinc(u)` of its amplitude in that bin.
+
+    Parameters
+    ----------
+    u : float
+        Offset, in bins (any real).
+
+    Returns
+    -------
+    float
+        `sin(pi u) / (pi u)`, and exactly 1 at `u == 0`.
+
+    Examples
+    --------
+    >>> from doppler.util import sinc
+    >>> sinc(0.0)
+    1.0
+    >>> round(sinc(0.5), 12)                 # half a bin: 2/pi
+    0.636619772368
+    >>> abs(sinc(1.0)) < 1e-15               # the first null
+    True
+
+    """
+
+def mean_sinc(umax: float) -> float:
+    """The mean of sinc(u) over u in [0, umax]: the average amplitude loss of a
+    signal whose offset from the nearest bin centre is uniform over umax bins.
+    1 for umax <= 0. 64-interval Simpson (simpson_weights) over segments of at
+    most half a bin: within 3e-10 at any umax.
+
+    The average amplitude loss of a signal whose offset from the nearest
+    bin centre is uniform over `umax` bins: the scalloping a Pd model
+    averages over, where sinc(umax) would be only the worst case.
+    64-interval Simpson (simpson_weights()) over segments of at most half a
+    bin: within 3e-10 at any umax, far below any model this feeds.
+
+    Parameters
+    ----------
+    umax : float
+        Upper end of the offset, in bins.
+
+    Returns
+    -------
+    float
+        The mean; 1 for `umax <= 0`.
+
+    Examples
+    --------
+    >>> from doppler.util import mean_sinc
+    >>> mean_sinc(0.0)
+    1.0
+    >>> round(mean_sinc(0.5), 9)             # uniform over half a bin
+    0.8726543
+
+    """
+
+def simpson_weights(w: NDArray[np.float64]) -> None:
+    """Fill w with composite Simpson weights for the MEAN of a function over an
+    interval: sum(w[i] * f(a + i*(b - a)/(n - 1))) approximates the mean of f
+    over [a, b], for n = len(w) odd and at least 3. The weights sum to 1.
+    Raises for any other length.
+
+    With `n = w_len` points, `sum(w[i] * f(a + i*(b - a)/(n - 1)))` is the
+    mean of `f` over `[a, b]` (multiply by `b - a` for the integral). The
+    weights are `1, 4, 2, 4, ..., 2, 4, 1` over `3 (n - 1)` and sum to 1.
+    Exact for any cubic; the error falls as `(n - 1)^-4` for a smooth `f`.
+
+    Parameters
+    ----------
+    w : NDArray[np.float64]
+        Output, `w_len` weights.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.util import simpson_weights
+    >>> w = np.empty(5)
+    >>> simpson_weights(w)
+    >>> w * 12                               # 1, 4, 2, 4, 1 over 12
+    array([1., 4., 2., 4., 1.])
+    >>> u = np.linspace(0.0, 1.0, 5)
+    >>> round(float(w @ u**3), 12)           # mean of u^3 over [0, 1]
+    0.25
+
+    """
+
+def midpoint_nodes(u: NDArray[np.float64]) -> None:
+    """Fill u with the midpoint-rule nodes on [0, 1], u[k] = (k + 1/2)/n for n
+    = len(u): the points a uniform average over n equal cells is evaluated at,
+    each weighted 1/n.
+
+    The points a uniform average over `n` equal cells is evaluated at, each
+    weighted `1/n`. Scale to `[a, b]` as `a + (b - a) * u[k]`.
+
+    Parameters
+    ----------
+    u : NDArray[np.float64]
+        Output, `u_len` nodes, ascending.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.util import midpoint_nodes
+    >>> u = np.empty(4)
+    >>> midpoint_nodes(u)
+    >>> u
+    array([0.125, 0.375, 0.625, 0.875])
+
+    """
+
+def gauss_hermite(z: NDArray[np.float64], p: NDArray[np.float64]) -> None:
+    """Fill z and p with the n-point Gauss-Hermite rule for a STANDARD NORMAL:
+    sum(p[i] * f(z[i])) approximates E[f(Z)], Z ~ N(0, 1), exactly for any
+    polynomial f of degree up to 2n - 1. For X ~ N(mu, sigma^2) evaluate f(mu +
+    sigma * z[i]). Nodes ascend and the weights sum to 1. z and p must be the
+    same length n >= 1; raises otherwise.
+
+    `sum(p[i] * f(z[i]))` approximates `E[f(Z)]`, `Z ~ N(0, 1)`, and is
+    exact for any polynomial `f` of degree up to `2n - 1`. For `X ~ N(mu,
+    sigma^2)`, evaluate `f(mu + sigma * z[i])`. The nodes ascend and are
+    symmetric about 0; the weights sum to 1.
+
+    The nodes are the roots of the probabilists' Hermite polynomial `He_n`,
+    found by Newton's method on its orthonormal recurrence `h[k+1] = (z
+    h[k] - sqrt(k) h[k-1]) / sqrt(k+1)`, which cannot overflow the way
+    `He_n` and `n!` do. Each starts from the classical asymptotic guesses
+    (Numerical Recipes' `gauher`). The weight of a root is `1 / (n
+    h[n-1](z)^2)`.
+
+    Parameters
+    ----------
+    z : NDArray[np.float64]
+        Output, `n` nodes.
+    p : NDArray[np.float64]
+        Output, `n` weights.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from doppler.util import gauss_hermite
+    >>> z, p = np.empty(2), np.empty(2)
+    >>> gauss_hermite(z, p)
+    >>> z, p                                 # +-1, each half
+    (array([-1.,  1.]), array([0.5, 0.5]))
+    >>> z, p = np.empty(5), np.empty(5)
+    >>> gauss_hermite(z, p)
+    >>> round(float(p @ z**4), 12)           # E[Z^4] = 3
+    3.0
 
     """

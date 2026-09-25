@@ -33,6 +33,13 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(DOPPLER_FEATURE_DEF _GNU_SOURCE)
 elseif(APPLE)
     set(DOPPLER_FEATURE_DEF _DARWIN_C_SOURCE) # MAP_ANON
+elseif(WIN32)
+    # M_PI and friends, for the same reason and with the same ordering
+    # requirement: the UCRT's <math.h> defines them only when this was set
+    # before its first inclusion. Installed headers use them in inline code
+    # (util's sinc, costas), so the CONSUMER needs it too, not just this
+    # build.
+    set(DOPPLER_FEATURE_DEF _USE_MATH_DEFINES)
 else()
     set(DOPPLER_FEATURE_DEF "")
 endif()
@@ -188,14 +195,14 @@ endfunction()
 # says so: <math.h> defines them only when _USE_MATH_DEFINES was set BEFORE it
 # was first included. glibc and Apple libc expose them under their default
 # feature sets, which is why this never came up until a Windows build reached
-# `error: use of undeclared identifier 'M_PI'`.
-#
-# A compile definition rather than a #define in a shared header, because the
-# requirement is about ORDER: the macro has to be set before the FIRST
-# inclusion of <math.h> in a translation unit, and a header can only promise
-# that for the files that happen to include it first. -D has no such gap.
+# `error: use of undeclared identifier 'M_PI'`. It is a compile definition,
+# not a header #define, for the ordering reason above, and it is declared
+# once, as DOPPLER_FEATURE_DEF: a consumer compiling the installed headers
+# needs it as much as this build does.
 if(WIN32)
-    add_compile_definitions(_USE_MATH_DEFINES)
+    # _USE_MATH_DEFINES is DOPPLER_FEATURE_DEF on Windows (top of file), so
+    # it reaches this build, the exported target and doppler.pc from one
+    # declaration.
     # The MSVC CRT deprecates two classes of perfectly portable C, and says so
     # on every use: the "secure" _s alternatives (fopen, strcpy, strncpy,
     # fscanf, localtime -> fopen_s, ...) and the POSIX spellings of functions

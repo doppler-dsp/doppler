@@ -54,10 +54,16 @@ _Util module — public C API._ [More...](#detailed-description)
 
 | Type | Name |
 | ---: | :--- |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**complement\_power**](#function-complement_power) (double p, double x) <br>`1 - (1 - p)^x` _, accurate for small_`p` _: the probability that at least one of_`x` _independent trials succeeds, each with probability_`p` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**ema\_alpha\_decim**](#function-ema_alpha_decim) (double alpha, size\_t d) <br>_The EMA coefficient that advances_ `d` _samples in one step:_`1 - (1 - alpha)^d` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**ema\_step**](#function-ema_step) (double state, double x, double alpha) <br>_One step of a first-order exponential moving average:_ `state <- state + alpha * (x - state)` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**gauss\_hermite**](#function-gauss_hermite) (double \* z, size\_t z\_len, double \* p, size\_t p\_len) <br>_Fill_ `z` _and_`p` _with the n-point Gauss-Hermite rule for a STANDARD NORMAL._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**mean\_sinc**](#function-mean_sinc) (double umax) <br>_The mean of sinc(u) over_ `u` _in_`[0, umax]` _._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) void | [**midpoint\_nodes**](#function-midpoint_nodes) (double \* u, size\_t u\_len) <br>_Fill_ `u` _with the midpoint-rule nodes on_`[0, 1]` _:_`u[k] = (k + 1/2) / n` _for_`n = u_len` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) size\_t | [**next\_pow\_two**](#function-next_pow_two) (size\_t n) <br>_Smallest power of two greater than or equal to_ `n` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**saturate**](#function-saturate) (double v, double lo, double hi, double nan\_to) <br>_Saturate a value into_ `[lo, hi]` _,_**total over every double** _— including NaN and both infinities._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) int | [**simpson\_weights**](#function-simpson_weights) (double \* w, size\_t w\_len) <br>_Fill_ `w` _with composite Simpson weights for the MEAN of a function over an interval._ |
+|  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) double | [**sinc**](#function-sinc) (double u) <br>_Normalized sinc,_ `sin(pi u) / (pi u)` _, with_`sinc(0) = 1` _._ |
 |  [**JM\_FORCEINLINE**](jm__perf_8h.md#define-jm_forceinline) float \_Complex | [**square\_clip**](#function-square_clip) (float \_Complex y, float lin) <br>_Square-clip a complex sample: clip the real and imaginary parts independently to_ `[-lin, lin]` _(a square region in the IQ plane, not a circular magnitude limit). Each component is passed through unchanged when its magnitude is within the threshold and clamped to the nearest boundary otherwise._ |
 
 
@@ -96,6 +102,64 @@ The util functions are header-only and JM\_FORCEINLINE: any caller that includes
     
 ## Public Functions Documentation
 
+
+
+
+### function complement\_power 
+
+`1 - (1 - p)^x` _, accurate for small_`p` _: the probability that at least one of_`x` _independent trials succeeds, each with probability_`p` _._
+```C++
+JM_FORCEINLINE double complement_power (
+    double p,
+    double x
+) 
+```
+
+
+
+Written directly, `1 - pow(1 - p, x)` loses everything `1 - p` rounded away: at `p = 1e-5` it is 26865 ulps off. `-expm1(x * log1p(-p))` is the same quantity with nothing cancelled.
+
+
+Two library quantities are this one expression, and both call it:
+* the EMA coefficient that advances `d` samples in one step, ema\_alpha\_decim(alpha, d) (`x = d`);
+* the per-cell false-alarm probability that splits a search's `pfa` over `n` independent cells, det\_pfa\_cell(pfa, n) (`x = 1/n`, Šidák).
+
+
+
+
+
+
+**Parameters:**
+
+
+* `p` Per-trial probability, in `[0, 1]`. 
+* `x` Number of trials, any real `x >= 0`. 
+
+
+
+**Returns:**
+
+`1 - (1 - p)^x`; exactly `p` at `x == 1`, 0 at `x == 0` or `p <= 0`, and 1 at `p >= 1` (for `x > 0`). 
+```C++
+>>> from doppler.util import complement_power
+>>> complement_power(0.05, 1.0)          # one trial is p exactly
+0.05
+>>> round(complement_power(0.5, 2.0), 12)  # 1 - 0.25
+0.75
+>>> round(complement_power(1e-3, 1 / 1000) * 1e6, 6)  # Sidak split
+1.0005
+>>> complement_power(0.3, 0.0)
+0.0
+```
+ 
+
+
+
+
+
+        
+
+<hr>
 
 
 
@@ -256,6 +320,151 @@ NOT total in `x`: a non-finite observation poisons the state permanently, becaus
 
 
 
+### function gauss\_hermite 
+
+_Fill_ `z` _and_`p` _with the n-point Gauss-Hermite rule for a STANDARD NORMAL._
+```C++
+JM_FORCEINLINE int gauss_hermite (
+    double * z,
+    size_t z_len,
+    double * p,
+    size_t p_len
+) 
+```
+
+
+
+`sum(p[i] * f(z[i]))` approximates `E[f(Z)]`, `Z ~ N(0, 1)`, and is exact for any polynomial `f` of degree up to `2n - 1`. For `X ~ N(mu, sigma^2)`, evaluate `f(mu + sigma * z[i])`. The nodes ascend and are symmetric about 0; the weights sum to 1.
+
+
+The nodes are the roots of the probabilists' Hermite polynomial `He_n`, found by Newton's method on its orthonormal recurrence `h[k+1] = (z h[k] - sqrt(k) h[k-1]) / sqrt(k+1)`, which cannot overflow the way `He_n` and `n!` do. Each starts from the classical asymptotic guesses (Numerical Recipes' `gauher`). The weight of a root is `1 / (n h[n-1](z)^2)`.
+
+
+
+
+**Parameters:**
+
+
+* `z` Output, `n` nodes. 
+* `z_len` `n`, at least 1. 
+* `p` Output, `n` weights. 
+* `p_len` Must equal `z_len`. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID (outputs untouched) for mismatched or zero lengths. 
+```C++
+>>> import numpy as np
+>>> from doppler.util import gauss_hermite
+>>> z, p = np.empty(2), np.empty(2)
+>>> gauss_hermite(z, p)
+>>> z, p                                 # +-1, each half
+(array([-1.,  1.]), array([0.5, 0.5]))
+>>> z, p = np.empty(5), np.empty(5)
+>>> gauss_hermite(z, p)
+>>> round(float(p @ z**4), 12)           # E[Z^4] = 3
+3.0
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function mean\_sinc 
+
+_The mean of sinc(u) over_ `u` _in_`[0, umax]` _._
+```C++
+JM_FORCEINLINE double mean_sinc (
+    double umax
+) 
+```
+
+
+
+The average amplitude loss of a signal whose offset from the nearest bin centre is uniform over `umax` bins: the scalloping a Pd model averages over, where sinc(umax) would be only the worst case. 64-interval Simpson ([**simpson\_weights()**](util__core_8h.md#function-simpson_weights)) over segments of at most half a bin: within 3e-10 at any umax, far below any model this feeds.
+
+
+
+
+**Parameters:**
+
+
+* `umax` Upper end of the offset, in bins. 
+
+
+
+**Returns:**
+
+The mean; 1 for `umax <= 0`. 
+```C++
+>>> from doppler.util import mean_sinc
+>>> mean_sinc(0.0)
+1.0
+>>> round(mean_sinc(0.5), 9)             # uniform over half a bin
+0.8726543
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function midpoint\_nodes 
+
+_Fill_ `u` _with the midpoint-rule nodes on_`[0, 1]` _:_`u[k] = (k + 1/2) / n` _for_`n = u_len` _._
+```C++
+JM_FORCEINLINE void midpoint_nodes (
+    double * u,
+    size_t u_len
+) 
+```
+
+
+
+The points a uniform average over `n` equal cells is evaluated at, each weighted `1/n`. Scale to `[a, b]` as `a + (b - a) * u[k]`.
+
+
+
+
+**Parameters:**
+
+
+* `u` Output, `u_len` nodes, ascending. 
+* `u_len` Number of cells. 
+```C++
+>>> import numpy as np
+>>> from doppler.util import midpoint_nodes
+>>> u = np.empty(4)
+>>> midpoint_nodes(u)
+>>> u
+array([0.125, 0.375, 0.625, 0.875])
+```
+ 
+
+
+
+
+        
+
+<hr>
+
+
+
 ### function next\_pow\_two 
 
 _Smallest power of two greater than or equal to_ `n` _._
@@ -370,6 +579,104 @@ At the boundary where an untrusted value first becomes **persistent state** — 
 1.0
 >>> saturate(float("nan"), 0.0, 1.0, 0.0)   # ... which may be the other
 0.0
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function simpson\_weights 
+
+_Fill_ `w` _with composite Simpson weights for the MEAN of a function over an interval._
+```C++
+JM_FORCEINLINE int simpson_weights (
+    double * w,
+    size_t w_len
+) 
+```
+
+
+
+With `n = w_len` points, `sum(w[i] * f(a + i*(b - a)/(n - 1)))` is the mean of `f` over `[a, b]` (multiply by `b - a` for the integral). The weights are `1, 4, 2, 4, ..., 2, 4, 1` over `3 (n - 1)` and sum to 1. Exact for any cubic; the error falls as `(n - 1)^-4` for a smooth `f`.
+
+
+
+
+**Parameters:**
+
+
+* `w` Output, `w_len` weights. 
+* `w_len` Number of points: odd and at least 3. 
+
+
+
+**Returns:**
+
+DP\_OK, or DP\_ERR\_INVALID (and `w` untouched) for any other length. 
+```C++
+>>> import numpy as np
+>>> from doppler.util import simpson_weights
+>>> w = np.empty(5)
+>>> simpson_weights(w)
+>>> w * 12                               # 1, 4, 2, 4, 1 over 12
+array([1., 4., 2., 4., 1.])
+>>> u = np.linspace(0.0, 1.0, 5)
+>>> round(float(w @ u**3), 12)           # mean of u^3 over [0, 1]
+0.25
+```
+ 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function sinc 
+
+_Normalized sinc,_ `sin(pi u) / (pi u)` _, with_`sinc(0) = 1` _._
+```C++
+JM_FORCEINLINE double sinc (
+    double u
+) 
+```
+
+
+
+The amplitude response of a rectangular window, which makes it the straddle loss of every correlator and DFT: a signal `u` bins off a bin's centre keeps `sinc(u)` of its amplitude in that bin.
+
+
+
+
+**Parameters:**
+
+
+* `u` Offset, in bins (any real). 
+
+
+
+**Returns:**
+
+`sin(pi u) / (pi u)`, and exactly 1 at `u == 0`. 
+```C++
+>>> from doppler.util import sinc
+>>> sinc(0.0)
+1.0
+>>> round(sinc(0.5), 12)                 # half a bin: 2/pi
+0.636619772368
+>>> abs(sinc(1.0)) < 1e-15               # the first null
+True
 ```
  
 

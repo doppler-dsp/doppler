@@ -470,7 +470,7 @@ Element `e * n_f + j` of `out` is [**acq\_cell\_corr()**](acq__core_8h.md#functi
 How: evaluated one cell at a time, every frequency repeats the whole despread-and-mix of the epoch. Here each sample is despread ONCE. The frequencies are grouped by the whole number of cycles per epoch that separates them from the middle one  such a shift is exact and has to be mixed per sample  and each group is mixed at its own base and summed over 16 equal blocks per epoch, keeping the first and second moments of the time within each block. What is left of a frequency is a residual under half a cycle per epoch, which rotates under 1/32 of a cycle across a block, and that is applied per block from the moments as a second-order expansion; the third-order remainder is the error above. So the cost per epoch is `(groups * code_bins) + 3 * 16 * n_f` against `n_f * code_bins`, and burst\_capture's refine, which scores every Doppler cell of every candidate period, is the reason it exists (doppler#1538).
 
 
-Frequencies in more than four whole-cycle groups fall back to [**acq\_cell\_corr()**](acq__core_8h.md#function-acq_cell_corr) per cell, which is then the result bit for bit.
+Frequencies in more than four whole-cycle groups fall back to [**acq\_cell\_corr()**](acq__core_8h.md#function-acq_cell_corr) per cell.
 
 
 

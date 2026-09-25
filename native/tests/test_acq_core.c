@@ -1195,8 +1195,8 @@ _acq_doppler_rate_check (void)
  * across 1.6 cycles per epoch plus twins 1.3 spans out (three groups),
  * scored on a coherent tone at the residual's worst and on noise, where
  * the error is normalized by the epoch's sum |x * ref| (what either face
- * of a correlation can reach). Past four groups it must be the exact
- * primitive, bit for bit. */
+ * of a correlation can reach). Past four groups it is the primitive
+ * itself, equal to rounding. */
 static int
 _acq_cell_corr_grid_check (void)
 {
@@ -1261,17 +1261,26 @@ _acq_cell_corr_grid_check (void)
       DP_CHECK (worst < 1e-5);
     }
 
-  /* Five whole-cycle groups: the fallback, identical to the primitive. */
-  const double g5[5] = { 0.0, span, 2.0 * span, -span, -2.0 * span };
+  /* Five whole-cycle groups: the fallback, the primitive itself. Equal to
+     rounding, not bit for bit: arm64 clang contracts to FMA by default, and
+     differently where acq_cell_corr() is inlined than where it is called. */
+  /* Off the whole-cycle grid: at a multiple of `span` an epoch's time
+     offset is whole turns, and a wrong one would pass unseen. */
+  const double g5[5]
+      = { 0.3 * span, 1.3 * span, 2.3 * span, -0.7 * span, -1.7 * span };
   double _Complex out5[E * 5];
   acq_cell_corr_grid (a, x, E, col, g5, 5, t0, out5);
-  int same = 1;
+  double worst5 = 0.0;
   for (size_t e = 0; e < E; e++)
     for (size_t j = 0; j < 5; j++)
-      same
-          &= out5[e * 5 + j]
-             == acq_cell_corr (a, x + e * P, col, g5[j], t0 + (double)(e * P));
-  DP_CHECK (same);
+      {
+        const double _Complex want
+            = acq_cell_corr (a, x + e * P, col, g5[j], t0 + (double)(e * P));
+        const double err = cabs (out5[e * 5 + j] - want) / (cabs (want) + 1.0);
+        if (err > worst5)
+          worst5 = err;
+      }
+  DP_CHECK (worst5 < 1e-12);
 
   acq_destroy (a);
   free (x);

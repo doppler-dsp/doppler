@@ -1251,7 +1251,7 @@ extern "C"
    * (doppler#1538).
    *
    * Frequencies in more than four whole-cycle groups fall back to
-   * acq_cell_corr() per cell, which is then the result bit for bit.
+   * acq_cell_corr() per cell.
    *
    * @param state    The engine whose replica, `code_bins` and `fs` are used.
    * @param x        `n_epochs * code_bins` contiguous samples.

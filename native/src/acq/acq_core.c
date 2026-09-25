@@ -515,10 +515,9 @@ acq_cell_corr_grid (const acq_state_t *st, const float _Complex *x,
     size_t k                   = (nx - col % nx) % nx; /* ref index, m = 0 */
     for (size_t m = 0; m < nx; m++)
       {
-        /* A recurrence from an exact start, resynced every 64 samples. */
-        ph    = (m & 63) == 0 ? cexp (-I * w0 * fb * (double)m) : ph * step;
         rm[m] = conj ((double _Complex)st->ref[k]) * ph;
-        k     = k + 1 == nx ? 0 : k + 1;
+        ph *= step;
+        k = k + 1 == nx ? 0 : k + 1;
       }
   }
 

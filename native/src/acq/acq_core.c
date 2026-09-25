@@ -458,10 +458,11 @@ double _Complex acq_cell_corr (const acq_state_t *st, const float _Complex *x,
   return acc;
 }
 
-/* acq_cell_corr_grid(): blocks per epoch, and the most whole-cycle groups
-   it mixes before falling back to one cell at a time. */
-#define ACQ_GRID_BLOCKS 16u
-#define ACQ_GRID_GROUPS 4u
+/* acq_cell_corr_grid(): blocks per epoch for each cycle per epoch the
+   frequencies spread either side of their centre, and the widest spread it
+   expands before falling back to one cell at a time. */
+#define ACQ_GRID_BLOCKS_PER_CYCLE 48.0
+#define ACQ_GRID_MAX_CYCLES 1.0
 
 void
 acq_cell_corr_grid (const acq_state_t *st, const float _Complex *x,
@@ -470,122 +471,123 @@ acq_cell_corr_grid (const acq_state_t *st, const float _Complex *x,
 {
   if (n_f == 0 || n_epochs == 0)
     return;
-  const size_t nx   = st->code_bins;
-  const double span = st->fs / (double)nx; /* one cycle per epoch */
-  const double w0   = 2.0 * M_PI / st->fs;
-  const double fb   = f_hz[n_f / 2];
-
-  /* Each frequency is `fb + n*span + residual`, |residual| <= span/2. The
-     whole cycles `n` are exact and have to be mixed per sample, so they
-     name a group; the residual is what the block moments absorb. */
-  long    grp[ACQ_GRID_GROUPS];
-  size_t  n_grp = 0;
-  size_t *g     = dp_xmalloc (n_f * sizeof *g);
-  double *w     = dp_xmalloc (n_f * sizeof *w);
-  for (size_t j = 0; j < n_f; j++)
+  const size_t nx = st->code_bins;
+  const double w0 = 2.0 * M_PI / st->fs;
+  double       lo = f_hz[0], hi = f_hz[0];
+  for (size_t j = 1; j < n_f; j++)
     {
-      const long n = lround ((f_hz[j] - fb) / span);
-      size_t     k = 0;
-      while (k < n_grp && grp[k] != n)
-        k++;
-      if (k == n_grp)
-        {
-          if (n_grp == ACQ_GRID_GROUPS)
-            {
-              free (g);
-              free (w);
-              for (size_t e = 0; e < n_epochs; e++)
-                for (size_t i = 0; i < n_f; i++)
-                  out[e * n_f + i] = acq_cell_corr (
-                      st, x + e * nx, col, f_hz[i], t0 + (double)(e * nx));
-              return;
-            }
-          grp[n_grp++] = n;
-        }
-      g[j] = k;
-      w[j] = w0 * (f_hz[j] - fb - (double)n * span);
+      lo = f_hz[j] < lo ? f_hz[j] : lo;
+      hi = f_hz[j] > hi ? f_hz[j] : hi;
+    }
+  /* Every frequency is `fb + residual`, the residual at most `r` cycles
+     per epoch; past ACQ_GRID_MAX_CYCLES the blocks would get too short to
+     pay, and the exact primitive is the answer. */
+  const double fb = 0.5 * (lo + hi);
+  const double r  = 0.5 * (hi - lo) * (double)nx / st->fs;
+  if (r > ACQ_GRID_MAX_CYCLES)
+    {
+      for (size_t e = 0; e < n_epochs; e++)
+        for (size_t j = 0; j < n_f; j++)
+          out[e * n_f + j] = acq_cell_corr (st, x + e * nx, col, f_hz[j],
+                                            t0 + (double)(e * nx));
+      return;
     }
 
   /* Blocks of (nearly) nx/B samples, each expanded about its nominal
-     centre c_b = c_0 + b*dc: the uniform spacing is what lets every
-     per-block phase below be a recurrence rather than a cexp. */
-  const size_t     B    = nx < ACQ_GRID_BLOCKS ? nx : ACQ_GRID_BLOCKS;
-  const double     dc   = (double)nx / (double)B;
-  const double     c0   = 0.5 * dc - 0.5;
-  double _Complex *rot  = dp_xmalloc (3u * n_f * sizeof *rot);
+     centre c_b = c0 + b*dc: the uniform spacing is what lets every
+     per-block phase below be a recurrence rather than a cexp. B grows
+     with the spread, so the residual turns at most pi/48 either side of
+     a block's centre whatever the spread. */
+  size_t B        = (size_t)ceil (ACQ_GRID_BLOCKS_PER_CYCLE * r);
+  B               = B < 1u ? 1u : (B > nx ? nx : B);
+  const double dc = (double)nx / (double)B;
+  const double c0 = 0.5 * dc - 0.5;
+
+  /* The replica with the base mixer folded in, once per call: what each
+     epoch correlates against, so the per-sample loop is one multiply and
+     three sums with nothing carried from sample to sample -- the shape
+     the compiler vectorizes. The mixer is referenced to the epoch's own
+     first sample; each epoch's start phase is applied once, below. */
+  double _Complex *rm = dp_xmalloc (nx * sizeof *rm);
+  {
+    const double _Complex step = cexp (-I * w0 * fb);
+    double _Complex ph         = 1.0;
+    size_t k                   = (nx - col % nx) % nx; /* ref index, m = 0 */
+    for (size_t m = 0; m < nx; m++)
+      {
+        /* A recurrence from an exact start, resynced every 64 samples. */
+        ph    = (m & 63) == 0 ? cexp (-I * w0 * fb * (double)m) : ph * step;
+        rm[m] = conj ((double _Complex)st->ref[k]) * ph;
+        k     = k + 1 == nx ? 0 : k + 1;
+      }
+  }
+
+  double          *w    = dp_xmalloc (n_f * sizeof *w);
+  double _Complex *rot  = dp_xmalloc (5u * n_f * sizeof *rot);
   double _Complex *adv  = rot + n_f;
   double _Complex *base = rot + 2u * n_f;
+  double _Complex *p    = rot + 3u * n_f; /* per cell, this epoch */
+  double _Complex *acc  = rot + 4u * n_f;
   for (size_t j = 0; j < n_f; j++)
     {
+      w[j]    = w0 * (f_hz[j] - fb);           /* residual, rad/sample */
       rot[j]  = cexp (-I * w[j] * dc);         /* block to block */
       adv[j]  = cexp (-I * w[j] * (double)nx); /* epoch to epoch */
       base[j] = cexp (-I * w[j] * (t0 + c0));  /* epoch 0, block 0 */
     }
-  double _Complex step[ACQ_GRID_GROUPS];
-  for (size_t k = 0; k < n_grp; k++)
-    step[k] = cexp (-I * w0 * (fb + (double)grp[k] * span));
 
-  double _Complex S[ACQ_GRID_GROUPS][ACQ_GRID_BLOCKS][3];
+  double _Complex (*S)[3] = dp_xmalloc (B * sizeof *S);
   for (size_t e = 0; e < n_epochs; e++)
     {
       const float _Complex *xe = x + e * nx;
-      const double          te = t0 + (double)(e * nx);
-      memset (S, 0, sizeof S);
-      double _Complex ph[ACQ_GRID_GROUPS];
-      size_t k    = (nx - col % nx) % nx; /* ref index at m = 0 */
-      size_t b    = 0;
-      size_t next = nx / B; /* first sample of b+1 */
-      double cb   = c0;
-      for (size_t m = 0; m < nx; m++)
+      for (size_t b = 0; b < B; b++)
         {
-          if (m == next)
+          const size_t m0 = b * nx / B, m1 = (b + 1u) * nx / B;
+          const double cb    = c0 + (double)b * dc;
+          double _Complex s0 = 0.0, s1 = 0.0, s2 = 0.0;
+          for (size_t m = m0; m < m1; m++)
             {
-              b++;
-              next = (b + 1u) * nx / B;
-              cb += dc;
+              const double _Complex z = (double _Complex)xe[m] * rm[m];
+              const double d          = (double)m - cb;
+              s0 += z;
+              s1 += z * d;
+              s2 += z * (d * d);
             }
-          /* Each group's mixer: a recurrence from an exact start, resynced
-             every 256 samples, as acq_cell_corr() runs its own. */
-          if ((m & 255) == 0)
-            for (size_t q = 0; q < n_grp; q++)
-              ph[q] = cexp (-I * w0 * (fb + (double)grp[q] * span)
-                            * (te + (double)m));
-          else
-            for (size_t q = 0; q < n_grp; q++)
-              ph[q] *= step[q];
-          const double _Complex y
-              = (double _Complex) (xe[m] * conjf (st->ref[k]));
-          if (++k == nx)
-            k = 0;
-          const double d = (double)m - cb;
-          for (size_t q = 0; q < n_grp; q++)
-            {
-              const double _Complex z = y * ph[q];
-              S[q][b][0] += z;
-              S[q][b][1] += z * d;
-              S[q][b][2] += z * (d * d);
-            }
+          S[b][0] = s0;
+          S[b][1] = s1;
+          S[b][2] = s2;
         }
-      /* exp(-j w d) = 1 - j w d - (w d)^2 / 2 + O((w d)^3), |w d| <= pi/32
-         at the block's edge. */
+      /* exp(-j w d) = 1 - j w d - (w d)^2 / 2 + O((w d)^3), |w d| <= pi/48
+         at the block's edge; then the base mixer's phase at this epoch's
+         first sample. */
+      const double _Complex em = cexp (-I * w0 * fb * (t0 + (double)(e * nx)));
+      /* Blocks outer, cells inner: each cell's accumulation is independent
+         of every other's, so the inner loop vectorizes across cells. */
       for (size_t j = 0; j < n_f; j++)
         {
-          const double wj          = w[j];
-          const double _Complex c1 = -I * wj, c2 = -0.5 * wj * wj;
-          double _Complex p = base[j], acc = 0.0;
-          for (size_t q = 0; q < B; q++)
+          p[j]   = base[j];
+          acc[j] = 0.0;
+        }
+      for (size_t q = 0; q < B; q++)
+        {
+          const double _Complex s0 = S[q][0], s1 = S[q][1], s2 = S[q][2];
+          for (size_t j = 0; j < n_f; j++)
             {
-              const double _Complex *s = S[g[j]][q];
-              acc += p * (s[0] + c1 * s[1] + c2 * s[2]);
-              p *= rot[j];
+              const double wj = w[j];
+              acc[j] += p[j] * (s0 - I * wj * s1 - 0.5 * wj * wj * s2);
+              p[j] *= rot[j];
             }
-          out[e * n_f + j] = acc;
+        }
+      for (size_t j = 0; j < n_f; j++)
+        {
+          out[e * n_f + j] = em * acc[j];
           base[j] *= adv[j];
         }
     }
+  free (S);
   free (rot);
   free (w);
-  free (g);
+  free (rm);
 }
 
 /* The tile-edge alias (doppler#1270). A tile de-rotates by its own

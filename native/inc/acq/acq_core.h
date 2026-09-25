@@ -1232,26 +1232,24 @@ extern "C"
    * Element `e * n_f + j` of @p out is acq_cell_corr() of epoch `e`
    * (`x + e*code_bins`, at `t0 + e*code_bins`) at the j-th frequency, to
    * within 1e-5 of the epoch's `sum |x * ref|`, the most either can reach
-   * (measured 4.5e-6 at a 510-sample epoch): a coherent peak 100 dB above
+   * (measured 2.9e-6 at a 510-sample epoch): a coherent peak 100 dB above
    * the difference.
    *
    * How: evaluated one cell at a time, every frequency repeats the whole
-   * despread-and-mix of the epoch. Here each sample is despread ONCE. The
-   * frequencies are grouped by the whole number of cycles per epoch that
-   * separates them from the middle one -- such a shift is exact and has
-   * to be mixed per sample -- and each group is mixed at its own base and
-   * summed over 16 equal blocks per epoch, keeping the first and second
-   * moments of the time within each block. What is left of a frequency is
-   * a residual under half a cycle per epoch, which rotates under 1/32 of a
-   * cycle across a block, and that is applied per block from the moments
-   * as a second-order expansion; the third-order remainder is the error
-   * above. So the cost per epoch is `(groups * code_bins) + 3 * 16 * n_f`
-   * against `n_f * code_bins`, and burst_capture's refine, which scores
-   * every Doppler cell of every candidate period, is the reason it exists
-   * (doppler#1538).
+   * despread-and-mix of the epoch. Here the replica is multiplied once per
+   * call by a mixer at the frequencies' centre, so each sample costs one
+   * multiply, summed over B equal blocks per epoch with the first and second
+   * moments of the time within each block. What is left of a frequency is a
+   * residual of at most `r` cycles per epoch either side of the centre;
+   * B = ceil(48 r) blocks keep it turning under 1/96 of a cycle either side
+   * of a block's centre, and it is applied per block from the moments as a
+   * second-order expansion, whose remainder is the error above. So the cost
+   * per epoch is `code_bins + 3 * B * n_f` against `n_f * code_bins`, and
+   * burst_capture's refine, which scores every Doppler cell of every
+   * candidate period, is the reason it exists (doppler#1538).
    *
-   * Frequencies in more than four whole-cycle groups fall back to
-   * acq_cell_corr() per cell.
+   * Frequencies spread more than one cycle per epoch either side of their
+   * centre fall back to acq_cell_corr() per cell.
    *
    * @param state    The engine whose replica, `code_bins` and `fs` are used.
    * @param x        `n_epochs * code_bins` contiguous samples.

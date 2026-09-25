@@ -2,7 +2,7 @@
 
 # File wfm\_synth\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm\_synth**](dir_0493917d169dff974fa9eaf690c8d4c9.md) **>** [**wfm\_synth\_core.h**](wfm__synth__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wfm\_synth**](dir_3fd4fbfbc7cedac951bbaaf096533da9.md) **>** [**wfm\_synth\_core.h**](wfm__synth__core_8h.md)
 
 [Go to the documentation of this file](wfm__synth__core_8h.md)
 
@@ -12,17 +12,17 @@
 #ifndef WFM_SYNTH_CORE_H
 #define WFM_SYNTH_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
-#include "fir/fir_core.h"
-#include "lo/lo_core.h"
-#include "awgn/awgn_core.h"
-#include "pn/pn_core.h"
-#include "resamp/resamp_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
+#include "doppler/fir/fir_core.h"
+#include "doppler/lo/lo_core.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/pn/pn_core.h"
+#include "doppler/resamp/resamp_core.h"
 #include <math.h> /* log10/powf/sqrtf in create_impl */
-#include "gold/gold_core.h"
-#include "mpsk/mpsk_core.h" /* mpsk_constellation — the ONE bit->symbol map */
+#include "doppler/gold/gold_core.h"
+#include "doppler/mpsk/mpsk_core.h" /* mpsk_constellation — the ONE bit->symbol map */
 #ifdef __cplusplus
 extern "C" {
 #endif

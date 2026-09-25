@@ -8,7 +8,7 @@ functional parity.
 
 - **Design:** `docs/dev/nats-jetstream-transport-migration.md`
 - **Benchmarks / rationale:** `docs/dev/streaming-roadmap.md`
-- **C/Python API:** `native/inc/stream/stream.h`, `doppler.stream`
+- **C/Python API:** `native/inc/doppler/stream/stream.h`, `doppler.stream`
 
 ______________________________________________________________________
 

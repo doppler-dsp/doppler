@@ -1,5 +1,5 @@
+#include "doppler/gold/gold_core.h"
 #include "dp_test.h"
-#include "gold/gold_core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

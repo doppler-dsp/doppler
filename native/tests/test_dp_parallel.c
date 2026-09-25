@@ -4,7 +4,7 @@
  * alongside. The pool adds: helpers created once and reused across runs,
  * a pool of one (and a NULL pool) running everything on the caller, and a
  * clean stop. Runs under TSan in the C suite (make test-tsan). */
-#include "dp_parallel.h"
+#include "doppler/dp_parallel.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <stdatomic.h>

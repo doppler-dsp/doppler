@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**acc\_cf64**](dir_a31d3897e2036bab462df07bf5a3b557.md) **>** [**acc\_cf64\_core.h**](acc__cf64__core_8h.md)
+[**FileList**](files.md) **>** [**acc\_cf64**](dir_d950eea1844c6f23a7b4df3cf640e9a2.md) **>** [**acc\_cf64\_core.h**](acc__cf64__core_8h.md)
 
 [Go to the source code of this file](acc__cf64__core_8h_source.md)
 
 _AccCf64 component API._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "dp_state.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/dp_state.h"`
 
 
 
@@ -663,5 +663,5 @@ void acc_cf64_steps (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acc_cf64/acc_cf64_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acc_cf64/acc_cf64_core.h`
 

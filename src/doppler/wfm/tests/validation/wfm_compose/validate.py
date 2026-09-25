@@ -22,7 +22,7 @@ only appears when the parts are put together --
   floor its on-time had rather than a hole;
 - that a repeat gets fresh noise over a fixed signal.
 
-The order is the campaign's: `native/inc/wfm/wfm_compose.h` is the SSOT
+The order is the campaign's: `native/inc/doppler/wfm/wfm_compose.h` is the SSOT
 and `native/tests/test_wfm_compose.c` certifies it in C.
 """
 
@@ -140,7 +140,7 @@ def section_object() -> None:
         "[docs/design/wfmgen.md](../../../../../../docs/design/wfmgen.md) "
         "and [wfmgen-composition.md]"
         "(../../../../../../docs/design/wfmgen-composition.md); the API is "
-        "`native/inc/wfm/wfm_compose.h`, certified in C by "
+        "`native/inc/doppler/wfm/wfm_compose.h`, certified in C by "
         "`native/tests/test_wfm_compose.c`."
     )
     R.md()

@@ -436,5 +436,5 @@ int tone_meas_t::worst_spur_is_harm;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/measure/measure_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/measure/measure_core.h`
 

@@ -15,4 +15,4 @@ Version: @PROJECT_VERSION@
 Requires: doppler
 Libs: -L${libdir} -ldoppler_stream
 Libs.private: -lpthread -lm
-Cflags: -I${includedir}/doppler
+Cflags: -I${includedir}

@@ -5,7 +5,8 @@ C's `fmod()` keeps the dividend's sign, so every caller that wants a value
 on a periodic axis -- a code phase in chips, a frequency in a band, a table
 index -- has to add the period back when the result is negative. That
 fix-up had been written by hand five times in this library before
-`native/inc/clib_common.h` gave it one home (doppler#1249). A private copy
+`native/inc/doppler/clib_common.h` gave it one home (doppler#1249). A private
+copy
 is where the next drift lives: a bound spelled `<=` in one and `<` in
 another, a wrap that lands ON the period and indexes one past the end.
 
@@ -26,8 +27,10 @@ import re
 import sys
 from pathlib import Path
 
+from _layout import header
+
 ROOT = Path(__file__).resolve().parent.parent
-SANCTIONED = "native/inc/clib_common.h"
+SANCTIONED = header("clib_common.h")
 SCAN_DIRS = ("native/inc", "native/src")
 FMOD = re.compile(r"\bfmodf?\s*\(")
 SIGN_FIX = re.compile(r"<\s*0(\.0f?)?\s*\)")
@@ -66,7 +69,8 @@ def main() -> int:
     for rel, n, line in found:
         print(f"  {rel}:{n}: {line}")
     print(
-        "  Call dp_fmod_pos(x, m) (native/inc/clib_common.h) instead. If the\n"
+        "  Call dp_fmod_pos(x, m) (native/inc/doppler/clib_common.h) instead. "
+        "If the\n"
         "  sign test after this fmod() is NOT a fold (a genuinely signed\n"
         "  remainder), move the test further than 3 lines from the call or\n"
         "  compute the remainder without fmod; the gate cannot tell them\n"

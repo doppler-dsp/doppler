@@ -1,5 +1,5 @@
 /* bench_awgn_core.c — AWGN throughput benchmark */
-#include "awgn/awgn_core.h"
+#include "doppler/awgn/awgn_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

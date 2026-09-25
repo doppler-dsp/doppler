@@ -2,7 +2,7 @@
 
 # File acc\_cf64\_core.h
 
-[**File List**](files.md) **>** [**acc\_cf64**](dir_a31d3897e2036bab462df07bf5a3b557.md) **>** [**acc\_cf64\_core.h**](acc__cf64__core_8h.md)
+[**File List**](files.md) **>** [**acc\_cf64**](dir_d950eea1844c6f23a7b4df3cf640e9a2.md) **>** [**acc\_cf64\_core.h**](acc__cf64__core_8h.md)
 
 [Go to the documentation of this file](acc__cf64__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef ACC_CF64_CORE_H
 #define ACC_CF64_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "dp_state.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/dp_state.h"
 
 #ifdef __cplusplus
 extern "C"

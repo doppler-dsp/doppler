@@ -184,5 +184,5 @@ the cascade, running at 2\*rate
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ddcr/ddcr_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ddcr/ddcr_core.h`
 

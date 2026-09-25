@@ -140,5 +140,5 @@ atomic_size_t dp_pf_shared_t::next;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_parallel.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_parallel.h`
 

@@ -17,10 +17,10 @@
  *   ./build/native/examples/nco_demo
  */
 
-#include <lo/lo_core.h>
-#include <nco/nco_core.h>
+#include <doppler/lo/lo_core.h>
+#include <doppler/nco/nco_core.h>
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 

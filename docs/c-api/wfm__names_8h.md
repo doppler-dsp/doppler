@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md) **>** [**wfm\_names.h**](wfm__names_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wfm**](dir_d559aca39cc004340b6be1a6e35e20bd.md) **>** [**wfm\_names.h**](wfm__names_8h.md)
 
 [Go to the source code of this file](wfm__names_8h_source.md)
 
@@ -356,5 +356,5 @@ const char* const TYPE_NAMES[];
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfm/wfm_names.h`
+The documentation for this class was generated from the following file `native/inc/doppler/wfm/wfm_names.h`
 

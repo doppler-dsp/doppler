@@ -542,5 +542,5 @@ Row-padded intermediate, (ny, nx\_out). General path only.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/corr2d/corr2d_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/corr2d/corr2d_core.h`
 

@@ -54,8 +54,8 @@
 #include "dp_rng_test.h"
 #include "dp_sym_test.h"
 
-#include "costas/costas_core.h"
-#include "dp_complex.h"
+#include "doppler/costas/costas_core.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

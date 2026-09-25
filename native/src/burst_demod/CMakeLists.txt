@@ -16,7 +16,7 @@ endif()
 add_library(burst_demod_core OBJECT burst_demod_core.c)
 target_include_directories(
   burst_demod_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                          ${CMAKE_SOURCE_DIR}/native/inc/burst_demod)
+                          ${CMAKE_SOURCE_DIR}/native/inc/doppler/burst_demod)
 target_link_libraries(burst_demod_core PUBLIC
     ppe_core
     fft_core

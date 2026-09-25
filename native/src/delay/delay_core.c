@@ -1,5 +1,5 @@
-#include "delay/delay_core.h"
-#include "util/util_core.h"
+#include "doppler/delay/delay_core.h"
+#include "doppler/util/util_core.h"
 #include <string.h>
 
 /* Round n up to the next power of two (returns 1 for n==0). */

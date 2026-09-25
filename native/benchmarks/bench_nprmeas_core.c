@@ -11,8 +11,8 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
+#include "doppler/nprmeas/nprmeas_core.h"
 #include "jm_bench.h"
-#include "nprmeas/nprmeas_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -178,5 +178,5 @@ int32_t dll_tlm_t::id_rate;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dll/dll_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dll/dll_core.h`
 

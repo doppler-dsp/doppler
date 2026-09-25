@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**hbdecim\_q15**](dir_93499f550a23db63d09661ee916a0767.md) **>** [**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**hbdecim\_q15**](dir_0dbd0f8cb615d6b620ef5cfddeb71b4a.md) **>** [**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md)
 
 [Go to the source code of this file](hbdecim__q15__core_8h_source.md)
 
@@ -12,7 +12,7 @@ _Fixed-point halfband 2:1 decimator for interleaved IQ int16 samples._ [More...]
 
 * `#include <stddef.h>`
 * `#include <stdint.h>`
-* `#include "dp_state.h"`
+* `#include "doppler/dp_state.h"`
 
 
 
@@ -473,5 +473,5 @@ size_t hbdecim_q15_state_bytes (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/hbdecim_q15/hbdecim_q15_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/hbdecim_q15/hbdecim_q15_core.h`
 

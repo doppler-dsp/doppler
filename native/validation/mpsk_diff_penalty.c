@@ -42,10 +42,10 @@
  *   mpsk_diff_penalty            full sweep over (M, Es/N0)
  *   mpsk_diff_penalty --check    fast CI gate on the default cell
  */
-#include "awgn/awgn_core.h"
-#include "detection/detection_core.h"
-#include "dp_complex.h"
-#include "mpsk/mpsk_core.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/mpsk/mpsk_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

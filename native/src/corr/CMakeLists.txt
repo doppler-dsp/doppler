@@ -16,7 +16,7 @@ endif()
 add_library(corr_core OBJECT corr_core.c)
 target_include_directories(
   corr_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                   ${CMAKE_SOURCE_DIR}/native/inc/corr)
+                   ${CMAKE_SOURCE_DIR}/native/inc/doppler/corr)
 target_link_libraries(corr_core PUBLIC
     fft_core)
 

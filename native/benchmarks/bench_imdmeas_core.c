@@ -10,7 +10,7 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
-#include "imdmeas/imdmeas_core.h"
+#include "doppler/imdmeas/imdmeas_core.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdio.h>

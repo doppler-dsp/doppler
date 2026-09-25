@@ -2,7 +2,7 @@
 
 # File delay\_core.h
 
-[**File List**](files.md) **>** [**delay**](dir_01f4b6965a2181d172634d6670b32dc1.md) **>** [**delay\_core.h**](delay__core_8h.md)
+[**File List**](files.md) **>** [**delay**](dir_e9520af345bba2408e131802acc7e37b.md) **>** [**delay\_core.h**](delay__core_8h.md)
 
 [Go to the documentation of this file](delay__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef DELAY_CORE_H
 #define DELAY_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "dp_state.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/dp_state.h"
 #ifdef __cplusplus
 extern "C"
 {

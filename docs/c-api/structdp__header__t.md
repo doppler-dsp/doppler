@@ -310,5 +310,5 @@ uint16_t dp_header_t::version;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/stream/stream.h`
+The documentation for this class was generated from the following file `native/inc/doppler/stream/stream.h`
 

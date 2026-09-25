@@ -2,7 +2,7 @@
 
 # File ratesync\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**ratesync**](dir_bd24358a1650cccc3777ef85b64503d5.md) **>** [**ratesync\_core.h**](ratesync__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**ratesync**](dir_6debd7d9ad90888bb5b8a40a122d95e8.md) **>** [**ratesync\_core.h**](ratesync__core_8h.md)
 
 [Go to the documentation of this file](ratesync__core_8h.md)
 
@@ -12,22 +12,22 @@
 #ifndef RATESYNC_CORE_H
 #define RATESYNC_CORE_H
 
-#include "RateConverter/RateConverter_core.h"
-#include "cic/cic_core.h"
-#include "clib_common.h"
-#include "dp_state.h"
-#include "fir/fir_core.h"
-#include "hbdecim/hbdecim_core.h"
-#include "jm_perf.h"
-#include "lockdet/lockdet_core.h"
-#include "loop_filter/loop_filter_core.h"
-#include "resamp/resamp_core.h"
-#include "resample/resample_core.h"
-#include "symsync/symsync_core.h" /* gardner_ted / dttl_ted — one TED, reused */
-#include "dp_tlm/dp_tlm_core.h"
-#include "telemetry/telemetry_core.h"
-#include "ber/ber_core.h"
-#include "pn/pn_core.h"
+#include "doppler/RateConverter/RateConverter_core.h"
+#include "doppler/cic/cic_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/fir/fir_core.h"
+#include "doppler/hbdecim/hbdecim_core.h"
+#include "doppler/jm_perf.h"
+#include "doppler/lockdet/lockdet_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/resamp/resamp_core.h"
+#include "doppler/resample/resample_core.h"
+#include "doppler/symsync/symsync_core.h" /* gardner_ted / dttl_ted — one TED, reused */
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/telemetry/telemetry_core.h"
+#include "doppler/ber/ber_core.h"
+#include "doppler/pn/pn_core.h"
 
 #ifdef __cplusplus
 extern "C"

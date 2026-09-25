@@ -9,7 +9,7 @@
 /* UQ15ToF32Object — wraps uq15_to_f32_state_t *       */
 /* ======================================================== */
 
-#include "uq15_to_f32/uq15_to_f32_core.h"
+#include "doppler/uq15_to_f32/uq15_to_f32_core.h"
 
 typedef struct
 {

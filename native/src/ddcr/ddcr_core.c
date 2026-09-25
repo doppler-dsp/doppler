@@ -8,12 +8,12 @@
  * RateConverter_execute_ctrl, and the push forms do the same one sample at a
  * time.  Identical to ddc/ddc_core.c from the LO onwards.
  */
-#include "ddcr/ddcr_core.h"
-#include "RateConverter/RateConverter_core.h"
-#include "hbdecim/hbdecim_r2c_core.h"
-#include "lo/lo_core.h"
+#include "doppler/ddcr/ddcr_core.h"
+#include "doppler/RateConverter/RateConverter_core.h"
+#include "doppler/hbdecim/hbdecim_r2c_core.h"
+#include "doppler/lo/lo_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stdlib.h>
 #include <string.h>
 

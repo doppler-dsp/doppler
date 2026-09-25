@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**ccsds\_tm**](dir_c2a51186254da91e75ac1924b4969fdd.md) **>** [**ccsds\_tm.h**](ccsds__tm_8h.md)
+[**FileList**](files.md) **>** [**ccsds\_tm**](dir_755172a25247ef56b5f4144aad408377.md) **>** [**ccsds\_tm.h**](ccsds__tm_8h.md)
 
 [Go to the source code of this file](ccsds__tm_8h_source.md)
 
 _CCSDS TM channel coding — the transforms a transfer frame passes through on its way to symbols._ [More...](#detailed-description)
 
-* `#include "conv/conv_core.h"`
-* `#include "dp_syncword.h"`
-* `#include "viterbi/viterbi_core.h"`
+* `#include "doppler/conv/conv_core.h"`
+* `#include "doppler/dp_syncword.h"`
+* `#include "doppler/viterbi/viterbi_core.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 
@@ -675,5 +675,5 @@ _Period of the DEFAULT sequence, in bits (10.4.1)._
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ccsds_tm/ccsds_tm.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ccsds_tm/ccsds_tm.h`
 

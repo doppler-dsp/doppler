@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**ccsds\_tm**](dir_c2a51186254da91e75ac1924b4969fdd.md) **>** [**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md)
+[**FileList**](files.md) **>** [**ccsds\_tm**](dir_755172a25247ef56b5f4144aad408377.md) **>** [**ccsds\_tm\_frame.h**](ccsds__tm__frame_8h.md)
 
 [Go to the source code of this file](ccsds__tm__frame_8h_source.md)
 
 _The CCSDS frame assembler — where the ASM goes, and the one place the stages' disagreements about what they cover become visible._ [More...](#detailed-description)
 
-* `#include "ccsds_tm/ccsds_tm.h"`
-* `#include "ccsds_tm/ccsds_tm_rs.h"`
-* `#include "wfm/wfm_frame.h"`
+* `#include "doppler/ccsds_tm/ccsds_tm.h"`
+* `#include "doppler/ccsds_tm/ccsds_tm_rs.h"`
+* `#include "doppler/wfm/wfm_frame.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 
@@ -490,5 +490,5 @@ The outer code, the randomiser and the inner code, as the transforms [**wfm\_fra
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ccsds_tm/ccsds_tm_frame.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ccsds_tm/ccsds_tm_frame.h`
 

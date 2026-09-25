@@ -22,8 +22,8 @@
  * interchangeable and neither is wrong. Do not read this row as the cost
  * of "the" Kaiser beta.
  */
+#include "doppler/resample/resample_core.h"
 #include "dp_bench.h"
-#include "resample/resample_core.h"
 #include <stdio.h>
 
 #define ITERATIONS 200

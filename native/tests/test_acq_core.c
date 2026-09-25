@@ -15,14 +15,14 @@
  * The list on real emitters (two found, a data-split twin held) is the
  * shipped generator's job: validate_acq_peak_list's --check.
  */
-#include "acq/acq_core.h"
-#include "detector/det_private.h"
-#include "dp_complex.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/detector/det_private.h"
+#include "doppler/dp_complex.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
-#include "dp_tlm/dp_tlm_core.h"
 #include <float.h>
 #include <math.h>
 #include <stdio.h>

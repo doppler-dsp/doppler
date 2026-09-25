@@ -377,5 +377,5 @@ bool carrier_acq_state_t::sequential;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/carrier_acq/carrier_acq_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/carrier_acq/carrier_acq_core.h`
 

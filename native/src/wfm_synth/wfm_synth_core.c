@@ -1,7 +1,7 @@
-#include "wfm_synth/wfm_synth_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 
-#include "mpsk/mpsk_core.h" /* mpsk_constellation — the ONE map */
-#include "wfm/wfm_dsp.h"    /* wfm_frame_dsss_chips — the DSSS burst builder */
+#include "doppler/mpsk/mpsk_core.h" /* mpsk_constellation — the ONE map */
+#include "doppler/wfm/wfm_dsp.h" /* wfm_frame_dsss_chips — the DSSS burst builder */
 
 wfm_synth_state_t *
 wfm_synth_create (int type, double fs, double freq, double snr, int snr_mode,

@@ -2,7 +2,7 @@
 
 # File wfm\_reader\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm\_reader**](dir_01018a3d11538c9aca2db4daa45a442f.md) **>** [**wfm\_reader\_core.h**](wfm__reader__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wfm\_reader**](dir_f352698a51aeb04a6ff33c180c5d8d41.md) **>** [**wfm\_reader\_core.h**](wfm__reader__core_8h.md)
 
 [Go to the documentation of this file](wfm__reader__core_8h.md)
 
@@ -12,13 +12,13 @@
 #ifndef DP_WFM_READER_H
 #define DP_WFM_READER_H
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stddef.h>
 #include <stdint.h>
 
-#include "wfm/wfm_keywords.h" /* wfm_keyword_t */
-#include "wfm_writer/wfm_writer_core.h"   /* wfm_filetype_t */
-#include "dp_interrupt_guard/dp_interrupt_guard_core.h"
+#include "doppler/wfm/wfm_keywords.h" /* wfm_keyword_t */
+#include "doppler/wfm_writer/wfm_writer_core.h"   /* wfm_filetype_t */
+#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"
 
 #ifdef __cplusplus
 extern "C"

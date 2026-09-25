@@ -15,7 +15,7 @@
  *   make build
  *   ./build/native/examples/ring_drip_feed_demo
  */
-#include "buffer/buffer.h"
+#include "doppler/buffer/buffer.h"
 #include <stdio.h>
 
 #define CHECK(cond)                                                           \

@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**dp\_event\_log**](dir_f94295323d6f0149be6a261903cfcf6a.md) **>** [**dp\_event\_log\_core.h**](dp__event__log__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_event\_log**](dir_3dd394e4a68853f038b67a354736a79d.md) **>** [**dp\_event\_log\_core.h**](dp__event__log__core_8h.md)
 
 [Go to the source code of this file](dp__event__log__core_8h_source.md)
 
@@ -12,8 +12,8 @@ _A run's events as SigMF annotations: appended live, finalized at close._ [More.
 
 * `#include <stddef.h>`
 * `#include <stdint.h>`
-* `#include "clib_common.h"`
-* `#include "wfm_writer/wfm_writer_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/wfm_writer/wfm_writer_core.h"`
 
 
 
@@ -804,5 +804,5 @@ Maximum staged string VALUE length, including the NUL terminator.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_event_log/dp_event_log_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_event_log/dp_event_log_core.h`
 

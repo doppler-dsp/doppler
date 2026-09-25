@@ -49,7 +49,8 @@ def test_a_clean_primitive_passes(tmp_path: Path) -> None:
     f = _c(
         tmp_path,
         "wfm_frame.c",
-        '#include "wfm/wfm_frame.h"\n#include "pn/pn_core.h"\n',
+        '#include "doppler/wfm/wfm_frame.h"\n#include '
+        '"doppler/pn/pn_core.h"\n',
     )
     r = _run(f)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -57,7 +58,11 @@ def test_a_clean_primitive_passes(tmp_path: Path) -> None:
 
 
 def test_an_include_fails(tmp_path: Path) -> None:
-    f = _c(tmp_path, "wfm_frame.c", '#include "ccsds_tm/ccsds_tm_frame.h"\n')
+    f = _c(
+        tmp_path,
+        "wfm_frame.c",
+        '#include "doppler/ccsds_tm/ccsds_tm_frame.h"\n',
+    )
     r = _run(f)
     assert r.returncode == 1, r.stdout
     assert "includes a ccsds_tm header" in r.stdout
@@ -65,7 +70,7 @@ def test_an_include_fails(tmp_path: Path) -> None:
 
 def test_the_angle_bracket_spelling_is_caught(tmp_path: Path) -> None:
     """One `<>` away from a gate that reports a clean tree."""
-    f = _c(tmp_path, "wfm_frame.c", "#include <ccsds_tm/ccsds_tm.h>\n")
+    f = _c(tmp_path, "wfm_frame.c", "#include <doppler/ccsds_tm/ccsds_tm.h>\n")
     r = _run(f)
     assert r.returncode == 1, r.stdout
 
@@ -113,8 +118,12 @@ def test_a_consumer_composing_both_is_not_scanned(tmp_path: Path) -> None:
     design intends. The gate governs the primitive, not every component, so a
     file like this is simply not its business.
     """
-    prim = _c(tmp_path, "wfm_frame.c", '#include "pn/pn_core.h"\n')
-    _c(tmp_path, "frame_core.c", '#include "ccsds_tm/ccsds_tm_frame.h"\n')
+    prim = _c(tmp_path, "wfm_frame.c", '#include "doppler/pn/pn_core.h"\n')
+    _c(
+        tmp_path,
+        "frame_core.c",
+        '#include "doppler/ccsds_tm/ccsds_tm_frame.h"\n',
+    )
     r = _run(prim)
     assert r.returncode == 0, r.stdout + r.stderr
 
@@ -125,7 +134,7 @@ def test_a_missing_file_is_named(tmp_path: Path) -> None:
     Reported per file, so a rename is attributed rather than swallowed by the
     'nothing to read' case below.
     """
-    good = _c(tmp_path, "wfm_frame.c", '#include "pn/pn_core.h"\n')
+    good = _c(tmp_path, "wfm_frame.c", '#include "doppler/pn/pn_core.h"\n')
     r = _run(good, tmp_path / "not_here.c")
     assert r.returncode == 1, r.stdout
     assert "did not read" in r.stdout

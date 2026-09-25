@@ -4,22 +4,22 @@
 
 
 
-[**FileList**](files.md) **>** [**carrier\_acq**](dir_fda2da85aa46b94cfd09d911f4a8e3eb.md) **>** [**carrier\_acq\_core.h**](carrier__acq__core_8h.md)
+[**FileList**](files.md) **>** [**carrier\_acq**](dir_92c8a71a0b308d7c304bd53eb19bc933.md) **>** [**carrier\_acq\_core.h**](carrier__acq__core_8h.md)
 
 [Go to the source code of this file](carrier__acq__core_8h_source.md)
 
 _CarrierAcquisition — PSDMF residual-carrier frequency refinement._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
-* `#include "psd/psd_core.h"`
-* `#include "detector/detector_core.h"`
-* `#include "detection/detection_core.h"`
-* `#include "spectral/spectral_core.h"`
-* `#include "corr/corr_core.h"`
-* `#include "fft/fft_core.h"`
-* `#include "acc_trace/acc_trace_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/psd/psd_core.h"`
+* `#include "doppler/detector/detector_core.h"`
+* `#include "doppler/detection/detection_core.h"`
+* `#include "doppler/spectral/spectral_core.h"`
+* `#include "doppler/corr/corr_core.h"`
+* `#include "doppler/fft/fft_core.h"`
+* `#include "doppler/acc_trace/acc_trace_core.h"`
 
 
 
@@ -433,5 +433,5 @@ True
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/carrier_acq/carrier_acq_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/carrier_acq/carrier_acq_core.h`
 

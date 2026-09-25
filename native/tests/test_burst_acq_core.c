@@ -8,8 +8,8 @@
  * real construction succeeds, push()/reset()/configure_search_raw() reach
  * the embedded engine, and the state triplet round-trips.
  */
-#include "burst_acq/burst_acq_core.h"
-#include "dp_complex.h"
+#include "doppler/burst_acq/burst_acq_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_preamble_test.h"
 #include "dp_test.h"
 #include <math.h>

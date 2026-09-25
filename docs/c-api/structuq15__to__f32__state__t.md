@@ -105,5 +105,5 @@ float uq15_to_f32_state_t::iscale;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/uq15_to_f32/uq15_to_f32_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/uq15_to_f32/uq15_to_f32_core.h`
 

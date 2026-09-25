@@ -8,8 +8,8 @@
  * bytes the spec requires, field by field, and only then do the round-trips
  * ride on top.
  */
+#include "doppler/wfm/wfm_keywords.h"
 #include "dp_test.h"
-#include "wfm/wfm_keywords.h"
 
 #include <stdio.h>
 #include <stdlib.h>

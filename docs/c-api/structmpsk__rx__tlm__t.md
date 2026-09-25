@@ -235,5 +235,5 @@ int32_t mpsk_rx_tlm_t::id_sym_q;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/mpsk_receiver/mpsk_rx_loops.h`
+The documentation for this class was generated from the following file `native/inc/doppler/mpsk_receiver/mpsk_rx_loops.h`
 

@@ -4,36 +4,36 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**mpsk\_receiver**](dir_a1dc26622ebd32726f4fc723db7ccb3b.md) **>** [**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**mpsk\_receiver**](dir_7dd9db0064eee02f2344cc7ae60c611e.md) **>** [**mpsk\_receiver\_core.h**](mpsk__receiver__core_8h.md)
 
 [Go to the source code of this file](mpsk__receiver__core_8h_source.md)
 
 _Pulse-shaped M-PSK receiver: a tuned matched front end and two loops._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "ddc/ddc_core.h"`
-* `#include "ddcr/ddcr_core.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
-* `#include "mpsk_receiver/mpsk_rx_loops.h"`
-* `#include "dp_complex.h"`
-* `#include "ratesync/ratesync_core.h"`
-* `#include "RateConverter/RateConverter_core.h"`
-* `#include "resamp/resamp_core.h"`
-* `#include "hbdecim/hbdecim_core.h"`
-* `#include "cic/cic_core.h"`
-* `#include "fir/fir_core.h"`
-* `#include "resample/resample_core.h"`
-* `#include "lo/lo_core.h"`
-* `#include "nco/nco_core.h"`
-* `#include "loop_filter/loop_filter_core.h"`
-* `#include "lockdet/lockdet_core.h"`
-* `#include "symsync/symsync_core.h"`
-* `#include "agc/agc_core.h"`
-* `#include "dp_tlm/dp_tlm_core.h"`
-* `#include "ber/ber_core.h"`
-* `#include "telemetry/telemetry_core.h"`
-* `#include "boxcar/boxcar_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/ddc/ddc_core.h"`
+* `#include "doppler/ddcr/ddcr_core.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/mpsk_receiver/mpsk_rx_loops.h"`
+* `#include "doppler/dp_complex.h"`
+* `#include "doppler/ratesync/ratesync_core.h"`
+* `#include "doppler/RateConverter/RateConverter_core.h"`
+* `#include "doppler/resamp/resamp_core.h"`
+* `#include "doppler/hbdecim/hbdecim_core.h"`
+* `#include "doppler/cic/cic_core.h"`
+* `#include "doppler/fir/fir_core.h"`
+* `#include "doppler/resample/resample_core.h"`
+* `#include "doppler/lo/lo_core.h"`
+* `#include "doppler/nco/nco_core.h"`
+* `#include "doppler/loop_filter/loop_filter_core.h"`
+* `#include "doppler/lockdet/lockdet_core.h"`
+* `#include "doppler/symsync/symsync_core.h"`
+* `#include "doppler/agc/agc_core.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/ber/ber_core.h"`
+* `#include "doppler/telemetry/telemetry_core.h"`
+* `#include "doppler/boxcar/boxcar_core.h"`
 
 
 
@@ -1516,5 +1516,5 @@ size_t mpsk_receiver_steps_real_max_out (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/mpsk_receiver/mpsk_receiver_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/mpsk_receiver/mpsk_receiver_core.h`
 

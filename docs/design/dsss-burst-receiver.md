@@ -572,7 +572,7 @@ ______________________________________________________________________
 ## 7. Implementation sketch
 
 ```text
-native/inc/dsss_burst_receiver/dsss_burst_receiver_core.h
+native/inc/doppler/dsss_burst_receiver/dsss_burst_receiver_core.h
 native/src/dsss_burst_receiver/dsss_burst_receiver_core.c
 objects/dsss_burst_receiver.toml
 ```
@@ -667,7 +667,7 @@ power of two. (As built, the capture reaches further in both directions —
 `burst_capture_core.c`.)
 
 **The primitive already exists, and `acq` already depends on it.**
-`native/inc/buffer/buffer.h` generates a double-mapped SPSC ring
+`native/inc/doppler/buffer/buffer.h` generates a double-mapped SPSC ring
 (`dp_f32_t` for cf32), and `acq_core.h` includes it — `acq_state_t` holds
 `dp_f32_t *ring`, "the only ring". So this is not a new dependency for a DSP
 core, and **no new type is needed**: `DECLARE_DP_BUFFER` already covers the

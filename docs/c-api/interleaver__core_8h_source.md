@@ -2,7 +2,7 @@
 
 # File interleaver\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**interleaver**](dir_46ba54d679b7d3fa44b8264f360065a9.md) **>** [**interleaver\_core.h**](interleaver__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**interleaver**](dir_bb303c16bb49af033112c76b5cc87569.md) **>** [**interleaver\_core.h**](interleaver__core_8h.md)
 
 [Go to the documentation of this file](interleaver__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef INTERLEAVER_CORE_H
 #define INTERLEAVER_CORE_H
 
-#include "dp_interleave.h"
+#include "doppler/dp_interleave.h"
 
 #include <stddef.h>
 #include <stdint.h>

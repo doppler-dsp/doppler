@@ -217,5 +217,5 @@ resamp_state_t* doppler_channel_state_t::rs;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/doppler_channel/doppler_channel_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/doppler_channel/doppler_channel_core.h`
 

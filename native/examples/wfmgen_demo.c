@@ -29,13 +29,13 @@
  *   ./build/native/examples/wfmgen_demo
  */
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include <doppler/wfm/wfm_compose.h>
+#include <doppler/wfm_synth/wfm_synth_core.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <wfm/wfm_compose.h>
-#include <wfm_synth/wfm_synth_core.h>
 
 #define FS 1.0e6 /* sample rate, Hz — one per segment */
 

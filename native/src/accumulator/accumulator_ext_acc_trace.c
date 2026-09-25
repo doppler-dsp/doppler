@@ -9,7 +9,7 @@
 /* AccTraceObject — wraps acc_trace_state_t *       */
 /* ======================================================== */
 
-#include "acc_trace/acc_trace_core.h"
+#include "doppler/acc_trace/acc_trace_core.h"
 
 typedef struct
 {

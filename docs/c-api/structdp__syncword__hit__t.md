@@ -148,5 +148,5 @@ Bit index where the marker starts
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_syncword.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_syncword.h`
 

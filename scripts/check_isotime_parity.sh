@@ -2,7 +2,7 @@
 #
 # check_isotime_parity.sh — prove dp_isotime.h still agrees with just-bashit.
 #
-# native/inc/dp_isotime.h does not define the basic ISO 8601 format; it
+# native/inc/doppler/dp_isotime.h does not define the basic ISO 8601 format; it
 # follows one. The definition is just-bashit's `iso-8601-basic`
 # (src/just_bashit/datetime.sh), and a bash library and a C header cannot
 # share an implementation, so the agreement has to be checked rather than

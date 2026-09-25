@@ -7,7 +7,7 @@
  * build a fixture, warm up, time each call over several rounds, record the
  * timings, write the JSON that `make bench` collects.
  */
-#include "capture/capture_core.h"
+#include "iqtools/capture/capture_core.h"
 #include "jm_bench.h"
 #include "wfm_writer/wfm_writer_core.h"
 #include <complex.h>

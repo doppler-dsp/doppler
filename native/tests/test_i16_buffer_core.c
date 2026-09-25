@@ -7,7 +7,7 @@
  * the same samples, in samples -- a count that is off by the factor of two
  * between the faces is exactly the defect a cast can hide.
  */
-#include "i16_buffer/i16_buffer_core.h"
+#include "doppler/i16_buffer/i16_buffer_core.h"
 
 #include "dp_test.h"
 #include <stdlib.h>

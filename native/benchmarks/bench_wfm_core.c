@@ -20,9 +20,9 @@
  * spreader, bits for the CRC, taps for the design. Each row is normalised
  * to its OWN output element, so `ops` in the JSON means what it says.
  */
+#include "doppler/dp_complex.h"
+#include "doppler/wfm/wfm_core.h"
 #include "dp_bench.h"
-#include "dp_complex.h"
-#include "wfm/wfm_core.h"
 #include <stdint.h>
 #include <stdio.h>
 

@@ -1,8 +1,8 @@
 /* dp_interrupt_guard_core.c — arming, and undoing exactly what was armed. */
 
-#include "dp_interrupt_guard/dp_interrupt_guard_core.h"
+#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
 #include <signal.h>
 #include <stdlib.h>

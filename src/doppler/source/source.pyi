@@ -219,7 +219,7 @@ class NCO:
         + ctrl_inc` each sample -- so a loop filter can drive the NCO with its
         full per-sample output (integrator + proportional term) without the
         caller ever touching the NCO's own configured rate. Mirrors
-        `lo_step_ctrl`/`lo_steps_ctrl` (native/inc/lo/lo_core.h), which does
+        `lo_step_ctrl`/`lo_steps_ctrl` (native/inc/doppler/lo/lo_core.h), which does
         this for the CF32 phasor output; this is the same control-port pattern
         for NCO's raw phase output. With every `ctrl[i] == 0` this is
         bit-identical to nco_steps_u32(). Returns ctrl_len.

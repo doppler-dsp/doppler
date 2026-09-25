@@ -9,7 +9,7 @@
 /* FIRObject — wraps fir_state_t *       */
 /* ======================================================== */
 
-#include "fir/fir_core.h"
+#include "doppler/fir/fir_core.h"
 
 typedef struct
 {

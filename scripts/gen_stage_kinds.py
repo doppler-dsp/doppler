@@ -2,7 +2,8 @@
 """Generate `doppler.wfm`'s stage-kind constants from the C enum.
 
 **One declaration, both directions.** `wfm_stage_kind_t`
-(`native/inc/wfm/wfm_frame.h`) fixes the numbering; the scene JSON reaches it
+(`native/inc/doppler/wfm/wfm_frame.h`) fixes the numbering; the scene JSON
+reaches it
 by NAME through `[[enum]] stage_kind`, and `wfm_json.c` pins it with
 `_Static_assert` because it matters. Python reached it by nothing at all —
 `add_stage(kind=...)` takes a bare int and no named constant was exported
@@ -44,8 +45,10 @@ import re
 import sys
 from pathlib import Path
 
+from _layout import header
+
 ROOT = Path(__file__).resolve().parent.parent
-HEADER = ROOT / "native" / "inc" / "wfm" / "wfm_frame.h"
+HEADER = ROOT / header("wfm/wfm_frame.h")
 MODULE = ROOT / "src" / "doppler" / "wfm" / "stage_kinds.py"
 
 #: The enum whose enumerators become the constants.
@@ -110,7 +113,8 @@ def render() -> str:
         "",
         "The `WFM_` prefix the C carries is dropped: inside `doppler.wfm` it",
         "says the module's own name back. The values are read from",
-        "`native/inc/wfm/wfm_frame.h` rather than restated here, so a new",
+        "`native/inc/doppler/wfm/wfm_frame.h` rather than restated here, so a "
+        "new",
         "stage kind arrives in Python by existing.",
         "",
         "A stage's kind is an **open** `uint32_t`, not a closed menu. These",

@@ -1,6 +1,6 @@
 # frame — a frame's bit layout, describable from Python.
 #
-# The RECEIVE half of the frame story. `wfm_frame_t` (native/inc/wfm/wfm_frame.h)
+# The RECEIVE half of the frame story. `wfm_frame_t` (native/inc/doppler/wfm/wfm_frame.h)
 # is what the generator builds a frame from and what `wfm_frame_crc_ok()` scores
 # one against; until now only C could hold one, so `doppler.ber.FrameMeter` --
 # which exists precisely to turn CRC outcomes into an exact FER interval -- had

@@ -519,5 +519,5 @@ stage type per slot
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/RateConverter/RateConverter_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/RateConverter/RateConverter_core.h`
 

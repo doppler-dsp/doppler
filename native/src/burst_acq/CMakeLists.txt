@@ -16,7 +16,7 @@ endif()
 add_library(burst_acq_core OBJECT burst_acq_core.c)
 target_include_directories(
   burst_acq_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                        ${CMAKE_SOURCE_DIR}/native/inc/burst_acq)
+                        ${CMAKE_SOURCE_DIR}/native/inc/doppler/burst_acq)
 target_link_libraries(burst_acq_core PUBLIC
     acq_core
     corr2d_core

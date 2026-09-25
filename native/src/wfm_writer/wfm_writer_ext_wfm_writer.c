@@ -9,7 +9,7 @@
 /* WriterObject — wraps wfm_writer_state_t *       */
 /* ======================================================== */
 
-#include "wfm_writer/wfm_writer_core.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 
 typedef struct
 {

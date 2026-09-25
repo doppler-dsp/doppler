@@ -1262,5 +1262,5 @@ code\_len\*spc  one code period, samples.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/async_dsss_receiver/async_dsss_receiver_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/async_dsss_receiver/async_dsss_receiver_core.h`
 

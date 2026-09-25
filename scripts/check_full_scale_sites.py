@@ -38,8 +38,10 @@ import re
 import sys
 from pathlib import Path
 
+from _layout import header
+
 ROOT = Path(__file__).resolve().parent.parent
-SANCTIONED = "native/inc/dp_format.h"
+SANCTIONED = header("dp_format.h")
 SCAN_DIRS = ("native/inc", "native/src")
 
 # 2^(N-1) for the widths doppler puts on a wire, and the 2^(N-1)-1 spellings
@@ -101,7 +103,8 @@ def main() -> int:
             f"  ({len(widths)} widths: {names})"
         )
     print(
-        "  Ask dp_format_full_scale(type) (native/inc/dp_format.h) for\n"
+        "  Ask dp_format_full_scale(type) (native/inc/doppler/dp_format.h) "
+        "for\n"
         "  the constant, and let the cvt converters (f32_to_i8/i16/i32 and\n"
         "  their i*_to_f32 inverses) do the scale, rounding and saturation.\n"
         "  Naming BOTH bounds of ONE width is fine and is not what fired\n"

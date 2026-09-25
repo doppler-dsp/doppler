@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**cvt**](dir_7aebb15fbd538257eeb7884581a8ab59.md) **>** [**cvt\_core.h**](cvt__core_8h.md)
+[**FileList**](files.md) **>** [**cvt**](dir_409c6e92c9ef1b7281540388592da57d.md) **>** [**cvt\_core.h**](cvt__core_8h.md)
 
 [Go to the source code of this file](cvt__core_8h_source.md)
 
 _Cvt module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -493,5 +493,5 @@ Written once so the value and the string forms cannot disagree about where a sho
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/cvt/cvt_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/cvt/cvt_core.h`
 

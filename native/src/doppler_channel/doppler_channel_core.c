@@ -1,4 +1,4 @@
-#include "doppler_channel/doppler_channel_core.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
 
 #include <math.h>
 

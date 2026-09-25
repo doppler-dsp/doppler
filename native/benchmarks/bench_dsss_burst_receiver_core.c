@@ -35,12 +35,12 @@
  * sidelobes set the CFAR reference, which changes how often the refine and
  * demod stages run and therefore what this benchmark measures.
  */
-#include "dsss_burst_receiver/dsss_burst_receiver_core.h"
-#include "pn/pn_core.h"
+#include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"
+#include "doppler/pn/pn_core.h"
 
 #include "jm_bench.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>

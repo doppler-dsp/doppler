@@ -206,5 +206,5 @@ double adc_state_t::scale;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/adc/adc_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/adc/adc_core.h`
 

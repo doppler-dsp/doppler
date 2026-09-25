@@ -11,8 +11,8 @@
  * boundary
  *   6. Reset reproducibility
  */
-#include "despreader/despreader_core.h"
-#include "dp_complex.h"
+#include "doppler/despreader/despreader_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"

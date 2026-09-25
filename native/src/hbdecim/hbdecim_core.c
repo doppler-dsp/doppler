@@ -6,7 +6,7 @@
  * the CF32 variant is included here.  No logic changes; rename only.
  * See hbdecim_core.h for the algorithm description.
  */
-#include "hbdecim/hbdecim_core.h"
+#include "doppler/hbdecim/hbdecim_core.h"
 
 #include <string.h>
 

@@ -16,7 +16,7 @@ endif()
 add_library(acc_cf64_core OBJECT acc_cf64_core.c)
 target_include_directories(
   acc_cf64_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                       ${CMAKE_SOURCE_DIR}/native/inc/acc_cf64)
+                       ${CMAKE_SOURCE_DIR}/native/inc/doppler/acc_cf64)
 
 add_executable(test_acc_cf64_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_acc_cf64_core.c

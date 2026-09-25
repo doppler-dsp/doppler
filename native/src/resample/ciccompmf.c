@@ -1,7 +1,7 @@
 /*
  * ciccompmf.c — resample module-level function.
  */
-#include "resample/resample_core.h"
+#include "doppler/resample/resample_core.h"
 #include <math.h>
 #include <string.h>
 

@@ -9,7 +9,7 @@
 /* I16BufferObject — wraps i16_buffer_state_t *       */
 /* ======================================================== */
 
-#include "i16_buffer/i16_buffer_core.h"
+#include "doppler/i16_buffer/i16_buffer_core.h"
 
 typedef struct
 {

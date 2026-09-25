@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**measure**](dir_4f61a452d1df39cf8c2e8be27f29f1f2.md) **>** [**measure\_core.h**](measure__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**measure**](dir_0caaff9683efc5ec33140a5572570268.md) **>** [**measure\_core.h**](measure__core_8h.md)
 
 [Go to the source code of this file](measure__core_8h_source.md)
 
 _Measure module — shared result structs and module-level helpers._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -357,5 +357,5 @@ Dynamic-range / sidelobe-attenuation target in dB.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/measure/measure_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/measure/measure_core.h`
 

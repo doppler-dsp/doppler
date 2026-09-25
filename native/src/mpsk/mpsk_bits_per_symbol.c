@@ -3,7 +3,7 @@
  *
  * Thin Python-facing wrapper over the mpsk_core.h inline mpsk_bps(): log2(M).
  */
-#include "mpsk/mpsk_core.h"
+#include "doppler/mpsk/mpsk_core.h"
 
 int
 mpsk_bits_per_symbol (int m)

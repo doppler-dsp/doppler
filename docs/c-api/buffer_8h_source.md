@@ -2,7 +2,7 @@
 
 # File buffer.h
 
-[**File List**](files.md) **>** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md) **>** [**buffer.h**](buffer_8h.md)
+[**File List**](files.md) **>** [**buffer**](dir_bada8e9c2056a5c5c150b079933e5759.md) **>** [**buffer.h**](buffer_8h.md)
 
 [Go to the documentation of this file](buffer_8h.md)
 
@@ -44,14 +44,14 @@
 
 /* The ring's wait consults the same interrupt flag as every other
    blocking wait in doppler; see docs/design/io-termination.md. */
-#include "dp_interrupt.h"
+#include "doppler/dp_interrupt.h"
 
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "jm_perf.h" /* JM_FORCEINLINE */
-#include "util/util_core.h" /* next_pow_two */
+#include "doppler/jm_perf.h" /* JM_FORCEINLINE */
+#include "doppler/util/util_core.h" /* next_pow_two */
 
 /* macOS uses MAP_ANON, Linux uses MAP_ANONYMOUS. Normalize to MAP_ANONYMOUS.
  */

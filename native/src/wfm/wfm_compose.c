@@ -17,9 +17,9 @@
  * each source into a scratch buffer and accumulates with a single fixed-order
  * scale-then-add, so every face (CLI / Python) agrees bit-for-bit.
  */
-#include "wfm/wfm_compose.h"
-#include "wfm/wfm_dsp.h" /* wfm_rrc_taps / wfm_rrc_ntaps for pulse shaping */
-#include "wfm_draw.h"    /* the shared ranged-draw hash (one definition) */
+#include "doppler/wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_dsp.h" /* wfm_rrc_taps / wfm_rrc_ntaps for pulse shaping */
+#include "wfm_draw.h" /* the shared ranged-draw hash (one definition) */
 
 #include <math.h>
 #include <stdlib.h>

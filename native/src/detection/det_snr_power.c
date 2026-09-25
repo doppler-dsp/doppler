@@ -1,4 +1,4 @@
-#include "detection/detection_core.h"
+#include "doppler/detection/detection_core.h"
 #include <math.h>
 double
 det_snr_power (int dwell, double pd_min, double pfa)

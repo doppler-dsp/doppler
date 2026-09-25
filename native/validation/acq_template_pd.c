@@ -66,13 +66,13 @@
  *                                       and the three drift rows at 500
  *                                       trials
  */
-#include "acq/acq_core.h"
-#include "awgn/awgn_core.h"
-#include "dp_complex.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/fft/fft_core.h"
 #include "dp_preamble_test.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
-#include "fft/fft_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

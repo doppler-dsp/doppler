@@ -9,7 +9,7 @@
 /* ADCObject — wraps adc_state_t *       */
 /* ======================================================== */
 
-#include "adc/adc_core.h"
+#include "doppler/adc/adc_core.h"
 
 typedef struct
 {

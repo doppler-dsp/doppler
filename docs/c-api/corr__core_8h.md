@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**corr**](dir_17ecfb211582dadfc5fc9d22d4d97fbd.md) **>** [**corr\_core.h**](corr__core_8h.md)
+[**FileList**](files.md) **>** [**corr**](dir_28e39a8c94dc713f6e89cb1d02b66afa.md) **>** [**corr\_core.h**](corr__core_8h.md)
 
 [Go to the source code of this file](corr__core_8h_source.md)
 
 _1-D FFT-based cross-correlator with coherent integrate-and-dump._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "fft/fft_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/fft/fft_core.h"`
 
 
 
@@ -428,5 +428,5 @@ size_t corr_state_bytes (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/corr/corr_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/corr/corr_core.h`
 

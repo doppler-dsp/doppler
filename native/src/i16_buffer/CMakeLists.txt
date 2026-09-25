@@ -17,7 +17,7 @@ endif()
 add_library(i16_buffer_core INTERFACE)
 target_include_directories(
   i16_buffer_core INTERFACE ${CMAKE_SOURCE_DIR}/native/inc
-                            ${CMAKE_SOURCE_DIR}/native/inc/i16_buffer)
+                            ${CMAKE_SOURCE_DIR}/native/inc/doppler/i16_buffer)
 target_link_libraries(i16_buffer_core INTERFACE
     dp_interrupt_guard_core)
 

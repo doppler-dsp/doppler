@@ -1,7 +1,7 @@
 /*
  * bin_to_hex.c — cvt module-level function.
  */
-#include "cvt/cvt_core.h"
+#include "doppler/cvt/cvt_core.h"
 
 size_t
 bin_to_hex (const uint8_t *bits, size_t bits_len, uint8_t *out, size_t out_len,

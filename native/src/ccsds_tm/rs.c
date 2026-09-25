@@ -9,7 +9,7 @@
  * are a configuration a test can hold to Annex G rather than constants inside
  * an encoder.
  */
-#include "ccsds_tm/ccsds_tm_rs.h"
+#include "doppler/ccsds_tm/ccsds_tm_rs.h"
 
 #ifdef _WIN32
 #ifndef _WIN32_WINNT

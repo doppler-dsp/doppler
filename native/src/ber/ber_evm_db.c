@@ -3,7 +3,7 @@
  * measured consequences of getting the window or the order wrong live on the
  * declaration in ber/ber_core.h.
  */
-#include "ber/ber_core.h"
+#include "doppler/ber/ber_core.h"
 #include <math.h>
 
 #ifndef M_PI

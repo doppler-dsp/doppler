@@ -24,7 +24,7 @@
  * `dp_event_log_open` via `create_fn`. Hand-owned by necessity, like
  * bench_dp_tlm_capture_core.c; see just-makeit#806.
  */
-#include "dp_event_log/dp_event_log_core.h"
+#include "doppler/dp_event_log/dp_event_log_core.h"
 #include "jm_bench.h"
 
 #include <stdio.h>

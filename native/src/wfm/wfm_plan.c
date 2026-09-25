@@ -23,15 +23,15 @@
  *     override multiplies the WHOLE synth output (signal AND noise), same
  *     as a real single continuously-alive synth in the composer.
  */
-#include "wfm/wfm_plan.h"
+#include "doppler/wfm/wfm_plan.h"
 
-#include "awgn/awgn_core.h"
-#include "wfm/wfm_compose.h"
-#include "wfm/wfm_plan_dsp_hash.h" /* WFM_PLAN_DSP_HASH_U64 (configure-time) */
-#include "wfm_synth/wfm_synth_core.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_plan_dsp_hash.h" /* WFM_PLAN_DSP_HASH_U64 (configure-time) */
+#include "doppler/wfm_synth/wfm_synth_core.h"
 
 #include "cJSON.h"
-#include "dp_parallel.h"
+#include "doppler/dp_parallel.h"
 #include "wfm_draw.h"
 
 #include <math.h>

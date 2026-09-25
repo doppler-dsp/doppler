@@ -7,8 +7,8 @@
  * test against a live broker, not a unit test of pure logic.
  */
 #define DP_TEST_VERBOSE 1
+#include "doppler/stream/stream.h"
 #include "dp_test.h"
-#include "stream/stream.h"
 
 /* Forging a frame the parser must REJECT is the whole point of the
    poison test below, and no doppler API can produce one -- every
@@ -17,7 +17,7 @@
    LIBRARY includes it. */
 #include <nats.h>
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <pthread.h>

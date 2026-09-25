@@ -1,7 +1,7 @@
 /*
  * bin_to_int.c — cvt module-level function.
  */
-#include "cvt/cvt_core.h"
+#include "doppler/cvt/cvt_core.h"
 
 /* Returns the value rather than a status, because that is the shape a
    binding can carry. 0 is therefore both "the value zero" and "refused" --

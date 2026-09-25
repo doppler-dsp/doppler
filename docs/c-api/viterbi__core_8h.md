@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**viterbi**](dir_abfb52fd33d2d22e092a3b80738d1015.md) **>** [**viterbi\_core.h**](viterbi__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**viterbi**](dir_63cd492a1a551091390943fc51915433.md) **>** [**viterbi\_core.h**](viterbi__core_8h.md)
 
 [Go to the source code of this file](viterbi__core_8h_source.md)
 
 _Soft-decision Viterbi decoding of convolutional codes._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "conv/conv_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/conv/conv_core.h"`
 
 
 
@@ -664,5 +664,5 @@ _Blob format version._
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/viterbi/viterbi_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/viterbi/viterbi_core.h`
 

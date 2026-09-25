@@ -224,5 +224,5 @@ cached (float)(gain / len) — the per-sample applied multiply.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/boxcar/boxcar_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/boxcar/boxcar_core.h`
 

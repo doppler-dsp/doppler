@@ -174,5 +174,5 @@ double time_stats_t::rms;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/measure/measure_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/measure/measure_core.h`
 

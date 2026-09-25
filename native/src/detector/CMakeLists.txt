@@ -16,7 +16,7 @@ endif()
 add_library(detector_core OBJECT detector_core.c)
 target_include_directories(
   detector_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                       ${CMAKE_SOURCE_DIR}/native/inc/detector)
+                       ${CMAKE_SOURCE_DIR}/native/inc/doppler/detector)
 target_link_libraries(detector_core PUBLIC
     corr_core
     fft_core)

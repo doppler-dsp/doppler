@@ -16,7 +16,7 @@ endif()
 add_library(frame_core OBJECT frame_core.c)
 target_include_directories(
   frame_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                    ${CMAKE_SOURCE_DIR}/native/inc/frame)
+                    ${CMAKE_SOURCE_DIR}/native/inc/doppler/frame)
 target_link_libraries(frame_core PUBLIC
     wfm_frame_core
     ccsds_tm_core

@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**acc\_f32**](dir_0465294bf3f41af7dbdebf91d81a0c4a.md) **>** [**acc\_f32\_core.h**](acc__f32__core_8h.md)
+[**FileList**](files.md) **>** [**acc\_f32**](dir_c19b9e056cbdf00f39bf52805b44beb0.md) **>** [**acc\_f32\_core.h**](acc__f32__core_8h.md)
 
 [Go to the source code of this file](acc__f32__core_8h_source.md)
 
 _AccF32 component API._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "dp_state.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/dp_state.h"`
 
 
 
@@ -663,5 +663,5 @@ void acc_f32_steps (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acc_f32/acc_f32_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acc_f32/acc_f32_core.h`
 

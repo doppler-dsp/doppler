@@ -18,7 +18,7 @@ The rendezvous itself is just-makeit's ``process_global = true`` on the
 over the state and every other linking module adopts the pointer in its
 ``PyInit_``. doppler writes the two accessors it names
 (``native/src/dp_interrupt.c``) and, for its two ``no_generate`` modules,
-the adopt call itself (``native/inc/dp_interrupt_pyadopt.h``).
+the adopt call itself (``native/inc/doppler/dp_interrupt_pyadopt.h``).
 
 Two checks, deliberately different in kind:
 
@@ -40,7 +40,7 @@ import textwrap
 import pytest
 
 from doppler.tests._platform import posix_only
-from doppler.tests._repo import repo_root
+from doppler.tests._repo import header_root, repo_root
 
 _PKG = pathlib.Path(__file__).resolve().parents[1]
 #: The checkout, found by walking up for its markers rather than by
@@ -48,7 +48,7 @@ _PKG = pathlib.Path(__file__).resolve().parents[1]
 #: the package at build-cov/pkg/doppler, two levels deeper, where every
 #: fixed-depth root lands inside build-cov/. See doppler.tests._repo.
 _ROOT = repo_root()
-_NATIVE_INC = _ROOT / "native" / "inc"
+_HEADERS = header_root(_ROOT)
 
 #: How long the consumer thread is given to notice. The ring's wait checks
 #: the flag every spin iteration, so a working flag is seen in microseconds
@@ -71,9 +71,7 @@ def _capsule_name() -> bytes:
     module quietly stopped sharing a flag -- the failure this file exists
     to catch, arrived at through its own test.
     """
-    hdr = (
-        _NATIVE_INC / "dp_interrupt_guard" / "dp_interrupt_guard_procglobal.h"
-    )
+    hdr = _HEADERS / "dp_interrupt_guard" / "dp_interrupt_guard_procglobal.h"
     if not hdr.is_file():  # pragma: no cover - a build this test can't judge
         pytest.skip(f"{hdr} absent: run `make jm-apply`")
     m = re.search(

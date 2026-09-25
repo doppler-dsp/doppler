@@ -16,7 +16,7 @@ endif()
 add_library(ratesync_core OBJECT ratesync_core.c)
 target_include_directories(
   ratesync_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                       ${CMAKE_SOURCE_DIR}/native/inc/ratesync)
+                       ${CMAKE_SOURCE_DIR}/native/inc/doppler/ratesync)
 target_link_libraries(ratesync_core PUBLIC
     ber_core
     RateConverter_core

@@ -16,8 +16,8 @@
  *
  * Timing is MIN over rounds, not mean -- benchmark noise is one-sided.
  */
-#include "doppler_channel/doppler_channel_core.h"
-#include "dp_complex.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdio.h>

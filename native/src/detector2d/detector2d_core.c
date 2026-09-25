@@ -6,9 +6,9 @@
  * and peak decomposed into (row, col) via integer divide/modulo.
  */
 
-#include "detector2d/detector2d_core.h"
-#include "detector/det_private.h"
-#include "util/util_core.h"
+#include "doppler/detector2d/detector2d_core.h"
+#include "doppler/detector/det_private.h"
+#include "doppler/util/util_core.h"
 
 #include <math.h>
 #include <stdlib.h>

@@ -18,9 +18,9 @@
 #ifndef DP_PREAMBLE_TEST_H
 #define DP_PREAMBLE_TEST_H
 
-#include "cvt/cvt_core.h"
-#include "fft/fft_core.h"
-#include "util/util_core.h"
+#include "doppler/cvt/cvt_core.h"
+#include "doppler/fft/fft_core.h"
+#include "doppler/util/util_core.h"
 #include <complex.h>
 #include <math.h>
 #include <stddef.h>

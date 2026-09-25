@@ -6,11 +6,11 @@
  * inside the notch; NPR is their ratio.  A `guard` keep-out around the notch
  * edges avoids contaminating either average with the notch skirts.
  */
-#include "nprmeas/nprmeas_core.h"
+#include "doppler/nprmeas/nprmeas_core.h"
 
-#include "spectral/spectral_core.h" /* kaiser_beta_for_sidelobe */
+#include "doppler/spectral/spectral_core.h" /* kaiser_beta_for_sidelobe */
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

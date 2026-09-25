@@ -197,5 +197,5 @@ damping factor (0.707 = critically damped).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/loop_filter/loop_filter_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/loop_filter/loop_filter_core.h`
 

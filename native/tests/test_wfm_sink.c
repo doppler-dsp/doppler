@@ -10,10 +10,10 @@
  * Skips (exit 77, CTest SKIP_RETURN_CODE) rather than fails when no
  * nats-server is reachable on 127.0.0.1:4222.
  */
+#include "doppler/wfm/wfm_sink.h"
 #include "dp_test.h"
-#include "wfm/wfm_sink.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <arpa/inet.h>
 #include <math.h>
 #include <netinet/in.h>

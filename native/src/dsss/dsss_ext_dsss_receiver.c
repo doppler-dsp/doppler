@@ -9,7 +9,7 @@
 /* DsssReceiverObject — wraps dsss_receiver_state_t *       */
 /* ======================================================== */
 
-#include "dsss_receiver/dsss_receiver_core.h"
+#include "doppler/dsss_receiver/dsss_receiver_core.h"
 
 typedef struct
 {

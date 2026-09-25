@@ -34,8 +34,8 @@
  *
  * Usage:  interleave_burst_gain [--check]
  */
-#include "ccsds_tm/ccsds_tm_rs.h"
-#include "dp_interleave.h"
+#include "doppler/ccsds_tm/ccsds_tm_rs.h"
+#include "doppler/dp_interleave.h"
 #include "dp_rng_test.h"
 
 #include <stdio.h>

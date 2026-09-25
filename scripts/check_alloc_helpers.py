@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Gate: a trusted internal allocation goes through the abort-on-OOM helper.
 
-`native/inc/clib_common.h` carries `dp_xmalloc`, `dp_xcalloc` and `dp_xnn` --
+`native/inc/doppler/clib_common.h` carries `dp_xmalloc`, `dp_xcalloc` and
+`dp_xnn` --
 the classic GNU `xmalloc` pattern -- and the house rule they exist for is in
 CLAUDE.md: *no error handling for impossible scenarios; trust internal
 guarantees.* A small, fixed-size, argument-validated internal allocation can
@@ -63,6 +64,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _layout import header
+
 ROOT = Path(__file__).resolve().parent.parent
 ALLOW = Path(__file__).parent / ".alloc-helper-allow"
 
@@ -73,7 +76,7 @@ SCAN_DIRS = ("native/inc", "native/src")
 
 #: The helpers' own home: `dp_xmalloc` IS `dp_xnn (malloc (n))`, so the one
 #: file that must contain a bare allocation is this one.
-SANCTIONED = "native/inc/clib_common.h"
+SANCTIONED = header("clib_common.h")
 
 #: `<mod>_ext*.c` is jm-generated CPython glue. It allocates numpy output
 #: buffers whose size comes from the CALLER, checks for NULL and raises
@@ -202,7 +205,7 @@ HEADER = """\
 #
 # Bare malloc/calloc/realloc calls per file in doppler's library C, all of
 # them predating the dp_xmalloc/dp_xcalloc/dp_xnn helpers in
-# native/inc/clib_common.h.
+# native/inc/doppler/clib_common.h.
 #
 # A COUNT MAY ONLY SHRINK, UNLESS THE LINE CARRIES A REASON. A file not
 # listed may not allocate at all. Converting a call means the number here
@@ -330,7 +333,7 @@ def main() -> int:
             "\n"
             "A trusted internal allocation -- fixed size, arguments already\n"
             "validated -- can only fail on genuine OOM, so it goes through\n"
-            "the abort-on-OOM helpers in native/inc/clib_common.h:\n"
+            "the abort-on-OOM helpers in native/inc/doppler/clib_common.h:\n"
             "\n"
             "    s->buf = dp_xmalloc (n * sizeof *s->buf);\n"
             "    s->tab = dp_xcalloc (n, sizeof *s->tab);\n"

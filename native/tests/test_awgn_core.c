@@ -1,6 +1,6 @@
 #define DP_TEST_VERBOSE 1
-#include "awgn/awgn_core.h"
-#include "dp_complex.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>

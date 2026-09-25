@@ -7,10 +7,10 @@
  * quantiser (ci16), and the text path (CSV). Emits pytest-benchmark JSON. */
 #define _POSIX_C_SOURCE 200809L
 
+#include "doppler/wfm_writer/wfm_writer_core.h"
 #include "jm_bench.h"
-#include "wfm_writer/wfm_writer_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

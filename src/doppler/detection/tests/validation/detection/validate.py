@@ -148,7 +148,7 @@ def section_object() -> None:
                 "and what each errs toward",
             ],
             [
-                "`native/inc/detection/detection_core.h`",
+                "`native/inc/doppler/detection/detection_core.h`",
                 "the contract per function — the SSOT this report audits",
             ],
         ],

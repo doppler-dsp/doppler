@@ -12,9 +12,9 @@
  *   ./build/native/examples/hbdecim_demo
  */
 
-#include <HalfbandDecimator/HalfbandDecimator_core.h>
+#include <doppler/HalfbandDecimator/HalfbandDecimator_core.h>
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 

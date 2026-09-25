@@ -16,7 +16,7 @@ endif()
 add_library(nprmeas_core OBJECT nprmeas_core.c)
 target_include_directories(
   nprmeas_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                      ${CMAKE_SOURCE_DIR}/native/inc/nprmeas)
+                      ${CMAKE_SOURCE_DIR}/native/inc/doppler/nprmeas)
 target_link_libraries(nprmeas_core PUBLIC
     fft_core
     spectral_core

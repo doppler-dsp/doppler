@@ -2,7 +2,7 @@
 
 # File ddcr\_core.h
 
-[**File List**](files.md) **>** [**ddcr**](dir_46c04c942eb84c8716610cebe515b046.md) **>** [**ddcr\_core.h**](ddcr__core_8h.md)
+[**File List**](files.md) **>** [**ddcr**](dir_18bb1adfae8df578c1da0090bbf10ccf.md) **>** [**ddcr\_core.h**](ddcr__core_8h.md)
 
 [Go to the documentation of this file](ddcr__core_8h.md)
 
@@ -12,19 +12,19 @@
 #ifndef DDCR_CORE_H
 #define DDCR_CORE_H
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stdbool.h>
 #include <stddef.h>
-#include "lo/lo_core.h"
-#include "RateConverter/RateConverter_core.h"
-#include "resamp/resamp_core.h"
-#include "hbdecim/hbdecim_core.h"
-#include "hbdecim/hbdecim_r2c_core.h"
-#include "cic/cic_core.h"
-#include "fir/fir_core.h"
-#include "resample/resample_core.h"
-#include "agc/agc_core.h"
-#include "dp_tlm/dp_tlm_core.h"
+#include "doppler/lo/lo_core.h"
+#include "doppler/RateConverter/RateConverter_core.h"
+#include "doppler/resamp/resamp_core.h"
+#include "doppler/hbdecim/hbdecim_core.h"
+#include "doppler/hbdecim/hbdecim_r2c_core.h"
+#include "doppler/cic/cic_core.h"
+#include "doppler/fir/fir_core.h"
+#include "doppler/resample/resample_core.h"
+#include "doppler/agc/agc_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 
 #ifdef __cplusplus
 extern "C"

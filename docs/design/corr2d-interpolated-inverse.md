@@ -84,7 +84,7 @@ C:
 #include <stddef.h>
 #include <stdio.h>
 
-#include "corr2d/corr2d_core.h"
+#include "doppler/corr2d/corr2d_core.h"
 
 int
 main (void)

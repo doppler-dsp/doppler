@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**source**](dir_ce1f95460e483b5f4e7af3e87d9b090c.md) **>** [**source\_core.h**](source__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**source**](dir_aa288ec3ae47721f4b7c9a32d3b8f472.md) **>** [**source\_core.h**](source__core_8h.md)
 
 [Go to the source code of this file](source__core_8h_source.md)
 
 _Source module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -78,5 +78,5 @@ _Source module — public C API._
 
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/source/source_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/source/source_core.h`
 

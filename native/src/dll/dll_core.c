@@ -1,5 +1,5 @@
-#include "dll/dll_core.h"
-#include "clib_common.h"
+#include "doppler/dll/dll_core.h"
+#include "doppler/clib_common.h"
 
 #include <math.h>
 #include <stdio.h>

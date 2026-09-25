@@ -16,8 +16,8 @@
  */
 
 #define DP_TEST_VERBOSE 1
+#include "doppler/hbdecim/hbdecim_core.h"
 #include "dp_test.h"
-#include "hbdecim/hbdecim_core.h"
 
 #include <math.h>
 #include <stdio.h>

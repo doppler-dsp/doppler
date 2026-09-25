@@ -2,7 +2,7 @@
 
 # File async\_dsss\_pool\_core.h
 
-[**File List**](files.md) **>** [**async\_dsss\_pool**](dir_24b3a88e64d64c92fdc3841f769b80af.md) **>** [**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md)
+[**File List**](files.md) **>** [**async\_dsss\_pool**](dir_8a6668f3097fb7847a23b1f65b3df26f.md) **>** [**async\_dsss\_pool\_core.h**](async__dsss__pool__core_8h.md)
 
 [Go to the documentation of this file](async__dsss__pool__core_8h.md)
 
@@ -12,29 +12,29 @@
 #ifndef ASYNC_DSSS_POOL_CORE_H
 #define ASYNC_DSSS_POOL_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "async_dsss_receiver/async_dsss_receiver_core.h"
-#include "acq/acq_core.h"
-#include "dp_event_log/dp_event_log_core.h"
-#include "dll/dll_core.h"
-#include "costas/costas_core.h"
-#include "RateConverter/RateConverter_core.h"
-#include "mpsk_receiver/mpsk_receiver_core.h"
-#include "cic/cic_core.h"
-#include "resample/resample_core.h"
-#include "psd/psd_core.h"
-#include "detector/detector_core.h"
-#include "detection/detection_core.h"
-#include "corr2d/corr2d_core.h"
-#include "fft2d/fft2d_core.h"
-#include "fft/fft_core.h"
-#include "dp_tlm/dp_tlm_core.h"
-#include "carrier_acq/carrier_acq_core.h"
-#include "resamp/resamp_core.h"
-#include "hbdecim/hbdecim_core.h"
-#include "dp_parallel.h"
-#include "dp_state.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/dp_event_log/dp_event_log_core.h"
+#include "doppler/dll/dll_core.h"
+#include "doppler/costas/costas_core.h"
+#include "doppler/RateConverter/RateConverter_core.h"
+#include "doppler/mpsk_receiver/mpsk_receiver_core.h"
+#include "doppler/cic/cic_core.h"
+#include "doppler/resample/resample_core.h"
+#include "doppler/psd/psd_core.h"
+#include "doppler/detector/detector_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/fft2d/fft2d_core.h"
+#include "doppler/fft/fft_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/carrier_acq/carrier_acq_core.h"
+#include "doppler/resamp/resamp_core.h"
+#include "doppler/hbdecim/hbdecim_core.h"
+#include "doppler/dp_parallel.h"
+#include "doppler/dp_state.h"
 
 #ifdef __cplusplus
 extern "C"

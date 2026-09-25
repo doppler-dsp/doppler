@@ -9,7 +9,7 @@
 /* ToneMeasureObject — wraps tonemeas_state_t *       */
 /* ======================================================== */
 
-#include "tonemeas/tonemeas_core.h"
+#include "doppler/tonemeas/tonemeas_core.h"
 
 typedef struct
 {

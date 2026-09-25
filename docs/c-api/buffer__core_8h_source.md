@@ -2,7 +2,7 @@
 
 # File buffer\_core.h
 
-[**File List**](files.md) **>** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md) **>** [**buffer\_core.h**](buffer__core_8h.md)
+[**File List**](files.md) **>** [**buffer**](dir_bada8e9c2056a5c5c150b079933e5759.md) **>** [**buffer\_core.h**](buffer__core_8h.md)
 
 [Go to the documentation of this file](buffer__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef BUFFER_CORE_H
 #define BUFFER_CORE_H
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -21,9 +21,9 @@
  *   8b. A put across the period wrap dumps nothing and skips nothing, on
  *       both correlation paths (#1287)
  */
-#include "detection/detection_core.h"
-#include "dll/dll_core.h"
-#include "dp_complex.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/dll/dll_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"

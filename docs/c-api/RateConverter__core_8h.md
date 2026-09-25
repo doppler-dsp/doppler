@@ -4,21 +4,21 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**RateConverter**](dir_ab9e07a54a3e9554c466f24859c37292.md) **>** [**RateConverter\_core.h**](RateConverter__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**RateConverter**](dir_f243cfbf2f82d96e6953dd99cc2498dd.md) **>** [**RateConverter\_core.h**](RateConverter__core_8h.md)
 
 [Go to the source code of this file](RateConverter__core_8h_source.md)
 
 _Optimal-speed rate conversion cascade._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "dp_complex.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/dp_complex.h"`
 * `#include <stdbool.h>`
 * `#include <stddef.h>`
-* `#include "resamp/resamp_core.h"`
-* `#include "fir/fir_core.h"`
-* `#include "agc/agc_core.h"`
-* `#include "dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/resamp/resamp_core.h"`
+* `#include "doppler/fir/fir_core.h"`
+* `#include "doppler/agc/agc_core.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
 
 
 
@@ -1319,5 +1319,5 @@ Maximum number of visible cascade stages.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/RateConverter/RateConverter_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/RateConverter/RateConverter_core.h`
 

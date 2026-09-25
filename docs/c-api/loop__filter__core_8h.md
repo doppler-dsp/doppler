@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**loop\_filter**](dir_6fa6397534e50a536c96f665c3cf0441.md) **>** [**loop\_filter\_core.h**](loop__filter__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**loop\_filter**](dir_5a5f36bef1d931095e74791b275c008f.md) **>** [**loop\_filter\_core.h**](loop__filter__core_8h.md)
 
 [Go to the source code of this file](loop__filter__core_8h_source.md)
 
 _Second-order proportional-integral loop filter — the shared engine of every tracking loop (Costas/PLL, DLL, symbol timing)._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
 
 
 
@@ -573,5 +573,5 @@ The natural frequency, in `bn's` units.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/loop_filter/loop_filter_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/loop_filter/loop_filter_core.h`
 

@@ -5,7 +5,7 @@
  * the same frame through the ELEMENT face, so a cast that stopped being free
  * -- a copy, a length fix-up -- would show here as a difference between the
  * two files rather than nowhere. */
-#include "f32_buffer/f32_buffer_core.h"
+#include "doppler/f32_buffer/f32_buffer_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

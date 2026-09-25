@@ -11,9 +11,9 @@
  *   6. LUT accuracy — at quarter-rate, |out|² ≈ 1 and Im/Re quadrature
  *   7. Property accessors — get/set norm_freq, phase, phase_inc
  */
+#include "doppler/lo/lo_core.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
-#include "lo/lo_core.h"
 #include <math.h>
 #include <stdio.h>
 

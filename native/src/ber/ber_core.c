@@ -6,7 +6,7 @@
  * convention), and the error-rate accumulator is the separate ber_meter
  * component.
  */
-#include "ber/ber_core.h"
+#include "doppler/ber/ber_core.h"
 #include <math.h>
 
 double

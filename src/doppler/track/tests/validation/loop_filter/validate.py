@@ -11,7 +11,7 @@ records is asserted by
 `build(write=False)`.
 
 The order is the campaign's, not this file's:
-`native/inc/loop_filter/loop_filter_core.h` is the SSOT,
+`native/inc/doppler/loop_filter/loop_filter_core.h` is the SSOT,
 `native/tests/test_loop_filter_core.c` §1-§11 certifies it in C, and
 `native/validation/loop_filter_noise_bw.c` measures the one property no
 single-step assertion can see. This file measures the same properties
@@ -53,7 +53,7 @@ TS = [0.25, 1.0, 4.0]
 # findings below are DERIVED from the header on every run: fix the
 # header and the verdict flips by itself, and `make validate-check`
 # turns red until the committed report agrees.
-HEADER = ROOT / "native/inc/loop_filter/loop_filter_core.h"
+HEADER = ROOT / "native/inc/doppler/loop_filter/loop_filter_core.h"
 CORE_C = ROOT / "native/src/loop_filter/loop_filter_core.c"
 
 
@@ -256,7 +256,7 @@ def section_object() -> None:
         "and what the object deliberately does not bound — is "
         "[`docs/design/loop-filter.md`]"
         "(../../../../../../docs/design/loop-filter.md); "
-        "the contract is `native/inc/loop_filter/loop_filter_core.h`. "
+        "the contract is `native/inc/doppler/loop_filter/loop_filter_core.h`. "
         "Neither is restated here."
     )
     R.md()

@@ -133,5 +133,5 @@ uint32_t lo_state_t::phase_inc;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/lo/lo_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/lo/lo_core.h`
 

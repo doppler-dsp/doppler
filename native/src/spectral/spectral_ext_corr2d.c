@@ -9,7 +9,7 @@
 /* Corr2DObject — wraps corr2d_state_t *       */
 /* ======================================================== */
 
-#include "corr2d/corr2d_core.h"
+#include "doppler/corr2d/corr2d_core.h"
 
 typedef struct
 {

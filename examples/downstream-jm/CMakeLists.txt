@@ -63,6 +63,10 @@ endif()
 
 # ── External deps
 find_package(doppler REQUIRED)
+set(JM_FIND_DEPENDENCIES [=[
+include(CMakeFindDependencyMacro)
+find_dependency(doppler)
+]=])
 # ── End external deps
 
 # ── Components (add_subdirectory lines appended here by just-makeit)

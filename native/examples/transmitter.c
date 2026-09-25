@@ -18,10 +18,10 @@
  *   ./build/native/examples/transmitter
  */
 
-#include <doppler.h>
-#include <stream/stream.h>
+#include <doppler/doppler.h>
+#include <doppler/stream/stream.h>
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>

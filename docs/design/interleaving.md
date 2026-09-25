@@ -130,10 +130,10 @@ behaviour. It is deliberately absent rather than pending — see
 
 ## Where the code is
 
-| what              | where                                                                                      |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| the permutation   | `native/inc/dp_interleave.h` (header-only)                                                 |
-| the object        | `native/inc/interleaver/interleaver_core.h`, `coding.Interleaver` / `coding.Deinterleaver` |
-| the frame stage   | `WFM_STAGE_INTERLEAVE` in `native/src/wfm/wfm_frame.c`                                     |
-| the CLI           | `wfmgen --interleave R [--interleave-unit N]`                                              |
-| the measured gain | `native/validation/interleave_burst_gain.c`                                                |
+| what              | where                                                                                              |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| the permutation   | `native/inc/doppler/dp_interleave.h` (header-only)                                                 |
+| the object        | `native/inc/doppler/interleaver/interleaver_core.h`, `coding.Interleaver` / `coding.Deinterleaver` |
+| the frame stage   | `WFM_STAGE_INTERLEAVE` in `native/src/wfm/wfm_frame.c`                                             |
+| the CLI           | `wfmgen --interleave R [--interleave-unit N]`                                                      |
+| the measured gain | `native/validation/interleave_burst_gain.c`                                                        |

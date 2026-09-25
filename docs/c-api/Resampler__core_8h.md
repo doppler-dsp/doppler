@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**Resampler**](dir_6dca75203c5d2d5de468e6acc97392e7.md) **>** [**Resampler\_core.h**](Resampler__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**Resampler**](dir_9b0990bb8296ade48d8f038050fb64f1.md) **>** [**Resampler\_core.h**](Resampler__core_8h.md)
 
 [Go to the source code of this file](Resampler__core_8h_source.md)
 
 _Continuously-variable polyphase resampler, CF32 IQ._ [More...](#detailed-description)
 
-* `#include "resamp/resamp_core.h"`
+* `#include "doppler/resamp/resamp_core.h"`
 
 
 
@@ -651,5 +651,5 @@ size_t Resampler_state_bytes (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/Resampler/Resampler_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/Resampler/Resampler_core.h`
 

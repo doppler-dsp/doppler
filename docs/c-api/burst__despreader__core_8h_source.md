@@ -2,7 +2,7 @@
 
 # File burst\_despreader\_core.h
 
-[**File List**](files.md) **>** [**burst\_despreader**](dir_311cad0a77759dd1ff95e00f622e2f49.md) **>** [**burst\_despreader\_core.h**](burst__despreader__core_8h.md)
+[**File List**](files.md) **>** [**burst\_despreader**](dir_28ffcd911995597d422ebd972d69802b.md) **>** [**burst\_despreader\_core.h**](burst__despreader__core_8h.md)
 
 [Go to the documentation of this file](burst__despreader__core_8h.md)
 
@@ -12,10 +12,10 @@
 #ifndef BURST_DESPREADER_CORE_H
 #define BURST_DESPREADER_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
-#include "loop_filter/loop_filter_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
+#include "doppler/loop_filter/loop_filter_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -2,7 +2,7 @@
 
 # File jm\_perf.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**jm\_perf.h**](jm__perf_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**jm\_perf.h**](jm__perf_8h.md)
 
 [Go to the documentation of this file](jm__perf_8h.md)
 
@@ -90,7 +90,7 @@
 #endif
 
 /* Width-portable SIMD operation macros (JM_VEC_F32, JM_MAC_F32, etc.) */
-#include "jm_simd.h"
+#include "doppler/jm_simd.h"
 
 /* ── JM_DEFINE_STEPS ────────────────────────────────────────────────────────
  *

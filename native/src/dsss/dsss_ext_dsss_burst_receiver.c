@@ -9,7 +9,7 @@
 /* DsssBurstReceiverObject — wraps dsss_burst_receiver_state_t *       */
 /* ======================================================== */
 
-#include "dsss_burst_receiver/dsss_burst_receiver_core.h"
+#include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"
 
 typedef struct
 {

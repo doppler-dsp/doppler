@@ -4,14 +4,14 @@
  * Host is assumed little-endian (doppler's targets); big-endian output is
  * produced by reversing each element on the way out.
  */
-#include "wfm_writer/wfm_writer_core.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 
-#include "dp_isotime.h" /* SigMF core:datetime is extended ISO 8601 */
-#include "wfm/wfm_keywords.h"
-#include "wfm/wfm_path.h"
-#include "wfm/wfm_time.h" /* J1950 <-> UNIX, WFM_TIMECODE_UNSET */
+#include "doppler/dp_isotime.h" /* SigMF core:datetime is extended ISO 8601 */
+#include "doppler/wfm/wfm_keywords.h"
+#include "doppler/wfm/wfm_path.h"
+#include "doppler/wfm/wfm_time.h" /* J1950 <-> UNIX, WFM_TIMECODE_UNSET */
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -19,10 +19,10 @@
 #include <string.h>
 
 #include "cJSON.h"
-#include "dp_format.h" /* the BLUE codes, shared with the wire */
-#include "f32_to_i16/f32_to_i16_core.h"
-#include "f32_to_i32/f32_to_i32_core.h"
-#include "f32_to_i8/f32_to_i8_core.h"
+#include "doppler/dp_format.h" /* the BLUE codes, shared with the wire */
+#include "doppler/f32_to_i16/f32_to_i16_core.h"
+#include "doppler/f32_to_i32/f32_to_i32_core.h"
+#include "doppler/f32_to_i8/f32_to_i8_core.h"
 
 /* per sample_type (wavegen order 0 cf32,1 cf64,2 ci32,3 ci16,4 ci8) */
 /* Element ENCODING per stype: what one component looks like on the wire.
@@ -97,7 +97,7 @@ blue_format_char (int stype)
   return code[1];
 }
 
-#include "wfm/wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
+#include "doppler/wfm/wfm_names.h" /* TYPE_NAMES / N_TYPES / MODE_NAMES (SSOT) */
 
 struct wfm_writer_state
 {

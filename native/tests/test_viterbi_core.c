@@ -27,8 +27,8 @@
 #include "dp_state_test.h"
 #include "dp_test.h"
 
-#include "conv/conv_core.h"
-#include "viterbi/viterbi_core.h"
+#include "doppler/conv/conv_core.h"
+#include "doppler/viterbi/viterbi_core.h"
 
 #include <math.h>
 #include <stdlib.h>

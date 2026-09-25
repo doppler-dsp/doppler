@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**arith**](dir_51d42af7a43550d997314136379d62d2.md) **>** [**arith\_core.h**](arith__core_8h.md)
+[**FileList**](files.md) **>** [**arith**](dir_d0f844c85d44525a1700464c9da275c4.md) **>** [**arith\_core.h**](arith__core_8h.md)
 
 [Go to the source code of this file](arith__core_8h_source.md)
 
 _Arith module — public C API for fixed-point arithmetic on Q15 (int16\_t) and Q8 (int8\_t) arrays. All elementwise operations write into a caller-supplied output buffer of the same length as the shorter input. Saturation clamps results to the representable range rather than wrapping, matching the two's-complement DSP convention._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -747,5 +747,5 @@ static inline int8_t sat8 (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/arith/arith_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/arith/arith_core.h`
 

@@ -16,7 +16,7 @@ endif()
 add_library(delay_core OBJECT delay_core.c)
 target_include_directories(
   delay_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                    ${CMAKE_SOURCE_DIR}/native/inc/delay)
+                    ${CMAKE_SOURCE_DIR}/native/inc/doppler/delay)
 
 add_executable(test_delay_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_delay_core.c

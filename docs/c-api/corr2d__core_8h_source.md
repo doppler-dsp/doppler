@@ -2,7 +2,7 @@
 
 # File corr2d\_core.h
 
-[**File List**](files.md) **>** [**corr2d**](dir_55247951d314f4b4a6db9bf46862b830.md) **>** [**corr2d\_core.h**](corr2d__core_8h.md)
+[**File List**](files.md) **>** [**corr2d**](dir_ac96ca94cfbb355eb7a82b081cfe387c.md) **>** [**corr2d\_core.h**](corr2d__core_8h.md)
 
 [Go to the documentation of this file](corr2d__core_8h.md)
 
@@ -12,10 +12,10 @@
 #ifndef CORR2D_CORE_H
 #define CORR2D_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "fft/fft_core.h"
-#include "fft2d/fft2d_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/fft/fft_core.h"
+#include "doppler/fft2d/fft2d_core.h"
 
 #ifdef __cplusplus
 extern "C" {

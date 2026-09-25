@@ -16,7 +16,7 @@ endif()
 add_library(ddcr_core OBJECT ddcr_core.c)
 target_include_directories(
   ddcr_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                   ${CMAKE_SOURCE_DIR}/native/inc/ddcr)
+                   ${CMAKE_SOURCE_DIR}/native/inc/doppler/ddcr)
 target_link_libraries(ddcr_core PUBLIC
     lo_core
     RateConverter_core

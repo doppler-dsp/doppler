@@ -2,7 +2,7 @@
 
 # File awgn\_core.h
 
-[**File List**](files.md) **>** [**awgn**](dir_b535f71dd6c18f769df9e4bf89a97331.md) **>** [**awgn\_core.h**](awgn__core_8h.md)
+[**File List**](files.md) **>** [**awgn**](dir_6240b6c8e1c7fd073a984e370d89f937.md) **>** [**awgn\_core.h**](awgn__core_8h.md)
 
 [Go to the documentation of this file](awgn__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef AWGN_CORE_H
 #define AWGN_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
 
 #ifdef __cplusplus
 extern "C"

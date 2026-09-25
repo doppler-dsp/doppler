@@ -9,7 +9,7 @@
 /* RawCaptureObject — wraps capture_state_t *       */
 /* ======================================================== */
 
-#include "capture/capture_core.h"
+#include "iqtools/capture/capture_core.h"
 
 typedef struct
 {

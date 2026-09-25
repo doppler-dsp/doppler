@@ -16,7 +16,7 @@ endif()
 add_library(interleaver_core OBJECT interleaver_core.c)
 target_include_directories(
   interleaver_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                          ${CMAKE_SOURCE_DIR}/native/inc/interleaver)
+                          ${CMAKE_SOURCE_DIR}/native/inc/doppler/interleaver)
 
 add_executable(test_interleaver_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_interleaver_core.c

@@ -31,9 +31,9 @@
  * because a receiver chooses granularity and cannot choose to stop
  * steering.
  */
-#include "ddc/ddc_core.h"
+#include "doppler/ddc/ddc_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_bench.h"
-#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

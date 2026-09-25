@@ -14,7 +14,7 @@ add_library(fft_core OBJECT
     ${CMAKE_SOURCE_DIR}/vendor/pffft/pffft.c)
 target_include_directories(fft_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/fft)
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/fft)
 # The wrapper and vendored cores reference the vendored headers as
 # "pffft/pffft.h" / "pocketfft/pocketfft_c99.h"; vendor/ is the root that
 # resolves those prefixes (private — consumers see only the public fft_core.h).

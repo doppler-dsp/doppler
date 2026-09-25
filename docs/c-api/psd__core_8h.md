@@ -4,17 +4,17 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**psd**](dir_1f3d46873d925f2e533983763479900d.md) **>** [**psd\_core.h**](psd__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**psd**](dir_80b4a8b440284bffd6bf0fbeb7bfe41f.md) **>** [**psd\_core.h**](psd__core_8h.md)
 
 [Go to the source code of this file](psd__core_8h_source.md)
 
 _PSD — averaging power-spectral-density estimator (Welch's method) and spectral measurement suite._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
-* `#include "fft/fft_core.h"`
-* `#include "acc_trace/acc_trace_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/fft/fft_core.h"`
+* `#include "doppler/acc_trace/acc_trace_core.h"`
 
 
 
@@ -881,5 +881,5 @@ Total band power in dB (dB floor if empty).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/psd/psd_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/psd/psd_core.h`
 

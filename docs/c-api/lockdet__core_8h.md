@@ -4,16 +4,16 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**lockdet**](dir_87531a87e500e672b7d093c5682794b4.md) **>** [**lockdet\_core.h**](lockdet__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**lockdet**](dir_0a3dcc380b80b2c01366f0cb5ed7ee07.md) **>** [**lockdet\_core.h**](lockdet__core_8h.md)
 
 [Go to the source code of this file](lockdet__core_8h_source.md)
 
 _Portable lock detector — level + time hysteresis over any scalar lock metric, embeddable in every loop that makes a lock decision._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
-* `#include "util/util_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/util/util_core.h"`
 * `#include <math.h>`
 
 
@@ -512,5 +512,5 @@ void lockdet_steps (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/lockdet/lockdet_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/lockdet/lockdet_core.h`
 

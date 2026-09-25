@@ -4,7 +4,7 @@
  * One implementation shared by wfm_writer (encode) and wfm_reader (decode);
  * the two directions are each other's exact inverse by construction.
  */
-#include "wfm/wfm_keywords.h"
+#include "doppler/wfm/wfm_keywords.h"
 
 #include <stdlib.h>
 #include <string.h>

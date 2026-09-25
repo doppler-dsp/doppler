@@ -28,7 +28,7 @@
  */
 #include "dp_test.h"
 
-#include "ccsds_tm/ccsds_tm_rs.h"
+#include "doppler/ccsds_tm/ccsds_tm_rs.h"
 
 #include <string.h>
 

@@ -3,13 +3,13 @@
  * contract, and the reasoning behind each boundary, live on the declarations
  * in wfm/wfm_frame.h.
  */
-#include "wfm/wfm_frame.h"
+#include "doppler/wfm/wfm_frame.h"
 
-#include "dp_crc16.h"
-#include "dp_interleave.h"
-#include "gold/gold_core.h"
-#include "pn/pn_core.h"
-#include "wfm/wfm_dsp.h" /* the DSSS burst assembler declared there */
+#include "doppler/dp_crc16.h"
+#include "doppler/dp_interleave.h"
+#include "doppler/gold/gold_core.h"
+#include "doppler/pn/pn_core.h"
+#include "doppler/wfm/wfm_dsp.h" /* the DSSS burst assembler declared there */
 
 #include <stdlib.h>
 #include <string.h>

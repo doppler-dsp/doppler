@@ -1,5 +1,5 @@
 /* bench_cic_core.c — CIC decimation filter benchmark */
-#include "cic/cic_core.h"
+#include "doppler/cic/cic_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

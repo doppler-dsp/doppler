@@ -1,6 +1,6 @@
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/loop_filter/loop_filter_core.h"
 #include "jm_bench.h"
-#include "loop_filter/loop_filter_core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

@@ -273,7 +273,7 @@ by-value analyzers) are exempt. See
 [State Serialization](../../design/state-serialization.md) for the full
 design.
 
-1. **C core** — `#include "dp_state.h"` in `<component>_core.h`, declare
+1. **C core** — `#include "doppler/dp_state.h"` in `<component>_core.h`, declare
     a per-object `#define <COMPONENT>_STATE_MAGIC DP_FOURCC(...)` +
     `<COMPONENT>_STATE_VERSION 1u`, and the triplet:
 

@@ -14,14 +14,14 @@
  * stage's intermediate output fits without a second alloc.
  */
 
-#include "RateConverter/RateConverter_core.h"
+#include "doppler/RateConverter/RateConverter_core.h"
 
-#include "cic/cic_core.h"
-#include "fir/fir_core.h"
-#include "hbdecim/hbdecim_core.h"
-#include "resamp/resamp_core.h"
-#include "resample/resample_core.h" /* ciccompmf */
-#include "wfm/wfm_dsp.h" /* wfm_rrc_h — the RRC formula's one home */
+#include "doppler/cic/cic_core.h"
+#include "doppler/fir/fir_core.h"
+#include "doppler/hbdecim/hbdecim_core.h"
+#include "doppler/resamp/resamp_core.h"
+#include "doppler/resample/resample_core.h" /* ciccompmf */
+#include "doppler/wfm/wfm_dsp.h" /* wfm_rrc_h — the RRC formula's one home */
 
 #include <math.h>
 #include <stdio.h>

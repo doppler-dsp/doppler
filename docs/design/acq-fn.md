@@ -74,7 +74,7 @@ serializable triplet + `acq_run`, mirroring `ddcr`:
 #include <stdint.h>
 #include <stdio.h>
 
-#include "acq/acq_core.h"
+#include "doppler/acq/acq_core.h"
 
 int
 main (void)

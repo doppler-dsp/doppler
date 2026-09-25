@@ -16,7 +16,7 @@ endif()
 add_library(conv_enc_core OBJECT conv_enc_core.c)
 target_include_directories(
   conv_enc_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                       ${CMAKE_SOURCE_DIR}/native/inc/conv_enc)
+                       ${CMAKE_SOURCE_DIR}/native/inc/doppler/conv_enc)
 target_link_libraries(conv_enc_core PUBLIC
     conv_core)
 

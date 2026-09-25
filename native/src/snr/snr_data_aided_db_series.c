@@ -4,7 +4,7 @@
  * Sliding-window wrapper: one snr_data_aided_db() call per output index,
  * over a [i - window/2, i + window/2] span clamped at the edges.
  */
-#include "snr/snr_core.h"
+#include "doppler/snr/snr_core.h"
 
 #include <math.h>
 

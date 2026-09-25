@@ -264,5 +264,5 @@ agc_tlm_t agc_state_t::tlm;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/agc/agc_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/agc/agc_core.h`
 

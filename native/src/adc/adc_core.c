@@ -1,5 +1,5 @@
-#include "adc/adc_core.h"
-#include "jm_simd.h"
+#include "doppler/adc/adc_core.h"
+#include "doppler/jm_simd.h"
 
 #define ADC_RNG_SEED 0x12345678u
 

@@ -6,7 +6,7 @@
  * the DECODER built over one, so the object gets its Python face, its test
  * target and its benchmark target generated rather than hand-registered.
  */
-#include "viterbi/viterbi_core.h"
+#include "doppler/viterbi/viterbi_core.h"
 
 #include <float.h>
 #include <stdlib.h>

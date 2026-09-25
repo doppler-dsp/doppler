@@ -1,4 +1,4 @@
-#include "detection/detection_core.h"
+#include "doppler/detection/detection_core.h"
 int
 det_n_noncoh (double snr, int n_coh, double pd_min, double pfa,
               int max_n_noncoh)

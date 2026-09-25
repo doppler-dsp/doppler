@@ -1,7 +1,7 @@
 /*
  * kaiser_enbw.c — spectral module-level function.
  */
-#include "spectral/spectral_core.h"
+#include "doppler/spectral/spectral_core.h"
 
 float
 kaiser_enbw (const float *w, size_t w_len)

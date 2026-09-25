@@ -89,7 +89,7 @@ rx = LO(0.1).steps(N) + AWGN(seed=0, amplitude=noise_amp).generate(N)
 **C one-shot** (no persistent state):
 
 ```c
-#include <awgn/awgn_core.h>
+#include <doppler/awgn/awgn_core.h>
 #include <complex.h>
 
 int main(void)
@@ -103,7 +103,7 @@ int main(void)
 **C stateful** (streaming / replay):
 
 ```c
-#include <awgn/awgn_core.h>
+#include <doppler/awgn/awgn_core.h>
 #include <complex.h>
 
 int main(void)

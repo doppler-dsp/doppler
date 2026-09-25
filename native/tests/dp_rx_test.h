@@ -65,21 +65,21 @@
 #ifndef DP_RX_TEST_H
 #define DP_RX_TEST_H
 
+#include "doppler/util/util_core.h"
 #include "dp_ber_test.h"
 #include "dp_frame_test.h"
 #include "dp_test.h"
-#include "util/util_core.h"
 
-#include "ber/ber_core.h"
-#include "doppler_channel/doppler_channel_core.h"
-#include "frame_meter/frame_meter_core.h"
-#include "loop_filter/loop_filter_core.h"
-#include "mpsk/mpsk_core.h"
-#include "wfm/wfm_dsp.h"
-#include "wfm/wfm_frame.h"
-#include "wfm_synth/wfm_synth_core.h"
+#include "doppler/ber/ber_core.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
+#include "doppler/frame_meter/frame_meter_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/mpsk/mpsk_core.h"
+#include "doppler/wfm/wfm_dsp.h"
+#include "doppler/wfm/wfm_frame.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>

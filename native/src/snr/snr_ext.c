@@ -8,10 +8,10 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 #include <numpy/arrayobject.h>
 
-#include "snr/snr_core.h"
+#include "doppler/snr/snr_core.h"
 
 static PyObject *
 _bind_snr_data_aided_db (PyObject *self, PyObject *args, PyObject *kwds)

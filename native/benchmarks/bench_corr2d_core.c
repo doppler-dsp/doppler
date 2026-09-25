@@ -6,8 +6,8 @@
  * FFT forward and inverse).  This is the durable regression gate for the
  * fast-path optimization (see docs/design/corr2d-interpolated-inverse.md).
  */
-#include "corr2d/corr2d_core.h"
-#include "dp_complex.h"
+#include "doppler/corr2d/corr2d_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <stdint.h>
 #include <stdio.h>

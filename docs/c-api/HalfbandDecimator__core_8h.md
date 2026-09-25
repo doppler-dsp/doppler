@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**HalfbandDecimator**](dir_6ac3f68ee82e011454c15c865a37e192.md) **>** [**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**HalfbandDecimator**](dir_7d0e752fb42c448bafa7d80e7fc4aaf0.md) **>** [**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md)
 
 [Go to the source code of this file](HalfbandDecimator__core_8h_source.md)
 
 _Halfband 2:1 decimator for CF32 IQ (adapter over hbdecim\_core)._ [More...](#detailed-description)
 
-* `#include "hbdecim/hbdecim_core.h"`
+* `#include "doppler/hbdecim/hbdecim_core.h"`
 
 
 
@@ -431,5 +431,5 @@ size_t HalfbandDecimator_state_bytes (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/HalfbandDecimator/HalfbandDecimator_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/HalfbandDecimator/HalfbandDecimator_core.h`
 

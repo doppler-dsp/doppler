@@ -23,7 +23,7 @@ Convolutional codes as a DESCRIPTION — a constraint length, an output count, a
 
 Design and API, not restated here:
 
-- `native/inc/conv/conv_core.h` — the SSOT for every claim below
+- `native/inc/doppler/conv/conv_core.h` — the SSOT for every claim below
 - `native/tests/test_conv_core.c` — the C certification
 - [The Viterbi Decoder](../../../../../docs/design/viterbi.md) — the trellis, the branch metric, the traceback depth and node synchronization
 - `native/validation/conv_certify.c` — the sweeps below

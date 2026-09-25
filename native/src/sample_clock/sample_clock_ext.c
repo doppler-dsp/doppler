@@ -10,14 +10,14 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 #include <math.h>
 #include <numpy/arrayobject.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "timing/timing_core.h"
+#include "doppler/timing/timing_core.h"
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */
 static int

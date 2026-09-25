@@ -2,7 +2,7 @@
 
 # File lo\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**lo**](dir_e3bbeba8c021d4d74db794db08bafd77.md) **>** [**lo\_core.h**](lo__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**lo**](dir_939b5fbb8d3e3ebd3276389efab5bbba.md) **>** [**lo\_core.h**](lo__core_8h.md)
 
 [Go to the documentation of this file](lo__core_8h.md)
 
@@ -12,10 +12,10 @@
 #ifndef LO_CORE_H
 #define LO_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
-#include "nco/nco_core.h" /* nco_norm_freq_to_inc() -- the one shared cycles->phase-delta primitive */
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
+#include "doppler/nco/nco_core.h" /* nco_norm_freq_to_inc() -- the one shared cycles->phase-delta primitive */
 #ifdef __cplusplus
 extern "C"
 {

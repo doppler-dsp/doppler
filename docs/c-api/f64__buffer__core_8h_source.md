@@ -2,7 +2,7 @@
 
 # File f64\_buffer\_core.h
 
-[**File List**](files.md) **>** [**f64\_buffer**](dir_5630daeef65defa73cbccdb3de4b4d2a.md) **>** [**f64\_buffer\_core.h**](f64__buffer__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**f64\_buffer**](dir_d7320aa8439c659edb0fbbfd27af0c55.md) **>** [**f64\_buffer\_core.h**](f64__buffer__core_8h.md)
 
 [Go to the documentation of this file](f64__buffer__core_8h.md)
 
@@ -12,10 +12,10 @@
 #ifndef F64_BUFFER_CORE_H
 #define F64_BUFFER_CORE_H
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
-#include "buffer/buffer.h"
-#include "dp_interrupt_guard/dp_interrupt_guard_core.h"
+#include "doppler/buffer/buffer.h"
+#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"
 
 #ifdef __cplusplus
 extern "C"

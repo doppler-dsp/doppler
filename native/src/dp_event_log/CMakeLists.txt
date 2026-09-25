@@ -16,7 +16,7 @@ endif()
 add_library(dp_event_log_core OBJECT dp_event_log_core.c)
 target_include_directories(
   dp_event_log_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                           ${CMAKE_SOURCE_DIR}/native/inc/dp_event_log)
+                           ${CMAKE_SOURCE_DIR}/native/inc/doppler/dp_event_log)
 target_link_libraries(dp_event_log_core PUBLIC
     wfm_writer_core
     wfm_cjson_core

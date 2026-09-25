@@ -6,7 +6,7 @@
  * CADU bits each stage owns, and ccsds_tm_frame_encode runs each stage over
  * exactly that span. See ccsds_tm_frame.h for the table and the citations.
  */
-#include "ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/ccsds_tm/ccsds_tm_frame.h"
 
 #include <string.h>
 

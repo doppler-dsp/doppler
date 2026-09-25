@@ -84,17 +84,17 @@
  *
  * @see docs/design/rx-test.md sections 2.5, 7.4, 8
  */
+#include "doppler/util/util_core.h"
 #include "dp_rx_test.h"      /* dp_rx_score_frames -- the per-frame scorer  */
 #include "mpsk_ber_common.h" /* MPSK_BER_AMP, MPSK_BER_MAX_BURSTS */
-#include "util/util_core.h"
 
-#include "frame_meter/frame_meter_core.h"
-#include "mpsk/mpsk_core.h"
-#include "wfm/wfm_dsp.h"
-#include "wfm/wfm_frame.h"
-#include "wfm_synth/wfm_synth_core.h"
+#include "doppler/frame_meter/frame_meter_core.h"
+#include "doppler/mpsk/mpsk_core.h"
+#include "doppler/wfm/wfm_dsp.h"
+#include "doppler/wfm/wfm_frame.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

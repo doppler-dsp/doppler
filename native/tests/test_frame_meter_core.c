@@ -18,9 +18,9 @@
  * The interval itself is `ber_confidence`, already pinned where it lives; what
  * is checked here is that this meter hands it the right two numbers.
  */
+#include "doppler/frame_meter/frame_meter_core.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
-#include "frame_meter/frame_meter_core.h"
 
 #include <stdio.h>
 #include <stdlib.h>

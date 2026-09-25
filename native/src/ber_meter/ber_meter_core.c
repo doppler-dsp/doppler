@@ -4,10 +4,10 @@
  * confidence interval. See ber_meter/ber_meter_core.h for the state struct and
  * ber/ber_core.h for the three gates a measurement has to pass.
  */
-#include "ber_meter/ber_meter_core.h"
-#include "ber/ber_core.h"
-#include "detection/detection_core.h"
-#include "mpsk/mpsk_core.h"
+#include "doppler/ber_meter/ber_meter_core.h"
+#include "doppler/ber/ber_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/mpsk/mpsk_core.h"
 #include <limits.h>
 #include <math.h>
 #include <string.h>

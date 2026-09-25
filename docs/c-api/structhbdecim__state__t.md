@@ -252,5 +252,5 @@ float _Complex hbdecim_state_t::pending;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/hbdecim/hbdecim_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/hbdecim/hbdecim_core.h`
 

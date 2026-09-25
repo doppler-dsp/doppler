@@ -4,24 +4,24 @@
 
 
 
-[**FileList**](files.md) **>** [**ddc**](dir_b33dc116452ac5c7d7799725e78b6bdc.md) **>** [**ddc\_core.h**](ddc__core_8h.md)
+[**FileList**](files.md) **>** [**ddc**](dir_4a67ebc391a3fd8e8259ec0993c7169b.md) **>** [**ddc\_core.h**](ddc__core_8h.md)
 
 [Go to the source code of this file](ddc__core_8h_source.md)
 
 _Digital Down-Converter — composes LO + RateConverter cascade._ [More...](#detailed-description)
 
-* `#include "dp_complex.h"`
+* `#include "doppler/dp_complex.h"`
 * `#include <stdbool.h>`
 * `#include <stddef.h>`
-* `#include "lo/lo_core.h"`
-* `#include "RateConverter/RateConverter_core.h"`
-* `#include "resamp/resamp_core.h"`
-* `#include "hbdecim/hbdecim_core.h"`
-* `#include "cic/cic_core.h"`
-* `#include "fir/fir_core.h"`
-* `#include "resample/resample_core.h"`
-* `#include "agc/agc_core.h"`
-* `#include "dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/lo/lo_core.h"`
+* `#include "doppler/RateConverter/RateConverter_core.h"`
+* `#include "doppler/resamp/resamp_core.h"`
+* `#include "doppler/hbdecim/hbdecim_core.h"`
+* `#include "doppler/cic/cic_core.h"`
+* `#include "doppler/fir/fir_core.h"`
+* `#include "doppler/resample/resample_core.h"`
+* `#include "doppler/agc/agc_core.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
 
 
 
@@ -1088,5 +1088,5 @@ size_t ddc_state_bytes (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ddc/ddc_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ddc/ddc_core.h`
 

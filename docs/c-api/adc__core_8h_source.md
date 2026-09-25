@@ -2,7 +2,7 @@
 
 # File adc\_core.h
 
-[**File List**](files.md) **>** [**adc**](dir_a6be6b8cb61d5f2be55c0b2f94afbd88.md) **>** [**adc\_core.h**](adc__core_8h.md)
+[**File List**](files.md) **>** [**adc**](dir_eddcd1edcea89729b407f545f79f2d08.md) **>** [**adc\_core.h**](adc__core_8h.md)
 
 [Go to the documentation of this file](adc__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef ADC_CORE_H
 #define ADC_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
 #include <math.h>
 #ifdef __cplusplus
 extern "C" {

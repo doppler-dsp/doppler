@@ -279,5 +279,5 @@ Stream position of the assignment.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/async_dsss_pool/async_dsss_pool_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/async_dsss_pool/async_dsss_pool_core.h`
 

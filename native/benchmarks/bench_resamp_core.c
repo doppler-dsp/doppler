@@ -7,10 +7,10 @@
  * ops = TOTAL_PER_ROUND / mean = input samples per second.
  */
 
+#include "doppler/resamp/resamp_core.h"
 #include "jm_bench.h"
-#include "resamp/resamp_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

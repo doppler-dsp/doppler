@@ -16,7 +16,7 @@ endif()
 add_library(acc_q15_core OBJECT acc_q15_core.c)
 target_include_directories(
   acc_q15_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                      ${CMAKE_SOURCE_DIR}/native/inc/acc_q15)
+                      ${CMAKE_SOURCE_DIR}/native/inc/doppler/acc_q15)
 
 add_executable(test_acc_q15_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_acc_q15_core.c

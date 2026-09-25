@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**ccsds**](dir_dc3b6b0faf00f348f137e45d38cdc7fa.md) **>** [**ccsds\_core.h**](ccsds__core_8h.md)
+[**FileList**](files.md) **>** [**ccsds**](dir_c033bcb1c91e23f54b625bfe2cf0448c.md) **>** [**ccsds\_core.h**](ccsds__core_8h.md)
 
 [Go to the source code of this file](ccsds__core_8h_source.md)
 
 _CCSDS 131.0-B's published literals, as a Python-facing component._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -84,7 +84,7 @@ _CCSDS 131.0-B's published literals, as a Python-facing component._ [More...](#d
 ## Detailed Description
 
 
-The values one standard picked, kept BESIDE the general layer rather than inside it. `ccsds_tm` ([**native/inc/ccsds\_tm/ccsds\_tm.h**](ccsds__tm_8h.md)) is where those picks are defined and certified; this component is the thin face that carries them to Python, and holds no arithmetic of its own.
+The values one standard picked, kept BESIDE the general layer rather than inside it. `ccsds_tm` ([**native/inc/doppler/ccsds\_tm/ccsds\_tm.h**](ccsds__tm_8h.md)) is where those picks are defined and certified; this component is the thin face that carries them to Python, and holds no arithmetic of its own.
 
 
 This is deliberately NOT a binding of `ccsds_tm`'s transforms, and must not become one. The outer code, the randomiser and the inner code are reached by DESCRIBING a CADU through `doppler.wfm.FrameDesc` — the general assembler runs the standard's kernels from an ops table, which is what keeps `wfm/wfm_frame.h` free of CCSDS. See docs/design/frame-description.md. 
@@ -141,5 +141,5 @@ True
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ccsds/ccsds_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ccsds/ccsds_core.h`
 

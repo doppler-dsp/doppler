@@ -2,7 +2,7 @@
 
 # File rs\_codec\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**rs\_codec**](dir_3e7cbca72be4a95038c1797bf5803786.md) **>** [**rs\_codec\_core.h**](rs__codec__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**rs\_codec**](dir_73572debd583c0e71af980e0bf0d5ccd.md) **>** [**rs\_codec\_core.h**](rs__codec__core_8h.md)
 
 [Go to the documentation of this file](rs__codec__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef RS_CODEC_CORE_H
 #define RS_CODEC_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "rs/rs_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/rs/rs_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -1,7 +1,7 @@
 /*
  * bin_to_nrz.c — cvt module-level function.
  */
-#include "cvt/cvt_core.h"
+#include "doppler/cvt/cvt_core.h"
 
 /* `1 - 2*b`, computed directly rather than through mpsk_constellation().
  *

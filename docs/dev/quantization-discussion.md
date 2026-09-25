@@ -150,25 +150,25 @@ integer requantisers (kind E) break them **upward** (`+ 2^(n−1)`).
     at the cost of a sign-dependent branch or select in every integer
     requantiser.
 
-[adcs]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/adc/adc_core.h#L160-L176
+[adcs]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/adc/adc_core.h#L160-L176
 [adcv]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/src/adc/adc_core.c#L51-L93
 [allow]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/scripts/.phase-conversion-allow
-[cicdec]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/cic/cic_core.h#L333-L339
-[cicenc]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/cic/cic_core.h#L286-L298
-[dll1]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/dll/dll_core.h#L348
-[dll2]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/dll/dll_core.h#L390
-[f2i16]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/f32_to_i16/f32_to_i16_core.h#L128-L136
-[f2uq15]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/f32_to_uq15/f32_to_uq15_core.h#L136-L145
+[cicdec]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/cic/cic_core.h#L333-L339
+[cicenc]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/cic/cic_core.h#L286-L298
+[dll1]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/dll/dll_core.h#L348
+[dll2]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/dll/dll_core.h#L390
+[f2i16]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/f32_to_i16/f32_to_i16_core.h#L128-L136
+[f2uq15]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/f32_to_uq15/f32_to_uq15_core.h#L136-L145
 [gate]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/scripts/check_phase_conversion_sites.py
 [hbcoef]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/src/hbdecim_q15/hbdecim_q15_core.c#L243-L248
 [hbout]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/src/hbdecim_q15/hbdecim_q15_core.c#L186-L196
-[i2f]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/i16_to_f32/i16_to_f32_core.h#L109
+[i2f]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/i16_to_f32/i16_to_f32_core.h#L109
 [lolut]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/src/lo/lo_core.c#L195-L197
 [mulq15]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/src/arith/mul_q15.c#L13-L14
-[nfi]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/nco/nco_core.h#L352
-[nmax]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/nco/nco_core.h#L494
-[pu]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/nco/nco_core.h#L149-L160
-[pum]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/nco/nco_core.h#L198-L206
+[nfi]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/nco/nco_core.h#L352
+[nmax]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/nco/nco_core.h#L494
+[pu]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/nco/nco_core.h#L149-L160
+[pum]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/nco/nco_core.h#L198-L206
 [q24]: ../design/QUANTIZATION.md#24-cast-chains-used-in-this-codebase
 [q31]: ../design/QUANTIZATION.md#31-encoder
 [reader]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/src/wfm_reader/wfm_reader_core.c#L151
@@ -177,5 +177,5 @@ integer requantisers (kind E) break them **upward** (`+ 2^(n−1)`).
 [stream]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/src/stream/stream_core.c#L174
 [sym]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/src/symsync/symsync_core.c#L137-L141
 [symsps]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/src/symsync/symsync_core.c#L211
-[w2n]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/nco/nco_core.h#L227
+[w2n]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/inc/doppler/nco/nco_core.h#L227
 [writer]: https://github.com/doppler-dsp/doppler/blob/51d34a292f7607788ab69c0cb5bc78d7b167d271/native/src/wfm_writer/wfm_writer_core.c#L185

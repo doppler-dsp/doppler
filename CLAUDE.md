@@ -166,9 +166,9 @@ the standard state triplet. This is not optional: elastic resume (checkpoint /
 migrate / scale across threads, processes, pods) depends on *every* stateful
 object speaking the one bytes interface. Only genuinely stateless objects (pure
 converters, FFT plans, by-value analyzers) are exempt. See
-`docs/design/state-serialization.md` and `native/inc/dp_state.h`.
+`docs/design/state-serialization.md` and `native/inc/doppler/dp_state.h`.
 
-1. **C core** — `#include "dp_state.h"` in `<obj>_core.h`, declare a per-object
+1. **C core** — `#include "doppler/dp_state.h"` in `<obj>_core.h`, declare a per-object
     `#define <OBJ>_STATE_MAGIC DP_FOURCC(...)` + `<OBJ>_STATE_VERSION 1u`, and
     the triplet:
 
@@ -696,7 +696,7 @@ restore afterward — `jm apply` now leaves those files' bytes untouched,
 full stop.
 
 Investigating the jm#441 report also surfaced a **doppler-side** bug (not a
-jm bug): `native/inc/burst_despreader/burst_despreader_core.h`'s hand-written
+jm bug): `native/inc/doppler/burst_despreader/burst_despreader_core.h`'s hand-written
 `@param bn_carrier`/`@param bn_code` doxygen text carried stale
 `(default: 0.01)`/`(default: 0.002)` annotations that had drifted 5x out of
 sync with `objects/burst_despreader.toml`'s actual `init_params` defaults
@@ -793,7 +793,7 @@ top-level `add_subdirectory`). NB: `bool` params inject `bool` into the module
 header without `<stdbool.h>` → use `type="int"` for a C-`int` flag.
 
 **3. Parallel `Plan.prepare()` (doppler-internal, not a jm feature).**
-`native/inc/dp_parallel.h` — doppler's **first C-level threading**: a bounded
+`native/inc/doppler/dp_parallel.h` — doppler's **first C-level threading**: a bounded
 parallel-for (pthread + lock-free fetch-add cursor, serial fallback) fans the
 independent per-source signal builds across cores in `cache_segment_signals`
 (threshold-gated ≥4096 samples, >1 source; bit-exact, TSan-clean, ~9.4× on 20
@@ -1022,7 +1022,7 @@ ______________________________________________________________________
 Every stateful object resumes bit-for-bit from a serialized blob (thread /
 process / pod hand-off). The rule: **serialization is module-specific; the
 bytes interface is not.** The universal layer lives once in
-`native/inc/dp_state.h`; each module packs only its own fields. See
+`native/inc/doppler/dp_state.h`; each module packs only its own fields. See
 `docs/design/state-serialization.md` for the full design.
 
 - **ABI triplet** (sibling to `reset`, hand-written in `<obj>_core.c`):

@@ -19,9 +19,9 @@
  *   Used only for DET_NOISE_MEDIAN to avoid a heap allocation on every push.
  */
 
-#include "detector/detector_core.h"
+#include "doppler/detector/detector_core.h"
 #include "det_private.h"
-#include "util/util_core.h"
+#include "doppler/util/util_core.h"
 
 #include <math.h>
 #include <stdlib.h>

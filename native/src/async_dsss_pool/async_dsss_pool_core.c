@@ -3,7 +3,7 @@
  * @brief AsyncDsssPool -- the holder of the population (design section
  *        8.2). See async_dsss_pool_core.h for the lifecycle.
  */
-#include "async_dsss_pool/async_dsss_pool_core.h"
+#include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

@@ -105,5 +105,5 @@ double _Complex acc_cf64_state_t::acc;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acc_cf64/acc_cf64_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acc_cf64/acc_cf64_core.h`
 

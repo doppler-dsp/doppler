@@ -29,7 +29,7 @@ Two things are measured that the C test cannot reach:
   "Period 2^n-1" is necessary and not sufficient: those are the reasons
   an m-sequence is the sequence anyone wants.
 
-The order is the campaign's: `native/inc/pn/pn_core.h` is the SSOT and
+The order is the campaign's: `native/inc/doppler/pn/pn_core.h` is the SSOT and
 `native/tests/test_pn_core.c` certifies it in C.
 """
 
@@ -275,7 +275,7 @@ def section_object() -> None:
         "`bpsk`/`qpsk`, and the PN sequence kind inside a frame. The "
         "design is "
         "[docs/design/wfmgen.md](../../../../../../docs/design/wfmgen.md); "
-        "the API is `native/inc/pn/pn_core.h`, certified in C by "
+        "the API is `native/inc/doppler/pn/pn_core.h`, certified in C by "
         "`native/tests/test_pn_core.c`."
     )
     R.md()

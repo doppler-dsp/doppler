@@ -1,5 +1,5 @@
 /* bench_delay_core.c — no step() to benchmark */
-#include "delay/delay_core.h"
+#include "doppler/delay/delay_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

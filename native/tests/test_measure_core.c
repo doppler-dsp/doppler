@@ -15,8 +15,8 @@
  * whole number of cycles in the capture, and every bad-argument path
  * returns the documented 0 rather than a plausible-looking value.
  */
+#include "doppler/measure/measure_core.h"
 #include "dp_test.h"
-#include "measure/measure_core.h"
 #include <math.h>
 #include <stdio.h>
 

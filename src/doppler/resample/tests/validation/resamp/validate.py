@@ -169,7 +169,10 @@ def section_summary() -> None:
     R.md()
     R.md("Design and API, not restated here:")
     R.md()
-    R.md("- `native/inc/resamp/resamp_core.h` — the SSOT for every claim")
+    R.md(
+        "- `native/inc/doppler/resamp/resamp_core.h` — the SSOT for every "
+        "claim"
+    )
     R.md(
         "- `native/tests/test_resamp_core.c` — §1-§20, where every claim "
         "below is actually certified"

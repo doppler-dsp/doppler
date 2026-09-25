@@ -16,7 +16,7 @@ endif()
 add_library(boxcar_core OBJECT boxcar_core.c)
 target_include_directories(
   boxcar_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                     ${CMAKE_SOURCE_DIR}/native/inc/boxcar)
+                     ${CMAKE_SOURCE_DIR}/native/inc/doppler/boxcar)
 
 add_executable(test_boxcar_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_boxcar_core.c

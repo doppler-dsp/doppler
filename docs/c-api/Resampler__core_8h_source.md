@@ -2,7 +2,7 @@
 
 # File Resampler\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**Resampler**](dir_6dca75203c5d2d5de468e6acc97392e7.md) **>** [**Resampler\_core.h**](Resampler__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**Resampler**](dir_9b0990bb8296ade48d8f038050fb64f1.md) **>** [**Resampler\_core.h**](Resampler__core_8h.md)
 
 [Go to the documentation of this file](Resampler__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef RESAMPLER_CORE_H
 #define RESAMPLER_CORE_H
 
-#include "resamp/resamp_core.h"
+#include "doppler/resamp/resamp_core.h"
 
 #ifdef __cplusplus
 extern "C"

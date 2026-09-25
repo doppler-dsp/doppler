@@ -2,7 +2,7 @@
 
 # File wfm\_writer\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm\_writer**](dir_a59bfdc441aa05aed9607457147ad53f.md) **>** [**wfm\_writer\_core.h**](wfm__writer__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wfm\_writer**](dir_b07d3bab2c69a70a146b9de213e56c65.md) **>** [**wfm\_writer\_core.h**](wfm__writer__core_8h.md)
 
 [Go to the documentation of this file](wfm__writer__core_8h.md)
 
@@ -15,8 +15,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "clib_common.h"
-#include "wfm/wfm_compose.h" /* wfm_segment_t for SigMF annotations */
+#include "doppler/clib_common.h"
+#include "doppler/wfm/wfm_compose.h" /* wfm_segment_t for SigMF annotations */
 
 #ifdef __cplusplus
 extern "C" {

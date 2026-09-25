@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md) **>** [**buffer.h**](buffer_8h.md)
+[**FileList**](files.md) **>** [**buffer**](dir_bada8e9c2056a5c5c150b079933e5759.md) **>** [**buffer.h**](buffer_8h.md)
 
 [Go to the source code of this file](buffer_8h_source.md)
 
@@ -15,12 +15,12 @@ _High-performance x86-64 Circular Buffer for RF Streaming._ [More...](#detailed-
 * `#include <sys/mman.h>`
 * `#include <sys/stat.h>`
 * `#include <unistd.h>`
-* `#include "dp_interrupt.h"`
+* `#include "doppler/dp_interrupt.h"`
 * `#include <stdbool.h>`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
-* `#include "jm_perf.h"`
-* `#include "util/util_core.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/util/util_core.h"`
 * `#include <stdlib.h>`
 * `#include <string.h>`
 
@@ -518,5 +518,5 @@ _Standard x86-64 cache-line size (64 bytes)._
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/buffer/buffer.h`
+The documentation for this class was generated from the following file `native/inc/doppler/buffer/buffer.h`
 

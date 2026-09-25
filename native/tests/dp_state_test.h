@@ -1,6 +1,6 @@
 /**
  * dp_state_test.h — uniform round-trip + reject test for the state bytes
- * interface (see native/inc/dp_state.h).
+ * interface (see native/inc/doppler/dp_state.h).
  *
  * Every serializable object's C test calls one macro: serialize object @p a,
  * restore into a *fresh* object @p b of the same config (must succeed), then

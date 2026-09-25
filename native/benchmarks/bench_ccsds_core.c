@@ -14,8 +14,8 @@
  *
  * A `volatile` sink prevents the loops being optimised away.
  */
-#include "ccsds/ccsds_core.h"
-#include "ccsds_tm/ccsds_tm.h"
+#include "doppler/ccsds/ccsds_core.h"
+#include "doppler/ccsds_tm/ccsds_tm.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <time.h>

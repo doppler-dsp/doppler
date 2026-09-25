@@ -2,7 +2,7 @@
 
 # File dp\_syncword.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**dp\_syncword.h**](dp__syncword_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_syncword.h**](dp__syncword_8h.md)
 
 [Go to the documentation of this file](dp__syncword_8h.md)
 
@@ -13,7 +13,7 @@
 #define DP_SYNCWORD_H
 
 #include <math.h>
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 #include <stddef.h>
 #include <stdint.h>
 

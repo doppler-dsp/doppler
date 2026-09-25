@@ -9,7 +9,7 @@
 /* CorrDetector2DObject — wraps detector2d_state_t *       */
 /* ======================================================== */
 
-#include "detector2d/detector2d_core.h"
+#include "doppler/detector2d/detector2d_core.h"
 
 typedef struct
 {

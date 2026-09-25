@@ -9,7 +9,7 @@
 /* DDCObject — wraps ddc_state_t *       */
 /* ======================================================== */
 
-#include "ddc/ddc_core.h"
+#include "doppler/ddc/ddc_core.h"
 
 typedef struct
 {

@@ -2,9 +2,9 @@
  *   "doppler" — max_rate = 0, a single FFT (near-static Doppler);
  *   "chirp"   — max_rate > 0, the coherent (rate x freq) dechirp-bank surface.
  * Reports samples/s (ops = N / mean-per-estimate). */
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/ppe/ppe_core.h"
 #include "jm_bench.h"
-#include "ppe/ppe_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

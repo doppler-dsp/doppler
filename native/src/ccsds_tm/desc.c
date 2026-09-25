@@ -26,7 +26,7 @@
  * reimplements a transform; what differs between the two paths is only which
  * bits each stage is handed, and that is exactly what the description states.
  */
-#include "ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/ccsds_tm/ccsds_tm_frame.h"
 
 #include <string.h>
 

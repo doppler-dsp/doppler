@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**delay**](dir_01f4b6965a2181d172634d6670b32dc1.md) **>** [**delay\_core.h**](delay__core_8h.md)
+[**FileList**](files.md) **>** [**delay**](dir_e9520af345bba2408e131802acc7e37b.md) **>** [**delay\_core.h**](delay__core_8h.md)
 
 [Go to the source code of this file](delay__core_8h_source.md)
 
 _Delay component API._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "dp_state.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/dp_state.h"`
 
 
 
@@ -570,5 +570,5 @@ void delay_write (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/delay/delay_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/delay/delay_core.h`
 

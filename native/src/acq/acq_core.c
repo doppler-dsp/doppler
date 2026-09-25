@@ -12,13 +12,13 @@
  * det_private.h — no link to detector_core.
  */
 
-#include "acq/acq_core.h"
+#include "doppler/acq/acq_core.h"
 /* det_private.h needs det_noise_mode_t (from detector2d_core.h, included
  * above) and supplies the header-only det_ring_create / det_noise_estimate
  * statics.
  */
-#include "detector/det_private.h"
-#include "util/util_core.h"
+#include "doppler/detector/det_private.h"
+#include "doppler/util/util_core.h"
 
 #include <math.h>
 #include <stdint.h>

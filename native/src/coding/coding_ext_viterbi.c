@@ -9,7 +9,7 @@
 /* ViterbiObject — wraps viterbi_state_t *       */
 /* ======================================================== */
 
-#include "viterbi/viterbi_core.h"
+#include "doppler/viterbi/viterbi_core.h"
 
 typedef struct
 {

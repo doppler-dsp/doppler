@@ -262,5 +262,5 @@ Exact stream position of the preamble.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dsss_burst_receiver/dsss_burst_receiver_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dsss_burst_receiver/dsss_burst_receiver_core.h`
 

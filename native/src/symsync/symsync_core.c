@@ -1,7 +1,7 @@
-#include "symsync/symsync_core.h"
-#include "detection/detection_core.h"
+#include "doppler/symsync/symsync_core.h"
+#include "doppler/detection/detection_core.h"
 
-#include "wfm/wfm_dsp.h"
+#include "doppler/wfm/wfm_dsp.h"
 
 #include <math.h>
 #include <stdio.h>

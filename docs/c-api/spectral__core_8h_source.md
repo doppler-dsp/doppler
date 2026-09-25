@@ -2,7 +2,7 @@
 
 # File spectral\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**spectral**](dir_2aadf81c4f49e887d76ad198d657298d.md) **>** [**spectral\_core.h**](spectral__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**spectral**](dir_bb80cb4693a043f62f72e53e1f90a405.md) **>** [**spectral\_core.h**](spectral__core_8h.md)
 
 [Go to the documentation of this file](spectral__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef SPECTRAL_CORE_H
 #define SPECTRAL_CORE_H
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
 #ifdef __cplusplus
 extern "C"

@@ -13,7 +13,7 @@ add_library(wfm_draw_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_draw.c)
 target_include_directories(wfm_draw_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
 
 # ── wfm_plan DSP fingerprint (auto-hash for save/restore) ────────────────────
 # A build-time SHA-256 over the DSP sources whose output feeds wfm_plan's cache.
@@ -41,8 +41,8 @@ endforeach()
 string(SHA256 _wfm_plan_dsp_full "${_wfm_plan_dsp_concat}")
 string(SUBSTRING "${_wfm_plan_dsp_full}" 0 16 WFM_PLAN_DSP_HASH_U64)
 configure_file(
-    ${CMAKE_SOURCE_DIR}/native/inc/wfm/wfm_plan_dsp_hash.h.in
-    ${CMAKE_BINARY_DIR}/native/inc/wfm/wfm_plan_dsp_hash.h @ONLY)
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm/wfm_plan_dsp_hash.h.in
+    ${CMAKE_BINARY_DIR}/native/inc/doppler/wfm/wfm_plan_dsp_hash.h @ONLY)
 # Reconfigure (regenerate the fingerprint) whenever a DSP source changes.
 set_property(DIRECTORY APPEND PROPERTY
     CMAKE_CONFIGURE_DEPENDS ${WFM_PLAN_DSP_SOURCES})
@@ -61,7 +61,7 @@ add_library(wfm_compose_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_synth_bridge.c)
 target_include_directories(wfm_compose_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfm
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm
     ${CMAKE_BINARY_DIR}/native/inc      # configure-time wfm_plan_dsp_hash.h
     ${CMAKE_SOURCE_DIR}/vendor/cjson)
 # wfm_plan.c fans the per-source signal build across cores (dp_parallel.h);
@@ -129,7 +129,7 @@ add_library(wfm_frame_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_frame.c)
 target_include_directories(wfm_frame_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
 target_link_libraries(wfm_frame_core PUBLIC pn_core gold_core ${DP_MATH_LIBRARY})
 
 # ── DSSS spreading + RRC pulse-shaping taps (pure DSP, no deps) ──────────────
@@ -137,7 +137,7 @@ add_library(wfm_dsp_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_dsp.c)
 target_include_directories(wfm_dsp_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
 target_link_libraries(wfm_dsp_core PUBLIC ${DP_MATH_LIBRARY})
 
 add_executable(test_wfm_frame
@@ -174,7 +174,7 @@ add_library(wfm_keywords_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_keywords.c)
 target_include_directories(wfm_keywords_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
 
 add_executable(test_wfm_keywords
     ${CMAKE_SOURCE_DIR}/native/tests/test_wfm_keywords.c)
@@ -274,7 +274,7 @@ if(NOT WIN32)
         ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sink.c)
     target_include_directories(wfm_sink_core PUBLIC
         ${CMAKE_SOURCE_DIR}/native/inc
-        ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+        ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
     target_link_libraries(wfm_sink_core PUBLIC ${DP_MATH_LIBRARY})
 
     add_executable(test_wfm_sink
@@ -303,7 +303,7 @@ if(NOT WIN32)
     add_library(wfmgen_core OBJECT ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen.c)
     target_include_directories(wfmgen_core PUBLIC
         ${CMAKE_SOURCE_DIR}/native/inc
-        ${CMAKE_SOURCE_DIR}/native/inc/wfm
+        ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm
         # configure-time doppler/version.h (DOPPLER_VERSION for --version)
         ${CMAKE_BINARY_DIR}/native/inc)
 
@@ -314,7 +314,7 @@ if(NOT WIN32)
         ${CMAKE_SOURCE_DIR}/native/src/wfm/wfm_sink_stub.c)
     target_include_directories(wfm_sink_stub_core PUBLIC
         ${CMAKE_SOURCE_DIR}/native/inc
-        ${CMAKE_SOURCE_DIR}/native/inc/wfm)
+        ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm)
 
     add_executable(wfmgen_cli ${CMAKE_SOURCE_DIR}/native/src/app/wfmgen_main.c)
     set_target_properties(wfmgen_cli PROPERTIES OUTPUT_NAME wfmgen)
@@ -337,7 +337,7 @@ if(NOT WIN32)
     # so only the wfmcompose objects are folded in here (+ ~132 KiB to the .a).
     # wfmgen stays in the pure-C core; its stream-sink path uses the weak-stub
     # seam (wfm_sink_stub.c here + the strong override in libdoppler_stream —
-    # see native/inc/wfm/wfm_sink.h).  The stream-dependent objects
+    # see native/inc/doppler/wfm/wfm_sink.h).  The stream-dependent objects
     # (wfm_sink_core, stream_core_obj) and the vendored nats.c are NOT folded
     # into libdoppler — they live in the optional libdoppler_stream component
     # (defined in the root CMakeLists), a separate module boundary rather

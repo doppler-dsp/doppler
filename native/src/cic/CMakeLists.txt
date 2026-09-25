@@ -16,7 +16,7 @@ endif()
 add_library(cic_core OBJECT cic_core.c)
 target_include_directories(
   cic_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                  ${CMAKE_SOURCE_DIR}/native/inc/cic)
+                  ${CMAKE_SOURCE_DIR}/native/inc/doppler/cic)
 
 add_executable(test_cic_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_cic_core.c

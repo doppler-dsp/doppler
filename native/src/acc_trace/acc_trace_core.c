@@ -7,8 +7,8 @@
  * frame seeds the trace in every mode, which makes max/min-hold start from a
  * real sample (not +/-inf sentinels) and the EMA start unbiased.
  */
-#include "acc_trace/acc_trace_core.h"
-#include "util/util_core.h"
+#include "doppler/acc_trace/acc_trace_core.h"
+#include "doppler/util/util_core.h"
 
 acc_trace_state_t *
 acc_trace_create (size_t n, int mode, double alpha)

@@ -1,4 +1,4 @@
-#include "detection/detection_core.h"
+#include "doppler/detection/detection_core.h"
 #include <math.h>
 double
 det_snr_to_cn0 (double snr, double fs)

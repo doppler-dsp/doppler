@@ -8,8 +8,8 @@
  * `sf` and `code_len`, so it carries the bounds guards the generated binding
  * does not (gh-178 review #2).
  */
-#include "wfm/wfm_core.h"
-#include "wfm/wfm_dsp.h" /* wfm_dsss_spread */
+#include "doppler/wfm/wfm_core.h"
+#include "doppler/wfm/wfm_dsp.h" /* wfm_dsss_spread */
 
 void
 dsss_spread (const float _Complex *syms, size_t syms_len, const uint8_t *code,

@@ -4,18 +4,18 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm\_reader**](dir_01018a3d11538c9aca2db4daa45a442f.md) **>** [**wfm\_reader\_core.h**](wfm__reader__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wfm\_reader**](dir_f352698a51aeb04a6ff33c180c5d8d41.md) **>** [**wfm\_reader\_core.h**](wfm__reader__core_8h.md)
 
 [Go to the source code of this file](wfm__reader__core_8h_source.md)
 
 _Input file types for generated IQ — the dual of wfm\_writer._ [More...](#detailed-description)
 
-* `#include "dp_complex.h"`
+* `#include "doppler/dp_complex.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
-* `#include "wfm/wfm_keywords.h"`
-* `#include "wfm_writer/wfm_writer_core.h"`
-* `#include "dp_interrupt_guard/dp_interrupt_guard_core.h"`
+* `#include "doppler/wfm/wfm_keywords.h"`
+* `#include "doppler/wfm_writer/wfm_writer_core.h"`
+* `#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"`
 
 
 
@@ -1279,5 +1279,5 @@ Distinct from cf32 deliberately. `Reader(p)` and `Reader(p, sample_type="cf32")`
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfm_reader/wfm_reader_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/wfm_reader/wfm_reader_core.h`
 

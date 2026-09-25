@@ -22,11 +22,11 @@
  *   ./build/native/examples/corr_demo
  */
 
-#include <corr/corr_core.h>
-#include <corr2d/corr2d_core.h>
-#include <detector/detector_core.h>
+#include <doppler/corr/corr_core.h>
+#include <doppler/corr2d/corr2d_core.h>
+#include <doppler/detector/detector_core.h>
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

@@ -16,7 +16,7 @@ endif()
 add_library(mpsk_receiver_core OBJECT mpsk_receiver_core.c)
 target_include_directories(
   mpsk_receiver_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                            ${CMAKE_SOURCE_DIR}/native/inc/mpsk_receiver)
+                            ${CMAKE_SOURCE_DIR}/native/inc/doppler/mpsk_receiver)
 target_link_libraries(mpsk_receiver_core PUBLIC
     wfm_dsp_core
     ber_core

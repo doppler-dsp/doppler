@@ -148,5 +148,5 @@ bits per interleaved unit; 1 bit, 8 octet
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/interleaver/interleaver_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/interleaver/interleaver_core.h`
 

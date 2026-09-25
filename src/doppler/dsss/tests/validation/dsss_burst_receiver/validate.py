@@ -257,7 +257,7 @@ def section_object() -> None:
                 "re-derived here",
             ],
             [
-                "`native/inc/dsss_burst_receiver/dsss_burst_receiver_core.h`",
+                "`native/inc/doppler/dsss_burst_receiver/dsss_burst_receiver_core.h`",
                 "the contract — the SSOT this report audits",
             ],
         ],

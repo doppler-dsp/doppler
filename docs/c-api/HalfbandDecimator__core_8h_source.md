@@ -2,7 +2,7 @@
 
 # File HalfbandDecimator\_core.h
 
-[**File List**](files.md) **>** [**HalfbandDecimator**](dir_6ac3f68ee82e011454c15c865a37e192.md) **>** [**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**HalfbandDecimator**](dir_7d0e752fb42c448bafa7d80e7fc4aaf0.md) **>** [**HalfbandDecimator\_core.h**](HalfbandDecimator__core_8h.md)
 
 [Go to the documentation of this file](HalfbandDecimator__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef HALFBANDDECIMATOR_CORE_H
 #define HALFBANDDECIMATOR_CORE_H
 
-#include "hbdecim/hbdecim_core.h"
+#include "doppler/hbdecim/hbdecim_core.h"
 
 #ifdef __cplusplus
 extern "C"

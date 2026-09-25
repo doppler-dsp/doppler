@@ -9,7 +9,7 @@
 /* CarrierNdaObject — wraps carrier_nda_state_t *       */
 /* ======================================================== */
 
-#include "carrier_nda/carrier_nda_core.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
 
 typedef struct
 {

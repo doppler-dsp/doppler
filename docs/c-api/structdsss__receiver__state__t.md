@@ -450,5 +450,5 @@ code\_len\*spc  one code period, samples; the carrier loop's own fixed chunk siz
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dsss_receiver/dsss_receiver_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dsss_receiver/dsss_receiver_core.h`
 

@@ -1,7 +1,7 @@
 # Python Telemetry API
 
 Scalar telemetry taps for running DSP objects, backed by `dp_tlm`
-(`native/inc/dp_tlm/dp_tlm_core.h`): a named probe registry plus a
+(`native/inc/doppler/dp_tlm/dp_tlm_core.h`): a named probe registry plus a
 lock-free SPSC record ring. Instrumented objects attach a `Telemetry`
 context and publish scalars (loop stress, AGC gain, lock metrics) from
 their hot loops at *event* rate — one predicted-not-taken branch per event

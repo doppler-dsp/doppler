@@ -20,7 +20,7 @@ A log-domain feedback AGC: it gains the stream, measures the output power with a
 
 Design and API, not restated here:
 
-- `native/inc/agc/agc_core.h` — the SSOT for every claim
+- `native/inc/doppler/agc/agc_core.h` — the SSOT for every claim
 - `native/tests/test_agc_core.c` §1-§24 — the C certification
 - [AGC design](../../../../../../docs/design/agc.md) — why the filter is in dB and the detector is not, and what the loop cannot know
 - `doppler.agc.AGC` — the Python face measured below

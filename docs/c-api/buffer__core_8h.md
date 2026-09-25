@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**buffer**](dir_3a0c1aef7dcd64a21724ce24de18fb81.md) **>** [**buffer\_core.h**](buffer__core_8h.md)
+[**FileList**](files.md) **>** [**buffer**](dir_bada8e9c2056a5c5c150b079933e5759.md) **>** [**buffer\_core.h**](buffer__core_8h.md)
 
 [Go to the source code of this file](buffer__core_8h_source.md)
 
 _Buffer module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -78,5 +78,5 @@ _Buffer module — public C API._
 
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/buffer/buffer_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/buffer/buffer_core.h`
 

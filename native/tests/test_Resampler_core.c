@@ -1,5 +1,5 @@
-#include "Resampler/Resampler_core.h"
-#include "dp_complex.h"
+#include "doppler/Resampler/Resampler_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>

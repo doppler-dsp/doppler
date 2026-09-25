@@ -9,7 +9,7 @@
 /* AccQ8Object — wraps acc_q8_state_t *       */
 /* ======================================================== */
 
-#include "acc_q8/acc_q8_core.h"
+#include "doppler/acc_q8/acc_q8_core.h"
 
 typedef struct
 {

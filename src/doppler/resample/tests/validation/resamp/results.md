@@ -20,7 +20,7 @@ A polyphase resampler with a **dual-mode engine**: output-driven for `rate >= 1`
 
 Design and API, not restated here:
 
-- `native/inc/resamp/resamp_core.h` — the SSOT for every claim
+- `native/inc/doppler/resamp/resamp_core.h` — the SSOT for every claim
 - `native/tests/test_resamp_core.c` — §1-§20, where every claim below is actually certified
 - [Resampler design](../../../../../../docs/design/RESAMPLER.md)
 - `doppler.resample.Resampler` — the Python face measured here

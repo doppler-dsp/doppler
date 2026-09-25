@@ -9,7 +9,7 @@
 /* EventLogObject — wraps dp_event_log_state_t *       */
 /* ======================================================== */
 
-#include "dp_event_log/dp_event_log_core.h"
+#include "doppler/dp_event_log/dp_event_log_core.h"
 
 typedef struct
 {

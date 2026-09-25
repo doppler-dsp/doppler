@@ -12,7 +12,7 @@ conventions are load-bearing, what it does at its boundaries, and — the
 part that took measurement rather than reading — which of the two ways of
 writing it is the right one, and why that is not a matter of taste.
 
-The contract lives in `native/inc/util/util_core.h` (`ema_step`,
+The contract lives in `native/inc/doppler/util/util_core.h` (`ema_step`,
 `ema_alpha_decim`) and the C-level evidence in
 `native/tests/test_util_core.c`. This page does not restate either; it
 explains the reasoning they assume.

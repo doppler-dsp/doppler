@@ -4,10 +4,10 @@
  * Uses tmpfile() (seekable) so the BLUE data_size patch-on-close is exercised.
  * Host is little-endian (x86), matching the writer's assumption.
  */
+#include "doppler/wfm_writer/wfm_writer_core.h"
 #include "dp_test.h"
-#include "wfm_writer/wfm_writer_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>

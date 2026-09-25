@@ -25,9 +25,9 @@ supplies. Nothing returns a pointer into internal state:
 #include <stddef.h>
 #include <stdio.h>
 
-#include "delay/delay_core.h"
-#include "fir/fir_core.h"
-#include "lo/lo_core.h"
+#include "doppler/delay/delay_core.h"
+#include "doppler/fir/fir_core.h"
+#include "doppler/lo/lo_core.h"
 
 int
 main (void)
@@ -61,7 +61,7 @@ exactly this purpose:
 #include <complex.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "lo/lo_core.h"
+#include "doppler/lo/lo_core.h"
 
 int main (void)
 {

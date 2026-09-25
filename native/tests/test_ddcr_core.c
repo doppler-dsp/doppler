@@ -7,8 +7,8 @@
  * serializers (hbdecim_r2c -> LO -> RateConverter), none of which have a
  * standalone C target.
  */
-#include "ddcr/ddcr_core.h"
-#include "dp_complex.h"
+#include "doppler/ddcr/ddcr_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_mf_test.h"
 #include "dp_test.h"
 #include <math.h>

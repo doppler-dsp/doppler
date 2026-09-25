@@ -4,14 +4,14 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**interp\_table**](dir_532d1478dbb04668a5390572613675ee.md) **>** [**interp\_table\_core.h**](interp__table__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**interp\_table**](dir_ff54084ce651244803741a1f6d284d09.md) **>** [**interp\_table\_core.h**](interp__table__core_8h.md)
 
 [Go to the source code of this file](interp__table__core_8h_source.md)
 
 _Periodically-extended interpolated lookup table._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
 
 
 
@@ -317,5 +317,5 @@ array([1.5+0.j])
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/interp_table/interp_table_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/interp_table/interp_table_core.h`
 

@@ -16,9 +16,23 @@ endif()
 add_library(dp_tlm_core OBJECT dp_tlm_core.c)
 target_include_directories(
   dp_tlm_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                     ${CMAKE_SOURCE_DIR}/native/inc/dp_tlm)
+                     ${CMAKE_SOURCE_DIR}/native/inc/doppler/dp_tlm)
 target_link_libraries(dp_tlm_core PUBLIC
     Threads::Threads)
+if(TARGET ${PROJECT_NAME}_lib)
+  target_link_libraries(${PROJECT_NAME}_lib PRIVATE
+      Threads::Threads)
+  target_include_directories(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_INCLUDE_DIRECTORIES>>)
+  target_compile_definitions(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_COMPILE_DEFINITIONS>>)
+  target_compile_options(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_COMPILE_OPTIONS>>)
+endif()
+if(TARGET ${PROJECT_NAME}_lib_static)
+  target_link_libraries(${PROJECT_NAME}_lib_static PUBLIC
+      Threads::Threads)
+endif()
 
 add_executable(test_dp_tlm_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_dp_tlm_core.c

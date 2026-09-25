@@ -9,7 +9,7 @@
 /* CostasObject — wraps costas_state_t *       */
 /* ======================================================== */
 
-#include "costas/costas_core.h"
+#include "doppler/costas/costas_core.h"
 
 typedef struct
 {

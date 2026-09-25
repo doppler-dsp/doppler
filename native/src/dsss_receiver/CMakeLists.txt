@@ -16,7 +16,7 @@ endif()
 add_library(dsss_receiver_core OBJECT dsss_receiver_core.c)
 target_include_directories(
   dsss_receiver_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                            ${CMAKE_SOURCE_DIR}/native/inc/dsss_receiver)
+                            ${CMAKE_SOURCE_DIR}/native/inc/doppler/dsss_receiver)
 target_link_libraries(dsss_receiver_core PUBLIC
     wfm_dsp_core
     ber_core

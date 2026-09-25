@@ -12,8 +12,8 @@
  * its sidecar, the self-heal when probes appear late, and the loud failure
  * when the caller breaks the block contract.
  */
+#include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
 #include "dp_test.h"
-#include "dp_tlm_capture/dp_tlm_capture_core.h"
 
 #include <stdio.h>
 #include <stdlib.h>

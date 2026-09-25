@@ -9,7 +9,7 @@
 /* LOObject — wraps lo_state_t *       */
 /* ======================================================== */
 
-#include "lo/lo_core.h"
+#include "doppler/lo/lo_core.h"
 
 typedef struct
 {

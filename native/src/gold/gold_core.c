@@ -1,4 +1,4 @@
-#include "gold/gold_core.h"
+#include "doppler/gold/gold_core.h"
 
 /*
  * CCSDS Command Link Gold Code Generator (CCSDS 415.0-G-1 5.2.2.4).

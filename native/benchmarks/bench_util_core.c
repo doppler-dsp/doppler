@@ -20,8 +20,8 @@
  * A `volatile` sink prevents the loops being optimised away; the inputs
  * are cheap integers so the arithmetic under test dominates.
  */
+#include "doppler/util/util_core.h"
 #include "jm_bench.h"
-#include "util/util_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <time.h>

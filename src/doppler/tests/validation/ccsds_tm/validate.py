@@ -690,7 +690,7 @@ def build(write: bool = True) -> Report:
     R.md("Design and API, not restated here:")
     R.md()
     R.md(
-        "- `native/inc/ccsds_tm/ccsds_tm.h`, `ccsds_tm_rs.h`, "
+        "- `native/inc/doppler/ccsds_tm/ccsds_tm.h`, `ccsds_tm_rs.h`, "
         "`ccsds_tm_frame.h` — the SSOT for every claim below\n"
         "- `native/tests/test_ccsds_tm_{asm,conv,rand,rs,frame}.c` — the C "
         "certification, five files because the published oracles are five "

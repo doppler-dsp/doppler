@@ -14,7 +14,7 @@
 #include <string.h>
 
 /* doppler: renamed from upstream "pocketfft.h" to avoid colliding with
- * doppler's own C-wrapper header native/inc/pocketfft/pocketfft.h. */
+ * doppler's own C-wrapper header native/inc/doppler/pocketfft/pocketfft.h. */
 #include "pocketfft/pocketfft_c99.h"
 
 #define RALLOC(type,num) \

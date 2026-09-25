@@ -168,5 +168,5 @@ float _Complex* fir_state_t::taps;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/fir/fir_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/fir/fir_core.h`
 

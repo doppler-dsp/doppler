@@ -27,10 +27,10 @@
  *   carrier_nda_lock            full sweep, prints the table
  *   carrier_nda_lock --check    fast CI gate: the H0 law and the H1 shape
  */
-#include "awgn/awgn_core.h"
-#include "carrier_nda/carrier_nda_core.h"
-#include "detection/detection_core.h"
-#include "dp_complex.h"
+#include "doppler/awgn/awgn_core.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
+#include "doppler/detection/detection_core.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

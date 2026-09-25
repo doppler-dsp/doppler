@@ -185,5 +185,5 @@ unsigned rs_code_t::symbol_bits;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/rs/rs_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/rs/rs_core.h`
 

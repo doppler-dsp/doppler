@@ -123,5 +123,5 @@ The engine's `underpowered` at construction  a field of THIS struct because a de
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/burst_acq/burst_acq_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/burst_acq/burst_acq_core.h`
 

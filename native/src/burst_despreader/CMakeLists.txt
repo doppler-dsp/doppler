@@ -16,7 +16,7 @@ endif()
 add_library(burst_despreader_core OBJECT burst_despreader_core.c)
 target_include_directories(
   burst_despreader_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                               ${CMAKE_SOURCE_DIR}/native/inc/burst_despreader)
+                               ${CMAKE_SOURCE_DIR}/native/inc/doppler/burst_despreader)
 target_link_libraries(burst_despreader_core PUBLIC
     loop_filter_core)
 

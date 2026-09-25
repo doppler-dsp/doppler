@@ -10,7 +10,7 @@ records is asserted by `src/doppler/mpsk/tests/test_validation_limits.py`,
 which runs this same `build(write=False)`.
 
 The order is the campaign's, not this file's:
-`native/inc/mpsk/mpsk_core.h` is the SSOT,
+`native/inc/doppler/mpsk/mpsk_core.h` is the SSOT,
 `native/tests/test_mpsk_core.c` certifies it in C, and
 `native/validation/mpsk_diff_penalty.c` measures the differential penalty
 by Monte Carlo. This file measures the same properties through

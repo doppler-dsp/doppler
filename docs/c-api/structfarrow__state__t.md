@@ -129,5 +129,5 @@ FARROW\_LINEAR / \_PARABOLIC / \_CUBIC.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/farrow/farrow_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/farrow/farrow_core.h`
 

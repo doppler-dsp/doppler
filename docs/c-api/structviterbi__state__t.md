@@ -301,5 +301,5 @@ uint32_t* viterbi_state_t::pred1;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/viterbi/viterbi_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/viterbi/viterbi_core.h`
 

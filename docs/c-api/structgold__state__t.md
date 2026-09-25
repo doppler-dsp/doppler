@@ -203,5 +203,5 @@ uint64_t gold_state_t::taps_b;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/gold/gold_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/gold/gold_core.h`
 

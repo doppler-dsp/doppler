@@ -16,7 +16,7 @@ endif()
 add_library(i8_to_f32_core OBJECT i8_to_f32_core.c)
 target_include_directories(
   i8_to_f32_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                        ${CMAKE_SOURCE_DIR}/native/inc/i8_to_f32)
+                        ${CMAKE_SOURCE_DIR}/native/inc/doppler/i8_to_f32)
 
 add_executable(test_i8_to_f32_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_i8_to_f32_core.c

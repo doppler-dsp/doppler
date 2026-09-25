@@ -2,7 +2,7 @@
 
 # File acc\_q8\_core.h
 
-[**File List**](files.md) **>** [**acc\_q8**](dir_af45fd7415a1bcf5c13e14c3d63a83bf.md) **>** [**acc\_q8\_core.h**](acc__q8__core_8h.md)
+[**File List**](files.md) **>** [**acc\_q8**](dir_ea0f50795da7b2248dba00cbaac7e694.md) **>** [**acc\_q8\_core.h**](acc__q8__core_8h.md)
 
 [Go to the documentation of this file](acc__q8__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef ACC_Q8_CORE_H
 #define ACC_Q8_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "dp_state.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/dp_state.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

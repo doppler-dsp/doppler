@@ -54,7 +54,7 @@ passes, with either of clang's two drivers against the MSVC runtime:
 
 Both also need CMake 3.16+, Ninja, and the Windows SDK (installed with Visual
 Studio's C++ workload). MSVC's own `cl.exe` **cannot** build doppler: it has
-no C99 `_Complex`, and `native/inc/dp_complex.h` stops the build with an
+no C99 `_Complex`, and `native/inc/doppler/dp_complex.h` stops the build with an
 `#error` saying so.
 
 From a *Developer PowerShell for VS* (x64), which puts the SDK and linker on

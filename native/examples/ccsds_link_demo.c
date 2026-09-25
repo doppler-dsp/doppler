@@ -48,14 +48,14 @@
  *   ./build/native/examples/ccsds_link_demo
  */
 
-#include "viterbi/viterbi_core.h"
-#include <awgn/awgn_core.h>
-#include <ccsds_tm/ccsds_tm.h>
-#include <ccsds_tm/ccsds_tm_frame.h>
-#include <conv/conv_core.h>
-#include <mpsk/mpsk_core.h>
+#include "doppler/viterbi/viterbi_core.h"
+#include <doppler/awgn/awgn_core.h>
+#include <doppler/ccsds_tm/ccsds_tm.h>
+#include <doppler/ccsds_tm/ccsds_tm_frame.h>
+#include <doppler/conv/conv_core.h>
+#include <doppler/mpsk/mpsk_core.h>
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>

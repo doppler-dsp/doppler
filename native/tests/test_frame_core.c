@@ -18,11 +18,11 @@
  *     re-generated per frame would advance its register and every repeat
  *     would differ, so a capture compared against it would score as errors.
  */
+#include "doppler/frame/frame_core.h"
+#include "doppler/wfm/wfm_frame.h"
 #include "dp_test.h"
-#include "frame/frame_core.h"
-#include "wfm/wfm_frame.h"
 
-#include "ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/ccsds_tm/ccsds_tm_frame.h"
 
 #include <stdio.h>
 #include <stdlib.h>

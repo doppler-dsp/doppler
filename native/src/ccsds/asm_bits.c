@@ -1,9 +1,9 @@
 /*
  * asm_bits.c — ccsds module-level function.
  */
-#include "ccsds/ccsds_core.h"
+#include "doppler/ccsds/ccsds_core.h"
 
-#include "ccsds_tm/ccsds_tm.h"
+#include "doppler/ccsds_tm/ccsds_tm.h"
 
 /* The CCSDS Attached Sync Marker as bits Python can search for -- a thin
  * public alias over ccsds_tm's own expansion of the constant, for the reason

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Gate: the double -> phase-word conversion has ONE home.
 
-`native/inc/nco/nco_core.h` states this as a structural rule, not a
+`native/inc/doppler/nco/nco_core.h` states this as a structural rule, not a
 stylistic one, and explains why:
 
     Undefined behaviour can enter at exactly one place: a `double` whose
@@ -35,11 +35,13 @@ import re
 import sys
 from pathlib import Path
 
+from _layout import header
+
 ROOT = Path(__file__).resolve().parent.parent
 ALLOW = Path(__file__).parent / ".phase-conversion-allow"
 
 # The sanctioned home. Occurrences here are the point of the rule.
-SANCTIONED = "native/inc/nco/nco_core.h"
+SANCTIONED = header("nco/nco_core.h")
 
 # Where a private copy would do damage: the library itself. Tests and
 # validation harnesses may scale by 2^32 freely -- they are oracles, and an

@@ -13,6 +13,6 @@
  * this function exists to end. An EMA with two source copies would be the
  * joke telling itself.
  */
-#include "util/util_core.h"
+#include "doppler/util/util_core.h"
 
 extern double ema_step (double state, double x, double alpha);

@@ -8,10 +8,10 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 #include <numpy/arrayobject.h>
 
-#include "arith/arith_core.h"
+#include "doppler/arith/arith_core.h"
 
 #include "arith_ext_acc_q15.c"
 #include "arith_ext_acc_q8.c"

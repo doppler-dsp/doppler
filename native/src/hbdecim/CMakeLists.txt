@@ -1,14 +1,14 @@
 add_library(hbdecim_core OBJECT hbdecim_core.c)
 target_include_directories(hbdecim_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/hbdecim)
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/hbdecim)
 target_link_libraries(hbdecim_core PUBLIC ${DP_MATH_LIBRARY})
 
 add_library(hbdecim_r2c_core OBJECT
     ${CMAKE_SOURCE_DIR}/native/src/resample/hbdecim_r2c_core.c)
 target_include_directories(hbdecim_r2c_core PUBLIC
     ${CMAKE_SOURCE_DIR}/native/inc
-    ${CMAKE_SOURCE_DIR}/native/inc/hbdecim)
+    ${CMAKE_SOURCE_DIR}/native/inc/doppler/hbdecim)
 target_link_libraries(hbdecim_r2c_core PUBLIC ${DP_MATH_LIBRARY})
 
 add_executable(test_hbdecim_core

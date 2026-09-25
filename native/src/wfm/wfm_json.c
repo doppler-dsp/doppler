@@ -5,9 +5,9 @@
  * `--from-file` (read), so a recorded run reproduces byte-for-byte. Uses the
  * vendored cJSON.
  */
-#include "wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_compose.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stddef.h> /* offsetof — the frame key tables name members once */
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,7 +21,7 @@
    wfmgen's, which was harmless only because this file compared its index to
    a literal instead of assigning it -- the shared table's order IS
    wfm_source_t.dsss_code_only, and read_dsss_source now assigns it. */
-#include "wfm/wfm_names.h"
+#include "doppler/wfm/wfm_names.h"
 
 /* Emit a source's RRC pulse-shaping fields when shaping is on (so a default
  * rect spec stays byte-identical). */

@@ -75,13 +75,13 @@
  */
 #include "dp_rx_mpsk.h"
 
-#include "ber/ber_core.h"
-#include "ccsds_tm/ccsds_tm_frame.h"
-#include "conv/conv_core.h"
-#include "mpsk/mpsk_core.h"
-#include "pn/pn_core.h"
-#include "viterbi/viterbi_core.h"
-#include "wfm_synth/wfm_synth_core.h"
+#include "doppler/ber/ber_core.h"
+#include "doppler/ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/conv/conv_core.h"
+#include "doppler/mpsk/mpsk_core.h"
+#include "doppler/pn/pn_core.h"
+#include "doppler/viterbi/viterbi_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 
 #include <math.h>
 #include <stdio.h>

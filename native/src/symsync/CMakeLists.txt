@@ -16,7 +16,7 @@ endif()
 add_library(symsync_core OBJECT symsync_core.c)
 target_include_directories(
   symsync_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                      ${CMAKE_SOURCE_DIR}/native/inc/symsync)
+                      ${CMAKE_SOURCE_DIR}/native/inc/doppler/symsync)
 target_link_libraries(symsync_core PUBLIC
     nco_core
     farrow_core

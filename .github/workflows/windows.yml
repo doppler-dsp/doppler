@@ -33,7 +33,7 @@ name: Windows (clang reference)
 # That doppler's C builds and its C suite passes against the MSVC ABI and the
 # MSVC runtime, using clang-cl (clang on Windows targets MSVC by default).
 # MSVC's own `cl.exe` has no `_Complex` at all and cannot build this tree --
-# `native/inc/dp_complex.h` says so with an `#error`.
+# `native/inc/doppler/dp_complex.h` says so with an `#error`.
 #
 # The complex-math surface is what made this plausible: measured on clang 22
 # against `x86_64-pc-windows-msvc` with doppler's own flags, a complex kernel

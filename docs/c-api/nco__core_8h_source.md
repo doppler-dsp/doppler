@@ -2,7 +2,7 @@
 
 # File nco\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**nco**](dir_2f9ed967bc16fefd26d0244d883adb58.md) **>** [**nco\_core.h**](nco__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**nco**](dir_64d3c3497a73d925321234bd516bd8bf.md) **>** [**nco\_core.h**](nco__core_8h.md)
 
 [Go to the documentation of this file](nco__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef NCO_CORE_H
 #define NCO_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
 #include <math.h>
 #ifdef __cplusplus
 extern "C"

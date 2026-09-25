@@ -2,7 +2,7 @@
 
 # File filter\_core.h
 
-[**File List**](files.md) **>** [**filter**](dir_8178efb5c7670e7552eaa4222282ba05.md) **>** [**filter\_core.h**](filter__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**filter**](dir_820039e5f1fe5ce84fe724a5385272f3.md) **>** [**filter\_core.h**](filter__core_8h.md)
 
 [Go to the documentation of this file](filter__core_8h.md)
 
@@ -12,8 +12,8 @@
 #ifndef FILTER_CORE_H
 #define FILTER_CORE_H
 
-#include "clib_common.h"
-#include "resample/resample_core.h" /* kaiser_num_taps — used by design_lowpass's
+#include "doppler/clib_common.h"
+#include "doppler/resample/resample_core.h" /* kaiser_num_taps — used by design_lowpass's
                                         generated out_size allocation expression */
 
 #ifdef __cplusplus

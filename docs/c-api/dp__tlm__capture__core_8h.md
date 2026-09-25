@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**dp\_tlm\_capture**](dir_c53721efa35f9e05ec164f1aacd6bf30.md) **>** [**dp\_tlm\_capture\_core.h**](dp__tlm__capture__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_tlm\_capture**](dir_d9291c2a213cf080735d669eb6078971.md) **>** [**dp\_tlm\_capture\_core.h**](dp__tlm__capture__core_8h.md)
 
 [Go to the source code of this file](dp__tlm__capture__core_8h_source.md)
 
 _Lossless telemetry capture: sized by arithmetic, not by guesswork._ [More...](#detailed-description)
 
-* `#include "dp_tlm/dp_tlm_core.h"`
-* `#include "timing/timing_core.h"`
-* `#include "dp_interrupt_guard/dp_interrupt_guard_core.h"`
+* `#include "doppler/dp_tlm/dp_tlm_core.h"`
+* `#include "doppler/timing/timing_core.h"`
+* `#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"`
 
 
 
@@ -637,5 +637,5 @@ The Python face binds the COPYING twin, [**dp\_tlm\_capture\_read()**](dp__tlm__
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_tlm_capture/dp_tlm_capture_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_tlm_capture/dp_tlm_capture_core.h`
 

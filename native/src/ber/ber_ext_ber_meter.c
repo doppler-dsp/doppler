@@ -9,7 +9,7 @@
 /* BerMeterObject — wraps ber_meter_state_t *       */
 /* ======================================================== */
 
-#include "ber_meter/ber_meter_core.h"
+#include "doppler/ber_meter/ber_meter_core.h"
 
 typedef struct
 {

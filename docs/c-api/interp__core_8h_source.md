@@ -2,7 +2,7 @@
 
 # File interp\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**interp**](dir_af5ecbc8fae4d9dc167c6ab2381d74df.md) **>** [**interp\_core.h**](interp__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**interp**](dir_50f22f4a69ea3c5d52671b7845e67b28.md) **>** [**interp\_core.h**](interp__core_8h.md)
 
 [Go to the documentation of this file](interp__core_8h.md)
 
@@ -12,7 +12,7 @@
 #ifndef INTERP_CORE_H
 #define INTERP_CORE_H
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -4,18 +4,18 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**stream**](dir_21b896cdbc030a0ded493211142b7733.md) **>** [**stream.h**](stream_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**stream**](dir_2fbcc177cba4f14addc502f26acbb8f7.md) **>** [**stream.h**](stream_8h.md)
 
 [Go to the source code of this file](stream_8h_source.md)
 
 _Streaming API for doppler — PUB/SUB, PUSH/PULL, REQ/REP._ [More...](#detailed-description)
 
-* `#include "dp_complex.h"`
+* `#include "doppler/dp_complex.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
-* `#include "clib_common.h"`
-* `#include "dp_interrupt.h"`
-* `#include "dp_format.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_interrupt.h"`
+* `#include "doppler/dp_format.h"`
 
 
 
@@ -139,5 +139,5 @@ dp_sub_destroy(sub);
     
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/stream/stream.h`
+The documentation for this class was generated from the following file `native/inc/doppler/stream/stream.h`
 

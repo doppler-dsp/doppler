@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**dp\_interrupt\_guard**](dir_001936014fd0d8bf32545bf8d71a57c6.md) **>** [**dp\_interrupt\_guard\_core.h**](dp__interrupt__guard__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_interrupt\_guard**](dir_069c076bf5cb5bab676dd02f8ef44735.md) **>** [**dp\_interrupt\_guard\_core.h**](dp__interrupt__guard__core_8h.md)
 
 [Go to the source code of this file](dp__interrupt__guard__core_8h_source.md)
 
 
 
-* `#include "dp_interrupt.h"`
+* `#include "doppler/dp_interrupt.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 
@@ -376,5 +376,5 @@ void dp_interrupt_guard_resume (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_interrupt_guard/dp_interrupt_guard_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_interrupt_guard/dp_interrupt_guard_core.h`
 

@@ -616,8 +616,8 @@ def section_summary() -> None:
         ["source", "holds"],
         [
             [
-                "[`native/inc/ratesync/ratesync_core.h`]"
-                "(../../../../../../native/inc/ratesync/ratesync_core.h)",
+                "[`native/inc/doppler/ratesync/ratesync_core.h`]"
+                "(../../../../../../native/inc/doppler/ratesync/ratesync_core.h)",
                 "the contract: the two structs, the TED and its "
                 "construct-time slope, the prime rule, the T/2 parity "
                 "argument and the Measured table",

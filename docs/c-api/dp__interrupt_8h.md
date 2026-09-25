@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**dp\_interrupt.h**](dp__interrupt_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**dp\_interrupt.h**](dp__interrupt_8h.md)
 
 [Go to the source code of this file](dp__interrupt_8h_source.md)
 
 _Asking a blocking wait to stop, whatever it is waiting on._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 * `#include <signal.h>`
 * `#include <stddef.h>`
 
@@ -392,5 +392,5 @@ program sensibly interrupts on". Public because a guard records what it armed in
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_interrupt.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_interrupt.h`
 

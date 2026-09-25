@@ -4,8 +4,8 @@
  *
  * See hbdecim_q15_core.h for the full algorithm description.
  */
-#include "hbdecim_q15/hbdecim_q15_core.h"
-#include "q15_mac.h"
+#include "doppler/hbdecim_q15/hbdecim_q15_core.h"
+#include "doppler/q15_mac.h"
 
 #include <math.h>
 #include <stdlib.h>

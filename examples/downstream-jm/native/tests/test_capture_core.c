@@ -10,7 +10,7 @@
  * What is tested is this project's contribution, not doppler's: that the two
  * constructors share one core, and that provenance is reported truthfully.
  */
-#include "capture/capture_core.h"
+#include "iqtools/capture/capture_core.h"
 
 #include <complex.h>
 #include <stdio.h>

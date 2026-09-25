@@ -16,7 +16,7 @@ endif()
 add_library(wfm_synth_core OBJECT wfm_synth_core.c)
 target_include_directories(
   wfm_synth_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                        ${CMAKE_SOURCE_DIR}/native/inc/wfm_synth)
+                        ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm_synth)
 target_link_libraries(wfm_synth_core PUBLIC
     lo_core
     awgn_core

@@ -26,8 +26,8 @@
  *
  * Usage:  carrier_mpsk_scurve [--check]
  */
-#include "carrier_mpsk/carrier_mpsk_core.h"
-#include "dp_complex.h"
+#include "doppler/carrier_mpsk/carrier_mpsk_core.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

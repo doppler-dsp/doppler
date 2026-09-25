@@ -2,7 +2,7 @@
 
 # File det\_private.h
 
-[**File List**](files.md) **>** [**detector**](dir_f93f7a52d403868792375ffc90a1c1d7.md) **>** [**det\_private.h**](det__private_8h.md)
+[**File List**](files.md) **>** [**detector**](dir_4cdf6fdfdd426ef1a31e056182554d6b.md) **>** [**det\_private.h**](det__private_8h.md)
 
 [Go to the documentation of this file](det__private_8h.md)
 
@@ -17,7 +17,7 @@
 #include <string.h>
 
 /* det_noise_mode_t must be visible before this header is included. */
-#include "util/util_core.h"
+#include "doppler/util/util_core.h"
 
 #ifndef DET_NOISE_MODE_T_DEFINED
 #  error "Include detector_core.h or detector2d_core.h before det_private.h"

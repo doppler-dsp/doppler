@@ -1,4 +1,4 @@
-#include "detection/detection_core.h"
+#include "doppler/detection/detection_core.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <limits.h>

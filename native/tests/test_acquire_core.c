@@ -5,7 +5,7 @@
  * end was the one with nothing checking it. An object has had this file
  * since the beginning.
  */
-#include "acquire/acquire_core.h"
+#include "doppler/acquire/acquire_core.h"
 
 /* dp_test.h, not jm's scaffold harness: `jm_test.h` is gitignored, so a
  * test including it builds on a machine that has run `jm apply` and fails

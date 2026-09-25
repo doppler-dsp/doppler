@@ -2223,8 +2223,8 @@ def build(write: bool = True) -> Report:
     )
     R.md(
         "- Header (the SSOT): "
-        "[`native/inc/mpsk_receiver/mpsk_receiver_core.h`]"
-        "(../../../../../../native/inc/mpsk_receiver/mpsk_receiver_core.h)"
+        "[`native/inc/doppler/mpsk_receiver/mpsk_receiver_core.h`]"
+        "(../../../../../../native/inc/doppler/mpsk_receiver/mpsk_receiver_core.h)"
     )
     R.md(
         "- C pins: "

@@ -141,5 +141,5 @@ the cell's value
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/detector/det_private.h`
+The documentation for this class was generated from the following file `native/inc/doppler/detector/det_private.h`
 

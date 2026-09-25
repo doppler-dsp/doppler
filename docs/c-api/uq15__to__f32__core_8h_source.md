@@ -2,7 +2,7 @@
 
 # File uq15\_to\_f32\_core.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**uq15\_to\_f32**](dir_b44b8aae78dd39801a4344596faf709f.md) **>** [**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**uq15\_to\_f32**](dir_289e6f8543a5d0b92e78da373782efe4.md) **>** [**uq15\_to\_f32\_core.h**](uq15__to__f32__core_8h.md)
 
 [Go to the documentation of this file](uq15__to__f32__core_8h.md)
 
@@ -12,8 +12,8 @@
 #ifndef UQ15_TO_F32_CORE_H
 #define UQ15_TO_F32_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

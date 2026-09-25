@@ -27,7 +27,7 @@ define its own codes, it just includes this header, so a value never means
 two things in one TU.
 
 ```c
-#include <awgn/awgn_core.h>
+#include <doppler/awgn/awgn_core.h>
 #include <complex.h>
 
 int main(void)
@@ -54,7 +54,7 @@ internally — malloc errors belong to the `create()` call, not to the
 hot-path execute call.
 
 ```c
-#include <RateConverter/RateConverter_core.h>
+#include <doppler/RateConverter/RateConverter_core.h>
 #include <complex.h>
 
 int main(void)
@@ -82,7 +82,7 @@ ______________________________________________________________________
 allocation failure or invalid arguments.
 
 ```c
-#include <awgn/awgn_core.h>
+#include <doppler/awgn/awgn_core.h>
 
 int main(void)
 {
@@ -113,8 +113,8 @@ ______________________________________________________________________
 
 ## Where the constants live
 
-All eight codes are defined once in `native/inc/clib_common.h`, which every
-`_core.c`/`_core.h` includes transitively. `native/inc/stream/stream.h`
+All eight codes are defined once in `native/inc/doppler/clib_common.h`, which every
+`_core.c`/`_core.h` includes transitively. `native/inc/doppler/stream/stream.h`
 includes `clib_common.h` for the same codes rather than defining its own —
 one scheme everywhere. The DSP algorithm layer only ever returns
 `DP_OK`/`DP_ERR_MEMORY`/`DP_ERR_INVALID`; the rest

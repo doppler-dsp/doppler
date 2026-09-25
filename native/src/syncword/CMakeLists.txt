@@ -16,7 +16,7 @@ endif()
 add_library(syncword_core OBJECT syncword_core.c)
 target_include_directories(
   syncword_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                       ${CMAKE_SOURCE_DIR}/native/inc/syncword)
+                       ${CMAKE_SOURCE_DIR}/native/inc/doppler/syncword)
 target_link_libraries(syncword_core PUBLIC
     detection_core)
 

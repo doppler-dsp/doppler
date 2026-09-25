@@ -16,7 +16,7 @@ endif()
 add_library(async_dsss_receiver_core OBJECT async_dsss_receiver_core.c)
 target_include_directories(
   async_dsss_receiver_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                                  ${CMAKE_SOURCE_DIR}/native/inc/async_dsss_receiver)
+                                  ${CMAKE_SOURCE_DIR}/native/inc/doppler/async_dsss_receiver)
 target_link_libraries(async_dsss_receiver_core PUBLIC
     wfm_dsp_core
     gold_core

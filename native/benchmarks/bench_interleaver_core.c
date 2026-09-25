@@ -25,7 +25,7 @@
  * Reported per BIT so the arms are comparable; the block sizes are equal by
  * construction, so the ratios are the whole reading.
  */
-#include "interleaver/interleaver_core.h"
+#include "doppler/interleaver/interleaver_core.h"
 #include "jm_bench.h"
 
 #include <stdio.h>

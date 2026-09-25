@@ -47,7 +47,7 @@
 #include "dp_sym_test.h"
 #include "dp_test.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

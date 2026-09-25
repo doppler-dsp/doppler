@@ -16,7 +16,7 @@ endif()
 add_library(burst_capture_core OBJECT burst_capture_core.c)
 target_include_directories(
   burst_capture_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                            ${CMAKE_SOURCE_DIR}/native/inc/burst_capture)
+                            ${CMAKE_SOURCE_DIR}/native/inc/doppler/burst_capture)
 target_link_libraries(burst_capture_core PUBLIC
     burst_acq_core
     acq_core

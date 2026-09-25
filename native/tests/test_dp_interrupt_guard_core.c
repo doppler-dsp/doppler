@@ -9,7 +9,7 @@
  * docs/dev/contributing/validation.md step 2.
  */
 
-#include "dp_interrupt_guard/dp_interrupt_guard_core.h"
+#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"
 
 #include "dp_test.h"
 

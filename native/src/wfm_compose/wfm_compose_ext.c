@@ -8,16 +8,16 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 #include <numpy/arrayobject.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "timing/timing_core.h"
-#include "wfm/wfm_compose.h"
-#include "wfm_compose/wfm_compose_bridge.h"
-#include "wfm_synth/wfm_synth_core.h"
-#include "wfm_writer/wfm_writer_core.h"
+#include "doppler/timing/timing_core.h"
+#include "doppler/wfm/wfm_compose.h"
+#include "doppler/wfm_compose/wfm_compose_bridge.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 #include <stdio.h>
 
 /* String-enum tables — order is the C int (the [[enum]] SSOT). */

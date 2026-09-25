@@ -9,7 +9,7 @@
 /* RateSyncObject — wraps ratesync_state_t *       */
 /* ======================================================== */
 
-#include "ratesync/ratesync_core.h"
+#include "doppler/ratesync/ratesync_core.h"
 
 typedef struct
 {

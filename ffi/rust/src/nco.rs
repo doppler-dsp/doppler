@@ -1,4 +1,4 @@
-/// Pure phase-accumulator NCO (`native/inc/nco/nco_core.h`).
+/// Pure phase-accumulator NCO (`native/inc/doppler/nco/nco_core.h`).
 ///
 /// Produces raw `u32` accumulator values or per-sample carry flags.
 /// For complex (CF32) phasors, use [`crate::lo::Lo`].

@@ -16,7 +16,7 @@ endif()
 add_library(HalfbandDecimator_core OBJECT HalfbandDecimator_core.c)
 target_include_directories(
   HalfbandDecimator_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                                ${CMAKE_SOURCE_DIR}/native/inc/HalfbandDecimator)
+                                ${CMAKE_SOURCE_DIR}/native/inc/doppler/HalfbandDecimator)
 target_link_libraries(HalfbandDecimator_core PUBLIC
     hbdecim_core
     hbdecim_r2c_core)

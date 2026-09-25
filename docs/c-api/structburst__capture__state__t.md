@@ -903,5 +903,5 @@ Allocated samples.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/burst_capture/burst_capture_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/burst_capture/burst_capture_core.h`
 

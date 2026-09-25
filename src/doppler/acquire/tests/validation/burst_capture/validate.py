@@ -141,7 +141,7 @@ def section_object() -> None:
     R.md()
     design = "../../../../../../docs/design/burst-capture.md"
     R.md(f"- Design: [`burst-capture.md`]({design})")
-    R.md("- Header: `native/inc/burst_capture/burst_capture_core.h`")
+    R.md("- Header: `native/inc/doppler/burst_capture/burst_capture_core.h`")
     R.md("- C tests: `native/tests/test_burst_capture_core.c`")
     R.md(
         "- Characterization: "

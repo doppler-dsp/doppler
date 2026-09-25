@@ -6,7 +6,7 @@
  * start). Inverse of mpsk_diff_map; invariant to an unknown constant carrier
  * phase.
  */
-#include "mpsk/mpsk_core.h"
+#include "doppler/mpsk/mpsk_core.h"
 
 void
 mpsk_diff_demap (const float _Complex *x, size_t x_len, uint8_t *out, int m)

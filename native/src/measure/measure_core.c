@@ -5,4 +5,4 @@
  * measure_rec_nfft, measure_proc_gain, dp_coherent_freq) are each compiled
  * from their own translation unit, per jm's per-function layout.
  */
-#include "measure/measure_core.h"
+#include "doppler/measure/measure_core.h"

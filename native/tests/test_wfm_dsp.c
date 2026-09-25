@@ -2,12 +2,12 @@
  * test_wfm_dsp.c — DSSS spreading + RRC taps (Phase B) + the two-code DSSS
  * burst frame builder.
  */
+#include "doppler/wfm/wfm_dsp.h"
 #include "dp_test.h"
-#include "wfm/wfm_dsp.h"
 
-#include "dp_crc16.h"
+#include "doppler/dp_crc16.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

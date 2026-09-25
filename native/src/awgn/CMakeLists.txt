@@ -16,7 +16,7 @@ endif()
 add_library(awgn_core OBJECT awgn_core.c)
 target_include_directories(
   awgn_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                   ${CMAKE_SOURCE_DIR}/native/inc/awgn)
+                   ${CMAKE_SOURCE_DIR}/native/inc/doppler/awgn)
 
 add_executable(test_awgn_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_awgn_core.c

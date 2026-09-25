@@ -1,6 +1,6 @@
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/fir/fir_core.h"
 #include "dp_test.h"
-#include "fir/fir_core.h"
 #include <math.h>
 #include <stdio.h>
 

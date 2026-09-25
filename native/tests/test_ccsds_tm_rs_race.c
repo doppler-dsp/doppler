@@ -29,10 +29,10 @@
  * proves the mechanism. Reverting rs.c's `pthread_once` to the old flag is
  * what makes both go red.
  */
-#include "ccsds_tm/ccsds_tm_rs.h"
+#include "doppler/ccsds_tm/ccsds_tm_rs.h"
 #include "dp_test.h"
 
-#include "dp_thread.h"
+#include "doppler/dp_thread.h"
 #include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>

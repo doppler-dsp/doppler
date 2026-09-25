@@ -4,7 +4,7 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm\_writer**](dir_a59bfdc441aa05aed9607457147ad53f.md) **>** [**wfm\_writer\_core.h**](wfm__writer__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wfm\_writer**](dir_b07d3bab2c69a70a146b9de213e56c65.md) **>** [**wfm\_writer\_core.h**](wfm__writer__core_8h.md)
 
 [Go to the source code of this file](wfm__writer__core_8h_source.md)
 
@@ -12,8 +12,8 @@ _Output file types for generated IQ: raw / csv / BLUE-1000 + SigMF meta._ [More.
 
 * `#include <stdbool.h>`
 * `#include <stdio.h>`
-* `#include "clib_common.h"`
-* `#include "wfm/wfm_compose.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/wfm/wfm_compose.h"`
 
 
 
@@ -823,5 +823,5 @@ int write_blue_header (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfm_writer/wfm_writer_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/wfm_writer/wfm_writer_core.h`
 

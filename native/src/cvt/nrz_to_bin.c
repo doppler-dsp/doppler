@@ -1,7 +1,7 @@
 /*
  * nrz_to_bin.c — cvt module-level function.
  */
-#include "cvt/cvt_core.h"
+#include "doppler/cvt/cvt_core.h"
 
 /* The hard decision that inverts bin_to_nrz.
  *

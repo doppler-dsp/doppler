@@ -4,8 +4,8 @@
  *           wipe-off + E/P/L correlate + per-period dual-loop update over a
  *           64k burst (the headline: composing two loops costs no extra pass).
  */
-#include "despreader/despreader_core.h"
-#include "dp_complex.h"
+#include "doppler/despreader/despreader_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdlib.h>

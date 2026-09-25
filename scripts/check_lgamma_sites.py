@@ -7,7 +7,7 @@ met that the first time two receivers rebuilt their tracking chains on
 different threads (doppler#1260): every chain sizes a detector threshold
 through `marcum_q()`, and ThreadSanitizer stopped the test on `lgamma`.
 `lgamma_r()` takes the sign by pointer and touches no global;
-`dp_lgamma()` (declared in `native/inc/clib_common.h`, defined in
+`dp_lgamma()` (declared in `native/inc/doppler/clib_common.h`, defined in
 `native/src/detection/marcum_q.c`) wraps it once, and a private `lgamma`
 anywhere else is where the next race lives. That one home is exempt and
 picks per platform -- `lgamma_r` where it exists, a bare `lgamma` on the
@@ -70,7 +70,8 @@ def main() -> int:
     for rel, n, line in found:
         print(f"  {rel}:{n}: {line}")
     print(
-        "  Call dp_lgamma(x) (native/inc/clib_common.h) instead: lgamma()\n"
+        "  Call dp_lgamma(x) (native/inc/doppler/clib_common.h) instead: "
+        "lgamma()\n"
         "  writes the global signgam and races across threads; the one\n"
         "  lgamma_r() is dp_lgamma's own, in native/src/detection/marcum_q.c."
     )

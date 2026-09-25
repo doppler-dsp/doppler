@@ -12,7 +12,7 @@
  * @note Uses dp_test.h, not `assert`: doppler builds Release, Release
  * defines NDEBUG, and NDEBUG compiles `assert` away.
  */
-#include "dp_interleave.h"
+#include "doppler/dp_interleave.h"
 #include "dp_test.h"
 
 #include <stdio.h>

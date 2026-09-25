@@ -9,7 +9,7 @@
 /* AccF32Object — wraps acc_f32_state_t *       */
 /* ======================================================== */
 
-#include "acc_f32/acc_f32_core.h"
+#include "doppler/acc_f32/acc_f32_core.h"
 
 typedef struct
 {

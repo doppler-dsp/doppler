@@ -5,10 +5,10 @@
  * yields unit-scale float _Complex samples. File-type parsing and the
  * wire→unit conversion live here, in C; the Python `Reader` is a thin binding.
  */
-#include "wfm_reader/wfm_reader_core.h"
+#include "doppler/wfm_reader/wfm_reader_core.h"
 
-#include "dp_interrupt.h"
-#include "wfm/wfm_time.h"
+#include "doppler/dp_interrupt.h"
+#include "doppler/wfm/wfm_time.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -28,13 +28,13 @@
 #include <time.h>
 
 #include "cJSON.h"
-#include "dp_format.h"
-#include "dp_isotime.h"
-#include "i16_to_f32/i16_to_f32_core.h"
-#include "i32_to_f32/i32_to_f32_core.h"
-#include "i8_to_f32/i8_to_f32_core.h"
-#include "wfm/wfm_keywords.h"
-#include "wfm/wfm_path.h"
+#include "doppler/dp_format.h"
+#include "doppler/dp_isotime.h"
+#include "doppler/i16_to_f32/i16_to_f32_core.h"
+#include "doppler/i32_to_f32/i32_to_f32_core.h"
+#include "doppler/i8_to_f32/i8_to_f32_core.h"
+#include "doppler/wfm/wfm_keywords.h"
+#include "doppler/wfm/wfm_path.h"
 
 /* per sample_type (0 cf32, 1 cf64, 2 ci32, 3 ci16, 4 ci8) — mirror wfm_writer
  */

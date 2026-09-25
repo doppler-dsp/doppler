@@ -14,8 +14,8 @@
  * `test_symsync_core.c` and `native/validation/symsync_lock.c` each carry a
  * private copy of exactly this function.
  */
-#include "wfm/wfm_core.h"
-#include "wfm/wfm_dsp.h" /* wfm_rc_h — header-inline, no link edge */
+#include "doppler/wfm/wfm_core.h"
+#include "doppler/wfm/wfm_dsp.h" /* wfm_rc_h — header-inline, no link edge */
 
 void
 rc_h (const double *t, size_t t_len, double *out, double beta)

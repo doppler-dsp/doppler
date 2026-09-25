@@ -10,13 +10,13 @@
  * field moves.
  */
 #define DP_TEST_VERBOSE 1
+#include "doppler/stream/stream.h"
 #include "dp_test.h"
-#include "stream/stream.h"
 
 /* dp_frame_parse: the receive-side rules, reachable without a broker. */
 #include "../src/stream/stream_internal.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>

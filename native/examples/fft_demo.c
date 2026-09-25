@@ -21,9 +21,9 @@
  *   ./build/native/examples/fft_demo
  */
 
-#include <fft/fft_core.h>
+#include <doppler/fft/fft_core.h>
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

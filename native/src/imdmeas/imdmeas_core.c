@@ -5,11 +5,11 @@
  * two strongest lobes (the fundamentals), integrates them and the folded IM
  * products over their main lobes, and forms the third/second-order intercepts.
  */
-#include "imdmeas/imdmeas_core.h"
+#include "doppler/imdmeas/imdmeas_core.h"
 
-#include "spectral/spectral_core.h" /* kaiser_beta_for_sidelobe */
+#include "doppler/spectral/spectral_core.h" /* kaiser_beta_for_sidelobe */
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

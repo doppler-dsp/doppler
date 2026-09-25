@@ -8,10 +8,10 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 #include <numpy/arrayobject.h>
 
-#include "filter/filter_core.h"
+#include "doppler/filter/filter_core.h"
 
 #include "filter_ext_boxcar.c"
 #include "filter_ext_fir.c"

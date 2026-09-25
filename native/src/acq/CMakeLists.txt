@@ -16,7 +16,7 @@ endif()
 add_library(acq_core OBJECT acq_core.c)
 target_include_directories(
   acq_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                  ${CMAKE_SOURCE_DIR}/native/inc/acq)
+                  ${CMAKE_SOURCE_DIR}/native/inc/doppler/acq)
 target_link_libraries(acq_core PUBLIC
     Threads::Threads
     corr2d_core
@@ -25,6 +25,20 @@ target_link_libraries(acq_core PUBLIC
     detection_core
     dp_tlm_core
     cvt_core)
+if(TARGET ${PROJECT_NAME}_lib)
+  target_link_libraries(${PROJECT_NAME}_lib PRIVATE
+      Threads::Threads)
+  target_include_directories(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_INCLUDE_DIRECTORIES>>)
+  target_compile_definitions(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_COMPILE_DEFINITIONS>>)
+  target_compile_options(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:Threads::Threads>:$<TARGET_PROPERTY:Threads::Threads,INTERFACE_COMPILE_OPTIONS>>)
+endif()
+if(TARGET ${PROJECT_NAME}_lib_static)
+  target_link_libraries(${PROJECT_NAME}_lib_static PUBLIC
+      Threads::Threads)
+endif()
 
 add_executable(test_acq_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_acq_core.c

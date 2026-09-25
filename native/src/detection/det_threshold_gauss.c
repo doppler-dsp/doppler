@@ -1,4 +1,4 @@
-#include "detection/detection_core.h"
+#include "doppler/detection/detection_core.h"
 #include <math.h>
 
 /* thresh = Q_inv(pfa) * mean / (Q_inv(pfa) - Q_inv(pd)): the point where

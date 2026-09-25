@@ -9,7 +9,7 @@
 /* AWGNObject — wraps awgn_state_t *       */
 /* ======================================================== */
 
-#include "awgn/awgn_core.h"
+#include "doppler/awgn/awgn_core.h"
 
 typedef struct
 {

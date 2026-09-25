@@ -27,7 +27,7 @@ Two things are measured that the C test does not:
 - **the family, exhaustively.** All 1023 reachable codes, not the two
   the C cross-correlation check compares (§2.1).
 
-The order is the campaign's: `native/inc/gold/gold_core.h` is the SSOT
+The order is the campaign's: `native/inc/doppler/gold/gold_core.h` is the SSOT
 and `native/tests/test_gold_core.c` certifies it in C.
 """
 
@@ -137,7 +137,7 @@ def section_object() -> None:
         'Register A\'s initial value is "User dependent" and is what '
         "selects a family member. The design is "
         "[docs/design/wfmgen.md](../../../../../../docs/design/wfmgen.md); "
-        "the API is `native/inc/gold/gold_core.h`, certified in C by "
+        "the API is `native/inc/doppler/gold/gold_core.h`, certified in C by "
         "`native/tests/test_gold_core.c`."
     )
     R.md()

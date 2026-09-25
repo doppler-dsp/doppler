@@ -16,8 +16,8 @@
  *   ./build/native/examples/cic_demo
  */
 
-#include "dp_complex.h"
-#include <cic/cic_core.h>
+#include "doppler/dp_complex.h"
+#include <doppler/cic/cic_core.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

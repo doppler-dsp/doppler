@@ -16,7 +16,7 @@ endif()
 add_library(wfm_writer_core OBJECT wfm_writer_core.c write_blue_header.c)
 target_include_directories(
   wfm_writer_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                         ${CMAKE_SOURCE_DIR}/native/inc/wfm_writer)
+                         ${CMAKE_SOURCE_DIR}/native/inc/doppler/wfm_writer)
 target_link_libraries(wfm_writer_core PUBLIC
     wfm_cjson_core
     wfm_keywords_core

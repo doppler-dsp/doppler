@@ -37,7 +37,7 @@
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <pthread.h>
 #include <semaphore.h>
@@ -47,7 +47,7 @@
 #include <string.h>
 #include <time.h>
 
-#include "stream/stream.h"
+#include "doppler/stream/stream.h"
 
 /* ─── constants ─────────────────────────────────────────────────────────── */
 /* Endpoints default to the NATS JetStream work-queue tier on a local broker

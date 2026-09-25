@@ -95,7 +95,7 @@ assert nd.step(float("nan")) == 0     # the metric died -> so does the lock
 ```
 
 `LockDet` is the Python face of the embeddable C leaf
-(`native/inc/lockdet/lockdet_core.h`): a pointer-free POD with a
+(`native/inc/doppler/lockdet/lockdet_core.h`): a pointer-free POD with a
 force-inline step, designed to live *inside* a tracking loop's state
 struct. Two shipped loops already run on it:
 

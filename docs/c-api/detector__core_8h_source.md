@@ -2,7 +2,7 @@
 
 # File detector\_core.h
 
-[**File List**](files.md) **>** [**detector**](dir_f93f7a52d403868792375ffc90a1c1d7.md) **>** [**detector\_core.h**](detector__core_8h.md)
+[**File List**](files.md) **>** [**detector**](dir_4cdf6fdfdd426ef1a31e056182554d6b.md) **>** [**detector\_core.h**](detector__core_8h.md)
 
 [Go to the documentation of this file](detector__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef DETECTOR_CORE_H
 #define DETECTOR_CORE_H
 
-#include "buffer/buffer.h"
-#include "corr/corr_core.h"
-#include "dp_state.h"
+#include "doppler/buffer/buffer.h"
+#include "doppler/corr/corr_core.h"
+#include "doppler/dp_state.h"
 
 #ifdef __cplusplus
 extern "C" {

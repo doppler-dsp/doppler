@@ -15,7 +15,8 @@ The reference math is taken from the C core:
 - ``native/src/wfm/wfm_awgn_amplitude.c`` — ``amp = sqrt(P / (2 * snr_lin))``
 - ``native/src/wfm/wfm_ebno_to_snr_db.c`` — Eb/No -> SNR(fs)
 - ``native/src/wfm/wfm_dsp.c`` — RRC taps (``2*span*sps + 1``, unit energy)
-- ``native/inc/lo/lo_core.h`` — 16-bit-LUT NCO (sets the achievable SFDR)
+- ``native/inc/doppler/lo/lo_core.h`` — 16-bit-LUT NCO (sets the achievable
+  SFDR)
 
 Any check that fails against current behaviour is marked ``xfail`` with a
 pointer into ``docs/dev/wfm-validation-findings.md`` (see that file for the

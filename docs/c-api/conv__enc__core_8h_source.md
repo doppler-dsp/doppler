@@ -2,7 +2,7 @@
 
 # File conv\_enc\_core.h
 
-[**File List**](files.md) **>** [**conv\_enc**](dir_b689baf1ac742b6ceba235289d5a286b.md) **>** [**conv\_enc\_core.h**](conv__enc__core_8h.md)
+[**File List**](files.md) **>** [**conv\_enc**](dir_c22965c7b72380eff65e84661867f314.md) **>** [**conv\_enc\_core.h**](conv__enc__core_8h.md)
 
 [Go to the documentation of this file](conv__enc__core_8h.md)
 
@@ -12,10 +12,10 @@
 #ifndef CONV_ENC_CORE_H
 #define CONV_ENC_CORE_H
 
-#include "clib_common.h"
-#include "conv/conv_core.h"
-#include "dp_state.h"
-#include "jm_perf.h"
+#include "doppler/clib_common.h"
+#include "doppler/conv/conv_core.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
 #ifdef __cplusplus
 extern "C"
 {

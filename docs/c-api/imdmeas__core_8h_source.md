@@ -2,7 +2,7 @@
 
 # File imdmeas\_core.h
 
-[**File List**](files.md) **>** [**imdmeas**](dir_2f7e0f9e46c443ab8712f0318288e016.md) **>** [**imdmeas\_core.h**](imdmeas__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**imdmeas**](dir_2a8d4e9dde298cc63e616d81cd7ff06c.md) **>** [**imdmeas\_core.h**](imdmeas__core_8h.md)
 
 [Go to the documentation of this file](imdmeas__core_8h.md)
 
@@ -12,11 +12,11 @@
 #ifndef IMDMEAS_CORE_H
 #define IMDMEAS_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "measure/measure_core.h"
-#include "psd/psd_core.h"
-#include "dp_complex.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/measure/measure_core.h"
+#include "doppler/psd/psd_core.h"
+#include "doppler/dp_complex.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -24,7 +24,7 @@ CCSDS 131.0-B's TM channel coding as a CONFIGURATION: the inner code is a `conv_
 
 Design and API, not restated here:
 
-- `native/inc/ccsds_tm/ccsds_tm.h`, `ccsds_tm_rs.h`, `ccsds_tm_frame.h` — the SSOT for every claim below
+- `native/inc/doppler/ccsds_tm/ccsds_tm.h`, `ccsds_tm_rs.h`, `ccsds_tm_frame.h` — the SSOT for every claim below
 - `native/tests/test_ccsds_tm_{asm,conv,rand,rs,frame}.c` — the C certification, five files because the published oracles are five separate documents
 - [The FEC Receive Half](../../../../../docs/design/fec-receive.md) — the chain this feeds
 - `native/validation/ccsds_tm_certify.c` — the sweeps below

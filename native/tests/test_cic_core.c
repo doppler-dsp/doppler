@@ -12,8 +12,8 @@
  *   - cic_destroy(NULL): no crash
  *   - Alias rejection: stopband tone ≥ 20 dB below passband reference
  */
-#include "cic/cic_core.h"
-#include "dp_complex.h"
+#include "doppler/cic/cic_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_test.h"
 #include <math.h>
 #include <stdio.h>

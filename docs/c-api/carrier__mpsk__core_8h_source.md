@@ -2,7 +2,7 @@
 
 # File carrier\_mpsk\_core.h
 
-[**File List**](files.md) **>** [**carrier\_mpsk**](dir_aac9a6642a6538588e08cd0551821cb3.md) **>** [**carrier\_mpsk\_core.h**](carrier__mpsk__core_8h.md)
+[**File List**](files.md) **>** [**carrier\_mpsk**](dir_bb3a0f9e61a286c66b69840ec2385900.md) **>** [**carrier\_mpsk\_core.h**](carrier__mpsk__core_8h.md)
 
 [Go to the documentation of this file](carrier__mpsk__core_8h.md)
 
@@ -12,12 +12,12 @@
 #ifndef CARRIER_MPSK_CORE_H
 #define CARRIER_MPSK_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
-#include "lo/lo_core.h"
-#include "loop_filter/loop_filter_core.h"
-#include "mpsk/mpsk_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
+#include "doppler/lo/lo_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/mpsk/mpsk_core.h"
 #include <math.h>
 #ifdef __cplusplus
 extern "C" {

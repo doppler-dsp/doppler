@@ -2,7 +2,7 @@
 
 # File acc\_f32\_core.h
 
-[**File List**](files.md) **>** [**acc\_f32**](dir_0465294bf3f41af7dbdebf91d81a0c4a.md) **>** [**acc\_f32\_core.h**](acc__f32__core_8h.md)
+[**File List**](files.md) **>** [**acc\_f32**](dir_c19b9e056cbdf00f39bf52805b44beb0.md) **>** [**acc\_f32\_core.h**](acc__f32__core_8h.md)
 
 [Go to the documentation of this file](acc__f32__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef ACC_F32_CORE_H
 #define ACC_F32_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "dp_state.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/dp_state.h"
 
 #ifdef __cplusplus
 extern "C"

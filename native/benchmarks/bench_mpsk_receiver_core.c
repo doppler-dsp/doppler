@@ -23,9 +23,9 @@
  * and each configuration is warmed for WARMUP_S first, because a cold
  * process reads systematically high while the CPU ramps.
  */
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/mpsk_receiver/mpsk_receiver_core.h"
 #include "jm_bench.h"
-#include "mpsk_receiver/mpsk_receiver_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

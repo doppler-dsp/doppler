@@ -9,7 +9,7 @@
 /* CorrObject — wraps corr_state_t *       */
 /* ======================================================== */
 
-#include "corr/corr_core.h"
+#include "doppler/corr/corr_core.h"
 
 typedef struct
 {

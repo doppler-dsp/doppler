@@ -1,6 +1,6 @@
+#include "doppler/f32_to_i8/f32_to_i8_core.h"
 #include "dp_state_test.h"
 #include "dp_test.h"
-#include "f32_to_i8/f32_to_i8_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

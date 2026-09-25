@@ -25,8 +25,8 @@
  *
  * See docs/design/loop-filter.md for the reasoning these assume.
  */
+#include "doppler/loop_filter/loop_filter_core.h"
 #include "dp_test.h"
-#include "loop_filter/loop_filter_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>

@@ -1,5 +1,5 @@
-#include "clib_common.h"
-#include "detection/detection_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/detection/detection_core.h"
 #include <math.h>
 
 /* Regularized incomplete beta I_x(a,b) via the standard continued

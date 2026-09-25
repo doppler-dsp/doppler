@@ -2,7 +2,7 @@
 
 # File wfm\_names.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md) **>** [**wfm\_names.h**](wfm__names_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wfm**](dir_d559aca39cc004340b6be1a6e35e20bd.md) **>** [**wfm\_names.h**](wfm__names_8h.md)
 
 [Go to the documentation of this file](wfm__names_8h.md)
 
@@ -36,7 +36,7 @@ static const char *const TYPE_NAMES[]
         "chirp", "bits",  "symbols", "dsss" };
 #define N_TYPES 9
 
-/* SSOT: enum=snr_mode, cenum=wfm/wfm_compose.h:wfm_snr_mode_t */
+/* SSOT: enum=snr_mode, cenum=doppler/wfm/wfm_compose.h:wfm_snr_mode_t */
 static const char *const MODE_NAMES[] = { "auto", "fs", "ebno", "esno" };
 
 /* Wire sample types, wavegen order. The complex five first, then the same
@@ -53,10 +53,10 @@ static const char *const STYPE_NAMES[]
 /* SSOT: enum=crc */
 static const char *const CRC_NAMES[] = { "none", "crc16" };
 
-/* SSOT: enum=bitmod, cenum=wfm/wfm_compose.h:wfm_bitmod_t */
+/* SSOT: enum=bitmod, cenum=doppler/wfm/wfm_compose.h:wfm_bitmod_t */
 static const char *const BITMOD_NAMES[] = { "none", "bpsk", "qpsk" };
 
-/* SSOT: enum=ftype, cenum=wfm_writer/wfm_writer_core.h:wfm_filetype_t */
+/* SSOT: enum=ftype, cenum=doppler/wfm_writer/wfm_writer_core.h:wfm_filetype_t */
 static const char *const FTYPE_NAMES[] = { "raw", "csv", "blue", "sigmf" };
 
 /* SSOT: enum=endian */
@@ -85,12 +85,12 @@ static const char *const PULSE_NAMES[] = { "rect", "rrc" };
    so an undeclared lifetime is the repeated-trial shape -- a channel that
    dies with the renderer -- and "persist" is the scene-owned one that carries
    a pass across a segment's gaps and repeats.
-   SSOT: enum=doppler_lifetime, cenum=wfm/wfm_compose.h:wfm_doppler_lifetime_t
+   SSOT: enum=doppler_lifetime, cenum=doppler/wfm/wfm_compose.h:wfm_doppler_lifetime_t
  */
 static const char *const DOPPLER_LIFETIME_NAMES[]
     = { "per_instance", "persist" };
 
-/* SSOT: enum=seed_advance, cenum=wfm/wfm_compose.h:wfm_seed_advance_t */
+/* SSOT: enum=seed_advance, cenum=doppler/wfm/wfm_compose.h:wfm_seed_advance_t */
 static const char *const SEED_ADVANCE_NAMES[] = { "none", "noise", "all" };
 
 /* Ordered to match wfm_segment_t.gap_noise, which is a plain int whose value
@@ -107,7 +107,7 @@ static const char *const GAP_NOISE_NAMES[] = { "auto", "off" };
 static const char *const DATA_SRC_NAMES[] = { "prbs", "none" };
 
 /* Where a frame field's bits come from.
-   SSOT: enum=wfm_seq_kind, cenum=wfm/wfm_frame.h:wfm_seq_kind_t */
+   SSOT: enum=wfm_seq_kind, cenum=doppler/wfm/wfm_frame.h:wfm_seq_kind_t */
 static const char *const SEQ_KIND_NAMES[]
     = { "literal", "pn", "gold", "dotted" };
 

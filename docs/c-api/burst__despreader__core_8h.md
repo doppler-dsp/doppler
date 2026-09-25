@@ -4,16 +4,16 @@
 
 
 
-[**FileList**](files.md) **>** [**burst\_despreader**](dir_311cad0a77759dd1ff95e00f622e2f49.md) **>** [**burst\_despreader\_core.h**](burst__despreader__core_8h.md)
+[**FileList**](files.md) **>** [**burst\_despreader**](dir_28ffcd911995597d422ebd972d69802b.md) **>** [**burst\_despreader\_core.h**](burst__despreader__core_8h.md)
 
 [Go to the source code of this file](burst__despreader__core_8h_source.md)
 
 _BurstDespreader component API._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
-* `#include "loop_filter/loop_filter_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/loop_filter/loop_filter_core.h"`
 
 
 
@@ -800,5 +800,5 @@ size_t burst_despreader_steps_max_out (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/burst_despreader/burst_despreader_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/burst_despreader/burst_despreader_core.h`
 

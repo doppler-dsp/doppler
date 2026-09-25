@@ -9,7 +9,7 @@
 /* MovingAverageObject — wraps boxcar_state_t *       */
 /* ======================================================== */
 
-#include "boxcar/boxcar_core.h"
+#include "doppler/boxcar/boxcar_core.h"
 
 typedef struct
 {

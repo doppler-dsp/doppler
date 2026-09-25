@@ -24,7 +24,7 @@
  *   make build
  *   ./build/native/examples/ring_threaded_demo
  */
-#include "buffer/buffer.h"
+#include "doppler/buffer/buffer.h"
 #include <pthread.h>
 #include <stdio.h>
 

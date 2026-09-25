@@ -1,4 +1,4 @@
-#include "costas/costas_core.h"
+#include "doppler/costas/costas_core.h"
 
 #include <stdio.h>
 #include <string.h>

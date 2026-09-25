@@ -1,8 +1,8 @@
 /*
  * magnitude_db_cf64.c — spectral module-level function.
  */
-#include "dp_complex.h"
-#include "spectral/spectral_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/spectral/spectral_core.h"
 #include <math.h>
 
 void

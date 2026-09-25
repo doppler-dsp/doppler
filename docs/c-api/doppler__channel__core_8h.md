@@ -4,16 +4,16 @@
 
 
 
-[**FileList**](files.md) **>** [**doppler\_channel**](dir_597302de6cb0d177e5e89858f2abab7e.md) **>** [**doppler\_channel\_core.h**](doppler__channel__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**doppler\_channel**](dir_8380ecb58e2e244790f54835382515ec.md) **>** [**doppler\_channel\_core.h**](doppler__channel__core_8h.md)
 
 [Go to the source code of this file](doppler__channel__core_8h_source.md)
 
 _Clock Doppler as a propagation impairment: dilate the time base and shift the carrier, coherently, from one physical parameter._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
-* `#include "resamp/resamp_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/resamp/resamp_core.h"`
 
 
 
@@ -656,5 +656,5 @@ _State-blob magic ('DPCH') and layout version._
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/doppler_channel/doppler_channel_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/doppler_channel/doppler_channel_core.h`
 

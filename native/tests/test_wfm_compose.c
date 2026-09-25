@@ -5,17 +5,17 @@
  * clean/off), delays, once-through completion, and repeat looping — all
  * over the reused Phase-A synth engine.
  */
-#include "ccsds_tm/ccsds_tm.h"
-#include "ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/ccsds_tm/ccsds_tm.h"
+#include "doppler/ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/gold/gold_core.h"
+#include "doppler/pn/pn_core.h"
+#include "doppler/wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_dsp.h" /* wfm_frame_dsss_* for the dsss burst section */
+#include "doppler/wfm/wfm_frame.h" /* the descriptor the unspread frame section reads */
+#include "doppler/wfm_synth/wfm_synth_core.h"
 #include "dp_test.h"
-#include "gold/gold_core.h"
-#include "pn/pn_core.h"
-#include "wfm/wfm_compose.h"
-#include "wfm/wfm_dsp.h"   /* wfm_frame_dsss_* for the dsss burst section */
-#include "wfm/wfm_frame.h" /* the descriptor the unspread frame section reads */
-#include "wfm_synth/wfm_synth_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

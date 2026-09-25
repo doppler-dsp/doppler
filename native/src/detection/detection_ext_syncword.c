@@ -9,7 +9,7 @@
 /* SyncFinderObject — wraps syncword_state_t *       */
 /* ======================================================== */
 
-#include "syncword/syncword_core.h"
+#include "doppler/syncword/syncword_core.h"
 
 typedef struct
 {

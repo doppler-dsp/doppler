@@ -9,8 +9,8 @@
 /* ResamplerObject — wraps Resampler_state_t *       */
 /* ======================================================== */
 
-#include "Resampler/Resampler_core.h"
-#include "dp_state_pyhelp.h"
+#include "doppler/Resampler/Resampler_core.h"
+#include "doppler/dp_state_pyhelp.h"
 
 typedef struct
 {

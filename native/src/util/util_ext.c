@@ -8,10 +8,10 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 #include <numpy/arrayobject.h>
 
-#include "util/util_core.h"
+#include "doppler/util/util_core.h"
 
 static PyObject *
 _bind_square_clip (PyObject *self, PyObject *args, PyObject *kwds)

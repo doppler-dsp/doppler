@@ -2,7 +2,7 @@
 /* CF32 → CF32, uses the C library's AVX-512 halfband path  */
 /* ======================================================== */
 
-#include "hbdecim/hbdecim_r2c_core.h"
+#include "doppler/hbdecim/hbdecim_r2c_core.h"
 
 typedef struct
 {

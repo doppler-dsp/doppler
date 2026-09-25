@@ -163,5 +163,5 @@ Interleaving depth; 0 for no outer code
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ccsds_tm/ccsds_tm_frame.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ccsds_tm/ccsds_tm_frame.h`
 

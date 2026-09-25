@@ -9,7 +9,7 @@
 /* AccQ15Object — wraps acc_q15_state_t *       */
 /* ======================================================== */
 
-#include "acc_q15/acc_q15_core.h"
+#include "doppler/acc_q15/acc_q15_core.h"
 
 typedef struct
 {

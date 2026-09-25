@@ -2,7 +2,7 @@
 
 # File hbdecim\_core.h
 
-[**File List**](files.md) **>** [**hbdecim**](dir_3828151286b0ff520a0d701b39db5af1.md) **>** [**hbdecim\_core.h**](hbdecim__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**hbdecim**](dir_29792a392a590bbead7fbef545faea73.md) **>** [**hbdecim\_core.h**](hbdecim__core_8h.md)
 
 [Go to the documentation of this file](hbdecim__core_8h.md)
 
@@ -12,8 +12,8 @@
 #ifndef HBDECIM_CORE_H
 #define HBDECIM_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
 
 #ifdef __cplusplus
 extern "C"

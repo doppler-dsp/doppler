@@ -1,10 +1,10 @@
-#include "burst_demod/burst_demod_core.h"
+#include "doppler/burst_demod/burst_demod_core.h"
 
-#include "ccsds_tm/ccsds_tm_frame.h" /* the stage kernels + the ASM bits    */
-#include "clib_common.h"             /* dp_xnn — abort-on-OOM, see below    */
-#include "mpsk/mpsk_core.h"          /* mpsk_soft_demap — the ONE LLR rule  */
+#include "doppler/ccsds_tm/ccsds_tm_frame.h" /* the stage kernels + the ASM bits    */
+#include "doppler/clib_common.h"    /* dp_xnn — abort-on-OOM, see below    */
+#include "doppler/mpsk/mpsk_core.h" /* mpsk_soft_demap — the ONE LLR rule  */
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

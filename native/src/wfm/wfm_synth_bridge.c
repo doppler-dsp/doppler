@@ -13,11 +13,11 @@
  */
 #include <stdlib.h>
 
-#include "ccsds_tm/ccsds_tm_frame.h" /* the kernels its coded stages run */
-#include "wfm/wfm_compose.h"         /* wfm_source_t */
-#include "wfm/wfm_dsp.h"             /* wfm_rrc_ntaps / wfm_rrc_taps */
-#include "wfm/wfm_frame.h" /* the frame descriptor both faces now read */
-#include "wfm_synth/wfm_synth_core.h"
+#include "doppler/ccsds_tm/ccsds_tm_frame.h" /* the kernels its coded stages run */
+#include "doppler/wfm/wfm_compose.h"         /* wfm_source_t */
+#include "doppler/wfm/wfm_dsp.h"             /* wfm_rrc_ntaps / wfm_rrc_taps */
+#include "doppler/wfm/wfm_frame.h" /* the frame descriptor both faces now read */
+#include "doppler/wfm_synth/wfm_synth_core.h"
 
 /* Pulse enum index 1 == "rrc" (see the wfm_pulse [[enum]] SSOT). */
 #define WFM_PULSE_RRC 1

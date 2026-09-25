@@ -3,4 +3,4 @@
  *
  * Add extra #includes below, then implement module-level functions.
  */
-#include "telemetry/telemetry_core.h"
+#include "doppler/telemetry/telemetry_core.h"

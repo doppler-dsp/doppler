@@ -163,5 +163,5 @@ Payload bytes in the whole logical frame.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/stream/stream.h`
+The documentation for this class was generated from the following file `native/inc/doppler/stream/stream.h`
 

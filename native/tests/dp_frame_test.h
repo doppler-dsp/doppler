@@ -90,7 +90,7 @@
 #ifndef DP_FRAME_TEST_H
 #define DP_FRAME_TEST_H
 
-#include "wfm/wfm_frame.h"
+#include "doppler/wfm/wfm_frame.h"
 
 #include <stddef.h>
 #include <stdint.h>

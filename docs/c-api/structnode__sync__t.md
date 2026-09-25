@@ -192,5 +192,5 @@ symbols SCORED per hypothesis, which is fewer than the window — see [**node\_s
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/viterbi/viterbi_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/viterbi/viterbi_core.h`
 

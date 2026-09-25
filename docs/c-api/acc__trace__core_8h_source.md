@@ -2,7 +2,7 @@
 
 # File acc\_trace\_core.h
 
-[**File List**](files.md) **>** [**acc\_trace**](dir_51e33d48c4bde6f60a2f27e75677a784.md) **>** [**acc\_trace\_core.h**](acc__trace__core_8h.md)
+[**File List**](files.md) **>** [**acc\_trace**](dir_ea4259ba3dd1c044f0efb519286a18a5.md) **>** [**acc\_trace\_core.h**](acc__trace__core_8h.md)
 
 [Go to the documentation of this file](acc__trace__core_8h.md)
 
@@ -12,9 +12,9 @@
 #ifndef ACC_TRACE_CORE_H
 #define ACC_TRACE_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "dp_state.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/dp_state.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

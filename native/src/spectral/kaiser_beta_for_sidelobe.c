@@ -16,7 +16,7 @@
  * formula gives beta=12 for a 90 dB target, and a beta-12 window measures a
  * -90 dB peak sidelobe.
  */
-#include "spectral/spectral_core.h"
+#include "doppler/spectral/spectral_core.h"
 
 #include <math.h>
 

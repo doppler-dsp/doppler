@@ -1,6 +1,6 @@
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
+#include "doppler/uq15_to_f32/uq15_to_f32_core.h"
 #include "dp_test.h"
-#include "uq15_to_f32/uq15_to_f32_core.h"
 #include <math.h>
 #include <stdio.h>
 

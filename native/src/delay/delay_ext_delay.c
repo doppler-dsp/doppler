@@ -9,7 +9,7 @@
 /* DelayCf64Object — wraps delay_state_t *       */
 /* ======================================================== */
 
-#include "delay/delay_core.h"
+#include "doppler/delay/delay_core.h"
 
 typedef struct
 {

@@ -197,5 +197,5 @@ declare side: hit when metric &gt; up\_thresh.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/lockdet/lockdet_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/lockdet/lockdet_core.h`
 

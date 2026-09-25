@@ -16,7 +16,7 @@ endif()
 add_library(carrier_mpsk_core OBJECT carrier_mpsk_core.c)
 target_include_directories(
   carrier_mpsk_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                           ${CMAKE_SOURCE_DIR}/native/inc/carrier_mpsk)
+                           ${CMAKE_SOURCE_DIR}/native/inc/doppler/carrier_mpsk)
 target_link_libraries(carrier_mpsk_core PUBLIC
     lo_core
     loop_filter_core)

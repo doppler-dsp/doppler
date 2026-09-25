@@ -18,7 +18,7 @@ one that was asked for.
 
 This page records what owns those tables, why the ownership is arranged the
 way it is, and what checks it — independently of the comment at the top of
-`native/inc/wfm/wfm_names.h`, which states the rule but cannot be the reason
+`native/inc/doppler/wfm/wfm_names.h`, which states the rule but cannot be the reason
 for it.
 
 ## What was measured
@@ -30,12 +30,12 @@ source". Measured in 2026-08 (doppler#760), that was true of the **Python
 binding only**. jm renders `[[enum]]` into `_enum_*` tables inside
 `wfm_compose_ext.c`, which is its job. The C side had three homes and no gate:
 
-| where                         | how many  | how                               |
-| ----------------------------- | --------- | --------------------------------- |
-| `just-makeit.toml` `[[enum]]` | 19 blocks | drives the generated binding      |
-| `native/inc/wfm/wfm_names.h`  | 3 tables  | hand-written, shared by two files |
-| `native/src/app/wfmgen.c`     | 12 tables | hand-written, file-local          |
-| `native/src/wfm/wfm_json.c`   | 7 tables  | hand-written, file-local          |
+| where                                | how many  | how                               |
+| ------------------------------------ | --------- | --------------------------------- |
+| `just-makeit.toml` `[[enum]]`        | 19 blocks | drives the generated binding      |
+| `native/inc/doppler/wfm/wfm_names.h` | 3 tables  | hand-written, shared by two files |
+| `native/src/app/wfmgen.c`            | 12 tables | hand-written, file-local          |
+| `native/src/wfm/wfm_json.c`          | 7 tables  | hand-written, file-local          |
 
 Adding or reordering a waveform type meant editing three places, and getting
 one wrong was silent. Two instances had already landed before the consolidation
@@ -69,7 +69,7 @@ already the input jm renders the Python binding from, so making it also the
 authority for C means the two faces cannot disagree — rather than adding a
 fourth party to a three-way disagreement.
 
-**The header is the one C home.** `native/inc/wfm/wfm_names.h` holds exactly
+**The header is the one C home.** `native/inc/doppler/wfm/wfm_names.h` holds exactly
 one `static const char *const` table per enum. Every C file that needs one
 includes the header. A table declared anywhere else in hand-written C is an
 error, not a style preference.

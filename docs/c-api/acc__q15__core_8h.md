@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**acc\_q15**](dir_df770d8a485da99b359af14931eaacf8.md) **>** [**acc\_q15\_core.h**](acc__q15__core_8h.md)
+[**FileList**](files.md) **>** [**acc\_q15**](dir_2344cd9a4aadb833503124e5257faf5b.md) **>** [**acc\_q15\_core.h**](acc__q15__core_8h.md)
 
 [Go to the source code of this file](acc__q15__core_8h_source.md)
 
 _AccQ15 — a running 64-bit integer accumulator for Q15 (int16\_t) samples. Internally sums each sample into a 64-bit accumulator, which prevents overflow even for very long block lengths. Use get() to read the running total non-destructively, or dump() to read-and-reset in one call._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "dp_state.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/dp_state.h"`
 
 
 
@@ -607,5 +607,5 @@ void acc_q15_steps (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acc_q15/acc_q15_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acc_q15/acc_q15_core.h`
 

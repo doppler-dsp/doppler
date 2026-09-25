@@ -1,4 +1,4 @@
-#include "detector2d/detector2d_core.h"
+#include "doppler/detector2d/detector2d_core.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_test.h"

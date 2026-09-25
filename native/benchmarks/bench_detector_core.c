@@ -25,9 +25,9 @@
  * configuration of this one. Left for whoever needs it, named here so the
  * absence is a decision rather than an oversight.
  */
-#include "detector/detector_core.h"
+#include "doppler/detector/detector_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_bench.h"
-#include "dp_complex.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

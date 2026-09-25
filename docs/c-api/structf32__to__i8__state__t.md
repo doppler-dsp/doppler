@@ -122,5 +122,5 @@ float f32_to_i8_state_t::scale;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/f32_to_i8/f32_to_i8_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/f32_to_i8/f32_to_i8_core.h`
 

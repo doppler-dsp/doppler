@@ -16,9 +16,9 @@
  * nfft*s2, not cg^2, so an integrated band is window- and pad-independent —
  * see psd_band_lin.
  */
-#include "psd/psd_core.h"
-#include "spectral/spectral_core.h"
-#include "util/util_core.h"
+#include "doppler/psd/psd_core.h"
+#include "doppler/spectral/spectral_core.h"
+#include "doppler/util/util_core.h"
 #include <math.h>
 
 /* Power floor (~ -200 dB) guarding log10 of empty / zero bins. */

@@ -9,7 +9,7 @@
 /* LockDetObject — wraps lockdet_state_t *       */
 /* ======================================================== */
 
-#include "lockdet/lockdet_core.h"
+#include "doppler/lockdet/lockdet_core.h"
 
 typedef struct
 {

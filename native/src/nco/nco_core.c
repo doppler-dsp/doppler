@@ -6,7 +6,7 @@
  * were lifted from the doppler reference (native/src/nco/nco_core.c) via
  * just-makeit --impl.  Only create/reset/max_out/properties are hand-written.
  */
-#include "nco/nco_core.h"
+#include "doppler/nco/nco_core.h"
 
 /* ================================================================== */
 /* Lifecycle                                                           */

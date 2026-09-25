@@ -16,7 +16,7 @@ endif()
 add_library(f32_to_i16_core OBJECT f32_to_i16_core.c)
 target_include_directories(
   f32_to_i16_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                         ${CMAKE_SOURCE_DIR}/native/inc/f32_to_i16)
+                         ${CMAKE_SOURCE_DIR}/native/inc/doppler/f32_to_i16)
 
 add_executable(test_f32_to_i16_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_f32_to_i16_core.c

@@ -13,7 +13,7 @@
  * slower, hot C paths should stay on the inline — which is exactly the
  * guidance the acquisition engine's per-hypothesis loop needs.
  */
-#include "acquire/acquire_core.h"
+#include "doppler/acquire/acquire_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

@@ -9,7 +9,7 @@
 /* BurstDemodObject — wraps burst_demod_state_t *       */
 /* ======================================================== */
 
-#include "burst_demod/burst_demod_core.h"
+#include "doppler/burst_demod/burst_demod_core.h"
 
 typedef struct
 {

@@ -9,7 +9,7 @@
 /* NCOObject — wraps nco_state_t *       */
 /* ======================================================== */
 
-#include "nco/nco_core.h"
+#include "doppler/nco/nco_core.h"
 
 typedef struct
 {
@@ -972,7 +972,8 @@ static PyMethodDef NCOObj_methods[] = {
     "+ ctrl_inc` each sample -- so a loop filter can drive the NCO with its\n"
     "full per-sample output (integrator + proportional term) without the\n"
     "caller ever touching the NCO's own configured rate. Mirrors\n"
-    "`lo_step_ctrl`/`lo_steps_ctrl` (native/inc/lo/lo_core.h), which does\n"
+    "`lo_step_ctrl`/`lo_steps_ctrl` (native/inc/doppler/lo/lo_core.h), which "
+    "does\n"
     "this for the CF32 phasor output; this is the same control-port pattern\n"
     "for NCO's raw phase output. With every `ctrl[i] == 0` this is\n"
     "bit-identical to nco_steps_u32(). Returns ctrl_len.\n"

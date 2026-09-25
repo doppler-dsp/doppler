@@ -88,11 +88,11 @@
 #ifndef DP_BER_TEST_H
 #define DP_BER_TEST_H
 
-#include "ber/ber_core.h"             /* the measurement primitives, once  */
-#include "ber_meter/ber_meter_core.h" /* the accumulator + the detector    */
-#include "dp_complex.h"
-#include "dp_sym_test.h"    /* EVM / M2M4 / the settling budget    */
-#include "mpsk/mpsk_core.h" /* mpsk_bps, mpsk_phi0, gray encode    */
+#include "doppler/ber/ber_core.h" /* the measurement primitives, once  */
+#include "doppler/ber_meter/ber_meter_core.h" /* the accumulator + the detector    */
+#include "doppler/dp_complex.h"
+#include "doppler/mpsk/mpsk_core.h" /* mpsk_bps, mpsk_phi0, gray encode    */
+#include "dp_sym_test.h"            /* EVM / M2M4 / the settling budget    */
 #include <limits.h>
 #include <math.h>
 #include <stddef.h>

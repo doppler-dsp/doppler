@@ -8,11 +8,11 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 #include <numpy/arrayobject.h>
 #include <string.h>
 
-#include "wfm_writer/wfm_writer_core.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 
 #include "wfm_writer_ext_wfm_writer.c"
 

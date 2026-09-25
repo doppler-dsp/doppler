@@ -14,12 +14,12 @@
  * bits and no payload truth at all, which is the one metric that works on a
  * real capture AND still catches a false lock.
  */
+#include "doppler/wfm/wfm_dsp.h" /* the four-field DSSS pair, for the equivalence */
+#include "doppler/wfm/wfm_frame.h"
 #include "dp_test.h"
-#include "wfm/wfm_dsp.h" /* the four-field DSSS pair, for the equivalence */
-#include "wfm/wfm_frame.h"
 
-#include "gold/gold_core.h"
-#include "pn/pn_core.h"
+#include "doppler/gold/gold_core.h"
+#include "doppler/pn/pn_core.h"
 
 #include <stdio.h>
 #include <string.h>

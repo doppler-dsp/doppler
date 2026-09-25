@@ -4,13 +4,13 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**telemetry**](dir_d4543964ddc0423cd91d16ab74a4089e.md) **>** [**telemetry\_core.h**](telemetry__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**telemetry**](dir_d30f8ea704930bef6ef378fb8c932c43.md) **>** [**telemetry\_core.h**](telemetry__core_8h.md)
 
 [Go to the source code of this file](telemetry__core_8h_source.md)
 
 _Telemetry module — public C API._ 
 
-* `#include "clib_common.h"`
+* `#include "doppler/clib_common.h"`
 
 
 
@@ -78,5 +78,5 @@ _Telemetry module — public C API._
 
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/telemetry/telemetry_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/telemetry/telemetry_core.h`
 

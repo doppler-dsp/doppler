@@ -105,5 +105,5 @@ int64_t acc_q15_state_t::acc;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acc_q15/acc_q15_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acc_q15/acc_q15_core.h`
 

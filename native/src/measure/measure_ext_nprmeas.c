@@ -9,7 +9,7 @@
 /* NPRMeasureObject — wraps nprmeas_state_t *       */
 /* ======================================================== */
 
-#include "nprmeas/nprmeas_core.h"
+#include "doppler/nprmeas/nprmeas_core.h"
 
 typedef struct
 {

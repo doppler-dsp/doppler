@@ -4,14 +4,14 @@
 
 
 
-[**FileList**](files.md) **>** [**hbdecim**](dir_3828151286b0ff520a0d701b39db5af1.md) **>** [**hbdecim\_core.h**](hbdecim__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**hbdecim**](dir_29792a392a590bbead7fbef545faea73.md) **>** [**hbdecim\_core.h**](hbdecim__core_8h.md)
 
 [Go to the source code of this file](hbdecim__core_8h_source.md)
 
 _Halfband 2:1 decimator for CF32 IQ samples._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
 
 
 
@@ -429,5 +429,5 @@ size_t hbdecim_state_bytes (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/hbdecim/hbdecim_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/hbdecim/hbdecim_core.h`
 

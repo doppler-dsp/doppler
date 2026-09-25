@@ -2,7 +2,7 @@
 
 # File i8\_to\_f32\_core.h
 
-[**File List**](files.md) **>** [**i8\_to\_f32**](dir_fd8e995fbd9a7d674714f99e992f90b2.md) **>** [**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**i8\_to\_f32**](dir_fc9b7ccc74f65689d9e6b216ebcebff3.md) **>** [**i8\_to\_f32\_core.h**](i8__to__f32__core_8h.md)
 
 [Go to the documentation of this file](i8__to__f32__core_8h.md)
 
@@ -12,8 +12,8 @@
 #ifndef I8_TO_F32_CORE_H
 #define I8_TO_F32_CORE_H
 
-#include "clib_common.h"
-#include "jm_perf.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

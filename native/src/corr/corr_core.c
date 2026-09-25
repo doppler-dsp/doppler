@@ -1,6 +1,6 @@
-#include "corr/corr_core.h"
+#include "doppler/corr/corr_core.h"
 
-#include "clib_common.h"
+#include "doppler/clib_common.h"
 #include <string.h>
 
 /* 1-D spectral zero-pad: q (length m >= n) is the band-limited (Dirichlet)

@@ -1,9 +1,9 @@
 /*
  * crc16.c — wfmgen module-level function.
  */
-#include "wfm/wfm_core.h"
+#include "doppler/wfm/wfm_core.h"
 
-#include "dp_crc16.h"
+#include "doppler/dp_crc16.h"
 
 /* CRC-16-CCITT over an unpacked bit array — thin public alias over the
  * shared TX/RX frame kernel (dp_crc16.h), so Python frame builders and

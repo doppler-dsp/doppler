@@ -16,7 +16,7 @@ endif()
 add_library(fft2d_core OBJECT fft2d_core.c)
 target_include_directories(
   fft2d_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                    ${CMAKE_SOURCE_DIR}/native/inc/fft2d)
+                    ${CMAKE_SOURCE_DIR}/native/inc/doppler/fft2d)
 target_link_libraries(fft2d_core PUBLIC
     fft_core)
 

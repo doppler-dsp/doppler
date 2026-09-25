@@ -16,7 +16,7 @@
  *
  * A `volatile` sink prevents the loops being optimised away.
  */
-#include "cvt/cvt_core.h"
+#include "doppler/cvt/cvt_core.h"
 #include "jm_bench.h"
 #include <stdio.h>
 #include <stdlib.h>

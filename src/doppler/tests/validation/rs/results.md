@@ -24,7 +24,7 @@ A Reed-Solomon code as a DESCRIPTION — a symbol width, a field polynomial, a p
 
 Design and API, not restated here:
 
-- `native/inc/rs/rs_core.h` — the SSOT for every claim below
+- `native/inc/doppler/rs/rs_core.h` — the SSOT for every claim below
 - `native/tests/test_rs_core.c` — the C certification
 - [Reed-Solomon](../../../../../docs/design/reed-solomon.md) — the algebra, the two offsets a textbook omits, and what a decode refusal does and does not mean
 - `native/validation/rs_certify.c` — the sweeps below

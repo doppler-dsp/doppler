@@ -15,7 +15,7 @@
  * that the two have already diverged in cost, which is a reason to keep
  * checking that they have not diverged in behaviour.
  */
-#include "arith/arith_core.h"
+#include "doppler/arith/arith_core.h"
 #include "dp_test.h"
 #include <stdio.h>
 

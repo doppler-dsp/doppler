@@ -203,5 +203,5 @@ uint32_t cic_state_t::shift;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/cic/cic_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/cic/cic_core.h`
 

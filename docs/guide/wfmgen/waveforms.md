@@ -210,7 +210,7 @@ The same keywords work on the Python `Synth` and `Segment`
 (`sync=`, `acq_code=`, `acq_reps=`, `crc=`), and `--record` carries them, so
 `--from-file` rebuilds the framed waveform byte for byte.
 
-The layout is one C descriptor (`native/inc/wfm/wfm_frame.h`) read by the
+The layout is one C descriptor (`native/inc/doppler/wfm/wfm_frame.h`) read by the
 generator that builds it and the measurer that scores it — see
 [Receiver Test Harness](../../design/rx-test.md) §7.
 

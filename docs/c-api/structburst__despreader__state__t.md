@@ -563,5 +563,5 @@ sf\*sps, symbol period in samples.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/burst_despreader/burst_despreader_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/burst_despreader/burst_despreader_core.h`
 

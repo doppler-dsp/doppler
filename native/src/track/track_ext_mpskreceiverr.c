@@ -9,7 +9,7 @@
 /* MpskReceiverRObject — wraps mpsk_receiver_state_t *       */
 /* ======================================================== */
 
-#include "mpsk_receiver/mpsk_receiver_core.h"
+#include "doppler/mpsk_receiver/mpsk_receiver_core.h"
 
 typedef struct
 {

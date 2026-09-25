@@ -17,9 +17,9 @@
  *   - ratios (SNR/SINAD/THD) are normalisation-independent; only the absolute
  *     *_dbfs levels use the per-type full-scale reference.
  */
-#include "tonemeas/tonemeas_core.h"
+#include "doppler/tonemeas/tonemeas_core.h"
 
-#include "dp_complex.h"
+#include "doppler/dp_complex.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>

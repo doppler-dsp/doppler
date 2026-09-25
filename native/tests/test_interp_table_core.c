@@ -11,8 +11,8 @@
  *   5. Table is copied, not aliased (caller's array can change after)
  *   6. n property
  */
+#include "doppler/interp_table/interp_table_core.h"
 #include "dp_test.h"
-#include "interp_table/interp_table_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

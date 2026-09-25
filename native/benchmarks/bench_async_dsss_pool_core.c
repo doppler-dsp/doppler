@@ -4,8 +4,8 @@
  * threads the pool is given. The budget is 100 ns per output sample per
  * core at the operating point, the working target half of that; the
  * number reported here is the whole population's, per input sample. */
-#include "async_dsss_pool/async_dsss_pool_core.h"
-#include "dp_complex.h"
+#include "doppler/async_dsss_pool/async_dsss_pool_core.h"
+#include "doppler/dp_complex.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdio.h>

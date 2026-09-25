@@ -215,5 +215,5 @@ size_t wfm_frame_layout_t::total_bits;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/wfm/wfm_frame.h`
+The documentation for this class was generated from the following file `native/inc/doppler/wfm/wfm_frame.h`
 

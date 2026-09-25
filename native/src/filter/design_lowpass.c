@@ -1,10 +1,10 @@
 /*
  * design_lowpass.c — filter module-level function.
  */
-#include "filter/filter_core.h"
-#include "resample/resample_core.h" /* kaiser_num_taps, kaiser_beta */
-#include "spectral/spectral_core.h" /* kaiser_window */
-#include "util/util_core.h"
+#include "doppler/filter/filter_core.h"
+#include "doppler/resample/resample_core.h" /* kaiser_num_taps, kaiser_beta */
+#include "doppler/spectral/spectral_core.h" /* kaiser_window */
+#include "doppler/util/util_core.h"
 
 #include <math.h>
 #include <stdlib.h>

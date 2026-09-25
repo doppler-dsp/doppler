@@ -4,14 +4,14 @@
 
 
 
-[**FileList**](files.md) **>** [**ber**](dir_b6e9705448f5ec813187161d6664687c.md) **>** [**ber\_core.h**](ber__core_8h.md)
+[**FileList**](files.md) **>** [**ber**](dir_742028dd4040117c60c3f886fa044d64.md) **>** [**ber\_core.h**](ber__core_8h.md)
 
 [Go to the source code of this file](ber__core_8h_source.md)
 
 _Error-rate measurement: settled windows, detected alignment, and an exact confidence interval._ [More...](#detailed-description)
 
-* `#include "dp_state.h"`
-* `#include "dp_complex.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/dp_complex.h"`
 * `#include <stddef.h>`
 * `#include <stdint.h>`
 
@@ -524,5 +524,5 @@ receiver meet its bound" at the same place on the curve for every constellation 
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/ber/ber_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/ber/ber_core.h`
 

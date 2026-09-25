@@ -2,7 +2,7 @@
 
 # File hbdecim\_q15\_core.h
 
-[**File List**](files.md) **>** [**hbdecim\_q15**](dir_93499f550a23db63d09661ee916a0767.md) **>** [**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**hbdecim\_q15**](dir_0dbd0f8cb615d6b620ef5cfddeb71b4a.md) **>** [**hbdecim\_q15\_core.h**](hbdecim__q15__core_8h.md)
 
 [Go to the documentation of this file](hbdecim__q15__core_8h.md)
 
@@ -14,7 +14,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include "dp_state.h"
+#include "doppler/dp_state.h"
 
 #ifdef __cplusplus
 extern "C" {

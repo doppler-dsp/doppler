@@ -8,10 +8,10 @@
  * computed in this file — those live once, in wfm_frame.c, which is what lets
  * a receiver and a generator hold the same descriptor and agree.
  */
-#include "frame/frame_core.h"
+#include "doppler/frame/frame_core.h"
 
-#include "ccsds_tm/ccsds_tm_frame.h"
-#include "cvt/cvt_core.h"
+#include "doppler/ccsds_tm/ccsds_tm_frame.h"
+#include "doppler/cvt/cvt_core.h"
 
 #include <stdlib.h>
 #include <string.h>

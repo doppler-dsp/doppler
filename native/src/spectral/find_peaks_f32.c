@@ -1,7 +1,7 @@
 /*
  * find_peaks_f32.c — spectral module-level function.
  */
-#include "spectral/spectral_core.h"
+#include "doppler/spectral/spectral_core.h"
 #include <stdlib.h>
 #include <string.h>
 

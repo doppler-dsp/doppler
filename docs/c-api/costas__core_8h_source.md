@@ -2,7 +2,7 @@
 
 # File costas\_core.h
 
-[**File List**](files.md) **>** [**costas**](dir_9b517cb2745356d7938c9e100210a101.md) **>** [**costas\_core.h**](costas__core_8h.md)
+[**File List**](files.md) **>** [**costas**](dir_8ebd78c7800b34d5dee6ef27ff63e7b3.md) **>** [**costas\_core.h**](costas__core_8h.md)
 
 [Go to the documentation of this file](costas__core_8h.md)
 
@@ -12,15 +12,15 @@
 #ifndef COSTAS_CORE_H
 #define COSTAS_CORE_H
 
-#include "clib_common.h"
-#include "dp_state.h"
-#include "jm_perf.h"
-#include "lo/lo_core.h"
-#include "lockdet/lockdet_core.h"
-#include "loop_filter/loop_filter_core.h"
-#include "dp_tlm/dp_tlm_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/jm_perf.h"
+#include "doppler/lo/lo_core.h"
+#include "doppler/lockdet/lockdet_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 #include <math.h>
-#include "telemetry/telemetry_core.h"
+#include "doppler/telemetry/telemetry_core.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

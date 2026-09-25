@@ -196,7 +196,7 @@ def _build_codes_and_frame():
     appends on transmit and BurstDemod validates on receive."""
     # poly=0 selects pn_mls_poly(length) inside the C generator, so these are
     # full-period m-sequences rather than random bits that merely look like a
-    # code (see doppler.wfm.PN and native/inc/pn/pn_core.h).
+    # code (see doppler.wfm.PN and native/inc/doppler/pn/pn_core.h).
     acq_code = _mls(9, seed=1)  # 2**9 - 1 = 511 chips
     data_code = _mls(6, seed=3)  # 2**6 - 1 =  63 chips
     payload_bits = (

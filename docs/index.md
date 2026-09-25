@@ -113,7 +113,7 @@ jbx get-doppler
 
 #include <complex.h>
 #include <stdio.h>
-#include <fft/fft_core.h>
+#include <doppler/fft/fft_core.h>
 
 int main(void)
 {
@@ -131,7 +131,7 @@ int main(void)
 **Compile and run**
 
 ```bash
-cc example.c -I "$HOME/.local/doppler/include/doppler" \
+cc example.c -I "$HOME/.local/doppler/include" \
    "$HOME/.local/doppler/lib/libdoppler.a" -lm -lpthread -o example
 ./example
 ```

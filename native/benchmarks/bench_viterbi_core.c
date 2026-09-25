@@ -22,8 +22,8 @@
  *
  * Timing is MIN over rounds, not mean, after a WARMUP_S settle.
  */
+#include "doppler/viterbi/viterbi_core.h"
 #include "jm_bench.h"
-#include "viterbi/viterbi_core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

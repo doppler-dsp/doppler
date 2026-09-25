@@ -22,7 +22,8 @@ cannot drift between the two kinds of object.
 Nothing here computes a measurement, and nothing there decides whether a
 number is acceptable.
 
-The campaign's order still holds and came first: `native/inc/rs/rs_core.h`
+The campaign's order still holds and came first:
+`native/inc/doppler/rs/rs_core.h`
 is the SSOT, `native/tests/test_rs_core.c` certifies it in C, and §1's
 claim table is the inventory that produced seven new C sections and caught
 a header claim that was not merely unpinned but false.
@@ -814,7 +815,8 @@ def build(write: bool = True) -> Report:
     R.md("Design and API, not restated here:")
     R.md()
     R.md(
-        "- `native/inc/rs/rs_core.h` — the SSOT for every claim below\n"
+        "- `native/inc/doppler/rs/rs_core.h` — the SSOT for every claim "
+        "below\n"
         "- `native/tests/test_rs_core.c` — the C certification\n"
         "- [Reed-Solomon](../../../../../docs/design/reed-solomon.md) — the "
         "algebra, the two offsets a textbook omits, and what a decode "

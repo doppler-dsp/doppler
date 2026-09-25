@@ -1,0 +1,663 @@
+/**
+ * @file symsync_core.h
+ * @brief SymbolSync component API.
+ *
+ * Lifecycle: `create -> (step / steps / reset)* -> destroy`
+ *
+ * Example:
+ * @code
+ * symsync_state_t *obj = symsync_create(4, 0.01, 0.707, 0, 0);
+ * float _Complex y = symsync_step(obj, 0.0f + 0.0f * I);
+ * symsync_destroy(obj);
+ * @endcode
+ */
+#ifndef SYMSYNC_CORE_H
+#define SYMSYNC_CORE_H
+
+#include "doppler/clib_common.h"
+#include "doppler/dp_state.h"
+#include "doppler/farrow/farrow_core.h"
+#include "doppler/jm_perf.h"
+#include "doppler/lockdet/lockdet_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
+#include "doppler/nco/nco_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
+#include "doppler/telemetry/telemetry_core.h"
+#include "doppler/detection/detection_core.h"
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+  /** @brief Timing-error-detector selection for symsync_state_t::ted. */
+  enum
+  {
+    SYMSYNC_TED_GARDNER = 0, /**< blind Gardner TED (mid * conj diff).    */
+    SYMSYNC_TED_DTTL    = 1  /**< decision-directed sign-sign DTTL.       */
+  };
+
+/* Numerical guard on the on-time+mid-symbol energy sum feeding the lock
+ * statistic (not tunable). */
+#define SYMSYNC_LOCK_EPS 1e-12
+
+  /**
+   * @brief Telemetry attachment: a borrowed context + this object's probe
+   *        ids.  NULL ctx (the default) means detached — every probe site
+   *        is then a single predicted-not-taken branch per recovered
+   *        symbol.  Zeroed in state blobs and preserved across set_state
+   *        (DP_DEFINE_POD_STATE_TLM).
+   */
+  typedef struct
+  {
+    dp_tlm_t *ctx;       /**< NULL = detached                     */
+    int32_t   id_e;      /**< "<prefix>.e"      — TED error       */
+    int32_t   id_freq;   /**< "<prefix>.freq"   — loop control    */
+    int32_t   id_rate;   /**< "<prefix>.rate"   — rate estimate   */
+    int32_t   id_lock;   /**< "<prefix>.lock"   — lock_signal mean */
+    int32_t   id_locked; /**< "<prefix>.locked" — lockdet flag    */
+  } symsync_tlm_t;
+
+  /**
+   * @brief SymbolSync state.
+   *
+   * Allocate with symsync_create().  Embeds the integer timing NCO, the Farrow
+   * interpolator and the PI loop filter by value; treat the TED history as
+   * internal.
+   */
+  typedef struct
+  {
+    nco_state_t         timing; /**< integer timing NCO (phase/phase_inc).  */
+    farrow_state_t      farrow; /**< fractional interpolator.               */
+    loop_filter_state_t lf;     /**< 2nd-order timing PI loop.              */
+    size_t              sps;    /**< nominal samples per symbol.            */
+    uint32_t      base_inc;     /**< nominal NCO inc (one wrap / symbol).   */
+    int           ted;          /**< SYMSYNC_TED_GARDNER / _DTTL.           */
+    int           have_ontime;  /**< a previous on-time sample exists.      */
+    float _Complex prev_ontime;  /**< previous on-time interpolant.          */
+    float _Complex mid;          /**< mid-symbol (transition-gate) sample.   */
+    double        bn;           /**< loop noise bandwidth (retained).       */
+    double        zeta;         /**< damping factor (retained).             */
+    double        last_error;   /**< last TED timing error.                 */
+    double        rate_est;     /**< smoothed tracked samples/symbol.       */
+    double        pwr_avg;      /**< running symbol power (TED normaliser).  */
+    /* ── lock detector (always on): tumbling-window block average ────── */
+    double lock_sum;      /**< running sum of lock_signal over the current
+                                avgs-symbol block (mirrors dll_state_t's
+                                lock_sum/lock_count/n_looks pattern).         */
+    size_t lock_count;    /**< looks accumulated in the current block.       */
+    size_t avgs;          /**< non-coherent block size (looks/decision).     */
+    double lock_stat;     /**< last block-averaged lock_signal
+                                = mean(2*(|on-time|^2-|mid|^2)
+                                        /(|on-time|^2+|mid|^2)) over avgs
+                                looks; compare against the configured
+                                threshold (see symsync_configure_lock).      */
+    lockdet_state_t lock; /**< decision rule: thresholds + verify counters
+                                stepped on lock_stat each avgs-look block. */
+    symsync_tlm_t tlm; /**< live telemetry attachment; zeroed in blobs      */
+  } symsync_state_t;
+
+  /**
+   * @brief Gardner timing-error detector: Re{ conj(mid) * (y - prev) }.
+   *
+   * Blind (non-data-aided): correlates the transition-gate sample against the
+   * on-time step, so it locks for any constellation but pays a
+   * non-transition-symbol self-noise cost. @see dttl_ted for the
+   * decision-directed alternative.
+   *
+   * @note **Contract: unit amplitude in.** This is a raw numerator and it
+   * carries the signal amplitude — `A^2` here, since both factors are signal
+   * — which it deliberately does not divide out. What makes `bn` mean one
+   * bandwidth is dividing by the detector's OWN slope,
+   * @ref symsync_ted_slope, and that is a construct-time constant computed
+   * at `A = 1`; feed this anything else and the loop gain is off by `A^2`.
+   * Levelling the symbols is the one upstream AGC's job — there is
+   * deliberately no level loop in here, and there used to be.
+   *
+   * @param mid   Mid-symbol (transition-gate) interpolant.
+   * @param diff  `on_time[k] - on_time[k-1]`.
+   * @return Raw, un-normalized timing error. @see symsync_ted_slope
+   */
+  JM_FORCEINLINE double
+  gardner_ted (float _Complex mid, float _Complex diff)
+  {
+    return (double)(crealf (mid) * crealf (diff)
+                    + cimagf (mid) * cimagf (diff));
+  }
+
+  /** @brief Pulse code for symsync_ted_slope(); values match rc_pulse_t. */
+  enum
+  {
+    SYMSYNC_PULSE_IANDD = 0, /**< rectangular / NRZ.                      */
+    SYMSYNC_PULSE_RRC   = 1  /**< root-raised cosine, roll-off `beta`.    */
+  };
+
+  /**
+   * @brief The detector's OWN contribution to the loop gain: `|dS/dtau|` at
+   *        the lock point, for a unit-amplitude symbol stream.
+   *
+   * A TED's raw output is a timing error multiplied by three things it did
+   * not choose — the signal amplitude, the transition density, and the
+   * detector's own slope against this pulse. Only the last belongs to the
+   * detector, and only it can be computed rather than estimated: the matched
+   * pair's composite is a raised cosine in closed form (wfm_rc_h()), so for
+   * i.i.d. symbols
+   *
+   *     Gardner:  S(tau) = sum_k g(tau-1/2-k) * [g(tau-k) - g(tau-1-k)]
+   *     DTTL:     S(tau) = g(tau-1/2) - g(tau+1/2)
+   *
+   * and the answer is a construct-time number. Amplitude does NOT appear:
+   * it enters as `A^2` (Gardner) or `A^1` (DTTL) and is the AGC's business,
+   * not the detector's — a unity-gain matched cascade delivers the symbol
+   * amplitude it was sent (RateConverter_gain()). Transition density is left
+   * alone, because it is data.
+   *
+   * Divide a raw TED output by this and the result has unit slope per symbol
+   * of timing error, so a loop bandwidth means the same thing at every
+   * roll-off, on either detector. Measured through a real matched cascade at
+   * the stable zero, it does: 0.99 to 1.00 for both, from beta 0.1 to 0.9
+   * (`validate_ratesync_scurve` phase 3).
+   *
+   * @note This comment used to claim the opposite — "the shipped
+   * normalisation's slope varies 10.6x between beta 0.1 and 0.9" — and that
+   * claim is **withdrawn**. It came from a measurement that differentiated
+   * the S-curve about a fixed offset of zero, which through that cascade is
+   * the UNSTABLE T/2 equilibrium rather than the eye centre. DTTL's S-curve
+   * is not sinusoidal, so its two zeros carry very different slopes and the
+   * error surfaced as a spurious roll-off dependence; Gardner's is, so its
+   * two agree to 0.001 and nothing looked wrong on the default detector.
+   * Recorded because the sentence outlived its evidence and was cited, in
+   * good faith, as independent confirmation of the report finding it came
+   * from. See the RateSync validation report, F15, and gh-669.
+   *
+   * Caller multiplies by the reciprocal — see ratesync_loop_t::ted_scale.
+   * Never call this on a hot path; it is a construct-time quantity.
+   *
+   * @param ted   SYMSYNC_TED_GARDNER or SYMSYNC_TED_DTTL.
+   * @param pulse SYMSYNC_PULSE_RRC or SYMSYNC_PULSE_IANDD.
+   * @param beta  RRC roll-off; ignored for the rectangle.
+   * @param span  one-sided pulse span in symbols; sets the summation range.
+   * @return      `|dS/dtau|` at the lock point, unit amplitude. Positive.
+   *
+   * @code
+   * double k = symsync_ted_slope (SYMSYNC_TED_GARDNER, SYMSYNC_PULSE_RRC,
+   *                               0.35, 8);
+   * printf ("%.3f\n", k);   // 1.077
+   * @endcode
+   */
+  double symsync_ted_slope (int ted, int pulse, double beta, size_t span);
+
+  /**
+   * @brief Sign-sign DTTL: gate the transition sample by the hard-decision
+   * transition on each rail.
+   *
+   * Decision-directed (M.K. Simon's Data Transition Tracking Loop, digital
+   * point-sample reduction): zero unless a rail's hard decision actually
+   * flips between `on_time[k-1]` and `on_time[k]`, in which case the error is
+   * the transition-gate sample's value on that rail. Valid only for
+   * constellations with independent, rectangular I/Q decision boundaries
+   * (BPSK, QPSK/OQPSK) -- not 8PSK/QAM. Diff order (current minus previous)
+   * matches gardner_ted's convention so both TEDs share one loop-filter
+   * polarity.
+   *
+   * @note **Contract: unit amplitude in.** This is a raw numerator and it
+   * carries the signal amplitude — `A^1` here, not `A^2` as in
+   * @ref gardner_ted, because the transition term is a hard decision of
+   * fixed size and only `mid` is signal. That difference in degree is why no
+   * single normaliser applied outside can serve both detectors, and why each
+   * divides by its own slope instead: @ref symsync_ted_slope, a
+   * construct-time constant computed at `A = 1`. Feed this anything else and
+   * the loop gain is off by `A`. Levelling the symbols is the one upstream
+   * AGC's job — there is deliberately no level loop in here, and there used
+   * to be.
+   *
+   * @param mid   Mid-symbol (transition-gate) interpolant.
+   * @param y     `on_time[k]`.
+   * @param prev  `on_time[k-1]`.
+   * @return Raw, un-normalized timing error. @see symsync_ted_slope
+   */
+  JM_FORCEINLINE double
+  dttl_ted (float _Complex mid, float _Complex y, float _Complex prev)
+  {
+    double si = (crealf (y) >= 0.0f ? 1.0 : -1.0)
+                - (crealf (prev) >= 0.0f ? 1.0 : -1.0);
+    double sq = (cimagf (y) >= 0.0f ? 1.0 : -1.0)
+                - (cimagf (prev) >= 0.0f ? 1.0 : -1.0);
+    return (double)crealf (mid) * si + (double)cimagf (mid) * sq;
+  }
+
+  /**
+   * @brief Per-sample symbol-timing step with the TED selection as a
+   * parameter.
+   *
+   * The workhorse behind symsync_step()/symsync_steps(). Pushes one input
+   * sample into the Farrow history and advances the integer timing NCO.
+   * When the NCO crosses its half-scale (mid-symbol) it stores the
+   * transition-gate interpolant; when it wraps (on-time) it forms the
+   * on-time interpolant, runs the selected TED (see gardner_ted /
+   * dttl_ted), steers the NCO frequency, and emits the timing-corrected
+   * symbol.
+   *
+   * Passing a literal @p ted (SYMSYNC_TED_GARDNER / SYMSYNC_TED_DTTL) lets
+   * the force-inlined body constant-fold the detector branch away, so a
+   * specialised block loop carries exactly one TED — the runtime `s->ted`
+   * branch inside the 64k-block loop measured ~30% slower (both TED bodies
+   * kept live across the per-sample path). Compositions that hardcode a
+   * detector (the MPSK receiver is Gardner-only) call this directly with
+   * the literal; runtime-configured callers use symsync_step().
+   *
+   * @param s      State.  Must be non-NULL.
+   * @param x      One input sample.
+   * @param y_out  Receives the symbol when the return is 1.
+   * @param ted    SYMSYNC_TED_GARDNER or SYMSYNC_TED_DTTL — pass a literal
+   *               for a specialised (branch-free) instantiation.
+   * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
+   */
+  JM_FORCEINLINE JM_HOT int
+  symsync_step_ted (symsync_state_t *s, float _Complex x, float _Complex *y_out,
+                    int ted)
+  {
+    const uint32_t HALF = 0x80000000u;
+    farrow_push (&s->farrow, x);
+    uint32_t old    = s->timing.phase;
+    uint64_t sum    = (uint64_t)old + s->timing.phase_inc;
+    s->timing.phase = (uint32_t)sum;
+
+    int wrapped = sum >> 32 != 0;
+    int mid_evt = !wrapped && old < HALF && (uint32_t)sum >= HALF;
+    if (!wrapped && !mid_evt)
+      return 0;
+
+    double inc = (double)s->timing.phase_inc;
+    if (mid_evt)
+      {
+        float mu = (float)(1.0 - ((double)((uint32_t)sum - HALF)) / inc);
+        s->mid   = farrow_eval (&s->farrow, mu);
+        return 0;
+      }
+    float         mu   = (float)(1.0 - (double)s->timing.phase / inc);
+    float _Complex y    = farrow_eval (&s->farrow, mu);
+    int           emit = 0;
+    if (s->have_ontime)
+      {
+        double num;
+        if (ted == SYMSYNC_TED_DTTL)
+          num = dttl_ted (s->mid, y, s->prev_ontime);
+        else
+          {
+            float _Complex diff = y - s->prev_ontime;
+            num                = gardner_ted (s->mid, diff);
+          }
+        double inst_pwr
+            = (double)(crealf (y) * crealf (y) + cimagf (y) * cimagf (y));
+        s->pwr_avg += 0.01 * (inst_pwr - s->pwr_avg);
+        double e       = num / (s->pwr_avg + 1e-6);
+        s->last_error  = e;
+        double control = loop_filter_step (&s->lf, e);
+        s->timing.phase_inc
+            = (uint32_t)((double)s->base_inc * (1.0 + control));
+        double inst = (double)s->sps / (1.0 + control);
+        double lo_r = 0.5 * (double)s->sps, hi_r = 1.5 * (double)s->sps;
+        if (inst < lo_r)
+          inst = lo_r;
+        else if (inst > hi_r)
+          inst = hi_r;
+        s->rate_est += 0.02 * (inst - s->rate_est);
+        /* Lock statistic: lock_signal = 2*(|on-time|^2-|mid|^2)
+         * /(|on-time|^2+|mid|^2), a Gardner-style eye-opening ratio (the
+         * on-time sample vs. the mid-symbol/transition-gate sample already
+         * used by the TED, reusing inst_pwr from above). Non-coherently
+         * block-averaged over `avgs` looks before the decision, mirroring
+         * dll_state_t's lock_sum/lock_count/n_looks tumbling window (a
+         * sliding window would break the verify-count independence
+         * assumption the same way it would for the DLL -- see
+         * dll_configure_lock's derivation). See symsync_configure_lock()
+         * for how avgs/threshold are sized from (rolloff, esno_min, pfa,
+         * pd). */
+        float _Complex md = s->mid;
+        double        mid_pwr
+            = (double)(crealf (md) * crealf (md) + cimagf (md) * cimagf (md));
+        double lock_signal = 2.0 * (inst_pwr - mid_pwr)
+                             / (inst_pwr + mid_pwr + SYMSYNC_LOCK_EPS);
+        s->lock_sum += lock_signal;
+        if (++s->lock_count >= s->avgs)
+          {
+            s->lock_stat = s->lock_sum / (double)s->avgs;
+            (void)lockdet_step (&s->lock, s->lock_stat);
+            s->lock_sum   = 0.0;
+            s->lock_count = 0;
+          }
+        *y_out = y;
+        emit   = 1;
+      }
+    else
+      s->have_ontime = 1;
+    s->prev_ontime = y;
+    return emit;
+  }
+
+  /**
+   * @brief Emit the timing loop's telemetry records for the symbol just
+   * recovered.
+   *
+   * Out-of-line on purpose: the emit machinery must not inline into the
+   * per-sample hot loops (three inlined ring-write expansions measured
+   * ~20% slower detached, from sheer body growth). Callers gate on
+   * `s->tlm.ctx` and call this once per emitted symbol — the detached
+   * cost stays one predicted-not-taken branch per symbol, outside the
+   * force-inlined step. Records "<prefix>.e" (last TED error),
+   * "<prefix>.freq" (the NCO rate control, reconstructed as
+   * phase_inc/base_inc - 1), "<prefix>.rate" (tracked samples/symbol),
+   * "<prefix>.lock" (the last block-averaged lock_signal, refreshed every
+   * avgs looks) and "<prefix>.locked" (the verify-counted lockdet
+   * decision, 0/1).
+   *
+   * @param s  State with a non-NULL tlm.ctx (caller-checked).
+   */
+  void symsync_tlm_flush (const symsync_state_t *s);
+
+  /**
+   * @brief Per-sample symbol-timing step (the inline composition API).
+   *
+   * The public form of symsync_step_ted(): dispatches on the state's
+   * configured detector (`s->ted`) and flushes telemetry when attached.
+   * symsync_steps() is this in a loop (with the TED specialised per
+   * detector); a tracking channel inlines it to drive a downstream
+   * carrier loop on the recovered symbols.
+   *
+   * @param s      State.  Must be non-NULL.
+   * @param x      One input sample.
+   * @param y_out  Receives the symbol when the return is 1.
+   * @return 1 if a symbol was emitted (into @p y_out), 0 otherwise.
+   */
+  JM_FORCEINLINE JM_HOT int
+  symsync_step (symsync_state_t *s, float _Complex x, float _Complex *y_out)
+  {
+    int r = symsync_step_ted (s, x, y_out, s->ted);
+    if (r && s->tlm.ctx)
+      symsync_tlm_flush (s);
+    return r;
+  }
+
+  /**
+   * @brief Initialise a SymbolSync in place (no allocation).
+   *
+   * The by-value counterpart to symsync_create(): lets a composing object
+   * embed a symsync_state_t by value and initialise it without a heap
+   * allocation (symsync_state_t holds no heap members — the NCO, Farrow and
+   * loop filter are all by value). Mirrors loop_filter_init()/costas_init().
+   *
+   * @param s      State to initialise.  Must be non-NULL.
+   * @param sps    Nominal samples per symbol.
+   * @param bn     Loop noise bandwidth (normalised to the symbol rate).
+   * @param zeta   Damping factor (0.707 = critically damped).
+   * @param order  Farrow interpolator order (0=linear, 1=parabolic, 2=cubic).
+   * @param ted    Timing-error detector: SYMSYNC_TED_GARDNER (0, blind) or
+   *               SYMSYNC_TED_DTTL (1, decision-directed; BPSK/QPSK only).
+   */
+  void symsync_init (symsync_state_t *s, size_t sps, double bn, double zeta,
+                     int order, int ted);
+
+  /**
+   * @brief Create a symsync instance.
+   *
+   * @param sps  sps (default: 4).
+   * @param bn  bn (default: 0.01).
+   * @param zeta  zeta (default: 0.707).
+   * @param order  Enum index; 0=linear…2=cubic.
+   * @param ted  Enum index; 0=gardner, 1=dttl (BPSK/QPSK only).
+   * @return Heap-allocated state, or NULL on allocation failure.
+   * @note Caller must call symsync_destroy() when done.
+   */
+  symsync_state_t *symsync_create (size_t sps, double bn, double zeta,
+                                   int order, int ted);
+
+  /**
+   * @brief Destroy a symsync instance and release all memory.
+   * @param state  May be NULL.
+   */
+  void symsync_destroy (symsync_state_t *state);
+
+  /**
+   * @brief Re-seed the timing loop to its nominal rate and zero phase.
+   *
+   * Restores the object to its post-create state: the timing NCO is zeroed to
+   * the nominal one-wrap-per-symbol rate, the Farrow history and TED state are
+   * cleared, the loop-filter integrator is emptied and the lock detector is
+   * dropped. The configured (bn, zeta), TED selection and any lock geometry
+   * are preserved, so the same object can be re-run on a fresh stream.
+   *
+   * @param state  Must be non-NULL.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import SymbolSync
+   * >>> ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)
+   * >>> _ = ss.steps(np.repeat([1.0, -1.0], 4 * 40).astype(np.complex64))
+   * >>> ss.reset()
+   * >>> round(ss.rate, 1)              # back to the nominal sps
+   * 4.0
+   * >>> round(ss.timing_error, 3)      # loop stress cleared
+   * 0.0
+   *
+   * @endcode
+   */
+  void symsync_reset (symsync_state_t *state);
+
+  size_t symsync_steps_max_out (symsync_state_t *state);
+
+  /**
+   * @brief Recover symbol timing from an oversampled cf32 baseband block.
+   *
+   * symsync_step() in a loop, with the TED specialised per detector. Each input
+   * sample feeds the Farrow interpolator and advances the integer timing NCO;
+   * on a mid-symbol crossing the transition-gate interpolant is stored, and on a
+   * wrap the on-time interpolant is formed, the selected TED (Gardner or DTTL)
+   * measures the timing error, the PI loop steers the NCO rate, and one
+   * symbol-rate sample is emitted at the recovered instant. State carries across
+   * calls, so contiguous blocks give the same symbols as one large block.
+   *
+   * @param state    Must be non-NULL.
+   * @param x        Oversampled input samples (~sps samples per symbol).
+   * @param x_len    Number of input samples.
+   * @param out      Recovered symbol-rate samples.
+   * @param max_out  Capacity of @p out.
+   * @return Number of recovered symbols written to @p out.
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import SymbolSync
+   * >>> ss = SymbolSync(sps=4, bn=0.02, zeta=0.707)
+   * >>> x = np.repeat([1.0, -1.0, 1.0, -1.0], 4 * 32).astype(np.complex64)
+   * >>> y = ss.steps(x)             # oversampled -> one sample/symbol
+   * >>> y.shape[0]
+   * 127
+   * >>> sorted(set(np.where(y.real >= 0, 1, -1).tolist()))  # got +/-1
+   * [-1, 1]
+   * >>> round(ss.rate, 1)              # tracked samples/symbol
+   * 4.0
+   *
+   * @endcode
+   */
+  size_t symsync_steps (symsync_state_t *state, const float _Complex *x,
+                        size_t x_len, float _Complex *out, size_t max_out);
+
+  /**
+   * @brief Recompute the loop gains for a new (bn, zeta); preserve the timing
+   * estimate.
+   *
+   * Retunes the PI timing loop in place: the proportional/integral gains are
+   * recomputed from the new noise bandwidth and damping, while the NCO phase,
+   * tracked rate and loop-filter integrator carry over — so a locked loop is
+   * re-bandwidthed (e.g. narrowed after acquisition) without losing lock.
+   *
+   * @param state  Must be non-NULL.
+   * @param bn     Loop noise bandwidth, normalised to the symbol rate (>= 0).
+   * @param zeta   Damping factor (0.707 = critically damped).
+   * @code
+   * >>> from doppler.track import SymbolSync
+   * >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+   * >>> ss.configure(bn=0.05, zeta=1.0)   # widen + over-damp, to acquire
+   * >>> round(ss.bn, 3)
+   * 0.05
+   *
+   * @endcode
+   */
+  void   symsync_configure (symsync_state_t *state, double bn, double zeta);
+  double symsync_get_bn (const symsync_state_t *state);
+  void   symsync_set_bn (symsync_state_t *state, double val);
+  double symsync_get_timing_error (const symsync_state_t *state);
+  double symsync_get_rate (const symsync_state_t *state);
+
+  /** @brief Last block-averaged lock statistic:
+   *         mean(2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2)) over the
+   *         configured avgs looks; compare against the configured
+   *         threshold (see symsync_configure_lock). */
+  double symsync_get_lock_stat (const symsync_state_t *state);
+
+  /** @brief Current lock decision (1 = locked, 0 = not), with the
+   *         configured verify-count / hysteresis rule applied. */
+  int symsync_get_locked (const symsync_state_t *state);
+
+  /**
+   * @brief Tune the always-on timing-lock detector to a target (pfa, pd)
+   * at a given link operating point.
+   *
+   * Sizes the non-coherent block size (avgs) and declare threshold from a
+   * Gaussian sizing of the eye-opening statistic lock_signal =
+   * 2*(|on-time|^2-|mid|^2)/(|on-time|^2+|mid|^2): a per-look mean
+   * (mean_lock_detect, from rolloff and the minimum operating Es/N0) drives
+   * the classic N = variance*((Q^-1(pfa)-Q^-1(pd))/mean)^2 /
+   * threshold = Q^-1(pfa)*mean/(Q^-1(pfa)-Q^-1(pd)) derivation, implemented
+   * directly from a formula supplied by a doppler user (not re-derived
+   * against a primary source), with "variance" set from a direct
+   * measurement of lock_signal's real per-look variance under noise
+   * (~1.343, 5,000,000-sample Monte Carlo) rather than the placeholder
+   * "8" this API originally shipped with -- see symsync_core.c's
+   * SYMSYNC_LOCK_STAT_VARIANCE comment for the full derivation (a
+   * factor-of-2 correction for the erfcinv-vs-Q^-1 convention applies on
+   * top of the measured variance; the two hypotheses were empirically
+   * compared before picking one). Empirically validated at the default
+   * operating point (avgs=133, threshold=0.311): 429 false declares over
+   * 500,000 independent noise-only blocks against a nominal pfa=1e-3
+   * (8.58e-4, correctly sized with safe margin, not accidentally
+   * oversized); 2000/2000 true declares at the esno_min design SNR
+   * against a nominal pd=0.9 -- see native/validation/symsync_lock.c for
+   * the harness. No level hysteresis by default (up = down = threshold,
+   * matching dll_configure_lock's shape); the raw escape hatch
+   * (symsync_configure_lock_raw) exposes split thresholds, an explicit
+   * avgs, and independent n_up/n_down.
+   *
+   * @param state        Must be non-NULL.
+   * @param rolloff      Matched-filter excess bandwidth (e.g. 0.35 for a
+   *                      typical RRC system).
+   * @param esno_min_db  Minimum operating Es/N0, dB -- the worst-case link
+   *                      point the detector must still declare lock at.
+   * @param pfa          Target false-alarm probability per decision, in
+   *                      (0, 1).
+   * @param pd           Target detection probability per decision, in
+   *                      (0, 1); must exceed pfa.
+   * @return DP_OK, or DP_ERR_INVALID if pfa/pd are out of range or pd <= pfa.
+   * @code
+   * >>> from doppler.track import SymbolSync
+   * >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+   * >>> ss.configure_lock(rolloff=0.35, esno_min_db=10.0, pfa=1e-3, pd=0.9)
+   * >>> ss.locked
+   * False
+   * >>> ss.configure_lock(rolloff=0.35, esno_min_db=10.0, pfa=0.9, pd=0.9)
+   * Traceback (most recent call last):
+   *     ...
+   * ValueError: configure_lock failed (rc=-4)
+   *
+   * @endcode
+   */
+  int symsync_configure_lock (symsync_state_t *state, double rolloff,
+                              double esno_min_db, double pfa, double pd);
+
+  /**
+   * @brief Set the lock detector's raw geometry directly.
+   *
+   * The escape hatch under symsync_configure_lock() for a caller that
+   * derives its own averaging/threshold geometry: the block size (avgs), a
+   * split declare/drop threshold pair on lock_stat (level hysteresis), and
+   * both verify counts (time hysteresis). Re-tuning clears the in-flight
+   * block sum and drops the lock so the next decision uses only looks
+   * gathered under the new config.
+   *
+   * @param state        Must be non-NULL.
+   * @param avgs         Non-coherent block size (looks/decision); clamped
+   *                     >= 1.
+   * @param up_thresh    Declare threshold on lock_stat.
+   * @param down_thresh  Drop threshold; choose <= up_thresh for level
+   *                     hysteresis.
+   * @param n_up         Consecutive above-threshold decisions to declare;
+   *                     clamped >= 1.
+   * @param n_down       Consecutive below-threshold decisions to drop;
+   *                     clamped >= 1.
+   * @code
+   * >>> from doppler.track import SymbolSync
+   * >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+   * >>> ss.configure_lock_raw(64, 0.3, 0.3, 1, 8)   # 64-look block, 8-drop
+   * >>> ss.locked
+   * False
+   * >>> round(ss.lock_stat, 3)
+   * 0.0
+   *
+   * @endcode
+   */
+  void symsync_configure_lock_raw (symsync_state_t *state, size_t avgs,
+                                   double up_thresh, double down_thresh,
+                                   uint32_t n_up, uint32_t n_down);
+
+  /**
+   * @brief Attach (or detach) a telemetry context and register the timing
+   * loop's probes on it.
+   * Registers five probes, emitted once per recovered symbol and further
+   * thinned by decim: "<prefix>.e" (the normalised TED error — the loop
+   * stress), "<prefix>.freq" (the loop-filter control steering the timing
+   * NCO, fractional rate offset), "<prefix>.rate" (the smoothed tracked
+   * samples/symbol), "<prefix>.lock" (the last block-averaged lock_signal,
+   * held between avgs-look updates) and "<prefix>.locked" (the
+   * verify-counted lockdet decision, 0/1).
+   * Passing NULL detaches.  Setup path, never hot: call before the
+   * producer thread starts stepping; the context is borrowed and must
+   * outlive the attachment (SPSC rules in dp_tlm/dp_tlm_core.h).
+   * @param state  Must be non-NULL.
+   * @param tlm    Telemetry context to attach, or NULL to detach.
+   * @param prefix Probe-name prefix, e.g. "sync" or "rx.sync".
+   * @param decim  Emit every decim-th symbol; >= 1.
+   * @return DP_OK, or DP_ERR_INVALID when the probe table cannot take all
+   *         five probes (the attach fails whole; the object stays
+   *         detached).
+   * @code
+   * >>> import numpy as np
+   * >>> from doppler.track import SymbolSync
+   * >>> from doppler.telemetry import Telemetry
+   * >>> tlm = Telemetry(1 << 12)
+   * >>> ss = SymbolSync(sps=4, bn=0.01, zeta=0.707)
+   * >>> ss.set_telemetry(tlm, "sync")
+   * >>> sorted(tlm.probe_names)
+   * ['sync.e', 'sync.freq', 'sync.lock', 'sync.locked', 'sync.rate']
+   * >>> x = np.repeat([1 + 1j, -1 - 1j], 4 * 64).astype(np.complex64)
+   * >>> _ = ss.steps(x)
+   * >>> recs = tlm.read()   # five records per recovered symbol
+   * >>> len(recs) > 0 and len(recs) % 5 == 0
+   * True
+   *
+   * @endcode
+   */
+  int symsync_set_telemetry (symsync_state_t *state, dp_tlm_t *tlm,
+                             const char *prefix, uint32_t decim);
+/* ── Serializable state (standard bytes interface; see dp_state.h) ──────────
+ * pointer-free composition: nco + farrow + loop_filter embedded by value
+ * (all POD) + scalar timing state — a whole-struct snapshot. */
+#define SYMSYNC_STATE_MAGIC DP_FOURCC ('S', 'Y', 'N', 'C')
+#define SYMSYNC_STATE_VERSION                                                 \
+  5u /* v5: block-averaged lock_signal statistic (avgs/lock_sum/lock_count)   \
+      */
+  size_t symsync_state_bytes (const symsync_state_t *state);
+  void   symsync_get_state (const symsync_state_t *state, void *blob);
+  int    symsync_set_state (symsync_state_t *state, const void *blob);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* SYMSYNC_CORE_H */

@@ -2,7 +2,7 @@
 
 # File burst\_acq\_core.h
 
-[**File List**](files.md) **>** [**burst\_acq**](dir_d3ec06985dce876581dd948705a4d1da.md) **>** [**burst\_acq\_core.h**](burst__acq__core_8h.md)
+[**File List**](files.md) **>** [**burst\_acq**](dir_55efb80a743a0f920c38ee6730a791eb.md) **>** [**burst\_acq\_core.h**](burst__acq__core_8h.md)
 
 [Go to the documentation of this file](burst__acq__core_8h.md)
 
@@ -12,10 +12,10 @@
 #ifndef BURST_ACQ_CORE_H
 #define BURST_ACQ_CORE_H
 
-#include "acq/acq_core.h"
-#include "clib_common.h"
-#include "jm_perf.h"
-#include "cvt/cvt_core.h"
+#include "doppler/acq/acq_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/jm_perf.h"
+#include "doppler/cvt/cvt_core.h"
 
 #ifdef __cplusplus
 extern "C"

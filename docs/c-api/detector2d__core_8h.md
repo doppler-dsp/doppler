@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**detector2d**](dir_bd7354e9665bd912180ec22b3c69b55c.md) **>** [**detector2d\_core.h**](detector2d__core_8h.md)
+[**FileList**](files.md) **>** [**detector2d**](dir_8496bb9d19545edf0ab852f69ada11c8.md) **>** [**detector2d\_core.h**](detector2d__core_8h.md)
 
 [Go to the source code of this file](detector2d__core_8h_source.md)
 
 _2-D streaming signal detector with FFT2D-based correlation, integrate-and-dump, and configurable noise-referenced threshold._ [More...](#detailed-description)
 
-* `#include "buffer/buffer.h"`
-* `#include "corr2d/corr2d_core.h"`
-* `#include "dp_state.h"`
+* `#include "doppler/buffer/buffer.h"`
+* `#include "doppler/corr2d/corr2d_core.h"`
+* `#include "doppler/dp_state.h"`
 
 
 
@@ -508,5 +508,5 @@ _One listed peak of a surface: a cell and its value, in the surface's own units 
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/detector2d/detector2d_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/detector2d/detector2d_core.h`
 

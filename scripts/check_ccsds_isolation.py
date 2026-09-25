@@ -46,17 +46,22 @@ import re
 import sys
 from pathlib import Path
 
+from _layout import PKG, header
+
 #: The general primitive. These are the files whose own documentation says
 #: they know nothing about CCSDS, and the only files this gate governs.
 GUARDED = (
-    "native/inc/wfm/wfm_frame.h",
+    header("wfm/wfm_frame.h"),
     "native/src/wfm/wfm_frame.c",
 )
 
-#: `#include "ccsds_tm/…"`. Angle-bracket form too: the component is included
+#: `#include "doppler/ccsds_tm/…"` (jm schema 8; the bare `ccsds_tm/` of
+#: older trees still counts). Angle-bracket form too: the component is included
 #: by quoted path everywhere today, but a gate that only saw one spelling
 #: would be one `<>` away from reporting a clean tree.
-INCLUDE = re.compile(r'^\s*#\s*include\s*[<"]ccsds_tm/', re.MULTILINE)
+INCLUDE = re.compile(
+    rf'^\s*#\s*include\s*[<"](?:{re.escape(PKG)}/)?ccsds_tm/', re.MULTILINE
+)
 
 #: The kernels the primitive must not call, even without including a header —
 #: a forward declaration reaches them just as well.

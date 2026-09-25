@@ -2,7 +2,7 @@
 
 # File wfm\_dsp.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**wfm**](dir_3cdfcd43f00bf3b5a61213f071dd2284.md) **>** [**wfm\_dsp.h**](wfm__dsp_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**wfm**](dir_d559aca39cc004340b6be1a6e35e20bd.md) **>** [**wfm\_dsp.h**](wfm__dsp_8h.md)
 
 [Go to the documentation of this file](wfm__dsp_8h.md)
 
@@ -12,8 +12,8 @@
 #ifndef WFM_DSP_H
 #define WFM_DSP_H
 
-#include "clib_common.h"
-#include "util/util_core.h"
+#include "doppler/clib_common.h"
+#include "doppler/util/util_core.h"
 
 #include <math.h>
 

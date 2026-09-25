@@ -10,7 +10,7 @@ records is asserted by
 `src/doppler/wfm/tests/test_validation_limits.py`, which runs this same
 `build(write=False)`.
 
-The order is the campaign's: `native/inc/wfm_reader/wfm_reader_core.h`
+The order is the campaign's: `native/inc/doppler/wfm_reader/wfm_reader_core.h`
 is the SSOT and `native/tests/test_wfm_reader_core.c` certifies it in C.
 This file measures the same properties through `doppler.wfm.Reader`.
 
@@ -154,7 +154,8 @@ def section_object() -> None:
         "and hands back unit-scale complex samples -- the read half of the "
         "pair `Writer` is the write half of. The design is "
         "[docs/design/wfmgen.md](../../../../../../docs/design/wfmgen.md); "
-        "the API is `native/inc/wfm_reader/wfm_reader_core.h`, certified in "
+        "the API is `native/inc/doppler/wfm_reader/wfm_reader_core.h`, "
+        "certified in "
         "C by `native/tests/test_wfm_reader_core.c`. Neither is restated "
         "here."
     )

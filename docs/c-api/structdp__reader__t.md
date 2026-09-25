@@ -140,5 +140,5 @@ size_t dp_reader_t::off;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/dp_state.h`
+The documentation for this class was generated from the following file `native/inc/doppler/dp_state.h`
 

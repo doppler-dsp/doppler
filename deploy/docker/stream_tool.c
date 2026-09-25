@@ -16,8 +16,8 @@
  * consumer (WORK_MS work/frame), so a backlog builds until KEDA scales
  * consumers out; lag then drains and it scales back in.
  */
-#include "pn/pn_core.h"
-#include "stream/stream.h"
+#include "doppler/pn/pn_core.h"
+#include "doppler/stream/stream.h"
 #include <complex.h>
 #include <stdint.h>
 #include <stdio.h>

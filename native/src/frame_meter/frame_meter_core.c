@@ -3,7 +3,7 @@
  * contract, and why each rule is the way it is, live on the declarations in
  * frame_meter/frame_meter_core.h.
  */
-#include "frame_meter/frame_meter_core.h"
+#include "doppler/frame_meter/frame_meter_core.h"
 
 #include <stdlib.h>
 

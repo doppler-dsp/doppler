@@ -12,8 +12,8 @@
  * Uses the `_fails` + `CHECK` convention, not `assert`: doppler builds
  * Release and Release defines NDEBUG, which compiles `assert` away.
  */
+#include "doppler/wfm/wfm_time.h"
 #include "dp_test.h"
-#include "wfm/wfm_time.h"
 
 #include <stdio.h>
 

@@ -22,9 +22,9 @@
  * It is idempotent: a resolved segment (clean signals + explicit noise)
  * resolves to itself, so `--record` → `--from-file` round-trips.
  */
-#include "wfm/wfm_compose.h"
+#include "doppler/wfm/wfm_compose.h"
 
-#include "wfm_synth/wfm_synth_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 
 #include <math.h>
 #include <stdlib.h>

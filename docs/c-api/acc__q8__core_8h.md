@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**acc\_q8**](dir_af45fd7415a1bcf5c13e14c3d63a83bf.md) **>** [**acc\_q8\_core.h**](acc__q8__core_8h.md)
+[**FileList**](files.md) **>** [**acc\_q8**](dir_ea0f50795da7b2248dba00cbaac7e694.md) **>** [**acc\_q8\_core.h**](acc__q8__core_8h.md)
 
 [Go to the source code of this file](acc__q8__core_8h_source.md)
 
 _AccQ8 — a running 32-bit integer accumulator for Q8 (int8\_t) samples. Internally sums each sample into a 32-bit accumulator, which can hold up to 2^24 maximum-magnitude Q8 samples before overflow. Use get() for a non-destructive read, or dump() to read-and-reset in one atomic call._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "dp_state.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/dp_state.h"`
 
 
 
@@ -604,5 +604,5 @@ void acc_q8_steps (
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/acc_q8/acc_q8_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/acc_q8/acc_q8_core.h`
 

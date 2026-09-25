@@ -26,7 +26,7 @@ Neither of these is restated here:
 | page | owns |
 |---|---|
 | [`docs/design/corr2d-interpolated-inverse.md`](../../../../../../docs/design/corr2d-interpolated-inverse.md) | why the inverse may be larger than the forward, the zero-pad maths, and the single-row fast path |
-| `native/inc/corr2d/corr2d_core.h` | the contract per function — the SSOT this report audits |
+| `native/inc/doppler/corr2d/corr2d_core.h` | the contract per function — the SSOT this report audits |
 
 ### 1.1 The claim inventory
 

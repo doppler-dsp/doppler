@@ -25,7 +25,7 @@ The object splits in two, and the split is load-bearing: `ratesync_loop_t` is th
 
 | source | holds |
 |---|---|
-| [`native/inc/ratesync/ratesync_core.h`](../../../../../../native/inc/ratesync/ratesync_core.h) | the contract: the two structs, the TED and its construct-time slope, the prime rule, the T/2 parity argument and the Measured table |
+| [`native/inc/doppler/ratesync/ratesync_core.h`](../../../../../../native/inc/doppler/ratesync/ratesync_core.h) | the contract: the two structs, the TED and its construct-time slope, the prime rule, the T/2 parity argument and the Measured table |
 | [`native/tests/test_ratesync_core.c`](../../../../../../native/tests/test_ratesync_core.c) | the gate: §1-§7 from the object's first landing, §8-§19 added by this audit and each proved by sabotage |
 | [`docs/design/ratesync-timing.md`](../../../../../../docs/design/ratesync-timing.md) | the rationale (written off main, see the provenance note) |
 

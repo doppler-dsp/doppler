@@ -7,8 +7,8 @@
  * test including it builds here and fails in CI. `make lint`'s tests-ssot
  * gate caught it, which is the gate working.
  */
+#include "doppler/interleaver/interleaver_core.h"
 #include "dp_test.h"
-#include "interleaver/interleaver_core.h"
 
 #include <limits.h>
 #include <stdlib.h>

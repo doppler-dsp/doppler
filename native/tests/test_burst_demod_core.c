@@ -1,5 +1,5 @@
-#include "burst_demod/burst_demod_core.h"
-#include "dp_complex.h"
+#include "doppler/burst_demod/burst_demod_core.h"
+#include "doppler/dp_complex.h"
 #include "dp_rng_test.h"
 #include "dp_test.h"
 #include <math.h>

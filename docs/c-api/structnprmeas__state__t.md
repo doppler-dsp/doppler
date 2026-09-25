@@ -211,5 +211,5 @@ size_t nprmeas_state_t::spur_guard_bins;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/nprmeas/nprmeas_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/nprmeas/nprmeas_core.h`
 

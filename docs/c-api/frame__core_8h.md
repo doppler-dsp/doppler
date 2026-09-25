@@ -4,20 +4,20 @@
 
 
 
-[**FileList**](files.md) **>** [**frame**](dir_00858a83d5a24a6fcf61a222bafb8b7f.md) **>** [**frame\_core.h**](frame__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**frame**](dir_f1fb4d4532bf7057e52e2ed064f78108.md) **>** [**frame\_core.h**](frame__core_8h.md)
 
 [Go to the source code of this file](frame__core_8h_source.md)
 
 _A frame's bit layout, held as an object so Python can describe one._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "jm_perf.h"`
-* `#include "pn/pn_core.h"`
-* `#include "gold/gold_core.h"`
-* `#include "wfm/wfm_frame.h"`
-* `#include "conv/conv_core.h"`
-* `#include "rs/rs_core.h"`
-* `#include "cvt/cvt_core.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/jm_perf.h"`
+* `#include "doppler/pn/pn_core.h"`
+* `#include "doppler/gold/gold_core.h"`
+* `#include "doppler/wfm/wfm_frame.h"`
+* `#include "doppler/conv/conv_core.h"`
+* `#include "doppler/rs/rs_core.h"`
+* `#include "doppler/cvt/cvt_core.h"`
 
 
 
@@ -1659,5 +1659,5 @@ Bits from the start of the frame.
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/frame/frame_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/frame/frame_core.h`
 

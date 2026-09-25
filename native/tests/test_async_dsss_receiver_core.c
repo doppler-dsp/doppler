@@ -31,17 +31,17 @@
  * range checks, the release rule (both flags down past lost_confirm_s ->
  * lost, not before, never at 0) and the flavor-keyed state round trip.
  */
-#include "async_dsss_receiver/async_dsss_receiver_core.h"
-#include "doppler_channel/doppler_channel_core.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
+#include "doppler/gold/gold_core.h" /* SPEC Gold-1023 for the Es/N0-floor sweep   */
 #include "dp_dsss_test.h"
 #include "dp_rng_test.h"
 #include "dp_state_test.h"
 #include "dp_sym_test.h"
 #include "dp_test.h"
-#include "gold/gold_core.h" /* SPEC Gold-1023 for the Es/N0-floor sweep   */
 
-#include "dp_complex.h"
-#include "wfm/wfm_dsp.h" /* wfm_cont_dsss_chips: the wfmgen C API       */
+#include "doppler/dp_complex.h"
+#include "doppler/wfm/wfm_dsp.h" /* wfm_cont_dsss_chips: the wfmgen C API       */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

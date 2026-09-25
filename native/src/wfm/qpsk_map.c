@@ -1,7 +1,7 @@
 /*
  * qpsk_map.c — wfmgen module-level function.
  */
-#include "wfm/wfm_core.h"
+#include "doppler/wfm/wfm_core.h"
 
 /*
  * Gray-coded QPSK from symbol indices {0,1,2,3}: bit 0 is the I bit, bit 1 the

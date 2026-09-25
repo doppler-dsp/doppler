@@ -16,10 +16,26 @@ endif()
 add_library(capture_core OBJECT capture_core.c)
 target_include_directories(
   capture_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                      ${CMAKE_SOURCE_DIR}/native/inc/capture)
+                      ${CMAKE_SOURCE_DIR}/native/inc/iqtools/capture)
 target_link_libraries(capture_core PUBLIC
     doppler::doppler-static
     m)
+if(TARGET ${PROJECT_NAME}_lib)
+  target_link_libraries(${PROJECT_NAME}_lib PRIVATE
+      doppler::doppler-static
+      m)
+  target_include_directories(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:doppler::doppler-static>:$<TARGET_PROPERTY:doppler::doppler-static,INTERFACE_INCLUDE_DIRECTORIES>>)
+  target_compile_definitions(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:doppler::doppler-static>:$<TARGET_PROPERTY:doppler::doppler-static,INTERFACE_COMPILE_DEFINITIONS>>)
+  target_compile_options(${PROJECT_NAME}_lib INTERFACE
+      $<$<TARGET_EXISTS:doppler::doppler-static>:$<TARGET_PROPERTY:doppler::doppler-static,INTERFACE_COMPILE_OPTIONS>>)
+endif()
+if(TARGET ${PROJECT_NAME}_lib_static)
+  target_link_libraries(${PROJECT_NAME}_lib_static PUBLIC
+      doppler::doppler-static
+      m)
+endif()
 
 add_executable(test_capture_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_capture_core.c

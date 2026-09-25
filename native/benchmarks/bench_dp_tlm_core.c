@@ -41,7 +41,7 @@
  * loops outright; `emit` deliberately drains OUTSIDE the timed region so the
  * drain's memcpy is not attributed to the producer.
  */
-#include "dp_tlm/dp_tlm_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 #include "jm_bench.h"
 
 #include <stdio.h>

@@ -16,7 +16,7 @@ endif()
 add_library(imdmeas_core OBJECT imdmeas_core.c)
 target_include_directories(
   imdmeas_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                      ${CMAKE_SOURCE_DIR}/native/inc/imdmeas)
+                      ${CMAKE_SOURCE_DIR}/native/inc/doppler/imdmeas)
 target_link_libraries(imdmeas_core PUBLIC
     fft_core
     spectral_core

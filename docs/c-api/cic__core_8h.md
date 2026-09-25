@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**cic**](dir_cf560077cc62991e7289ea57a3d930a1.md) **>** [**cic\_core.h**](cic__core_8h.md)
+[**FileList**](files.md) **>** [**cic**](dir_b18ea702eaae2e8004fd6583c8b1e641.md) **>** [**cic\_core.h**](cic__core_8h.md)
 
 [Go to the source code of this file](cic__core_8h_source.md)
 
 _CIC decimation filter — 4-stage, M=1, UQ16 integer pipeline._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
 
 
 
@@ -553,5 +553,5 @@ The 64-bit accumulator holds `65535 * R^CIC_N`. At R = 4096 that is `(2^16 - 1) 
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/cic/cic_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/cic/cic_core.h`
 

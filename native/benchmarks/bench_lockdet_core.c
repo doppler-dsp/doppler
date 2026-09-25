@@ -1,5 +1,5 @@
+#include "doppler/lockdet/lockdet_core.h"
 #include "jm_bench.h"
-#include "lockdet/lockdet_core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>

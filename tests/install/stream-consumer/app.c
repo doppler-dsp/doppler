@@ -9,8 +9,8 @@
 #include <complex.h>
 #include <stdio.h>
 
-#include <fft/fft_core.h>  /* core:   libdoppler          */
-#include <stream/stream.h> /* stream: libdoppler_stream   */
+#include <doppler/fft/fft_core.h>  /* core:   libdoppler          */
+#include <doppler/stream/stream.h> /* stream: libdoppler_stream   */
 
 int
 main (void)

@@ -6,7 +6,7 @@
  * example adds beyond doppler's own handle is the pair of numbers a headerless
  * capture cannot carry (`fs`, `fc`) and a note saying where they came from.
  */
-#include "capture/capture_core.h"
+#include "iqtools/capture/capture_core.h"
 
 #include <stdlib.h>
 

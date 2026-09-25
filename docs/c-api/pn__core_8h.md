@@ -4,15 +4,15 @@
 
 
 
-[**FileList**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**pn**](dir_70aeca018f85f00e17d8853ee6bd0cbb.md) **>** [**pn\_core.h**](pn__core_8h.md)
+[**FileList**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**pn**](dir_95c43a97468bba5f35ca9859d48b4113.md) **>** [**pn\_core.h**](pn__core_8h.md)
 
 [Go to the source code of this file](pn__core_8h_source.md)
 
 _PN component API._ [More...](#detailed-description)
 
-* `#include "clib_common.h"`
-* `#include "dp_state.h"`
-* `#include "jm_perf.h"`
+* `#include "doppler/clib_common.h"`
+* `#include "doppler/dp_state.h"`
+* `#include "doppler/jm_perf.h"`
 
 
 
@@ -484,5 +484,5 @@ Output chip: 0 or 1 (register LSB before the shift).
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/pn/pn_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/pn/pn_core.h`
 

@@ -9,7 +9,7 @@
 /* AsyncDsssPoolObject — wraps async_dsss_pool_state_t *       */
 /* ======================================================== */
 
-#include "async_dsss_pool/async_dsss_pool_core.h"
+#include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 
 typedef struct
 {

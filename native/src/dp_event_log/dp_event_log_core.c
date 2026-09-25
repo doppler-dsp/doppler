@@ -24,9 +24,9 @@
 #endif
 
 #include "cJSON.h"
-#include "dp_event_log/dp_event_log_core.h"
-#include "dp_tlm/dp_tlm_core.h" /* DP_TLM_REC_DTYPE_JSON -- one dtype */
-#include "wfm_writer/wfm_writer_core.h"
+#include "doppler/dp_event_log/dp_event_log_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h" /* DP_TLM_REC_DTYPE_JSON -- one dtype */
+#include "doppler/wfm_writer/wfm_writer_core.h"
 
 /* One staged field. `is_str` picks the arm; the two payloads are separate
    rather than a union so a name reused across kinds cannot read the wrong

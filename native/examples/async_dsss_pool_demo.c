@@ -35,17 +35,17 @@
  *   cmake --build build
  *   ./build/native/examples/async_dsss_pool_demo
  */
-#include "dp_complex.h"
-#include <async_dsss_pool/async_dsss_pool_core.h>
-#include <awgn/awgn_core.h>
-#include <dp_event_log/dp_event_log_core.h>
-#include <gold/gold_core.h>
+#include "doppler/dp_complex.h"
+#include <doppler/async_dsss_pool/async_dsss_pool_core.h>
+#include <doppler/awgn/awgn_core.h>
+#include <doppler/dp_event_log/dp_event_log_core.h>
+#include <doppler/gold/gold_core.h>
+#include <doppler/wfm_synth/wfm_synth_core.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <wfm_synth/wfm_synth_core.h>
 
 /* ── geometry: the operating point of design §6.1, at a demo's depth ─────
  * 1023 chips at 5 Mcps, two samples per chip, 2700 sym/s asynchronous BPSK

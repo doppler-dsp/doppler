@@ -16,7 +16,7 @@ endif()
 add_library(acc_f32_core OBJECT acc_f32_core.c)
 target_include_directories(
   acc_f32_core PUBLIC ${CMAKE_SOURCE_DIR}/native/inc
-                      ${CMAKE_SOURCE_DIR}/native/inc/acc_f32)
+                      ${CMAKE_SOURCE_DIR}/native/inc/doppler/acc_f32)
 
 add_executable(test_acc_f32_core
                ${CMAKE_SOURCE_DIR}/native/tests/test_acc_f32_core.c

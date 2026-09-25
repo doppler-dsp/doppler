@@ -2,7 +2,7 @@
 
 # File doppler.h
 
-[**File List**](files.md) **>** [**inc**](dir_5029b6cdea6e9b25321183da44d91d43.md) **>** [**doppler.h**](doppler_8h.md)
+[**File List**](files.md) **>** [**doppler**](dir_c8eead50fa73fbaea26b38d49c33a8a7.md) **>** [**doppler.h**](doppler_8h.md)
 
 [Go to the documentation of this file](doppler_8h.md)
 
@@ -14,179 +14,179 @@
 
 /* ── Components ─────────────────────────────────────────────────────────── */
 
-#include "wfm_reader/wfm_reader_core.h"
+#include "doppler/wfm_reader/wfm_reader_core.h"
 
-#include "wfm_writer/wfm_writer_core.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 
-#include "f32_to_i8/f32_to_i8_core.h"
+#include "doppler/f32_to_i8/f32_to_i8_core.h"
 
-#include "f32_to_i16/f32_to_i16_core.h"
+#include "doppler/f32_to_i16/f32_to_i16_core.h"
 
-#include "f32_to_i32/f32_to_i32_core.h"
+#include "doppler/f32_to_i32/f32_to_i32_core.h"
 
-#include "i8_to_f32/i8_to_f32_core.h"
+#include "doppler/i8_to_f32/i8_to_f32_core.h"
 
-#include "i16_to_f32/i16_to_f32_core.h"
+#include "doppler/i16_to_f32/i16_to_f32_core.h"
 
-#include "i32_to_f32/i32_to_f32_core.h"
+#include "doppler/i32_to_f32/i32_to_f32_core.h"
 
-#include "f32_to_i16u32/f32_to_i16u32_core.h"
+#include "doppler/f32_to_i16u32/f32_to_i16u32_core.h"
 
-#include "f32_to_i16u64/f32_to_i16u64_core.h"
+#include "doppler/f32_to_i16u64/f32_to_i16u64_core.h"
 
-#include "i16u32_to_f32/i16u32_to_f32_core.h"
+#include "doppler/i16u32_to_f32/i16u32_to_f32_core.h"
 
-#include "i16u64_to_f32/i16u64_to_f32_core.h"
+#include "doppler/i16u64_to_f32/i16u64_to_f32_core.h"
 
-#include "f32_to_uq15/f32_to_uq15_core.h"
+#include "doppler/f32_to_uq15/f32_to_uq15_core.h"
 
-#include "uq15_to_f32/uq15_to_f32_core.h"
+#include "doppler/uq15_to_f32/uq15_to_f32_core.h"
 
-#include "adc/adc_core.h"
+#include "doppler/adc/adc_core.h"
 
-#include "acc_f32/acc_f32_core.h"
+#include "doppler/acc_f32/acc_f32_core.h"
 
-#include "acc_cf64/acc_cf64_core.h"
+#include "doppler/acc_cf64/acc_cf64_core.h"
 
-#include "acc_trace/acc_trace_core.h"
+#include "doppler/acc_trace/acc_trace_core.h"
 
-#include "fir/fir_core.h"
+#include "doppler/fir/fir_core.h"
 
-#include "boxcar/boxcar_core.h"
+#include "doppler/boxcar/boxcar_core.h"
 
-#include "nco/nco_core.h"
+#include "doppler/nco/nco_core.h"
 
-#include "lo/lo_core.h"
+#include "doppler/lo/lo_core.h"
 
-#include "awgn/awgn_core.h"
+#include "doppler/awgn/awgn_core.h"
 
-#include "pn/pn_core.h"
+#include "doppler/pn/pn_core.h"
 
-#include "wfm_synth/wfm_synth_core.h"
+#include "doppler/wfm_synth/wfm_synth_core.h"
 
-#include "gold/gold_core.h"
+#include "doppler/gold/gold_core.h"
 
-#include "frame/frame_core.h"
+#include "doppler/frame/frame_core.h"
 
-#include "delay/delay_core.h"
+#include "doppler/delay/delay_core.h"
 
-#include "fft/fft_core.h"
+#include "doppler/fft/fft_core.h"
 
-#include "fft2d/fft2d_core.h"
+#include "doppler/fft2d/fft2d_core.h"
 
-#include "corr/corr_core.h"
+#include "doppler/corr/corr_core.h"
 
-#include "corr2d/corr2d_core.h"
+#include "doppler/corr2d/corr2d_core.h"
 
-#include "detector/detector_core.h"
+#include "doppler/detector/detector_core.h"
 
-#include "detector2d/detector2d_core.h"
+#include "doppler/detector2d/detector2d_core.h"
 
-#include "psd/psd_core.h"
+#include "doppler/psd/psd_core.h"
 
-#include "tonemeas/tonemeas_core.h"
+#include "doppler/tonemeas/tonemeas_core.h"
 
-#include "nprmeas/nprmeas_core.h"
+#include "doppler/nprmeas/nprmeas_core.h"
 
-#include "imdmeas/imdmeas_core.h"
+#include "doppler/imdmeas/imdmeas_core.h"
 
-#include "dp_interrupt_guard/dp_interrupt_guard_core.h"
+#include "doppler/dp_interrupt_guard/dp_interrupt_guard_core.h"
 
-#include "f32_buffer/f32_buffer_core.h"
+#include "doppler/f32_buffer/f32_buffer_core.h"
 
-#include "f64_buffer/f64_buffer_core.h"
+#include "doppler/f64_buffer/f64_buffer_core.h"
 
-#include "i16_buffer/i16_buffer_core.h"
+#include "doppler/i16_buffer/i16_buffer_core.h"
 
-#include "dp_tlm/dp_tlm_core.h"
+#include "doppler/dp_tlm/dp_tlm_core.h"
 
-#include "dp_tlm_capture/dp_tlm_capture_core.h"
+#include "doppler/dp_tlm_capture/dp_tlm_capture_core.h"
 
-#include "dp_event_log/dp_event_log_core.h"
+#include "doppler/dp_event_log/dp_event_log_core.h"
 
-#include "ddc/ddc_core.h"
+#include "doppler/ddc/ddc_core.h"
 
-#include "ddcr/ddcr_core.h"
+#include "doppler/ddcr/ddcr_core.h"
 
-#include "specan/specan_core.h"
+#include "doppler/specan/specan_core.h"
 
-#include "Resampler/Resampler_core.h"
+#include "doppler/Resampler/Resampler_core.h"
 
-#include "HalfbandDecimator/HalfbandDecimator_core.h"
+#include "doppler/HalfbandDecimator/HalfbandDecimator_core.h"
 
-#include "cic/cic_core.h"
+#include "doppler/cic/cic_core.h"
 
-#include "RateConverter/RateConverter_core.h"
+#include "doppler/RateConverter/RateConverter_core.h"
 
-#include "farrow/farrow_core.h"
+#include "doppler/farrow/farrow_core.h"
 
-#include "hbdecim_q15/hbdecim_q15_core.h"
+#include "doppler/hbdecim_q15/hbdecim_q15_core.h"
 
-#include "lockdet/lockdet_core.h"
+#include "doppler/lockdet/lockdet_core.h"
 
-#include "syncword/syncword_core.h"
+#include "doppler/syncword/syncword_core.h"
 
-#include "agc/agc_core.h"
+#include "doppler/agc/agc_core.h"
 
-#include "doppler_channel/doppler_channel_core.h"
+#include "doppler/doppler_channel/doppler_channel_core.h"
 
-#include "acc_q15/acc_q15_core.h"
+#include "doppler/acc_q15/acc_q15_core.h"
 
-#include "acc_q8/acc_q8_core.h"
+#include "doppler/acc_q8/acc_q8_core.h"
 
-#include "interp_table/interp_table_core.h"
+#include "doppler/interp_table/interp_table_core.h"
 
-#include "loop_filter/loop_filter_core.h"
+#include "doppler/loop_filter/loop_filter_core.h"
 
-#include "costas/costas_core.h"
+#include "doppler/costas/costas_core.h"
 
-#include "dll/dll_core.h"
+#include "doppler/dll/dll_core.h"
 
-#include "symsync/symsync_core.h"
+#include "doppler/symsync/symsync_core.h"
 
-#include "ratesync/ratesync_core.h"
+#include "doppler/ratesync/ratesync_core.h"
 
-#include "carrier_mpsk/carrier_mpsk_core.h"
+#include "doppler/carrier_mpsk/carrier_mpsk_core.h"
 
-#include "carrier_nda/carrier_nda_core.h"
+#include "doppler/carrier_nda/carrier_nda_core.h"
 
-#include "mpsk_receiver/mpsk_receiver_core.h"
+#include "doppler/mpsk_receiver/mpsk_receiver_core.h"
 
-#include "conv_enc/conv_enc_core.h"
+#include "doppler/conv_enc/conv_enc_core.h"
 
-#include "viterbi/viterbi_core.h"
+#include "doppler/viterbi/viterbi_core.h"
 
-#include "rs_codec/rs_codec_core.h"
+#include "doppler/rs_codec/rs_codec_core.h"
 
-#include "interleaver/interleaver_core.h"
+#include "doppler/interleaver/interleaver_core.h"
 
-#include "despreader/despreader_core.h"
+#include "doppler/despreader/despreader_core.h"
 
-#include "burst_despreader/burst_despreader_core.h"
+#include "doppler/burst_despreader/burst_despreader_core.h"
 
-#include "ppe/ppe_core.h"
+#include "doppler/ppe/ppe_core.h"
 
-#include "burst_demod/burst_demod_core.h"
+#include "doppler/burst_demod/burst_demod_core.h"
 
-#include "dsss_receiver/dsss_receiver_core.h"
+#include "doppler/dsss_receiver/dsss_receiver_core.h"
 
-#include "async_dsss_receiver/async_dsss_receiver_core.h"
+#include "doppler/async_dsss_receiver/async_dsss_receiver_core.h"
 
-#include "async_dsss_pool/async_dsss_pool_core.h"
+#include "doppler/async_dsss_pool/async_dsss_pool_core.h"
 
-#include "dsss_burst_receiver/dsss_burst_receiver_core.h"
+#include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"
 
-#include "carrier_acq/carrier_acq_core.h"
+#include "doppler/carrier_acq/carrier_acq_core.h"
 
-#include "acq/acq_core.h"
+#include "doppler/acq/acq_core.h"
 
-#include "burst_acq/burst_acq_core.h"
+#include "doppler/burst_acq/burst_acq_core.h"
 
-#include "burst_capture/burst_capture_core.h"
+#include "doppler/burst_capture/burst_capture_core.h"
 
-#include "ber_meter/ber_meter_core.h"
+#include "doppler/ber_meter/ber_meter_core.h"
 
-#include "frame_meter/frame_meter_core.h"
+#include "doppler/frame_meter/frame_meter_core.h"
 
 #endif /* DOPPLER_H */
 ```

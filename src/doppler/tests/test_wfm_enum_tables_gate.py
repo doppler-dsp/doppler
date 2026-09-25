@@ -23,7 +23,11 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
-from doppler.tests._repo import repo_root
+from doppler.tests._repo import header_root, repo_root
+
+#: Where the gate looks for headers, relative to the root it is given (jm
+#: schema 8): the same answer the gate reads, from scripts/_layout.py.
+_HDR = header_root().relative_to(repo_root())
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -46,11 +50,12 @@ _HEADER = """\
 static const char *const TYPE_NAMES[] = { "tone", "noise", "pn" };
 #define N_TYPES 3
 
-/* SSOT: enum=ftype, cenum=wfm_writer/wfm_writer_core.h:wfm_filetype_t */
+/* SSOT: enum=ftype, cenum=PKG/wfm_writer/wfm_writer_core.h:wfm_filetype_t */
 static const char *const FTYPE_NAMES[] = { "raw", "csv" };
 
 #endif
 """
+_HEADER = _HEADER.replace("PKG/", f"{_HDR.name}/")
 
 _MANIFEST = """\
 [[enum]]
@@ -77,11 +82,11 @@ def _seed(
     cenum: str = _CENUM,
     sources: dict[str, str] | None = None,
 ) -> None:
-    names = tmp_path / "native" / "inc" / "wfm" / "wfm_names.h"
+    names = tmp_path / _HDR / "wfm" / "wfm_names.h"
     names.parent.mkdir(parents=True, exist_ok=True)
     names.write_text(header, encoding="utf-8")
 
-    writer = tmp_path / "native" / "inc" / "wfm_writer" / "wfm_writer_core.h"
+    writer = tmp_path / _HDR / "wfm_writer" / "wfm_writer_core.h"
     writer.parent.mkdir(parents=True, exist_ok=True)
     writer.write_text(cenum, encoding="utf-8")
 

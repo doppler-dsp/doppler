@@ -10,7 +10,7 @@ selects *is* the fractional timing delay.
 This page is the **why**: what that fusion buys, which of its conventions are
 load-bearing, and the two arguments that are easy to get wrong. The contract
 itself — what each function promises, argument by argument — lives in
-`native/inc/ratesync/ratesync_core.h`, and the measured envelope lives in
+`native/inc/doppler/ratesync/ratesync_core.h`, and the measured envelope lives in
 `src/doppler/track/tests/validation/ratesync/results.md`. This page does not
 restate either.
 

@@ -6,7 +6,7 @@
  * the signal.  The median is taken on a sorted copy; the input is not
  * modified.
  */
-#include "spectral/spectral_core.h"
+#include "doppler/spectral/spectral_core.h"
 
 static int
 cmp_float (const void *a, const void *b)

@@ -1,6 +1,6 @@
 # The ring buffer — one contiguous view of a stream
 
-`native/inc/buffer/buffer.h` is a lock-free, single-producer /
+`native/inc/doppler/buffer/buffer.h` is a lock-free, single-producer /
 single-consumer ring of complex samples. It makes four promises, and this
 page says what each one means and where it stops.
 

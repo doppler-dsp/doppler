@@ -5,7 +5,7 @@
  * N: an integer number of cycles in the capture (no leakage) and J coprime to
  * N (quantisation-noise correlation minimised) — the IEEE-1241 coherent setup.
  */
-#include "measure/measure_core.h"
+#include "doppler/measure/measure_core.h"
 
 #include <math.h>
 

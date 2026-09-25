@@ -28,7 +28,7 @@
 #include "dp_rng_test.h"
 #include "dp_test.h"
 
-#include "conv/conv_core.h"
+#include "doppler/conv/conv_core.h"
 
 #include <string.h>
 

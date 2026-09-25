@@ -105,5 +105,5 @@ float i16_to_f32_state_t::iscale;
 <hr>
 
 ------------------------------
-The documentation for this class was generated from the following file `native/inc/i16_to_f32/i16_to_f32_core.h`
+The documentation for this class was generated from the following file `native/inc/doppler/i16_to_f32/i16_to_f32_core.h`
 

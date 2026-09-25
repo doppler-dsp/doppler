@@ -8,9 +8,9 @@
  * test against a live broker, like test_stream_nats_core.
  */
 #define DP_TEST_VERBOSE 1
+#include "doppler/stream/stream.h"
+#include "doppler/stream/tlm_sink.h"
 #include "dp_test.h"
-#include "stream/stream.h"
-#include "stream/tlm_sink.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>

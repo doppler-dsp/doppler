@@ -33,7 +33,7 @@
 #include "dp_rng_test.h"
 #include "dp_test.h"
 
-#include "rs/rs_core.h"
+#include "doppler/rs/rs_core.h"
 
 #include <string.h>
 

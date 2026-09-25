@@ -42,12 +42,12 @@
  *   wfm_follow_keepup --check   fast CI gate: the reader keeps up, and a
  *                               starved read waits rather than reporting EOF
  */
-#include "wfm_reader/wfm_reader_core.h"
-#include "wfm_writer/wfm_writer_core.h"
+#include "doppler/wfm_reader/wfm_reader_core.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 
-#include "dp_complex.h"
-#include "dp_thread.h"
-#include "timing/timing_core.h"
+#include "doppler/dp_complex.h"
+#include "doppler/dp_thread.h"
+#include "doppler/timing/timing_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

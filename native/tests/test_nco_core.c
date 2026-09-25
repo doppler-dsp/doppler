@@ -37,8 +37,8 @@
  *       nco_step_u32_ovf_ctrl's own @warning describes, recorded as
  *       current behaviour so its fix arrives as a visible change
  */
+#include "doppler/nco/nco_core.h"
 #include "dp_test.h"
-#include "nco/nco_core.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

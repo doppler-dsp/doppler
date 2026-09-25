@@ -1229,16 +1229,17 @@ extern "C"
    *        one pass: the cells a caller scores once the code phase is
    *        settled and only the Doppler is left to search.
    *
-   * `out[e * n_f + j]` is acq_cell_corr(state, x + e*code_bins, col,
-   * f_hz[j], t0 + e*code_bins), to within 1e-5 of the epoch's
-   * `sum |x * ref|`, the most either can reach (measured 4.5e-6 at a
-   * 510-sample epoch): a coherent peak 100 dB above the difference.
+   * Element `e * n_f + j` of @p out is acq_cell_corr() of epoch `e`
+   * (`x + e*code_bins`, at `t0 + e*code_bins`) at the j-th frequency, to
+   * within 1e-5 of the epoch's `sum |x * ref|`, the most either can reach
+   * (measured 4.5e-6 at a 510-sample epoch): a coherent peak 100 dB above
+   * the difference.
    *
    * How: evaluated one cell at a time, every frequency repeats the whole
    * despread-and-mix of the epoch. Here each sample is despread ONCE. The
    * frequencies are grouped by the whole number of cycles per epoch that
-   * separates them from `f_hz[n_f / 2]` -- such a shift is exact and has to
-   * be mixed per sample -- and each group is mixed at its own base and
+   * separates them from the middle one -- such a shift is exact and has
+   * to be mixed per sample -- and each group is mixed at its own base and
    * summed over 16 equal blocks per epoch, keeping the first and second
    * moments of the time within each block. What is left of a frequency is
    * a residual under half a cycle per epoch, which rotates under 1/32 of a

@@ -122,6 +122,41 @@ main (void)
     wfm_synth_destroy (fs3b);
   }
 
+  /* ── bits and symbols + RRC at a NON-power-of-two sps: the same dense-FIR
+   *    fallback, reached from the bits/dsss and symbols branches of step().
+   *    The pow-2 tests below take the polyphase shaper and never get here. */
+  {
+    const float   taps[5] = { 0.1f, 0.2f, 0.4f, 0.2f, 0.1f };
+    const uint8_t pat[6]  = { 1, 0, 1, 1, 0, 0 };
+    const float _Complex syms[3]
+        = { 1.0f + 1.0f * I, -1.0f + 1.0f * I, 1.0f - 1.0f * I };
+    const int wt[2] = { WFM_SYNTH_BITS, WFM_SYNTH_SYMBOLS };
+    for (int k = 0; k < 2; k++)
+      {
+        wfm_synth_state_t *a[2];
+        for (int j = 0; j < 2; j++)
+          {
+            a[j] = wfm_synth_create (wt[k], 1e6, 0.0, 100.0, 0, 1, 3, 7, 0, 0,
+                                     0.0); /* sps=3 */
+            if (wt[k] == WFM_SYNTH_BITS)
+              DP_CHECK (wfm_synth_set_bits (a[j], pat, 6, 1) == 0);
+            else
+              DP_CHECK (wfm_synth_set_symbols (a[j], syms, 3) == 0);
+            DP_CHECK (wfm_synth_set_rrc (a[j], taps, 5) == 0);
+          }
+        DP_CHECK (a[0]->fir != NULL && a[0]->shaper == NULL);
+        float _Complex y[192];
+        wfm_synth_steps (a[0], y, 192);
+        int m = 1;
+        for (int i = 0; i < 192; i++)
+          if (wfm_synth_step (a[1]) != y[i])
+            m = 0;
+        DP_CHECK (m); /* step()==steps() on the bits/symbols FIR path */
+        wfm_synth_destroy (a[0]);
+        wfm_synth_destroy (a[1]);
+      }
+  }
+
   /* ── bits: user pattern, mapping, cycling, step()==steps() ────────────────
    */
   {

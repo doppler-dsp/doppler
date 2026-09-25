@@ -269,14 +269,14 @@ wfm_synth_step(wfm_synth_state_t *state)
     /* jm: body sourced from [wfm_synth] impl/impl_file in
      * objects/wfm_synth.toml — edit there, not here; `jm apply` overwrites
      * this. */
-    float complex sym;
+    float _Complex sym;
     if (state->shaper) {
         /* Polyphase RRC pulse shaping (power-of-two sps). The single shaping
          * kernel wfm_synth_steps() also drives, one output at a time, so step()
          * and the block path agree bit-for-bit (the resampler is block-boundary
          * invariant). Covers every shaped type — the symbol source is dispatched
          * inside wfm_synth_next_symbol(). */
-        float complex s1[1];
+        float _Complex s1[1];
         wfm_synth_shape(state, &sym, 1, s1);
     } else if (state->wtype == WFM_SYNTH_BITS || state->wtype == WFM_SYNTH_DSSS) {
         /* User bit pattern, oversampled sps and cycled to fill the request. The
@@ -303,7 +303,7 @@ wfm_synth_step(wfm_synth_state_t *state)
              * PN/PSK path, sourced from the bit latch instead of the LFSR. The
              * FIR carries its delay line across calls, so this is chunk-invariant
              * — step() and the block path agree bit-for-bit. */
-            float complex imp = (state->sym_pos == 0)
+            float _Complex imp = (state->sym_pos == 0)
                                     ? (state->cur_re + state->cur_im * I)
                                     : (0.0f + 0.0f * I);
             fir_execute(state->fir, &imp, 1, &sym);
@@ -325,7 +325,7 @@ wfm_synth_step(wfm_synth_state_t *state)
                 = (state->sym_read_idx + 1) % state->n_symbols;
         }
         if (state->fir) {
-            float complex imp = (state->sym_pos == 0)
+            float _Complex imp = (state->sym_pos == 0)
                                     ? (state->cur_re + state->cur_im * I)
                                     : (0.0f + 0.0f * I);
             fir_execute(state->fir, &imp, 1, &sym);
@@ -353,7 +353,7 @@ wfm_synth_step(wfm_synth_state_t *state)
              * symbol at a boundary, zero between) through the matched FIR. The
              * FIR carries its delay line across calls, so this is chunk-invariant
              * — step() and the block path agree bit-for-bit. */
-            float complex imp = (state->sym_pos == 0)
+            float _Complex imp = (state->sym_pos == 0)
                                     ? (state->cur_re + state->cur_im * I)
                                     : (0.0f + 0.0f * I);
             fir_execute(state->fir, &imp, 1, &sym);
@@ -365,7 +365,7 @@ wfm_synth_step(wfm_synth_state_t *state)
     } else {
         sym = state->cur_re + state->cur_im * I;
     }
-    float complex carrier = 1.0f + 0.0f * I;
+    float _Complex carrier = 1.0f + 0.0f * I;
     if (state->lo) {
         lo_steps(state->lo, 1, &carrier, 1);
     } else if (state->wtype == WFM_SYNTH_CHIRP) {
@@ -383,7 +383,7 @@ wfm_synth_step(wfm_synth_state_t *state)
         state->chirp_ph -= floor(state->chirp_ph);
         state->chirp_n++;
     }
-    float complex noise = 0.0f + 0.0f * I;
+    float _Complex noise = 0.0f + 0.0f * I;
     if (state->awgn)
         awgn_generate(state->awgn, 1, &noise, 1);
     return sym * carrier + noise;

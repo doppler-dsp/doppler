@@ -24,6 +24,4 @@ updates:
     commit-message:
       prefix: chore
       include: scope
-    labels:
-      - dependencies
     open-pull-requests-limit: 3

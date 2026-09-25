@@ -39,7 +39,7 @@
  *   them is (see acq_create_burst()); never a non-coherent look. Minimum
  *   latency for a strong signal, unmodulated bursts/preambles only.  A tighter
  *   @p doppler_uncertainty shrinks the searched cell count, lowering the
- *   Bonferroni threshold (more sensitive).  When @p doppler_uncertainty
+ *   Sidak threshold (more sensitive).  When @p doppler_uncertainty
  *   exceeds the native span, falls back to the wideband window-tiling
  *   mechanism below instead (coherent depth structurally can't cover more
  *   than one span, regardless of mode).
@@ -453,7 +453,7 @@ extern "C"
     float  threshold; /**< CFAR gate on test_stat (theta); coherent path.   */
     float  eta;       /**< Raw per-cell Rayleigh amplitude threshold.       */
     float  eta_nc;    /**< Non-coherent CFAR threshold (order-N_nc Marcum).  */
-    double pfa_cell;  /**< Bonferroni per-cell false-alarm probability.     */
+    double pfa_cell;  /**< Sidak per-cell false-alarm probability.          */
     double pd;        /**< Target detection probability.                    */
     double pd_predicted;  /**< Predicted Pd at cn0_dbhz and the chosen
                                grid of ONE dwell lying wholly inside the
@@ -633,7 +633,7 @@ extern "C"
    * converts @p cn0_dbhz to a per-sample amplitude SNR
    * (snr = sqrt(10^(cn0_dbhz/10) / fs)), and picks the
    * *smallest* coherent depth `coherent_bins` in `[1, reps]` whose burst Pd
-   * `pd_burst` meets @p pd at the Bonferroni threshold (minimum latency for
+   * `pd_burst` meets @p pd at the Sidak threshold (minimum latency for
    * a strong signal). `pd_burst` treats the preamble as exactly @p reps
    * periods at a uniform offset against the stream-aligned dwells, and
    * credits every dwell it spans (doppler#1498). If no depth meets @p pd the

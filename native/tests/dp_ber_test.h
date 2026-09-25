@@ -51,7 +51,7 @@
  *   - the lag and the absolute carrier phase from the correlation peak, with
  *     no reference to the symbols being scored;
  *   - a **false-alarm gate**: the peak must beat a threshold derived from a
- *     Pfa via the canonical detection primitives, Bonferroni-corrected for the
+ *     Pfa via the canonical detection primitives, Sidak-corrected for the
  *     number of lags searched. A marker too short to resolve the alignment
  *     says so (`ok == 0`) instead of returning a plausible wrong lag;
  *   - the marker symbols EXCLUDED from scoring, so the symbols that fixed the
@@ -233,7 +233,7 @@ typedef struct
   double phase;
   /** Non-coherent detection statistic at the peak, in threshold units. */
   double stat;
-  /** Pfa-derived threshold it had to beat (Bonferroni over the lags). */
+  /** Pfa-derived threshold it had to beat (Sidak over the lags). */
   double threshold;
   /** `20*log10(stat/threshold)` — headroom. Negative means not detected. */
   double margin_db;

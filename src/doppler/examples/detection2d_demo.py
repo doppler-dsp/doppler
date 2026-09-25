@@ -22,7 +22,7 @@ Physical interpretation
 Corr2D evaluates all N = N_DOPPLER × N_CODE_PHASE cells in one FFT2
 call — the output is the full acquisition surface.
 
-Detection theory — N-cell Bonferroni correction
+Detection theory — N-cell Šidák correction
 -------------------------------------------------
 CorrDetector2D searches all N cells and returns the maximum.  Each cell is
 an independent Rayleigh test under H0, so the system false-alarm rate is:
@@ -69,7 +69,7 @@ import math
 
 import numpy as np
 
-from doppler.detection import det_dwell, det_pd, det_threshold
+from doppler.detection import det_dwell, det_pd, det_pfa_cell, det_threshold
 from doppler.spectral import Corr2D, CorrDetector2D
 
 N_DOPPLER = 16  # Doppler search bins  (rows)
@@ -95,9 +95,9 @@ RNG = np.random.default_rng(0)
 # Theory: minimum dwell and CFAR threshold.
 snr_amp = 10.0 ** (SNR_DB / 20.0)
 
-# Bonferroni correction: N cells tested per dwell → per-cell Pfa must be
+# Šidák correction: N cells tested per dwell → per-cell Pfa must be
 # much tighter so that the system (max-of-N) Pfa meets the target.
-pfa_cell = 1.0 - (1.0 - PFA) ** (1.0 / N)
+pfa_cell = det_pfa_cell(PFA, N)
 
 # det_threshold() returns η (Marcum Q argument).
 # The gate on test_stat = peak_mag / noise_est is θ = η · √(2/π).
@@ -265,14 +265,8 @@ pfa_sweep = np.logspace(-5, 0, 300)
 pd_roc_th = np.array(
     [
         1.0
-        - (
-            1.0
-            - det_pd(
-                snr_amp, M, det_threshold(1.0 - (1.0 - float(p)) ** (1.0 / N))
-            )
-        )
-        * (1.0 - (1.0 - (1.0 - float(p)) ** (1.0 / N))) ** (N - 1)
-        for p in pfa_sweep
+        - (1.0 - det_pd(snr_amp, M, det_threshold(pc))) * (1.0 - pc) ** (N - 1)
+        for pc in (det_pfa_cell(float(p), N) for p in pfa_sweep)
     ]
 )
 

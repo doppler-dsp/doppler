@@ -68,6 +68,7 @@
 #include "dp_ber_test.h"
 #include "dp_frame_test.h"
 #include "dp_test.h"
+#include "util/util_core.h"
 
 #include "ber/ber_core.h"
 #include "doppler_channel/doppler_channel_core.h"
@@ -346,7 +347,7 @@ dp_rx_amp (const dp_rx_point_t *pt)
  *
  * A tracking receiver does not re-acquire every frame; it looks in a narrow
  * window where the frame is due. That is also what makes the question fair —
- * a Bonferroni correction over 25 lags is a very different bar from one over
+ * a Sidak correction over 25 lags is a very different bar from one over
  * 401, and quoting a sync miss rate from a full re-acquisition would measure
  * the SEARCH rather than the sync word. Bounded below by `ber_align_detect`'s
  * CFAR, which needs 8 reference cells outside its 3-lag guard band. */
@@ -1027,7 +1028,7 @@ done:
                                : NAN;
   r.crc_fail_pred
       = (r.rep.ber.symbols && r.prot_bits)
-            ? 1.0 - pow (1.0 - r.rep.ber.p_hat, (double)r.prot_bits)
+            ? complement_power (r.rep.ber.p_hat, (double)r.prot_bits)
             : NAN;
   r.fer_pred = r.sync_miss.p_hat + (1.0 - r.sync_miss.p_hat) * r.crc_fail_pred;
 

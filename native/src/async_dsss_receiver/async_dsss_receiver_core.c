@@ -208,9 +208,8 @@ adr_build_track_chain (async_dsss_receiver_state_t *s, double chip_phase,
       (void)dll_set_symbol_period (dll, partials_per_symbol);
       size_t win  = dll_get_symbol_window (dll);
       size_t look = (win ? win : 1) * (s->tsamps / segments);
-      double amp  = sqrt (pow (10.0, s->cn0_dbhz / 10.0)
-                          / (s->chip_rate * (double)s->spc));
-      int    nl   = det_n_noncoh (amp, (int)look, 0.99, 1e-3, 4000);
+      double amp = det_cn0_to_snr (s->cn0_dbhz, s->chip_rate * (double)s->spc);
+      int    nl  = det_n_noncoh (amp, (int)look, 0.99, 1e-3, 4000);
       if (nl >= 1)
         {
           (void)dll_configure_lock (dll, 1e-3, (size_t)nl, 0.0);
@@ -352,8 +351,7 @@ adr_new_carrier_acq (const async_dsss_receiver_state_t *s, double target_rate)
    * refine_design_margin_db doc comment for why this empirical derating
    * is used as-is rather than re-derived). */
   double effective_cn0_dbhz = s->cn0_dbhz - s->refine_design_margin_db;
-  double design_snr
-      = sqrt (pow (10.0, effective_cn0_dbhz / 10.0) / target_rate);
+  double design_snr         = det_cn0_to_snr (effective_cn0_dbhz, target_rate);
   double resolution_hz = (double)s->refine_samples_per_symbol * s->symbol_rate
                          / (double)s->refine_n_fft;
   carrier_acq_state_t *ca = dp_xnn (carrier_acq_create (

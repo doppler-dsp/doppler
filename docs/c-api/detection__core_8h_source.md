@@ -100,6 +100,20 @@ int det_dwell_power (double snr_power, double pd_min, double pfa,
 
 double det_snr_power(int dwell, double pd_min, double pfa);
 
+/* ── Search-level quantities ─────────────────────────────────────────────── */
+/* A detector searches many cells, measures its noise from some of them, and */
+/* is specified in C/N0. These turn each of those into the per-cell,         */
+/* amplitude-SNR terms the functions above take.                             */
+
+double det_pfa_cell(double pfa, double n_cells);
+
+double det_cn0_to_snr(double cn0_dbhz, double fs);
+
+double det_snr_to_cn0(double snr, double fs);
+
+double det_pd_cfar(double snr, int dwell, double threshold, double k,
+                   double leak, double leak_cells);
+
 #ifdef __cplusplus
 }
 #endif

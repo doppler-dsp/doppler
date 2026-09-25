@@ -1115,7 +1115,7 @@ double acq_state_t::pfa_cell;
 
 
 
-Bonferroni per-cell false-alarm probability. 
+Sidak per-cell false-alarm probability. 
  
 
 

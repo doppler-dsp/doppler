@@ -624,6 +624,126 @@ int det_dwell_power (double snr_power, double pd_min, double pfa,
  */
 double det_snr_power(int dwell, double pd_min, double pfa);
 
+/* ── Search-level quantities ─────────────────────────────────────────────── */
+/* A detector searches many cells, measures its noise from some of them, and */
+/* is specified in C/N0. These turn each of those into the per-cell,         */
+/* amplitude-SNR terms the functions above take.                             */
+
+/**
+ * @brief The per-cell false-alarm probability that gives a search of
+ * n_cells independent cells the false-alarm probability pfa (Sidak).
+ *
+ * The search false-alarms when ANY cell does, so n cells each at pc miss
+ * together with probability (1 - pc)^n. Solving 1 - (1 - pc)^n = pfa gives
+ * pc = 1 - (1 - pfa)^(1/n), computed through complement_power() because
+ * the direct form cancels at the small pfa every search uses. Slightly
+ * above the Bonferroni pfa/n, which is the first term of the same series.
+ *
+ * @param pfa      The search's false-alarm probability, in (0, 1).
+ * @param n_cells  Independent cells searched, >= 1 (any real count).
+ * @return         The per-cell pfa to set each threshold from; NaN for
+ *                 @p pfa outside (0, 1) or @p n_cells below 1.
+ *
+ * @code
+ * >>> from doppler.detection import det_pfa_cell
+ * >>> det_pfa_cell(pfa=1e-3, n_cells=1.0)          # one cell: pfa itself
+ * 0.001
+ * >>> round(det_pfa_cell(pfa=1e-3, n_cells=1000.0) * 1e6, 6)
+ * 1.0005
+ *
+ * @endcode
+ */
+double det_pfa_cell(double pfa, double n_cells);
+
+/**
+ * @brief The per-sample amplitude SNR this module's functions take, from a
+ * C/N0 and a sample rate.
+ *
+ * Power SNR per sample is (C/N0)/fs, and snr is its square root: the
+ * convention of det_pd(), det_dwell() and every coherent function here.
+ *
+ * @param cn0_dbhz  Carrier-to-noise density, dB-Hz.
+ * @param fs        Sample rate, Hz.
+ * @return          sqrt(10^(cn0_dbhz/10) / fs).
+ *
+ * @code
+ * >>> from doppler.detection import det_cn0_to_snr, det_snr_to_cn0
+ * >>> round(det_cn0_to_snr(cn0_dbhz=60.0, fs=1e6), 12)   # 0 dB per sample
+ * 1.0
+ * >>> round(det_snr_to_cn0(snr=det_cn0_to_snr(45.0, 2e6), fs=2e6), 9)
+ * 45.0
+ *
+ * @endcode
+ */
+double det_cn0_to_snr(double cn0_dbhz, double fs);
+
+/**
+ * @brief The C/N0, dB-Hz, of a per-sample amplitude SNR at a sample rate:
+ * the inverse of det_cn0_to_snr().
+ *
+ * @param snr  Per-sample amplitude SNR (linear, > 0).
+ * @param fs   Sample rate, Hz.
+ * @return     20 log10(snr) + 10 log10(fs).
+ *
+ * @code
+ * >>> from doppler.detection import det_snr_to_cn0
+ * >>> round(det_snr_to_cn0(snr=1.0, fs=1e6), 12)
+ * 60.0
+ *
+ * @endcode
+ */
+double det_snr_to_cn0(double snr, double fs);
+
+/**
+ * @brief Pd of a cell-averaging CFAR test: the gate is det_pd()'s threshold
+ * scaled by a noise reference MEASURED as the mean magnitude of k cells,
+ * the test cell's own included.
+ *
+ * det_pd() prices the noise as known. A detector that measures it pays
+ * twice: the reference is noisy, and it contains the signal. With T =
+ * threshold*sqrt(2/pi) in mean-magnitude units, the test fires when the
+ * peak R clears T times the mean of the k cells; moving the peak's own
+ * share to the left, R (1 - T/k) > T (k-1)/k S, so the peak faces
+ * T (k-1)/(k-T) S, S the mean of the OTHER k-1 cells. S is Gaussian to
+ * good approximation -- Rayleigh cells of mean sqrt(pi/2) and variance
+ * (4-pi)/2 -- raised by the signal energy @p leak that sits in those cells
+ * (sidelobes, and what a straddle slid out of the peak), spread over
+ * @p leak_cells of them: a cell holding non-centrality nu^2 has mean
+ * magnitude ~ sqrt(pi/2 + nu^2), exact at 0 and for a large one. The
+ * expectation over S is 2-point Gauss-Hermite (gauss_hermite()), within
+ * 5e-5 of 6 points.
+ *
+ * k -> infinity is det_pd() at @p threshold exactly, and a reference too
+ * small to hold the gate (k <= T + 1) is answered as det_pd().
+ *
+ * @param snr         Per-sample amplitude SNR of the test cell.
+ * @param dwell       Coherent integration length M, as in det_pd().
+ * @param threshold   The known-noise threshold eta, as det_threshold().
+ * @param k           Reference cells, the test cell included.
+ * @param leak        Signal non-centrality energy in the other k-1 cells,
+ *                    in the units of det_pd()'s a^2 = 2 M snr^2; <= 0 is
+ *                    none.
+ * @param leak_cells  Cells that energy is spread over, at most k-1; <= 0
+ *                    spreads it over all of them.
+ * @return            Detection probability in [0, 1].
+ *
+ * @code
+ * >>> from doppler.detection import det_pd, det_pd_cfar, det_threshold
+ * >>> eta = det_threshold(pfa=1e-3)
+ * >>> round(det_pd(snr=0.3, dwell=64, threshold=eta), 4)   # noise known
+ * 0.4285
+ * >>> round(det_pd_cfar(0.3, 64, eta, 128.0, 0.0, 0.0), 4)  # 128-cell ref
+ * 0.4068
+ * >>> round(det_pd_cfar(0.3, 64, eta, 128.0, 40.0, 4.0), 4)  # signal in it
+ * 0.3299
+ * >>> round(det_pd_cfar(0.3, 64, eta, 1e12, 0.0, 0.0), 4)   # k -> inf
+ * 0.4285
+ *
+ * @endcode
+ */
+double det_pd_cfar(double snr, int dwell, double threshold, double k,
+                   double leak, double leak_cells);
+
 #ifdef __cplusplus
 }
 #endif

@@ -381,7 +381,7 @@ shifts = [
 # Ideal is 10*log10(2) = 3.01 dB per doubling. Measured 2026-09-24: 2.38, 2.31,
 # 3.19 dB (thresholds -13.6, -16.0, -18.3, -21.5 dB), total 7.9 dB against an
 # ideal 9.03. The shortfall is real and worth knowing rather than tuning away:
-# more coherent depth means more search cells, so the Bonferroni threshold
+# more coherent depth means more search cells, so the Sidak threshold
 # rises with it (the object reports 3.98 -> 4.30 across these four arms). That
 # accounts for part of the gap; this file does not claim it accounts for all of
 # it.

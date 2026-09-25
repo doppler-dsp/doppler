@@ -276,6 +276,62 @@ _bind_det_snr_power (PyObject *self, PyObject *args, PyObject *kwds)
   return PyFloat_FromDouble (det_snr_power (dwell, pd_min, pfa));
 }
 
+static PyObject *
+_bind_det_pfa_cell (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "pfa", "n_cells", NULL };
+  double       pfa       = 0.0;
+  double       n_cells   = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &pfa, &n_cells))
+    return NULL;
+  return PyFloat_FromDouble (det_pfa_cell (pfa, n_cells));
+}
+
+static PyObject *
+_bind_det_cn0_to_snr (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "cn0_dbhz", "fs", NULL };
+  double       cn0_dbhz  = 0.0;
+  double       fs        = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &cn0_dbhz, &fs))
+    return NULL;
+  return PyFloat_FromDouble (det_cn0_to_snr (cn0_dbhz, fs));
+}
+
+static PyObject *
+_bind_det_snr_to_cn0 (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[] = { "snr", "fs", NULL };
+  double       snr       = 0.0;
+  double       fs        = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "dd", _kwlist, &snr, &fs))
+    return NULL;
+  return PyFloat_FromDouble (det_snr_to_cn0 (snr, fs));
+}
+
+static PyObject *
+_bind_det_pd_cfar (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  (void)self;
+  static char *_kwlist[]
+      = { "snr", "dwell", "threshold", "k", "leak", "leak_cells", NULL };
+  double snr        = 0.0;
+  int    dwell      = 0;
+  double threshold  = 0.0;
+  double k          = 0.0;
+  double leak       = 0.0;
+  double leak_cells = 0.0;
+  if (!PyArg_ParseTupleAndKeywords (args, kwds, "didddd", _kwlist, &snr,
+                                    &dwell, &threshold, &k, &leak,
+                                    &leak_cells))
+    return NULL;
+  return PyFloat_FromDouble (
+      det_pd_cfar (snr, dwell, threshold, k, leak, leak_cells));
+}
+
 /* ======================================================== */
 /* Module                                                    */
 /* ======================================================== */
@@ -943,6 +999,147 @@ static PyMethodDef detection_module_methods[] = {
     "...                   power_threshold=det_threshold_power(pfa=1e-6))\n"
     ">>> abs(pd - 0.9) < 1e-9   # det_snr_power inverts det_pd_power\n"
     "True\n" },
+  { "det_pfa_cell", (PyCFunction)(void *)_bind_det_pfa_cell,
+    METH_VARARGS | METH_KEYWORDS,
+    "The per-cell false-alarm probability that gives a search of n_cells\n"
+    "independent cells the false-alarm probability pfa (Sidak).\n"
+    "\n"
+    "The search false-alarms when ANY cell does, so n cells each at pc miss\n"
+    "together with probability (1 - pc)^n. Solving 1 - (1 - pc)^n = pfa\n"
+    "gives pc = 1 - (1 - pfa)^(1/n), computed through complement_power()\n"
+    "because the direct form cancels at the small pfa every search uses.\n"
+    "Slightly above the Bonferroni pfa/n, which is the first term of the\n"
+    "same series.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "pfa : float\n"
+    "    The search's false-alarm probability, in (0, 1).\n"
+    "n_cells : float\n"
+    "    Independent cells searched, >= 1 (any real count).\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    The per-cell pfa to set each threshold from; NaN for pfa outside\n"
+    "    (0, 1) or n_cells below 1.\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.detection import det_pfa_cell\n"
+    ">>> det_pfa_cell(pfa=1e-3, n_cells=1.0)          # one cell: pfa itself\n"
+    "0.001\n"
+    ">>> round(det_pfa_cell(pfa=1e-3, n_cells=1000.0) * 1e6, 6)\n"
+    "1.0005\n" },
+  { "det_cn0_to_snr", (PyCFunction)(void *)_bind_det_cn0_to_snr,
+    METH_VARARGS | METH_KEYWORDS,
+    "The per-sample amplitude SNR this module's functions take, from a\n"
+    "C/N0 and a sample rate.\n"
+    "\n"
+    "Power SNR per sample is (C/N0)/fs, and snr is its square root: the\n"
+    "convention of det_pd(), det_dwell() and every coherent function here.\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "cn0_dbhz : float\n"
+    "    Carrier-to-noise density, dB-Hz.\n"
+    "fs : float\n"
+    "    Sample rate, Hz.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    sqrt(10^(cn0_dbhz/10) / fs).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.detection import det_cn0_to_snr, det_snr_to_cn0\n"
+    ">>> round(det_cn0_to_snr(cn0_dbhz=60.0, fs=1e6), 12)   # 0 dB per "
+    "sample\n"
+    "1.0\n"
+    ">>> round(det_snr_to_cn0(snr=det_cn0_to_snr(45.0, 2e6), fs=2e6), 9)\n"
+    "45.0\n" },
+  { "det_snr_to_cn0", (PyCFunction)(void *)_bind_det_snr_to_cn0,
+    METH_VARARGS | METH_KEYWORDS,
+    "The C/N0, dB-Hz, of a per-sample amplitude SNR at a sample rate: the\n"
+    "inverse of det_cn0_to_snr().\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "snr : float\n"
+    "    Per-sample amplitude SNR (linear, > 0).\n"
+    "fs : float\n"
+    "    Sample rate, Hz.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    20 log10(snr) + 10 log10(fs).\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.detection import det_snr_to_cn0\n"
+    ">>> round(det_snr_to_cn0(snr=1.0, fs=1e6), 12)\n"
+    "60.0\n" },
+  { "det_pd_cfar", (PyCFunction)(void *)_bind_det_pd_cfar,
+    METH_VARARGS | METH_KEYWORDS,
+    "Pd of a cell-averaging CFAR test: the gate is det_pd()'s threshold\n"
+    "scaled by a noise reference MEASURED as the mean magnitude of k cells,\n"
+    "the test cell's own included.\n"
+    "\n"
+    "det_pd() prices the noise as known. A detector that measures it pays\n"
+    "twice: the reference is noisy, and it contains the signal. With T =\n"
+    "threshold*sqrt(2/pi) in mean-magnitude units, the test fires when the\n"
+    "peak R clears T times the mean of the k cells; moving the peak's own\n"
+    "share to the left, R (1 - T/k) > T (k-1)/k S, so the peak faces T\n"
+    "(k-1)/(k-T) S, S the mean of the OTHER k-1 cells. S is Gaussian to good\n"
+    "approximation -- Rayleigh cells of mean sqrt(pi/2) and variance\n"
+    "(4-pi)/2 -- raised by the signal energy leak that sits in those cells\n"
+    "(sidelobes, and what a straddle slid out of the peak), spread over\n"
+    "leak_cells of them: a cell holding non-centrality nu^2 has mean\n"
+    "magnitude ~ sqrt(pi/2 + nu^2), exact at 0 and for a large one. The\n"
+    "expectation over S is 2-point Gauss-Hermite (gauss_hermite()), within\n"
+    "5e-5 of 6 points.\n"
+    "\n"
+    "k -> infinity is det_pd() at threshold exactly, and a reference too\n"
+    "small to hold the gate (k <= T + 1) is answered as det_pd().\n"
+    "\n"
+    "Parameters\n"
+    "----------\n"
+    "snr : float\n"
+    "    Per-sample amplitude SNR of the test cell.\n"
+    "dwell : int\n"
+    "    Coherent integration length M, as in det_pd().\n"
+    "threshold : float\n"
+    "    The known-noise threshold eta, as det_threshold().\n"
+    "k : float\n"
+    "    Reference cells, the test cell included.\n"
+    "leak : float\n"
+    "    Signal non-centrality energy in the other k-1 cells, in the units\n"
+    "    of det_pd()'s a^2 = 2 M snr^2; <= 0 is none.\n"
+    "leak_cells : float\n"
+    "    Cells that energy is spread over, at most k-1; <= 0 spreads it over\n"
+    "    all of them.\n"
+    "\n"
+    "Returns\n"
+    "-------\n"
+    "float\n"
+    "    Detection probability in [0, 1].\n"
+    "\n"
+    "Examples\n"
+    "--------\n"
+    ">>> from doppler.detection import det_pd, det_pd_cfar, det_threshold\n"
+    ">>> eta = det_threshold(pfa=1e-3)\n"
+    ">>> round(det_pd(snr=0.3, dwell=64, threshold=eta), 4)   # noise known\n"
+    "0.4285\n"
+    ">>> round(det_pd_cfar(0.3, 64, eta, 128.0, 0.0, 0.0), 4)  # 128-cell "
+    "ref\n"
+    "0.4068\n"
+    ">>> round(det_pd_cfar(0.3, 64, eta, 128.0, 40.0, 4.0), 4)  # signal in "
+    "it\n"
+    "0.3299\n"
+    ">>> round(det_pd_cfar(0.3, 64, eta, 1e12, 0.0, 0.0), 4)   # k -> inf\n"
+    "0.4285\n" },
   { NULL, NULL, 0, NULL }
 };
 

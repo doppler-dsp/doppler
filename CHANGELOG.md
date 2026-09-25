@@ -13,6 +13,55 @@ ______________________________________________________________________
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-09-25
+
+### Added
+
+- **A docs gate refuses a bare `[...]` in the generated C API pages.** mkdoxy
+    sometimes emits a header's bracketed prose raw, and the strict site build
+    rejects it as an unresolved link reference; the gate catches it at commit
+    time instead of in CI's site build.
+
+- **`doppler.detection` gains `det_pfa_cell`, `det_pd_cfar`,
+    `det_cn0_to_snr` and `det_snr_to_cn0`.** The search-level Pfa split,
+    the cell-averaging CFAR Pd model and the C/N0 conversions, previously
+    private to `acq` and `async_dsss_receiver`. The `ber` meter's lag
+    search now uses the same Šidák split instead of Bonferroni's
+    `pfa / n`, so its threshold drops by a hair.
+
+- **`doppler.util` gains `sinc`, `mean_sinc`, `complement_power` and the
+    quadrature rules `simpson_weights`, `midpoint_nodes`, `gauss_hermite`.**
+    One definition each, in C and Python; `acq`, `carrier_acq`,
+    `design_lowpass` and `wfm`'s raised-cosine pulse now call them instead
+    of private copies.
+
+### Changed
+
+- **`BurstCapture` refine is ~20x cheaper per burst**
+    ([#1538](https://github.com/doppler-dsp/doppler/issues/1538)): 0.71 →
+    0.036 ms at the benchmark geometry (published native numbers), and the
+    DSSS burst receiver's per-burst cost falls 0.84 → 0.16 ms, with every
+    §2.8 trial choosing the same repetition. New `acq_cell_corr_grid()`
+    scores many Doppler cells over consecutive epochs in one pass.
+
+### Fixed
+
+- **`acq`'s docs called its per-cell Pfa "Bonferroni"; the code computes
+    Šidák**, `1 − (1 − pfa)^(1/N)`. The name now matches the formula
+    (`pfa_cell`, the thresholds, and the BER/rx harnesses that inherit it).
+
+- **`make package-c` installs into a shared prefix**
+    ([#1543](https://github.com/doppler-dsp/doppler/issues/1543)). The
+    headers-under-`include/doppler/` check now reads CMake's install
+    manifest, so other packages' headers in `~/.local` or `/usr/local` no
+    longer fail the install.
+
+- **A Windows consumer of the installed C package compiles the headers.**
+    `_USE_MATH_DEFINES` now travels with the package (the exported CMake
+    target and `doppler.pc`) as `_GNU_SOURCE` does on Linux, so the headers'
+    inline `M_PI` / `M_SQRT2` resolve under the UCRT; it had been set for
+    doppler's own build only.
+
 ## [0.56.0] - 2026-09-24
 
 ### Breaking
@@ -14646,8 +14695,9 @@ ______________________________________________________________________
 [0.54.1]: https://github.com/doppler-dsp/doppler/compare/v0.54.0...v0.54.1
 [0.55.0]: https://github.com/doppler-dsp/doppler/compare/v0.54.1...v0.55.0
 [0.56.0]: https://github.com/doppler-dsp/doppler/compare/v0.55.0...v0.56.0
+[0.57.0]: https://github.com/doppler-dsp/doppler/compare/v0.56.0...v0.57.0
 [0.6.0]: https://github.com/doppler-dsp/doppler/compare/v0.5.5...v0.6.0
 [0.7.0]: https://github.com/doppler-dsp/doppler/compare/v0.6.0...v0.7.0
 [0.8.0]: https://github.com/doppler-dsp/doppler/compare/v0.7.0...v0.8.0
 [0.9.0]: https://github.com/doppler-dsp/doppler/compare/v0.8.0...v0.9.0
-[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.56.0...HEAD
+[unreleased]: https://github.com/doppler-dsp/doppler/compare/v0.57.0...HEAD

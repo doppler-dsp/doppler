@@ -88,7 +88,8 @@ typedef struct
   double   doppler_res_hz; 
   double   cn0_dbhz_est;   
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
-  float _Complex *cell_buf; 
+  double _Complex *cell_buf; 
+  double *cell_f;           
   size_t max_cells;         
   size_t refine_span;  
   size_t corr_len;     

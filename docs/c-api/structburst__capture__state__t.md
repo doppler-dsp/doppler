@@ -40,7 +40,8 @@ _BurstCapture state._ [More...](#detailed-description)
 |  size\_t | [**acq\_blob\_max**](#variable-acq_blob_max)  <br> |
 |  int | [**backed**](#variable-backed)  <br> |
 |  size\_t | [**burst\_len**](#variable-burst_len)  <br> |
-|  float \_Complex \* | [**cell\_buf**](#variable-cell_buf)  <br> |
+|  double \_Complex \* | [**cell\_buf**](#variable-cell_buf)  <br> |
+|  double \* | [**cell\_f**](#variable-cell_f)  <br> |
 |  size\_t | [**chunk\_max**](#variable-chunk_max)  <br> |
 |  double | [**cn0\_dbhz\_est**](#variable-cn0_dbhz_est)  <br> |
 |  size\_t | [**code\_period**](#variable-code_period)  <br> |
@@ -208,12 +209,29 @@ Samples in one emitted window. Acquisition has no notion of this  [**acq\_create
 ### variable cell\_buf 
 
 ```C++
-float _Complex* burst_capture_state_t::cell_buf;
+double _Complex* burst_capture_state_t::cell_buf;
 ```
 
 
 
-Refine's cells: [**acq\_cell\_corr()**](acq__core_8h.md#function-acq_cell_corr) of every candidate preamble POSITION (one code period each) at every Doppler cell inside the detecting engine's bin, position-major, `corr_len * max_cells`. Computed once; each candidate sums `reps` consecutive rows of one cell coherently. The statistic is ACQUISITION'S, evaluated at the settled code phase: refine resolves which repetition, nothing else (doppler#1502). 
+Refine's cells: [**acq\_cell\_corr\_grid()**](acq__core_8h.md#function-acq_cell_corr_grid) of every candidate preamble POSITION (one code period each) at every Doppler cell inside the detecting engine's bin, position-major, `corr_len * max_cells`. Computed once; each candidate sums `reps` consecutive rows of one cell coherently. The statistic is ACQUISITION'S, evaluated at the settled code phase: refine resolves which repetition, nothing else (doppler#1502). 
+
+
+        
+
+<hr>
+
+
+
+### variable cell\_f 
+
+```C++
+double* burst_capture_state_t::cell_f;
+```
+
+
+
+Those cells' frequencies, Hz: `max_cells`. 
 
 
         

@@ -239,8 +239,8 @@ typedef struct
   double   cn0_dbhz_est;   /**< C/N0 lower bound, dB-Hz (saturating).       */
 
   /* ── Refine scratch (docs/design/dsss-burst-receiver.md §3.4) ───────── */
-  float _Complex *cell_buf; /**< Refine's cells: acq_cell_corr() of every
-                                 candidate preamble POSITION (one code
+  double _Complex *cell_buf; /**< Refine's cells: acq_cell_corr_grid() of
+                                 every candidate preamble POSITION (one code
                                  period each) at every Doppler cell inside
                                  the detecting engine's bin, position-major,
                                  `corr_len * max_cells`. Computed once; each
@@ -249,6 +249,7 @@ typedef struct
                                  ACQUISITION'S, evaluated at the settled
                                  code phase: refine resolves which
                                  repetition, nothing else (doppler#1502). */
+  double *cell_f;           /**< Those cells' frequencies, Hz: `max_cells`. */
   size_t max_cells;         /**< Doppler cells refine can need: the most an
                                  engine bin spans at depth `reps`, which is
                                  at D = 1 -- `2 * ceil(reps *

@@ -1225,6 +1225,49 @@ extern "C"
                                  double f_hz, double t0);
 
   /**
+   * @brief acq_cell_corr() at many frequencies over consecutive epochs, in
+   *        one pass: the cells a caller scores once the code phase is
+   *        settled and only the Doppler is left to search.
+   *
+   * Element `e * n_f + j` of @p out is acq_cell_corr() of epoch `e`
+   * (`x + e*code_bins`, at `t0 + e*code_bins`) at the j-th frequency, to
+   * within 1e-5 of the epoch's `sum |x * ref|`, the most either can reach
+   * (measured 4.5e-6 at a 510-sample epoch): a coherent peak 100 dB above
+   * the difference.
+   *
+   * How: evaluated one cell at a time, every frequency repeats the whole
+   * despread-and-mix of the epoch. Here each sample is despread ONCE. The
+   * frequencies are grouped by the whole number of cycles per epoch that
+   * separates them from the middle one -- such a shift is exact and has
+   * to be mixed per sample -- and each group is mixed at its own base and
+   * summed over 16 equal blocks per epoch, keeping the first and second
+   * moments of the time within each block. What is left of a frequency is
+   * a residual under half a cycle per epoch, which rotates under 1/32 of a
+   * cycle across a block, and that is applied per block from the moments
+   * as a second-order expansion; the third-order remainder is the error
+   * above. So the cost per epoch is `(groups * code_bins) + 3 * 16 * n_f`
+   * against `n_f * code_bins`, and burst_capture's refine, which scores
+   * every Doppler cell of every candidate period, is the reason it exists
+   * (doppler#1538).
+   *
+   * Frequencies in more than four whole-cycle groups fall back to
+   * acq_cell_corr() per cell.
+   *
+   * @param state    The engine whose replica, `code_bins` and `fs` are used.
+   * @param x        `n_epochs * code_bins` contiguous samples.
+   * @param n_epochs Epochs to evaluate.
+   * @param col      Code phase, samples, in [0, code_bins).
+   * @param f_hz     `n_f` mixer frequencies, Hz, in any order.
+   * @param n_f      Number of frequencies.
+   * @param t0       Time of the first sample of @p x, in samples, on the
+   *                 caller's reference.
+   * @param out      Written with `n_epochs * n_f` correlations, epoch-major.
+   */
+  void acq_cell_corr_grid (const acq_state_t *state, const float _Complex *x,
+                           size_t n_epochs, size_t col, const double *f_hz,
+                           size_t n_f, double t0, double _Complex *out);
+
+  /**
    * @brief One cell's column of the last whole block: the per-epoch
    *        complex correlations at a code phase, the despread stream at
    *        epoch rate.

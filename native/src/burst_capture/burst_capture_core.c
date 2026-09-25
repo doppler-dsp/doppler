@@ -183,6 +183,7 @@ burst_capture_create_impl (const char *path, const float _Complex *preamble,
   s->max_cells = 2u * ((reps * BURST_CAPTURE_REFINE_INTERP + 1u) / 2u) + 3u
                  + BURST_CAPTURE_EDGE_TWINS;
   s->cell_buf  = dp_xmalloc (s->corr_len * s->max_cells * sizeof *s->cell_buf);
+  s->cell_f    = dp_xmalloc (s->max_cells * sizeof *s->cell_f);
 
   /* acq_state_bytes() is ALREADY a pure function of configuration -- it
      sizes its sample region from `ring_cap`, the capacity, not from whatever
@@ -235,6 +236,7 @@ burst_capture_destroy (burst_capture_state_t *state)
   if (state->hist)
     dp_f32_destroy (state->hist);
   free (state->cell_buf);
+  free (state->cell_f);
   free (state->q);
   free (state->win);
   free (state->released);
@@ -431,34 +433,23 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
      burst in any other window at the wrong frequency (doppler#1512). */
   const double c
       = eng->window_bins > 1 ? span * floor (doppler_hz / span + 0.5) : 0.0;
-  double twin[BURST_CAPTURE_EDGE_TWINS];
   size_t n_twin = 0;
   for (size_t j = 0; j < cells; j++)
     {
       double f = doppler_hz + (double)((long)j - hc) * fine - c;
       f -= span * floor (f / span + 0.5);
       f += c;
+      s->cell_f[j] = f;
       if (fabs (f - c) >= 0.5 * span - 1.5 * fine
           && n_twin < BURST_CAPTURE_EDGE_TWINS)
-        twin[n_twin++] = f - copysign (span, f - c);
+        s->cell_f[cells + n_twin++] = f - copysign (span, f - c);
     }
   const size_t nf = cells + n_twin;
-  for (size_t j = 0; j < nf; j++)
-    {
-      double f;
-      if (j < cells)
-        {
-          f = doppler_hz + (double)((long)j - hc) * fine - c;
-          f -= span * floor (f / span + 0.5);
-          f += c;
-        }
-      else
-        f = twin[j - cells];
-      for (size_t i = 0; i < n_pos; i++)
-        s->cell_buf[i * nf + j] = (float _Complex)acq_cell_corr (
-            eng, burst_capture_at (s, lo + (uint64_t)(i * P)), 0, f,
-            (double)(i * P));
-    }
+  /* The candidate positions are consecutive periods, one contiguous run of
+     the double-mapped ring, so every cell of every position is one call
+     that despreads each sample once (doppler#1538). */
+  acq_cell_corr_grid (eng, burst_capture_at (s, lo), n_pos, 0, s->cell_f, nf,
+                      0.0, s->cell_buf);
 
   double best   = -1.0;
   size_t best_k = 0;
@@ -467,7 +458,7 @@ burst_capture_refine (burst_capture_state_t *s, uint64_t anchor,
       {
         double _Complex acc = 0.0;
         for (size_t r = 0; r < reps; r++)
-          acc += (double _Complex)s->cell_buf[(k + r) * nf + j];
+          acc += s->cell_buf[(k + r) * nf + j];
         const double pk
             = creal (acc) * creal (acc) + cimag (acc) * cimag (acc);
         if (pk > best)

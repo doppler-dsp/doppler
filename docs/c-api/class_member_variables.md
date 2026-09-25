@@ -131,6 +131,7 @@
 * **car\_last\_error** ([**async\_dsss\_receiver\_status\_t**](structasync__dsss__receiver__status__t.md))
 * **conf** ([**ber\_interval\_t**](structber__interval__t.md), [**ber\_meter\_state\_t**](structber__meter__state__t.md), [**frame\_meter\_state\_t**](structframe__meter__state__t.md))
 * **cell\_buf** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md))
+* **cell\_f** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md))
 * **chunk\_max** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md))
 * **code\_period** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md), [**dsss\_burst\_receiver\_state\_t**](structdsss__burst__receiver__state__t.md))
 * **corr\_len** ([**burst\_capture\_state\_t**](structburst__capture__state__t.md))

@@ -83,6 +83,7 @@ _Streaming DSSS acquisition engine — burst and continuous front doors over one
 |  size\_t | [**acq\_block\_raw**](#function-acq_block_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, float \_Complex \* out, size\_t n\_out) <br>_The last whole block's raw samples, as pushed._  |
 |  void | [**acq\_build\_handoff**](#function-acq_build_handoff) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const [**acq\_result\_t**](structacq__result__t.md) \* hit, size\_t code\_len, size\_t spc, [**acq\_handoff\_t**](structacq__handoff__t.md) \* out) <br>_Convert one_ [_**acq\_push()**_](acq__core_8h.md#function-acq_push) _hit into a wire-ready hand-off record._ |
 |  double \_Complex | [**acq\_cell\_corr**](#function-acq_cell_corr) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const float \_Complex \* x, size\_t col, double f\_hz, double t0) <br>_One epoch's correlation against the replica at ONE code phase and ONE frequency: the engine's surface, evaluated at a single cell, on raw samples._  |
+|  void | [**acq\_cell\_corr\_grid**](#function-acq_cell_corr_grid) (const [**acq\_state\_t**](structacq__state__t.md) \* state, const float \_Complex \* x, size\_t n\_epochs, size\_t col, const double \* f\_hz, size\_t n\_f, double t0, double \_Complex \* out) <br>[_**acq\_cell\_corr()**_](acq__core_8h.md#function-acq_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._ |
 |  int | [**acq\_configure\_search\_raw**](#function-acq_configure_search_raw) ([**acq\_state\_t**](structacq__state__t.md) \* state, size\_t doppler\_bins, size\_t n\_noncoh) <br>_Pin the search grid directly, bypassing both auto-sizing searches — the advanced escape hatch (mirrors Dll's/Costas's configure\_lock\_raw())._  |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_burst**](#function-acq_create_burst) (const float \_Complex \* tmpl, size\_t n, size\_t reps, double fs, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, double doppler\_rate) <br>_Create a burst-mode acquisition engine for a repeated preamble: coherent multi-repetition combining, up to_ `reps` _deep._ |
 |  [**acq\_state\_t**](structacq__state__t.md) \* | [**acq\_create\_continuous**](#function-acq_create_continuous) (const uint8\_t \* code, size\_t code\_len, size\_t spc, double chip\_rate, double symbol\_rate, double cn0\_dbhz, double doppler\_uncertainty, double pfa, double pd, int noise\_mode, size\_t code\_only\_epochs, double doppler\_rate) <br>_Create a continuous-mode acquisition engine: always wideband window-tiling, allowing a block-coherent depth inside the tiles to accommodate waveforms with code-only windows._  |
@@ -435,6 +436,56 @@ It is what a caller does once acquisition has SETTLED the code phase and the Dop
 
 The complex correlation. 
 
+
+
+
+
+        
+
+<hr>
+
+
+
+### function acq\_cell\_corr\_grid 
+
+[_**acq\_cell\_corr()**_](acq__core_8h.md#function-acq_cell_corr) _at many frequencies over consecutive epochs, in one pass: the cells a caller scores once the code phase is settled and only the Doppler is left to search._
+```C++
+void acq_cell_corr_grid (
+    const acq_state_t * state,
+    const float _Complex * x,
+    size_t n_epochs,
+    size_t col,
+    const double * f_hz,
+    size_t n_f,
+    double t0,
+    double _Complex * out
+) 
+```
+
+
+
+Element `e * n_f + j` of `out` is [**acq\_cell\_corr()**](acq__core_8h.md#function-acq_cell_corr) of epoch `e` (`x + e*code_bins`, at `t0 + e*code_bins`) at the j-th frequency, to within 1e-5 of the epoch's `sum |x * ref|`, the most either can reach (measured 4.5e-6 at a 510-sample epoch): a coherent peak 100 dB above the difference.
+
+
+How: evaluated one cell at a time, every frequency repeats the whole despread-and-mix of the epoch. Here each sample is despread ONCE. The frequencies are grouped by the whole number of cycles per epoch that separates them from the middle one  such a shift is exact and has to be mixed per sample  and each group is mixed at its own base and summed over 16 equal blocks per epoch, keeping the first and second moments of the time within each block. What is left of a frequency is a residual under half a cycle per epoch, which rotates under 1/32 of a cycle across a block, and that is applied per block from the moments as a second-order expansion; the third-order remainder is the error above. So the cost per epoch is `(groups * code_bins) + 3 * 16 * n_f` against `n_f * code_bins`, and burst\_capture's refine, which scores every Doppler cell of every candidate period, is the reason it exists (doppler#1538).
+
+
+Frequencies in more than four whole-cycle groups fall back to [**acq\_cell\_corr()**](acq__core_8h.md#function-acq_cell_corr) per cell.
+
+
+
+
+**Parameters:**
+
+
+* `state` The engine whose replica, `code_bins` and `fs` are used. 
+* `x` `n_epochs * code_bins` contiguous samples. 
+* `n_epochs` Epochs to evaluate. 
+* `col` Code phase, samples, in [0, code\_bins). 
+* `f_hz` `n_f` mixer frequencies, Hz, in any order. 
+* `n_f` Number of frequencies. 
+* `t0` Time of the first sample of `x`, in samples, on the caller's reference. 
+* `out` Written with `n_epochs * n_f` correlations, epoch-major. 
 
 
 

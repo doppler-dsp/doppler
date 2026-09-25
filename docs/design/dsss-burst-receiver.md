@@ -149,7 +149,9 @@ with **acquisition's own statistic** at the code phase acquisition settled:
 `acq_cell_corr()` of each of the `REPS` periods the preamble would occupy,
 mixed at one Doppler on one time reference and summed **coherently**, the
 strongest Doppler cell taken. Doppler is a nuisance parameter here; only the
-winning offset is kept. The score at a whole-period offset `k` still follows
+winning offset is kept. Every cell of every period is one
+`acq_cell_corr_grid()` call, which despreads each sample once rather than
+once per cell (doppler#1538). The score at a whole-period offset `k` still follows
 the triangular overlap envelope `(REPS - abs(k)) / REPS`, because only
 `REPS - abs(k)` of those positions land on preamble.
 

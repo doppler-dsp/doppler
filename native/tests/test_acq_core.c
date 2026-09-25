@@ -1188,6 +1188,97 @@ _acq_doppler_rate_check (void)
   return 0;
 }
 
+/* acq_cell_corr_grid() against acq_cell_corr(), cell for cell (doppler#1538).
+ * An engine with a 510-sample epoch -- uneven blocks (510/16), a mixer
+ * resync mid-epoch -- and three epochs at an odd t0 and code phase, so a
+ * wrong block edge, resync or epoch advance shows. Frequencies: a fine grid
+ * across 1.6 cycles per epoch plus twins 1.3 spans out (three groups),
+ * scored on a coherent tone at the residual's worst and on noise, where
+ * the error is normalized by the epoch's sum |x * ref| (what either face
+ * of a correlation can reach). Past four groups it must be the exact
+ * primitive, bit for bit. */
+static int
+_acq_cell_corr_grid_check (void)
+{
+  const size_t    P = 510, E = 3, col = 37;
+  const double    fs = 1.0e6, span = fs / (double)P, t0 = 1234.0;
+  uint32_t        rng = 20260924u;
+  float _Complex *pre = malloc (P * sizeof *pre);
+  float _Complex *x   = malloc (E * P * sizeof *x);
+  DP_REQUIRE (pre && x);
+  for (size_t m = 0; m < P; m++)
+    pre[m] = dp_cgauss (&rng);
+  acq_state_t *a
+      = acq_create_burst (pre, P, 4, fs, 45.0, 0.0, 1e-3, 0.9, 0, 0.0);
+  DP_REQUIRE (a != NULL && a->code_bins == P);
+
+  enum
+  {
+    NF = 45
+  };
+  double f[NF];
+  /* A fine grid over +-0.8 of a span about fc, twins 1.3 spans out, and
+     the residual's worst either side of the base f[NF/2] = f[22]: groups
+     -1, 0 and +1 about it. */
+  const double fc = 3.1e3;
+  for (size_t j = 0; j < 41; j++)
+    f[j] = fc + ((double)j - 20.0) * span / 25.0;
+  f[41] = fc - 1.3 * span;
+  f[42] = fc + 1.3 * span;
+  f[43] = f[22] + 0.499 * span;
+  f[44] = f[22] - 0.499 * span;
+  double _Complex got[E * NF];
+
+  for (int kind = 0; kind < 2; kind++)
+    {
+      /* kind 0: the replica at f[43], delayed by col; kind 1: noise. */
+      for (size_t n = 0; n < E * P; n++)
+        {
+          const double t = t0 + (double)n;
+          x[n] = kind == 0 ? pre[(n + P - col) % P]
+                                 * (float _Complex)cexp (2.0 * M_PI * I * f[43]
+                                                         * t / fs)
+                           : dp_cgauss (&rng);
+        }
+      acq_cell_corr_grid (a, x, E, col, f, NF, t0, got);
+      double worst = 0.0;
+      for (size_t e = 0; e < E; e++)
+        {
+          double norm = 0.0;
+          for (size_t m = 0; m < P; m++)
+            norm += cabsf (x[e * P + m] * pre[(m + P - col) % P]);
+          for (size_t j = 0; j < NF; j++)
+            {
+              const double _Complex want = acq_cell_corr (
+                  a, x + e * P, col, f[j], t0 + (double)(e * P));
+              const double err = cabs (got[e * NF + j] - want) / norm;
+              if (err > worst)
+                worst = err;
+            }
+        }
+      printf ("  grid worst relative error (%s): %.3g\n",
+              kind ? "noise" : "tone", worst);
+      DP_CHECK (worst < 1e-5);
+    }
+
+  /* Five whole-cycle groups: the fallback, identical to the primitive. */
+  const double g5[5] = { 0.0, span, 2.0 * span, -span, -2.0 * span };
+  double _Complex out5[E * 5];
+  acq_cell_corr_grid (a, x, E, col, g5, 5, t0, out5);
+  int same = 1;
+  for (size_t e = 0; e < E; e++)
+    for (size_t j = 0; j < 5; j++)
+      same
+          &= out5[e * 5 + j]
+             == acq_cell_corr (a, x + e * P, col, g5[j], t0 + (double)(e * P));
+  DP_CHECK (same);
+
+  acq_destroy (a);
+  free (x);
+  free (pre);
+  return 0;
+}
+
 int
 main (void)
 {
@@ -1526,6 +1617,7 @@ main (void)
   (void)_acq_configure_search_raw_check ();
   (void)_acq_template_check ();
   (void)_acq_doppler_rate_check ();
+  (void)_acq_cell_corr_grid_check ();
   (void)_acq_burst_pd_check ();
   (void)_acq_half_bin_check ();
   (void)_acq_band_edge_check ();

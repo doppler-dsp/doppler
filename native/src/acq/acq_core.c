@@ -437,23 +437,6 @@ acq_compute_stat_nc (acq_state_t *st)
   st->n_held    = 0;
 }
 
-/* The tile-edge alias (doppler#1270). A tile de-rotates by its own
- * centre, so an emitter near the edge between two tiles leaves half a
- * span of residual inside the epoch in both, and the slow-time transform
- * folds modulo the epoch rate: the two neighbours read the emitter at the
- * same row index and, measured on the pool's grid at 45 dB-Hz, within
- * 0.03 dB of each other -- the pick is the noise's, one tile low or high,
- * half the time on the edge and one time in six 68 Hz inside it. The
- * block can tell when it is asked at the ROW's frequency: the raw epochs
- * mixed by the row's own frequency correlate with the replica at the
- * pick's code phase with under half a row of residual, and mixed by that
- * frequency one span off the residual is exactly one cycle per epoch, a
- * correlation of zero. Three hypotheses -- the row, one span down, one
- * span up -- summed over the block's epochs non-coherently (a data
- * transition inside an epoch costs every hypothesis the same), each
- * epoch's column walked by the hypothesis's own code rate as
- * acq_tile_epoch walks the tile's. Returns the native row that wins;
- * the pick's own row when the engine is not block-coherent and tiled. */
 double _Complex acq_cell_corr (const acq_state_t *st, const float _Complex *x,
                                size_t col, double f_hz, double t0)
 {
@@ -475,6 +458,153 @@ double _Complex acq_cell_corr (const acq_state_t *st, const float _Complex *x,
   return acc;
 }
 
+/* acq_cell_corr_grid(): blocks per epoch, and the most whole-cycle groups
+   it mixes before falling back to one cell at a time. */
+#define ACQ_GRID_BLOCKS 16u
+#define ACQ_GRID_GROUPS 4u
+
+void
+acq_cell_corr_grid (const acq_state_t *st, const float _Complex *x,
+                    size_t n_epochs, size_t col, const double *f_hz,
+                    size_t n_f, double t0, double _Complex *out)
+{
+  if (n_f == 0 || n_epochs == 0)
+    return;
+  const size_t nx   = st->code_bins;
+  const double span = st->fs / (double)nx; /* one cycle per epoch */
+  const double w0   = 2.0 * M_PI / st->fs;
+  const double fb   = f_hz[n_f / 2];
+
+  /* Each frequency is `fb + n*span + residual`, |residual| <= span/2. The
+     whole cycles `n` are exact and have to be mixed per sample, so they
+     name a group; the residual is what the block moments absorb. */
+  long    grp[ACQ_GRID_GROUPS];
+  size_t  n_grp = 0;
+  size_t *g     = dp_xmalloc (n_f * sizeof *g);
+  double *w     = dp_xmalloc (n_f * sizeof *w);
+  for (size_t j = 0; j < n_f; j++)
+    {
+      const long n = lround ((f_hz[j] - fb) / span);
+      size_t     k = 0;
+      while (k < n_grp && grp[k] != n)
+        k++;
+      if (k == n_grp)
+        {
+          if (n_grp == ACQ_GRID_GROUPS)
+            {
+              free (g);
+              free (w);
+              for (size_t e = 0; e < n_epochs; e++)
+                for (size_t i = 0; i < n_f; i++)
+                  out[e * n_f + i] = acq_cell_corr (
+                      st, x + e * nx, col, f_hz[i], t0 + (double)(e * nx));
+              return;
+            }
+          grp[n_grp++] = n;
+        }
+      g[j] = k;
+      w[j] = w0 * (f_hz[j] - fb - (double)n * span);
+    }
+
+  /* Blocks of (nearly) nx/B samples, each expanded about its nominal
+     centre c_b = c_0 + b*dc: the uniform spacing is what lets every
+     per-block phase below be a recurrence rather than a cexp. */
+  const size_t     B    = nx < ACQ_GRID_BLOCKS ? nx : ACQ_GRID_BLOCKS;
+  const double     dc   = (double)nx / (double)B;
+  const double     c0   = 0.5 * dc - 0.5;
+  double _Complex *rot  = dp_xmalloc (3u * n_f * sizeof *rot);
+  double _Complex *adv  = rot + n_f;
+  double _Complex *base = rot + 2u * n_f;
+  for (size_t j = 0; j < n_f; j++)
+    {
+      rot[j]  = cexp (-I * w[j] * dc);         /* block to block */
+      adv[j]  = cexp (-I * w[j] * (double)nx); /* epoch to epoch */
+      base[j] = cexp (-I * w[j] * (t0 + c0));  /* epoch 0, block 0 */
+    }
+  double _Complex step[ACQ_GRID_GROUPS];
+  for (size_t k = 0; k < n_grp; k++)
+    step[k] = cexp (-I * w0 * (fb + (double)grp[k] * span));
+
+  double _Complex S[ACQ_GRID_GROUPS][ACQ_GRID_BLOCKS][3];
+  for (size_t e = 0; e < n_epochs; e++)
+    {
+      const float _Complex *xe = x + e * nx;
+      const double          te = t0 + (double)(e * nx);
+      memset (S, 0, sizeof S);
+      double _Complex ph[ACQ_GRID_GROUPS];
+      size_t k    = (nx - col % nx) % nx; /* ref index at m = 0 */
+      size_t b    = 0;
+      size_t next = nx / B; /* first sample of b+1 */
+      double cb   = c0;
+      for (size_t m = 0; m < nx; m++)
+        {
+          if (m == next)
+            {
+              b++;
+              next = (b + 1u) * nx / B;
+              cb += dc;
+            }
+          /* Each group's mixer: a recurrence from an exact start, resynced
+             every 256 samples, as acq_cell_corr() runs its own. */
+          if ((m & 255) == 0)
+            for (size_t q = 0; q < n_grp; q++)
+              ph[q] = cexp (-I * w0 * (fb + (double)grp[q] * span)
+                            * (te + (double)m));
+          else
+            for (size_t q = 0; q < n_grp; q++)
+              ph[q] *= step[q];
+          const double _Complex y
+              = (double _Complex) (xe[m] * conjf (st->ref[k]));
+          if (++k == nx)
+            k = 0;
+          const double d = (double)m - cb;
+          for (size_t q = 0; q < n_grp; q++)
+            {
+              const double _Complex z = y * ph[q];
+              S[q][b][0] += z;
+              S[q][b][1] += z * d;
+              S[q][b][2] += z * (d * d);
+            }
+        }
+      /* exp(-j w d) = 1 - j w d - (w d)^2 / 2 + O((w d)^3), |w d| <= pi/32
+         at the block's edge. */
+      for (size_t j = 0; j < n_f; j++)
+        {
+          const double wj          = w[j];
+          const double _Complex c1 = -I * wj, c2 = -0.5 * wj * wj;
+          double _Complex p = base[j], acc = 0.0;
+          for (size_t q = 0; q < B; q++)
+            {
+              const double _Complex *s = S[g[j]][q];
+              acc += p * (s[0] + c1 * s[1] + c2 * s[2]);
+              p *= rot[j];
+            }
+          out[e * n_f + j] = acc;
+          base[j] *= adv[j];
+        }
+    }
+  free (rot);
+  free (w);
+  free (g);
+}
+
+/* The tile-edge alias (doppler#1270). A tile de-rotates by its own
+ * centre, so an emitter near the edge between two tiles leaves half a
+ * span of residual inside the epoch in both, and the slow-time transform
+ * folds modulo the epoch rate: the two neighbours read the emitter at the
+ * same row index and, measured on the pool's grid at 45 dB-Hz, within
+ * 0.03 dB of each other -- the pick is the noise's, one tile low or high,
+ * half the time on the edge and one time in six 68 Hz inside it. The
+ * block can tell when it is asked at the ROW's frequency: the raw epochs
+ * mixed by the row's own frequency correlate with the replica at the
+ * pick's code phase with under half a row of residual, and mixed by that
+ * frequency one span off the residual is exactly one cycle per epoch, a
+ * correlation of zero. Three hypotheses -- the row, one span down, one
+ * span up -- summed over the block's epochs non-coherently (a data
+ * transition inside an epoch costs every hypothesis the same), each
+ * epoch's column walked by the hypothesis's own code rate as
+ * acq_tile_epoch walks the tile's. Returns the native row that wins;
+ * the pick's own row when the engine is not block-coherent and tiled. */
 static size_t
 acq_resolve_tile_alias (const acq_state_t *st, size_t row, size_t col)
 {

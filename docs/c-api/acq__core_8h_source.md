@@ -275,6 +275,10 @@ extern "C"
                                  const float _Complex *x, size_t col,
                                  double f_hz, double t0);
 
+  void acq_cell_corr_grid (const acq_state_t *state, const float _Complex *x,
+                           size_t n_epochs, size_t col, const double *f_hz,
+                           size_t n_f, double t0, double _Complex *out);
+
   size_t acq_block_prompt (acq_state_t *state, size_t tile, size_t col,
                            float _Complex *out, size_t n_out);
 

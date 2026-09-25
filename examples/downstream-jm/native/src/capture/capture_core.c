@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 /* doppler's public C API — from the installed/built headers, not vendored. */
-#include "wfm_reader/wfm_reader_core.h"
+#include "doppler/wfm_reader/wfm_reader_core.h"
 
 /**
  * @brief The hand-written state: doppler's handle, plus provenance.

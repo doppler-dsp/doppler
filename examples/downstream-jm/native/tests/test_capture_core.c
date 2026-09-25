@@ -15,7 +15,7 @@
 #include <complex.h>
 #include <stdio.h>
 
-#include "wfm_writer/wfm_writer_core.h"
+#include "doppler/wfm_writer/wfm_writer_core.h"
 
 #define CHECK(cond)                                                           \
   do                                                                          \

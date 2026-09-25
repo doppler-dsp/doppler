@@ -134,7 +134,7 @@ while IFS= read -r h; do
     grep -qE '^[[:space:]]*#[[:space:]]*(error[[:space:]]+"Include |include[[:space:]]*<Python\.h>)' \
         "$inc/$h" && continue
     n=$((n + 1))
-    printf '#include "%s"\nint main (void) { return 0; }\n' "$h" >"$work/h.c"
+    printf '#include "doppler/%s"\nint main (void) { return 0; }\n' "$h" >"$work/h.c"
     # shellcheck disable=SC2046
     cc -std=c99 -fsyntax-only $(pkg-config --cflags doppler) "$work/h.c" \
         >/dev/null 2>&1 || bad="$bad $h"

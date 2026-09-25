@@ -84,7 +84,7 @@ jobs:
         cc: [clang]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # clang-cl drives the MSVC toolchain the way cl.exe does and expects
       # its environment (INCLUDE / LIB / the linker); the GNU `clang` driver

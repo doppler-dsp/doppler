@@ -13,6 +13,7 @@
  * repo forbids -- see just-makeit.toml's status_allow note and gh-730), so
  * a scaffolded test is converted to DP_CHECK/DP_REQUIRE on arrival.
  */
+#include "doppler/dp_crc16.h"
 #include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"
 
 #include "doppler/pn/pn_core.h"
@@ -38,18 +39,6 @@ static float
 csign (uint8_t c)
 {
   return (c & 1u) ? -1.0f : 1.0f;
-}
-
-static uint16_t
-crc16 (const uint8_t *bits, size_t n)
-{
-  uint16_t c = 0xFFFFu;
-  for (size_t i = 0; i < n; i++)
-    {
-      c ^= (uint16_t)((bits[i] & 1u) << 15);
-      c = (c & 0x8000u) ? (uint16_t)((c << 1) ^ 0x1021u) : (uint16_t)(c << 1);
-    }
-  return c;
 }
 
 /* A REAL spreading code: the maximal-length sequence of a 5-stage LFSR,
@@ -108,7 +97,7 @@ frame_ok (const uint8_t *frame)
   uint16_t rx = 0;
   for (size_t j = 0; j < 16u; j++)
     rx = (uint16_t)((rx << 1) | (frame[SYNC_LEN + PAYLOAD + j] & 1u));
-  return rx == crc16 (frame + SYNC_LEN, PAYLOAD);
+  return rx == dp_crc16_ccitt (frame + SYNC_LEN, PAYLOAD);
 }
 
 static const uint8_t *
@@ -145,7 +134,7 @@ build_burst (float _Complex *y, double f0)
     n = put_symbol (y, n, dcode, sy[j]);
   for (size_t j = 0; j < PAYLOAD; j++)
     n = put_symbol (y, n, dcode, pl[j]);
-  uint16_t crc = crc16 (pl, PAYLOAD);
+  uint16_t crc = dp_crc16_ccitt (pl, PAYLOAD);
   for (size_t j = 0; j < 16u; j++)
     n = put_symbol (y, n, dcode, (uint8_t)((crc >> (15u - j)) & 1u));
   for (size_t i = 0; i < n; i++)

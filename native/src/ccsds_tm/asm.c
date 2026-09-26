@@ -34,6 +34,6 @@ ccsds_tm_asm_find (const uint8_t *bits, size_t n_bits, unsigned max_errors,
      polarities is not CCSDS's, it is what every framing with a sync word
      does. This function is the standard's pick of pattern, exactly as
      CCSDS_TM_CONV is its pick of polynomials. */
-  return dp_syncword_find (bits, n_bits, marker, CCSDS_TM_ASM_BITS, max_errors,
-                           hit);
+  return dp_syncword_search (bits, n_bits, marker, CCSDS_TM_ASM_BITS,
+                             max_errors, hit);
 }

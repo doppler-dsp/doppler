@@ -242,7 +242,7 @@ extern "C"
   /**
    * @brief Find the first ASM in a run of unpacked bits, either polarity.
    *
-   * `dp_syncword_find` configured with @ref CCSDS_TM_ASM — the standard
+   * `dp_syncword_search` configured with @ref CCSDS_TM_ASM — the standard
    * picks the pattern, and the search is not the standard's. Everything
    * about the search itself, including why it reports the FIRST offset under
    * threshold rather than the best one, is documented there.

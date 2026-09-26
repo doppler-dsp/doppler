@@ -18,7 +18,7 @@
  *
  * ## Operating point
  *
- * Every measurement anchors at **SER = 1e-3** (`dp_ber_esn0_db_for_ser`),
+ * Every measurement anchors at **SER = 1e-3** (`ber_esn0_db_for_ser`),
  * which per M is 6.8 / 10.3 / 15.7 dB. Anchoring at a fixed error rate rather
  * than a fixed Es/N0 asks "does this receiver meet its bound" at the same
  * place on the curve for every constellation; a fixed Es/N0 asks a different

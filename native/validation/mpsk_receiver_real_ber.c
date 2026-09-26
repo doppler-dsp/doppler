@@ -128,7 +128,7 @@ main (int argc, char **argv)
          the bound carries the `m`. */
       c.foff = dp_test_freq_offset_inside_bw (c.bn_carrier, c.m, 1.0) / c.sps;
 
-      esn0_db = dp_ber_esn0_db_for_ser (c.m, DP_BER_TARGET_SER);
+      esn0_db = ber_esn0_db_for_ser (c.m, DP_BER_TARGET_SER);
       r = mpsk_ber_measure (&c, esn0_db, TARGET_ERRORS, 4096u + (unsigned)mi);
 
       snprintf (label, sizeof label, "M=%d @%.1f dB", c.m, esn0_db);
@@ -139,7 +139,7 @@ main (int argc, char **argv)
       if (!check)
         continue;
 
-      loss_lo = esn0_db - dp_ber_esn0_db_for_ser (c.m, r.rep.ser.lo);
+      loss_lo = esn0_db - ber_esn0_db_for_ser (c.m, r.rep.ser.lo);
       if (r.clipped)
         {
           printf ("  M=%d FAIL: front end clipped\n", c.m);

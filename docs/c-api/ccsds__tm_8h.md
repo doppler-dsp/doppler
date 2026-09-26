@@ -347,7 +347,7 @@ int ccsds_tm_asm_find (
 
 
 
-`dp_syncword_find` configured with [**CCSDS\_TM\_ASM**](ccsds__tm_8h.md#define-ccsds_tm_asm) — the standard picks the pattern, and the search is not the standard's. Everything about the search itself, including why it reports the FIRST offset under threshold rather than the best one, is documented there.
+`dp_syncword_search` configured with [**CCSDS\_TM\_ASM**](ccsds__tm_8h.md#define-ccsds_tm_asm) — the standard picks the pattern, and the search is not the standard's. Everything about the search itself, including why it reports the FIRST offset under threshold rather than the best one, is documented there.
 
 
 \*\*Choose `max_errors` against the search window, not the marker length.\*\* Half of 32 is 16, so 8 sounds safe, and 8 finds the marker at its true offset only 58 % of the time on a stream with no channel errors at all (doppler#897). Call `dp_syncword_max_errors` with the window the synchroniser actually reads, or reach for the numbers the certification measured for this marker: \*\*`t = 4` survives both tails, and `t = 6` if the link is bad\*\* — over the 96-bit lead-in §2.3 used.

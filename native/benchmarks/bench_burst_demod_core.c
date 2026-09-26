@@ -29,6 +29,7 @@
  */
 #include "doppler/burst_demod/burst_demod_core.h"
 #include "doppler/dp_complex.h"
+#include "doppler/dp_crc16.h"
 #include "jm_bench.h"
 #include <math.h>
 #include <stdio.h>
@@ -59,18 +60,6 @@ csign (uint8_t c)
   return (c & 1u) ? -1.0f : 1.0f;
 }
 
-static uint16_t
-crc16 (const uint8_t *bits, size_t n)
-{
-  uint16_t c = 0xFFFFu;
-  for (size_t i = 0; i < n; i++)
-    {
-      c ^= (uint16_t)((bits[i] & 1u) << 15);
-      c = (c & 0x8000u) ? (uint16_t)((c << 1) ^ 0x1021u) : (uint16_t)(c << 1);
-    }
-  return c;
-}
-
 static size_t
 put_symbol (float _Complex *y, size_t n, const uint8_t *dcode, uint8_t bit)
 {
@@ -94,7 +83,7 @@ build_burst (float _Complex *y, const uint8_t *acode, const uint8_t *dcode,
     n = put_symbol (y, n, dcode, SYNC[j]);
   for (size_t j = 0; j < PAYLOAD; j++)
     n = put_symbol (y, n, dcode, payload[j]);
-  uint16_t crc = crc16 (payload, PAYLOAD);
+  uint16_t crc = dp_crc16_ccitt (payload, PAYLOAD);
   for (size_t j = 0; j < CRC_BITS; j++)
     n = put_symbol (y, n, dcode, (crc >> (CRC_BITS - 1 - j)) & 1u);
 

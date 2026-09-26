@@ -62,9 +62,9 @@ _Finding a known bit pattern in an unpacked bit stream — the sync word search,
 
 | Type | Name |
 | ---: | :--- |
-|  int | [**dp\_syncword\_find**](#function-dp_syncword_find) (const uint8\_t \* bits, size\_t n\_bits, const uint8\_t \* marker, size\_t n\_marker, unsigned max\_errors, [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md) \* hit) <br>_Find the first marker in a run of unpacked bits, either polarity._  |
 |  int | [**dp\_syncword\_max\_errors**](#function-dp_syncword_max_errors) (size\_t n\_marker, size\_t window\_bits, double pfa) <br>_The largest tolerance whose false-frame rate over a search window still meets_ `pfa` _._ |
-|  double | [**dp\_syncword\_pfa**](#function-dp_syncword_pfa) (size\_t n\_marker, unsigned max\_errors) <br>_Probability that ONE random offset false-hits an_ `n_marker` _-bit marker at a tolerance of_`max_errors` _._ |
+|  int | [**dp\_syncword\_search**](#function-dp_syncword_search) (const uint8\_t \* bits, size\_t n\_bits, const uint8\_t \* marker, size\_t n\_marker, unsigned max\_errors, [**dp\_syncword\_hit\_t**](structdp__syncword__hit__t.md) \* hit) <br>_Find the first marker in a run of unpacked bits, either polarity._  |
+|  double | [**dp\_syncword\_search\_pfa**](#function-dp_syncword_search_pfa) (size\_t n\_marker, unsigned max\_errors) <br>_Probability that ONE random offset false-hits an_ `n_marker` _-bit marker at a tolerance of_`max_errors` _._ |
 
 
 
@@ -113,7 +113,7 @@ The threshold is the whole of the trade, and the number a caller needs is a func
 So the arithmetic ships beside the search. Per offset, a random window lands within `t` of an `n` -bit marker in one polarity or the other with
 
 
-P\_fa(n, t) = 2 \* sum\_{i &lt;= t} C(n, i) / 2^n (`dp_syncword_pfa`)
+P\_fa(n, t) = 2 \* sum\_{i &lt;= t} C(n, i) / 2^n (`dp_syncword_search_pfa`)
 
 
 and over `W` offsets tried ahead of the true marker the chance one of them wins the race is `1 - (1 - P_fa)^W`. `dp_syncword_max_errors` inverts that: give it the window and the false-frame rate you will accept and it returns the largest threshold that holds.
@@ -129,11 +129,55 @@ Measured for the 32-bit CCSDS marker (doppler#897, and `src/doppler/tests/valida
 
 
 
-### function dp\_syncword\_find 
+### function dp\_syncword\_max\_errors 
+
+_The largest tolerance whose false-frame rate over a search window still meets_ `pfa` _._
+```C++
+static inline int dp_syncword_max_errors (
+    size_t n_marker,
+    size_t window_bits,
+    double pfa
+) 
+```
+
+
+
+The counterpart of `det_threshold` for this detector, and the answer to the question the signature of `dp_syncword_search` cannot ask: a caller knows how much stream their synchroniser reads before the marker arrives, and that — not the marker length — is what sets the threshold.
+
+
+Every offset ahead of the true marker is an independent chance to win the race, so `P = 1 - (1 - P_fa(n, t))^W`. `P` rises with `t`, so the largest `t` that holds is the most tolerant threshold that keeps the false-frame rate at or under `pfa`.
+
+
+
+
+**Parameters:**
+
+
+* `n_marker` Marker length in bits. 
+* `window_bits` Offsets tried AHEAD of the marker — the length of stream searched, not the length of the frame. 
+* `pfa` Tolerated probability that the window produces a false frame. 
+
+
+
+**Returns:**
+
+Tolerance in bits, or -1 when even an exact match (`t = 0`) exceeds `pfa` over that window. 
+
+
+
+
+
+        
+
+<hr>
+
+
+
+### function dp\_syncword\_search 
 
 _Find the first marker in a run of unpacked bits, either polarity._ 
 ```C++
-static inline int dp_syncword_find (
+static inline int dp_syncword_search (
     const uint8_t * bits,
     size_t n_bits,
     const uint8_t * marker,
@@ -179,55 +223,11 @@ Non-zero if a marker was found.
 
 
 
-### function dp\_syncword\_max\_errors 
-
-_The largest tolerance whose false-frame rate over a search window still meets_ `pfa` _._
-```C++
-static inline int dp_syncword_max_errors (
-    size_t n_marker,
-    size_t window_bits,
-    double pfa
-) 
-```
-
-
-
-The counterpart of `det_threshold` for this detector, and the answer to the question the signature of `dp_syncword_find` cannot ask: a caller knows how much stream their synchroniser reads before the marker arrives, and that — not the marker length — is what sets the threshold.
-
-
-Every offset ahead of the true marker is an independent chance to win the race, so `P = 1 - (1 - P_fa(n, t))^W`. `P` rises with `t`, so the largest `t` that holds is the most tolerant threshold that keeps the false-frame rate at or under `pfa`.
-
-
-
-
-**Parameters:**
-
-
-* `n_marker` Marker length in bits. 
-* `window_bits` Offsets tried AHEAD of the marker — the length of stream searched, not the length of the frame. 
-* `pfa` Tolerated probability that the window produces a false frame. 
-
-
-
-**Returns:**
-
-Tolerance in bits, or -1 when even an exact match (`t = 0`) exceeds `pfa` over that window. 
-
-
-
-
-
-        
-
-<hr>
-
-
-
-### function dp\_syncword\_pfa 
+### function dp\_syncword\_search\_pfa 
 
 _Probability that ONE random offset false-hits an_ `n_marker` _-bit marker at a tolerance of_`max_errors` _._
 ```C++
-static inline double dp_syncword_pfa (
+static inline double dp_syncword_search_pfa (
     size_t n_marker,
     unsigned max_errors
 ) 
@@ -235,7 +235,7 @@ static inline double dp_syncword_pfa (
 
 
 
-`P_fa = 2 * sum_{i <= max_errors} C(n, i) / 2^n` — the factor of two because `dp_syncword_find` searches the complement too, and a random window is as likely to land near one polarity as the other. The two events are disjoint while `2 * max_errors < n_marker`; at and above that every window matches in one polarity or the other, and the result is 1.
+`P_fa = 2 * sum_{i <= max_errors} C(n, i) / 2^n` — the factor of two because `dp_syncword_search` searches the complement too, and a random window is as likely to land near one polarity as the other. The two events are disjoint while `2 * max_errors < n_marker`; at and above that every window matches in one polarity or the other, and the result is 1.
 
 
 This is the per-offset number. What a synchroniser actually cares about is the whole window it searches — see `dp_syncword_max_errors`, which is this function inverted through `1 - (1 - P_fa)^W`.

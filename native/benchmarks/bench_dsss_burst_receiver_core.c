@@ -35,6 +35,7 @@
  * sidelobes set the CFAR reference, which changes how often the refine and
  * demod stages run and therefore what this benchmark measures.
  */
+#include "doppler/dp_crc16.h"
 #include "doppler/dsss_burst_receiver/dsss_burst_receiver_core.h"
 #include "doppler/pn/pn_core.h"
 
@@ -68,18 +69,6 @@ static float
 csign (uint8_t c)
 {
   return (c & 1u) ? -1.0f : 1.0f;
-}
-
-static uint16_t
-crc16 (const uint8_t *bits, size_t n)
-{
-  uint16_t c = 0xFFFFu;
-  for (size_t i = 0; i < n; i++)
-    {
-      c ^= (uint16_t)((bits[i] & 1u) << 15);
-      c = (c & 0x8000u) ? (uint16_t)((c << 1) ^ 0x1021u) : (uint16_t)(c << 1);
-    }
-  return c;
 }
 
 /* Deterministic Gaussian pair via Box-Muller on a small LCG. The benchmark
@@ -162,7 +151,7 @@ build_burst (float _Complex *y)
     n = put_symbol (y, n, dcode, sy[j]);
   for (size_t j = 0; j < PAYLOAD; j++)
     n = put_symbol (y, n, dcode, pl[j]);
-  uint16_t crc = crc16 (pl, PAYLOAD);
+  uint16_t crc = dp_crc16_ccitt (pl, PAYLOAD);
   for (size_t j = 0; j < 16u; j++)
     n = put_symbol (y, n, dcode, (uint8_t)((crc >> (15u - j)) & 1u));
   return n;

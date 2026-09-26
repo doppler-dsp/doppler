@@ -32,7 +32,7 @@
  * So the arithmetic ships beside the search. Per offset, a random window
  * lands within @p t of an @p n -bit marker in one polarity or the other with
  *
- *   P_fa(n, t) = 2 * sum_{i <= t} C(n, i) / 2^n      (`dp_syncword_pfa`)
+ *   P_fa(n, t) = 2 * sum_{i <= t} C(n, i) / 2^n      (`dp_syncword_search_pfa`)
  *
  * and over @p W offsets tried ahead of the true marker the chance one of
  * them wins the race is `1 - (1 - P_fa)^W`. `dp_syncword_max_errors`
@@ -96,7 +96,7 @@ typedef struct
  * @return            Non-zero if a marker was found.
  */
 static inline int
-dp_syncword_find (const uint8_t *bits, size_t n_bits, const uint8_t *marker,
+dp_syncword_search (const uint8_t *bits, size_t n_bits, const uint8_t *marker,
                   size_t n_marker, unsigned max_errors,
                   dp_syncword_hit_t *hit)
 {
@@ -131,7 +131,7 @@ dp_syncword_find (const uint8_t *bits, size_t n_bits, const uint8_t *marker,
  * marker at a tolerance of @p max_errors.
  *
  * `P_fa = 2 * sum_{i <= max_errors} C(n, i) / 2^n` — the factor of two
- * because `dp_syncword_find` searches the complement too, and a random
+ * because `dp_syncword_search` searches the complement too, and a random
  * window is as likely to land near one polarity as the other. The two
  * events are disjoint while `2 * max_errors < n_marker`; at and above that
  * every window matches in one polarity or the other, and the result is 1.
@@ -149,7 +149,7 @@ dp_syncword_find (const uint8_t *bits, size_t n_bits, const uint8_t *marker,
  * @return            Probability in &#91;0, 1&#93;.
  */
 static inline double
-dp_syncword_pfa (size_t n_marker, unsigned max_errors)
+dp_syncword_search_pfa (size_t n_marker, unsigned max_errors)
 {
   if (n_marker == 0u)
     return 0.0;
@@ -174,7 +174,7 @@ dp_syncword_pfa (size_t n_marker, unsigned max_errors)
  * still meets @p pfa.
  *
  * The counterpart of `det_threshold` for this detector, and the answer to
- * the question the signature of `dp_syncword_find` cannot ask: a caller
+ * the question the signature of `dp_syncword_search` cannot ask: a caller
  * knows how much stream their synchroniser reads before the marker arrives,
  * and that — not the marker length — is what sets the threshold.
  *
@@ -197,7 +197,7 @@ dp_syncword_max_errors (size_t n_marker, size_t window_bits, double pfa)
   int best = -1;
   for (size_t t = 0; t <= n_marker; t++)
     {
-      const double p = dp_syncword_pfa (n_marker, (unsigned)t);
+      const double p = dp_syncword_search_pfa (n_marker, (unsigned)t);
       /* -expm1(W log1p(-p)) is 1 - (1-p)^W without cancelling to zero at
          the small p that a usable threshold actually produces. */
       const double win = -expm1 ((double)window_bits * log1p (-p));

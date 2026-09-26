@@ -24,6 +24,7 @@
 #include "doppler/carrier_nda/carrier_nda_core.h"
 #include "doppler/dp_complex.h"
 #include "doppler/mpsk/mpsk_core.h"
+#include "doppler/wfm/wfm_dsp.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,33 +34,6 @@
 #define SPS 8
 #define RRC_BETA 0.35
 #define RRC_SPAN 8
-
-/* Normalized root-raised-cosine taps, length span*sps + 1. */
-static void
-rrc_taps (double beta, int sps, int span, double *h, int ntap)
-{
-  double sum = 0.0;
-  for (int i = 0; i < ntap; i++)
-    {
-      double t = ((double)i - (double)(ntap - 1) / 2.0) / (double)sps;
-      double v;
-      if (fabs (t) < 1e-8)
-        v = 1.0 - beta + 4.0 * beta / M_PI;
-      else if (beta > 0.0 && fabs (fabs (t) - 1.0 / (4.0 * beta)) < 1e-8)
-        v = (beta / sqrt (2.0))
-            * ((1.0 + 2.0 / M_PI) * sin (M_PI / (4.0 * beta))
-               + (1.0 - 2.0 / M_PI) * cos (M_PI / (4.0 * beta)));
-      else
-        v = (sin (M_PI * t * (1.0 - beta))
-             + 4.0 * beta * t * cos (M_PI * t * (1.0 + beta)))
-            / (M_PI * t * (1.0 - (4.0 * beta * t) * (4.0 * beta * t)));
-      h[i] = v;
-      sum += v * v;
-    }
-  double nrm = 1.0 / sqrt (sum);
-  for (int i = 0; i < ntap; i++)
-    h[i] *= nrm;
-}
 
 /* Build a noiseless M-PSK signal at SPS samples/symbol with a carrier step f0.
  * kind 0 = constant-modulus (rectangular); kind 1 = root-raised-cosine. */
@@ -81,9 +55,10 @@ build_sig (int kind, int m, double f0, size_t nsym, float complex *rx,
     }
   else
     {
-      int     ntap = RRC_SPAN * SPS + 1;
-      double *h    = malloc ((size_t)ntap * sizeof (*h));
-      rrc_taps (RRC_BETA, SPS, RRC_SPAN, h, ntap);
+      /* wfm_rrc_taps' span is ONE-sided: RRC_SPAN symbols end to end. */
+      int    ntap = (int)wfm_rrc_ntaps (SPS, RRC_SPAN / 2);
+      float *h    = malloc ((size_t)ntap * sizeof (*h));
+      wfm_rrc_taps (RRC_BETA, SPS, RRC_SPAN / 2, h);
       float complex *up = calloc (N, sizeof (*up));
       for (size_t s = 0; s < nsym; s++)
         up[s * (size_t)SPS]
@@ -95,7 +70,7 @@ build_sig (int kind, int m, double f0, size_t nsym, float complex *rx,
             {
               long idx = (long)k - j;
               if (idx >= 0 && (size_t)idx < N)
-                acc += up[idx] * (float)h[j];
+                acc += up[idx] * h[j];
             }
           rx[k] = acc;
         }

@@ -250,8 +250,10 @@ jobs:
     - name: Build
       run: make build
 
+    # `make test`, the x86 legs' target: the same selection as test-fast
+    # without --stop-on-failure, so a red run names every failing test.
     - name: Test
-      run: make test-fast
+      run: make test
 
   # Windows, clang-cl: BINDING, because the release publishes what it builds.
   # A zip of the C library ships on every GitHub Release, so a PR that breaks
